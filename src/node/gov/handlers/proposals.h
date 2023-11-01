@@ -140,8 +140,7 @@ namespace ccf::gov::endpoints
       for (const auto& [mid, mb] : proposal_info.ballots)
       {
         js::Context js_context(js::TxAccess::GOV_RO);
-        js::TxContext txctx{&tx};
-        js::populate_global_ccf_kv(&txctx, js_context);
+        js::populate_global_ccf_kv(tx, js_context);
         auto ballot_func = js_context.function(
           mb,
           "vote",
@@ -186,8 +185,7 @@ namespace ccf::gov::endpoints
       {
         {
           js::Context js_context(js::TxAccess::GOV_RO);
-          js::TxContext txctx{&tx};
-          js::populate_global_ccf_kv(&txctx, js_context);
+          js::populate_global_ccf_kv(tx, js_context);
           auto resolve_func = js_context.function(
             constitution, "resolve", "public:ccf.gov.constitution[0]");
 
@@ -274,7 +272,6 @@ namespace ccf::gov::endpoints
           {
             // Evaluate apply function
             js::Context js_context(js::TxAccess::GOV_RW);
-            js::TxContext txctx{&tx};
 
             auto gov_effects =
               context.get_subsystem<AbstractGovernanceEffects>();
@@ -284,7 +281,7 @@ namespace ccf::gov::endpoints
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
-            js::populate_global_ccf_kv(&txctx, js_context);
+            js::populate_global_ccf_kv(tx, js_context);
             js::populate_global_ccf_node(gov_effects.get(), js_context);
             js::populate_global_ccf_network(&network, js_context);
             js::populate_global_ccf_gov_actions(js_context);
@@ -448,8 +445,7 @@ namespace ccf::gov::endpoints
             }
 
             js::Context context(js::TxAccess::GOV_RO);
-            js::TxContext txctx{&ctx.tx};
-            js::populate_global_ccf_kv(&txctx, context);
+            js::populate_global_ccf_kv(ctx.tx, context);
 
             auto validate_func = context.function(
               constitution.value(),

@@ -41,7 +41,7 @@ function delete_record(map, id) {
   return { body: true };
 }
 
-export function get_private(request, scope) {
+export function get_private(request) {
   const parsedQuery = parse_request_query(request);
   const id = get_id_from_query(parsedQuery);
   return get_record(private_records(ccf.kv, parsedQuery.scope), id);

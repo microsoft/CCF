@@ -71,7 +71,20 @@
         "mode": "readwrite",
         "openapi": {},
         "interpreter_reuse": {
-          "key": "increment"
+          "key": "global_handle"
+        }
+      }
+    },
+    "/globals": {
+      "post": {
+        "js_module": "global_handle.js",
+        "js_function": "globals",
+        "forwarding_required": "never",
+        "authn_policies": ["no_auth"],
+        "mode": "readwrite",
+        "openapi": {},
+        "interpreter_reuse": {
+          "key": "global_handle"
         }
       }
     },

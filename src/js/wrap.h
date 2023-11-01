@@ -48,7 +48,7 @@
 namespace ccf::js
 {
   extern JSClassID kv_class_id;
-  extern JSClassID kv_read_only_class_id;
+  extern JSClassID kv_historical_class_id;
   extern JSClassID kv_map_handle_class_id;
   extern JSClassID body_class_id;
   extern JSClassID node_class_id;
@@ -56,15 +56,6 @@ namespace ccf::js
   extern JSClassID consensus_class_id;
   extern JSClassID historical_class_id;
   extern JSClassID historical_state_class_id;
-
-  extern JSClassDef kv_class_def;
-  extern JSClassExoticMethods kv_exotic_methods;
-  extern JSClassDef kv_read_only_class_def;
-  extern JSClassExoticMethods kv_read_only_exotic_methods;
-  extern JSClassDef kv_map_handle_class_def;
-  extern JSClassDef body_class_def;
-  extern JSClassDef node_class_def;
-  extern JSClassDef network_class_def;
 
   const std::chrono::milliseconds default_max_execution_time{1000};
   const size_t default_stack_size = 1024 * 1024;
@@ -90,23 +81,6 @@ namespace ccf::js
     /// Read-write governance execution, during evaluation of the 'apply'
     /// function in the constitution
     GOV_RW
-  };
-
-  struct TxContext
-  {
-    kv::Tx* tx = nullptr;
-  };
-
-  struct ReadOnlyTxContext
-  {
-    kv::ReadOnlyTx* tx = nullptr;
-  };
-
-  struct HistoricalStateContext
-  {
-    ccf::historical::StatePtr state;
-    kv::ReadOnlyTx tx;
-    ReadOnlyTxContext tx_ctx;
   };
 
   namespace constants
@@ -192,6 +166,26 @@ namespace ccf::js
       return rc;
     }
 
+    int set_getter(const char* prop, JSWrappedValue&& getter) const
+    {
+      JSAtom size_atom = JS_NewAtom(ctx, prop);
+      if (size_atom == JS_ATOM_NULL)
+      {
+        getter.val = ccf::js::constants::Null;
+        return -1;
+      }
+
+      // NB: Where other calls check the return code to determine whether they
+      // are responsible for freeing, this call unconditionally frees the getter
+      // arg, so we call .take() to always drop our local owning reference
+      int rc = JS_DefinePropertyGetSet(
+        ctx, val, size_atom, getter.take(), ccf::js::constants::Undefined, 0);
+
+      JS_FreeAtom(ctx, size_atom);
+
+      return rc;
+    }
+
     int set(const std::string& prop, JSWrappedValue&& value) const
     {
       return set(prop.c_str(), std::move(value));
@@ -271,12 +265,7 @@ namespace ccf::js
   void register_request_body_class(JSContext* ctx);
 
   void init_globals(Context& ctx);
-  void populate_global_ccf_kv(TxContext* txctx, js::Context& ctx);
-  void populate_global_ccf_historical_state(
-    ReadOnlyTxContext* historical_txctx,
-    const ccf::TxID& transaction_id,
-    ccf::TxReceiptImplPtr receipt,
-    js::Context& ctx);
+  void populate_global_ccf_kv(kv::Tx& tx, js::Context& ctx);
   void populate_global_ccf_node(
     ccf::AbstractGovernanceEffects* gov_effects, js::Context& ctx);
   void populate_global_ccf_gov_actions(js::Context& ctx);
@@ -289,6 +278,10 @@ namespace ccf::js
     ccf::NetworkState* network_state, js::Context& ctx);
   void populate_global_ccf_historical(
     ccf::historical::AbstractStateCache* historical_state, js::Context& ctx);
+  void invalidate_globals(js::Context& ctx);
+
+  JSValue create_historical_state_object(
+    js::Context& ctx, ccf::historical::StatePtr state);
 
   JSValue js_print(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
   std::pair<std::string, std::optional<std::string>> js_error_message(
@@ -376,6 +369,29 @@ namespace ccf::js
     InterruptData interrupt_data;
     bool implement_untrusted_time = false;
     bool log_execution_metrics = true;
+
+    // State which may be set by calls to populate_global_ccf_*. Likely
+    // references transaction-scoped entries, so should be cleared between
+    // calls. Retained handles to these globals must not access the previous
+    // values.
+    struct
+    {
+      kv::Tx* tx = nullptr;
+      std::unordered_map<std::string, kv::untyped::Map::Handle*> kv_handles;
+
+      struct HistoricalHandle
+      {
+        ccf::historical::StatePtr state;
+        std::unique_ptr<kv::ReadOnlyTx> tx;
+        std::unordered_map<std::string, kv::untyped::Map::ReadOnlyHandle*>
+          kv_handles = {};
+      };
+      std::unordered_map<ccf::SeqNo, HistoricalHandle> historical_handles;
+
+      ccf::RpcContext* rpc_ctx = nullptr;
+
+      const std::vector<uint8_t>* current_request_body = nullptr;
+    } globals;
 
     Context(TxAccess acc) : access(acc)
     {
@@ -556,6 +572,13 @@ namespace ccf::js
       JSCFunction* func, const char* name, int length) const
     {
       return W(JS_NewCFunction(ctx, func, name, length));
+    }
+
+    JSWrappedValue new_getter_c_function(
+      JSCFunction* func, const char* name) const
+    {
+      return W(JS_NewCFunction2(
+        ctx, func, name, 0, JS_CFUNC_getter, JS_CFUNC_getter_magic));
     }
 
     JSWrappedValue eval(

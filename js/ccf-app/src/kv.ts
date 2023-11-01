@@ -41,51 +41,43 @@ import { KvMap, ccf } from "./global.js";
 import { DataConverter } from "./converters.js";
 
 export class TypedKvMap<K, V> {
-  private _kv() {
-    const kvMap =
-      typeof this.nameOrMap === "string"
-        ? ccf.kv[this.nameOrMap]
-        : this.nameOrMap;
-    return kvMap;
-  }
-
   constructor(
-    private nameOrMap: string | KvMap,
+    private kv: KvMap,
     private kt: DataConverter<K>,
     private vt: DataConverter<V>,
   ) {}
 
   has(key: K): boolean {
-    return this._kv().has(this.kt.encode(key));
+    return this.kv.has(this.kt.encode(key));
   }
 
   get(key: K): V | undefined {
-    const v = this._kv().get(this.kt.encode(key));
+    const v = this.kv.get(this.kt.encode(key));
     return v === undefined ? undefined : this.vt.decode(v);
   }
 
   getVersionOfPreviousWrite(key: K): number | undefined {
-    return this._kv().getVersionOfPreviousWrite(this.kt.encode(key));
+    return this.kv.getVersionOfPreviousWrite(this.kt.encode(key));
   }
 
   set(key: K, value: V): TypedKvMap<K, V> {
-    this._kv().set(this.kt.encode(key), this.vt.encode(value));
+    this.kv.set(this.kt.encode(key), this.vt.encode(value));
     return this;
   }
 
   delete(key: K): void {
-    this._kv().delete(this.kt.encode(key));
+    this.kv.delete(this.kt.encode(key));
   }
 
   clear(): void {
-    this._kv().clear();
+    this.kv.clear();
   }
 
   forEach(callback: (value: V, key: K, table: TypedKvMap<K, V>) => void): void {
     let kt = this.kt;
     let vt = this.vt;
     let typedMap = this;
-    this._kv().forEach(function (
+    this.kv.forEach(function (
       raw_v: ArrayBuffer,
       raw_k: ArrayBuffer,
       table: KvMap,
@@ -95,7 +87,7 @@ export class TypedKvMap<K, V> {
   }
 
   get size(): number {
-    return this._kv().size;
+    return this.kv.size;
   }
 }
 
@@ -117,7 +109,8 @@ export function typedKv<K, V>(
   kt: DataConverter<K>,
   vt: DataConverter<V>,
 ) {
-  return new TypedKvMap(nameOrMap, kt, vt);
+  const kvMap = typeof nameOrMap === "string" ? ccf.kv[nameOrMap] : nameOrMap;
+  return new TypedKvMap(kvMap, kt, vt);
 }
 
 /**
