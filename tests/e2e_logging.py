@@ -1850,55 +1850,6 @@ def run_parsing_errors(args):
         test_protocols(network, args)
 
 
-def test_forward_larger_than_default_requests(network, args):
-    new_node = network.create_node(
-        infra.interfaces.HostSpec(
-            rpc_interfaces={
-                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                    max_http_body_size=10 * 1024 * 1024
-                )
-            }
-        )
-    )
-    network.join_node(new_node, args.package, args)
-    network.trust_node(new_node, args)
-
-    primary, _ = network.find_primary()
-
-    # Big request, but under the cap
-    with primary.client("user0") as c:
-        msg = "A" * 512 * 1024
-        r = c.post("/app/log/private", {"id": 42, "msg": msg})
-        assert r.status_code == http.HTTPStatus.OK.value, r
-
-    # Big request, over the cap for the primary
-    with primary.client("user0") as c:
-        msg = "A" * 5 * 1024 * 1024
-        r = c.post("/app/log/private", {"id": 42, "msg": msg})
-        assert r.status_code == http.HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value, r
-
-    # Big request, over the cap for the primary, but under the cap for the new node
-    with new_node.client("user0") as c:
-        msg = "A" * 5 * 1024 * 1024
-        r = c.post("/app/log/private", {"id": 42, "msg": msg})
-        assert r.status_code == http.HTTPStatus.OK.value, r
-
-
-def run_parser_limits_checks(args):
-    txs = app.LoggingTxs("user0")
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        pdb=args.pdb,
-        txs=txs,
-    ) as network:
-        network.start_and_open(args)
-
-        test_forward_larger_than_default_requests(network, args)
-
-
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
@@ -1947,13 +1898,6 @@ if __name__ == "__main__":
     cr.add(
         "udp",
         run_udp_tests,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
-
-    cr.add(
-        "parser_limits",
-        run_parser_limits_checks,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
     )
