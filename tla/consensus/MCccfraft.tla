@@ -56,7 +56,7 @@ MCTimeout(i) ==
     /\ CCF!Timeout(i)
 
 \* Limit on client requests
-RequestLimit == 1
+RequestLimit == 3
 
 \* Limit number of requests (new entries) that can be made
 MCClientRequest(i) ==
