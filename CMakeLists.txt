@@ -1382,6 +1382,12 @@ if(BUILD_TESTS)
                       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
 
+    if(NOT SAN)
+      add_e2e_test(
+        NAME e2e_limits PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/limits.py
+      )
+    endif()
+
     add_e2e_test(
       NAME e2e_logging_http2
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py

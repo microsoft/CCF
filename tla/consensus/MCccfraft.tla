@@ -1,7 +1,11 @@
 ---------- MODULE MCccfraft ----------
 EXTENDS ccfraft, TLC
 
+CONSTANTS
+    NodeOne, NodeTwo, NodeThree
+
 1Configuration == <<{NodeOne, NodeTwo, NodeThree}>>
+2Configurations == <<{NodeOne}, {NodeTwo}>>
 3Configurations == <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
 
 CONSTANT Configurations
@@ -13,6 +17,10 @@ ASSUME MaxTermLimit \in Nat
 CONSTANT MaxCommitsNotified
 ASSUME MaxCommitsNotified \in Nat
 
+\* Limit on client requests
+CONSTANT RequestLimit
+ASSUME RequestLimit \in Nat
+
 ToServers ==
     UNION Range(Configurations)
 
@@ -21,10 +29,13 @@ CCF == INSTANCE ccfraft
 \* This file controls the constants as seen below.
 \* In addition to basic settings of how many nodes are to be model checked,
 \* the model allows to place additional limitations on the state space of the program.
+
+\* Limit the reconfigurations to the next configuration in Configurations
 MCChangeConfigurationInt(i, newConfiguration) ==
-    /\ reconfigurationCount < Len(Configurations)
+    /\ reconfigurationCount < Len(Configurations)-1
     \* +1 because TLA+ sequences are 1-index
-    /\ newConfiguration = Configurations[reconfigurationCount+1]
+    \* +1 to get the next configuration
+    /\ newConfiguration = Configurations[reconfigurationCount+2]
     /\ CCF!ChangeConfigurationInt(i, newConfiguration)
 
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
@@ -44,9 +55,6 @@ MCTimeout(i) ==
     \* situation is simulated at term==1 which results in a term increase to 2.
     /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
     /\ CCF!Timeout(i)
-
-\* Limit on client requests
-RequestLimit == 2
 
 \* Limit number of requests (new entries) that can be made
 MCClientRequest(i) ==
@@ -90,7 +98,25 @@ MCNotifyCommit(i,j) ==
 MCInMaxSimultaneousCandidates(i) ==
     Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
 
-mc_spec == Spec
+\* Alternative to CCF!InitReconfigurationVars that sets the initial configuration to the first config defined in Configurations
+MCInitReconfigurationVars ==
+    /\ reconfigurationCount = 0
+    /\ removedFromConfiguration = {}
+    /\ configurations = [i \in Servers |-> 0 :> Configurations[1]]
+
+\* Alternative to CCF!Init that uses the above MCInitReconfigurationVars
+MCInit ==
+    /\ MCInitReconfigurationVars
+    /\ CCF!InitMessagesVars
+    /\ CCF!InitServerVars
+    /\ CCF!InitCandidateVars
+    /\ CCF!InitLeaderVars
+    /\ CCF!InitLogVars
+
+\* Alternative to CCF!Spec that uses the above MCInit
+mc_spec ==   
+    /\ MCInit
+    /\ [][Next]_vars
 
 \* Symmetry set over possible servers. May dangerous and is only enabled
 \* via the Symmetry option in cfg file.
@@ -103,7 +129,7 @@ View == << reconfigurationVars, <<messages, commitsNotified>>, serverVars, candi
 
 AllReconfigurationsCommitted == 
     \E s \in ToServers:
-        \A c \in ToSet(Configurations):
+        \A c \in ToSet(Tail(Configurations)):
             \E i \in DOMAIN Committed(s):
                 /\ HasTypeReconfiguration(Committed(s)[i])
                 /\ Committed(s)[i].configuration = c

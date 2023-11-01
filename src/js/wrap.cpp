@@ -2492,7 +2492,6 @@ namespace ccf::js
   {
     auto rpc = JS_NewObjectClass(ctx, rpc_class_id);
     ctx.globals.rpc_ctx = rpc_ctx;
-
     JS_SetPropertyStr(
       ctx,
       rpc,
@@ -2557,6 +2556,27 @@ namespace ccf::js
 
     auto ccf = ctx.get_global_property("ccf");
     ccf.set("historical", std::move(historical));
+  }
+
+  void invalidate_globals(js::Context& ctx)
+  {
+    // Reset any state that has been stored on the ctx object to implement
+    // globals. This should be called at the end of any invocation where the
+    // globals may point to locally-scoped memory, and the Context itself (the
+    // interpreter) may live longer and be reused for future calls. Those calls
+    // must re-populate the globals appropriately, pointing to their own local
+    // instances of state as required.
+
+    ctx.globals.tx = nullptr;
+
+    // Any KV handles which have been created with reference to this tx should
+    // no longer be accessed. Any future calls on these JSValues will
+    // re-populate this map with fresh KVMap::Handle*s
+    ctx.globals.kv_handles.clear();
+
+    ctx.globals.historical_handles.clear();
+
+    ctx.globals.rpc_ctx = nullptr;
   }
 
   void invalidate_globals(js::Context& ctx)
