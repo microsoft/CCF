@@ -17,7 +17,10 @@ def test_forward_larger_than_default_requests(network, args):
         infra.interfaces.HostSpec(
             rpc_interfaces={
                 infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                    max_http_body_size=10 * 1024 * 1024
+                    max_http_body_size=10 * 1024 * 1024,
+                    # Deliberately large because some builds (eg. SGX Debug) take
+                    # a long time to process large requests
+                    forwarding_timeout_ms=8000,
                 )
             }
         )
@@ -48,7 +51,9 @@ def test_forward_larger_than_default_requests(network, args):
 
 def run_parser_limits_checks(args):
     new_args = copy.copy(args)
-    new_args.election_timeout_ms = 6000
+    # Deliberately large because some builds (eg. SGX Debug) take
+    # a long time to process large requests
+    new_args.election_timeout_ms = 10000
     new_args.host_log_level = "info"
     new_args.enclave_log_level = "info"
     with infra.network.network(
