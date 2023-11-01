@@ -17,12 +17,13 @@ ASSUME MaxTermLimit \in Nat
 CONSTANT MaxCommitsNotified
 ASSUME MaxCommitsNotified \in Nat
 
-CONSTANT StatsFilename
-ASSUME StatsFilename \in STRING
-
 \* Limit on client requests
 CONSTANT RequestLimit
 ASSUME RequestLimit \in Nat
+
+\* Filename to write TLC stats to
+CONSTANT StatsFilename
+ASSUME StatsFilename \in STRING
 
 
 ToServers ==
@@ -141,7 +142,9 @@ AllReconfigurationsCommitted ==
 DebugAllReconfigurationsReachableInv ==
     ~AllReconfigurationsCommitted
 
-StatsFile == 
+\* Writes TLC stats (such as number of states and duration) to StatsFilename in ndJson format
+\* Specify WriteStatsFile as a postcondition to write the stats file at the end of model checking
+WriteStatsFile == 
     ndJsonSerialize(StatsFilename, <<TLCGet("stats")>>)
 
 ===================================
