@@ -17,6 +17,9 @@ ASSUME MaxTermLimit \in Nat
 CONSTANT MaxCommitsNotified
 ASSUME MaxCommitsNotified \in Nat
 
+CONSTANT StatsFilename
+ASSUME StatsFilename \in STRING
+
 ToServers ==
     UNION Range(Configurations)
 
@@ -53,7 +56,7 @@ MCTimeout(i) ==
     /\ CCF!Timeout(i)
 
 \* Limit on client requests
-RequestLimit == 1
+RequestLimit == 3
 
 \* Limit number of requests (new entries) that can be made
 MCClientRequest(i) ==
@@ -139,6 +142,6 @@ DebugAllReconfigurationsReachableInv ==
 PrintStats == 
     /\ PrintT(TLCGet("stats"))
     /\ PrintT(ToJson(TLCGet("stats")))
-    /\ JsonSerialize("/workspaces/CCF/tla/stats.json",TLCGet("stats"))
+    /\ JsonSerialize(StatsFilename, TLCGet("stats"))
 
 ===================================
