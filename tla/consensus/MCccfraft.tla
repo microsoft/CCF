@@ -20,6 +20,11 @@ ASSUME MaxCommitsNotified \in Nat
 CONSTANT StatsFilename
 ASSUME StatsFilename \in STRING
 
+\* Limit on client requests
+CONSTANT RequestLimit
+ASSUME RequestLimit \in Nat
+
+
 ToServers ==
     UNION Range(Configurations)
 
@@ -54,9 +59,6 @@ MCTimeout(i) ==
     \* situation is simulated at term==1 which results in a term increase to 2.
     /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
     /\ CCF!Timeout(i)
-
-\* Limit on client requests
-RequestLimit == 3
 
 \* Limit number of requests (new entries) that can be made
 MCClientRequest(i) ==
