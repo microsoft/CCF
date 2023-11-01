@@ -4,11 +4,11 @@
 
 namespace ccf::js
 {
-  static JSValue ccf_receipt_to_js(js::Context* jsctx, TxReceiptImplPtr receipt)
+  static JSValue ccf_receipt_to_js(js::Context& jsctx, TxReceiptImplPtr receipt)
   {
     ccf::ReceiptPtr receipt_out_p = ccf::describe_receipt_v2(*receipt);
     auto& receipt_out = *receipt_out_p;
-    auto js_receipt = jsctx->new_obj();
+    auto js_receipt = jsctx.new_obj();
     JS_CHECK_EXC(js_receipt);
 
     std::string sig_b64;
@@ -18,18 +18,18 @@ namespace ccf::js
     }
     catch (const std::exception& e)
     {
-      return jsctx->new_internal_error(
+      return jsctx.new_internal_error(
         "Failed to convert signature to base64: %s", e.what());
     }
-    auto sig_string = jsctx->new_string(sig_b64.c_str());
+    auto sig_string = jsctx.new_string(sig_b64.c_str());
     JS_CHECK_EXC(sig_string);
     JS_CHECK_SET(js_receipt.set("signature", std::move(sig_string)));
 
-    auto js_cert = jsctx->new_string(receipt_out.cert.str().c_str());
+    auto js_cert = jsctx.new_string(receipt_out.cert.str().c_str());
     JS_CHECK_EXC(js_cert);
     JS_CHECK_SET(js_receipt.set("cert", std::move(js_cert)));
 
-    auto js_node_id = jsctx->new_string(receipt_out.node_id.value().c_str());
+    auto js_node_id = jsctx.new_string(receipt_out.node_id.value().c_str());
     JS_CHECK_EXC(js_node_id);
     JS_CHECK_SET(js_receipt.set("node_id", std::move(js_node_id)));
     bool is_signature_transaction = receipt_out.is_signature_transaction();
@@ -40,18 +40,18 @@ namespace ccf::js
     {
       auto p_receipt =
         std::dynamic_pointer_cast<ccf::ProofReceipt>(receipt_out_p);
-      auto leaf_components = jsctx->new_obj();
+      auto leaf_components = jsctx.new_obj();
       JS_CHECK_EXC(leaf_components);
 
       const auto wsd_hex =
         ds::to_hex(p_receipt->leaf_components.write_set_digest.h);
 
-      auto js_wsd = jsctx->new_string(wsd_hex.c_str());
+      auto js_wsd = jsctx.new_string(wsd_hex.c_str());
       JS_CHECK_EXC(js_wsd);
       JS_CHECK_SET(leaf_components.set("write_set_digest", std::move(js_wsd)));
 
       auto js_commit_evidence =
-        jsctx->new_string(p_receipt->leaf_components.commit_evidence.c_str());
+        jsctx.new_string(p_receipt->leaf_components.commit_evidence.c_str());
       JS_CHECK_EXC(js_commit_evidence);
       JS_CHECK_SET(
         leaf_components.set("commit_evidence", std::move(js_commit_evidence)));
@@ -61,26 +61,26 @@ namespace ccf::js
         const auto cd_hex =
           ds::to_hex(p_receipt->leaf_components.claims_digest.value().h);
 
-        auto js_cd = jsctx->new_string(cd_hex.c_str());
+        auto js_cd = jsctx.new_string(cd_hex.c_str());
         JS_CHECK_EXC(js_cd);
         JS_CHECK_SET(leaf_components.set("claims_digest", std::move(js_cd)));
       }
       JS_CHECK_SET(
         js_receipt.set("leaf_components", std::move(leaf_components)));
 
-      auto proof = jsctx->new_array();
+      auto proof = jsctx.new_array();
       JS_CHECK_EXC(proof);
 
       uint32_t i = 0;
       for (auto& element : p_receipt->proof)
       {
-        auto js_element = jsctx->new_obj();
+        auto js_element = jsctx.new_obj();
         JS_CHECK_EXC(js_element);
 
         auto is_left = element.direction == ccf::ProofReceipt::ProofStep::Left;
         const auto hash_hex = ds::to_hex(element.hash.h);
 
-        auto js_hash = jsctx->new_string(hash_hex.c_str());
+        auto js_hash = jsctx.new_string(hash_hex.c_str());
         JS_CHECK_EXC(js_hash);
         JS_CHECK_SET(
           js_element.set(is_left ? "left" : "right", std::move(js_hash)));
@@ -94,19 +94,12 @@ namespace ccf::js
         std::dynamic_pointer_cast<ccf::SignatureReceipt>(receipt_out_p);
       const auto signed_root = sig_receipt->signed_root;
       const auto root_hex = ds::to_hex(signed_root.h);
-      auto js_root_hex = jsctx->new_string(root_hex.c_str());
+      auto js_root_hex = jsctx.new_string(root_hex.c_str());
       JS_CHECK_EXC(js_root_hex);
       JS_CHECK_SET(js_receipt.set("root_hex", std::move(js_root_hex)));
     }
 
     return js_receipt.take();
-  }
-
-  static void js_historical_state_finalizer(JSRuntime* rt, JSValue val)
-  {
-    auto* state_ctx =
-      (HistoricalStateContext*)JS_GetOpaque(val, historical_state_class_id);
-    delete state_ctx;
   }
 
   static JSValue js_historical_get_state_range(
@@ -171,38 +164,16 @@ namespace ccf::js
       return ccf::js::constants::Null;
     }
 
-    ccf::js::Context* jsctx = (ccf::js::Context*)JS_GetContextOpaque(ctx);
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
-    auto states_array = jsctx->new_array();
+    auto states_array = jsctx.new_array();
     JS_CHECK_EXC(states_array);
     size_t i = 0;
     for (auto& state : states)
     {
-      auto js_state = jsctx->new_obj_class(historical_state_class_id);
-      JS_CHECK_EXC(js_state);
-
-      // Note: The state_ctx object is deleted by js_historical_state_finalizer
-      // which is registered as the finalizer for historical_state_class_id.
-      auto state_ctx = new HistoricalStateContext{
-        state, state->store->create_read_only_tx(), ReadOnlyTxContext{nullptr}};
-      state_ctx->tx_ctx.tx = &state_ctx->tx;
-      JS_SetOpaque(js_state, state_ctx);
-
-      auto transaction_id =
-        jsctx->new_string(state->transaction_id.to_str().c_str());
-      JS_CHECK_EXC(transaction_id);
-      JS_CHECK_SET(js_state.set("transactionId", std::move(transaction_id)));
-
-      auto js_receipt = (*jsctx)(ccf_receipt_to_js(jsctx, state->receipt));
-      JS_CHECK_EXC(js_receipt);
-      JS_CHECK_SET(js_state.set("receipt", std::move(js_receipt)));
-
-      auto kv = jsctx->new_obj_class(kv_read_only_class_id);
-      JS_CHECK_EXC(kv);
-      JS_SetOpaque(kv, &state_ctx->tx_ctx);
-      JS_CHECK_SET(js_state.set("kv", std::move(kv)));
-
-      states_array.set_at_index(i++, std::move(js_state));
+      auto js_state =
+        jsctx(ccf::js::create_historical_state_object(jsctx, state));
+      JS_CHECK_SET(states_array.set_at_index(i++, std::move(js_state)));
     }
 
     return states_array.take();

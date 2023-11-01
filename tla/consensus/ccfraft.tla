@@ -81,25 +81,9 @@ CONSTANTS
     TypeSignature,
     TypeReconfiguration
 
-CONSTANTS
-    NodeOne,
-    NodeTwo,
-    NodeThree,
-    NodeFour,
-    NodeFive
-
-AllServers == {
-    NodeOne,
-    NodeTwo,
-    NodeThree,
-    NodeFour,
-    NodeFive
-}
-
 \* Set of nodes for this model
 CONSTANTS Servers
-ASSUME Servers /= {}
-ASSUME Servers \subseteq AllServers
+ASSUME Servers /= {} /\ IsFiniteSet(Servers)
 
 Nil ==
   (*************************************************************************)
@@ -1400,12 +1384,6 @@ DebugInvLeaderCannotStepDown ==
         /\ m.type = AppendEntriesRequest
         /\ currentTerm[m.source] = m.term
         => state[m.source] = Leader
-
-\* This invariant shows that it should be possible for Node 4 or 5 to become leader
-\* Note that symmetry for the set of servers should be disabled to check this debug invariant
-DebugInvReconfigLeader ==
-    /\ state[NodeFour] /= Leader
-    /\ state[NodeFive] /= Leader
 
 \* This invariant shows that a txn can be committed after a reconfiguration
 DebugInvSuccessfulCommitAfterReconfig ==
