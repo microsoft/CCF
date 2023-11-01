@@ -76,6 +76,9 @@ JsonServers ==
     
 ASSUME JsonServers \in Nat \ {0}
 
+CONSTANTS
+    NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive
+
 TraceServers ==
     Range(SubSeq(<<NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive>>, 1, JsonServers))
 ASSUME TraceServers \subseteq Servers
@@ -156,21 +159,21 @@ IsTimeout ==
     /\ IsEvent("become_candidate")
     /\ logline.msg.state.leadership_state = "Candidate"
     /\ Timeout(logline.msg.state.node_id)
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsBecomeLeader ==
     /\ IsEvent("become_leader")
     /\ logline.msg.state.leadership_state = "Leader"
     /\ BecomeLeader(logline.msg.state.node_id)
-    /\ committableIndices'[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+    /\ committableIndices'[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
     
 IsClientRequest ==
     /\ IsEvent("replicate")
-    /\ ~logline.msg.globally_committable
     /\ ClientRequest(logline.msg.state.node_id)
+    /\ ~logline.msg.globally_committable
     \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.
     \* TODO Alternatively, extract the written values from the system trace and redefine clientRequests at startup.
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsSendAppendEntries ==
     /\ IsEvent("send_append_entries")
@@ -187,44 +190,45 @@ IsSendAppendEntries ==
                 /\ Network!OneMoreMessage(msg)
           /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
           /\ logline.msg.match_idx = matchIndex[i][j]
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsRcvAppendEntriesRequest ==
     /\ IsEvent("recv_append_entries")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
        IN /\ \E m \in Network!MessagesTo(i, j):
-              /\ IsAppendEntriesRequest(m, i, j, logline)
+              /\ m.type = AppendEntriesRequest
               /\ \/ HandleAppendEntriesRequest(i, j, m)
                  \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)
                  \* ConflictAppendEntriesRequest truncates the log but does *not* consume the AE request. In other words, there is a
                   \* HandleAppendEntriesRequest step that leaves messages unchanged.
                  \/ RAERRAER(m):: (UNCHANGED messages /\ HandleAppendEntriesRequest(i, j, m)) \cdot HandleAppendEntriesRequest(i, j, m)
+              /\ IsAppendEntriesRequest(m, i, j, logline)
 
 IsSendAppendEntriesResponse ==
     \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
        \* Find a similar pattern in Traceccfraft!IsRcvRequestVoteRequest below.
     /\ IsEvent("send_append_entries_response")
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
     /\ UNCHANGED vars
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
  
 IsAddConfiguration ==
     /\ IsEvent("add_configuration")
     /\ state[logline.msg.state.node_id] = Follower
     /\ UNCHANGED vars
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsSignCommittableMessages ==
     /\ IsEvent("replicate")
-    /\ logline.msg.globally_committable
     /\ SignCommittableMessages(logline.msg.state.node_id)
+    /\ logline.msg.globally_committable
     \* It is tempting to assert the effect of SignCommittableMessages(...node_id) here, i.e., 
      \* committableIndices'[logline.msg.state.node_id] = Range(logline'.msg.committable_indices).
      \* However, this assumes logline', i.e., TraceLog[l'], is less than or equal Len(TraceLog),
      \* which is not the case if the logs ends after this "replicate" line.  If it does not end,
      \* the subsequent send_append_entries will assert the effect of SignCommittableMessages anyway.
      \* Also see IsExecuteAppendEntries below.
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsAdvanceCommitIndex ==
     \* This is enabled *after* a SignCommittableMessages because ACI looks for a 
@@ -234,10 +238,10 @@ IsAdvanceCommitIndex ==
        /\ LET i == logline.msg.state.node_id
           IN /\ AdvanceCommitIndex(i)
              /\ commitIndex'[i] = logline.msg.state.commit_idx
-             /\ committableIndices'[i] = Range(logline.msg.committable_indices)
+             /\ committableIndices'[i] = Range(logline.msg.state.committable_indices)
     \/ /\ IsEvent("commit")
-       /\ logline.msg.state.leadership_state = "Follower"
        /\ UNCHANGED vars
+       /\ logline.msg.state.leadership_state = "Follower"
 
 IsChangeConfiguration ==
     /\ IsEvent("add_configuration")
@@ -245,7 +249,7 @@ IsChangeConfiguration ==
     /\ LET i == logline.msg.state.node_id
            newConfiguration == DOMAIN logline.msg.new_configuration.nodes
        IN ChangeConfigurationInt(i, newConfiguration)
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsRcvAppendEntriesResponse ==
     /\ IsEvent("recv_append_entries_response")
@@ -254,12 +258,13 @@ IsRcvAppendEntriesResponse ==
        IN /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
           /\ logline.msg.match_idx = matchIndex[i][j]
           /\ \E m \in Network!MessagesTo(i, j):
-               /\ IsAppendEntriesResponse(m, i, j, logline)
+               /\ m.type = AppendEntriesResponse
                /\ \/ HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m)
                   \/ DropResponseWhenNotInState(i, j, m)
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+               /\ IsAppendEntriesResponse(m, i, j, logline)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsSendRequestVote ==
     /\ IsEvent("send_request_vote")
@@ -274,7 +279,7 @@ IsSendRequestVote ==
                 /\ m.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
                 \* There is now one more message of this type.
                 /\ Network!OneMoreMessage(m)
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsRcvRequestVoteRequest ==
     \/ /\ IsEvent("recv_request_vote")
@@ -292,17 +297,17 @@ IsRcvRequestVoteRequest ==
                   \* a (ccfraft!UpdateTerm \cdot ccfraft!HandleRequestVoteRequest) step.
                   \* (see https://github.com/microsoft/CCF/issues/5057#issuecomment-1487279316)
                   \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteRequest(i, j, m)
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsExecuteAppendEntries ==
     \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
        \* and appends the entry to the ledger.
        /\ IsEvent("execute_append_entries_sync")
-       /\ state[logline.msg.state.node_id] = Follower
-       /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
        \* Not asserting committableIndices here because the impl and spec will only be in sync upon the subsequent send_append_entries.
        \* Also see IsSignCommittableMessages above.
        /\ UNCHANGED vars
+       /\ state[logline.msg.state.node_id] = Follower
+       /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
 
 IsRcvRequestVoteResponse ==
     /\ IsEvent("recv_request_vote_response")
@@ -318,20 +323,20 @@ IsRcvRequestVoteResponse ==
                \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteResponse(i, j, m)
                \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m)
                \/ DropResponseWhenNotInState(i, j, m)
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
-    /\ state[logline.msg.state.node_id] \in {Follower}
-    /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+    /\ state[logline.msg.state.node_id] = Follower
+    /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsCheckQuorum ==
     /\ IsEvent("become_follower")
-    /\ state[logline.msg.state.node_id] = Leader
     /\ CheckQuorum(logline.msg.state.node_id)
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+    /\ state[logline.msg.state.node_id] = Leader
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsRcvProposeVoteRequest ==
     /\ IsEvent("recv_propose_request_vote")
@@ -340,11 +345,12 @@ IsRcvProposeVoteRequest ==
            j == logline.msg.to_node_id
        IN /\ \E m \in Network!Messages':
                 /\ m.type = ProposeVoteRequest
+                /\ RcvProposeVoteRequest(i, j)
                 /\ m.type = RaftMsgType[logline.msg.packet.msg]
                 /\ m.term = logline.msg.packet.term
                 \* There is now one more message of this type.
                 /\ Network!OneMoreMessage(m)
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.committable_indices)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 TraceNext ==
     \/ IsTimeout
@@ -469,26 +475,29 @@ TraceAlias ==
     [
         lvl |-> l,
         ts |-> ts,
-        logline |-> logline.msg,
-        _ENABLED |-> 
-            [
-                Timeout                    |-> [ i \in Servers   |-> ENABLED Timeout(i) ],
-                RequestVote                |-> [ i,j \in Servers |-> ENABLED RequestVote(i, j) ],
-                BecomeLeader               |-> [ i \in Servers   |-> ENABLED BecomeLeader(i) ],
-                ClientRequest              |-> [ i \in Servers   |-> ENABLED ClientRequest(i) ],
-                SignCommittableMessages    |-> [ i \in Servers   |-> ENABLED SignCommittableMessages(i) ],
-                ChangeConfiguration        |-> [ i \in Servers   |-> ENABLED ChangeConfiguration(i) ],
-                NotifyCommit               |-> [ i,j \in Servers |-> ENABLED NotifyCommit(i,j) ],
-                AdvanceCommitIndex         |-> [ i \in Servers   |-> ENABLED AdvanceCommitIndex(i) ],
-                AppendEntries              |-> [ i,j \in Servers |-> ENABLED AppendEntries(i, j) ],
-                CheckQuorum                |-> [ i \in Servers   |-> ENABLED CheckQuorum(i) ],
-                Receive                    |-> [ m,n \in Servers |-> ENABLED Receive(m, n) ],
-                RcvAppendEntriesRequest    |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesRequest(m, n) ],
-                RcvAppendEntriesResponse   |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesResponse(m, n) ],
-                RcvUpdateTerm              |-> [ m,n \in Servers |-> ENABLED RcvUpdateTerm(m, n) ],
-                RcvRequestVoteRequest      |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteRequest(m, n) ],
-                RcvRequestVoteResponse     |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteResponse(m, n) ]
-            ]
+        logline |-> logline.msg
+
+        \* Uncomment _ENABLED when debugging the enablement state of ccfraft's actions.
+        \* ,_ENABLED |-> 
+        \*     [
+        \*         Timeout                    |-> [ i \in Servers   |-> ENABLED Timeout(i) ],
+        \*         RequestVote                |-> [ i,j \in Servers |-> ENABLED RequestVote(i, j) ],
+        \*         BecomeLeader               |-> [ i \in Servers   |-> ENABLED BecomeLeader(i) ],
+        \*         ClientRequest              |-> [ i \in Servers   |-> ENABLED ClientRequest(i) ],
+        \*         SignCommittableMessages    |-> [ i \in Servers   |-> ENABLED SignCommittableMessages(i) ],
+        \*         ChangeConfiguration        |-> [ i \in Servers   |-> ENABLED ChangeConfiguration(i) ],
+        \*         NotifyCommit               |-> [ i,j \in Servers |-> ENABLED NotifyCommit(i,j) ],
+        \*         AdvanceCommitIndex         |-> [ i \in Servers   |-> ENABLED AdvanceCommitIndex(i) ],
+        \*         AppendEntries              |-> [ i,j \in Servers |-> ENABLED AppendEntries(i, j) ],
+        \*         CheckQuorum                |-> [ i \in Servers   |-> ENABLED CheckQuorum(i) ],
+        \*         Receive                    |-> [ m,n \in Servers |-> ENABLED Receive(m, n) ],
+        \*         RcvAppendEntriesRequest    |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesRequest(m, n) ],
+        \*         RcvAppendEntriesResponse   |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesResponse(m, n) ],
+        \*         RcvUpdateTerm              |-> [ m,n \in Servers |-> ENABLED RcvUpdateTerm(m, n) ],
+        \*         RcvRequestVoteRequest      |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteRequest(m, n) ],
+        \*         RcvRequestVoteResponse     |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteResponse(m, n) ]
+        \*     ]
+
         \* See TraceDifferentialInv above.
         \* ,_TraceDiffState |-> LET t == INSTANCE trace IN t!Trace[l]
     ]

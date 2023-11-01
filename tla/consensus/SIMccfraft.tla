@@ -1,6 +1,9 @@
 ---------- MODULE SIMccfraft ----------
 EXTENDS ccfraft, TLC, Integers
 
+CONSTANTS
+    NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive
+
 Servers_mc == {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
 
 ----
