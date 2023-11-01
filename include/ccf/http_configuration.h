@@ -9,6 +9,8 @@
 
 namespace http
 {
+  // Default parser limits, used as a DoS protection against
+  // requests that are too large.
   static const ds::SizeString default_max_body_size = {"1MB"};
   static const ds::SizeString default_max_header_size = {"16KB"};
   static const uint32_t default_max_headers_count = 256;
@@ -43,4 +45,18 @@ namespace http
     max_concurrent_streams_count,
     initial_window_size,
     max_frame_size);
+
+  // A permissive configuration, used for internally forwarded requests
+  // that have already been through application-defined limits.
+  static ParserConfiguration permissive_configuration()
+  {
+    ParserConfiguration config;
+    config.max_body_size = "1GB";
+    config.max_header_size = "100MB";
+    config.max_headers_count = 1024;
+    config.max_concurrent_streams_count = 1;
+    config.initial_window_size = "64KB";
+    config.max_frame_size = "16MB";
+    return config;
+  }
 }

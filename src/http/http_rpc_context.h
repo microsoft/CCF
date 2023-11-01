@@ -374,8 +374,7 @@ namespace ccf
     std::shared_ptr<ccf::SessionContext> s, const std::vector<uint8_t>& packed)
   {
     http::SimpleRequestProcessor processor;
-    http::RequestParser parser(processor);
-
+    http::RequestParser parser(processor, http::permissive_configuration());
     parser.execute(packed.data(), packed.size());
 
     if (processor.received.size() != 1)
