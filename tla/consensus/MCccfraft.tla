@@ -139,7 +139,7 @@ AllReconfigurationsCommitted ==
 DebugAllReconfigurationsReachableInv ==
     ~AllReconfigurationsCommitted
 
-PrintStats == 
+StatsFile == 
     ndJsonSerialize(StatsFilename, <<TLCGet("stats")>>)
 
 ===================================
