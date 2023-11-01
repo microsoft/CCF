@@ -1347,6 +1347,7 @@ if(BUILD_TESTS)
     if(NOT SAN)
       add_e2e_test(
         NAME e2e_limits PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/limits.py
+        CONSENSUS cft
       )
     endif()
 
