@@ -5,6 +5,7 @@ CONSTANTS
     NodeOne, NodeTwo, NodeThree
 
 1Configuration == <<{NodeOne, NodeTwo, NodeThree}>>
+2Configurations == <<{NodeOne}, {NodeTwo}>>
 3Configurations == <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
 
 CONSTANT Configurations
@@ -52,7 +53,7 @@ MCTimeout(i) ==
     /\ CCF!Timeout(i)
 
 \* Limit on client requests
-RequestLimit == 2
+RequestLimit == 3
 
 \* Limit number of requests (new entries) that can be made
 MCClientRequest(i) ==

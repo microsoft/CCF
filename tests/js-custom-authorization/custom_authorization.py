@@ -978,6 +978,26 @@ def test_caching_of_kv_handles(network, args):
         r = c.post("/app/increment")
         assert r.status_code == http.HTTPStatus.OK, r
 
+        LOG.info("Testing caching of ccf JS globals")
+
+        def make_body():
+            return {str(uuid.uuid4()): str(uuid.uuid4())}
+
+        body = make_body()
+        r = c.post("/app/globals", body)
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() == body
+
+        body = make_body()
+        r = c.post("/app/globals", body)
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() == body
+
+        body = make_body()
+        r = c.post("/app/globals", body)
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() == body
+
     return network
 
 
