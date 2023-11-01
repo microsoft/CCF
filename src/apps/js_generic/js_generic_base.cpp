@@ -220,14 +220,19 @@ namespace ccfapp
       }
       request.set("params", std::move(params));
 
-      const auto& request_body = endpoint_ctx.rpc_ctx->get_request_body();
       auto body_ = ctx.new_obj_class(js::body_class_id);
-      JS_SetOpaque(body_, (void*)&request_body);
+      ctx.globals.current_request_body =
+        &endpoint_ctx.rpc_ctx->get_request_body();
       request.set("body", std::move(body_));
 
       request.set("caller", create_caller_obj(endpoint_ctx, ctx));
 
       return request;
+    }
+
+    void invalidate_request_obj_body(js::Context& ctx)
+    {
+      ctx.globals.current_request_body = nullptr;
     }
 
     void execute_request(
@@ -246,14 +251,10 @@ namespace ccfapp
           [this, endpoint](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
-            auto tx = state->store->create_read_only_tx();
-            auto tx_id = state->transaction_id;
-            auto receipt = state->receipt;
-            assert(receipt);
-            js::ReadOnlyTxContext historical_txctx{&tx};
             auto add_historical_globals = [&](js::Context& ctx) {
-              js::populate_global_ccf_historical_state(
-                &historical_txctx, tx_id, receipt, ctx);
+              auto ccf = ctx.get_global_property("ccf");
+              auto val = ccf::js::create_historical_state_object(ctx, state);
+              ccf.set("historicalState", std::move(val));
             };
             do_execute_request(endpoint, endpoint_ctx, add_historical_globals);
           },
@@ -318,10 +319,8 @@ namespace ccfapp
       JS_SetModuleLoaderFunc(
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
-      js::TxContext txctx{&endpoint_ctx.tx};
-
       js::register_request_body_class(ctx);
-      js::populate_global_ccf_kv(&txctx, ctx);
+      js::populate_global_ccf_kv(endpoint_ctx.tx, ctx);
 
       js::populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get(), ctx);
       js::populate_global_ccf_host(
@@ -361,7 +360,12 @@ namespace ccfapp
         &endpoint_ctx.tx,
         ccf::js::RuntimeLimitsPolicy::NONE);
 
-      auto& rt = ctx.runtime();
+      // Clear globals (which potentially reference locals like txctx), from
+      // this potentially reused interpreter
+      invalidate_request_obj_body(ctx);
+      js::invalidate_globals(ctx);
+
+      const auto& rt = ctx.runtime();
 
       if (JS_IsException(val))
       {

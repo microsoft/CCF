@@ -434,7 +434,7 @@ class LoggingTxs:
                     expected_result = {"msg": msg}
                     assert (
                         rep.body.json() == expected_result
-                    ), "Expected {}, got {}".format(expected_result, rep.body)
+                    ), f"Expected {expected_result}, got {rep.body.json()}"
                     found = True
                     break
                 elif rep.status_code == http.HTTPStatus.NOT_FOUND:
