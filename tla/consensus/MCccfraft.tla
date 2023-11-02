@@ -1,5 +1,5 @@
 ---------- MODULE MCccfraft ----------
-EXTENDS ccfraft, TLC, Json
+EXTENDS ccfraft, StatsFile
 
 CONSTANTS
     NodeOne, NodeTwo, NodeThree
@@ -20,10 +20,6 @@ ASSUME MaxCommitsNotified \in Nat
 \* Limit on client requests
 CONSTANT RequestLimit
 ASSUME RequestLimit \in Nat
-
-\* Filename to write TLC stats to
-CONSTANT StatsFilename
-ASSUME StatsFilename \in STRING
 
 
 ToServers ==
@@ -142,10 +138,6 @@ AllReconfigurationsCommitted ==
 DebugAllReconfigurationsReachableInv ==
     ~AllReconfigurationsCommitted
 
-\* Writes TLC stats (such as number of states and duration) to StatsFilename in ndJson format
-\* Specify WriteStatsFile as a postcondition to write the stats file at the end of model checking
-WriteStatsFile == 
-    /\ PrintT("Writing stats to file: " \o StatsFilename)
-    /\ ndJsonSerialize(StatsFilename, <<TLCGet("stats")>>)
+
 
 ===================================
