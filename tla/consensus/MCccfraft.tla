@@ -145,6 +145,7 @@ DebugAllReconfigurationsReachableInv ==
 \* Writes TLC stats (such as number of states and duration) to StatsFilename in ndJson format
 \* Specify WriteStatsFile as a postcondition to write the stats file at the end of model checking
 WriteStatsFile == 
-    ndJsonSerialize(StatsFilename, <<TLCGet("stats")>>)
+    /\ PrintT("Writing stats to file: " \o StatsFilename)
+    /\ ndJsonSerialize(StatsFilename, <<TLCGet("stats")>>)
 
 ===================================
