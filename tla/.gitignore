@@ -12,3 +12,4 @@ tools/
 *.dot
 *TTrace*.tla
 *TTrace*.bin
+**/states.dump*
