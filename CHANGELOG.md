@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0-dev6]
+
+[5.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev6
+
+- Lifted parser size limits on forwarded request from default values to more permissive ones. Note that the limits set out on the interface of the inbound node still apply (#5803).
+- [ccf.crypto.unwrapKey()](https://microsoft.github.io/CCF/main/js/ccf-app/functions/crypto.unwrapKey.html) has been added to the JS API (#5792).
+
 ## [5.0.0-dev5]
 
 [5.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev5
