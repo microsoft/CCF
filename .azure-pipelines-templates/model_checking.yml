@@ -1,6 +1,9 @@
 jobs:
   - job: Model_Checking
     displayName: "Model Checking"
+    variables:
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
 
     ${{ insert }}: ${{ parameters.env }}
 
@@ -18,3 +21,18 @@ jobs:
 
       - script: ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
         workingDirectory: tla
+        displayName: MCccfraft.cfg
+
+      - script: ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json
+        workingDirectory: tla
+        displayName: MCccfraftAtomicReconfig.cfg
+
+      - script: ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
+        workingDirectory: tla
+        displayName: MCccfraftWithReconfig.cfg
+
+      - task: PublishPipelineArtifact@1
+        inputs:
+          artifactName: "Model Checking Traces"
+          targetPath: tla
+        condition: or(failed(), canceled())
