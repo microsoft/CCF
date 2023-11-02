@@ -642,8 +642,6 @@ namespace ccf::js
           {key, key + key_size},
           label_opt);
 
-        OPENSSL_cleanse(wrapping_key, wrapping_key_size);
-
         return JS_NewArrayBufferCopy(
           ctx, wrapped_key.data(), wrapped_key.size());
       }
