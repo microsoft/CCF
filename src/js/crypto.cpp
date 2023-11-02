@@ -574,7 +574,7 @@ namespace ccf::js
 
     try
     {
-      auto algo_name = std::string(*wrap_algo_name_str);
+      auto algo_name = *wrap_algo_name_str;
       if (algo_name == "RSA-OAEP")
       {
         // key can in principle be arbitrary data (see note on maximum size
@@ -602,9 +602,12 @@ namespace ccf::js
       }
       else if (algo_name == "AES-KWP")
       {
-        std::vector<uint8_t> wrapped_key = crypto::ckm_aes_key_wrap_pad(
-          {wrapping_key, wrapping_key + wrapping_key_size},
-          {key, key + key_size});
+        std::vector<uint8_t> privateKey(
+          wrapping_key, wrapping_key + wrapping_key_size);
+        std::vector<uint8_t> wrapped_key =
+          crypto::ckm_aes_key_wrap_pad(privateKey, {key, key + key_size});
+
+        OPENSSL_cleanse(&privateKey, sizeof(privateKey));
 
         return JS_NewArrayBufferCopy(
           ctx, wrapped_key.data(), wrapped_key.size());
@@ -653,6 +656,139 @@ namespace ccf::js
     catch (std::exception& ex)
     {
       return JS_ThrowInternalError(ctx, "Failed to wrap key: %s", ex.what());
+    }
+    catch (...)
+    {
+      return JS_ThrowRangeError(ctx, "caught unknown exception");
+    }
+  }
+
+  static JSValue js_unwrap_key(
+    JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+  {
+    if (argc != 3)
+      return JS_ThrowTypeError(
+        ctx, "Passed %d arguments, but expected 3", argc);
+
+    // API loosely modeled after
+    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/unwrapKey.
+
+    size_t key_size;
+    uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
+    if (!key)
+    {
+      return ccf::js::constants::Exception;
+    }
+
+    size_t unwrapping_key_size;
+    uint8_t* unwrapping_key =
+      JS_GetArrayBuffer(ctx, &unwrapping_key_size, argv[1]);
+    if (!unwrapping_key)
+    {
+      return ccf::js::constants::Exception;
+    }
+
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    auto parameters = argv[2];
+    auto wrap_algo_name_val = jsctx(JS_GetPropertyStr(ctx, parameters, "name"));
+    JS_CHECK_EXC(wrap_algo_name_val);
+
+    auto wrap_algo_name_str = jsctx.to_str(wrap_algo_name_val);
+    if (!wrap_algo_name_str)
+    {
+      return ccf::js::constants::Exception;
+    }
+
+    try
+    {
+      auto algo_name = *wrap_algo_name_str;
+      if (algo_name == "RSA-OAEP")
+      {
+        // key can in principle be arbitrary data (see note on maximum size
+        // in rsa_key_pair.h). unwrapping_key is a private RSA key.
+
+        auto label_val = jsctx(JS_GetPropertyStr(ctx, parameters, "label"));
+        JS_CHECK_EXC(label_val);
+
+        size_t label_buf_size = 0;
+        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
+
+        std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
+        if (label_buf && label_buf_size > 0)
+        {
+          label_opt = {label_buf, label_buf + label_buf_size};
+        }
+
+        auto pemPrivateUnwrappingKey =
+          crypto::Pem(unwrapping_key, unwrapping_key_size);
+        auto unwrapped_key = crypto::ckm_rsa_pkcs_oaep_unwrap(
+          pemPrivateUnwrappingKey, {key, key + key_size}, label_opt);
+
+        OPENSSL_cleanse(
+          pemPrivateUnwrappingKey.data(), pemPrivateUnwrappingKey.size());
+
+        return JS_NewArrayBufferCopy(
+          ctx, unwrapped_key.data(), unwrapped_key.size());
+      }
+      else if (algo_name == "AES-KWP")
+      {
+        std::vector<uint8_t> privateKey(
+          unwrapping_key, unwrapping_key + unwrapping_key_size);
+        std::vector<uint8_t> unwrapped_key =
+          crypto::ckm_aes_key_unwrap_pad(privateKey, {key, key + key_size});
+
+        OPENSSL_cleanse(&privateKey, sizeof(privateKey));
+
+        return JS_NewArrayBufferCopy(
+          ctx, unwrapped_key.data(), unwrapped_key.size());
+      }
+      else if (algo_name == "RSA-OAEP-AES-KWP")
+      {
+        auto aes_key_size_value =
+          jsctx(JS_GetPropertyStr(ctx, parameters, "aesKeySize"));
+        JS_CHECK_EXC(aes_key_size_value);
+
+        int32_t aes_key_size = 0;
+        if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value) < 0)
+        {
+          return ccf::js::constants::Exception;
+        }
+
+        auto label_val = jsctx(JS_GetPropertyStr(ctx, parameters, "label"));
+        JS_CHECK_EXC(label_val);
+
+        size_t label_buf_size = 0;
+        uint8_t* label_buf = JS_GetArrayBuffer(ctx, &label_buf_size, label_val);
+
+        std::optional<std::vector<uint8_t>> label_opt = std::nullopt;
+        if (label_buf && label_buf_size > 0)
+        {
+          label_opt = {label_buf, label_buf + label_buf_size};
+        }
+
+        auto privPemUnwrappingKey =
+          crypto::Pem(unwrapping_key, unwrapping_key_size);
+        auto unwrapped_key = crypto::ckm_rsa_aes_key_unwrap(
+          privPemUnwrappingKey, {key, key + key_size}, label_opt);
+
+        OPENSSL_cleanse(
+          privPemUnwrappingKey.data(), privPemUnwrappingKey.size());
+
+        return JS_NewArrayBufferCopy(
+          ctx, unwrapped_key.data(), unwrapped_key.size());
+      }
+      else
+      {
+        return JS_ThrowRangeError(
+          ctx,
+          "unsupported key unwrapping algorithm, supported: RSA-OAEP, AES-KWP, "
+          "RSA-OAEP-AES-KWP");
+      }
+    }
+    catch (std::exception& ex)
+    {
+      return JS_ThrowInternalError(ctx, "Failed to unwrap key: %s", ex.what());
     }
     catch (...)
     {
