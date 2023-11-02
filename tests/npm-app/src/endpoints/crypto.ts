@@ -132,6 +132,38 @@ export function wrapKey(
   return { body: wrappedKey };
 }
 
+interface UnwrapKeyRequest {
+  key: Base64; // typically an AES key
+  unwrappingKey: Base64; // base64 encoding of PEM-encoded RSA private key or AES key bytes
+  wrapAlgo: WrapAlgoParams; // Wrapping algorithm parameters
+}
+
+export function unwrapKey(
+  request: ccfapp.Request<UnwrapKeyRequest>,
+): ccfapp.Response<ArrayBuffer> {
+  const r = request.body.json();
+  const key = b64ToBuf(r.key);
+  const unwrappingKey = b64ToBuf(r.unwrappingKey);
+  let unwrappedKey: ArrayBuffer;
+  if (r.wrapAlgo.name == "RSA-OAEP") {
+    const label = r.wrapAlgo.label ? b64ToBuf(r.wrapAlgo.label) : undefined;
+    unwrappedKey = ccfcrypto.unwrapKey(key, unwrappingKey, {
+      name: r.wrapAlgo.name,
+      label: label,
+    });
+  } else if (r.wrapAlgo.name == "RSA-OAEP-AES-KWP") {
+    const label = r.wrapAlgo.label ? b64ToBuf(r.wrapAlgo.label) : undefined;
+    unwrappedKey = ccfcrypto.unwrapKey(key, unwrappingKey, {
+      name: r.wrapAlgo.name,
+      aesKeySize: r.wrapAlgo.aesKeySize,
+      label: label,
+    });
+  } else {
+    unwrappedKey = ccfcrypto.unwrapKey(key, unwrappingKey, r.wrapAlgo);
+  }
+  return { body: unwrappedKey };
+}
+
 interface SignRequest {
   algorithm: ccfcrypto.SigningAlgorithm;
   key: string;
