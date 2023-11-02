@@ -1,0 +1,20 @@
+jobs:
+  - job: Model_Checking
+    displayName: "Model Checking"
+
+    ${{ insert }}: ${{ parameters.env }}
+
+    steps:
+      - checkout: self
+        clean: true
+        fetchDepth: 1
+
+      - script: |
+          set -ex
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
+        displayName: Setup
+
+      - script: ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
+        workingDirectory: tla
