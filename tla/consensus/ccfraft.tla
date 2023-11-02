@@ -667,9 +667,11 @@ ChangeConfigurationInt(i, newConfiguration) ==
             configuration |-> newConfiguration,
             contentType |-> TypeReconfiguration]
         newLog == [log[i] EXCEPT ![Len(log[i])] = entry]
+        \* Remove the ghost configuration at index 0, there's no index 0 in the log
+        validConfigurationPrefix == [ci \in DOMAIN configurations[i] \ {0} |-> configurations[i]]
         IN
         /\ log' = [log EXCEPT ![i] = newLog]
-        /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) :> newConfiguration]
+        /\ configurations' = [configurations EXCEPT ![i] = validConfigurationPrefix @@ Len(log[i]) :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars,
                     leaderVars, commitIndex, committableIndices>>
 
