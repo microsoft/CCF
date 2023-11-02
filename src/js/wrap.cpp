@@ -27,6 +27,16 @@
 #include <quickjs/quickjs.h>
 #include <span>
 
+#define JS_CHECK_HANDLE(h) \
+  do \
+  { \
+    if (h == nullptr) \
+    { \
+      return JS_ThrowInternalError( \
+        ctx, "Internal: Unable to access MapHandle"); \
+    } \
+  } while (0)
+
 namespace ccf::js
 {
 // "mixture of designated and non-designated initializers in the same
@@ -39,7 +49,7 @@ namespace ccf::js
   using KVMap = kv::untyped::Map;
 
   JSClassID kv_class_id = 0;
-  JSClassID kv_read_only_class_id = 0;
+  JSClassID kv_historical_class_id = 0;
   JSClassID kv_map_handle_class_id = 0;
   JSClassID body_class_id = 0;
   JSClassID node_class_id = 0;
@@ -52,9 +62,10 @@ namespace ccf::js
 
   JSClassDef kv_class_def = {};
   JSClassExoticMethods kv_exotic_methods = {};
-  JSClassDef kv_read_only_class_def = {};
-  JSClassExoticMethods kv_read_only_exotic_methods = {};
+  JSClassDef kv_historical_class_def = {};
+  JSClassExoticMethods kv_historical_exotic_methods = {};
   JSClassDef kv_map_handle_class_def = {};
+  JSClassDef kv_historical_map_handle_class_def = {};
   JSClassDef body_class_def = {};
   JSClassDef node_class_def = {};
   JSClassDef network_class_def = {};
@@ -189,13 +200,105 @@ namespace ccf::js
     JS_FreeRuntime(rt);
   }
 
+  static KVMap::Handle* _get_map_handle(
+    js::Context& jsctx, JSValueConst _this_val)
+  {
+    JSWrappedValue this_val = jsctx(JS_DupValue(jsctx, _this_val));
+    auto map_name_val = this_val["_map_name"];
+    auto map_name = jsctx.to_str(map_name_val);
+
+    if (!map_name.has_value())
+    {
+      LOG_FAIL_FMT("No map name stored on handle");
+      return nullptr;
+    }
+
+    auto& handles = jsctx.globals.kv_handles;
+    auto it = handles.find(map_name.value());
+    if (it == handles.end())
+    {
+      it = handles.emplace_hint(it, map_name.value(), nullptr);
+    }
+
+    if (it->second == nullptr)
+    {
+      kv::Tx* tx = jsctx.globals.tx;
+      if (tx == nullptr)
+      {
+        LOG_FAIL_FMT("Can't rehydrate MapHandle - no transaction context");
+        return nullptr;
+      }
+      it->second = tx->rw<KVMap>(map_name.value());
+    }
+
+    return it->second;
+  }
+
+  using HandleGetter =
+    KVMap::ReadOnlyHandle* (*)(js::Context& jsctx, JSValueConst this_val);
+
+  static KVMap::ReadOnlyHandle* _get_map_handle_current(
+    js::Context& jsctx, JSValueConst this_val)
+  {
+    // NB: This creates (and stores) a writeable handle internally, but converts
+    // to the (subtype) ReadOnlyHandle* in return here. This means that if we
+    // call has() and then put(), we'll correctly have a writeable handle for
+    // the put() despite reading initially.
+    return _get_map_handle(jsctx, this_val);
+  }
+
+  static KVMap::ReadOnlyHandle* _get_map_handle_historical(
+    js::Context& jsctx, JSValueConst _this_val)
+  {
+    JSWrappedValue this_val = jsctx(JS_DupValue(jsctx, _this_val));
+    auto map_name_val = this_val["_map_name"];
+    auto map_name = jsctx.to_str(map_name_val);
+
+    if (!map_name.has_value())
+    {
+      LOG_FAIL_FMT("No map name stored on handle");
+      return nullptr;
+    }
+
+    const auto seqno = reinterpret_cast<ccf::SeqNo>(
+      JS_GetOpaque(this_val, kv_map_handle_class_id));
+
+    // Handle to historical KV
+    auto it = jsctx.globals.historical_handles.find(seqno);
+    if (it == jsctx.globals.historical_handles.end())
+    {
+      LOG_FAIL_FMT(
+        "Unable to retrieve any historical handles for state at {}", seqno);
+      return nullptr;
+    }
+
+    auto& handles = it->second.kv_handles;
+    auto hit = handles.find(map_name.value());
+    if (hit == handles.end())
+    {
+      hit = handles.emplace_hint(hit, map_name.value(), nullptr);
+    }
+
+    if (hit->second == nullptr)
+    {
+      kv::ReadOnlyTx* tx = it->second.tx.get();
+      if (tx == nullptr)
+      {
+        LOG_FAIL_FMT("Can't rehydrate MapHandle - no transaction");
+        return nullptr;
+      }
+
+      hit->second = tx->ro<KVMap>(map_name.value());
+    }
+
+    return hit->second;
+  }
+
+  template <HandleGetter handle_getter_>
   static JSValue js_kv_map_has(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
 
     if (argc != 1)
     {
@@ -210,19 +313,20 @@ namespace ccf::js
     {
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
     }
+
+    auto handle = handle_getter_(jsctx, this_val);
+    JS_CHECK_HANDLE(handle);
 
     auto has = handle->has({key, key + key_size});
 
     return JS_NewBool(ctx, has);
   }
 
+  template <HandleGetter handle_getter_>
   static JSValue js_kv_map_get(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
 
     if (argc != 1)
     {
@@ -237,6 +341,9 @@ namespace ccf::js
     {
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
     }
+
+    auto handle = handle_getter_(jsctx, this_val);
+    JS_CHECK_HANDLE(handle);
 
     auto val = handle->get({key, key + key_size});
 
@@ -252,13 +359,11 @@ namespace ccf::js
     return buf.take();
   }
 
+  template <HandleGetter handle_getter_>
   static JSValue js_kv_get_version_of_previous_write(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
 
     if (argc != 1)
     {
@@ -273,6 +378,9 @@ namespace ccf::js
     {
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
     }
+
+    auto handle = handle_getter_(jsctx, this_val);
+    JS_CHECK_HANDLE(handle);
 
     auto val = handle->get_version_of_previous_write({key, key + key_size});
 
@@ -284,17 +392,22 @@ namespace ccf::js
     return JS_NewInt64(ctx, val.value());
   }
 
+  template <HandleGetter handle_getter_>
   static JSValue js_kv_map_size_getter(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst*)
   {
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
+    auto handle = handle_getter_(jsctx, this_val);
+    JS_CHECK_HANDLE(handle);
+
     const uint64_t size = handle->size();
     if (size > INT64_MAX)
     {
       return JS_ThrowInternalError(
         ctx, "Map size (%lu) is too large to represent in int64", size);
     }
+
     return JS_NewInt64(ctx, (int64_t)size);
   }
 
@@ -302,9 +415,6 @@ namespace ccf::js
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
 
     if (argc != 1)
     {
@@ -320,6 +430,9 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "Argument must be an ArrayBuffer");
     }
 
+    auto handle = _get_map_handle(jsctx, this_val);
+    JS_CHECK_HANDLE(handle);
+
     handle->remove({key, key + key_size});
 
     return ccf::js::constants::Undefined;
@@ -329,9 +442,6 @@ namespace ccf::js
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
 
     if (argc != 2)
     {
@@ -350,6 +460,9 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "Arguments must be ArrayBuffers");
     }
 
+    auto handle = _get_map_handle(jsctx, this_val);
+    JS_CHECK_HANDLE(handle);
+
     handle->put({key, key + key_size}, {val, val + val_size});
 
     return JS_DupValue(ctx, this_val);
@@ -358,8 +471,7 @@ namespace ccf::js
   static JSValue js_kv_map_clear(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
 
     if (argc != 0)
     {
@@ -367,18 +479,19 @@ namespace ccf::js
         ctx, "Passed %d arguments, but expected 0", argc);
     }
 
+    auto handle = _get_map_handle(jsctx, this_val);
+    JS_CHECK_HANDLE(handle);
+
     handle->clear();
 
     return ccf::js::constants::Undefined;
   }
 
+  template <HandleGetter handle_getter_>
   static JSValue js_kv_map_foreach(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-
-    auto handle = static_cast<KVMap::Handle*>(
-      JS_GetOpaque(this_val, kv_map_handle_class_id));
 
     if (argc != 1)
       return JS_ThrowTypeError(
@@ -391,6 +504,9 @@ namespace ccf::js
     {
       return JS_ThrowTypeError(ctx, "Argument must be a function");
     }
+
+    auto handle = handle_getter_(jsctx, this_val);
+    JS_CHECK_HANDLE(handle);
 
     bool failed = false;
     handle->foreach(
@@ -517,9 +633,13 @@ namespace ccf::js
     JSContext* ctx, JSValueConst this_val, int, JSValueConst*) \
   { \
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx); \
-    auto handle = static_cast<KVMap::Handle*>( \
-      JS_GetOpaque(this_val, kv_map_handle_class_id)); \
-    const auto table_name = handle->get_name_of_map(); \
+    const auto table_name = \
+      jsctx.to_str(JS_GetPropertyStr(jsctx, this_val, "_map_name")) \
+        .value_or(""); \
+    if (table_name.empty()) \
+    { \
+      return JS_ThrowTypeError(ctx, "Internal: No map name stored on handle"); \
+    } \
     const auto permission = _check_kv_map_access(jsctx.access, table_name); \
     char const* table_kind = permission == MapAccessPermissions::READ_ONLY ? \
       "read-only" : \
@@ -551,27 +671,37 @@ namespace ccf::js
   JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_get_version_denied, "get_version")
 #undef JS_KV_PERMISSION_ERROR_HELPER
 
-  static void _create_kv_map_handle(
-    JSContext* ctx,
-    JSPropertyDescriptor* desc,
-    void* handle,
+  template <HandleGetter HG>
+  static JSValue _create_kv_map_handle(
+    js::Context& ctx,
+    const std::string& map_name,
     MapAccessPermissions access_permission)
   {
     // This follows the interface of Map:
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
     // Keys and values are ArrayBuffers. Keys are matched based on their
     // contents.
-    auto view_val = JS_NewObjectClass(ctx, kv_map_handle_class_id);
-    JS_SetOpaque(view_val, handle);
+    auto view_val = ctx.new_obj_class(kv_map_handle_class_id);
+    JS_CHECK_EXC(view_val);
 
-    auto has_fn = js_kv_map_has;
-    auto get_fn = js_kv_map_get;
-    auto size_fn = js_kv_map_size_getter;
+    // Store (owning) copy of map_name in a property on this JSValue
+    auto map_name_val = ctx.new_string(map_name);
+    JS_CHECK_EXC(map_name_val);
+    JS_CHECK_SET(view_val.set("_map_name", std::move(map_name_val)));
+
+    // Add methods to handle object. Note that this is done once, when this
+    // object is created, because jsctx.access is constant. If the access
+    // restrictions could vary between invocations, then this object's
+    // properties would need to be updated as well.
+
+    auto has_fn = js_kv_map_has<HG>;
+    auto get_fn = js_kv_map_get<HG>;
+    auto size_fn = js_kv_map_size_getter<HG>;
     auto set_fn = js_kv_map_set;
     auto delete_fn = js_kv_map_delete;
     auto clear_fn = js_kv_map_clear;
-    auto foreach_fn = js_kv_map_foreach;
-    auto get_version_fn = js_kv_get_version_of_previous_write;
+    auto foreach_fn = js_kv_map_foreach<HG>;
+    auto get_version_fn = js_kv_get_version_of_previous_write<HG>;
 
     if (access_permission == MapAccessPermissions::ILLEGAL)
     {
@@ -591,39 +721,41 @@ namespace ccf::js
       clear_fn = js_kv_map_clear_denied;
     }
 
-    JS_SetPropertyStr(
-      ctx, view_val, "has", JS_NewCFunction(ctx, has_fn, "has", 1));
-    JS_SetPropertyStr(
-      ctx, view_val, "get", JS_NewCFunction(ctx, get_fn, "get", 1));
-    auto size_atom = JS_NewAtom(ctx, "size");
-    JS_DefinePropertyGetSet(
-      ctx,
-      view_val,
-      size_atom,
-      JS_NewCFunction2(
-        ctx, size_fn, "size", 0, JS_CFUNC_getter, JS_CFUNC_getter_magic),
-      ccf::js::constants::Undefined,
-      0);
-    JS_FreeAtom(ctx, size_atom);
+    auto has_fn_val = ctx.new_c_function(has_fn, "has", 1);
+    JS_CHECK_EXC(has_fn_val);
+    JS_CHECK_SET(view_val.set("has", std::move(has_fn_val)));
 
-    JS_SetPropertyStr(
-      ctx, view_val, "set", JS_NewCFunction(ctx, set_fn, "set", 2));
-    JS_SetPropertyStr(
-      ctx, view_val, "delete", JS_NewCFunction(ctx, delete_fn, "delete", 1));
-    JS_SetPropertyStr(
-      ctx, view_val, "clear", JS_NewCFunction(ctx, clear_fn, "clear", 0));
+    auto get_fn_val = ctx.new_c_function(get_fn, "get", 1);
+    JS_CHECK_EXC(get_fn_val);
+    JS_CHECK_SET(view_val.set("get", std::move(get_fn_val)));
 
-    JS_SetPropertyStr(
-      ctx, view_val, "forEach", JS_NewCFunction(ctx, foreach_fn, "forEach", 1));
+    auto get_size_fn_val = ctx.new_getter_c_function(size_fn, "size");
+    JS_CHECK_EXC(get_size_fn_val);
+    JS_CHECK_SET(view_val.set_getter("size", std::move(get_size_fn_val)));
 
-    JS_SetPropertyStr(
-      ctx,
-      view_val,
-      "getVersionOfPreviousWrite",
-      JS_NewCFunction(ctx, get_version_fn, "getVersionOfPreviousWrite", 1));
+    auto set_fn_val = ctx.new_c_function(set_fn, "set", 2);
+    JS_CHECK_EXC(set_fn_val);
+    JS_CHECK_SET(view_val.set("set", std::move(set_fn_val)));
 
-    desc->flags = 0;
-    desc->value = view_val;
+    auto delete_fn_val = ctx.new_c_function(delete_fn, "delete", 1);
+    JS_CHECK_EXC(delete_fn_val);
+    JS_CHECK_SET(view_val.set("delete", std::move(delete_fn_val)));
+
+    auto clear_fn_val = ctx.new_c_function(clear_fn, "clear", 0);
+    JS_CHECK_EXC(clear_fn_val);
+    JS_CHECK_SET(view_val.set("clear", std::move(clear_fn_val)));
+
+    auto foreach_fn_val = ctx.new_c_function(foreach_fn, "forEach", 1);
+    JS_CHECK_EXC(foreach_fn_val);
+    JS_CHECK_SET(view_val.set("forEach", std::move(foreach_fn_val)));
+
+    auto get_version_fn_val =
+      ctx.new_c_function(get_version_fn, "getVersionOfPreviousWrite", 1);
+    JS_CHECK_EXC(get_version_fn_val);
+    JS_CHECK_SET(
+      view_val.set("getVersionOfPreviousWrite", std::move(get_version_fn_val)));
+
+    return view_val.take();
   }
 
   static int js_kv_lookup(
@@ -633,39 +765,50 @@ namespace ccf::js
     JSAtom property)
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-    const auto property_name = jsctx.to_str(property).value_or("");
-    LOG_TRACE_FMT("Looking for kv map '{}'", property_name);
+    const auto map_name = jsctx.to_str(property).value_or("");
+    LOG_TRACE_FMT("Looking for kv map '{}'", map_name);
 
-    auto tx_ctx_ptr =
-      static_cast<TxContext*>(JS_GetOpaque(this_val, kv_class_id));
+    const auto access_permission = _check_kv_map_access(jsctx.access, map_name);
+    auto handle_val = _create_kv_map_handle<_get_map_handle_current>(
+      jsctx, map_name, access_permission);
+    if (JS_IsException(handle_val))
+    {
+      return -1;
+    }
 
-    const auto access_permission =
-      _check_kv_map_access(jsctx.access, property_name);
-
-    auto handle = tx_ctx_ptr->tx->rw<KVMap>(property_name);
-
-    _create_kv_map_handle(ctx, desc, handle, access_permission);
+    desc->flags = 0;
+    desc->value = handle_val;
 
     return true;
   }
 
-  static int js_read_only_kv_lookup(
+  static int js_historical_kv_lookup(
     JSContext* ctx,
     JSPropertyDescriptor* desc,
     JSValueConst this_val,
     JSAtom property)
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
-    const auto property_name = jsctx.to_str(property).value_or("");
-    LOG_TRACE_FMT("Looking for read-only kv map '{}'", property_name);
-
-    auto tx_ctx_ptr = static_cast<ReadOnlyTxContext*>(
-      JS_GetOpaque(this_val, kv_read_only_class_id));
-
-    auto handle = tx_ctx_ptr->tx->ro<KVMap>(property_name);
+    const auto map_name = jsctx.to_str(property).value_or("");
+    auto seqno = reinterpret_cast<ccf::SeqNo>(
+      JS_GetOpaque(this_val, kv_historical_class_id));
+    LOG_TRACE_FMT(
+      "Looking for historical kv map '{}' at seqno {}", map_name, seqno);
 
     // Ignore evaluated access permissions - all tables are read-only
-    _create_kv_map_handle(ctx, desc, handle, MapAccessPermissions::READ_ONLY);
+    const auto access_permission = MapAccessPermissions::READ_ONLY;
+    auto handle_val = _create_kv_map_handle<_get_map_handle_historical>(
+      jsctx, map_name, access_permission);
+    if (JS_IsException(handle_val))
+    {
+      return -1;
+    }
+
+    // Copy seqno from kv to handle
+    JS_SetOpaque(handle_val, reinterpret_cast<void*>(seqno));
+
+    desc->flags = 0;
+    desc->value = handle_val;
 
     return true;
   }
@@ -680,8 +823,13 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected none", argc);
 
-    auto body = static_cast<const std::vector<uint8_t>*>(
-      JS_GetOpaque(this_val, body_class_id));
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    auto body = jsctx.globals.current_request_body;
+    if (body == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "No request body set");
+    }
+
     auto body_ = JS_NewStringLen(ctx, (const char*)body->data(), body->size());
     return body_;
   }
@@ -696,8 +844,13 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected none", argc);
 
-    auto body = static_cast<const std::vector<uint8_t>*>(
-      JS_GetOpaque(this_val, body_class_id));
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    auto body = jsctx.globals.current_request_body;
+    if (body == nullptr)
+    {
+      return JS_ThrowTypeError(ctx, "No request body set");
+    }
+
     std::string body_str(body->begin(), body->end());
     auto body_ = JS_ParseJSON(ctx, body_str.c_str(), body->size(), "<body>");
     return body_;
@@ -713,8 +866,13 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected none", argc);
 
-    auto body = static_cast<const std::vector<uint8_t>*>(
-      JS_GetOpaque(this_val, body_class_id));
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    auto body = jsctx.globals.current_request_body;
+    if (body == nullptr)
+    {
+      return JS_ThrowTypeError(ctx, "No request body set");
+    }
+
     auto body_ = JS_NewArrayBufferCopy(ctx, body->data(), body->size());
     return body_;
   }
@@ -735,16 +893,9 @@ namespace ccf::js
     auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
 
-    auto global_obj = jsctx.get_global_obj();
-    JS_CHECK_EXC(global_obj);
-    auto ccf = global_obj["ccf"];
-    JS_CHECK_EXC(ccf);
-    auto kv = ccf["kv"];
-    JS_CHECK_EXC(kv);
+    auto tx_ptr = jsctx.globals.tx;
 
-    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
-
-    if (tx_ctx_ptr->tx == nullptr)
+    if (tx_ptr == nullptr)
     {
       return JS_ThrowInternalError(
         ctx, "No transaction available to rekey ledger");
@@ -752,7 +903,7 @@ namespace ccf::js
 
     try
     {
-      bool result = gov_effects->rekey_ledger(*tx_ctx_ptr->tx);
+      bool result = gov_effects->rekey_ledger(*tx_ptr);
       if (!result)
       {
         return JS_ThrowInternalError(ctx, "Could not rekey ledger");
@@ -789,16 +940,9 @@ namespace ccf::js
       return JS_ThrowInternalError(ctx, "Node state is not set");
     }
 
-    auto global_obj = jsctx.get_global_obj();
-    JS_CHECK_EXC(global_obj);
-    auto ccf = global_obj["ccf"];
-    JS_CHECK_EXC(ccf);
-    auto kv = ccf["kv"];
-    JS_CHECK_EXC(kv);
+    auto tx_ptr = jsctx.globals.tx;
 
-    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
-
-    if (tx_ctx_ptr->tx == nullptr)
+    if (tx_ptr == nullptr)
     {
       return JS_ThrowInternalError(
         ctx, "No transaction available to open service");
@@ -841,7 +985,7 @@ namespace ccf::js
       identities.next = crypto::Pem(next_bytes, next_bytes_sz);
       GOV_DEBUG_FMT("next service identity: {}", identities.next.str());
 
-      gov_effects->transition_service_to_open(*tx_ctx_ptr->tx, identities);
+      gov_effects->transition_service_to_open(*tx_ptr, identities);
     }
     catch (const std::exception& e)
     {
@@ -986,16 +1130,9 @@ namespace ccf::js
       return JS_ThrowInternalError(ctx, "Network state is not set");
     }
 
-    auto global_obj = jsctx.get_global_obj();
-    JS_CHECK_EXC(global_obj);
-    auto ccf = global_obj["ccf"];
-    JS_CHECK_EXC(ccf);
-    auto kv = ccf["kv"];
-    JS_CHECK_EXC(kv);
+    auto tx_ptr = jsctx.globals.tx;
 
-    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
-
-    if (tx_ctx_ptr->tx == nullptr)
+    if (tx_ptr == nullptr)
     {
       return JS_ThrowInternalError(
         ctx, "No transaction available to fetch latest ledger secret seqno");
@@ -1006,7 +1143,7 @@ namespace ccf::js
     try
     {
       latest_ledger_secret_seqno =
-        network->ledger_secrets->get_latest(*tx_ctx_ptr->tx).first;
+        network->ledger_secrets->get_latest(*tx_ptr).first;
     }
     catch (const std::exception& e)
     {
@@ -1027,9 +1164,7 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
     }
 
-    auto rpc_ctx =
-      static_cast<ccf::RpcContext*>(JS_GetOpaque(this_val, rpc_class_id));
-
+    auto rpc_ctx = jsctx.globals.rpc_ctx;
     if (rpc_ctx == nullptr)
     {
       return JS_ThrowInternalError(ctx, "RPC context is not set");
@@ -1048,14 +1183,14 @@ namespace ccf::js
   JSValue js_rpc_set_claims_digest(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
+    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+
     if (argc != 1)
     {
       return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
     }
 
-    auto rpc_ctx =
-      static_cast<ccf::RpcContext*>(JS_GetOpaque(this_val, rpc_class_id));
-
+    auto rpc_ctx = jsctx.globals.rpc_ctx;
     if (rpc_ctx == nullptr)
     {
       return JS_ThrowInternalError(ctx, "RPC context is not set");
@@ -1098,21 +1233,14 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 3", argc);
     }
 
-    auto global_obj = jsctx.get_global_obj();
-    JS_CHECK_EXC(global_obj);
-    auto ccf = global_obj["ccf"];
-    JS_CHECK_EXC(ccf);
-    auto kv = ccf["kv"];
-    JS_CHECK_EXC(kv);
+    auto tx_ptr = jsctx.globals.tx;
 
-    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
-
-    if (tx_ctx_ptr->tx == nullptr)
+    if (tx_ptr == nullptr)
     {
       return JS_ThrowInternalError(ctx, "No transaction available");
     }
 
-    auto& tx = *tx_ctx_ptr->tx;
+    auto& tx = *tx_ptr;
 
     auto issuer = jsctx.to_str(argv[0]);
     if (!issuer)
@@ -1177,16 +1305,9 @@ namespace ccf::js
       return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 1", argc);
     }
 
-    auto global_obj = jsctx.get_global_obj();
-    JS_CHECK_EXC(global_obj);
-    auto ccf = global_obj["ccf"];
-    JS_CHECK_EXC(ccf);
-    auto kv = ccf["kv"];
-    JS_CHECK_EXC(kv);
+    auto tx_ptr = jsctx.globals.tx;
 
-    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
-
-    if (tx_ctx_ptr->tx == nullptr)
+    if (tx_ptr == nullptr)
     {
       return JS_ThrowInternalError(ctx, "No transaction available");
     }
@@ -1199,7 +1320,7 @@ namespace ccf::js
 
     try
     {
-      auto& tx = *tx_ctx_ptr->tx;
+      auto& tx = *tx_ptr;
       ccf::remove_jwt_public_signing_keys(tx, *issuer);
     }
     catch (std::exception& exc)
@@ -1226,16 +1347,9 @@ namespace ccf::js
 
     auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
-    auto global_obj = jsctx.get_global_obj();
-    JS_CHECK_EXC(global_obj);
-    auto ccf = global_obj["ccf"];
-    JS_CHECK_EXC(ccf);
-    auto kv = ccf["kv"];
-    JS_CHECK_EXC(kv);
+    auto tx_ptr = jsctx.globals.tx;
 
-    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
-
-    if (tx_ctx_ptr->tx == nullptr)
+    if (tx_ptr == nullptr)
     {
       return JS_ThrowInternalError(
         ctx, "No transaction available to open service");
@@ -1243,7 +1357,7 @@ namespace ccf::js
 
     try
     {
-      gov_effects->trigger_recovery_shares_refresh(*tx_ctx_ptr->tx);
+      gov_effects->trigger_recovery_shares_refresh(*tx_ptr);
     }
     catch (const std::exception& e)
     {
@@ -1265,23 +1379,16 @@ namespace ccf::js
 
     auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
-    auto global_obj = jsctx.get_global_obj();
-    JS_CHECK_EXC(global_obj);
-    auto ccf = global_obj["ccf"];
-    JS_CHECK_EXC(ccf);
-    auto kv = ccf["kv"];
-    JS_CHECK_EXC(kv);
+    auto tx_ptr = jsctx.globals.tx;
 
-    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
-
-    if (tx_ctx_ptr->tx == nullptr)
+    if (tx_ptr == nullptr)
     {
       return JS_ThrowInternalError(ctx, "No transaction available");
     }
 
     try
     {
-      gov_effects->trigger_ledger_chunk(*tx_ctx_ptr->tx);
+      gov_effects->trigger_ledger_chunk(*tx_ptr);
     }
     catch (const std::exception& e)
     {
@@ -1303,23 +1410,16 @@ namespace ccf::js
 
     auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
-    auto global_obj = jsctx.get_global_obj();
-    JS_CHECK_EXC(global_obj);
-    auto ccf = global_obj["ccf"];
-    JS_CHECK_EXC(ccf);
-    auto kv = ccf["kv"];
-    JS_CHECK_EXC(kv);
+    auto tx_ptr = jsctx.globals.tx;
 
-    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
-
-    if (tx_ctx_ptr->tx == nullptr)
+    if (tx_ptr == nullptr)
     {
       return JS_ThrowInternalError(ctx, "No transaction available");
     }
 
     try
     {
-      gov_effects->trigger_snapshot(*tx_ctx_ptr->tx);
+      gov_effects->trigger_snapshot(*tx_ptr);
     }
     catch (const std::exception& e)
     {
@@ -1385,16 +1485,9 @@ namespace ccf::js
 
     auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
       JS_GetOpaque(this_val, node_class_id));
-    auto global_obj = jsctx.get_global_obj();
-    JS_CHECK_EXC(global_obj);
-    auto ccf = global_obj["ccf"];
-    JS_CHECK_EXC(ccf);
-    auto kv = ccf["kv"];
-    JS_CHECK_EXC(kv);
+    auto tx_ptr = jsctx.globals.tx;
 
-    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
-
-    if (tx_ctx_ptr->tx == nullptr)
+    if (tx_ptr == nullptr)
     {
       return JS_ThrowInternalError(ctx, "No transaction available");
     }
@@ -1416,7 +1509,7 @@ namespace ccf::js
         opt_interfaces = interfaces;
       }
 
-      gov_effects->trigger_acme_refresh(*tx_ctx_ptr->tx, opt_interfaces);
+      gov_effects->trigger_acme_refresh(*tx_ptr, opt_interfaces);
     }
     catch (const std::exception& e)
     {
@@ -1623,25 +1716,18 @@ namespace ccf::js
         ctx, "Passed %d arguments but expected none", argc);
     }
 
-    auto global_obj = jsctx.get_global_obj();
-    JS_CHECK_EXC(global_obj);
-    auto ccf = global_obj["ccf"];
-    JS_CHECK_EXC(ccf);
-    auto kv = ccf["kv"];
-    JS_CHECK_EXC(kv);
+    auto tx_ptr = jsctx.globals.tx;
 
-    auto tx_ctx_ptr = static_cast<TxContext*>(JS_GetOpaque(kv, kv_class_id));
-
-    if (tx_ctx_ptr->tx == nullptr)
+    if (tx_ptr == nullptr)
     {
       return JS_ThrowInternalError(ctx, "No transaction available");
     }
 
-    auto& tx = *tx_ctx_ptr->tx;
+    auto& tx = *tx_ptr;
 
     js::Context ctx2(js::TxAccess::APP);
     ctx2.runtime().set_runtime_options(
-      tx_ctx_ptr->tx, js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+      tx_ptr, js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
     JS_SetModuleLoaderFunc(
       ctx2.runtime(), nullptr, js::js_app_module_loader, &tx);
 
@@ -1701,16 +1787,16 @@ namespace ccf::js
     kv_class_def.class_name = "KV Tables";
     kv_class_def.exotic = &kv_exotic_methods;
 
-    JS_NewClassID(&kv_read_only_class_id);
-    kv_read_only_exotic_methods.get_own_property = js_read_only_kv_lookup;
-    kv_read_only_class_def.class_name = "Read-only KV Tables";
-    kv_read_only_class_def.exotic = &kv_read_only_exotic_methods;
+    JS_NewClassID(&kv_historical_class_id);
+    kv_historical_exotic_methods.get_own_property = js_historical_kv_lookup;
+    kv_historical_class_def.class_name = "Read-only Historical KV Tables";
+    kv_historical_class_def.exotic = &kv_historical_exotic_methods;
 
     JS_NewClassID(&kv_map_handle_class_id);
     kv_map_handle_class_def.class_name = "KV Map Handle";
 
     JS_NewClassID(&body_class_id);
-    body_class_def.class_name = "Body";
+    body_class_def.class_name = "Current Request Body";
 
     JS_NewClassID(&node_class_id);
     node_class_def.class_name = "Node";
@@ -1732,7 +1818,6 @@ namespace ccf::js
 
     JS_NewClassID(&historical_state_class_id);
     historical_state_class_def.class_name = "HistoricalState";
-    historical_state_class_def.finalizer = js_historical_state_finalizer;
   }
 
   std::optional<std::stringstream> stringify_args(
@@ -2266,40 +2351,52 @@ namespace ccf::js
     }
   }
 
-  void populate_global_ccf_kv(TxContext* txctx, js::Context& ctx)
+  void populate_global_ccf_kv(kv::Tx& tx, js::Context& ctx)
   {
     auto kv = JS_NewObjectClass(ctx, kv_class_id);
-    JS_SetOpaque(kv, txctx);
+    ctx.globals.tx = &tx;
 
     auto ccf = ctx.get_global_property("ccf");
     JS_SetPropertyStr(ctx, ccf, "kv", kv);
   }
 
-  void populate_global_ccf_historical_state(
-    ReadOnlyTxContext* historical_txctx,
-    const ccf::TxID& transaction_id,
-    ccf::TxReceiptImplPtr receipt,
-    js::Context& ctx)
+  JSValue create_historical_state_object(
+    js::Context& jsctx, ccf::historical::StatePtr state)
   {
-    // Historical queries
-    if (receipt != nullptr)
+    auto js_state = jsctx.new_obj_class(historical_state_class_id);
+    JS_CHECK_EXC(js_state);
+
+    const auto transaction_id = state->transaction_id;
+    auto transaction_id_s = jsctx.new_string(transaction_id.to_str());
+    JS_CHECK_EXC(transaction_id_s);
+    JS_CHECK_SET(js_state.set("transactionId", std::move(transaction_id_s)));
+
+    // NB: ccf_receipt_to_js returns a JSValue (unwrapped), due to its use of
+    // macros. So we must rewrap it here, immediately after returning
+    auto js_receipt = jsctx(ccf_receipt_to_js(jsctx, state->receipt));
+    JS_CHECK_EXC(js_receipt);
+    JS_CHECK_SET(js_state.set("receipt", std::move(js_receipt)));
+
+    auto kv = jsctx.new_obj_class(kv_historical_class_id);
+    JS_CHECK_EXC(kv);
+    JS_SetOpaque(kv, reinterpret_cast<void*>(transaction_id.seqno));
+    JS_CHECK_SET(js_state.set("kv", std::move(kv)));
+
+    try
     {
-      auto state = JS_NewObject(ctx);
-
-      JS_SetPropertyStr(
-        ctx,
-        state,
-        "transactionId",
-        JS_NewString(ctx, transaction_id.to_str().c_str()));
-      auto js_receipt = ccf_receipt_to_js(&ctx, receipt);
-      JS_SetPropertyStr(ctx, state, "receipt", js_receipt);
-      auto kv = JS_NewObjectClass(ctx, kv_read_only_class_id);
-      JS_SetOpaque(kv, historical_txctx);
-      JS_SetPropertyStr(ctx, state, "kv", kv);
-
-      auto ccf = ctx.get_global_property("ccf");
-      JS_SetPropertyStr(ctx, ccf, "historicalState", state);
+      // Create a tx which will be used to access this state
+      auto tx = state->store->create_read_only_tx_ptr();
+      // Extend lifetime of state and tx, by storing on the ctx
+      jsctx.globals.historical_handles[transaction_id.seqno] = {
+        state, std::move(tx)};
     }
+    catch (const std::exception& e)
+    {
+      return JS_ThrowInternalError(
+        jsctx, "Failed to create read-only historical tx: %s", e.what());
+    }
+
+    return js_state.take();
   }
 
   void populate_global_ccf_node(
@@ -2427,7 +2524,7 @@ namespace ccf::js
   void populate_global_ccf_rpc(ccf::RpcContext* rpc_ctx, js::Context& ctx)
   {
     auto rpc = JS_NewObjectClass(ctx, rpc_class_id);
-    JS_SetOpaque(rpc, rpc_ctx);
+    ctx.globals.rpc_ctx = rpc_ctx;
     auto ccf = ctx.get_global_property("ccf");
     JS_SetPropertyStr(ctx, ccf, "rpc", rpc);
     JS_SetPropertyStr(
@@ -2489,11 +2586,32 @@ namespace ccf::js
         ctx, js_historical_drop_cached_states, "dropCachedStates", 1));
   }
 
+  void invalidate_globals(js::Context& ctx)
+  {
+    // Reset any state that has been stored on the ctx object to implement
+    // globals. This should be called at the end of any invocation where the
+    // globals may point to locally-scoped memory, and the Context itself (the
+    // interpreter) may live longer and be reused for future calls. Those calls
+    // must re-populate the globals appropriately, pointing to their own local
+    // instances of state as required.
+
+    ctx.globals.tx = nullptr;
+
+    // Any KV handles which have been created with reference to this tx should
+    // no longer be accessed. Any future calls on these JSValues will
+    // re-populate this map with fresh KVMap::Handle*s
+    ctx.globals.kv_handles.clear();
+
+    ctx.globals.historical_handles.clear();
+
+    ctx.globals.rpc_ctx = nullptr;
+  }
+
   void Runtime::add_ccf_classdefs()
   {
     std::vector<std::pair<JSClassID, JSClassDef*>> classes{
       {kv_class_id, &kv_class_def},
-      {kv_read_only_class_id, &kv_read_only_class_def},
+      {kv_historical_class_id, &kv_historical_class_def},
       {kv_map_handle_class_id, &kv_map_handle_class_def},
       {body_class_id, &body_class_def},
       {node_class_id, &node_class_def},

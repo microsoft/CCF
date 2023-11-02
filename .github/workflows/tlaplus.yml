@@ -28,6 +28,11 @@ jobs:
           cd tla/
           ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
 
+      - name: MCccfraftAtomicReconfig.cfg
+        run: |
+          cd tla/
+          ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json
+
       - name: MCccfraftWithReconfig.cfg
         run: |
           cd tla/

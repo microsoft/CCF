@@ -1231,6 +1231,11 @@ namespace kv
       return ReadOnlyTx(this);
     }
 
+    std::unique_ptr<ReadOnlyTx> create_read_only_tx_ptr() override
+    {
+      return std::make_unique<ReadOnlyTx>(this);
+    }
+
     TxDiff create_tx_diff() override
     {
       return TxDiff(this);

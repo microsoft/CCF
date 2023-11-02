@@ -237,6 +237,11 @@ namespace ccf
         return ccf::make_fwd_rpc_context(
           session, raw_request, r.first.frame_format);
       }
+      catch (const http::RequestTooLargeException& rexc)
+      {
+        LOG_FAIL_FMT("Forwarded request exceeded limit: {}", rexc.what());
+        return nullptr;
+      }
       catch (const std::exception& err)
       {
         LOG_FAIL_FMT("Invalid forwarded request");
