@@ -38,6 +38,12 @@ jobs:
           cd tla/
           ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
 
+      - name: Uploading TLC stats to cimetrics
+        run: |
+          cd tests
+          pip3 install -r requirements.txt 
+          python3 upload_tlc_stats.py ../tla/MCccfraftWithReconfig.json
+
       - name: Upload traces in TLA and JSON format
         uses: actions/upload-artifact@v3
         if: ${{ failure() }}

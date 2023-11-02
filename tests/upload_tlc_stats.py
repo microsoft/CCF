@@ -4,6 +4,7 @@
 import json
 import os
 import argparse
+import cimetrics.upload
 
 from loguru import logger as LOG
 
@@ -19,7 +20,9 @@ def run(filename):
                 duration_sec,
                 dstates,
             )
-            # TODO: upload metrics here
+            with cimetrics.upload.metrics(complete=False) as metrics:
+                metrics.put("TLC Duration (s)", duration_sec)
+                metrics.put("TLC Distinct States", dstates)
 
     else:
         LOG.warning(f"Could not find file {filename}: skipping metrics upload")
