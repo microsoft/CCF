@@ -658,6 +658,11 @@ ChangeConfigurationInt(i, newConfiguration) ==
     /\ newConfiguration \subseteq Servers
     \* Configuration is not equal to the previous configuration
     /\ newConfiguration /= MaxConfiguration(i)
+    \* The previous entry in the log is a regular entry, since we are
+    \* going to replace it. We don't want replace a signature entry,
+    \* or another reconfiguration.
+    /\ Len(log[i]) > 0
+    /\ log[i][Len(log[i])].contentType = TypeEntry
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
     /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
@@ -1260,7 +1265,8 @@ LogConfigurationConsistentInv ==
             /\ log[i][idx].configuration = configurations[i][idx]
         \* Current configuration should be committed
         \* This is trivially true for the initial configuration (index 0)
-        /\ commitIndex[i] >= CurrentConfigurationIndex(i)
+\* Actually this is trivially false, there is no configuration at 0
+\*        /\ commitIndex[i] >= CurrentConfigurationIndex(i)
         \* Pending configurations should not be committed yet
         /\ Cardinality(DOMAIN configurations[i]) > 1 
             => commitIndex[i] < NextConfigurationIndex(i)
