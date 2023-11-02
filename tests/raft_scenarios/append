@@ -1,0 +1,25 @@
+# Create a Start Node, commit initial transaction and signature
+# Append transaction to the node's log, observe that they are committed
+start_node
+assert_is_primary,0
+emit_signature,2
+
+assert_is_primary,0
+assert_commit_idx,0,2
+
+replicate,2,first transaction
+# Commit hasn't moved, the transaction is not part of a signed
+# suffix, and so is not committable
+assert_commit_idx,0,2
+emit_signature,2
+# The signature has been emitted, commit is immediate since
+# no other nodes need to be notified
+assert_commit_idx,0,4
+
+# Append more than one transaction in a signed batch
+replicate,2,second transaction
+replicate,2,third transaction
+replicate,2,fourth transaction
+assert_commit_idx,0,4
+emit_signature,2
+assert_commit_idx,0,8

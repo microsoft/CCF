@@ -10,7 +10,8 @@ steps:
       set -ex
       cd tla/
       parallel 'JSON={} ./tlc.sh consensus/Traceccfraft.tla' ::: \
-      ../build/startup.ndjson
+      ../build/startup.ndjson \
+      ../build/append.ndjson
       # ../build/replicate.ndjson \
       # ../build/election.ndjson \
       # ../build/multi_election.ndjson \
