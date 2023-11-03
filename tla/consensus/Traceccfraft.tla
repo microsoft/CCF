@@ -38,8 +38,11 @@ IsAppendEntriesRequest(msg, dst, src, logline) ==
     /\ msg.source = src
     /\ msg.term = logline.msg.packet.term
     /\ msg.commitIndex = logline.msg.packet.leader_commit_idx
+    \* Does not work because the initial term is 2, not 0
+    \* and so the exception in AppendEntries (ccfraft.tla:575) does not kick in
     \* /\ msg.prevLogTerm = logline.msg.packet.prev_term
     /\ Len(msg.entries) = logline.msg.packet.idx - logline.msg.packet.prev_idx
+    \* Similar issue here, with prevLogIndex starting at 0 instead of 1
     \* /\ msg.prevLogIndex + Len(msg.entries) = logline.msg.packet.idx
     \* /\ msg.prevLogIndex = logline.msg.packet.prev_idx
 
@@ -51,7 +54,7 @@ IsAppendEntriesResponse(msg, dst, src, logline) ==
     /\ msg.term = logline.msg.packet.term
     \* raft_types.h enum AppendEntriesResponseType
     /\ msg.success = (logline.msg.packet.success = "OK")
-\*    /\ msg.lastLogIndex = logline.msg.packet.last_log_idx
+    /\ msg.lastLogIndex = logline.msg.packet.last_log_idx
 
 -------------------------------------------------------------------------------------
 
@@ -197,8 +200,10 @@ IsSendAppendEntries ==
                 /\ IsAppendEntriesRequest(msg, j, i, logline)
                 \* There is now one more message of this type.
                 /\ Network!OneMoreMessage(msg)
+        \* Does not work initially, the leader optimistically
+        \* sends the latest it has.
         \*   /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
-        \*   /\ logline.msg.match_idx = matchIndex[i][j]
+            /\ logline.msg.match_idx = matchIndex[i][j]
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsRcvAppendEntriesRequest ==
