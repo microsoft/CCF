@@ -3,9 +3,12 @@
 import argparse
 import sys
 import os
+import json
 from subprocess import Popen, PIPE
 from raft_scenarios_gen import generate_scenarios
 from contextlib import contextmanager
+from collections import defaultdict
+from heapq import merge
 
 
 @contextmanager
@@ -33,6 +36,23 @@ def write_error_report(errors=None):
         print("??? success \n")
 
 
+def remove_reconfiguration_replicates(log):
+    log_by_node = defaultdict(list)
+    for line in log:
+        entry = json.loads(line)
+        node = entry["msg"]["state"]["node_id"]
+        if entry["msg"]["function"] == "add_configuration":
+            removed = log_by_node[node].pop()
+            assert removed["msg"]["function"] in (
+                "replicate",
+                "execute_append_entries_sync",
+            ), removed
+        log_by_node[node].append(entry)
+    return [
+        json.dumps(e) for e in merge(*log_by_node.values(), key=lambda e: e["h_ts"])
+    ]
+
+
 def separate_log_lines(text):
     mermaid = []
     log = []
@@ -41,7 +61,10 @@ def separate_log_lines(text):
             mermaid.append(line[len("<RaftDriver>") :])
         elif '"raft_trace"' in line:
             log.append(line)
-    return (os.linesep.join(mermaid) + os.linesep, os.linesep.join(log) + os.linesep)
+    return (
+        os.linesep.join(mermaid) + os.linesep,
+        os.linesep.join(remove_reconfiguration_replicates(log)) + os.linesep,
+    )
 
 
 def expand_files(files):

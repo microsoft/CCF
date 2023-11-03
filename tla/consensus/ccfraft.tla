@@ -658,11 +658,6 @@ ChangeConfigurationInt(i, newConfiguration) ==
     /\ newConfiguration \subseteq Servers
     \* Configuration is not equal to the previous configuration
     /\ newConfiguration /= MaxConfiguration(i)
-    \* The previous entry in the log is a regular entry, since we are
-    \* going to replace it. We don't want replace a signature entry,
-    \* or another reconfiguration.
-    /\ Len(log[i]) > 0
-    /\ log[i][Len(log[i])].contentType = TypeEntry
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
     /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
@@ -671,7 +666,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
             term |-> currentTerm[i],
             configuration |-> newConfiguration,
             contentType |-> TypeReconfiguration]
-        newLog == [log[i] EXCEPT ![Len(log[i])] = entry]
+        newLog == Append(log[i], entry)
         \* Remove the ghost configuration at index 0, there's no index 0 in the log
         validConfigurationPrefix == [ci \in DOMAIN configurations[i] \ {0} |-> configurations[i]]
         IN
@@ -1339,8 +1334,7 @@ PermittedLogChangesProp ==
             \/ /\ state[i] = Leader
                /\ state[i]' = Leader
                /\ Len(log[i]') >= Len(log[i])
-               \* Reconfiguration replaces the last entry
-               \* /\ IsPrefix(log[i], log[i]')
+               /\ IsPrefix(log[i], log[i]')
             \* Newly elected leader is truncating its log
             \/ /\ state[i] = Candidate
                /\ state[i]' = Leader
