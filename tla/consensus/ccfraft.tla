@@ -1333,7 +1333,6 @@ PermittedLogChangesProp ==
             \* Established leader adding new entries
             \/ /\ state[i] = Leader
                /\ state[i]' = Leader
-               /\ Len(log[i]') >= Len(log[i])
                /\ IsPrefix(log[i], log[i]')
             \* Newly elected leader is truncating its log
             \/ /\ state[i] = Candidate
