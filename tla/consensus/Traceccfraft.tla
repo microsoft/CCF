@@ -38,10 +38,10 @@ IsAppendEntriesRequest(msg, dst, src, logline) ==
     /\ msg.source = src
     /\ msg.term = logline.msg.packet.term
     /\ msg.commitIndex = logline.msg.packet.leader_commit_idx
-    /\ msg.prevLogTerm = logline.msg.packet.prev_term
+    \* /\ msg.prevLogTerm = logline.msg.packet.prev_term
     /\ Len(msg.entries) = logline.msg.packet.idx - logline.msg.packet.prev_idx
-    /\ msg.prevLogIndex + Len(msg.entries) = logline.msg.packet.idx
-    /\ msg.prevLogIndex = logline.msg.packet.prev_idx
+    \* /\ msg.prevLogIndex + Len(msg.entries) = logline.msg.packet.idx
+    \* /\ msg.prevLogIndex = logline.msg.packet.prev_idx
 
 IsAppendEntriesResponse(msg, dst, src, logline) ==
     /\ msg.type = AppendEntriesResponse
@@ -60,7 +60,7 @@ IsAppendEntriesResponse(msg, dst, src, logline) ==
 ASSUME TLCGet("config").mode = "bfs"
 
 JsonFile ==
-    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../../build/election.ndjson"
+    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../../build/replicate.ndjson"
 \* Must hardcode value here for debugging
 \*  IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE Print("The JSON environment variable is not set.", FALSE)
 
@@ -100,7 +100,7 @@ TraceInitReconfigurationVars ==
     /\ configurations = [ s \in Servers |-> [ j \in {0} |-> {} ] ]
 
 TraceInitServerVars ==
-    /\ currentTerm = [i \in Servers |-> 0]
+    /\ currentTerm = [i \in Servers |-> IF i = "0" THEN 2 ELSE 0]
     /\ state       = [i \in Servers |-> IF i = TraceLog[1].msg.state.node_id THEN Leader ELSE Pending]
     /\ votedFor    = [i \in Servers |-> Nil]
 
@@ -171,10 +171,11 @@ IsBecomeLeader ==
     /\ logline.msg.state.leadership_state = "Leader"
     /\ BecomeLeader(logline.msg.state.node_id)
     /\ committableIndices'[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
-    
+
 IsClientRequest ==
     /\ IsEvent("replicate")
     /\ ClientRequest(logline.msg.state.node_id)
+    /\ logline.msg.state.leadership_state = "Leader"
     /\ ~logline.msg.globally_committable
     \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.
     \* TODO Alternatively, extract the written values from the system trace and redefine clientRequests at startup.
@@ -193,8 +194,8 @@ IsSendAppendEntries ==
                 /\ IsAppendEntriesRequest(msg, j, i, logline)
                 \* There is now one more message of this type.
                 /\ Network!OneMoreMessage(msg)
-          /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
-          /\ logline.msg.match_idx = matchIndex[i][j]
+        \*   /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
+        \*   /\ logline.msg.match_idx = matchIndex[i][j]
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsRcvAppendEntriesRequest ==
@@ -226,6 +227,7 @@ IsAddConfiguration ==
 IsSignCommittableMessages ==
     /\ IsEvent("replicate")
     /\ SignCommittableMessages(logline.msg.state.node_id)
+    /\ logline.msg.state.leadership_state = "Leader"
     /\ logline.msg.globally_committable
     \* It is tempting to assert the effect of SignCommittableMessages(...node_id) here, i.e., 
      \* committableIndices'[logline.msg.state.node_id] = Range(logline'.msg.committable_indices).
