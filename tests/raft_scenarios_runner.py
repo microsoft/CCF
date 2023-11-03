@@ -49,7 +49,7 @@ def remove_reconfiguration_replicates(log):
             ), removed
         log_by_node[node].append(entry)
     return [
-        json.dumps(e) for e in merge(*log_by_node.values(), key=lambda e: e["h_ts"])
+        json.dumps(e) for e in merge(*log_by_node.values(), key=lambda e: int(e["h_ts"]))
     ]
 
 

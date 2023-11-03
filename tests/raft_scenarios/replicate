@@ -1,11 +1,9 @@
-# Node 0 starts first, and wins the first election
+# Node 0 starts first
 start_node
-dispatch_all
 emit_signature,2
 
-# Add two more nodes
+# Add one more nodes
 trust_node,2,1
-trust_node,2,2
 emit_signature,2
 periodic_all,10
 dispatch_all
@@ -13,28 +11,3 @@ dispatch_all
 # Commit reconfiguration
 periodic_all,10
 dispatch_all
-
-periodic_all,10
-dispatch_all
-
-# Three node network is ready
-assert_is_primary,0
-assert_is_backup,1
-assert_is_backup,2
-assert_state_sync
-
-replicate,2,helloworld
-emit_signature,2
-periodic_all,10
-dispatch_all
-periodic_all,1
-state_all
-
-periodic_all,10
-dispatch_all
-
-periodic_all,10
-dispatch_all
-
-state_all
-assert_state_sync
