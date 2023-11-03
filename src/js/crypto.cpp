@@ -607,7 +607,7 @@ namespace ccf::js
         std::vector<uint8_t> wrapped_key =
           crypto::ckm_aes_key_wrap_pad(privateKey, {key, key + key_size});
 
-        OPENSSL_cleanse(&privateKey, sizeof(privateKey));
+        OPENSSL_cleanse(privateKey.data(), privateKey.size());
 
         return JS_NewArrayBufferCopy(
           ctx, wrapped_key.data(), wrapped_key.size());
@@ -738,7 +738,7 @@ namespace ccf::js
         std::vector<uint8_t> unwrapped_key =
           crypto::ckm_aes_key_unwrap_pad(privateKey, {key, key + key_size});
 
-        OPENSSL_cleanse(&privateKey, sizeof(privateKey));
+        OPENSSL_cleanse(privateKey.data(), privateKey.size());
 
         return JS_NewArrayBufferCopy(
           ctx, unwrapped_key.data(), unwrapped_key.size());
