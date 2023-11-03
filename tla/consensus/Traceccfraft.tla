@@ -51,7 +51,7 @@ IsAppendEntriesResponse(msg, dst, src, logline) ==
     /\ msg.term = logline.msg.packet.term
     \* raft_types.h enum AppendEntriesResponseType
     /\ msg.success = (logline.msg.packet.success = "OK")
-    /\ msg.lastLogIndex = logline.msg.packet.last_log_idx
+\*    /\ msg.lastLogIndex = logline.msg.packet.last_log_idx
 
 -------------------------------------------------------------------------------------
 
@@ -95,11 +95,14 @@ TraceAppendEntriesBatchsize(i, j) ==
 TraceInitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
-    \* Weaken  ccfraft!InitReconfigurationVars  to allow a node's configuration to be initially empty.
-     \* This seems to be a quirk of raft_driver (related RaftDriverQuirk).
+    \* Nodes start with a single, empty configuration each
+    \* This is to appease the multiple locations in ccfraft.tla that rely on configurations
+    \* containing at least one entry
     /\ configurations = [ s \in Servers |-> [ j \in {0} |-> {} ] ]
 
 TraceInitServerVars ==
+    \* The initial step is skipped by TraceInit, so we handle the effect of the first become_leader here
+    \* and the first node to Leader and their Term to 2
     /\ currentTerm = [i \in Servers |-> IF i = "0" THEN 2 ELSE 0]
     /\ state       = [i \in Servers |-> IF i = TraceLog[1].msg.state.node_id THEN Leader ELSE Pending]
     /\ votedFor    = [i \in Servers |-> Nil]
@@ -170,7 +173,7 @@ IsBecomeLeader ==
     /\ IsEvent("become_leader")
     /\ logline.msg.state.leadership_state = "Leader"
     /\ BecomeLeader(logline.msg.state.node_id)
-    /\ committableIndices'[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsClientRequest ==
     /\ IsEvent("replicate")
@@ -212,7 +215,7 @@ IsRcvAppendEntriesRequest ==
               /\ IsAppendEntriesRequest(m, i, j, logline)
 
 IsSendAppendEntriesResponse ==
-    \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
+    \* Skip saer because ccfraft!HandleAppendEntriesRequest atomically handles the request and sends the response.
        \* Find a similar pattern in Traceccfraft!IsRcvRequestVoteRequest below.
     /\ IsEvent("send_append_entries_response")
     /\ UNCHANGED vars
@@ -235,7 +238,7 @@ IsSignCommittableMessages ==
      \* which is not the case if the logs ends after this "replicate" line.  If it does not end,
      \* the subsequent send_append_entries will assert the effect of SignCommittableMessages anyway.
      \* Also see IsExecuteAppendEntries below.
-\*    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsAdvanceCommitIndex ==
     \* This is enabled *after* a SignCommittableMessages because ACI looks for a 
@@ -245,7 +248,7 @@ IsAdvanceCommitIndex ==
        /\ LET i == logline.msg.state.node_id
           IN /\ AdvanceCommitIndex(i)
              /\ commitIndex'[i] = logline.msg.state.commit_idx
-\*             /\ committableIndices'[i] = Range(logline.msg.state.committable_indices)
+             /\ committableIndices'[i] = Range(logline.msg.state.committable_indices)
 
     \/ /\ IsEvent("commit")
        /\ UNCHANGED vars
@@ -257,7 +260,7 @@ IsChangeConfiguration ==
     /\ LET i == logline.msg.state.node_id
            newConfiguration == DOMAIN logline.msg.new_configuration.nodes
        IN ChangeConfigurationInt(i, newConfiguration)
-\*    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsRcvAppendEntriesResponse ==
     /\ IsEvent("recv_append_entries_response")
@@ -336,8 +339,9 @@ IsRcvRequestVoteResponse ==
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
-    /\ state[logline.msg.state.node_id] = Follower
-    /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
+    /\ state[logline.msg.state.node_id] # Leader
+    /\ state' = [state EXCEPT ![logline.msg.state.node_id] = Follower]
+    \* /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsCheckQuorum ==
@@ -385,22 +389,6 @@ TraceNext ==
     \/ IsExecuteAppendEntries
 
     \/ IsRcvProposeVoteRequest
-
-RaftDriverQuirks ==
-    \* The "nodes" command in raft scenarios causes N consecutive "add_configuration" log lines to be emitted,
-     \* where N is determined by the "nodes" parameter. At this stage, the nodes are in the "Pending" state.
-     \* However, the enablement condition of "ccfraft!Timeout" is only true for nodes in the "Candidate" or 
-     \* "Follower" state. Therefore, we include this action to address this quirk in the raft_driver.
-    \/ /\ IsEvent("add_configuration")
-       /\ state[logline.msg.state.node_id] = Pending
-       /\ configurations' = [ configurations EXCEPT ![logline.msg.state.node_id] = ToConfigurations(<<logline.msg.new_configuration>>)]
-       /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
-       /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>    
-    \/ /\ IsEvent("become_follower")
-       /\ state[logline.msg.state.node_id] = Pending
-       /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
-       /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
-       /\ UNCHANGED <<reconfigurationVars, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
 
 TraceSpec ==
     \* In an ideal world with extremely fast compute and a sophisticated TLC evaluator, we would simply compose  DropMessage and
