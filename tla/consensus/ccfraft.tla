@@ -496,7 +496,7 @@ InitMessagesVars ==
     /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
 
 InitServerVars ==
-    /\ currentTerm = [i \in Servers |-> 0]
+    /\ currentTerm = [i \in Servers |-> 2]
     /\ state       = [i \in Servers |-> IF i \in configurations[i][0] THEN Follower ELSE Pending]
     /\ votedFor    = [i \in Servers |-> Nil]
 
@@ -572,10 +572,10 @@ AppendEntries(i, j) ==
     \* that index makes no difference.
     \* /\ IsInServerSetForIndex(j, i, nextIndex[i][j])
     /\ LET prevLogIndex == nextIndex[i][j] - 1
-           prevLogTerm == IF prevLogIndex > 0 /\ prevLogIndex <= Len(log[i]) THEN
+           prevLogTerm == IF prevLogIndex \in DOMAIN log[i] THEN
                               log[i][prevLogIndex].term
                           ELSE
-                              0
+                              2
            \* Send a number of entries (constrained by the end of the log).
            lastEntry(idx) == min(Len(log[i]), idx)
            index == nextIndex[i][j]
@@ -817,10 +817,10 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
        \/ /\ m.term >= currentTerm[i]
           /\ state[i] = Follower
           /\ ~logOk
-          /\ LET prevTerm == IF m.prevLogIndex = 0 THEN 0
-                             ELSE IF m.prevLogIndex > Len(log[i]) THEN 0 ELSE log[i][m.prevLogIndex].term
+          /\ LET prevTerm == IF m.prevLogIndex = 0 THEN 2
+                             ELSE IF m.prevLogIndex > Len(log[i]) THEN 2 ELSE log[i][m.prevLogIndex].term
              IN /\ m.prevLogTerm # prevTerm
-                /\ \/ /\ prevTerm = 0
+                /\ \/ /\ prevTerm = 2
                       /\ Reply([type        |-> AppendEntriesResponse,
                              success        |-> FALSE,
                              term           |-> currentTerm[i],
@@ -828,11 +828,11 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                              source         |-> i,
                              dest           |-> j],
                              m)
-                   \/ /\ prevTerm # 0
+                   \/ /\ prevTerm # 2
                       /\ LET lli == FindHighestPossibleMatch(log[i], m.prevLogIndex, m.term)
                          IN Reply([type        |-> AppendEntriesResponse,
                                 success        |-> FALSE,
-                                term           |-> IF lli = 0 THEN 0 ELSE log[i][lli].term,
+                                term           |-> IF lli = 0 THEN 2 ELSE log[i][lli].term,
                                 lastLogIndex   |-> lli,
                                 source         |-> i,
                                 dest           |-> j],
