@@ -1,0 +1,38 @@
+jobs:
+  - job: Model_Checking
+    displayName: "Model Checking"
+    variables:
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
+
+    ${{ insert }}: ${{ parameters.env }}
+
+    steps:
+      - checkout: self
+        clean: true
+        fetchDepth: 1
+
+      - script: |
+          set -ex
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
+        displayName: Setup
+
+      - script: ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
+        workingDirectory: tla
+        displayName: MCccfraft.cfg
+
+      - script: ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json
+        workingDirectory: tla
+        displayName: MCccfraftAtomicReconfig.cfg
+
+      - script: ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
+        workingDirectory: tla
+        displayName: MCccfraftWithReconfig.cfg
+
+      - task: PublishPipelineArtifact@1
+        inputs:
+          artifactName: "Model Checking Traces"
+          targetPath: tla
+        condition: or(failed(), canceled())

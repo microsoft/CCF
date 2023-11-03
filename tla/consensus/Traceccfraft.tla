@@ -473,9 +473,7 @@ TraceDifferentialInv ==
 TraceAlias ==
     DebugAlias @@
     [
-        lvl |-> l,
-        ts |-> ts,
-        logline |-> logline.msg
+        _logline |-> TraceLog[l-1]
 
         \* Uncomment _ENABLED when debugging the enablement state of ccfraft's actions.
         \* ,_ENABLED |-> 
