@@ -438,7 +438,8 @@ ConfigurationsToIndex(server, index) ==
 \* Index of the last reconfiguration up to (and including) the given index,
 \* assuming the given index is after the commit index
 LastConfigurationToIndex(server, index) ==
-    Max({c \in DOMAIN configurations[server] : c <= index})
+    LET configs_before_index == {c \in DOMAIN configurations[server] : c <= index}
+    IN IF configs_before_index = {} THEN 0 ELSE Max(configs_before_index)
 
 \* The prefix of the log of server i that has been committed
 Committed(i) ==
@@ -663,11 +664,9 @@ ChangeConfigurationInt(i, newConfiguration) ==
             configuration |-> newConfiguration,
             contentType |-> TypeReconfiguration]
         newLog == Append(log[i], entry)
-        \* Remove the ghost configuration at index 0, there's no index 0 in the log
-        validConfigurationPrefix == [ci \in DOMAIN configurations[i] \ {0} |-> configurations[i]]
         IN
         /\ log' = [log EXCEPT ![i] = newLog]
-        /\ configurations' = [configurations EXCEPT ![i] = validConfigurationPrefix @@ Len(log[i]) :> newConfiguration]
+        /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log[i]) :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars,
                     leaderVars, commitIndex, committableIndices, removedFromConfiguration>>
 
@@ -892,8 +891,9 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         \* extended configurations with any new configurations
         new_configs == 
             configurations[i] @@ [idx \in reconfig_indexes |-> new_log_entries[idx].configuration]
-        new_conf_index == 
-            Max({c \in DOMAIN new_configs : c <= new_commit_index})
+        new_commmitted_configs == {c \in DOMAIN new_configs : c <= new_commit_index}
+        new_conf_index == IF new_commmitted_configs = {} THEN 0 ELSE
+            Max(new_commmitted_configs)
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         \* see committable_indices.push_back(i) in raft.h:execute_append_entries_sync, guarded by case PASS_SIGNATURE
