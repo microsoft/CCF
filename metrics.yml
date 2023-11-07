@@ -10,4 +10,5 @@ monitoring_span: 150
 groups:
   "SGX": ".*_sgx_.*"
   "Virtual": ".*_virtual_.*"
+  "TLC": "tlc_.*"
   "Others": ".*"

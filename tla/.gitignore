@@ -12,4 +12,5 @@ tools/
 *.dot
 *TTrace*.tla
 *TTrace*.bin
+*_stats.json
 **/states.dump*
