@@ -33,7 +33,7 @@ jobs:
 
       - script: |
           pip3 install -r requirements.txt
-          python3 upload_tlc_stats.py ../tla/MCccfraft.json
+          python3 upload_tlc_stats.py 3node_fixed ../tla/MCccfraft.json
         workingDirectory: tests
         displayName: Uploading TLC stats to cimetrics
 
