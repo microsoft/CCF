@@ -23,13 +23,13 @@ jobs:
         workingDirectory: tla
         displayName: MCccfraft.cfg
 
-      # - script: ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json
-      #   workingDirectory: tla
-      #   displayName: MCccfraftAtomicReconfig.cfg
+      - script: ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json
+        workingDirectory: tla
+        displayName: MCccfraftAtomicReconfig.cfg
 
-      # - script: ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
-      #   workingDirectory: tla
-      #   displayName: MCccfraftWithReconfig.cfg
+      - script: ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
+        workingDirectory: tla
+        displayName: MCccfraftWithReconfig.cfg
 
       - script: |
           set -ex
