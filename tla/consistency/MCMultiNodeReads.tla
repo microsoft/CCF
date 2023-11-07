@@ -1,7 +1,7 @@
 ---- MODULE MCMultiNodeReads ----
 \* Bounded version of MultiNodeReads
 
-EXTENDS MCSingleNodeReads, MCMultiNodegit s
+EXTENDS MCSingleNodeReads, MCMultiNode
 
 MCNextMultiNodeReadsAction ==
     \/ MCNextMultiNodeAction
