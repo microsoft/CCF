@@ -31,6 +31,12 @@ jobs:
         workingDirectory: tla
         displayName: MCccfraftWithReconfig.cfg
 
+      - script: |
+          pip3 install -r requirements.txt
+          python3 upload_tlc_stats.py ../tla/MCccfraft.json
+        workingDirectory: tests
+        displayName: Uploading TLC stats to cimetrics
+
       - task: PublishPipelineArtifact@1
         inputs:
           artifactName: "Model Checking Traces"
