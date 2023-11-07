@@ -112,9 +112,7 @@ VARIABLE configurations
 
 ConfigurationsTypeInv ==
     \A i \in Servers : 
-        /\ \A c \in DOMAIN configurations[i] :
-            configurations[i][c] \subseteq Servers
-        /\ DOMAIN configurations[i] # {}
+        \A c \in DOMAIN configurations[i] : configurations[i][c] \subseteq Servers
 
 \* The set of servers that have been removed from configurations.  The implementation
 \* assumes that a server refrains from rejoining a configuration if it has been removed
@@ -139,7 +137,11 @@ reconfigurationVars == <<
 ReconfigurationVarsTypeInv ==
     /\ ReconfigurationCountTypeInv
     /\ ConfigurationsTypeInv
-    /\ RemovedFromConfigurationTypeInv
+\* Does not work with empty configurations in its current form
+\* Unclear we even want to keep removedFromConfiguration separately
+\* since it is something we can get from the servers through their
+\* membership state once added.
+\*    /\ RemovedFromConfigurationTypeInv
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
@@ -489,16 +491,14 @@ InitReconfigurationVars ==
     \* such as the initial configuration. A node's configuration is *never* "empty", i.e., the equivalent of configuration[node] = {} here. 
     \* For simplicity, the set of servers/nodes all have the same initial configuration at startup.
     /\ \E s \in Servers:
-        configurations = [i \in Servers |-> 0 :> {s} ]
+        /\ configurations = [ i \in Servers |-> [ j \in {} |-> 0 ]]
+        /\ currentTerm = [i \in Servers |-> 2]
+        /\ state       = [i \in Servers |-> IF i = s THEN Leader ELSE Pending]
+        /\ votedFor    = [i \in Servers |-> Nil]
 
 InitMessagesVars ==
     /\ Network!InitMessageVar
     /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
-
-InitServerVars ==
-    /\ currentTerm = [i \in Servers |-> 2]
-    /\ state       = [i \in Servers |-> IF i \in configurations[i][0] THEN Follower ELSE Pending]
-    /\ votedFor    = [i \in Servers |-> Nil]
 
 InitCandidateVars ==
     /\ votesGranted   = [i \in Servers |-> {}]
@@ -518,7 +518,6 @@ InitLogVars ==
 Init ==
     /\ InitReconfigurationVars
     /\ InitMessagesVars
-    /\ InitServerVars
     /\ InitCandidateVars
     /\ InitLeaderVars
     /\ InitLogVars
@@ -656,11 +655,8 @@ ChangeConfigurationInt(i, newConfiguration) ==
     /\ newConfiguration /= {}
     \* Configuration is a proper subset of the Servers
     /\ newConfiguration \subseteq Servers
-    \* Configuration is not equal to the previous configuration
-    /\ newConfiguration /= MaxConfiguration(i)
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
-    /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
     /\ LET
         entry == [
             term |-> currentTerm[i],
@@ -673,7 +669,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         /\ log' = [log EXCEPT ![i] = newLog]
         /\ configurations' = [configurations EXCEPT ![i] = validConfigurationPrefix @@ Len(log[i]) :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars,
-                    leaderVars, commitIndex, committableIndices>>
+                    leaderVars, commitIndex, committableIndices, removedFromConfiguration>>
 
 ChangeConfiguration(i) ==
     \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :
@@ -1199,9 +1195,10 @@ LogMatchingInv ==
 \* of at least one server in every quorum
 QuorumLogInv ==
     \A i \in Servers :
-        \A S \in Quorums[CurrentConfiguration(i)] :
-            \E j \in S :
-                IsPrefix(Committed(i), log[j])
+        \/ configurations[i] = << >>
+        \/ \A S \in Quorums[CurrentConfiguration(i)] :
+             \E j \in S :
+                 IsPrefix(Committed(i), log[j])
 
 \* True if server i could receive a vote from server j based on the up-to-date check
 \* The "up-to-date" check performed by servers before issuing a vote implies that i receives
@@ -1259,9 +1256,9 @@ LogConfigurationConsistentInv ==
             /\ log[i][idx].contentType = TypeReconfiguration            
             /\ log[i][idx].configuration = configurations[i][idx]
         \* Current configuration should be committed
-        \* This is trivially true for the initial configuration (index 0)
-\* Actually this is trivially false, there is no configuration at 0
-\*        /\ commitIndex[i] >= CurrentConfigurationIndex(i)
+        \* This is trivially false for the initial configuration,
+        \* and so this invariant does not work right now
+        /\ commitIndex[i] >= CurrentConfigurationIndex(i)
         \* Pending configurations should not be committed yet
         /\ Cardinality(DOMAIN configurations[i]) > 1 
             => commitIndex[i] < NextConfigurationIndex(i)

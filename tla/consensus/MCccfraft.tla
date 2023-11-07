@@ -102,13 +102,16 @@ MCInMaxSimultaneousCandidates(i) ==
 MCInitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
-    /\ configurations = [i \in Servers |-> 0 :> Configurations[1]]
+    /\ \E s \in Servers:
+        /\ configurations = [ i \in Servers |-> [ j \in {} |-> 0 ]]
+        /\ currentTerm = [i \in Servers |-> 2]
+        /\ state       = [i \in Servers |-> IF i = s THEN Leader ELSE Pending]
+        /\ votedFor    = [i \in Servers |-> Nil]
 
 \* Alternative to CCF!Init that uses the above MCInitReconfigurationVars
 MCInit ==
     /\ MCInitReconfigurationVars
     /\ CCF!InitMessagesVars
-    /\ CCF!InitServerVars
     /\ CCF!InitCandidateVars
     /\ CCF!InitLeaderVars
     /\ CCF!InitLogVars

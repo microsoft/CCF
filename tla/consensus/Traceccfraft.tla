@@ -98,10 +98,11 @@ TraceAppendEntriesBatchsize(i, j) ==
 TraceInitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
-    \* Nodes start with a single, empty configuration each
-    \* This is to appease the multiple locations in ccfraft.tla that rely on configurations
-    \* containing at least one entry
-    /\ configurations = [ s \in Servers |-> [ j \in {0} |-> {} ] ]
+    \* Nodes start without a configuration. You could be forgiven
+    \* for thinking that there must be a shorter way to write an
+    \* an empty function than [ j \in {} |-> 0 ], but apparently
+    \* there is not.
+    /\ configurations = [ s \in Servers |-> [ j \in {} |-> 0 ] ]
 
 TraceInitServerVars ==
     \* The initial step is skipped by TraceInit, so we handle the effect of the first become_leader here
