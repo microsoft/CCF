@@ -1,5 +1,5 @@
 ---------- MODULE MCccfraft ----------
-EXTENDS ccfraft, TLC
+EXTENDS ccfraft, StatsFile
 
 CONSTANTS
     NodeOne, NodeTwo, NodeThree
@@ -20,6 +20,7 @@ ASSUME MaxCommitsNotified \in Nat
 \* Limit on client requests
 CONSTANT RequestLimit
 ASSUME RequestLimit \in Nat
+
 
 ToServers ==
     UNION Range(Configurations)
@@ -139,5 +140,7 @@ AllReconfigurationsCommitted ==
 
 DebugAllReconfigurationsReachableInv ==
     ~AllReconfigurationsCommitted
+
+
 
 ===================================
