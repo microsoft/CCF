@@ -813,7 +813,7 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
           /\ state[i] = Follower
           /\ ~logOk
           /\ LET prevTerm == IF m.prevLogIndex = 0 THEN 2
-                             ELSE IF m.prevLogIndex > Len(log[i]) THEN 2 ELSE log[i][m.prevLogIndex].term
+                             ELSE IF m.prevLogIndex > Len(log[i]) THEN 2 ELSE log[i][Len(log[i])].term
              IN /\ m.prevLogTerm # prevTerm
                 /\ \/ /\ prevTerm = 2
                       /\ Reply([type        |-> AppendEntriesResponse,
