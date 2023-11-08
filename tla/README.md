@@ -10,4 +10,4 @@ You can also interact with these specifications using codespaces:
 
 You can produce fresh traces quickly from the driver by running the `make_traces.sh` script from this directory.
 
-Calling the trace validation on, for example, the `startup` scenario can then be done with `JSON=../build/startup.ndjson ./tlc.sh consensus/Traceccraft.tla`.
+Calling the trace validation on, for example, the `startup` scenario can then be done with `JSON=../build/startup.ndjson ./tlc.sh consensus/Traceccfraft.tla`.
