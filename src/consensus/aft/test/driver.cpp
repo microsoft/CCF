@@ -82,6 +82,20 @@ int main(int argc, char** argv)
     }
     switch (shash(in))
     {
+      case shash("start_node"):
+        assert(items.size() == 1);
+        driver->create_start_node(lineno);
+        break;
+      case shash("trust_node"):
+        assert(items.size() == 3);
+        driver->trust_nodes(items[1], {items[2]}, lineno);
+        break;
+      case shash("trust_nodes"):
+        assert(items.size() >= 3);
+        items.erase(items.begin());
+        driver->trust_nodes(
+          items[0], {std::next(items.begin()), items.end()}, lineno);
+        break;
       case shash("nodes"):
         assert(items.size() >= 2);
         items.erase(items.begin());
