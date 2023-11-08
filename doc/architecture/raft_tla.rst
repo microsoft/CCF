@@ -34,3 +34,12 @@ You can also check the consensus specification including reconfiguration as foll
 Using TLC to exhaustively check our models can take any time between minutes (for small configurations) and days (especially for the full consensus model with reconfiguration) on a 128 core VM (specifically, we used an `Azure HBv3 instance <https://docs.microsoft.com/en-us/azure/virtual-machines/hbv3-series>`_.
 
 .. tip::  During development and testing, it helps to use simulation mode which performs random walks over the state space (instead of the default exhaustive search that can be quite slow). Turn on the simulation mode with ``-simulate -depth 100`` (using a large number as a maximum depth). Note that this is not exhaustive and never completes (but can find errors in minutes instead of hours).
+
+.. tip:: You can open a `GitHub Codespace <https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=180112558&machine=xLargePremiumLinux&devcontainer_path=.devcontainer%2Ftlaplus%2Fdevcontainer.json&location=WestEurope>`_ to run the model checking and validation.
+
+Trace validation
+----------------
+
+It is possible to produce fresh traces quickly from the driver by running the make_traces.sh`` script from the ``tla`` directory.
+
+Calling the trace validation on, for example, the ``replicate`` scenario can then be done with ``JSON=../build/replicate.ndjson ./tlc.sh consensus/Traceccfraft.tla``.
