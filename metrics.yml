@@ -1,7 +1,7 @@
 db: "ccf"
 collection: "perf"
 view: "trend"
-columns: 4
+columns: 6
 span: 20
 ewma_span: 4
 pr_user: "ccf-bot"
