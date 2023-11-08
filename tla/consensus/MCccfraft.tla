@@ -106,7 +106,7 @@ MCInitReconfigurationVars ==
     /\ \E s \in Servers:
         /\ configurations = [ i \in Servers |-> [ j \in {} |-> 0 ]]
         /\ currentTerm = [i \in Servers |-> 2]
-        /\ state       = [i \in Servers |-> IF i = s THEN Leader ELSE Pending]
+        /\ state       = [i \in Servers |-> IF i = s THEN Leader ELSE None]
         /\ votedFor    = [i \in Servers |-> Nil]
 
 \* Alternative to CCF!Init that uses the above MCInitReconfigurationVars
