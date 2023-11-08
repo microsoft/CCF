@@ -103,8 +103,6 @@ TraceInitReconfigurationVars ==
     \* an empty function than [ j \in {} |-> 0 ], but apparently
     \* there is not.
     /\ configurations = [ s \in Servers |-> [ j \in {} |-> 0 ] ]
-
-TraceInitServerVars ==
     \* The initial step is skipped by TraceInit, so we handle the effect of the first become_leader here
     \* and the first node to Leader and their Term to 2
     /\ currentTerm = [i \in Servers |-> IF i = "0" THEN 2 ELSE 0]
