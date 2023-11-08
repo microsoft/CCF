@@ -6,8 +6,6 @@ import os
 import argparse
 import cimetrics.upload
 
-from loguru import logger as LOG
-
 
 def run(test_label, filename):
     if os.path.exists(filename):
@@ -15,18 +13,15 @@ def run(test_label, filename):
             data = json.load(f)
             duration_sec = data["duration"]
             dstates = data["distinct"]
-            LOG.info(
-                "Uploading metrics for {} - duration: {}, distinct states: {}",
-                test_label,
-                duration_sec,
-                dstates,
+            print(
+                f"Uploading metrics for {test_label} - duration: {duration_sec}, distinct states: {dstates}"
             )
             with cimetrics.upload.metrics(complete=False) as metrics:
                 metrics.put(f"tlc_{test_label}_duration_s", duration_sec)
                 metrics.put(f"tlc_{test_label}_states", dstates)
 
     else:
-        LOG.warning(f"Could not find file {filename}: skipping metrics upload")
+        print(f"Could not find file {filename}: skipping metrics upload")
 
 
 if __name__ == "__main__":
