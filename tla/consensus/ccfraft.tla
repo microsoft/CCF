@@ -49,20 +49,16 @@ CONSTANTS
     \*          /\  CurrentConfiguration(s) \ CurrentConfiguration(s)' = {s}
     \*          => state'[s] = RetiredLeader]_state
     RetiredLeader,
-    \* The node has passed attestation checks, but is waiting for member confirmation, 
-    \* and just isn't part of any configurations at all, nor has a communication channel
-    \* with other nodes in the network.
-    \*
-    \* More formally:
-    \*   \A i \in Servers : state[i] = Pending => i \notin { GetServerSet(s) : s \in Servers}
-    Pending
+    \* The node is new and has not received an append entries yet, it has no
+    \* log and therefore no configurations.
+    None
 
 States == {
     Follower,
     Candidate,
     Leader,
     RetiredLeader,
-    Pending
+    None
     }
 
 \* Message types:
@@ -494,7 +490,7 @@ InitReconfigurationVars ==
     /\ \E s \in Servers:
         /\ configurations = [ i \in Servers |-> [ j \in {} |-> 0 ]]
         /\ currentTerm = [i \in Servers |-> 2]
-        /\ state       = [i \in Servers |-> IF i = s THEN Leader ELSE Pending]
+        /\ state       = [i \in Servers |-> IF i = s THEN Leader ELSE None]
         /\ votedFor    = [i \in Servers |-> Nil]
 
 InitMessagesVars ==
@@ -905,7 +901,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         /\ configurations' = 
                 [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
         \* If we added a new configuration that we are in and were pending, we are now follower
-        /\ IF /\ state[i] = Pending
+        /\ IF /\ state[i] = None
               /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
            THEN state' = [state EXCEPT ![i] = Follower ]
            ELSE UNCHANGED state
@@ -921,7 +917,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
     /\ m.term = currentTerm[i]
-    /\ state[i] \in {Follower, Pending}
+    /\ state[i] \in {Follower, None}
     /\ logOk
     /\ LET index == m.prevLogIndex + 1
        IN \/ AppendEntriesAlreadyDone(i, j, index, m)
@@ -963,7 +959,7 @@ HandleAppendEntriesResponse(i, j, m) ==
 UpdateTerm(i, j, m) ==
     /\ m.term > currentTerm[i]
     /\ currentTerm'    = [currentTerm EXCEPT ![i] = m.term]
-    /\ state'          = [state       EXCEPT ![i] = IF @ \in {Leader, Candidate} THEN Follower ELSE @]
+    /\ state'          = [state       EXCEPT ![i] = IF @ \in {Leader, Candidate, None} THEN Follower ELSE @]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
     \* See rollback(last_committable_index()) in raft::become_follower
     /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(i))]
@@ -991,12 +987,12 @@ DropResponseWhenNotInState(i, j, m) ==
 DropIgnoredMessage(i,j,m) ==
     \* Drop messages if...
     /\
-       \* .. recipient is still Pending..
-       \/ /\ state[i] = Pending
+       \* .. recipient is still None..
+       \/ /\ state[i] = None
           \* .. and the message is anything other than an append entries request
           /\ m.type /= AppendEntriesRequest
-       \*  OR if message is to a server that has surpassed the Pending stage ..
-       \/ /\ state[i] /= Pending
+       \*  OR if message is to a server that is active ..
+       \/ /\ state[i] /= None
         \* .. and it comes from a server outside of the configuration
           /\ \lnot IsInServerSet(j, i)
        \*  OR if recipient is RetiredLeader and this is not a request to vote
@@ -1325,7 +1321,7 @@ MonotonicMatchIndexProp ==
 PermittedLogChangesProp ==
     [][\A i \in Servers :
         log[i] # log[i]' =>
-            \/ state[i]' = Pending
+            \/ state[i]' = None
             \/ state[i]' = Follower
             \* Established leader adding new entries
             \/ /\ state[i] = Leader
@@ -1347,7 +1343,7 @@ PermittedLogChangesProp ==
 
 StateTransitionsProp ==
     [][\A i \in Servers :
-        /\ state[i] = Pending => state[i]' \in {Pending, Follower}
+        /\ state[i] = None => state[i]' \in {None, Follower}
         /\ state[i] = Follower => state[i]' \in {Follower, Candidate}
         /\ state[i] = Candidate => state[i]' \in {Follower, Candidate, Leader}
         /\ state[i] = Leader => state[i]' \in {Follower, Leader, RetiredLeader}
@@ -1356,7 +1352,7 @@ StateTransitionsProp ==
 
 PendingBecomesFollowerProp ==
     \* A pending node that becomes part of any configuration immediately transitions to Follower.
-    [][\A s \in { s \in Servers : state[s] = Pending } : 
+    [][\A s \in { s \in Servers : state[s] = None } : 
             s \in GetServerSet(s)' => 
                 state[s]' = Follower]_vars
 

@@ -10,7 +10,7 @@ RaftMsgType ==
     "raft_propose_request_vote" :> ProposeVoteRequest
 
 LeadershipState ==
-    Leader :> "Leader" @@ Follower :> "Follower" @@ Candidate :> "Candidate" @@ Pending :> "Pending"
+    Leader :> "Leader" @@ Follower :> "Follower" @@ Candidate :> "Candidate" @@ None :> "None"
 
 \* In:  <<[idx |-> 0, nodes |-> [0 |-> [address |-> ":"]], rid |-> 0]>>
 \* Out: (0 :> {0})
@@ -106,7 +106,7 @@ TraceInitReconfigurationVars ==
     \* The initial step is skipped by TraceInit, so we handle the effect of the first become_leader here
     \* and the first node to Leader and their Term to 2
     /\ currentTerm = [i \in Servers |-> IF i = "0" THEN 2 ELSE 0]
-    /\ state       = [i \in Servers |-> IF i = TraceLog[1].msg.state.node_id THEN Leader ELSE Pending]
+    /\ state       = [i \in Servers |-> IF i = TraceLog[1].msg.state.node_id THEN Leader ELSE None]
     /\ votedFor    = [i \in Servers |-> Nil]
 
 -------------------------------------------------------------------------------------
