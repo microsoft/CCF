@@ -145,6 +145,7 @@ function checkJwks(value, field) {
 
 function checkX509CertBundle(value, field) {
   let check_func = ccf.crypto.isValidX509CertBundle;
+  // Remove after upgrade to 4.x
   if (check_func === undefined) {
     check_func = ccf.isValidX509Cert;
   }
