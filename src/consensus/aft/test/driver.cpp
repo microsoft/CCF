@@ -99,8 +99,7 @@ int main(int argc, char** argv)
       case shash("nodes"):
         assert(items.size() >= 2);
         items.erase(items.begin());
-        driver->trust_nodes(
-          items[0], {std::next(items.begin()), items.end()}, lineno);
+        driver->create_new_nodes(items);
         break;
       case shash("connect"):
         assert(items.size() == 3);
@@ -225,6 +224,10 @@ int main(int argc, char** argv)
         items.erase(items.begin());
         driver->replicate_new_configuration(
           items[0], {std::next(items.begin()), items.end()}, lineno);
+        break;
+      case shash("create_new_node"):
+        assert(items.size() == 2);
+        driver->create_new_node(items[1]);
         break;
       case shash(""):
         // Ignore empty lines
