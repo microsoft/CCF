@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [4.0.13]
+
+[4.0.13]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.13
+
+- `ccf.crypto.digest` and `ccf.crypto.isValidX509CertBundle` are accessible again through `ccf.digest` and `ccf.isValidX509CertBundle`, to faciliate migration of CCF 3.x-era constitutions. The constitution sample under `samples/constitutions/default/actions.js` has been updated to show how migration is possible without relying on aliasing in 4.x.
+
 ## [4.0.12]
 
 [4.0.12]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.12

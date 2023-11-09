@@ -144,7 +144,12 @@ function checkJwks(value, field) {
 }
 
 function checkX509CertBundle(value, field) {
-  if (!ccf.crypto.isValidX509CertBundle(value)) {
+  let check_func = ccf.crypto.isValidX509CertBundle;
+  if (check_func === undefined) {
+    check_func = ccf.isValidX509Cert;
+  }
+
+  if (!check_func(value)) {
     throw new Error(
       `${field} must be a valid X509 certificate (bundle) in PEM format`
     );
@@ -1036,8 +1041,14 @@ const actions = new Map([
         // If optional security policy is specified, make sure its
         // SHA-256 digest is the specified host data
         if (args.security_policy != "") {
+          let digest_func = ccf.crypto.digest;
+          // Remove after upgrade to 4.x
+          if (digest_func === undefined) {
+            digest_func = ccf.digest;
+          }
+
           const securityPolicyDigest = ccf.bufToStr(
-            ccf.crypto.digest("SHA-256", ccf.strToBuf(args.security_policy))
+            digest_func("SHA-256", ccf.strToBuf(args.security_policy))
           );
           const hostData = ccf.bufToStr(hexStrToBuf(args.host_data));
           if (securityPolicyDigest != hostData) {
@@ -1123,6 +1134,7 @@ const actions = new Map([
         let node_id = ccf.strToBuf(args.node_id);
         let nodes_info = ccf.kv["public:ccf.gov.nodes.info"];
         let node_info = nodes_info.get(node_id);
+        // Remove after upgrade to 4.x
         if (node_info === undefined) {
           throw new Error(`Node ${node_id} does not exist`);
         }
