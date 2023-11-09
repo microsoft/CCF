@@ -96,6 +96,12 @@ int main(int argc, char** argv)
         driver->trust_nodes(
           items[0], {std::next(items.begin()), items.end()}, lineno);
         break;
+      case shash("nodes"):
+        assert(items.size() >= 2);
+        items.erase(items.begin());
+        driver->trust_nodes(
+          items[0], {std::next(items.begin()), items.end()}, lineno);
+        break;
       case shash("connect"):
         assert(items.size() == 3);
         driver->connect(items[1], items[2]);
