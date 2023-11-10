@@ -1354,7 +1354,6 @@ StateTransitionsProp ==
 
 PendingBecomesFollowerProp ==
     \* A pending node that becomes part of any configuration immediately transitions to Follower.
-    \* TODO: this is not right, the transition only takes place once the node receives a message
     [][\A s \in { s \in Servers : state[s] = None } : 
             s \in GetServerSet(s)' => 
                 state[s]' = Follower]_vars
