@@ -8,7 +8,7 @@ RaftMsgType ==
     "raft_propose_request_vote" :> ProposeVoteRequest
 
 LeadershipState ==
-    Leader :> "Leader" @@ Follower :> "Follower" @@ Candidate :> "Candidate" @@ Pending :> "Pending"
+    Leader :> "Leader" @@ Follower :> "Follower" @@ Candidate :> "Candidate" @@ None :> "None"
 
 \* In:  <<[idx |-> 0, nodes |-> [0 |-> [address |-> ":"]], rid |-> 0]>>
 \* Out: (0 :> {0})
@@ -380,16 +380,16 @@ TraceNext ==
 
 RaftDriverQuirks ==
     \* The "nodes" command in raft scenarios causes N consecutive "add_configuration" log lines to be emitted,
-     \* where N is determined by the "nodes" parameter. At this stage, the nodes are in the "Pending" state.
+     \* where N is determined by the "nodes" parameter. At this stage, the nodes are in the "None" state.
      \* However, the enablement condition of "ccfraft!Timeout" is only true for nodes in the "Candidate" or 
      \* "Follower" state. Therefore, we include this action to address this quirk in the raft_driver.
     \/ /\ IsEvent("add_configuration")
-       /\ state[logline.msg.state.node_id] = Pending
+       /\ state[logline.msg.state.node_id] = None
        /\ configurations' = [ configurations EXCEPT ![logline.msg.state.node_id] = ToConfigurations(<<logline.msg.new_configuration>>)]
        /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
        /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>    
     \/ /\ IsEvent("become_follower")
-       /\ state[logline.msg.state.node_id] = Pending
+       /\ state[logline.msg.state.node_id] = None
        /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
        /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
        /\ UNCHANGED <<reconfigurationVars, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
