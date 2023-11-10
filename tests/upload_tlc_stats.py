@@ -13,8 +13,8 @@ def run(test_label, filename):
             data = json.load(f)
             duration_sec = data["duration"]
             dstates = data["distinct"]
-            traces = data["traces"]
-            levelmean = data["levelmean"]
+            traces = data.get("traces", 0)
+            levelmean = data.get("levelmean", 0)
             print(f"Uploading metrics for {test_label}: {data}")
             if dstates == -1:
                 # Simulation
