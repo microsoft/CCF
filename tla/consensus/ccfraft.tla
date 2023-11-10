@@ -71,7 +71,6 @@ CONSTANTS
     RequestVoteResponse,
     AppendEntriesRequest,
     AppendEntriesResponse,
-    NotifyCommitMessage,
     ProposeVoteRequest
 
 \* CCF: Content types (Normal entry or a signature that signs
@@ -182,10 +181,6 @@ RequestVoteResponseTypeOK(m) ==
     /\ m.type = RequestVoteResponse
     /\ m.voteGranted \in BOOLEAN
 
-NotifyCommitMessageTypeOK(m) ==
-    /\ m.type = NotifyCommitMessage
-    /\ m.commitIndex \in Nat
-
 ProposeVoteRequestTypeOK(m) ==
     /\ m.type = ProposeVoteRequest
     /\ m.term \in Nat
@@ -200,28 +195,14 @@ MessagesTypeInv ==
             \/ AppendEntriesResponseTypeOK(m)
             \/ RequestVoteRequestTypeOK(m)
             \/ RequestVoteResponseTypeOK(m)
-            \/ NotifyCommitMessageTypeOK(m)
             \/ ProposeVoteRequestTypeOK(m)
 
-\* CCF: After reconfiguration, a RetiredLeader leader may need to notify servers
-\* of the current commit level to ensure that no deadlock is reached through
-\* leaving the network after retirement (as that would lead to endless leader
-\* re-elects and drop-outs until f is reached and network fails).
-VARIABLE commitsNotified
-
-CommitsNotifiedTypeInv ==
-    \A i \in Servers :
-        /\ commitsNotified[i][1] \in Nat
-        /\ commitsNotified[i][2] \in Nat
-
 messageVars == <<
-    messages, 
-    commitsNotified
+    messages
 >>
 
 MessageVarsTypeInv ==
     /\ MessagesTypeInv
-    /\ CommitsNotifiedTypeInv
 
 ------------------------------------------------------------------------------
 \* The following variables are all per server (functions with domain Servers).
@@ -493,7 +474,6 @@ InitReconfigurationVars ==
 
 InitMessagesVars ==
     /\ Network!InitMessageVar
-    /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
 
 InitServerVars ==
     /\ currentTerm = [i \in Servers |-> 0]
@@ -560,7 +540,7 @@ RequestVote(i,j) ==
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
     /\ Send(msg)
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, votesGranted, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, votesGranted, leaderVars, logVars>>
 
 \* Leader i sends j an AppendEntries request
 AppendEntries(i, j) ==
@@ -595,7 +575,7 @@ AppendEntries(i, j) ==
             \* Record the most recent index we have sent to this node.
             \* (see https://github.com/microsoft/CCF/blob/9fbde45bf5ab856ca7bcf655e8811dc7baf1e8a3/src/consensus/aft/raft.h#L935-L936)
             /\ nextIndex' = [nextIndex EXCEPT ![i][j] = @ + Len(m.entries)]
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, matchIndex, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, matchIndex, logVars>>
 
 \* Candidate i transitions to leader.
 BecomeLeader(i) ==
@@ -733,27 +713,7 @@ AdvanceCommitIndex(i) ==
                  ELSE UNCHANGED <<messages, serverVars, reconfigurationCount, removedFromConfiguration>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, serverVars, reconfigurationVars>>
-    /\ UNCHANGED <<commitsNotified, candidateVars, leaderVars, log>>
-
-\* CCF: RetiredLeader server i notifies the current commit level to server j
-\*  This allows to retire gracefully instead of deadlocking the system through removing itself from the network.
-NotifyCommit(i,j) ==
-    \* Only RetiredLeader servers send these commit messages
-    /\ state[i] = RetiredLeader
-    \* Only send notifications of commit to servers in the server set
-    /\ IsInServerSetForIndex(j, i, commitIndex[i])
-    /\ commitsNotified[i][1] < commitIndex[i]
-    /\ LET new_notified == IF commitsNotified[i][1] = commitIndex[i]
-                           THEN <<commitsNotified[i][1], commitsNotified[i][2] + 1>>
-                           ELSE <<commitIndex[i], 1>>
-       IN  commitsNotified' = [commitsNotified EXCEPT ![i] = new_notified]
-    /\ LET msg == [type          |-> NotifyCommitMessage,
-                   commitIndex   |-> commitIndex[i],
-                   term          |-> currentTerm[i],
-                   source        |-> i,
-                   dest          |-> j]
-       IN Send(msg)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars >>
+    /\ UNCHANGED <<candidateVars, leaderVars, log>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
@@ -785,7 +745,7 @@ HandleRequestVoteRequest(i, j, m) ==
                  source      |-> i,
                  dest        |-> j],
                  m)
-       /\ UNCHANGED <<reconfigurationVars, commitsNotified, state, currentTerm, candidateVars, leaderVars, logVars>>
+       /\ UNCHANGED <<reconfigurationVars, state, currentTerm, candidateVars, leaderVars, logVars>>
 
 \* Server i receives a RequestVote response from server j with
 \* m.term = currentTerm[i].
@@ -798,7 +758,7 @@ HandleRequestVoteResponse(i, j, m) ==
        \/ /\ ~m.voteGranted
           /\ UNCHANGED votesGranted
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, votedFor, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, votedFor, leaderVars, logVars>>
 
 \* Server i receives a RequestVote request from server j with
 \* m.term < currentTerm[i].
@@ -835,13 +795,13 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                                 source         |-> i,
                                 dest           |-> j],
                                 m)
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, logVars>>
 
 ReturnToFollowerState(i, m) ==
     /\ m.term = currentTerm[i]
     /\ state[i] = Candidate
     /\ state' = [state EXCEPT ![i] = Follower]
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, currentTerm, votedFor, logVars, messages>>
+    /\ UNCHANGED <<reconfigurationVars, currentTerm, votedFor, logVars, messages>>
 
 AppendEntriesAlreadyDone(i, j, index, m) ==
     /\ \/ m.entries = << >>
@@ -863,7 +823,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, commitsNotified, serverVars, log>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, log>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.entries /= << >>
@@ -874,7 +834,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ Len(log'[i])..Len(log[i])]
         \* Potentially also shorten the configurations if the removed txns contained reconfigurations
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, commitIndex, messages, commitsNotified>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, commitIndex, messages>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
@@ -918,7 +878,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, commitsNotified, currentTerm, votedFor>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, currentTerm, votedFor>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -959,7 +919,7 @@ HandleAppendEntriesResponse(i, j, m) ==
            \* "If AppendEntries fails because of log inconsistency: decrement nextIndex and retry"
           /\ UNCHANGED matchIndex
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, logVars>>
 
 \* Any RPC with a newer term causes the recipient to advance its term first.
 UpdateTerm(i, j, m) ==
@@ -979,7 +939,7 @@ UpdateTerm(i, j, m) ==
 DropStaleResponse(i, j, m) ==
     /\ m.term < currentTerm[i]
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 DropResponseWhenNotInState(i, j, m) ==
     \/ /\ m.type = AppendEntriesResponse
@@ -987,7 +947,7 @@ DropResponseWhenNotInState(i, j, m) ==
     \/ /\ m.type = RequestVoteResponse
        /\ state[i] \in States \ { Candidate }
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 \* Drop messages if they are irrelevant to the node
 DropIgnoredMessage(i,j,m) ==
@@ -1005,7 +965,7 @@ DropIgnoredMessage(i,j,m) ==
        \/ /\ state[i] = RetiredLeader
           /\ m.type /= RequestVoteRequest
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 \* RetiredLeader leaders send notify commit messages to update all nodes about the commit level
 UpdateCommitIndex(i,j,m) ==
@@ -1016,7 +976,7 @@ UpdateCommitIndex(i,j,m) ==
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = m.commitIndex]
         /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
-    /\ UNCHANGED <<reconfigurationCount, messages, commitsNotified, currentTerm,
+    /\ UNCHANGED <<reconfigurationCount, messages, currentTerm,
                    votedFor, candidateVars, leaderVars, log>>
 
 \* Receive a message.
@@ -1062,13 +1022,6 @@ RcvAppendEntriesResponse(i, j) ==
            \/ DropResponseWhenNotInState(m.dest, m.source, m)
            \/ DropStaleResponse(m.dest, m.source, m)
 
-RcvUpdateCommitIndex(i, j) ==
-    \E m \in Network!MessagesTo(i, j) :
-        /\ j = m.source
-        /\ m.type = NotifyCommitMessage
-        /\ UpdateCommitIndex(m.dest, m.source, m)
-        /\ Discard(m)
-
 RcvProposeVoteRequest(i, j) ==
     \E m \in Network!MessagesTo(i, j) :
         /\ j = m.source
@@ -1084,7 +1037,6 @@ Receive(i, j) ==
     \/ RcvRequestVoteResponse(i, j)
     \/ RcvAppendEntriesRequest(i, j)
     \/ RcvAppendEntriesResponse(i, j)
-    \/ RcvUpdateCommitIndex(i, j)
     \/ RcvProposeVoteRequest(i, j)
 
 \* End of message handlers.
@@ -1102,7 +1054,6 @@ Next ==
     \/ \E i \in Servers : ClientRequest(i)
     \/ \E i \in Servers : SignCommittableMessages(i)
     \/ \E i \in Servers : ChangeConfiguration(i)
-    \/ \E i, j \in Servers : NotifyCommit(i,j)
     \/ \E i \in Servers : AdvanceCommitIndex(i)
     \/ \E i, j \in Servers : AppendEntries(i, j)
     \/ \E i \in Servers : CheckQuorum(i)
@@ -1120,7 +1071,6 @@ Spec ==
     /\ \A i, j \in Servers : WF_vars(RcvRequestVoteResponse(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesRequest(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesResponse(i, j))
-    /\ \A i, j \in Servers : WF_vars(RcvUpdateCommitIndex(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvProposeVoteRequest(i, j))
     \* Node actions
     /\ \A s, t \in Servers : WF_vars(AppendEntries(s, t))
@@ -1417,7 +1367,6 @@ DebugAlias ==
         removedFromConfiguration |-> removedFromConfiguration,
         configurations |-> configurations,
         messages |-> messages,
-        commitsNotified |-> commitsNotified,
         currentTerm |-> currentTerm,
         state |-> state,
         votedFor |-> votedFor,

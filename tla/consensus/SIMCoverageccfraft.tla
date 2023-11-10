@@ -37,7 +37,7 @@ SIMCoverageSpec ==
 CSVFile == "SIMCoverageccfraft_S" \o ToString(Cardinality(Servers)) \o ".csv"
 
 CSVColumnHeaders ==
-    "Spec#P#Q#R#reconfigurationCount#committedLog#clientRequests#commitsNotified11#commitsNotified12#currentTerm#state#node"
+    "Spec#P#Q#R#reconfigurationCount#committedLog#clientRequests#currentTerm#state#node"
 
 ASSUME
     CSVRecords(CSVFile) = 0 => 
@@ -45,10 +45,9 @@ ASSUME
 
 StatisticsStateConstraint ==
     (TLCGet("level") > TLCGet("config").depth) =>
-        TLCDefer(\A srv \in Servers : CSVWrite("%1$s#%2$s#%3$s#%4$s#%5$s#%6$s#%7$s#%8$s#%9$s#%10$s#%11$s#%12$s",
+        TLCDefer(\A srv \in Servers : CSVWrite("%1$s#%2$s#%3$s#%4$s#%5$s#%6$s#%7$s#%8$s#%9$s#%10$s",
                 << conf[1], Cardinality(conf[2]), Cardinality(conf[3]), Cardinality(conf[4]), 
                    reconfigurationCount, committedLog.index, clientRequests, 
-                   commitsNotified[srv][1], commitsNotified[srv][2], 
                    currentTerm[srv], state[srv], srv>>,
                 CSVFile))
 =============================================================================
