@@ -180,6 +180,7 @@ jobs:
             - Virtual_Perf_MultiThreaded
             - SGX_Perf_MultiThreaded
             - Model_Checking
+            - Simulation
 
   # Release
   - ${{ if eq(parameters.perf_or_release, 'release') }}:
