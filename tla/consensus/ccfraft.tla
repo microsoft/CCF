@@ -486,8 +486,8 @@ InitReconfigurationVars ==
         /\ state       = [i \in Servers |-> IF i = startNode THEN Leader ELSE None]
         /\ votedFor    = [i \in Servers |-> Nil]
         /\ log         = [i \in Servers |-> IF i = startNode
-                                            THEN << [term |-> 2, configuration |-> {i}, contentType |-> TypeReconfiguration],
-                                                    [term  |-> 2, contentType  |-> TypeSignature] >>
+                                            THEN << [term |-> 2, contentType |-> TypeReconfiguration, configuration |-> {i}],
+                                                    [term |-> 2, contentType |-> TypeSignature] >>
                                             ELSE << >>]
         /\ commitIndex  = [i \in Servers |-> IF i = startNode THEN 2 ELSE 0]
         /\ committableIndices  = [i \in Servers |-> {}]
