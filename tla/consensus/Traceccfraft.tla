@@ -141,7 +141,7 @@ logline ==
 \* accepting that lost messages remain in messages.
 DropMessages ==
     /\ l \in 1..Len(TraceLog)
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
     /\ UNCHANGED <<l, ts>>
     /\ Network!DropMessages(logline.msg.state.node_id)
 
@@ -456,7 +456,6 @@ TraceDifferentialInv ==
     \*    /\ d.removedFromConfiguration = removedFromConfiguration
     \*    /\ d.configurations = configurations
     \*    /\ d.messages = messages
-    \*    /\ d.commitsNotified = commitsNotified
     \*    /\ d.currentTerm = currentTerm
     \*    /\ d.state = state
     \*    /\ d.votedFor = votedFor
@@ -484,7 +483,6 @@ TraceAlias ==
         \*         ClientRequest              |-> [ i \in Servers   |-> ENABLED ClientRequest(i) ],
         \*         SignCommittableMessages    |-> [ i \in Servers   |-> ENABLED SignCommittableMessages(i) ],
         \*         ChangeConfiguration        |-> [ i \in Servers   |-> ENABLED ChangeConfiguration(i) ],
-        \*         NotifyCommit               |-> [ i,j \in Servers |-> ENABLED NotifyCommit(i,j) ],
         \*         AdvanceCommitIndex         |-> [ i \in Servers   |-> ENABLED AdvanceCommitIndex(i) ],
         \*         AppendEntries              |-> [ i,j \in Servers |-> ENABLED AppendEntries(i, j) ],
         \*         CheckQuorum                |-> [ i \in Servers   |-> ENABLED CheckQuorum(i) ],
