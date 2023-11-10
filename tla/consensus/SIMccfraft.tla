@@ -23,7 +23,6 @@ Forward ==
     \/ \E i \in Servers : BecomeLeader(i)
     \/ \E i \in Servers : ClientRequest(i)
     \/ \E i \in Servers : SignCommittableMessages(i)
-    \/ \E i, j \in Servers : NotifyCommit(i,j)
     \/ \E i \in Servers : AdvanceCommitIndex(i)
     \/ \E i, j \in Servers : AppendEntries(i, j)
     \/ \E i, j \in Servers : Receive(i, j)

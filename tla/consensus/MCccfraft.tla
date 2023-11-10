@@ -88,13 +88,6 @@ MCSend(msg) ==
         /\ n.type = AppendEntriesResponse
     /\ CCF!Send(msg)
 
-\* CCF: Limit the number of times a RetiredLeader server sends commit
-\* notifications per commit Index and server
-MCNotifyCommit(i,j) ==
-    /\ \/ commitsNotified[i][1] < commitIndex[i]
-       \/ commitsNotified[i][2] < MaxCommitsNotified
-    /\ CCF!NotifyCommit(i,j)
-
 \* Limit max number of simultaneous candidates
 MCInMaxSimultaneousCandidates(i) ==
     Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
@@ -124,7 +117,7 @@ mc_spec ==
 Symmetry == Permutations(Servers)
 
 \* Include all variables in the view, which is similar to defining no view.
-View == << reconfigurationVars, <<messages, commitsNotified>>, serverVars, candidateVars, leaderVars, logVars >>
+View == << reconfigurationVars, <<messages>>, serverVars, candidateVars, leaderVars, logVars >>
 
 ----
 
