@@ -481,12 +481,12 @@ InitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
     /\ \E startNode \in Servers:
-        /\ configurations = [ i \in Servers |-> IF i = startNode THEN (1 :> {i}) ELSE << >>]
+        /\ configurations = [ i \in Servers |-> IF i = startNode THEN (1 :> {startNode}) ELSE << >>]
         /\ currentTerm = [i \in Servers |-> IF i = startNode THEN 2 ELSE 0]
         /\ state       = [i \in Servers |-> IF i = startNode THEN Leader ELSE None]
         /\ votedFor    = [i \in Servers |-> Nil]
         /\ log         = [i \in Servers |-> IF i = startNode
-                                            THEN << [term |-> 2, contentType |-> TypeReconfiguration, configuration |-> {i}],
+                                            THEN << [term |-> 2, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
                                                     [term |-> 2, contentType |-> TypeSignature] >>
                                             ELSE << >>]
         /\ commitIndex  = [i \in Servers |-> IF i = startNode THEN 2 ELSE 0]
