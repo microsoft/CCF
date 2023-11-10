@@ -158,6 +158,15 @@ jobs:
             - configure
 
   - ${{ if eq(parameters.perf_tests, 'run') }}:
+      - template: simulation.yml
+        parameters:
+          target: Virtual
+          env: ${{ parameters.env.Virtual }}
+          installExtendedTestingTools: false
+          depends_on:
+            - configure
+
+  - ${{ if eq(parameters.perf_tests, 'run') }}:
       - template: cimetrics.yml
         parameters:
           target: Virtual

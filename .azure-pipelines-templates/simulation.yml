@@ -1,0 +1,30 @@
+jobs:
+  - job: Model_Checking
+    displayName: "Model Checking"
+    variables:
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
+
+    ${{ insert }}: ${{ parameters.env }}
+
+    steps:
+      - checkout: self
+        clean: true
+        fetchDepth: 1
+
+      - script: |
+          set -ex
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
+        displayName: Setup
+
+      - script: ./tlc.sh -workers auto -simulate -depth 100 consensus/SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
+        workingDirectory: tla
+        displayName: Simulation
+
+      - task: PublishPipelineArtifact@1
+        inputs:
+          artifactName: "Simulation Traces"
+          targetPath: tla
+        condition: or(failed(), canceled())
