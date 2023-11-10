@@ -112,7 +112,6 @@ ConfigurationsTypeInv ==
     \A i \in Servers : 
         /\ \A c \in DOMAIN configurations[i] :
             configurations[i][c] \subseteq Servers
-        /\ DOMAIN configurations[i] # {}
 
 \* The set of servers that have been removed from configurations.  The implementation
 \* assumes that a server refrains from rejoining a configuration if it has been removed
@@ -137,7 +136,6 @@ reconfigurationVars == <<
 ReconfigurationVarsTypeInv ==
     /\ ReconfigurationCountTypeInv
     /\ ConfigurationsTypeInv
-    /\ RemovedFromConfigurationTypeInv
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
@@ -434,7 +432,8 @@ ConfigurationsToIndex(server, index) ==
 \* Index of the last reconfiguration up to (and including) the given index,
 \* assuming the given index is after the commit index
 LastConfigurationToIndex(server, index) ==
-    Max({c \in DOMAIN configurations[server] : c <= index})
+    LET configsBeforeIndex == {c \in DOMAIN configurations[server] : c <= index}
+    IN IF configsBeforeIndex = {} THEN 0 ELSE Max(configsBeforeIndex)
 
 \* The prefix of the log of server i that has been committed
 Committed(i) ==
@@ -481,22 +480,18 @@ PlausibleSucessorNodes(i) ==
 InitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
-    \* Note that CCF has a bootstrapping procedure to start a new network and to join new nodes to the network (see 
-    \* https://microsoft.github.io/CCF/main/operations/start_network.html). In both cases, a node has the current (see 
-    \* https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#join-or-recover-from-snapshot) or some stale configuration
-    \* such as the initial configuration. A node's configuration is *never* "empty", i.e., the equivalent of configuration[node] = {} here. 
-    \* For simplicity, the set of servers/nodes all have the same initial configuration at startup.
-    /\ \E s \in Servers:
-        configurations = [i \in Servers |-> 0 :> {s} ]
+    /\ \E startNode \in Servers:
+        /\ configurations = [ i \in Servers |-> [ j \in {} |-> 0 ]]
+        /\ currentTerm = [i \in Servers |-> IF i = startNode THEN 2 ELSE 0]
+        /\ state       = [i \in Servers |-> IF i = startNode THEN Leader ELSE None]
+        /\ votedFor    = [i \in Servers |-> Nil]
+        /\ log          = [i \in Servers |-> << >>]
+        /\ commitIndex  = [i \in Servers |-> 0]
+        /\ committableIndices  = [i \in Servers |-> {}]
 
 InitMessagesVars ==
     /\ Network!InitMessageVar
     /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
-
-InitServerVars ==
-    /\ currentTerm = [i \in Servers |-> 0]
-    /\ state       = [i \in Servers |-> IF i \in configurations[i][0] THEN Follower ELSE None]
-    /\ votedFor    = [i \in Servers |-> Nil]
 
 InitCandidateVars ==
     /\ votesGranted   = [i \in Servers |-> {}]
@@ -508,18 +503,11 @@ InitLeaderVars ==
     /\ nextIndex  = [i \in Servers |-> [j \in Servers |-> 1]]
     /\ matchIndex = [i \in Servers |-> [j \in Servers |-> 0]]
 
-InitLogVars ==
-    /\ log          = [i \in Servers |-> << >>]
-    /\ commitIndex  = [i \in Servers |-> 0]
-    /\ committableIndices  = [i \in Servers |-> {}]
-
 Init ==
     /\ InitReconfigurationVars
     /\ InitMessagesVars
-    /\ InitServerVars
     /\ InitCandidateVars
     /\ InitLeaderVars
-    /\ InitLogVars
 
 ------------------------------------------------------------------------------
 \* Define state transitions
@@ -570,10 +558,10 @@ AppendEntries(i, j) ==
     \* that index makes no difference.
     \* /\ IsInServerSetForIndex(j, i, nextIndex[i][j])
     /\ LET prevLogIndex == nextIndex[i][j] - 1
-           prevLogTerm == IF prevLogIndex > 0 /\ prevLogIndex <= Len(log[i]) THEN
+           prevLogTerm == IF prevLogIndex \in DOMAIN log[i] THEN
                               log[i][prevLogIndex].term
                           ELSE
-                              0
+                              2
            \* Send a number of entries (constrained by the end of the log).
            lastEntry(idx) == min(Len(log[i]), idx)
            index == nextIndex[i][j]
@@ -654,11 +642,8 @@ ChangeConfigurationInt(i, newConfiguration) ==
     /\ newConfiguration /= {}
     \* Configuration is a proper subset of the Servers
     /\ newConfiguration \subseteq Servers
-    \* Configuration is not equal to the previous configuration
-    /\ newConfiguration /= MaxConfiguration(i)
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
-    /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
     /\ LET
         entry == [
             term |-> currentTerm[i],
@@ -667,9 +652,9 @@ ChangeConfigurationInt(i, newConfiguration) ==
         newLog == Append(log[i], entry)
         IN
         /\ log' = [log EXCEPT ![i] = newLog]
-        /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
+        /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log[i]) :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars,
-                    leaderVars, commitIndex, committableIndices>>
+                    leaderVars, commitIndex, committableIndices, removedFromConfiguration>>
 
 ChangeConfiguration(i) ==
     \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :
@@ -813,10 +798,10 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
        \/ /\ m.term >= currentTerm[i]
           /\ state[i] = Follower
           /\ ~logOk
-          /\ LET prevTerm == IF m.prevLogIndex = 0 THEN 0
-                             ELSE IF m.prevLogIndex > Len(log[i]) THEN 0 ELSE log[i][m.prevLogIndex].term
+          /\ LET prevTerm == IF m.prevLogIndex = 0 THEN 2
+                             ELSE IF m.prevLogIndex > Len(log[i]) THEN 0 ELSE log[i][Len(log[i])].term
              IN /\ m.prevLogTerm # prevTerm
-                /\ \/ /\ prevTerm = 0
+                /\ \/ /\ prevTerm = 2
                       /\ Reply([type        |-> AppendEntriesResponse,
                              success        |-> FALSE,
                              term           |-> currentTerm[i],
@@ -824,11 +809,11 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                              source         |-> i,
                              dest           |-> j],
                              m)
-                   \/ /\ prevTerm # 0
+                   \/ /\ prevTerm # 2
                       /\ LET lli == FindHighestPossibleMatch(log[i], m.prevLogIndex, m.term)
                          IN Reply([type        |-> AppendEntriesResponse,
                                 success        |-> FALSE,
-                                term           |-> IF lli = 0 THEN 0 ELSE log[i][lli].term,
+                                term           |-> IF lli = 0 THEN 2 ELSE log[i][lli].term,
                                 lastLogIndex   |-> lli,
                                 source         |-> i,
                                 dest           |-> j],
@@ -892,8 +877,9 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         \* extended configurations with any new configurations
         new_configs == 
             configurations[i] @@ [idx \in reconfig_indexes |-> new_log_entries[idx].configuration]
-        new_conf_index == 
-            Max({c \in DOMAIN new_configs : c <= new_commit_index})
+        new_commmitted_configs == {c \in DOMAIN new_configs : c <= new_commit_index}
+        new_conf_index == IF new_commmitted_configs = {} THEN 0 ELSE
+            Max(new_commmitted_configs)
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         \* see committable_indices.push_back(i) in raft.h:execute_append_entries_sync, guarded by case PASS_SIGNATURE
@@ -1195,9 +1181,10 @@ LogMatchingInv ==
 \* of at least one server in every quorum
 QuorumLogInv ==
     \A i \in Servers :
-        \A S \in Quorums[CurrentConfiguration(i)] :
-            \E j \in S :
-                IsPrefix(Committed(i), log[j])
+        \/ configurations[i] = << >>
+        \/ \A S \in Quorums[CurrentConfiguration(i)] :
+             \E j \in S :
+                 IsPrefix(Committed(i), log[j])
 
 \* True if server i could receive a vote from server j based on the up-to-date check
 \* The "up-to-date" check performed by servers before issuing a vote implies that i receives

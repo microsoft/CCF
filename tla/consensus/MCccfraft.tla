@@ -99,20 +99,12 @@ MCNotifyCommit(i,j) ==
 MCInMaxSimultaneousCandidates(i) ==
     Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
 
-\* Alternative to CCF!InitReconfigurationVars that sets the initial configuration to the first config defined in Configurations
-MCInitReconfigurationVars ==
-    /\ reconfigurationCount = 0
-    /\ removedFromConfiguration = {}
-    /\ configurations = [i \in Servers |-> 0 :> Configurations[1]]
-
 \* Alternative to CCF!Init that uses the above MCInitReconfigurationVars
 MCInit ==
-    /\ MCInitReconfigurationVars
+    /\ CCF!InitReconfigurationVars
     /\ CCF!InitMessagesVars
-    /\ CCF!InitServerVars
     /\ CCF!InitCandidateVars
     /\ CCF!InitLeaderVars
-    /\ CCF!InitLogVars
 
 \* Alternative to CCF!Spec that uses the above MCInit
 mc_spec ==   
