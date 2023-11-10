@@ -2205,12 +2205,25 @@ namespace ccf::js
       ctx, crypto, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
     JS_SetPropertyStr(
       ctx, crypto, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
+    // Added to ccf top-level for backwards compatibility with 3.x constitution
+    // samples and to faciliate the transition to ccf.crypto
+    JS_SetPropertyStr(
+      ctx, ccf, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
     JS_SetPropertyStr(
       ctx,
       crypto,
       "isValidX509CertBundle",
       JS_NewCFunction(
         ctx, js_is_valid_x509_cert_bundle, "isValidX509CertBundle", 1));
+    // Added to ccf top-level for backwards compatibility with 3.x constitution
+    // samples and to faciliate the transition to ccf.crypto
+    JS_SetPropertyStr(
+      ctx,
+      ccf,
+      "isValidX509CertBundle",
+      JS_NewCFunction(
+        ctx, js_is_valid_x509_cert_bundle, "isValidX509CertBundle", 1));
+
     JS_SetPropertyStr(
       ctx,
       crypto,
