@@ -1,5 +1,5 @@
 ---------- MODULE SIMccfraft ----------
-EXTENDS ccfraft, TLC, Integers
+EXTENDS ccfraft, TLC, Integers, StatsFile, IOUtils
 
 CONSTANTS
     NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive
@@ -44,8 +44,9 @@ SIMSpec ==
 \* The state constraint  StopAfter  stops TLC after the alloted
 \* time budget is up, unless TLC encounteres an error first.
 StopAfter ==
-    (* The smoke test has a time budget of 50 minutes. *)
-    TLCSet("exit", TLCGet("duration") > 3000)
+    LET timeout == IF "SIM_TIMEOUT" \in DOMAIN IOEnv THEN atoi(IOEnv.SIM_TIMEOUT) ELSE 1200
+    (* The smoke test has a time budget of 20 minutes. *)
+    IN TLCSet("exit", TLCGet("duration") > timeout)
 
 =============================================================================
 

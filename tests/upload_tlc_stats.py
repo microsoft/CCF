@@ -13,12 +13,19 @@ def run(test_label, filename):
             data = json.load(f)
             duration_sec = data["duration"]
             dstates = data["distinct"]
-            print(
-                f"Uploading metrics for {test_label} - duration: {duration_sec}, distinct states: {dstates}"
-            )
-            with cimetrics.upload.metrics(complete=False) as metrics:
-                metrics.put(f"tlc_{test_label}_duration_s", duration_sec)
-                metrics.put(f"tlc_{test_label}_states", dstates)
+            traces = data.get("traces", 0)
+            levelmean = data.get("levelmean", 0)
+            print(f"Uploading metrics for {test_label}: {data}")
+            if dstates == -1:
+                # Simulation
+                with cimetrics.upload.metrics(complete=False) as metrics:
+                    metrics.put(f"tlc_{test_label}_traces", traces)
+                    metrics.put(f"tlc_{test_label}_levelmean", levelmean)
+            else:
+                # Model checking
+                with cimetrics.upload.metrics(complete=False) as metrics:
+                    metrics.put(f"tlc_{test_label}_duration_s", duration_sec)
+                    metrics.put(f"tlc_{test_label}_states", dstates)
 
     else:
         print(f"Could not find file {filename}: skipping metrics upload")
