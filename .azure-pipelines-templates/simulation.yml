@@ -1,6 +1,6 @@
 jobs:
-  - job: Model_Checking
-    displayName: "Model Checking"
+  - job: Simulation
+    displayName: Simulation
     variables:
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
