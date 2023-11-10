@@ -1353,7 +1353,7 @@ StateTransitionsProp ==
         ]_vars
 
 PendingBecomesFollowerProp ==
-    \* A pending node that becomes part of any configuration immediately transitions to Follower.
+    \* A pending node that becomes aware it is part of a configuration immediately transitions to Follower.
     [][\A s \in { s \in Servers : state[s] = None } : 
             s \in GetServerSet(s)' => 
                 state[s]' = Follower]_vars
