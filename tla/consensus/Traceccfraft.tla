@@ -58,13 +58,13 @@ IsAppendEntriesResponse(msg, dst, src, logline) ==
 ASSUME TLCGet("config").mode = "bfs"
 
 JsonFile ==
-    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "traces/election.ndjson"
+    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../../build/startup.ndjson"
 
 JsonLog ==
     \* Deserialize the System log as a sequence of records from the log file.
-     \* Run TLC with (assuming a suitable "tlc" shell alias):
-     \* $ JSON=../tests/raft_scenarios/4582.ndjson tlc -note Traceccfraft
-     \* Fall back to trace.ndjson if the JSON environment variable is not set.
+    \* Run TLC from under the tla/ directory with:
+    \* $ JSON=../build/startup.ndjson ./tlc.sh consensus/Traceccfraft.tla
+    \* Traces can be generates with: ./make_traces.sh, also under the tla/ directory.
     ndJsonDeserialize(JsonFile)
 
 TraceLog ==
