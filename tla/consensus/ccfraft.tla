@@ -48,21 +48,19 @@ CONSTANTS
     \*          /\ state[s] = Leader
     \*          /\  CurrentConfiguration(s) \ CurrentConfiguration(s)' = {s}
     \*          => state'[s] = RetiredLeader]_state
+    \* TODO: this should be split into a separate membership_state, as in
+    \* the implementation.
     RetiredLeader,
-    \* The node has passed attestation checks, but is waiting for member confirmation, 
-    \* and just isn't part of any configurations at all, nor has a communication channel
-    \* with other nodes in the network.
-    \*
-    \* More formally:
-    \*   \A i \in Servers : state[i] = Pending => i \notin { GetServerSet(s) : s \in Servers}
-    Pending
+    \* Initial state for a joiner node, until it has received a first message
+    \* from another node.
+    None
 
 States == {
     Follower,
     Candidate,
     Leader,
     RetiredLeader,
-    Pending
+    None
     }
 
 \* Message types:
@@ -477,7 +475,7 @@ InitMessagesVars ==
 
 InitServerVars ==
     /\ currentTerm = [i \in Servers |-> 0]
-    /\ state       = [i \in Servers |-> IF i \in configurations[i][0] THEN Follower ELSE Pending]
+    /\ state       = [i \in Servers |-> IF i \in configurations[i][0] THEN Follower ELSE None]
     /\ votedFor    = [i \in Servers |-> Nil]
 
 InitCandidateVars ==
@@ -867,7 +865,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         /\ configurations' = 
                 [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
         \* If we added a new configuration that we are in and were pending, we are now follower
-        /\ IF /\ state[i] = Pending
+        /\ IF /\ state[i] = None
               /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
            THEN state' = [state EXCEPT ![i] = Follower ]
            ELSE UNCHANGED state
@@ -883,7 +881,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
     /\ m.term = currentTerm[i]
-    /\ state[i] \in {Follower, Pending}
+    /\ state[i] \in {Follower, None}
     /\ logOk
     /\ LET index == m.prevLogIndex + 1
        IN \/ AppendEntriesAlreadyDone(i, j, index, m)
@@ -953,12 +951,12 @@ DropResponseWhenNotInState(i, j, m) ==
 DropIgnoredMessage(i,j,m) ==
     \* Drop messages if...
     /\
-       \* .. recipient is still Pending..
-       \/ /\ state[i] = Pending
+       \* .. recipient is still None..
+       \/ /\ state[i] = None
           \* .. and the message is anything other than an append entries request
           /\ m.type /= AppendEntriesRequest
-       \*  OR if message is to a server that has surpassed the Pending stage ..
-       \/ /\ state[i] /= Pending
+       \*  OR if message is to a server that has surpassed the None stage ..
+       \/ /\ state[i] /= None
         \* .. and it comes from a server outside of the configuration
           /\ \lnot IsInServerSet(j, i)
        \*  OR if recipient is RetiredLeader and this is not a request to vote
@@ -1275,7 +1273,7 @@ MonotonicMatchIndexProp ==
 PermittedLogChangesProp ==
     [][\A i \in Servers :
         log[i] # log[i]' =>
-            \/ state[i]' = Pending
+            \/ state[i]' = None
             \/ state[i]' = Follower
             \* Established leader adding new entries
             \/ /\ state[i] = Leader
@@ -1297,7 +1295,7 @@ PermittedLogChangesProp ==
 
 StateTransitionsProp ==
     [][\A i \in Servers :
-        /\ state[i] = Pending => state[i]' \in {Pending, Follower}
+        /\ state[i] = None => state[i]' \in {None, Follower}
         /\ state[i] = Follower => state[i]' \in {Follower, Candidate}
         /\ state[i] = Candidate => state[i]' \in {Follower, Candidate, Leader}
         /\ state[i] = Leader => state[i]' \in {Follower, Leader, RetiredLeader}
@@ -1305,8 +1303,8 @@ StateTransitionsProp ==
         ]_vars
 
 PendingBecomesFollowerProp ==
-    \* A pending node that becomes part of any configuration immediately transitions to Follower.
-    [][\A s \in { s \in Servers : state[s] = Pending } : 
+    \* A pending node that becomes aware it is part of a configuration immediately transitions to Follower.
+    [][\A s \in { s \in Servers : state[s] = None } : 
             s \in GetServerSet(s)' => 
                 state[s]' = Follower]_vars
 
