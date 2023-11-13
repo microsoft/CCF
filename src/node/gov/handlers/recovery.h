@@ -106,16 +106,14 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          const auto& raw_body = ctx.rpc_ctx->get_request_body();
-          const nlohmann::json params = nlohmann::json::parse(raw_body);
+          const auto* cose_auth_id =
+            ctx.template try_get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+          auto params = nlohmann::json::parse(
+            cose_auth_id ? cose_auth_id->content :
+                           ctx.rpc_ctx->get_request_body());
 
           auto raw_recovery_share =
-            crypto::raw_from_b64(params["share"].get<std::string>());
-
-          // Cleanse other copies of secret where possible. Note that this
-          // leaves a JSON-parsed copy, and potentially others in the TLS/HTTP
-          // stack.
-          OPENSSL_cleanse((char*)raw_body.data(), raw_body.size());
+            crypto::raw_from_b64(params["share"].template get<std::string>());
 
           size_t submitted_shares_count = 0;
           try
@@ -195,7 +193,7 @@ namespace ccf::gov::endpoints
         "/recovery/members/{memberId}:recover",
         HTTP_POST,
         api_version_adapter(submit_recovery_share),
-        ccf::no_auth_required)
+        detail::active_member_sig_only_policies("recovery_share"))
       .set_openapi_hidden(true)
       .install();
   }
