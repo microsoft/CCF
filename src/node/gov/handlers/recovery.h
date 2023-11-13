@@ -106,11 +106,23 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          const auto* cose_auth_id =
-            ctx.template try_get_caller<ccf::MemberCOSESign1AuthnIdentity>();
-          auto params = nlohmann::json::parse(
-            cose_auth_id ? cose_auth_id->content :
-                           ctx.rpc_ctx->get_request_body());
+          const auto& cose_ident =
+            ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+
+          auto params = nlohmann::json::parse(cose_ident.content);
+          if (cose_ident.member_id != member_id)
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidAuthenticationInfo,
+              fmt::format(
+                "Member ID from path parameter ({}) does not match "
+                "member ID from body signature ({}).",
+                member_id,
+                cose_ident.member_id));
+            return;
+          }
 
           auto raw_recovery_share =
             crypto::raw_from_b64(params["share"].template get<std::string>());
