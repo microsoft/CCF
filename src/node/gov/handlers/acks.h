@@ -55,7 +55,9 @@ namespace ccf::gov::endpoints
 
           auto response_body = nlohmann::json::object();
           response_body["memberId"] = member_id_str;
-          response_body["stateDigest"] = ack->state_digest;
+          // Match pre-v1 API naming convention
+          const auto state_digest_key = api_version == ApiVersion::preview_v1 ? "stateDigest" : "state_digest";
+          response_body[state_digest_key] = ack->state_digest;
           ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
           return;
         }
@@ -142,7 +144,9 @@ namespace ccf::gov::endpoints
 
           auto body = nlohmann::json::object();
           body["memberId"] = member_id_str;
-          body["stateDigest"] = ack.state_digest;
+          // Match pre-v1 API naming convention
+          const auto state_digest_key = api_version == ApiVersion::preview_v1 ? "stateDigest" : "state_digest";
+          body[state_digest_key] = ack.state_digest;
           ctx.rpc_ctx->set_response_json(body, HTTP_STATUS_OK);
           return;
         }
@@ -215,8 +219,10 @@ namespace ccf::gov::endpoints
           // Check signed digest matches expected digest in KV
           const auto expected_digest = ack->state_digest;
           const auto signed_body = nlohmann::json::parse(cose_ident.content);
+          // Match pre-v1 API naming convention
+          const auto state_digest_key = api_version == ApiVersion::preview_v1 ? "stateDigest" : "state_digest";
           const auto actual_digest =
-            signed_body["stateDigest"].template get<std::string>();
+            signed_body[state_digest_key].template get<std::string>();
           if (expected_digest != actual_digest)
           {
             detail::set_gov_error(
