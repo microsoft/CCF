@@ -10,13 +10,6 @@ RaftMsgType ==
 LeadershipState ==
     Leader :> "Leader" @@ Follower :> "Follower" @@ Candidate :> "Candidate" @@ None :> "None"
 
-\* In:  <<[idx |-> 0, nodes |-> [0 |-> [address |-> ":"]], rid |-> 0]>>
-\* Out: (0 :> {0})
-ToConfigurations(c) ==
-    IF c = <<>> 
-    THEN (0 :> {})
-    ELSE FoldSeq(LAMBDA x,y: (x.idx :> DOMAIN x.nodes) @@ y, <<>>, c)
-
 IsAppendEntriesRequest(msg, dst, src, logline) ==
     (*
     | ccfraft.tla   | json               | raft.h             |
@@ -92,11 +85,18 @@ TraceAppendEntriesBatchsize(i, j) ==
 TraceInitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
-    \* Weaken  ccfraft!InitReconfigurationVars  to allow a node's configuration to be initially empty.
-     \* This seems to be a quirk of raft_driver (related RaftDriverQuirk).
-    /\ configurations = [ s \in Servers |-> IF s = TraceLog[1].msg.state.node_id 
-                                            THEN ToConfigurations(<<TraceLog[1].msg.new_configuration>>)
-                                            ELSE [ j \in {0} |-> {} ] ]
+    /\ LET startNode == TraceLog[1].msg.state.node_id
+       IN
+            /\ configurations = [ i \in Servers |-> IF i = startNode THEN (1 :> {startNode}) ELSE << >>]
+            /\ currentTerm = [i \in Servers |-> IF i = startNode THEN 2 ELSE 0]
+            /\ state       = [i \in Servers |-> IF i = startNode THEN Leader ELSE None]
+            /\ votedFor    = [i \in Servers |-> Nil]
+            /\ log         = [i \in Servers |-> IF i = startNode
+                                                THEN << [term |-> 2, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
+                                                        [term |-> 2, contentType |-> TypeSignature] >>
+                                                ELSE << >>]
+            /\ commitIndex  = [i \in Servers |-> IF i = startNode THEN 2 ELSE 0]
+            /\ committableIndices  = [i \in Servers |-> {}]
 
 -------------------------------------------------------------------------------------
 
@@ -108,9 +108,8 @@ TraceInit ==
     \* Constraint the set of initial states to the ones that match the nodes
      \* that are members of the initial configuration
      \* (see  \E c \in SUBSET Servers: ...  in ccraft!InitReconfigurationVars).
-    /\ TraceLog[1].msg.function = "add_configuration"
+    /\ TraceLog[1].msg.function = "bootstrap"
     /\ ts = TraceLog[1].h_ts
-    /\ ToConfigurations(<<TraceLog[1].msg.new_configuration>>) = configurations[TraceLog[1].msg.state.node_id]
 
 -------------------------------------------------------------------------------------
 
@@ -328,8 +327,7 @@ IsRcvRequestVoteResponse ==
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
-    /\ state[logline.msg.state.node_id] = Follower
-    /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
+    /\ state[logline.msg.state.node_id] # Leader
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsCheckQuorum ==
@@ -378,22 +376,6 @@ TraceNext ==
 
     \/ IsRcvProposeVoteRequest
 
-RaftDriverQuirks ==
-    \* The "nodes" command in raft scenarios causes N consecutive "add_configuration" log lines to be emitted,
-     \* where N is determined by the "nodes" parameter. At this stage, the nodes are in the "None" state.
-     \* However, the enablement condition of "ccfraft!Timeout" is only true for nodes in the "Candidate" or 
-     \* "Follower" state. Therefore, we include this action to address this quirk in the raft_driver.
-    \/ /\ IsEvent("add_configuration")
-       /\ state[logline.msg.state.node_id] = None
-       /\ configurations' = [ configurations EXCEPT ![logline.msg.state.node_id] = ToConfigurations(<<logline.msg.new_configuration>>)]
-       /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
-       /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>    
-    \/ /\ IsEvent("become_follower")
-       /\ state[logline.msg.state.node_id] = None
-       /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
-       /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
-       /\ UNCHANGED <<reconfigurationVars, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
-
 TraceSpec ==
     \* In an ideal world with extremely fast compute and a sophisticated TLC evaluator, we would simply compose  DropMessage and
     \* TraceNext, i.e.,  DropMessage ⋅ TraceNext.  However, we are not in an ideal world, and, thus, we have to resort to the 
@@ -407,7 +389,7 @@ TraceSpec ==
     \* mode in TLC that checks refinement only for the set of traces whose length equals Len(TraceLog). This means delaying the
     \* refinement check until after the log has been matched. The class tlc2.tool.CheckImplFile might be a good starting point, although
     \* its current implementation doesn't account for non-determinism arising from log gaps or missed messages.
-    TraceInit /\ [][(IF ~ENABLED TraceNext THEN DropMessages \cdot TraceNext ELSE TraceNext) \/ RaftDriverQuirks]_<<l, ts, vars>>
+    TraceInit /\ [][(IF ~ENABLED TraceNext THEN DropMessages \cdot TraceNext ELSE TraceNext)]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
@@ -550,6 +532,6 @@ CCF == INSTANCE ccfraft
 DropAndReceive(i, j) ==
     DropMessages \cdot CCF!Receive(i, j)
 
-CCFSpec == CCF!Init /\ [][CCF!Next \/ (DropMessages \cdot ComposedNext) \/ RaftDriverQuirks]_CCF!vars
+CCFSpec == CCF!Init /\ [][CCF!Next \/ (DropMessages \cdot ComposedNext)]_CCF!vars
 
 ==================================================================================
