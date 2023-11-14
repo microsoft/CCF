@@ -470,22 +470,22 @@ StartState(startNode, servers) ==
     /\ commitIndex  = [i \in servers |-> IF i = startNode THEN 2 ELSE 0]
     /\ committableIndices  = [i \in servers |-> {}]
 
-\* Generate initial state for an initial set of nodes
+\* Generate initial state for a startNodes configuration
 JoinedState(startNodes, servers) ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
     /\ \E startNode \in startNodes:
-        /\ configurations = [ i \in servers |-> IF i = startNode THEN (1 :> {startNode} @@ 3 :> startNodes) ELSE << >>]
-        /\ currentTerm = [i \in servers |-> IF i = startNode THEN 2 ELSE 0]
-        /\ state       = [i \in servers |-> IF i = startNode THEN Leader ELSE None]
+        /\ configurations = [ i \in servers |-> IF i \in startNodes  THEN (1 :> {startNode} @@ 3 :> startNodes) ELSE << >>]
+        /\ currentTerm = [i \in servers |-> IF i \in startNodes THEN 2 ELSE 0]
+        /\ state       = [i \in servers |-> IF i = startNode THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
         /\ votedFor    = [i \in servers |-> Nil]
-        /\ log         = [i \in servers |-> IF i = startNode
+        /\ log         = [i \in servers |-> IF i \in startNodes
                                             THEN << [term |-> 2, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
                                                     [term |-> 2, contentType |-> TypeSignature],
                                                     [term |-> 2, contentType |-> TypeReconfiguration, configuration |-> startNodes],
                                                     [term |-> 2, contentType |-> TypeSignature] >>
                                             ELSE << >>]
-        /\ commitIndex  = [i \in servers |-> IF i = startNode THEN 2 ELSE 0]
+        /\ commitIndex  = [i \in servers |-> IF i \in startNodes THEN 4 ELSE 0]
         /\ committableIndices  = [i \in servers |-> {}]
 
 ------------------------------------------------------------------------------
