@@ -84,6 +84,8 @@ Ballots
 Member Activation
 -----------------
 
+.. note:: The payload casing has changed, ``state_digest`` has become ``stateDigest``.
+
 .. list-table::
    :align: left
 
