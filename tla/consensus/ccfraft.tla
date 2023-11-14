@@ -455,6 +455,19 @@ PlausibleSucessorNodes(i) ==
         highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
     IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)}
 
+\* Generate initial state for a given startNode
+InitialState(startNode, servers) ==
+    /\ configurations = [ i \in servers |-> IF i = startNode THEN (1 :> {startNode}) ELSE << >>]
+    /\ currentTerm = [i \in servers |-> IF i = startNode THEN 2 ELSE 0]
+    /\ state       = [i \in servers |-> IF i = startNode THEN Leader ELSE None]
+    /\ votedFor    = [i \in servers |-> Nil]
+    /\ log         = [i \in servers |-> IF i = startNode
+                                        THEN << [term |-> 2, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
+                                                [term |-> 2, contentType |-> TypeSignature] >>
+                                        ELSE << >>]
+    /\ commitIndex  = [i \in servers |-> IF i = startNode THEN 2 ELSE 0]
+    /\ committableIndices  = [i \in servers |-> {}]
+
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
 
@@ -462,16 +475,7 @@ InitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
     /\ \E startNode \in Servers:
-        /\ configurations = [ i \in Servers |-> IF i = startNode THEN (1 :> {startNode}) ELSE << >>]
-        /\ currentTerm = [i \in Servers |-> IF i = startNode THEN 2 ELSE 0]
-        /\ state       = [i \in Servers |-> IF i = startNode THEN Leader ELSE None]
-        /\ votedFor    = [i \in Servers |-> Nil]
-        /\ log         = [i \in Servers |-> IF i = startNode
-                                            THEN << [term |-> 2, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
-                                                    [term |-> 2, contentType |-> TypeSignature] >>
-                                            ELSE << >>]
-        /\ commitIndex  = [i \in Servers |-> IF i = startNode THEN 2 ELSE 0]
-        /\ committableIndices  = [i \in Servers |-> {}]
+        InitialState(startNode, Servers)
 
 InitMessagesVars ==
     /\ Network!InitMessageVar
