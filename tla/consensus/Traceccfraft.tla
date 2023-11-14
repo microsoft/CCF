@@ -88,7 +88,7 @@ TraceInitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
     /\ LET startNode == TraceLog[1].msg.state.node_id
-       IN CCF!InitialState(startNode, TraceServers)
+       IN CCF!StartState(startNode, TraceServers)
 
 -------------------------------------------------------------------------------------
 
