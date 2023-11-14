@@ -363,22 +363,39 @@ class Member:
         help_res.check_returncode()
         help_out = help_res.stdout.decode()
         supports_api_version = "--api-version" in help_out
+        support_member_id_cert = "--member-id-cert" in help_out
 
         cmd = [
             self.share_script,
             f"https://{remote_node.get_public_rpc_host()}:{remote_node.get_public_rpc_port()}",
             "--member-enc-privk",
             os.path.join(self.common_dir, f"{self.local_id}_enc_privk.pem"),
-            "--member-id-privk",
-            os.path.join(self.common_dir, f"{self.local_id}_privk.pem"),
-            "--member-id-cert",
-            os.path.join(self.common_dir, f"{self.local_id}_cert.pem"),
         ]
+
+        # Versions of the script that support --member-id arguments use COSE Sign1
+        # to authenticate with the service.
+        if support_member_id_cert:
+            cmd += [
+                "--member-id-privk",
+                os.path.join(self.common_dir, f"{self.local_id}_privk.pem"),
+                "--member-id-cert",
+                os.path.join(self.common_dir, f"{self.local_id}_cert.pem"),
+            ]
 
         if supports_api_version:
             cmd += [
                 "--api-version",
                 self.gov_api_impl.API_VERSION,
+            ]
+
+        # Versions of the script that do not support --member-id arguments use
+        # client certificates (forward to curl) to authenticate with the service.
+        if not support_member_id_cert:
+            cmd += [
+                "--key",
+                os.path.join(self.common_dir, f"{self.local_id}_privk.pem"),
+                "--cert",
+                os.path.join(self.common_dir, f"{self.local_id}_cert.pem"),
             ]
 
         cmd += [
