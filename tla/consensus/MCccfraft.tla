@@ -4,7 +4,7 @@ EXTENDS ccfraft, StatsFile
 CONSTANTS
     NodeOne, NodeTwo, NodeThree
 
-1Configuration == <<{NodeOne, NodeTwo, NodeThree}>>
+1Configuration == <<{NodeOne, NodeTwo}>>
 2Configurations == <<{NodeOne, NodeTwo}, {NodeTwo, NodeThree}>>
 3Configurations == <<{NodeOne, NodeTwo}, {NodeTwo, NodeThree}, {NodeTwo}>>
 
@@ -33,9 +33,7 @@ CCF == INSTANCE ccfraft
 
 \* Limit the reconfigurations to the next configuration in Configurations
 MCChangeConfigurationInt(i, newConfiguration) ==
-    \* TODO: this is not right, and results in MCccfraft.tla not having
-    \* any reconfiguration, but also averts state explosion for now
-    /\ reconfigurationCount < Len(Configurations) - 1
+    /\ reconfigurationCount < Len(Configurations)
     \* reconfigurationCount starts at 0, +1 to get the next configuration
     /\ newConfiguration = Configurations[reconfigurationCount+1]
     /\ CCF!ChangeConfigurationInt(i, newConfiguration)
