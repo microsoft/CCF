@@ -57,6 +57,7 @@ if [ ! -f "${VENV_DIR}/bin/activate" ]; then
 fi
 # shellcheck source=/dev/null
 source "${VENV_DIR}"/bin/activate
+echo "Installing pip..."
 pip install -U -q pip
 
 if [ -f "${VERSION_FILE}" ]; then
@@ -81,18 +82,23 @@ if [ -f "${VERSION_FILE}" ]; then
         # With an install tree, the python package can be specified, e.g. when testing
         # an install just before it is released
         echo "Using python package: ${PYTHON_PACKAGE_PATH}"
+        echo "Installing ccf package from ${PYTHON_PACKAGE_PATH}..."
         pip install -q -U -e "${PYTHON_PACKAGE_PATH}"
     else
         # Note: Strip unsafe suffix if it exists
         sanitised_version=${VERSION%"+unsafe"}
+        echo "Installing ccf package (${sanitised_version})..."
         pip install -q -U ccf=="${sanitised_version}"
     fi
+    echo "Installing test dependencies..."
     pip install -q -U -r "${PATH_HERE}"/requirements.txt
 else
     # source tree
     BINARY_DIR=.
     START_NETWORK_SCRIPT="${PATH_HERE}"/../start_network.py
+    echo "Installing ccf package from source tree..."
     pip install -q -U -e "${PATH_HERE}"/../../python/
+    echo "Installing test dependencies..."
     pip install -q -U -r "${PATH_HERE}"/../requirements.txt
 fi
 
