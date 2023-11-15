@@ -13,9 +13,18 @@ VERSION_FILE="${PATH_HERE}"/../share/VERSION_LONG
 is_package_specified=false
 is_js_bundle_specified=false
 
+# Install tree
 PLATFORM_FILE="${PATH_HERE}"/../share/PLATFORM
-platform="virtual"
-enclave_type="virtual"
+# If not there, try locally
+if [ ! -f "${VERSION_FILE}" ]; then
+    PLATFORM_FILE=PLATFORM
+fi
+platform=$(<"${PLATFORM_FILE}")
+if [ "${platform}" == "sgx" ]; then
+    enclave_type="release"
+else
+    enclave_type="virtual"
+fi
 
 extra_args=()
 while [ "$1" != "" ]; do
@@ -78,12 +87,6 @@ if [ ! -f "${VENV_DIR}/bin/activate" ]; then
     if [ -f "${VERSION_FILE}" ]; then
         VERSION=$(<"${VERSION_FILE}")
         VERSION=${VERSION#"ccf-"}
-        platform=$(<"${PLATFORM_FILE}")
-        if [ "${platform}" == "sgx" ]; then
-            enclave_type="release"
-        else
-            enclave_type="virtual"
-        fi
         if [ -n "${PYTHON_PACKAGE_PATH}" ]; then
             # With an install tree, the python package can be specified, e.g. when testing
             # an install just before it is released
