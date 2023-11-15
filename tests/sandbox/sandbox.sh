@@ -54,6 +54,12 @@ if [ -f "${VERSION_FILE}" ]; then
     # install tree
     BINARY_DIR=${PATH_HERE}
     START_NETWORK_SCRIPT="${PATH_HERE}"/start_network.py
+    if [ ${is_package_specified} == false ] && [ ${is_js_bundle_specified} == false ]; then
+        # Only on install tree, default to installed js logging app
+        echo "No package/app specified. Defaulting to installed JS logging app"
+        extra_args+=(--package "${PATH_HERE}/../lib/libjs_generic")
+        extra_args+=(--js-app-bundle "${PATH_HERE}/../samples/logging/js")
+    fi
 else
     # source tree
     BINARY_DIR=.
@@ -77,12 +83,6 @@ if [ ! -f "${VENV_DIR}/bin/activate" ]; then
             enclave_type="release"
         else
             enclave_type="virtual"
-        fi
-        if [ ${is_package_specified} == false ] && [ ${is_js_bundle_specified} == false ]; then
-            # Only on install tree, default to installed js logging app
-            echo "No package/app specified. Defaulting to installed JS logging app"
-            extra_args+=(--package "${PATH_HERE}/../lib/libjs_generic")
-            extra_args+=(--js-app-bundle "${PATH_HERE}/../samples/logging/js")
         fi
         if [ -n "${PYTHON_PACKAGE_PATH}" ]; then
             # With an install tree, the python package can be specified, e.g. when testing
