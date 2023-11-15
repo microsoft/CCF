@@ -50,59 +50,67 @@ while [ "$1" != "" ]; do
     shift
 done
 
-echo "Setting up Python environment..."
-
-if [ ! -f "${VENV_DIR}/bin/activate" ]; then
-    python3.8 -m venv "${VENV_DIR}"
-fi
-# shellcheck source=/dev/null
-source "${VENV_DIR}"/bin/activate
-echo "Installing pip..."
-pip install -U -q pip
-
 if [ -f "${VERSION_FILE}" ]; then
     # install tree
     BINARY_DIR=${PATH_HERE}
     START_NETWORK_SCRIPT="${PATH_HERE}"/start_network.py
-    VERSION=$(<"${VERSION_FILE}")
-    VERSION=${VERSION#"ccf-"}
-    platform=$(<"${PLATFORM_FILE}")
-    if [ "${platform}" == "sgx" ]; then
-        enclave_type="release"
-    else
-        enclave_type="virtual"
-    fi
-    if [ ${is_package_specified} == false ] && [ ${is_js_bundle_specified} == false ]; then
-        # Only on install tree, default to installed js logging app
-        echo "No package/app specified. Defaulting to installed JS logging app"
-        extra_args+=(--package "${PATH_HERE}/../lib/libjs_generic")
-        extra_args+=(--js-app-bundle "${PATH_HERE}/../samples/logging/js")
-    fi
-    if [ -n "${PYTHON_PACKAGE_PATH}" ]; then
-        # With an install tree, the python package can be specified, e.g. when testing
-        # an install just before it is released
-        echo "Using python package: ${PYTHON_PACKAGE_PATH}"
-        echo "Installing ccf package from ${PYTHON_PACKAGE_PATH}..."
-        pip install -q -U -e "${PYTHON_PACKAGE_PATH}"
-    else
-        # Note: Strip unsafe suffix if it exists
-        sanitised_version=${VERSION%"+unsafe"}
-        echo "Installing ccf package (${sanitised_version})..."
-        pip install -q -U ccf=="${sanitised_version}"
-    fi
-    echo "Installing test dependencies..."
-    pip install -q -U -r "${PATH_HERE}"/requirements.txt
 else
     # source tree
     BINARY_DIR=.
     START_NETWORK_SCRIPT="${PATH_HERE}"/../start_network.py
-    echo "Installing ccf package from source tree..."
-    pip install -q -U -e "${PATH_HERE}"/../../python/
-    echo "Installing test dependencies..."
-    pip install -q -U -r "${PATH_HERE}"/../requirements.txt
 fi
 
-echo "Python environment successfully setup"
+if [ ! -f "${VENV_DIR}/bin/activate" ]; then
+    echo "Setting up Python environment..."
+    python3.8 -m venv "${VENV_DIR}"
+
+    # shellcheck source=/dev/null
+    source "${VENV_DIR}"/bin/activate
+    echo "Installing pip..."
+    pip install -U -q pip
+
+    if [ -f "${VERSION_FILE}" ]; then
+        VERSION=$(<"${VERSION_FILE}")
+        VERSION=${VERSION#"ccf-"}
+        platform=$(<"${PLATFORM_FILE}")
+        if [ "${platform}" == "sgx" ]; then
+            enclave_type="release"
+        else
+            enclave_type="virtual"
+        fi
+        if [ ${is_package_specified} == false ] && [ ${is_js_bundle_specified} == false ]; then
+            # Only on install tree, default to installed js logging app
+            echo "No package/app specified. Defaulting to installed JS logging app"
+            extra_args+=(--package "${PATH_HERE}/../lib/libjs_generic")
+            extra_args+=(--js-app-bundle "${PATH_HERE}/../samples/logging/js")
+        fi
+        if [ -n "${PYTHON_PACKAGE_PATH}" ]; then
+            # With an install tree, the python package can be specified, e.g. when testing
+            # an install just before it is released
+            echo "Using python package: ${PYTHON_PACKAGE_PATH}"
+            echo "Installing ccf package from ${PYTHON_PACKAGE_PATH}..."
+            pip install -q -U -e "${PYTHON_PACKAGE_PATH}"
+        else
+            # Note: Strip unsafe suffix if it exists
+            sanitised_version=${VERSION%"+unsafe"}
+            echo "Installing ccf package (${sanitised_version})..."
+            pip install -q -U ccf=="${sanitised_version}"
+        fi
+        echo "Installing test dependencies..."
+        pip install -q -U -r "${PATH_HERE}"/requirements.txt
+    else
+        echo "Installing ccf package from source tree..."
+        pip install -q -U -e "${PATH_HERE}"/../../python/
+        echo "Installing test dependencies..."
+        pip install -q -U -r "${PATH_HERE}"/../requirements.txt
+    fi
+
+    echo "Python environment successfully setup"
+else
+    # shellcheck disable=SC1090
+    source "${VENV_DIR}/bin/activate"
+    echo "Python environment already setup under ${VENV_DIR}"
+fi
 
 export CURL_CLIENT=ON
 export INITIAL_MEMBER_COUNT=1
