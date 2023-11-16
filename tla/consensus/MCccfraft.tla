@@ -5,7 +5,7 @@ CONSTANTS
     NodeOne, NodeTwo, NodeThree
 
 \* No reconfiguration
-1Configuration == <<{NodeOne, NodeTwo}>>
+1Configuration == <<{NodeOne, NodeTwo, NodeThree}>>
 \* Atomic reconfiguration from NodeOne to NodeTwo
 2Configurations == <<{NodeOne}, {NodeTwo}>>
 \* Incremental reconfiguration from NodeOne to NodeOne and NodeTwo, and then to NodeTwo
