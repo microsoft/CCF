@@ -476,7 +476,7 @@ JoinedState(startNodes, servers) ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
     /\ \E startNode \in startNodes:
-        /\ configurations = [ i \in servers |-> IF i \in startNodes  THEN (1 :> {startNode} @@ 3 :> startNodes) ELSE << >>]
+        /\ configurations = [ i \in servers |-> IF i \in startNodes  THEN (3 :> startNodes) ELSE << >>]
         /\ currentTerm = [i \in servers |-> IF i \in startNodes THEN 2 ELSE 0]
         /\ state       = [i \in servers |-> IF i = startNode THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
         /\ votedFor    = [i \in servers |-> Nil]
