@@ -135,6 +135,7 @@ reconfigurationVars == <<
 ReconfigurationVarsTypeInv ==
     /\ ReconfigurationCountTypeInv
     /\ ConfigurationsTypeInv
+    /\ RemovedFromConfigurationTypeInv
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
@@ -647,8 +648,11 @@ ChangeConfigurationInt(i, newConfiguration) ==
     /\ newConfiguration /= {}
     \* Configuration is a proper subset of the Servers
     /\ newConfiguration \subseteq Servers
+    \* Configuration is not equal to the previous configuration
+    /\ newConfiguration /= MaxConfiguration(i)
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
+    /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
     /\ LET
         entry == [
             term |-> currentTerm[i],
@@ -659,7 +663,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         /\ log' = [log EXCEPT ![i] = newLog]
         /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log[i]) :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars,
-                    leaderVars, commitIndex, committableIndices, removedFromConfiguration>>
+                    leaderVars, commitIndex, committableIndices>>
 
 ChangeConfiguration(i) ==
     \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :
