@@ -4,7 +4,6 @@ import rich
 
 # TODO
 # Calculate alignment based on max nodes, view, index, commit index
-# Only highlight individual state changes
      
 LEADERSHIP_STATUS = {
     "None": ":beginner:",
@@ -31,19 +30,25 @@ FUNCTIONS = {
     "commit": "Cmt",
     None: ""
 }
+
+def diffed_key(old, new, key, suffix, size):
+    if old is None or old[key] == new[key]:
+        return f"{new[key]:>{size}}{suffix}"
+    color = "bright_white on red"
+    return f"[{color}]{new[key]:>{size}}{suffix}[/{color}]"
     
 def render_state(state, func, old_state):
     if state is None:
         return " "
     ls = LEADERSHIP_STATUS[state["leadership_state"]]
     nid = state["node_id"]
-    v = state["current_view"]
-    i = state["last_idx"]
-    c = state["commit_idx"]
+    v = diffed_key(old_state, state, "current_view", "v", 2)
+    i = diffed_key(old_state, state, "last_idx", "i", 3)
+    c = diffed_key(old_state, state, "commit_idx", "c", 3)
     f = FUNCTIONS[func]
     opc = "bold bright_white on red" if func else "normal"
     sc = "white on red" if func and (old_state != state) else "grey93"
-    return f"[{opc}]{nid:>2}{ls}{f:<4} [/{opc}][{sc}]{v:>2}v {i:>3}i {c:>3}c[/{sc}]"
+    return f"[{opc}]{nid:>2}{ls}{f:<4} [/{opc}]{v} {i} {c}"
 
     
 def table(lines):
