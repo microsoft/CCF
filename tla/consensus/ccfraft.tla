@@ -1236,9 +1236,9 @@ LogConfigurationConsistentInv ==
                 log[i][idx].contentType = TypeReconfiguration 
                 => configurations[i][idx] = log[i][idx].configuration
 
-NoLeaderInTermZeroInv ==
+NoLeaderBeforeInitialTerm ==
     \A i \in Servers :
-        currentTerm[i] = 0 => state[i] # Leader
+        currentTerm[i] < 2 => state[i] # Leader
 
 MatchIndexLowerBoundNextIndexInv ==
     \A i,j \in Servers :
