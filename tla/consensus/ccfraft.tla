@@ -661,7 +661,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         newLog == Append(log[i], entry)
         IN
         /\ log' = [log EXCEPT ![i] = newLog]
-        /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log[i]) :> newConfiguration]
+        /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars,
                     leaderVars, commitIndex, committableIndices>>
 
@@ -1214,27 +1214,26 @@ MonoLogInv ==
 \* Each server's active configurations should be consistent with its own log and commit index
 LogConfigurationConsistentInv ==
     \A i \in Servers :
-        \* Configurations should have associated reconfiguration txs in the log
-        \* The only exception is the initial configuration (which has index 0)
-        /\ \A idx \in DOMAIN (configurations[i]) :
-            idx # 0 => 
-            /\ log[i][idx].contentType = TypeReconfiguration            
-            /\ log[i][idx].configuration = configurations[i][idx]
-        \* Current configuration should be committed
-        \* This is trivially true for the initial configuration (index 0)
-        /\ commitIndex[i] >= CurrentConfigurationIndex(i)
-        \* Pending configurations should not be committed yet
-        /\ Cardinality(DOMAIN configurations[i]) > 1 
-            => commitIndex[i] < NextConfigurationIndex(i)
-        \* There should be no committed reconfiguration txs since current configuration
-        /\ commitIndex[i] > CurrentConfigurationIndex(i)
-            => \A idx \in CurrentConfigurationIndex(i)+1..commitIndex[i] :
-                log[i][idx].contentType # TypeReconfiguration
-        \* There should be no uncommitted reconfiguration txs except pending configurations
-        /\ Len(log[i]) > commitIndex[i]
-            => \A idx \in commitIndex[i]+1..Len(log[i]) :
-                log[i][idx].contentType = TypeReconfiguration 
-                => configurations[i][idx] = log[i][idx].configuration
+        \/ state[i] = None
+        \/
+            \* Configurations should have associated reconfiguration txs in the log
+            /\ \A idx \in DOMAIN (configurations[i]) : 
+                /\ log[i][idx].contentType = TypeReconfiguration            
+                /\ log[i][idx].configuration = configurations[i][idx]
+            \* Current configuration should be committed
+            /\ commitIndex[i] >= CurrentConfigurationIndex(i)
+            \* Pending configurations should not be committed yet
+            /\ Cardinality(DOMAIN configurations[i]) > 1 
+                => commitIndex[i] < NextConfigurationIndex(i)
+            \* There should be no committed reconfiguration txs since current configuration
+            /\ commitIndex[i] > CurrentConfigurationIndex(i)
+                => \A idx \in CurrentConfigurationIndex(i)+1..commitIndex[i] :
+                    log[i][idx].contentType # TypeReconfiguration
+            \* \* There should be no uncommitted reconfiguration txs except pending configurations
+            /\ Len(log[i]) > commitIndex[i]
+                => \A idx \in commitIndex[i]+1..Len(log[i]) :
+                    log[i][idx].contentType = TypeReconfiguration 
+                    => configurations[i][idx] = log[i][idx].configuration
 
 NoLeaderBeforeInitialTerm ==
     \A i \in Servers :
