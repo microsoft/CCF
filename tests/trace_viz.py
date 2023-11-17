@@ -5,12 +5,6 @@ import sys
 import json
 import rich
 
-"""
-TODO
-
-Add status on responses (votes and append entries)
-"""
-
 LEADERSHIP_STATUS = {
     "None": ":beginner:",
     "Leader": ":crown:",
@@ -34,6 +28,7 @@ FUNCTIONS = {
     "become_leader": "BLea",
     "become_follower": "BFol",
     "commit": "Cmt",
+    "bootstrap": "Boot",
     None: "",
 }
 
