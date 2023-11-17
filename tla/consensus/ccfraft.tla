@@ -83,7 +83,7 @@ CONSTANTS Servers
 ASSUME Servers /= {} /\ IsFiniteSet(Servers)
 
 \* Initial term used by the Start node in the network
-CONSTANT StartTerm
+StartTerm == 2
 
 Nil ==
   (*************************************************************************)
