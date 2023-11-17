@@ -1160,10 +1160,10 @@ LogMatchingInv ==
 \* of at least one server in every quorum
 QuorumLogInv ==
     \A i \in Servers :
-        \/ configurations[i] = << >>
-        \/ \A S \in Quorums[CurrentConfiguration(i)] :
-             \E j \in S :
-                 IsPrefix(Committed(i), log[j])
+        configurations[i] # << >> =>
+            \A S \in Quorums[CurrentConfiguration(i)] :
+                \E j \in S :
+                    IsPrefix(Committed(i), log[j])
 
 \* True if server i could receive a vote from server j based on the up-to-date check
 \* The "up-to-date" check performed by servers before issuing a vote implies that i receives
