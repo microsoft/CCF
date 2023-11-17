@@ -82,6 +82,9 @@ CONSTANTS
 CONSTANTS Servers
 ASSUME Servers /= {} /\ IsFiniteSet(Servers)
 
+\* Initial term used by the Start node in the network
+CONSTANT StartTerm
+
 Nil ==
   (*************************************************************************)
   (* This defines Nil to be an unspecified value that is not a server.     *)
@@ -461,14 +464,14 @@ StartState(startNode, servers) ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
     /\ configurations = [ i \in servers |-> IF i = startNode THEN (1 :> {startNode}) ELSE << >>]
-    /\ currentTerm = [i \in servers |-> IF i = startNode THEN 2 ELSE 0]
+    /\ currentTerm = [i \in servers |-> IF i = startNode THEN StartTerm ELSE 0]
     /\ state       = [i \in servers |-> IF i = startNode THEN Leader ELSE None]
     /\ votedFor    = [i \in servers |-> Nil]
     /\ log         = [i \in servers |-> IF i = startNode
-                                        THEN << [term |-> 2, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
-                                                [term |-> 2, contentType |-> TypeSignature] >>
+                                        THEN << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
+                                                [term |-> StartTerm, contentType |-> TypeSignature] >>
                                         ELSE << >>]
-    /\ commitIndex  = [i \in servers |-> IF i = startNode THEN 2 ELSE 0]
+    /\ commitIndex  = [i \in servers |-> IF i = startNode THEN Len(log[i]) ELSE 0]
     /\ committableIndices  = [i \in servers |-> {}]
 
 \* Generate initial state for a startNodes configuration
@@ -477,16 +480,16 @@ JoinedState(startNodes, servers) ==
     /\ removedFromConfiguration = {}
     /\ \E startNode \in startNodes:
         /\ configurations = [ i \in servers |-> IF i \in startNodes  THEN (3 :> startNodes) ELSE << >>]
-        /\ currentTerm = [i \in servers |-> IF i \in startNodes THEN 2 ELSE 0]
+        /\ currentTerm = [i \in servers |-> IF i \in startNodes THEN StartTerm ELSE 0]
         /\ state       = [i \in servers |-> IF i = startNode THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
         /\ votedFor    = [i \in servers |-> Nil]
         /\ log         = [i \in servers |-> IF i \in startNodes
-                                            THEN << [term |-> 2, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
-                                                    [term |-> 2, contentType |-> TypeSignature],
-                                                    [term |-> 2, contentType |-> TypeReconfiguration, configuration |-> startNodes],
-                                                    [term |-> 2, contentType |-> TypeSignature] >>
+                                            THEN << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
+                                                    [term |-> StartTerm, contentType |-> TypeSignature],
+                                                    [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNodes],
+                                                    [term |-> StartTerm, contentType |-> TypeSignature] >>
                                             ELSE << >>]
-        /\ commitIndex  = [i \in servers |-> IF i \in startNodes THEN 4 ELSE 0]
+        /\ commitIndex  = [i \in servers |-> IF i \in startNodes THEN Len(log[i]) ELSE 0]
         /\ committableIndices  = [i \in servers |-> {}]
 
 ------------------------------------------------------------------------------
@@ -567,7 +570,7 @@ AppendEntries(i, j) ==
            prevLogTerm == IF prevLogIndex \in DOMAIN log[i] THEN
                               log[i][prevLogIndex].term
                           ELSE
-                              2
+                              StartTerm
            \* Send a number of entries (constrained by the end of the log).
            lastEntry(idx) == min(Len(log[i]), idx)
            index == nextIndex[i][j]
@@ -787,10 +790,10 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
        \/ /\ m.term >= currentTerm[i]
           /\ state[i] = Follower
           /\ ~logOk
-          /\ LET prevTerm == IF m.prevLogIndex = 0 THEN 2
+          /\ LET prevTerm == IF m.prevLogIndex = 0 THEN StartTerm
                              ELSE IF m.prevLogIndex > Len(log[i]) THEN 0 ELSE log[i][Len(log[i])].term
              IN /\ m.prevLogTerm # prevTerm
-                /\ \/ /\ prevTerm = 2
+                /\ \/ /\ prevTerm = StartTerm
                       /\ Reply([type        |-> AppendEntriesResponse,
                              success        |-> FALSE,
                              term           |-> currentTerm[i],
@@ -798,11 +801,11 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                              source         |-> i,
                              dest           |-> j],
                              m)
-                   \/ /\ prevTerm # 2
+                   \/ /\ prevTerm # StartTerm
                       /\ LET lli == FindHighestPossibleMatch(log[i], m.prevLogIndex, m.term)
                          IN Reply([type        |-> AppendEntriesResponse,
                                 success        |-> FALSE,
-                                term           |-> IF lli = 0 THEN 2 ELSE log[i][lli].term,
+                                term           |-> IF lli = 0 THEN StartTerm ELSE log[i][lli].term,
                                 lastLogIndex   |-> lli,
                                 source         |-> i,
                                 dest           |-> j],
@@ -1237,7 +1240,7 @@ LogConfigurationConsistentInv ==
 
 NoLeaderBeforeInitialTerm ==
     \A i \in Servers :
-        currentTerm[i] < 2 => state[i] # Leader
+        currentTerm[i] < StartTerm => state[i] # Leader
 
 MatchIndexLowerBoundNextIndexInv ==
     \A i,j \in Servers :
