@@ -4,8 +4,11 @@ EXTENDS ccfraft, StatsFile
 CONSTANTS
     NodeOne, NodeTwo, NodeThree
 
+\* No reconfiguration
 1Configuration == <<{NodeOne, NodeTwo, NodeThree}>>
+\* Atomic reconfiguration from NodeOne to NodeTwo
 2Configurations == <<{NodeOne}, {NodeTwo}>>
+\* Incremental reconfiguration from NodeOne to NodeOne and NodeTwo, and then to NodeTwo
 3Configurations == <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
 
 CONSTANT Configurations
@@ -33,9 +36,8 @@ CCF == INSTANCE ccfraft
 
 \* Limit the reconfigurations to the next configuration in Configurations
 MCChangeConfigurationInt(i, newConfiguration) ==
-    /\ reconfigurationCount < Len(Configurations)-1
-    \* +1 because TLA+ sequences are 1-index
-    \* +1 to get the next configuration
+    /\ reconfigurationCount < Len(Configurations) - 1
+    \* reconfigurationCount starts at 0, +2 to skip the first and get the next configuration
     /\ newConfiguration = Configurations[reconfigurationCount+2]
     /\ CCF!ChangeConfigurationInt(i, newConfiguration)
 
@@ -92,20 +94,16 @@ MCSend(msg) ==
 MCInMaxSimultaneousCandidates(i) ==
     Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
 
-\* Alternative to CCF!InitReconfigurationVars that sets the initial configuration to the first config defined in Configurations
-MCInitReconfigurationVars ==
-    /\ reconfigurationCount = 0
-    /\ removedFromConfiguration = {}
-    /\ configurations = [i \in Servers |-> 0 :> Configurations[1]]
-
 \* Alternative to CCF!Init that uses the above MCInitReconfigurationVars
 MCInit ==
-    /\ MCInitReconfigurationVars
     /\ CCF!InitMessagesVars
-    /\ CCF!InitServerVars
     /\ CCF!InitCandidateVars
     /\ CCF!InitLeaderVars
-    /\ CCF!InitLogVars
+    /\ IF Cardinality(Configurations[1]) = 1
+       \* If the first config is just one node, we can start with a two-tx log and a single config
+       THEN CCF!StartState(CHOOSE s \in Configurations[1]: TRUE, ToServers)
+       \* If we want to start with multiple nodes, a four-tx log with a reconfiguration already appended
+       ELSE CCF!JoinedState(Configurations[1], ToServers)
 
 \* Alternative to CCF!Spec that uses the above MCInit
 mc_spec ==   

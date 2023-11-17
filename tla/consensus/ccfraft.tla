@@ -82,6 +82,9 @@ CONSTANTS
 CONSTANTS Servers
 ASSUME Servers /= {} /\ IsFiniteSet(Servers)
 
+\* Initial term used by the Start node in the network
+CONSTANT StartTerm
+
 Nil ==
   (*************************************************************************)
   (* This defines Nil to be an unspecified value that is not a server.     *)
@@ -111,7 +114,6 @@ ConfigurationsTypeInv ==
     \A i \in Servers : 
         /\ \A c \in DOMAIN configurations[i] :
             configurations[i][c] \subseteq Servers
-        /\ DOMAIN configurations[i] # {}
 
 \* The set of servers that have been removed from configurations.  The implementation
 \* assumes that a server refrains from rejoining a configuration if it has been removed
@@ -415,7 +417,8 @@ ConfigurationsToIndex(server, index) ==
 \* Index of the last reconfiguration up to (and including) the given index,
 \* assuming the given index is after the commit index
 LastConfigurationToIndex(server, index) ==
-    Max({c \in DOMAIN configurations[server] : c <= index})
+    LET configsBeforeIndex == {c \in DOMAIN configurations[server] : c <= index}
+    IN IF configsBeforeIndex = {} THEN 0 ELSE Max(configsBeforeIndex)
 
 \* The prefix of the log of server i that has been committed
 Committed(i) ==
@@ -456,27 +459,48 @@ PlausibleSucessorNodes(i) ==
         highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
     IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)}
 
+\* Generate initial state for a given startNode
+StartState(startNode, servers) ==
+    /\ reconfigurationCount = 0
+    /\ removedFromConfiguration = {}
+    /\ configurations = [ i \in servers |-> IF i = startNode THEN (1 :> {startNode}) ELSE << >>]
+    /\ currentTerm = [i \in servers |-> IF i = startNode THEN StartTerm ELSE 0]
+    /\ state       = [i \in servers |-> IF i = startNode THEN Leader ELSE None]
+    /\ votedFor    = [i \in servers |-> Nil]
+    /\ log         = [i \in servers |-> IF i = startNode
+                                        THEN << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
+                                                [term |-> StartTerm, contentType |-> TypeSignature] >>
+                                        ELSE << >>]
+    /\ commitIndex  = [i \in servers |-> IF i = startNode THEN Len(log[i]) ELSE 0]
+    /\ committableIndices  = [i \in servers |-> {}]
+
+\* Generate initial state for a startNodes configuration
+JoinedState(startNodes, servers) ==
+    /\ reconfigurationCount = 0
+    /\ removedFromConfiguration = {}
+    /\ \E startNode \in startNodes:
+        /\ configurations = [ i \in servers |-> IF i \in startNodes  THEN (3 :> startNodes) ELSE << >>]
+        /\ currentTerm = [i \in servers |-> IF i \in startNodes THEN StartTerm ELSE 0]
+        /\ state       = [i \in servers |-> IF i = startNode THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
+        /\ votedFor    = [i \in servers |-> Nil]
+        /\ log         = [i \in servers |-> IF i \in startNodes
+                                            THEN << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
+                                                    [term |-> StartTerm, contentType |-> TypeSignature],
+                                                    [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNodes],
+                                                    [term |-> StartTerm, contentType |-> TypeSignature] >>
+                                            ELSE << >>]
+        /\ commitIndex  = [i \in servers |-> IF i \in startNodes THEN Len(log[i]) ELSE 0]
+        /\ committableIndices  = [i \in servers |-> {}]
+
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
 
 InitReconfigurationVars ==
-    /\ reconfigurationCount = 0
-    /\ removedFromConfiguration = {}
-    \* Note that CCF has a bootstrapping procedure to start a new network and to join new nodes to the network (see 
-    \* https://microsoft.github.io/CCF/main/operations/start_network.html). In both cases, a node has the current (see 
-    \* https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#join-or-recover-from-snapshot) or some stale configuration
-    \* such as the initial configuration. A node's configuration is *never* "empty", i.e., the equivalent of configuration[node] = {} here. 
-    \* For simplicity, the set of servers/nodes all have the same initial configuration at startup.
-    /\ \E s \in Servers:
-        configurations = [i \in Servers |-> 0 :> {s} ]
+    \E startNode \in Servers:
+        StartState(startNode, Servers)
 
 InitMessagesVars ==
     /\ Network!InitMessageVar
-
-InitServerVars ==
-    /\ currentTerm = [i \in Servers |-> 0]
-    /\ state       = [i \in Servers |-> IF i \in configurations[i][0] THEN Follower ELSE None]
-    /\ votedFor    = [i \in Servers |-> Nil]
 
 InitCandidateVars ==
     /\ votesGranted   = [i \in Servers |-> {}]
@@ -488,18 +512,11 @@ InitLeaderVars ==
     /\ nextIndex  = [i \in Servers |-> [j \in Servers |-> 1]]
     /\ matchIndex = [i \in Servers |-> [j \in Servers |-> 0]]
 
-InitLogVars ==
-    /\ log          = [i \in Servers |-> << >>]
-    /\ commitIndex  = [i \in Servers |-> 0]
-    /\ committableIndices  = [i \in Servers |-> {}]
-
 Init ==
     /\ InitReconfigurationVars
     /\ InitMessagesVars
-    /\ InitServerVars
     /\ InitCandidateVars
     /\ InitLeaderVars
-    /\ InitLogVars
 
 ------------------------------------------------------------------------------
 \* Define state transitions
@@ -550,10 +567,10 @@ AppendEntries(i, j) ==
     \* that index makes no difference.
     \* /\ IsInServerSetForIndex(j, i, nextIndex[i][j])
     /\ LET prevLogIndex == nextIndex[i][j] - 1
-           prevLogTerm == IF prevLogIndex > 0 /\ prevLogIndex <= Len(log[i]) THEN
+           prevLogTerm == IF prevLogIndex \in DOMAIN log[i] THEN
                               log[i][prevLogIndex].term
                           ELSE
-                              0
+                              StartTerm
            \* Send a number of entries (constrained by the end of the log).
            lastEntry(idx) == min(Len(log[i]), idx)
            index == nextIndex[i][j]
@@ -647,7 +664,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         newLog == Append(log[i], entry)
         IN
         /\ log' = [log EXCEPT ![i] = newLog]
-        /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
+        /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars,
                     leaderVars, commitIndex, committableIndices>>
 
@@ -773,10 +790,10 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
        \/ /\ m.term >= currentTerm[i]
           /\ state[i] = Follower
           /\ ~logOk
-          /\ LET prevTerm == IF m.prevLogIndex = 0 THEN 0
-                             ELSE IF m.prevLogIndex > Len(log[i]) THEN 0 ELSE log[i][m.prevLogIndex].term
+          /\ LET prevTerm == IF m.prevLogIndex = 0 THEN StartTerm
+                             ELSE IF m.prevLogIndex > Len(log[i]) THEN 0 ELSE log[i][Len(log[i])].term
              IN /\ m.prevLogTerm # prevTerm
-                /\ \/ /\ prevTerm = 0
+                /\ \/ /\ prevTerm = StartTerm
                       /\ Reply([type        |-> AppendEntriesResponse,
                              success        |-> FALSE,
                              term           |-> currentTerm[i],
@@ -784,11 +801,11 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                              source         |-> i,
                              dest           |-> j],
                              m)
-                   \/ /\ prevTerm # 0
+                   \/ /\ prevTerm # StartTerm
                       /\ LET lli == FindHighestPossibleMatch(log[i], m.prevLogIndex, m.term)
                          IN Reply([type        |-> AppendEntriesResponse,
                                 success        |-> FALSE,
-                                term           |-> IF lli = 0 THEN 0 ELSE log[i][lli].term,
+                                term           |-> IF lli = 0 THEN StartTerm ELSE log[i][lli].term,
                                 lastLogIndex   |-> lli,
                                 source         |-> i,
                                 dest           |-> j],
@@ -852,8 +869,9 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         \* extended configurations with any new configurations
         new_configs == 
             configurations[i] @@ [idx \in reconfig_indexes |-> new_log_entries[idx].configuration]
-        new_conf_index == 
-            Max({c \in DOMAIN new_configs : c <= new_commit_index})
+        new_commmitted_configs == {c \in DOMAIN new_configs : c <= new_commit_index}
+        new_conf_index == IF new_commmitted_configs = {} THEN 0 ELSE
+            Max(new_commmitted_configs)
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         \* see committable_indices.push_back(i) in raft.h:execute_append_entries_sync, guarded by case PASS_SIGNATURE
@@ -1145,9 +1163,10 @@ LogMatchingInv ==
 \* of at least one server in every quorum
 QuorumLogInv ==
     \A i \in Servers :
-        \A S \in Quorums[CurrentConfiguration(i)] :
-            \E j \in S :
-                IsPrefix(Committed(i), log[j])
+        configurations[i] # << >> =>
+            \A S \in Quorums[CurrentConfiguration(i)] :
+                \E j \in S :
+                    IsPrefix(Committed(i), log[j])
 
 \* True if server i could receive a vote from server j based on the up-to-date check
 \* The "up-to-date" check performed by servers before issuing a vote implies that i receives
@@ -1198,31 +1217,30 @@ MonoLogInv ==
 \* Each server's active configurations should be consistent with its own log and commit index
 LogConfigurationConsistentInv ==
     \A i \in Servers :
-        \* Configurations should have associated reconfiguration txs in the log
-        \* The only exception is the initial configuration (which has index 0)
-        /\ \A idx \in DOMAIN (configurations[i]) :
-            idx # 0 => 
-            /\ log[i][idx].contentType = TypeReconfiguration            
-            /\ log[i][idx].configuration = configurations[i][idx]
-        \* Current configuration should be committed
-        \* This is trivially true for the initial configuration (index 0)
-        /\ commitIndex[i] >= CurrentConfigurationIndex(i)
-        \* Pending configurations should not be committed yet
-        /\ Cardinality(DOMAIN configurations[i]) > 1 
-            => commitIndex[i] < NextConfigurationIndex(i)
-        \* There should be no committed reconfiguration txs since current configuration
-        /\ commitIndex[i] > CurrentConfigurationIndex(i)
-            => \A idx \in CurrentConfigurationIndex(i)+1..commitIndex[i] :
-                log[i][idx].contentType # TypeReconfiguration
-        \* There should be no uncommitted reconfiguration txs except pending configurations
-        /\ Len(log[i]) > commitIndex[i]
-            => \A idx \in commitIndex[i]+1..Len(log[i]) :
-                log[i][idx].contentType = TypeReconfiguration 
-                => configurations[i][idx] = log[i][idx].configuration
+        \/ state[i] = None
+        \/
+            \* Configurations should have associated reconfiguration txs in the log
+            /\ \A idx \in DOMAIN (configurations[i]) : 
+                /\ log[i][idx].contentType = TypeReconfiguration            
+                /\ log[i][idx].configuration = configurations[i][idx]
+            \* Current configuration should be committed
+            /\ commitIndex[i] >= CurrentConfigurationIndex(i)
+            \* Pending configurations should not be committed yet
+            /\ Cardinality(DOMAIN configurations[i]) > 1 
+                => commitIndex[i] < NextConfigurationIndex(i)
+            \* There should be no committed reconfiguration txs since current configuration
+            /\ commitIndex[i] > CurrentConfigurationIndex(i)
+                => \A idx \in CurrentConfigurationIndex(i)+1..commitIndex[i] :
+                    log[i][idx].contentType # TypeReconfiguration
+            \* \* There should be no uncommitted reconfiguration txs except pending configurations
+            /\ Len(log[i]) > commitIndex[i]
+                => \A idx \in commitIndex[i]+1..Len(log[i]) :
+                    log[i][idx].contentType = TypeReconfiguration 
+                    => configurations[i][idx] = log[i][idx].configuration
 
-NoLeaderInTermZeroInv ==
+NoLeaderBeforeInitialTerm ==
     \A i \in Servers :
-        currentTerm[i] = 0 => state[i] # Leader
+        currentTerm[i] < StartTerm => state[i] # Leader
 
 MatchIndexLowerBoundNextIndexInv ==
     \A i,j \in Servers :
