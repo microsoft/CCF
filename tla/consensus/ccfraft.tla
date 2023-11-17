@@ -656,6 +656,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
     /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
+    /\ \A addedNode \in (newConfiguration \ CurrentConfiguration(i)) : nextIndex' = [nextIndex EXCEPT ![i][addedNode] = Len(log[i]) + 1]
     /\ LET
         entry == [
             term |-> currentTerm[i],
@@ -666,7 +667,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         /\ log' = [log EXCEPT ![i] = newLog]
         /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars,
-                    leaderVars, commitIndex, committableIndices>>
+                    matchIndex, commitIndex, committableIndices>>
 
 ChangeConfiguration(i) ==
     \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :
