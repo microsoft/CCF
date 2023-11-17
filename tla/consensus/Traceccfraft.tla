@@ -85,8 +85,7 @@ TraceAppendEntriesBatchsize(i, j) ==
 TraceInitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
-    /\ LET startNode == TraceLog[1].msg.state.node_id
-       IN StartState(startNode, TraceServers)
+    /\ InitLogConfigServerVars({TraceLog[1].msg.state.node_id}, StartLog)
 
 -------------------------------------------------------------------------------------
 
