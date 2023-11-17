@@ -1,8 +1,6 @@
 -------------------------------- MODULE Traceccfraft -------------------------------
 EXTENDS ccfraft, Json, IOUtils, Sequences
 
-CCF == INSTANCE ccfraft
-
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
     "raft_append_entries" :> AppendEntriesRequest @@ "raft_append_entries_response" :> AppendEntriesResponse @@
@@ -88,7 +86,7 @@ TraceInitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
     /\ LET startNode == TraceLog[1].msg.state.node_id
-       IN CCF!StartState(startNode, TraceServers)
+       IN StartState(startNode, TraceServers)
 
 -------------------------------------------------------------------------------------
 
@@ -518,6 +516,8 @@ ComposedNext ==
         \* The trace validation fails with violations of property CCFSpec if we do not
         \* conjoin the composed action below. See the (marker) label RAERRAER above.
         \/ RcvAppendEntriesRequestRcvAppendEntriesRequest(i, j)
+
+CCF == INSTANCE ccfraft
 
 DropAndReceive(i, j) ==
     DropMessages \cdot CCF!Receive(i, j)
