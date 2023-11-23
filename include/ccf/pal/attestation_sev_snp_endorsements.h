@@ -44,6 +44,7 @@ namespace ccf::pal::snp
       std::string uri;
       std::map<std::string, std::string> params;
       bool response_is_der = false;
+      bool response_is_thim_json = false;
 
       bool operator==(const EndpointInfo&) const = default;
     };
@@ -57,12 +58,14 @@ namespace ccf::pal::snp
   enum EndorsementsEndpointType
   {
     Azure = 0,
-    AMD = 1
+    AMD = 1,
+    THIM = 2,
   };
   DECLARE_JSON_ENUM(
     EndorsementsEndpointType,
     {{EndorsementsEndpointType::Azure, "Azure"},
-     {EndorsementsEndpointType::AMD, "AMD"}});
+     {EndorsementsEndpointType::AMD, "AMD"},
+     {EndorsementsEndpointType::THIM, "THIM"}});
 
   struct EndorsementsServer
   {
@@ -126,5 +129,21 @@ namespace ccf::pal::snp
        {}});
 
     return server;
+  }
+
+  constexpr auto default_thim_endorsements_endpoint_host = "169.254.169.254";
+
+  static EndorsementEndpointsConfiguration::Server
+  make_thim_endorsements_server(const std::string& endpoint)
+  {
+    std::map<std::string, std::string> params;
+    return {{
+      endpoint,
+      "80",
+      "/metadata/THIM/amd/certification",
+      {},
+      false, // Not DER
+      true // But THIM JSON
+    }};
   }
 }

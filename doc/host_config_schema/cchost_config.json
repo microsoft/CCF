@@ -463,13 +463,13 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": ["Azure", "AMD"],
-                "default": "Azure",
+                "enum": ["Azure", "AMD", "THIM"],
+                "default": "THIM",
                 "description": "Type of server used to retrieve attestation report endorsement certificates (SEV-SNP only)"
               },
               "url": {
                 "type": "string",
-                "description": "Server URLs used to retrieve attestation report endorsement certificates, e.g. \"kdsintf.amd.com\" (SEV-SNP only)"
+                "description": "Server URLs used to retrieve attestation report endorsement certificates, e.g. \"kdsintf.amd.com\" (AMD)"
               }
             },
             "required": ["url"],

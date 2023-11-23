@@ -170,6 +170,18 @@ namespace ccf
         auto raw = crypto::cert_der_to_pem(data).raw();
         endorsements_pem.insert(endorsements_pem.end(), raw.begin(), raw.end());
       }
+      else if (response_endpoint.response_is_thim_json)
+      {
+        auto j = nlohmann::json::parse(data);
+        auto vcekCert = j.at("vcekCert").get<std::string>();
+        auto certificateChain = j.at("certificateChain").get<std::string>();
+        endorsements_pem.insert(
+          endorsements_pem.end(), vcekCert.begin(), vcekCert.end());
+        endorsements_pem.insert(
+          endorsements_pem.end(),
+          certificateChain.begin(),
+          certificateChain.end());
+      }
       else
       {
         endorsements_pem.insert(
