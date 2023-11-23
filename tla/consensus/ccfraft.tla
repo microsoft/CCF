@@ -459,45 +459,33 @@ PlausibleSucessorNodes(i) ==
         highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
     IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)}
 
-\* Generate initial state for a given startNode
-StartState(startNode, servers) ==
+StartLog(startNode, _ignored) ==
+    << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNode],
+       [term |-> StartTerm, contentType |-> TypeSignature] >>
+
+InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
-    /\ configurations = [ i \in servers |-> IF i = startNode THEN (1 :> {startNode}) ELSE << >>]
-    /\ currentTerm = [i \in servers |-> IF i = startNode THEN StartTerm ELSE 0]
-    /\ state       = [i \in servers |-> IF i = startNode THEN Leader ELSE None]
-    /\ votedFor    = [i \in servers |-> Nil]
-    /\ log         = [i \in servers |-> IF i = startNode
-                                        THEN << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
-                                                [term |-> StartTerm, contentType |-> TypeSignature] >>
-                                        ELSE << >>]
-    /\ commitIndex  = [i \in servers |-> IF i = startNode THEN Len(log[i]) ELSE 0]
-    /\ committableIndices  = [i \in servers |-> {}]
-
-\* Generate initial state for a startNodes configuration
-JoinedState(startNodes, servers) ==
-    /\ reconfigurationCount = 0
-    /\ removedFromConfiguration = {}
-    /\ \E startNode \in startNodes:
-        /\ configurations = [ i \in servers |-> IF i \in startNodes  THEN (3 :> startNodes) ELSE << >>]
-        /\ currentTerm = [i \in servers |-> IF i \in startNodes THEN StartTerm ELSE 0]
-        /\ state       = [i \in servers |-> IF i = startNode THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
-        /\ votedFor    = [i \in servers |-> Nil]
-        /\ log         = [i \in servers |-> IF i \in startNodes
-                                            THEN << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
-                                                    [term |-> StartTerm, contentType |-> TypeSignature],
-                                                    [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNodes],
-                                                    [term |-> StartTerm, contentType |-> TypeSignature] >>
-                                            ELSE << >>]
-        /\ commitIndex  = [i \in servers |-> IF i \in startNodes THEN Len(log[i]) ELSE 0]
-        /\ committableIndices  = [i \in servers |-> {}]
-
+    /\ committableIndices  = [i \in Servers |-> {}]
+    /\ votedFor    = [i \in Servers |-> Nil]
+    /\ currentTerm = [i \in Servers |-> IF i \in startNodes THEN StartTerm ELSE 0]
+    /\ \E sn \in startNodes:
+        \* We make the following assumption about logPrefix, whose violation would violate SignatureInv and LogConfigurationConsistentInv.
+        \* Alternative, we could have conjoined this formula to Init, but this would have caused TLC to generate no initial states on a
+        \* bogus logPrefix.
+        \* <<[term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNodes], 
+        \*   [term |-> StartTerm, contentType |-> TypeSignature]>> \in Suffixes(logPrefix({sn}, startNodes))
+        /\ log         = [i \in Servers |-> IF i \in startNodes THEN logPrefix({sn}, startNodes) ELSE << >>]
+        /\ state       = [i \in Servers |-> IF i = sn THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
+        /\ commitIndex = [i \in Servers |-> IF i \in startNodes THEN Len(logPrefix({sn}, startNodes)) ELSE 0]
+    /\ configurations = [i \in Servers |-> IF i \in startNodes  THEN (Len(log[i])-1 :> startNodes) ELSE << >>]
+    
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
 
 InitReconfigurationVars ==
     \E startNode \in Servers:
-        StartState(startNode, Servers)
+        InitLogConfigServerVars({startNode}, StartLog)
 
 InitMessagesVars ==
     /\ Network!InitMessageVar
