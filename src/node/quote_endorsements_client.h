@@ -192,6 +192,7 @@ namespace ccf
       if (server.empty())
       {
         LOG_INFO_FMT("Complete endorsement chain successfully retrieved");
+        LOG_INFO_FMT("{}", std::string(endorsements_pem.begin(), endorsements_pem.end()));
         has_completed = true;
         done_cb(std::move(endorsements_pem));
       }
