@@ -83,6 +83,8 @@ namespace crypto
     {
       case CurveID::CURVE25519:
         return EVP_PKEY_ED25519;
+      case CurveID::X25519:
+        return EVP_PKEY_X25519;
       default:
         throw std::logic_error(
           fmt::format("unsupported OpenSSL CurveID {}", gid));

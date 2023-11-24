@@ -186,10 +186,14 @@ namespace ccf::js
     {
       cid = crypto::CurveID::CURVE25519;
     }
+    else if (curve == "x25519")
+    {
+      cid = crypto::CurveID::X25519;
+    }
     else
     {
       return JS_ThrowRangeError(
-        ctx, "Unsupported curve id, supported: curve25519");
+        ctx, "Unsupported curve id, supported: curve25519, x25519");
     }
 
     try
