@@ -19,6 +19,9 @@ import openapi_spec_validator
 from jwcrypto import jwk
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 import hmac
 import random
 
@@ -540,11 +543,17 @@ def test_npm_app(network, args):
             r.body.json()["privateKey"], r.body.json()["publicKey"]
         )
 
+        private_key = load_pem_private_key(r.body.json()["privateKey"].encode(), None)
+        assert isinstance(private_key, Ed25519PrivateKey)
+
         r = c.post("/app/generateEddsaKeyPair", {"curve": "x25519"})
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert infra.crypto.check_key_pair_pem(
             r.body.json()["privateKey"], r.body.json()["publicKey"]
         )
+
+        private_key = load_pem_private_key(r.body.json()["privateKey"].encode(), None)
+        assert isinstance(private_key, X25519PrivateKey)
 
         aes_key_to_wrap = infra.crypto.generate_aes_key(256)
         wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(

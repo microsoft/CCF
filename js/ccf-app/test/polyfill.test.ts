@@ -76,6 +76,13 @@ describe("polyfill", function () {
       assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
+  describe("generateEddsaKeyPair/X25519", function () {
+    it("generates a random EdDSA X25519 key pair", function () {
+      const pair = ccf.crypto.generateEddsaKeyPair("x25519");
+      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
+      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
+    });
+  });
   describe("wrapKey", function () {
     it("performs RSA-OAEP wrapping correctly", function () {
       const key = ccf.crypto.generateAesKey(128);
