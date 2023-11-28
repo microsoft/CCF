@@ -34,16 +34,26 @@ namespace crypto
         "Cannot construct EdDSA key pair from non-OKP JWK");
     }
 
-    if (jwk.crv != JsonWebKeyEdDSACurve::ED25519)
+    int curve = 0;
+    if (jwk.crv == JsonWebKeyEdDSACurve::ED25519)
+    {
+      curve = EVP_PKEY_ED25519;
+    }
+    else if (jwk.crv == JsonWebKeyEdDSACurve::X25519)
+    {
+      curve = EVP_PKEY_X25519;
+    }
+    else
     {
       throw std::logic_error(
-        "Cannot construct EdDSA key pair from non-Ed25519 JWK");
+        "Cannot construct EdDSA key pair from JWK that is neither Ed25519 nor "
+        "X25519");
     }
 
     auto d_raw = raw_from_b64url(jwk.d);
     OpenSSL::CHECKNULL(
       key = EVP_PKEY_new_raw_private_key(
-        EVP_PKEY_ED25519, nullptr, d_raw.data(), d_raw.size()));
+        curve, nullptr, d_raw.data(), d_raw.size()));
   }
 
   Pem EdDSAKeyPair_OpenSSL::private_key_pem() const

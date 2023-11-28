@@ -76,6 +76,13 @@ describe("polyfill", function () {
       assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
+  describe("generateEddsaKeyPair/X25519", function () {
+    it("generates a random EdDSA X25519 key pair", function () {
+      const pair = ccf.crypto.generateEddsaKeyPair("x25519");
+      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
+      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
+    });
+  });
   describe("wrapKey", function () {
     it("performs RSA-OAEP wrapping correctly", function () {
       const key = ccf.crypto.generateAesKey(128);
@@ -608,9 +615,41 @@ describe("polyfill", function () {
         assert.equal(pem, pair.privateKey);
       }
     });
-    it("EdDSA", function () {
+    it("Ed25119", function () {
       const my_kid = "my_kid";
       const pair = ccf.crypto.generateEddsaKeyPair("curve25519");
+      {
+        const jwk = ccf.crypto.pubEddsaPemToJwk(pair.publicKey);
+        assert.equal(jwk.kty, "OKP");
+        assert.notEqual(jwk.kid, my_kid);
+        const pem = ccf.crypto.pubEddsaJwkToPem(jwk);
+        assert.equal(pem, pair.publicKey);
+      }
+      {
+        const jwk = ccf.crypto.pubEddsaPemToJwk(pair.publicKey, my_kid);
+        assert.equal(jwk.kty, "OKP");
+        assert.equal(jwk.kid, my_kid);
+        const pem = ccf.crypto.pubEddsaJwkToPem(jwk);
+        assert.equal(pem, pair.publicKey);
+      }
+      {
+        const jwk = ccf.crypto.eddsaPemToJwk(pair.privateKey);
+        assert.equal(jwk.kty, "OKP");
+        assert.notEqual(jwk.kid, my_kid);
+        const pem = ccf.crypto.eddsaJwkToPem(jwk);
+        assert.equal(pem, pair.privateKey);
+      }
+      {
+        const jwk = ccf.crypto.eddsaPemToJwk(pair.privateKey, my_kid);
+        assert.equal(jwk.kty, "OKP");
+        assert.equal(jwk.kid, my_kid);
+        const pem = ccf.crypto.eddsaJwkToPem(jwk);
+        assert.equal(pem, pair.privateKey);
+      }
+    });
+    it("X25119", function () {
+      const my_kid = "my_kid";
+      const pair = ccf.crypto.generateEddsaKeyPair("x25519");
       {
         const jwk = ccf.crypto.pubEddsaPemToJwk(pair.publicKey);
         assert.equal(jwk.kty, "OKP");
