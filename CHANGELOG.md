@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 NOTE: UNRELEASED
 
-- `ccf.crypto.generateEddsaKeyPair` now supports `x25519` as well as `curve25519` (#5846).
+- `ccf.crypto.generateEddsaKeyPair`, `pubEddsaPemToJwk` and `eddsaPemToJwk` now support `x25519` as well as `curve25519` (#5846).
 
 [5.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev8
 

@@ -120,37 +120,38 @@ def generate_and_verify_jwk(client):
         assert body["pem"] == pub_pem
 
     # EdDSA
-    priv_pem, pub_pem = infra.crypto.generate_eddsa_keypair()
+    # Note: x25519 is not supported by jwcrypto just yet
+    for curve in ["curve25519"]:
+        priv_pem, pub_pem = infra.crypto.generate_eddsa_keypair(curve)
+        # Private
+        ref_priv_jwk = jwk.JWK.from_pem(priv_pem.encode()).export_private(as_dict=True)
+        r = client.post(
+            "/app/eddsaPemToJwk", body={"pem": priv_pem, "kid": ref_priv_jwk["kid"]}
+        )
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["kty"] == "OKP"
+        assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
 
-    # Private
-    ref_priv_jwk = jwk.JWK.from_pem(priv_pem.encode()).export(as_dict=True)
-    r = client.post(
-        "/app/eddsaPemToJwk", body={"pem": priv_pem, "kid": ref_priv_jwk["kid"]}
-    )
-    body = r.body.json()
-    assert r.status_code == http.HTTPStatus.OK
-    assert body["kty"] == "OKP"
-    assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
+        r = client.post("/app/eddsaJwkToPem", body={"jwk": body})
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["pem"] == priv_pem
 
-    r = client.post("/app/eddsaJwkToPem", body={"jwk": body})
-    body = r.body.json()
-    assert r.status_code == http.HTTPStatus.OK
-    assert body["pem"] == priv_pem
+        # Public
+        ref_pub_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
+        r = client.post(
+            "/app/pubEddsaPemToJwk", body={"pem": pub_pem, "kid": ref_pub_jwk["kid"]}
+        )
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["kty"] == "OKP"
+        assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
 
-    # Public
-    ref_pub_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
-    r = client.post(
-        "/app/pubEddsaPemToJwk", body={"pem": pub_pem, "kid": ref_pub_jwk["kid"]}
-    )
-    body = r.body.json()
-    assert r.status_code == http.HTTPStatus.OK
-    assert body["kty"] == "OKP"
-    assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
-
-    r = client.post("/app/pubEddsaJwkToPem", body={"jwk": body})
-    body = r.body.json()
-    assert r.status_code == http.HTTPStatus.OK
-    assert body["pem"] == pub_pem
+        r = client.post("/app/pubEddsaJwkToPem", body={"jwk": body})
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["pem"] == pub_pem
 
 
 @reqs.description("Test module import")
@@ -734,7 +735,7 @@ def test_npm_app(network, args):
                 pass
 
         # Test EDDSA signing + verification
-        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
+        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair("curve25519")
         algorithm = {"name": "EdDSA"}
         r = c.post(
             "/app/sign",
@@ -814,7 +815,7 @@ def test_npm_app(network, args):
             assert r.status_code == http.HTTPStatus.OK, r.status_code
             assert r.body.json() is True, r.body
 
-        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
+        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair("curve25519")
         algorithm = {"name": "EdDSA"}
         signature = infra.crypto.sign(algorithm, key_priv_pem, data)
         r = c.post(
