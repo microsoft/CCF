@@ -261,7 +261,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
         {
           auto url =
             server.url.value_or(default_thim_endorsements_endpoint_host);
-          config.servers.emplace_back(make_thim_endorsements_server(url));
+          config.servers.emplace_back(
+            make_thim_endorsements_server(url, chip_id_hex, reported_tcb));
           break;
         }
         default:

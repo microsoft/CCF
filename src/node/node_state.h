@@ -405,9 +405,11 @@ namespace ccf
           // Note: Node lock is already taken here as this is called back
           // synchronously with the call to pal::generate_quote
 
-          if (qi.format == QuoteFormat::amd_sev_snp_v1)
+          if (
+            qi.format == QuoteFormat::amd_sev_snp_v1 &&
+            !config.attestation.snp_endorsements_servers.empty())
           {
-            // On SEV-SNP, always fetch endorsements
+            // On SEV-SNP, fetch endorsements from servers if specified
             quote_endorsements_client =
               std::make_shared<QuoteEndorsementsClient>(
                 rpcsessions,

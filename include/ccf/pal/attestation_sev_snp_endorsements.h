@@ -116,12 +116,13 @@ namespace ccf::pal::snp
     params["ucodeSPL"] = microcode;
 
     EndorsementEndpointsConfiguration::Server server;
-    server.push_back(
-      {endpoint,
-       "443",
-       fmt::format("/vcek/v1/{}/{}", product_name, chip_id_hex),
-       params,
-       true});
+    server.push_back({
+      endpoint,
+      "443",
+      fmt::format("/vcek/v1/{}/{}", product_name, chip_id_hex),
+      params,
+      true // DER
+    });
     server.push_back(
       {endpoint,
        "443",
@@ -134,14 +135,19 @@ namespace ccf::pal::snp
   constexpr auto default_thim_endorsements_endpoint_host = "169.254.169.254";
 
   static EndorsementEndpointsConfiguration::Server
-  make_thim_endorsements_server(const std::string& endpoint)
+  make_thim_endorsements_server(
+    const std::string& endpoint,
+    const std::string& chip_id_hex,
+    const std::string& reported_tcb)
   {
     std::map<std::string, std::string> params;
+    params["tcbVersion"] = reported_tcb;
+    params["platformId"] = chip_id_hex;
     return {{
       endpoint,
       "80",
       "/metadata/THIM/amd/certification",
-      {},
+      params,
       false, // Not DER
       true // But THIM JSON
     }};
