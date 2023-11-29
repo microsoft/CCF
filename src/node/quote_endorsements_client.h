@@ -90,6 +90,10 @@ namespace ccf
         {
           r.set_query_param(k, v);
         }
+        for (auto const& [k, v] : endpoint.headers)
+        {
+          r.set_header(k, v);
+        }
         r.set_header(http::headers::HOST, endpoint.host);
 
         LOG_INFO_FMT(

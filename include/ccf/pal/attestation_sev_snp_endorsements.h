@@ -45,6 +45,7 @@ namespace ccf::pal::snp
       std::map<std::string, std::string> params;
       bool response_is_der = false;
       bool response_is_thim_json = false;
+      std::map<std::string, std::string> headers = {};
 
       bool operator==(const EndpointInfo&) const = default;
     };
@@ -144,13 +145,13 @@ namespace ccf::pal::snp
     params["tcbVersion"] = reported_tcb;
     params["platformId"] = chip_id_hex;
     params["Metadata"] = "true";
-    return {{
-      endpoint,
-      "80",
-      "/metadata/THIM/amd/certification",
-      params,
-      false, // Not DER
-      true // But THIM JSON
-    }};
+    return {
+      {endpoint,
+       "80",
+       "/metadata/THIM/amd/certification",
+       params,
+       false, // Not DER
+       true, // But THIM JSON
+       {{"Metadata", "true"}}}};
   }
 }
