@@ -9,7 +9,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/measurement.h"
-#include "ccf/pal/snp-ioctl.h"
+#include "ccf/pal/snp_ioctl.h"
 
 #include <fcntl.h>
 #include <functional>

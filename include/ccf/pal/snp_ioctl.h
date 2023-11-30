@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/snp-ioctl5.h"
+#include "ccf/pal/snp_ioctl5.h"
 
 namespace ccf::pal::snp
 {
