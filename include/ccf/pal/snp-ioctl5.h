@@ -100,7 +100,7 @@ namespace ccf::pal::snp::ioctl5
             "User-defined report data is larger than available space");
         }
 
-        int fd = open(DEVICE, O_RDWR | O_CLOEXEC); // TODO: does this need closing?
+        int fd = open(DEVICE, O_RDWR | O_CLOEXEC);
         if (fd < 0)
         {
           throw std::logic_error(fmt::format("Failed to open \"{}\"", DEVICE));
