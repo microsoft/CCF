@@ -4,10 +4,10 @@
 
 #include "ccf/pal/attestation_sev_snp.h"
 
+#include <fcntl.h>
+#include <stdint.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
-#include <stdint.h>
-#include <fcntl.h>
 #include <unistd.h>
 
 // Based on the SEV-SNP ABI Spec document at
@@ -74,7 +74,8 @@ namespace ccf::pal::snp::ioctl5
 #pragma pack(pop)
 
   constexpr char SEV_GUEST_IOC_TYPE = 'S';
-  constexpr int SEV_SNP_GUEST_MSG_REPORT = _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct snp::ioctl5::GuestRequest);
+  constexpr int SEV_SNP_GUEST_MSG_REPORT =
+    _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct snp::ioctl5::GuestRequest);
 
   static inline bool is_sev_snp()
   {
@@ -86,56 +87,57 @@ namespace ccf::pal::snp::ioctl5
     AttestationReq req = {};
     AttestationResp resp = {};
 
-    public:
-      Attestation(const PlatformAttestationReportData& report_data)
+  public:
+    Attestation(const PlatformAttestationReportData& report_data)
+    {
+      if (report_data.data.size() <= snp_attestation_report_data_size)
       {
-        if (report_data.data.size() <= snp_attestation_report_data_size)
-        {
-          std::copy(
-            report_data.data.begin(), report_data.data.end(), req.report_data);
-        }
-        else
-        {
-          throw std::logic_error(
-            "User-defined report data is larger than available space");
-        }
-
-        int fd = open(DEVICE, O_RDWR | O_CLOEXEC);
-        if (fd < 0)
-        {
-          throw std::logic_error(fmt::format("Failed to open \"{}\"", DEVICE));
-        }
-
-        // Documented at
-        // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
-        GuestRequest payload = {
-          .req_msg_type = MSG_REPORT_REQ,
-          .rsp_msg_type = MSG_REPORT_RSP,
-          .msg_version = 1,
-          .request_len = sizeof(req),
-          .request_uaddr = reinterpret_cast<uint64_t>(&req),
-          .response_len = sizeof(resp),
-          .response_uaddr = reinterpret_cast<uint64_t>(&resp),
-          .error = 0};
-
-        int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
-        if (rc < 0)
-        {
-          CCF_APP_FAIL("IOCTL call failed: {}", strerror(errno));
-          CCF_APP_FAIL("Payload error: {}", payload.error);
-          throw std::logic_error("Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT");
-        }
+        std::copy(
+          report_data.data.begin(), report_data.data.end(), req.report_data);
+      }
+      else
+      {
+        throw std::logic_error(
+          "User-defined report data is larger than available space");
       }
 
-      const snp::Attestation& get() const
+      int fd = open(DEVICE, O_RDWR | O_CLOEXEC);
+      if (fd < 0)
       {
-        return resp.report;
+        throw std::logic_error(fmt::format("Failed to open \"{}\"", DEVICE));
       }
 
-      std::vector<uint8_t> get_raw()
+      // Documented at
+      // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
+      GuestRequest payload = {
+        .req_msg_type = MSG_REPORT_REQ,
+        .rsp_msg_type = MSG_REPORT_RSP,
+        .msg_version = 1,
+        .request_len = sizeof(req),
+        .request_uaddr = reinterpret_cast<uint64_t>(&req),
+        .response_len = sizeof(resp),
+        .response_uaddr = reinterpret_cast<uint64_t>(&resp),
+        .error = 0};
+
+      int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
+      if (rc < 0)
       {
-        auto quote_bytes = reinterpret_cast<uint8_t*>(&resp.report);
-        return {quote_bytes, quote_bytes + resp.report_size};
+        CCF_APP_FAIL("IOCTL call failed: {}", strerror(errno));
+        CCF_APP_FAIL("Payload error: {}", payload.error);
+        throw std::logic_error(
+          "Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT");
       }
+    }
+
+    const snp::Attestation& get() const
+    {
+      return resp.report;
+    }
+
+    std::vector<uint8_t> get_raw()
+    {
+      auto quote_bytes = reinterpret_cast<uint8_t*>(&resp.report);
+      return {quote_bytes, quote_bytes + resp.report_size};
+    }
   };
 }

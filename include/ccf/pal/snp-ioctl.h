@@ -11,7 +11,8 @@ namespace ccf::pal::snp
     return ioctl5::is_sev_snp();
   }
 
-  static ioctl5::Attestation get_attestation(const PlatformAttestationReportData& report_data)
+  static ioctl5::Attestation get_attestation(
+    const PlatformAttestationReportData& report_data)
   {
     return ioctl5::Attestation(report_data);
   }
