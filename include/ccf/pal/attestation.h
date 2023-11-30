@@ -9,7 +9,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/measurement.h"
-#include "ccf/pal/snp-ioctl5.h"
+#include "ccf/pal/snp-ioctl.h"
 
 #include <fcntl.h>
 #include <functional>
@@ -216,7 +216,7 @@ namespace ccf::pal
   {
     QuoteInfo node_quote_info = {};
     node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
-    snp::ioctl5::Attestation attestation(report_data);
+    auto attestation = snp::get_attestation(report_data);
 
     node_quote_info.quote = attestation.get_raw();
 
@@ -237,7 +237,7 @@ namespace ccf::pal
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
-    auto is_sev_snp = snp::ioctl5::is_sev_snp();
+    auto is_sev_snp = snp::is_sev_snp();
 
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {

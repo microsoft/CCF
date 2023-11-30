@@ -128,7 +128,7 @@ namespace ccf
   std::optional<HostData> AttestationProvider::get_host_data(
     const QuoteInfo& quote_info)
   {
-    if (!pal::snp::ioctl5::is_sev_snp())
+    if (!pal::snp::is_sev_snp())
     {
       return std::nullopt;
     }
