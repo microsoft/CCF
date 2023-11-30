@@ -13,7 +13,6 @@
 
 #include <fcntl.h>
 #include <functional>
-#include <unistd.h>
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include <sys/ioctl.h>
@@ -238,7 +237,7 @@ namespace ccf::pal
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
-    auto is_sev_snp = access(snp::ioctl5::DEVICE, F_OK) == 0;
+    auto is_sev_snp = snp::ioctl5::is_sev_snp();
 
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {
