@@ -128,7 +128,7 @@ namespace ccf
   std::optional<HostData> AttestationProvider::get_host_data(
     const QuoteInfo& quote_info)
   {
-    if (access(pal::snp::DEVICE, F_OK) != 0)
+    if (access(pal::snp::ioctl5::DEVICE, F_OK) != 0)
     {
       return std::nullopt;
     }
