@@ -17,7 +17,7 @@
 
 namespace ccf::pal::snp::ioctl6
 {
-  constexpr auto DEVICE = "/dev/sev";
+  constexpr auto DEVICE = "/dev/sev-guest";
 
   struct GuestRequest
   {
