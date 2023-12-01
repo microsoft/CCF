@@ -5,7 +5,12 @@ import os
 import base64
 from hashlib import sha256
 
-IS_SNP = os.path.exists("/dev/sev")
+
+def is_snp():
+    return os.path.exists("/dev/sev") or os.path.exists("/dev/sev-guest")
+
+
+IS_SNP = is_snp()
 
 # It is the responsibility of the infra spinning up ACI container
 # to populate this file with relevant environment variables
