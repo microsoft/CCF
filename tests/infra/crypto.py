@@ -16,7 +16,7 @@ from cryptography.x509 import (
     load_pem_x509_certificate,
     load_der_x509_certificate,
 )
-from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding, ed25519
+from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding, ed25519, x25519
 from cryptography.hazmat.primitives.asymmetric.utils import (
     decode_dss_signature,
     encode_dss_signature,
@@ -100,9 +100,14 @@ def generate_ec_keypair(curve: ec.EllipticCurve = ec.SECP256R1) -> Tuple[str, st
     return priv_pem, pub_pem
 
 
-def generate_eddsa_keypair() -> Tuple[str, str]:
-    # Currently only Curve25519 is supported
-    priv = ed25519.Ed25519PrivateKey.generate()
+def generate_eddsa_keypair(curve: str) -> Tuple[str, str]:
+    key_class = {
+        "curve25519": ed25519.Ed25519PrivateKey,
+        "x25519": x25519.X25519PrivateKey,
+    }
+    if curve not in key_class:
+        raise ValueError(f"Unsupported curve: {curve}")
+    priv = key_class[curve].generate()
     pub = priv.public_key()
     priv_pem = priv.private_bytes(
         Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()
