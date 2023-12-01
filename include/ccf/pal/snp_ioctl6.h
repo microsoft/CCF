@@ -19,35 +19,6 @@ namespace ccf::pal::snp::ioctl6
 {
   constexpr auto DEVICE = "/dev/sev-guest";
 
-  struct GuestRequest
-  {
-    uint8_t msg_version; // message version number (must be non-zero)
-    uint64_t req_data;
-    uint64_t resp_data;
-    uint64_t fw_err; // firmware error code on failure (see psp-sev.h)
-  };
-
-  // Table 99
-  enum MsgType
-  {
-    MSG_TYPE_INVALID = 0,
-    MSG_CPUID_REQ,
-    MSG_CPUID_RSP,
-    MSG_KEY_REQ,
-    MSG_KEY_RSP,
-    MSG_REPORT_REQ,
-    MSG_REPORT_RSP,
-    MSG_EXPORT_REQ,
-    MSG_EXPORT_RSP,
-    MSG_IMPORT_REQ,
-    MSG_IMPORT_RSP,
-    MSG_ABSORB_REQ,
-    MSG_ABSORB_RSP,
-    MSG_VMRK_REQ,
-    MSG_VMRK_RSP,
-    MSG_TYPE_MAX
-  };
-
   // Table 20
   struct AttestationReq
   {
@@ -75,6 +46,14 @@ namespace ccf::pal::snp::ioctl6
     uint8_t padding[4000 - sizeof(struct AttestationResp)];
   };
 #pragma pack(pop)
+
+  struct GuestRequest
+  {
+    uint8_t msg_version; // message version number (must be non-zero)
+    AttestationReq* req_data;
+    AttestationRespWrapper* resp_wrapper;
+    uint64_t fw_err; // firmware error code on failure (see psp-sev.h)
+  };
 
   constexpr char SEV_GUEST_IOC_TYPE = 'S';
   constexpr int SEV_SNP_GUEST_MSG_REPORT =
@@ -114,8 +93,8 @@ namespace ccf::pal::snp::ioctl6
       // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
       GuestRequest payload = {
         .msg_version = 1,
-        .req_data = reinterpret_cast<uint64_t>(&req),
-        .resp_data = reinterpret_cast<uint64_t>(&resp_wrapper),
+        .req_data = &req,
+        .resp_wrapper = &resp_wrapper,
         .fw_err = 0};
 
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
