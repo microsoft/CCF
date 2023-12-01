@@ -3,17 +3,29 @@
 #pragma once
 
 #include "ccf/pal/snp_ioctl5.h"
+#include "ccf/pal/snp_ioctl6.h"
 
 namespace ccf::pal::snp
 {
   static inline bool is_sev_snp()
   {
-    return ioctl5::is_sev_snp();
+    return ioctl5::is_sev_snp() || ioctl6::is_sev_snp();
   }
 
-  static ioctl5::Attestation get_attestation(
+  static std::unique_ptr<AttestationInterface> get_attestation(
     const PlatformAttestationReportData& report_data)
   {
-    return ioctl5::Attestation(report_data);
+    if (ioctl5::is_sev_snp())
+    {
+      return std::make_unique<ioctl5::Attestation>(report_data);
+    }
+    else if (ioctl6::is_sev_snp())
+    {
+      return std::make_unique<ioctl6::Attestation>(report_data);
+    }
+    else
+    {
+      throw std::logic_error("SEV-SNP not supported");
+    }
   }
 };

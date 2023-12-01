@@ -13,22 +13,18 @@
 // Based on the SEV-SNP ABI Spec document at
 // https://www.amd.com/system/files/TechDocs/56860.pdf
 
-/* linux kernel 5.15.* versions of the ioctls that talk to the PSP */
+/* linux kernel 6.* versions of the ioctls that talk to the PSP */
 
-namespace ccf::pal::snp::ioctl5
+namespace ccf::pal::snp::ioctl6
 {
   constexpr auto DEVICE = "/dev/sev";
 
   struct GuestRequest
   {
-    uint8_t req_msg_type;
-    uint8_t rsp_msg_type;
-    uint8_t msg_version;
-    uint16_t request_len;
-    uint64_t request_uaddr;
-    uint16_t response_len;
-    uint64_t response_uaddr;
-    uint32_t error; /* firmware error code on failure (see psp-sev.h) */
+    uint8_t msg_version; // message version number (must be non-zero)
+    uint64_t req_data;
+    uint64_t resp_data;
+    uint64_t fw_err; // firmware error code on failure (see psp-sev.h)
   };
 
   // Table 99
@@ -57,8 +53,8 @@ namespace ccf::pal::snp::ioctl5
   {
     uint8_t report_data[snp_attestation_report_data_size];
     uint32_t vmpl;
-    uint8_t reserved[28];
-  };
+    uint8_t reserved[28]; // needs to be zero
+  }; // aka snp_report_req in (linux) include/uapi/linux/sev-guest.h
 
   // Table 23
 #pragma pack(push, 1)
@@ -71,11 +67,17 @@ namespace ccf::pal::snp::ioctl5
     uint8_t padding[64];
     // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
   };
+
+  struct AttestationRespWrapper
+  {
+    struct AttestationResp resp;
+    uint8_t padding[4000 - sizeof(struct AttestationResp)];
+  };
 #pragma pack(pop)
 
   constexpr char SEV_GUEST_IOC_TYPE = 'S';
   constexpr int SEV_SNP_GUEST_MSG_REPORT =
-    _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct snp::ioctl5::GuestRequest);
+    _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct snp::ioctl6::GuestRequest);
 
   static inline bool is_sev_snp()
   {
@@ -85,7 +87,7 @@ namespace ccf::pal::snp::ioctl5
   class Attestation : public AttestationInterface
   {
     AttestationReq req = {};
-    AttestationResp resp = {};
+    AttestationRespWrapper resp_wrapper = {};
 
   public:
     Attestation(const PlatformAttestationReportData& report_data)
@@ -110,20 +112,16 @@ namespace ccf::pal::snp::ioctl5
       // Documented at
       // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
       GuestRequest payload = {
-        .req_msg_type = MSG_REPORT_REQ,
-        .rsp_msg_type = MSG_REPORT_RSP,
         .msg_version = 1,
-        .request_len = sizeof(req),
-        .request_uaddr = reinterpret_cast<uint64_t>(&req),
-        .response_len = sizeof(resp),
-        .response_uaddr = reinterpret_cast<uint64_t>(&resp),
-        .error = 0};
+        .req_data = reinterpret_cast<uint64_t>(&req),
+        .resp_data = reinterpret_cast<uint64_t>(&resp_wrapper),
+        .fw_err = 0};
 
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
       if (rc < 0)
       {
         CCF_APP_FAIL("IOCTL call failed: {}", strerror(errno));
-        CCF_APP_FAIL("Payload error: {}", payload.error);
+        CCF_APP_FAIL("Payload error: {}", payload.fw_err);
         throw std::logic_error(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT");
       }
@@ -131,13 +129,13 @@ namespace ccf::pal::snp::ioctl5
 
     const snp::Attestation& get() const override
     {
-      return resp.report;
+      return resp_wrapper.resp.report;
     }
 
     std::vector<uint8_t> get_raw() override
     {
-      auto quote_bytes = reinterpret_cast<uint8_t*>(&resp.report);
-      return {quote_bytes, quote_bytes + resp.report_size};
+      auto quote_bytes = reinterpret_cast<uint8_t*>(&resp_wrapper.resp.report);
+      return {quote_bytes, quote_bytes + resp_wrapper.resp.report_size};
     }
   };
 }
