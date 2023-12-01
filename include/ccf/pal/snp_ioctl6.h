@@ -68,6 +68,7 @@ namespace ccf::pal::snp::ioctl6
     // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
   };
 
+  static_assert(sizeof(AttestationResp) < 4000);
   struct AttestationRespWrapper
   {
     struct AttestationResp resp;
@@ -77,11 +78,11 @@ namespace ccf::pal::snp::ioctl6
 
   constexpr char SEV_GUEST_IOC_TYPE = 'S';
   constexpr int SEV_SNP_GUEST_MSG_REPORT =
-    _IOWR(SEV_GUEST_IOC_TYPE, 0x1, struct snp::ioctl6::GuestRequest);
+    _IOWR(SEV_GUEST_IOC_TYPE, 0x0, struct snp::ioctl6::GuestRequest);
 
   static inline bool is_sev_snp()
   {
-    return access(DEVICE, F_OK) == 0;
+    return access(DEVICE, W_OK) == 0;
   }
 
   class Attestation : public AttestationInterface

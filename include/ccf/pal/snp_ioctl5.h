@@ -79,7 +79,7 @@ namespace ccf::pal::snp::ioctl5
 
   static inline bool is_sev_snp()
   {
-    return access(DEVICE, F_OK) == 0;
+    return access(DEVICE, W_OK) == 0;
   }
 
   class Attestation : public AttestationInterface
