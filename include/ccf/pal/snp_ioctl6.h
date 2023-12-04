@@ -47,12 +47,31 @@ namespace ccf::pal::snp::ioctl6
   };
 #pragma pack(pop)
 
+  struct ExitInfoErrors
+  {
+    uint32_t fw;
+    uint32_t vmm;
+  };
+
+  union ExitInfo
+  {
+    uint64_t whole;
+    ExitInfoErrors errors;
+  };
+
+  // https://www.kernel.org/doc/html/v6.4/virt/coco/sev-guest.html#api-description
   struct GuestRequest
   {
-    uint8_t msg_version; // message version number (must be non-zero)
+    /* Message version number */
+    uint32_t msg_version;
+
+    /* Request and response structure address */
     AttestationReq* req_data;
     AttestationRespWrapper* resp_wrapper;
-    uint64_t fw_err; // firmware error code on failure (see psp-sev.h)
+
+    /* bits[63:32]: VMM error code, bits[31:0] firmware error code (see
+     * psp-sev.h) */
+    ExitInfo exit_info;
   };
 
   constexpr char SEV_GUEST_IOC_TYPE = 'S';
@@ -95,13 +114,16 @@ namespace ccf::pal::snp::ioctl6
         .msg_version = 1,
         .req_data = &req,
         .resp_wrapper = &resp_wrapper,
-        .fw_err = 0};
+        .exit_info = {0}};
 
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
       if (rc < 0)
       {
         CCF_APP_FAIL("IOCTL call failed: {}", strerror(errno));
-        CCF_APP_FAIL("Payload error: {}", payload.fw_err);
+        CCF_APP_FAIL(
+          "Exit info, fw_error: {} vmm_error: {}",
+          payload.exit_info.errors.fw,
+          payload.exit_info.errors.vmm);
         throw std::logic_error(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT");
       }
