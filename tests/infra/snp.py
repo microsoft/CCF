@@ -5,9 +5,18 @@ import os
 import base64
 from hashlib import sha256
 
+# Path to the SEV guest device on patched 5.x kernels
+_SEV_DEVICE_LINUX_5 = "/dev/sev"
+
+# Path to the SEV guest device from 6.0 onwards
+# https://www.kernel.org/doc/html/v6.0/virt/coco/sev-guest.html
+_SEV_DEVICE_LINUX_6 = "/dev/sev-guest"
+
 
 def is_snp():
-    return os.path.exists("/dev/sev") or os.path.exists("/dev/sev-guest")
+    return any(
+        os.path.exists(dev) for dev in [_SEV_DEVICE_LINUX_5, _SEV_DEVICE_LINUX_6]
+    )
 
 
 IS_SNP = is_snp()
