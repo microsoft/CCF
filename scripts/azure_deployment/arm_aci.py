@@ -44,6 +44,7 @@ def setup_environment_command():
         append_envvar_to_well_known_file("UVM_REFERENCE_INFO"),
         append_envvar_to_well_known_file("UVM_HOST_AMD_CERTIFICATE"),
         append_envvar_to_well_known_file("UVM_SECURITY_CONTEXT_DIR"),
+        append_envvar_to_well_known_file("Fabric_NodeIPOrFQDN"),
     ]
 
 
