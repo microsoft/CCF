@@ -7,13 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [5.0.0-dev8]
 
-NOTE: UNRELEASED
-
-- `ccf.crypto.generateEddsaKeyPair`, `pubEddsaPemToJwk` and `eddsaPemToJwk` now support `x25519` as well as `curve25519` (#5846).
-
 [5.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev8
 
+- `ccf.crypto.generateEddsaKeyPair`, `pubEddsaPemToJwk` and `eddsaPemToJwk` now support `x25519` as well as `curve25519` (#5846).
 - `POST /recovery/members/{memberId}:recover` is now authenticated by COSE Sign1, making it consistent with the other `POST` endpoints in governance, and avoiding a potential denial of service where un-authenticated and un-authorised clients could submit invalid shares repeatedly. The `submit_recovery_share.sh` script has been amended accordingly, and now takes a `--member-id-privk` and `--member-id-cert` (#5821).
+- CCF can now fetch SEV-SNP attestations from kernel 6.0 and above (#5848).
 
 ## [5.0.0-dev7]
 
