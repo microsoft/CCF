@@ -3,7 +3,7 @@
 # Licensed under the Apache 2.0 License.
 
 set -ex
-
+env
 # Our linter, shellcheck, expects (reasonably) that env vars are all caps. Alas.
 # shellcheck disable=SC2154
 if [ -z "${Fabric_NodeIPOrFQDN}" ]; then
