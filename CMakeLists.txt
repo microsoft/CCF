@@ -1665,6 +1665,10 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT
         ${CMAKE_SOURCE_DIR}/tests/external_executor/external_indexer.py
     )
+
+    if(COMPILE_TARGET STREQUAL "snp")
+      add_test(NAME amd_certs COMMAND ${CMAKE_SOURCE_DIR}/tests/amd_certs.sh)
+    endif()
   endif()
 endif()
 
