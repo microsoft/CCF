@@ -355,7 +355,7 @@ namespace http
     void send_request(http::Request&& request) override
     {
       auto data = request.build_request();
-      tls_io->send_raw(data.data(), data.size());
+      send_data(data);
     }
 
     void connect(
