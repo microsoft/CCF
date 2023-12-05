@@ -90,6 +90,10 @@ namespace ccf
         {
           r.set_query_param(k, v);
         }
+        for (auto const& [k, v] : endpoint.headers)
+        {
+          r.set_header(k, v);
+        }
         r.set_header(http::headers::HOST, endpoint.host);
 
         LOG_INFO_FMT(
@@ -170,6 +174,18 @@ namespace ccf
         auto raw = crypto::cert_der_to_pem(data).raw();
         endorsements_pem.insert(endorsements_pem.end(), raw.begin(), raw.end());
       }
+      else if (response_endpoint.response_is_thim_json)
+      {
+        auto j = nlohmann::json::parse(data);
+        auto vcekCert = j.at("vcekCert").get<std::string>();
+        auto certificateChain = j.at("certificateChain").get<std::string>();
+        endorsements_pem.insert(
+          endorsements_pem.end(), vcekCert.begin(), vcekCert.end());
+        endorsements_pem.insert(
+          endorsements_pem.end(),
+          certificateChain.begin(),
+          certificateChain.end());
+      }
       else
       {
         endorsements_pem.insert(
@@ -180,6 +196,8 @@ namespace ccf
       if (server.empty())
       {
         LOG_INFO_FMT("Complete endorsement chain successfully retrieved");
+        LOG_INFO_FMT(
+          "{}", std::string(endorsements_pem.begin(), endorsements_pem.end()));
         has_completed = true;
         done_cb(std::move(endorsements_pem));
       }

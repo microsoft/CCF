@@ -44,6 +44,8 @@ namespace ccf::pal::snp
       std::string uri;
       std::map<std::string, std::string> params;
       bool response_is_der = false;
+      bool response_is_thim_json = false;
+      std::map<std::string, std::string> headers = {};
 
       bool operator==(const EndpointInfo&) const = default;
     };
@@ -57,12 +59,14 @@ namespace ccf::pal::snp
   enum EndorsementsEndpointType
   {
     Azure = 0,
-    AMD = 1
+    AMD = 1,
+    THIM = 2,
   };
   DECLARE_JSON_ENUM(
     EndorsementsEndpointType,
     {{EndorsementsEndpointType::Azure, "Azure"},
-     {EndorsementsEndpointType::AMD, "AMD"}});
+     {EndorsementsEndpointType::AMD, "AMD"},
+     {EndorsementsEndpointType::THIM, "THIM"}});
 
   struct EndorsementsServer
   {
@@ -113,12 +117,13 @@ namespace ccf::pal::snp
     params["ucodeSPL"] = microcode;
 
     EndorsementEndpointsConfiguration::Server server;
-    server.push_back(
-      {endpoint,
-       "443",
-       fmt::format("/vcek/v1/{}/{}", product_name, chip_id_hex),
-       params,
-       true});
+    server.push_back({
+      endpoint,
+      "443",
+      fmt::format("/vcek/v1/{}/{}", product_name, chip_id_hex),
+      params,
+      true // DER
+    });
     server.push_back(
       {endpoint,
        "443",
@@ -126,5 +131,27 @@ namespace ccf::pal::snp
        {}});
 
     return server;
+  }
+
+  constexpr auto default_thim_endorsements_endpoint_host = "169.254.169.254";
+
+  static EndorsementEndpointsConfiguration::Server
+  make_thim_endorsements_server(
+    const std::string& endpoint,
+    const std::string& chip_id_hex,
+    const std::string& reported_tcb)
+  {
+    std::map<std::string, std::string> params;
+    params["tcbVersion"] = reported_tcb;
+    params["platformId"] = chip_id_hex;
+    params["Metadata"] = "true";
+    return {
+      {endpoint,
+       "80",
+       "/metadata/THIM/amd/certification",
+       params,
+       false, // Not DER
+       true, // But THIM JSON
+       {{"Metadata", "true"}}}};
   }
 }
