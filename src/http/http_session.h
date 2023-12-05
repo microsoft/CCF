@@ -347,7 +347,7 @@ namespace http
           data.size(),
           std::string_view((char const*)data.data(), data.size()));
 
-        tls_io->close();
+        close_session();
       }
       return false;
     }
@@ -386,7 +386,64 @@ namespace http
       handle_data_cb(status, std::move(headers), std::move(body));
 
       LOG_TRACE_FMT("Closing connection, message handled");
-      tls_io->close();
+      close_session();
+    }
+  };
+
+  class UnencryptedHTTPSession : public ccf::ThreadedSession
+  {
+  protected:
+    std::shared_ptr<ErrorReporter> error_reporter;
+    tls::ConnID session_id;
+    ringbuffer::AbstractWriterFactory& writer_factory;
+    ringbuffer::WriterPtr to_host;
+    size_t execution_thread;
+
+    UnencryptedHTTPSession(
+      tls::ConnID session_id_,
+      ringbuffer::AbstractWriterFactory& writer_factory_,
+      const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
+      ccf::ThreadedSession(session_id_),
+      error_reporter(error_reporter),
+      writer_factory(writer_factory_),
+      session_id(session_id_),
+      to_host(writer_factory.create_writer_to_outside())
+    {
+      execution_thread =
+        threading::ThreadMessaging::instance().get_execution_thread(session_id_);
+    }
+
+  public:
+    virtual bool parse(std::span<const uint8_t> data) = 0;
+
+    void send_data(std::span<const uint8_t> data) override
+    {
+      if (threading::get_current_thread_id() != execution_thread)
+      {
+        throw std::logic_error("Called UnencryptedHTTPSession::send_data "
+                               "from wrong thread");
+      }
+      RINGBUFFER_WRITE_MESSAGE(
+        tls::tls_outbound,
+        to_host,
+        session_id,
+        serializer::ByteRange{data.data(), data.size()});
+    }
+
+    void close_session() override
+    {
+      if (threading::get_current_thread_id() != execution_thread)
+      {
+        throw std::logic_error("Called UnencryptedHTTPSession::close_session "
+                               "from wrong thread");
+      }
+      RINGBUFFER_WRITE_MESSAGE(
+        tls::tls_stop, to_host, session_id, std::string("Session closed"));
+    }
+
+    void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
+    {
+      parse(data);
     }
   };
 }

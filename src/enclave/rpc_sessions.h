@@ -583,6 +583,16 @@ namespace ccf
       }
     }
 
+    std::shared_ptr<ClientSession> create_unencrypted_client()
+    {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+      auto id = get_next_client_id();
+      auto session = std::make_shared<http::UnencryptedHTTPClientSession>(id, writer_factory);
+      sessions.insert(std::make_pair(id, std::make_pair("", session)));
+      sessions_peak = std::max(sessions_peak, sessions.size());
+      return session;
+    }
+
     void register_message_handlers(
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
