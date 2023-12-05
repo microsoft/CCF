@@ -80,6 +80,11 @@ namespace ccf
         nullptr, std::nullopt, std::nullopt, std::nullopt, false));
     }
 
+    std::shared_ptr<ClientSession> create_unencrypted_client()
+    {
+      return rpcsessions->create_unencrypted_client();
+    }
+
     void send_request(
       const std::shared_ptr<ClientSession>& client,
       const EndpointInfo& endpoint)
@@ -211,7 +216,7 @@ namespace ccf
     {
       auto endpoint = server.front();
 
-      auto c = create_unauthenticated_client();
+      auto c = endpoint.response_is_thim_json ? create_unencrypted_client() : create_unauthenticated_client();
       c->connect(
         endpoint.host,
         endpoint.port,
