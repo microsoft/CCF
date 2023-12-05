@@ -405,8 +405,8 @@ namespace http
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
       ccf::ThreadedSession(session_id_),
       error_reporter(error_reporter),
-      writer_factory(writer_factory_),
       session_id(session_id_),
+      writer_factory(writer_factory_),
       to_host(writer_factory.create_writer_to_outside())
     {
       execution_thread =
@@ -444,6 +444,72 @@ namespace http
     void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
     {
       parse(data);
+    }
+  };
+
+class UnencryptedHTTPClientSession : public UnencryptedHTTPSession,
+                                     public ccf::ClientSession,
+                                     public http::ResponseProcessor
+  {
+  private:
+    http::ResponseParser response_parser;
+
+  public:
+    UnencryptedHTTPClientSession(
+      tls::ConnID session_id_,
+      ringbuffer::AbstractWriterFactory& writer_factory) :
+      UnencryptedHTTPSession(session_id_, writer_factory),
+      ClientSession(session_id_, writer_factory),
+      response_parser(*this)
+    {}
+
+    bool parse(std::span<const uint8_t> data) override
+    {
+      // Catch response parsing errors and log them
+      try
+      {
+        response_parser.execute(data.data(), data.size());
+
+        return true;
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Error parsing HTTP response on session {}", session_id);
+        LOG_DEBUG_FMT("Error parsing HTTP response: {}", e.what());
+        LOG_DEBUG_FMT(
+          "Error occurred while parsing fragment {} byte fragment:\n{}",
+          data.size(),
+          std::string_view((char const*)data.data(), data.size()));
+
+        close_session();
+      }
+      return false;
+    }
+
+    void send_request(http::Request&& request) override
+    {
+      auto data = request.build_request();
+      send_data(data);
+    }
+
+    void connect(
+      const std::string& hostname,
+      const std::string& service,
+      const HandleDataCallback f,
+      const HandleErrorCallback e) override
+    {
+      ccf::ClientSession::connect(hostname, service, f, e);
+    }
+
+    void handle_response(
+      http_status status,
+      http::HeaderMap&& headers,
+      std::vector<uint8_t>&& body) override
+    {
+      handle_data_cb(status, std::move(headers), std::move(body));
+
+      LOG_TRACE_FMT("Closing connection, message handled");
+      close_session();
     }
   };
 }
