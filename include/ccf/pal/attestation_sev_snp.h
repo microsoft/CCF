@@ -200,6 +200,14 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
             url, chip_id_hex, boot_loader, tee, snp, microcode));
           break;
         }
+        case EndorsementsEndpointType::THIM:
+        {
+          auto url =
+            server.url.value_or(default_thim_endorsements_endpoint_host);
+          config.servers.emplace_back(
+            make_thim_endorsements_server(url, chip_id_hex, reported_tcb));
+          break;
+        }
         default:
         {
           throw std::logic_error(fmt::format(
