@@ -102,7 +102,8 @@ namespace ccf
         r.set_header(http::headers::HOST, endpoint.host);
 
         LOG_INFO_FMT(
-          "Fetching endorsements for attestation report at https://{}{}{}",
+          "Fetching endorsements for attestation report at http{}://{}{}{}",
+          endpoint.port == "80" ? "" : "s",
           endpoint.host,
           r.get_path(),
           r.get_formatted_query());
@@ -216,7 +217,8 @@ namespace ccf
     {
       auto endpoint = server.front();
 
-      auto c = endpoint.response_is_thim_json ? create_unencrypted_client() : create_unauthenticated_client();
+      auto c = endpoint.port == "80" ? create_unencrypted_client() :
+                                       create_unauthenticated_client();
       c->connect(
         endpoint.host,
         endpoint.port,

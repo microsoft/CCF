@@ -144,7 +144,6 @@ namespace ccf::pal::snp
     std::map<std::string, std::string> params;
     params["tcbVersion"] = reported_tcb;
     params["platformId"] = chip_id_hex;
-    params["Metadata"] = "true";
     return {
       {endpoint,
        "80",

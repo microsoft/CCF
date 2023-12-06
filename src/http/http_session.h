@@ -410,7 +410,8 @@ namespace http
       to_host(writer_factory.create_writer_to_outside())
     {
       execution_thread =
-        threading::ThreadMessaging::instance().get_execution_thread(session_id_);
+        threading::ThreadMessaging::instance().get_execution_thread(
+          session_id_);
     }
 
   public:
@@ -420,8 +421,9 @@ namespace http
     {
       if (threading::get_current_thread_id() != execution_thread)
       {
-        throw std::logic_error("Called UnencryptedHTTPSession::send_data "
-                               "from wrong thread");
+        throw std::logic_error(
+          "Called UnencryptedHTTPSession::send_data "
+          "from wrong thread");
       }
       RINGBUFFER_WRITE_MESSAGE(
         tls::tls_outbound,
@@ -434,8 +436,9 @@ namespace http
     {
       if (threading::get_current_thread_id() != execution_thread)
       {
-        throw std::logic_error("Called UnencryptedHTTPSession::close_session "
-                               "from wrong thread");
+        throw std::logic_error(
+          "Called UnencryptedHTTPSession::close_session "
+          "from wrong thread");
       }
       RINGBUFFER_WRITE_MESSAGE(
         tls::tls_stop, to_host, session_id, std::string("Session closed"));
@@ -447,9 +450,9 @@ namespace http
     }
   };
 
-class UnencryptedHTTPClientSession : public UnencryptedHTTPSession,
-                                     public ccf::ClientSession,
-                                     public http::ResponseProcessor
+  class UnencryptedHTTPClientSession : public UnencryptedHTTPSession,
+                                       public ccf::ClientSession,
+                                       public http::ResponseProcessor
   {
   private:
     http::ResponseParser response_parser;

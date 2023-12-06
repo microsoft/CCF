@@ -587,7 +587,8 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       auto id = get_next_client_id();
-      auto session = std::make_shared<http::UnencryptedHTTPClientSession>(id, writer_factory);
+      auto session = std::make_shared<http::UnencryptedHTTPClientSession>(
+        id, writer_factory);
       sessions.insert(std::make_pair(id, std::make_pair("", session)));
       sessions_peak = std::max(sessions_peak, sessions.size());
       return session;
