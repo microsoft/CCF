@@ -1098,8 +1098,14 @@ LogInv ==
 \* This is a key safety invariant and should always be checked
 THEOREM Spec => []LogInv
 
-\* There should not be more than one leader per term at the same time
-\* Note that this does not rule out multiple leaders in the same term at different times
+\* There is only ever one leader per term.  However, this does not preclude multiple
+\* servers being leader at the same time, i.e., |{s \in Servers: state[s] = Leader}| > 1,
+\* as long as each server is leader in a different term.
+\*
+\* However, this invariant is not violated if two servers *atomically* trade places as
+\* leader in the same term, i.e., state' = [state EXCEPT ![s] = Follower, ![t] = Leader]
+\* with state[s]=Leader /\ state[t]#Leader.  For that, we would need a suitable action
+\* property.
 MoreThanOneLeaderInv ==
     \A i,j \in Servers :
         (/\ currentTerm[i] = currentTerm[j]
@@ -1191,7 +1197,8 @@ SignatureInv ==
 MonoTermInv ==
     \A m \in Network!Messages: currentTerm[m.source] >= m.term
 
-\* Terms in logs should be monotonically increasing
+\* Terms in logs increase monotonically. When projecting out TypeSignature entries, the 
+\* terms even increase in a *strictly* monotonic manner.
 MonoLogInv ==
     \A i \in Servers :
        log[i] # <<>> => 
