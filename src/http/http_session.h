@@ -468,11 +468,9 @@ namespace http
 
     bool parse(std::span<const uint8_t> data) override
     {
-      // Catch response parsing errors and log them
       try
       {
         response_parser.execute(data.data(), data.size());
-
         return true;
       }
       catch (const std::exception& e)
@@ -510,7 +508,6 @@ namespace http
       std::vector<uint8_t>&& body) override
     {
       handle_data_cb(status, std::move(headers), std::move(body));
-
       LOG_TRACE_FMT("Closing connection, message handled");
       close_session();
     }

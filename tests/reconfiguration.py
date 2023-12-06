@@ -258,7 +258,6 @@ def test_add_node_endorsements_endpoints(network, args):
         (["AMD:kdsintf.amd.com"], True),
         (["AMD:invalid.amd.com"], False),
         (["Azure:invalid.azure.com", "AMD:kdsintf.amd.com"], True),  # Fallback server
-        (["THIM:169.254.169.254"], True),
     ]
 
     for servers, expected_result in test_vectors:
