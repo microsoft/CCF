@@ -13,6 +13,7 @@ debs:
   - clang-{{ clang_ver }}
   - clang-format-11
   - clang-tools-{{ clang_ver }}
+  - lld-{{ clang_ver }}
   - build-essential
   - expect
   - git
