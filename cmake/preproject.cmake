@@ -85,4 +85,11 @@ if("${COMPILE_TARGET}" STREQUAL "snp")
   endif()
 endif()
 
+if("${COMPILE_TARGET}" STREQUAL "snp" OR "${COMPILE_TARGET}" STREQUAL "virtual")
+  if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    add_compile_options(-flto)
+    add_link_options(-flto)
+  endif()
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
