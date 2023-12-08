@@ -725,7 +725,7 @@ class CCFRemote(object):
         snp_endorsements_servers_list = []
         for s in snp_endorsements_servers:
             try:
-                server_type, url = s.split(":")
+                server_type, url = s.split(":", 1)
             except ValueError as e:
                 raise ValueError(
                     "SNP endorsements servers should be in the format type:url"
