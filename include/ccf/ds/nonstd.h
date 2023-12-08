@@ -241,7 +241,12 @@ namespace nonstd
 
   static inline std::string expand_envvar(const std::string& str)
   {
-    char* e = std::getenv(str.c_str());
+    if (str.empty() || str[0] != '$')
+    {
+      return str;
+    }
+
+    char* e = std::getenv(str.c_str() + 1);
     if (e == nullptr)
     {
       return str;
