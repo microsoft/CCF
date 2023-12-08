@@ -566,12 +566,6 @@ int main(int argc, char** argv)
       }
     }
 
-    {
-      LOG_INFO_FMT(
-        "Security policy: {}",
-        startup_config.attestation.environment.security_policy.value());
-    }
-
     if (config.node_data_json_file.has_value())
     {
       startup_config.node_data =
