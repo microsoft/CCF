@@ -8,6 +8,7 @@ import {
   RsaOaepAesKwpParams,
   RsaOaepParams,
 } from "../src/global.js";
+import * as textcodec from "../src/textcodec.js";
 import { generateSelfSignedCert, generateCertChain } from "./crypto.js";
 
 beforeEach(function () {
@@ -22,6 +23,39 @@ describe("polyfill", function () {
     it("converts string <--> ArrayBuffer", function () {
       const s = "foo";
       assert.equal(ccf.bufToStr(ccf.strToBuf(s)), s);
+    });
+  });
+  describe("TextEncoder", function () {
+    it("returns utf-8 for encoding field", function () {
+      const encoder = new textcodec.TextEncoder();
+      assert.equal(encoder.encoding, "utf-8");
+      const s = encoder.encode("foo");
+    });
+    it("returns an empty array for default empty input", function () {
+      assert.deepEqual(
+        new textcodec.TextEncoder().encode(""),
+        new Uint8Array(),
+      );
+    });
+    it("encodes ascii strings correctly", function () {
+      const sample = "foo";
+      assert.deepEqual(
+        new textcodec.TextEncoder().encode(sample),
+        new Uint8Array([0x66, 0x6f, 0x6f]),
+      );
+    });
+    it("encodes UTF-8 strings correctly", function () {
+      // a (U+0061, 0x61 in UTF-8), pound sign (U+00A3, 0xC2 0xA3 in UTF-8)
+      const sample = "\u0061\u00A3";
+      assert.deepEqual(
+        new textcodec.TextEncoder().encode(sample),
+        new Uint8Array([0x61, 0xc2, 0xa3]),
+      );
+    });
+    it("throws when unsupported method is called", function () {
+      assert.throws(() =>
+        new textcodec.TextEncoder().encodeInto("test", new Uint8Array([])),
+      );
     });
   });
   describe("jsonCompatibleToBuf/bufToJsonCompatible", function () {
