@@ -548,9 +548,12 @@ int main(int argc, char** argv)
          startup_config.attestation.snp_endorsements_servers.end();
          ++endorsement_servers_it)
     {
+      LOG_DEBUG_FMT(
+        "Resolving snp_endorsements_server url: {}",
+        endorsement_servers_it->url.value());
       if (endorsement_servers_it->url.has_value())
       {
-        auto url = endorsement_servers_it->url.value();
+        auto& url = endorsement_servers_it->url.value();
         auto pos = url.find(':');
         if (pos == std::string::npos)
         {
@@ -563,6 +566,9 @@ int main(int argc, char** argv)
             nonstd::expand_envvar(url.substr(0, pos)),
             nonstd::expand_envvar(url.substr(pos + 1)));
         }
+        LOG_DEBUG_FMT(
+          "Resolved snp_endorsements_server url: {}",
+          endorsement_servers_it->url);
       }
     }
 

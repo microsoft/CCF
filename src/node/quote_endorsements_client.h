@@ -102,9 +102,10 @@ namespace ccf
         r.set_header(http::headers::HOST, endpoint.host);
 
         LOG_INFO_FMT(
-          "Fetching endorsements for attestation report at http{}://{}{}{}",
-          endpoint.port == "80" ? "" : "s",
+          "Fetching endorsements for attestation report at http{}://{}:{}{}{}",
+          endpoint.tls ? "s" : "",
           endpoint.host,
+          endpoint.port,
           r.get_path(),
           r.get_formatted_query());
         client->send_request(std::move(r));
@@ -217,8 +218,8 @@ namespace ccf
     {
       auto endpoint = server.front();
 
-      auto c = endpoint.port == "80" ? create_unencrypted_client() :
-                                       create_unauthenticated_client();
+      auto c = endpoint.tls ? create_unauthenticated_client() :
+                              create_unencrypted_client();
       c->connect(
         endpoint.host,
         endpoint.port,
