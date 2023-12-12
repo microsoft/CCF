@@ -619,6 +619,7 @@ class CCFRemote(object):
         node_container_image=None,
         follow_redirect=True,
         max_uncommitted_tx_count=0,
+        snp_security_policy_path=None,
         **kwargs,
     ):
         """
@@ -735,6 +736,12 @@ class CCFRemote(object):
             s["url"] = url
             snp_endorsements_servers_list.append(s)
 
+        # Default snp_security_policy_path if not set
+        if snp_security_policy_path is None:
+            snp_security_policy_path = (
+                "$UVM_SECURITY_CONTEXT_DIR/security-policy-base64"
+            )
+
         # Validate consensus timers
         if (
             election_timeout_ms is not None
@@ -795,6 +802,7 @@ class CCFRemote(object):
                 node_address=remote_class.get_node_address(node_address),
                 follow_redirect=follow_redirect,
                 max_uncommitted_tx_count=max_uncommitted_tx_count,
+                snp_security_policy_path=snp_security_policy_path,
                 **kwargs,
             )
 

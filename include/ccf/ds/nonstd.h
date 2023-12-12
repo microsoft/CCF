@@ -5,11 +5,11 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <vector>
-#include <filesystem>
 
 /**
  * This file defines various type traits and utils that are not available in the
@@ -275,7 +275,7 @@ namespace nonstd
       elements.push_back(path.root_directory());
     }
 
-    while(it != path.end())
+    while (it != path.end())
     {
       elements.push_back(expand_envvar(*it++));
     }
@@ -285,7 +285,7 @@ namespace nonstd
     {
       resolved /= element;
     }
-    
+
     return resolved.lexically_normal().string();
   }
 }

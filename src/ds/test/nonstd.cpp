@@ -289,7 +289,6 @@ TEST_CASE("envvars" * doctest::test_suite("nonstd"))
     std::string test_value2("test_value2");
     ::setenv("TEST_ENV_VAR2", test_value2.c_str(), 1);
 
-
     REQUIRE("" == nonstd::expand_envvars_in_path(""));
     REQUIRE("foo" == nonstd::expand_envvars_in_path("foo"));
     REQUIRE("foo/" == nonstd::expand_envvars_in_path("foo/"));
@@ -299,12 +298,24 @@ TEST_CASE("envvars" * doctest::test_suite("nonstd"))
     REQUIRE("/foo/" == nonstd::expand_envvars_in_path("/foo/"));
     REQUIRE("/foo/bar" == nonstd::expand_envvars_in_path("/foo/bar"));
 
-    REQUIRE(fmt::format("{}", test_value1) == nonstd::expand_envvars_in_path("$TEST_ENV_VAR1"));
-    REQUIRE(fmt::format("{}/", test_value1) == nonstd::expand_envvars_in_path("$TEST_ENV_VAR1/"));
-    REQUIRE(fmt::format("{}/{}", test_value1, test_value2) == nonstd::expand_envvars_in_path("$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
+    REQUIRE(
+      fmt::format("{}", test_value1) ==
+      nonstd::expand_envvars_in_path("$TEST_ENV_VAR1"));
+    REQUIRE(
+      fmt::format("{}/", test_value1) ==
+      nonstd::expand_envvars_in_path("$TEST_ENV_VAR1/"));
+    REQUIRE(
+      fmt::format("{}/{}", test_value1, test_value2) ==
+      nonstd::expand_envvars_in_path("$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
 
-    REQUIRE(fmt::format("/{}", test_value1) == nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1"));
-    REQUIRE(fmt::format("/{}/", test_value1) == nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1/"));
-    REQUIRE(fmt::format("/{}/{}", test_value1, test_value2) == nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
+    REQUIRE(
+      fmt::format("/{}", test_value1) ==
+      nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1"));
+    REQUIRE(
+      fmt::format("/{}/", test_value1) ==
+      nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1/"));
+    REQUIRE(
+      fmt::format("/{}/{}", test_value1, test_value2) ==
+      nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
   }
 }
