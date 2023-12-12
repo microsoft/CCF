@@ -165,3 +165,24 @@ namespace ccf::pal::snp
     }};
   }
 }
+
+FMT_BEGIN_NAMESPACE
+template <>
+struct formatter<ccf::pal::snp::EndorsementEndpointsConfiguration::EndpointInfo>
+{
+  template <typename ParseContext>
+  constexpr auto parse(ParseContext& ctx)
+  {
+    return ctx.begin();
+  }
+
+  template <typename FormatContext>
+  auto format(
+    const ccf::pal::snp::EndorsementEndpointsConfiguration::EndpointInfo& e,
+    FormatContext& ctx) const
+  {
+    return format_to(
+      ctx.out(), "http{}://{}:{}", e.tls ? "s" : "", e.host, e.port);
+  }
+};
+FMT_END_NAMESPACE
