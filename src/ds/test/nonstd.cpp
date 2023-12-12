@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <doctest/doctest.h>
+#include <stdlib.h>
 #include <string>
 
 TEST_CASE("split" * doctest::test_suite("nonstd"))
@@ -257,5 +258,24 @@ TEST_CASE("rsplit" * doctest::test_suite("nonstd"))
         REQUIRE(std::get<1>(t).empty());
       }
     }
+  }
+}
+
+TEST_CASE("envvars" * doctest::test_suite("nonstd"))
+{
+  {
+    INFO("Expand environment variable");
+
+    std::string test_value("test_value");
+    ::setenv("TEST_ENV_VAR", test_value.c_str(), 1);
+
+    REQUIRE("" == nonstd::expand_envvar(""));
+    REQUIRE("not an env var" == nonstd::expand_envvar("not an env var"));
+    REQUIRE("$ENV_VAR_NOT_SET" == nonstd::expand_envvar("$ENV_VAR_NOT_SET"));
+    REQUIRE(test_value == nonstd::expand_envvar("$TEST_ENV_VAR"));
+
+    // ${} syntax is not supported
+    REQUIRE(
+      "${ENV_VAR_NOT_SET}" == nonstd::expand_envvar("${ENV_VAR_NOT_SET}"));
   }
 }

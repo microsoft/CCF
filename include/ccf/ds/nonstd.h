@@ -238,4 +238,22 @@ namespace nonstd
       tuple_for_each<I + 1>(t, f);
     }
   }
+
+  static inline std::string expand_envvar(const std::string& str)
+  {
+    if (str.empty() || str[0] != '$')
+    {
+      return str;
+    }
+
+    char* e = std::getenv(str.c_str() + 1);
+    if (e == nullptr)
+    {
+      return str;
+    }
+    else
+    {
+      return std::string(e);
+    }
+  }
 }

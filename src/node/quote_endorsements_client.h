@@ -102,9 +102,8 @@ namespace ccf
         r.set_header(http::headers::HOST, endpoint.host);
 
         LOG_INFO_FMT(
-          "Fetching endorsements for attestation report at http{}://{}{}{}",
-          endpoint.port == "80" ? "" : "s",
-          endpoint.host,
+          "Fetching endorsements for attestation report at {}{}{}",
+          endpoint,
           r.get_path(),
           r.get_formatted_query());
         client->send_request(std::move(r));
@@ -122,8 +121,7 @@ namespace ccf
           if (msg->data.request_id >= msg->data.self->last_received_request_id)
           {
             LOG_FAIL_FMT(
-              "Timed out reaching endorsement server {}",
-              msg->data.endpoint.host);
+              "Timed out reaching endorsement server {}", msg->data.endpoint);
 
             auto& servers = msg->data.self->config.servers;
             msg->data.self->server_retries_count++;
@@ -217,8 +215,8 @@ namespace ccf
     {
       auto endpoint = server.front();
 
-      auto c = endpoint.port == "80" ? create_unencrypted_client() :
-                                       create_unauthenticated_client();
+      auto c = endpoint.tls ? create_unauthenticated_client() :
+                              create_unencrypted_client();
       c->connect(
         endpoint.host,
         endpoint.port,
@@ -266,7 +264,7 @@ namespace ccf
             LOG_INFO_FMT(
               "{} endorsements endpoint had too many requests. Retrying "
               "in {}s",
-              endpoint.host,
+              endpoint,
               retry_after_s);
 
             threading::ThreadMessaging::instance().add_task_after(
@@ -274,10 +272,10 @@ namespace ccf
           }
           return;
         },
-        [host = endpoint.host](const std::string& error_msg) {
+        [endpoint](const std::string& error_msg) {
           LOG_FAIL_FMT(
             "TLS error when connecting to quote endorsements endpoint {}: {}",
-            host,
+            endpoint,
             error_msg);
         });
       send_request(c, endpoint);
