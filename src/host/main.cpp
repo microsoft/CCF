@@ -542,6 +542,36 @@ int main(int argc, char** argv)
           fs::path(dir) / fs::path(report_endorsements_filename));
     }
 
+    for (auto endorsement_servers_it =
+           startup_config.attestation.snp_endorsements_servers.begin();
+         endorsement_servers_it !=
+         startup_config.attestation.snp_endorsements_servers.end();
+         ++endorsement_servers_it)
+    {
+      LOG_DEBUG_FMT(
+        "Resolving snp_endorsements_server url: {}",
+        endorsement_servers_it->url.value());
+      if (endorsement_servers_it->url.has_value())
+      {
+        auto& url = endorsement_servers_it->url.value();
+        auto pos = url.find(':');
+        if (pos == std::string::npos)
+        {
+          endorsement_servers_it->url = nonstd::expand_envvar(url);
+        }
+        else
+        {
+          endorsement_servers_it->url = fmt::format(
+            "{}:{}",
+            nonstd::expand_envvar(url.substr(0, pos)),
+            nonstd::expand_envvar(url.substr(pos + 1)));
+        }
+        LOG_DEBUG_FMT(
+          "Resolved snp_endorsements_server url: {}",
+          endorsement_servers_it->url);
+      }
+    }
+
     if (config.node_data_json_file.has_value())
     {
       startup_config.node_data =
