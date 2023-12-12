@@ -8,6 +8,9 @@
 #include <stdlib.h>
 #include <string>
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
+
 TEST_CASE("split" * doctest::test_suite("nonstd"))
 {
   {
@@ -277,5 +280,31 @@ TEST_CASE("envvars" * doctest::test_suite("nonstd"))
     // ${} syntax is not supported
     REQUIRE(
       "${ENV_VAR_NOT_SET}" == nonstd::expand_envvar("${ENV_VAR_NOT_SET}"));
+  }
+  {
+    INFO("Expand path");
+
+    std::string test_value1("test_value1");
+    ::setenv("TEST_ENV_VAR1", test_value1.c_str(), 1);
+    std::string test_value2("test_value2");
+    ::setenv("TEST_ENV_VAR2", test_value2.c_str(), 1);
+
+
+    REQUIRE("" == nonstd::expand_envvars_in_path(""));
+    REQUIRE("foo" == nonstd::expand_envvars_in_path("foo"));
+    REQUIRE("foo/" == nonstd::expand_envvars_in_path("foo/"));
+    REQUIRE("foo/bar" == nonstd::expand_envvars_in_path("foo/bar"));
+    REQUIRE("/" == nonstd::expand_envvars_in_path("/"));
+    REQUIRE("/foo" == nonstd::expand_envvars_in_path("/foo"));
+    REQUIRE("/foo/" == nonstd::expand_envvars_in_path("/foo/"));
+    REQUIRE("/foo/bar" == nonstd::expand_envvars_in_path("/foo/bar"));
+
+    REQUIRE(fmt::format("{}", test_value1) == nonstd::expand_envvars_in_path("$TEST_ENV_VAR1"));
+    REQUIRE(fmt::format("{}/", test_value1) == nonstd::expand_envvars_in_path("$TEST_ENV_VAR1/"));
+    REQUIRE(fmt::format("{}/{}", test_value1, test_value2) == nonstd::expand_envvars_in_path("$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
+
+    REQUIRE(fmt::format("/{}", test_value1) == nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1"));
+    REQUIRE(fmt::format("/{}/", test_value1) == nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1/"));
+    REQUIRE(fmt::format("/{}/{}", test_value1, test_value2) == nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
   }
 }
