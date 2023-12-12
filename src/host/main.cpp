@@ -548,7 +548,13 @@ int main(int argc, char** argv)
     {
       auto security_policy_file =
         startup_config.attestation.snp_security_policy_file.value();
+      LOG_FAIL_FMT(
+        "Resolving snp_security_policy_file: {}",
+        security_policy_file);
       security_policy_file = nonstd::expand_envvar(security_policy_file);
+      LOG_FAIL_FMT(
+        "Resolved snp_security_policy_file: {}",
+        security_policy_file);
 
       startup_config.attestation.environment.security_policy =
         files::try_slurp_string(security_policy_file);
