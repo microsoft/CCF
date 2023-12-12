@@ -122,9 +122,9 @@ namespace host
 
     struct Memory
     {
-      ds::SizeString circuit_size = {"32MB"};
-      ds::SizeString max_msg_size = {"128MB"};
-      ds::SizeString max_fragment_size = {"512KB"};
+      ds::SizeString circuit_size = {"16MB"};
+      ds::SizeString max_msg_size = {"64MB"};
+      ds::SizeString max_fragment_size = {"256KB"};
 
       bool operator==(const Memory&) const = default;
     };

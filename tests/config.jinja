@@ -93,9 +93,9 @@
   "node_client_interface": {{ node_client_interface|tojson }},
   "worker_threads": {{ worker_threads }},
   "memory": {
-    "circuit_size": "32MB",
+    "circuit_size": "16MB",
     "max_msg_size": "{{ max_msg_size_bytes }}",
-    "max_fragment_size": "512KB"
+    "max_fragment_size": "256KB"
   },
   "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if node_to_node_message_limit %},
   "node_to_node_message_limit": {{ node_to_node_message_limit|tojson }}{% endif %}

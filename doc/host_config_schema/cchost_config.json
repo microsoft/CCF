@@ -657,17 +657,17 @@
       "properties": {
         "circuit_size": {
           "type": "string",
-          "default": "32MB",
+          "default": "16MB",
           "description": "Size (size string) of the internal host-enclave ringbuffers (must be a power of 2)"
         },
         "max_msg_size": {
           "type": "string",
-          "default": "128MB",
+          "default": "64MB",
           "description": "Maximum size (size string) for a message sent over the ringbuffer. Messages may be split into multiple fragments, but this limits the total size of the sum of those fragments"
         },
         "max_fragment_size": {
           "type": "string",
-          "default": "512KB",
+          "default": "256KB",
           "description": "Maximum size (size string) of individual ringbuffer message fragments. Messages larger than this will be split into multiple fragments"
         }
       },
