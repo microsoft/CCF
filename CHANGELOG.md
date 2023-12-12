@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 [5.0.0-dev10]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev10
 
 - The `url` field in `snp_endorsements_servers` can now contain environment variables that will be resolved at startup, such as "$Fabric_NodeIPOrFQDN:2377" (#5862).
-- Add a `new snp_security_policy_file` configuration value under `attestation``, superseding the lookup from `$UVM_SECURITY_CONTEXT_DIR`. The value can contain environment variables, for example: `"snp_security_policy_file": "$UVM_SECURITY_CONTEXT_DIR/security-policy-base64"`.
+- Add a `new snp_security_policy_file` configuration value under `attestation`, superseding the lookup from `$UVM_SECURITY_CONTEXT_DIR`. The value can contain environment variables, for example: `"snp_security_policy_file": "$UVM_SECURITY_CONTEXT_DIR/security-policy-base64"`.
 
 ## [5.0.0-dev9]
 
