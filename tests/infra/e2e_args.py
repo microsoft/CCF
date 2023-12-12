@@ -406,7 +406,7 @@ def cli_args(
         "--max-msg-size-bytes",
         help="Maximum message size (bytes) allowed on the ring buffer",
         type=str,
-        default="16MB",
+        default="128MB",
     )
     parser.add_argument(
         "--gov-api-version",

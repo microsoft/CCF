@@ -64,8 +64,8 @@
   "client_connection_timeout": "2000ms",
   "worker_threads": 0,
   "memory": {
-    "circuit_size": "4MB",
-    "max_msg_size": "16MB",
-    "max_fragment_size": "64KB"
+    "circuit_size": "32MB",
+    "max_msg_size": "128MB",
+    "max_fragment_size": "512KB"
   }
 }
