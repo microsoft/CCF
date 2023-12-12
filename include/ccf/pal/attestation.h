@@ -8,12 +8,11 @@
 #include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
-#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/measurement.h"
+#include "ccf/pal/snp_ioctl.h"
 
 #include <fcntl.h>
 #include <functional>
-#include <unistd.h>
 
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include <sys/ioctl.h>
@@ -216,59 +215,17 @@ namespace ccf::pal
     const snp::EndorsementsServers& endorsements_servers = {})
   {
     QuoteInfo node_quote_info = {};
-
     node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
-    int fd = open(snp::DEVICE, O_RDWR | O_CLOEXEC);
-    if (fd < 0)
-    {
-      throw std::logic_error(fmt::format("Failed to open \"{}\"", snp::DEVICE));
-    }
+    auto attestation = snp::get_attestation(report_data);
 
-    snp::AttestationReq req = {};
-    snp::AttestationResp resp = {};
-
-    // Arbitrary report data
-    if (report_data.data.size() <= snp_attestation_report_data_size)
-    {
-      std::copy(
-        report_data.data.begin(), report_data.data.end(), req.report_data);
-    }
-    else
-    {
-      throw std::logic_error(
-        "User-defined report data is larger than available space");
-    }
-
-    // Documented at
-    // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
-    snp::GuestRequest payload = {
-      .req_msg_type = snp::MSG_REPORT_REQ,
-      .rsp_msg_type = snp::MSG_REPORT_RSP,
-      .msg_version = 1,
-      .request_len = sizeof(req),
-      .request_uaddr = reinterpret_cast<uint64_t>(&req),
-      .response_len = sizeof(resp),
-      .response_uaddr = reinterpret_cast<uint64_t>(&resp),
-      .error = 0};
-
-    int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
-    if (rc < 0)
-    {
-      CCF_APP_FAIL("IOCTL call failed: {}", strerror(errno));
-      CCF_APP_FAIL("Payload error: {}", payload.error);
-      throw std::logic_error("Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT");
-    }
-
-    auto quote = &resp.report;
-    auto quote_bytes = reinterpret_cast<uint8_t*>(&resp.report);
-    node_quote_info.quote.assign(quote_bytes, quote_bytes + resp.report_size);
+    node_quote_info.quote = attestation->get_raw();
 
     if (endorsement_cb != nullptr)
     {
       endorsement_cb(
         node_quote_info,
         snp::make_endorsement_endpoint_configuration(
-          *quote, endorsements_servers));
+          attestation->get(), endorsements_servers));
     }
   }
 #endif
@@ -280,7 +237,7 @@ namespace ccf::pal
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
-    auto is_sev_snp = access(snp::DEVICE, F_OK) == 0;
+    auto is_sev_snp = snp::is_sev_snp();
 
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {

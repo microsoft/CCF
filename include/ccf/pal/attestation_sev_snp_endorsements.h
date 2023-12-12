@@ -44,6 +44,8 @@ namespace ccf::pal::snp
       std::string uri;
       std::map<std::string, std::string> params;
       bool response_is_der = false;
+      bool response_is_thim_json = false;
+      std::map<std::string, std::string> headers = {};
 
       bool operator==(const EndpointInfo&) const = default;
     };
@@ -57,12 +59,14 @@ namespace ccf::pal::snp
   enum EndorsementsEndpointType
   {
     Azure = 0,
-    AMD = 1
+    AMD = 1,
+    THIM = 2,
   };
   DECLARE_JSON_ENUM(
     EndorsementsEndpointType,
     {{EndorsementsEndpointType::Azure, "Azure"},
-     {EndorsementsEndpointType::AMD, "AMD"}});
+     {EndorsementsEndpointType::AMD, "AMD"},
+     {EndorsementsEndpointType::THIM, "THIM"}});
 
   struct EndorsementsServer
   {
@@ -76,30 +80,37 @@ namespace ccf::pal::snp
   DECLARE_JSON_OPTIONAL_FIELDS(EndorsementsServer, type, url);
   using EndorsementsServers = std::vector<EndorsementsServer>;
 
-  constexpr auto default_azure_endorsements_endpoint_host =
-    "global.acccache.azure.net";
+  struct HostPort
+  {
+    std::string host;
+    std::string port;
+  };
+
+  static HostPort default_azure_endorsements_endpoint = {
+    "global.acccache.azure.net", "443"};
 
   static EndorsementEndpointsConfiguration::Server
   make_azure_endorsements_server(
-    const std::string& endpoint,
+    const HostPort& endpoint,
     const std::string& chip_id_hex,
     const std::string& reported_tcb)
   {
     std::map<std::string, std::string> params;
     params["api-version"] = "2020-10-15-preview";
     return {
-      {endpoint,
-       "443",
+      {endpoint.host,
+       endpoint.port,
        fmt::format("/SevSnpVM/certificates/{}/{}", chip_id_hex, reported_tcb),
        params}};
   }
 
   // AMD endorsements endpoints. See
   // https://www.amd.com/system/files/TechDocs/57230.pdf
-  constexpr auto default_amd_endorsements_endpoint_host = "kdsintf.amd.com";
+  static HostPort default_amd_endorsements_endpoint = {
+    "kdsintf.amd.com", "443"};
 
   static EndorsementEndpointsConfiguration::Server make_amd_endorsements_server(
-    const std::string& endpoint,
+    const HostPort& endpoint,
     const std::string& chip_id_hex,
     const std::string& boot_loader,
     const std::string& tee,
@@ -113,18 +124,41 @@ namespace ccf::pal::snp
     params["ucodeSPL"] = microcode;
 
     EndorsementEndpointsConfiguration::Server server;
+    server.push_back({
+      endpoint.host,
+      endpoint.port,
+      fmt::format("/vcek/v1/{}/{}", product_name, chip_id_hex),
+      params,
+      true // DER
+    });
     server.push_back(
-      {endpoint,
-       "443",
-       fmt::format("/vcek/v1/{}/{}", product_name, chip_id_hex),
-       params,
-       true});
-    server.push_back(
-      {endpoint,
-       "443",
+      {endpoint.host,
+       endpoint.port,
        fmt::format("/vcek/v1/{}/cert_chain", product_name),
        {}});
 
     return server;
+  }
+
+  static HostPort default_thim_endorsements_endpoint = {
+    "169.254.169.254", "80"};
+
+  static EndorsementEndpointsConfiguration::Server
+  make_thim_endorsements_server(
+    const HostPort& endpoint,
+    const std::string& chip_id_hex,
+    const std::string& reported_tcb)
+  {
+    std::map<std::string, std::string> params;
+    params["tcbVersion"] = reported_tcb;
+    params["platformId"] = chip_id_hex;
+    return {
+      {endpoint.host,
+       endpoint.port,
+       "/metadata/THIM/amd/certification",
+       params,
+       false, // Not DER
+       true, // But THIM JSON
+       {{"Metadata", "true"}}}};
   }
 }

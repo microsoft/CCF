@@ -409,8 +409,7 @@ namespace ccf
             qi.format == QuoteFormat::amd_sev_snp_v1 &&
             !config.attestation.snp_endorsements_servers.empty())
           {
-            // On SEV-SNP, if no attestation report endorsements are set via
-            // environment, those need to be fetched
+            // On SEV-SNP, fetch endorsements from servers if specified
             quote_endorsements_client =
               std::make_shared<QuoteEndorsementsClient>(
                 rpcsessions,
@@ -447,8 +446,7 @@ namespace ccf
             config.attestation.environment.report_endorsements.has_value())
           {
             // On SEV-SNP, if reports endorsements are passed via
-            // environment, read those rather than fetching them from
-            // endorsement server
+            // environment, read those
             pal::snp::ACIReportEndorsements endorsements =
               nlohmann::json::parse(crypto::raw_from_b64(
                 config.attestation.environment.report_endorsements.value()));
