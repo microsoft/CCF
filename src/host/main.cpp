@@ -546,9 +546,12 @@ int main(int argc, char** argv)
 
     if (startup_config.attestation.snp_security_policy_file.has_value())
     {
+      auto security_policy_file =
+        startup_config.attestation.snp_security_policy_file.value();
+      security_policy_file = nonstd::expand_envvar(security_policy_file);
+
       startup_config.attestation.environment.security_policy =
-        files::try_slurp_string(
-          startup_config.attestation.snp_security_policy_file.value());
+        files::try_slurp_string(security_policy_file);
     }
 
     for (auto endorsement_servers_it =
