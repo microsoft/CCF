@@ -111,7 +111,7 @@ def run_to_destruction(args):
                     wsm += 50000  # Grow very quickly, expect to fail on the second iteration
 
         except Exception as e:
-            timeout = 10
+            timeout = 60
 
             LOG.info("Large write set caused an exception, as expected")
             LOG.info(f"Exception was: {e}")
