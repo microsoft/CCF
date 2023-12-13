@@ -80,7 +80,10 @@ DECLARE_JSON_OPTIONAL_FIELDS(
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Attestation);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation);
 DECLARE_JSON_OPTIONAL_FIELDS(
-  CCFConfig::Attestation, snp_endorsements_servers, environment);
+  CCFConfig::Attestation,
+  snp_endorsements_servers,
+  environment,
+  snp_security_policy_file);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);

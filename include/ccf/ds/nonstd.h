@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -255,5 +256,36 @@ namespace nonstd
     {
       return std::string(e);
     }
+  }
+
+  static inline std::string expand_envvars_in_path(const std::string& str)
+  {
+    std::filesystem::path path(str);
+
+    if (path.empty())
+    {
+      return str;
+    }
+
+    std::vector<std::filesystem::path> elements;
+    auto it = path.begin();
+    if (path.has_root_directory())
+    {
+      ++it;
+      elements.push_back(path.root_directory());
+    }
+
+    while (it != path.end())
+    {
+      elements.push_back(expand_envvar(*it++));
+    }
+
+    std::filesystem::path resolved;
+    for (auto& element : elements)
+    {
+      resolved /= element;
+    }
+
+    return resolved.lexically_normal().string();
   }
 }
