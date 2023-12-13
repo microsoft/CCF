@@ -120,10 +120,9 @@ def run_to_destruction(args):
             end_time = time.time() + timeout
             while time.time() < end_time:
                 time.sleep(0.1)
-                exit_code = network.nodes[0].remote.remote.proc.poll()
-                if exit_code is not None:
-                    LOG.info(f"Node terminated with exit code {exit_code}")
-                    assert exit_code != 0
+                exit_codes = [node.remote.remote.proc.poll() for node in network.nodes]
+                if any(exit_codes):
+                    LOG.info(f"One or more nodes terminated with exit codes {exit_codes}")
                     break
 
             if time.time() > end_time:
