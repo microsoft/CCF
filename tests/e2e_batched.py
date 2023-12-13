@@ -122,7 +122,9 @@ def run_to_destruction(args):
                 time.sleep(0.1)
                 exit_codes = [node.remote.remote.proc.poll() for node in network.nodes]
                 if any(exit_codes):
-                    LOG.info(f"One or more nodes terminated with exit codes {exit_codes}")
+                    LOG.info(
+                        f"One or more nodes terminated with exit codes {exit_codes}"
+                    )
                     break
 
             if time.time() > end_time:
