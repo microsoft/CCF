@@ -815,7 +815,6 @@ class CCFRemote(object):
                 # This will also ensure the render produced valid JSON
                 j = json.loads(output)
                 json.dump(j, f, indent=2)
-                print(json.dumps(j, indent=2))
 
         exe_files += [self.BIN, enclave_file] + self.DEPS
         data_files += [self.ledger_dir] if self.ledger_dir else []
