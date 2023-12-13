@@ -521,6 +521,8 @@ int main(int argc, char** argv)
         config.attestation.environment.security_context_directory.value();
     }
 
+    // This will be deprecated in favour of explicit configuration entries,
+    // such as snp_security_policy_file and snp_endorsements_servers
     if (config.enclave.platform == host::EnclavePlatform::SNP)
     {
       auto dir = read_required_environment_variable(
@@ -540,6 +542,21 @@ int main(int argc, char** argv)
       startup_config.attestation.environment.report_endorsements =
         files::try_slurp_string(
           fs::path(dir) / fs::path(report_endorsements_filename));
+    }
+
+    if (startup_config.attestation.snp_security_policy_file.has_value())
+    {
+      auto security_policy_file =
+        startup_config.attestation.snp_security_policy_file.value();
+      LOG_DEBUG_FMT(
+        "Resolving snp_security_policy_file: {}", security_policy_file);
+      security_policy_file =
+        nonstd::expand_envvars_in_path(security_policy_file);
+      LOG_DEBUG_FMT(
+        "Resolved snp_security_policy_file: {}", security_policy_file);
+
+      startup_config.attestation.environment.security_policy =
+        files::try_slurp_string(security_policy_file);
     }
 
     for (auto endorsement_servers_it =
