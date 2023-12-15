@@ -56,6 +56,7 @@ struct CCFConfig
   struct Attestation
   {
     ccf::pal::snp::EndorsementsServers snp_endorsements_servers = {};
+    std::optional<std::string> snp_security_policy_file = std::nullopt;
 
     struct Environment
     {

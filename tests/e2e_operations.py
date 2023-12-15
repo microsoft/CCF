@@ -264,7 +264,7 @@ def run_file_operations(args):
         json.dump(service_data, ntf)
         ntf.flush()
 
-        args.max_msg_size_bytes = f"{100 * 1024}"  # 100KB
+        args.max_msg_size_bytes = f"{1024 ** 2}"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             txs = app.LoggingTxs("user0")

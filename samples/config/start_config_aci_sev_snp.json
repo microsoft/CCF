@@ -42,6 +42,7 @@
         "type": "THIM",
         "url": "169.254.169.254"
       }
-    ]
+    ],
+    "snp_security_policy_file": "$UVM_SECURITY_CONTEXT_DIR/security-policy-base64"
   }
 }
