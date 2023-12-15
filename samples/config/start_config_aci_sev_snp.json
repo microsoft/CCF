@@ -43,6 +43,7 @@
         "url": "169.254.169.254"
       }
     ],
-    "snp_security_policy_file": "$UVM_SECURITY_CONTEXT_DIR/security-policy-base64"
+    "snp_security_policy_file": "$UVM_SECURITY_CONTEXT_DIR/security-policy-base64",
+    "snp_uvm_endorsements_file": "$UVM_SECURITY_CONTEXT_DIR/reference-info-base64"
   }
 }

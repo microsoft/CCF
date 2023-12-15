@@ -34,8 +34,13 @@
     }
   },
   "attestation": {
-    "environment": {
-      "security_context_directory": "UVM_SECURITY_CONTEXT_DIR"
-    }
+    "snp_endorsements_servers": [
+      {
+        "type": "THIM",
+        "url": "169.254.169.254"
+      }
+    ],
+    "snp_security_policy_file": "/path/to/security-policy-base64",
+    "snp_uvm_endorsements_file": "/opt/confidential-containers/share/kata-containers/reference-info-base64"
   }
 }

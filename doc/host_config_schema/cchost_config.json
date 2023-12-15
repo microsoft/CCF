@@ -460,6 +460,10 @@
           "type": ["string", "null"],
           "description": "Path to file containing the security policy (SEV-SNP only), can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR"
         },
+        "snp_uvm_endorsements_file": {
+          "type": ["string", "null"],
+          "description": "Path to file containing UVM endorsements as a base64-encoded COSE Sign1 (SEV-SNP only). Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR"
+        },
         "snp_endorsements_servers": {
           "type": "array",
           "items": {

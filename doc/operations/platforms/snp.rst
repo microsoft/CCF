@@ -61,6 +61,7 @@ For non-Azure deployments, the certificate chain for VCEK will need to be retrie
             }
         ],
         "snp_security_policy_file": "/path/to/security-policy-base64",
+        "snp_uvm_endorsements_file": "/path/to/reference-info-base64"
     }
 
 .. tip:: See :ccf_repo:`samples/config/start_config_amd_sev_snp.json` for a sample node configuration for non-Azure deployments.
