@@ -51,11 +51,14 @@ namespace ccf
     std::string feed;
   };
 
+  // Roots of trust for UVM endorsements/measurement in AMD SEV-SNP attestations
   static std::vector<UVMEndorsements> uvm_roots_of_trust = {
+    // Confidential Azure Kubertnetes Service (AKS)
     {"did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
      "1.4.1.311.76.59.1.2",
      "ContainerPlat-AMD-UVM",
      "0"},
+    // Confidential Azure Container Instances (ACI)
     {"did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
      "1.4.1.311.76.59.1.5",
      "ConfAKS-AMD-UVM",
