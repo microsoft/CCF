@@ -51,6 +51,31 @@ namespace ccf
     std::string feed;
   };
 
+  static std::vector<UVMEndorsements> uvm_roots_of_trust = {
+    {"did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
+     "1.4.1.311.76.59.1.2",
+     "ContainerPlat-AMD-UVM",
+     "0"},
+    {"did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
+     "1.4.1.311.76.59.1.5",
+     "ConfAKS-AMD-UVM",
+     "0"}};
+
+  bool inline matches_uvm_roots_of_trust(const UVMEndorsements& endorsements)
+  {
+    for (const auto& uvm_root_of_trust : uvm_roots_of_trust)
+    {
+      if (
+        uvm_root_of_trust.did == endorsements.did &&
+        uvm_root_of_trust.feed == endorsements.feed &&
+        uvm_root_of_trust.svn <= endorsements.svn)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
   namespace cose
   {
     static constexpr auto HEADER_PARAM_ISSUER = "iss";
@@ -311,6 +336,18 @@ namespace ccf
       phdr.feed,
       payload.sevsnpvm_guest_svn);
 
-    return {did, phdr.feed, payload.sevsnpvm_guest_svn};
+    UVMEndorsements end{did, phdr.feed, payload.sevsnpvm_guest_svn};
+
+    if (!matches_uvm_roots_of_trust(end))
+    {
+      throw std::logic_error(fmt::format(
+        "UVM endorsements did {}, feed {}, svn {} "
+        "do not match any of the known UVM roots of trust",
+        end.did,
+        end.feed,
+        end.svn));
+    }
+
+    return end;
   }
 }
