@@ -405,10 +405,12 @@ namespace ccf
           // Note: Node lock is already taken here as this is called back
           // synchronously with the call to pal::generate_quote
 
-          if (
-            qi.format == QuoteFormat::amd_sev_snp_v1 &&
-            !config.attestation.snp_endorsements_servers.empty())
+          if (qi.format == QuoteFormat::amd_sev_snp_v1)
           {
+            CCF_ASSERT_FMT(
+              !config.attestation.snp_endorsements_servers.empty(),
+              "One or more SNP endorsements servers must be specified to fetch "
+              "the collateral for the attestation");
             // On SEV-SNP, fetch endorsements from servers if specified
             quote_endorsements_client =
               std::make_shared<QuoteEndorsementsClient>(
@@ -438,40 +440,6 @@ namespace ccf
             (qi.format == QuoteFormat::oe_sgx_v1 && !qi.endorsements.empty()) ||
               (qi.format != QuoteFormat::oe_sgx_v1 && qi.endorsements.empty()),
             "SGX quote generation should have already fetched endorsements");
-
-          quote_info = qi;
-
-          if (
-            quote_info.format == QuoteFormat::amd_sev_snp_v1 &&
-            config.attestation.environment.report_endorsements.has_value())
-          {
-            // On SEV-SNP, if reports endorsements are passed via
-            // environment, read those
-            pal::snp::ACIReportEndorsements endorsements =
-              nlohmann::json::parse(crypto::raw_from_b64(
-                config.attestation.environment.report_endorsements.value()));
-
-            CCF_ASSERT_FMT(
-              quote_info.endorsements.empty(),
-              "No endorsements should be set by quote generation");
-
-            quote_info.endorsements.insert(
-              quote_info.endorsements.end(),
-              endorsements.vcek_cert.begin(),
-              endorsements.vcek_cert.end());
-            quote_info.endorsements.insert(
-              quote_info.endorsements.end(),
-              endorsements.certificate_chain.begin(),
-              endorsements.certificate_chain.end());
-
-            // Endianness of ACI report endorsements tcbm retrieved from
-            // environment is reversed
-            auto raw_tcb = ds::from_hex(endorsements.tcbm);
-            std::reverse(raw_tcb.begin(), raw_tcb.end());
-            quote_info.endorsed_tcb = ds::to_hex(raw_tcb);
-          }
-
-          launch_node();
         };
 
       pal::PlatformAttestationReportData report_data =
