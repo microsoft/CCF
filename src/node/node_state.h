@@ -440,6 +440,9 @@ namespace ccf
             (qi.format == QuoteFormat::oe_sgx_v1 && !qi.endorsements.empty()) ||
               (qi.format != QuoteFormat::oe_sgx_v1 && qi.endorsements.empty()),
             "SGX quote generation should have already fetched endorsements");
+
+          quote_info = qi;
+          launch_node();
         };
 
       pal::PlatformAttestationReportData report_data =
