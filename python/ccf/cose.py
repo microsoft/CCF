@@ -7,7 +7,7 @@ import sys
 from typing import Optional, Type
 
 import base64
-import cbor2  # type: ignore
+import cbor2
 import json
 from datetime import datetime
 import pycose.headers  # type: ignore
