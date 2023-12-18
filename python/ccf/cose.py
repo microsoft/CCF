@@ -4,7 +4,7 @@
 import argparse
 import sys
 
-from typing import Optional
+from typing import Optional, Type
 
 import base64
 import cbor2  # type: ignore
@@ -12,7 +12,7 @@ import json
 from datetime import datetime
 import pycose.headers  # type: ignore
 from pycose.keys.ec2 import EC2Key  # type: ignore
-from pycose.keys.curves import P256, P384, P521  # type: ignore
+from pycose.keys.curves import P256, P384, P521, CoseCurve  # type: ignore
 from pycose.keys.keyparam import EC2KpCurve, EC2KpX, EC2KpY, EC2KpD  # type: ignore
 from pycose.messages import Sign1Message  # type: ignore
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -51,6 +51,7 @@ def from_cryptography_eckey_obj(ext_key) -> EC2Key:
         priv_nums = None
         pub_nums = ext_key.public_numbers()
 
+    curve: Type[CoseCurve]
     if pub_nums.curve.name == "secp256r1":
         curve = P256
     elif pub_nums.curve.name == "secp384r1":
