@@ -34,9 +34,6 @@
     }
   },
   "attestation": {
-    "environment": {
-      "security_context_directory": "UVM_SECURITY_CONTEXT_DIR"
-    },
     "snp_endorsements_servers": [
       {
         "type": "THIM",
