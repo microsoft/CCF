@@ -108,8 +108,7 @@ def run_to_destruction(args):
                     )
                     raise ValueError(wsm)
                 else:
-                    wsm += 50000  # Grow very quickly, expect to fail on the second iteration
-
+                    wsm += 100000  # Grow very quickly, expect to fail on the second iteration
         except Exception as e:
             timeout = 120
 
