@@ -36,8 +36,8 @@
   "attestation": {
     "snp_endorsements_servers": [
       {
-        "type": "THIM",
-        "url": "169.254.169.254"
+        "type": "Azure",
+        "url": "global.acccache.azure.net"
       }
     ],
     "snp_security_policy_file": "$UVM_SECURITY_CONTEXT_DIR/security-policy-base64",

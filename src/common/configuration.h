@@ -73,8 +73,7 @@ DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation::Environment);
 DECLARE_JSON_OPTIONAL_FIELDS(
   CCFConfig::Attestation::Environment,
   security_policy,
-  uvm_endorsements,
-  report_endorsements);
+  uvm_endorsements);
 
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Attestation);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation);
