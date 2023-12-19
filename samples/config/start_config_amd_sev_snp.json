@@ -40,6 +40,7 @@
         "url": "kdsintf.amd.com"
       }
     ],
-    "snp_security_policy_file": "/path/to/security-policy-base64"
+    "snp_security_policy_file": "/path/to/security-policy-base64",
+    "snp_uvm_endorsements_file": "/path/to/reference-info-base64"
   }
 }

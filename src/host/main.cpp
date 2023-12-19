@@ -559,6 +559,21 @@ int main(int argc, char** argv)
         files::try_slurp_string(security_policy_file);
     }
 
+    if (startup_config.attestation.snp_uvm_endorsements_file.has_value())
+    {
+      auto snp_uvm_endorsements_file =
+        startup_config.attestation.snp_uvm_endorsements_file.value();
+      LOG_DEBUG_FMT(
+        "Resolving snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
+      snp_uvm_endorsements_file =
+        nonstd::expand_envvars_in_path(snp_uvm_endorsements_file);
+      LOG_DEBUG_FMT(
+        "Resolved snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
+
+      startup_config.attestation.environment.uvm_endorsements =
+        files::try_slurp_string(snp_uvm_endorsements_file);
+    }
+
     for (auto endorsement_servers_it =
            startup_config.attestation.snp_endorsements_servers.begin();
          endorsement_servers_it !=

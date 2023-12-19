@@ -620,6 +620,7 @@ class CCFRemote(object):
         follow_redirect=True,
         max_uncommitted_tx_count=0,
         snp_security_policy_file=None,
+        snp_uvm_endorsements_file=None,
         **kwargs,
     ):
         """
@@ -742,6 +743,12 @@ class CCFRemote(object):
                 "$UVM_SECURITY_CONTEXT_DIR/security-policy-base64"
             )
 
+        # Default snp_uvm_endorsements_file if not set
+        if snp_uvm_endorsements_file is None:
+            snp_uvm_endorsements_file = (
+                "$UVM_SECURITY_CONTEXT_DIR/reference-info-base64"
+            )
+
         # Validate consensus timers
         if (
             election_timeout_ms is not None
@@ -803,6 +810,7 @@ class CCFRemote(object):
                 follow_redirect=follow_redirect,
                 max_uncommitted_tx_count=max_uncommitted_tx_count,
                 snp_security_policy_file=snp_security_policy_file,
+                snp_uvm_endorsements_file=snp_uvm_endorsements_file,
                 **kwargs,
             )
 

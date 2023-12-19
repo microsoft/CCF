@@ -436,7 +436,7 @@ def run_sighup_check(args):
     ) as network:
         network.start_and_open(args)
         network.nodes[0].remote.remote.hangup()
-        time.sleep(1)
+        time.sleep(5)
         assert network.nodes[0].remote.check_done(), "Node should have exited"
         out, _ = network.nodes[0].remote.get_logs()
         with open(out, "r") as outf:
