@@ -518,7 +518,7 @@ Timeout(i) ==
         /\ i \in configurations[i][c]
         /\ MaxCommittableIndex(log[i]) >= c
     /\ state' = [state EXCEPT ![i] = Candidate]
-    /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i] + 1]
+    /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i]]
     \* Candidate votes for itself
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
