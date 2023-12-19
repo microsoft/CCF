@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [5.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev11
 
-### Deprecated
+### Removed
 
 - `ccf::EnclaveAttestationProvider` has been removed. It is replaced by `ccf::AttestationProvider`
 
