@@ -18,13 +18,14 @@ Confidential Azure Container Instance (ACI)
 
 .. note:: See `here <https://learn.microsoft.com/en-us/azure/container-instances/container-instances-tutorial-deploy-confidential-containers-cce-arm>`_ for more information on the deployment of confidential containers in Azure.
 
-Azure Confidential ACI provides a security context directory containing the following files. The content of these files are checked against the attestation report on node startup and join, and stored in the ledger for audit and improved serviceability. 
+Azure Confidential ACI provides a security context directory containing the following files.
 
-- ``host-amd-cert-base64``: The certificate chain corresponding to the key (VCEK) used to sign the attestation report, up to the well-known AMD root of trust certificate authority (Base64 encoded). 
 - ``security-policy-base64``: The security policy [#security_policy]_ describing the state and transitions allowed for the container (Base64 encoded). The SHA256 hash of the decoded value should match the attestation report ``host_data``. This value is stored in the :ref:`audit/builtin_maps:``nodes.snp.host_data``` table.
 - ``reference-info-base64``: The COSE Sign1 document containing the measurement [#measurement]_ of the utility VM (UVM) used to launch the container (Base64 encoded). The measurement contained in the document payload should match the report ``measurement``. If set, the value is stored in the :ref:`audit/builtin_maps:``nodes.snp.uvm_endorsements``` table and new nodes must present measurement endorsements from the same issuer (`did:x509`) to be trusted.
 
-The location of the security context directory is passed to the container's startup command as the ``UVM_SECURITY_CONTEXT_DIR`` environment variable. The name of an alternative environment variable may be specified as the value of the ``--snp-security-context-dir-var`` CLI argument, if an alternative trust root is needed.
+The location of the security context directory is passed to the container's startup command as the ``UVM_SECURITY_CONTEXT_DIR`` environment variable. CCF can be configured to fetch the security policy and UVM endorsements from the security context directory by setting the ``snp_security_policy_file`` and ``snp_uvm_endorsements_file`` configuration options, respectively.
+
+AMD endorsements must be fetched, preferably from the THIM service, but configuring the Azure cache or the AMD server is also possible.
 
 .. tip:: See :ccf_repo:`samples/config/start_config_aci_sev_snp.json` for a sample node configuration for ACI deployments.
 
@@ -40,8 +41,6 @@ Confidential AKS provides a security context directory containing the following 
 The security policy must be provided by the operator, and will be picked up by CCF on startup if is named ``security-policy-base64`` and located in the security context directory. The SHA256 hash of the decoded value should match the attestation report ``host_data``. This value is stored in the :ref:`audit/builtin_maps:``nodes.snp.host_data``` table.
 
 AMD endorsements must be fetched, preferably from the THIM service, but configuring the Azure cache or the AMD server is also possible.
-
-The location of the security context directory is passed to the container's startup command as the ``UVM_SECURITY_CONTEXT_DIR`` environment variable. The name of an alternative environment variable may be specified as the value of the ``--snp-security-context-dir-var`` CLI argument, if an alternative trust root is needed.
 
 .. tip:: See :ccf_repo:`samples/config/start_config_aks_sev_snp.json` for a sample node configuration for Confidential AKS deployments.
 

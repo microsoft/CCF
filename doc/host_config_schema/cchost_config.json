@@ -444,18 +444,6 @@
     "attestation": {
       "type": "object",
       "properties": {
-        "environment": {
-          "type": "object",
-          "properties": {
-            "security_context_directory": {
-              "type": ["string", "null"],
-              "description": "DEPRECATED: Replaced by --snp-security-context-dir-var CLI argument. Name of environment variable (e.g. ``UVM_SECURITY_CONTEXT_DIR``) specifying the directory containing the security context files (i.e. ``host-amd-cert-base64``, ``security-policy-base64`` and ``reference-info-base64``)."
-            }
-          },
-          "description": "Environment variables required to provide best auditability and serviceability for Azure Container Instance deployments (SEV-SNP only)",
-          "required": [],
-          "additionalProperties": false
-        },
         "snp_security_policy_file": {
           "type": ["string", "null"],
           "description": "Path to file containing the security policy (SEV-SNP only), can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR"

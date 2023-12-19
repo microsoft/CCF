@@ -124,15 +124,6 @@ int main(int argc, char** argv)
     enclave_file_path,
     "Path to enclave application (security critical)");
 
-  std::string snp_security_context_dir_var = "UVM_SECURITY_CONTEXT_DIR";
-  app
-    .add_option(
-      "--snp-security-context-dir-var",
-      snp_security_context_dir_var,
-      "Name of environment variable specifying the directory containing the "
-      "SNP UVM security context files (security critical)")
-    ->capture_default_str();
-
   try
   {
     app.parse(argc, argv);
@@ -509,40 +500,6 @@ int main(int argc, char** argv)
     StartupConfig startup_config(config);
 
     startup_config.snapshot_tx_interval = config.snapshots.tx_count;
-
-    if (config.attestation.environment.security_context_directory.has_value())
-    {
-      LOG_FAIL_FMT(
-        "DEPRECATED: security_context_dir was specified in config file! This "
-        "should be removed from the config, and passed directly to the CLI. "
-        "Note that the CLI provides a default value, which may be sufficient");
-
-      snp_security_context_dir_var =
-        config.attestation.environment.security_context_directory.value();
-    }
-
-    // This will be deprecated in favour of explicit configuration entries,
-    // such as snp_security_policy_file and snp_endorsements_servers
-    if (config.enclave.platform == host::EnclavePlatform::SNP)
-    {
-      auto dir = read_required_environment_variable(
-        snp_security_context_dir_var, "security context directory");
-
-      constexpr auto security_policy_filename = "security-policy-base64";
-      startup_config.attestation.environment.security_policy =
-        files::try_slurp_string(
-          fs::path(dir) / fs::path(security_policy_filename));
-
-      constexpr auto uvm_endorsements_filename = "reference-info-base64";
-      startup_config.attestation.environment.uvm_endorsements =
-        files::try_slurp_string(
-          fs::path(dir) / fs::path(uvm_endorsements_filename));
-
-      constexpr auto report_endorsements_filename = "host-amd-cert-base64";
-      startup_config.attestation.environment.report_endorsements =
-        files::try_slurp_string(
-          fs::path(dir) / fs::path(report_endorsements_filename));
-    }
 
     if (startup_config.attestation.snp_security_policy_file.has_value())
     {
