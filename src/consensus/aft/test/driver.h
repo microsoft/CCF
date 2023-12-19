@@ -219,13 +219,12 @@ public:
                     << std::endl;
   }
 
-  void create_start_node(const size_t lineno)
+  void create_start_node(const std::string& start_node_id, const size_t lineno)
   {
     if (!_nodes.empty())
     {
       throw std::logic_error("Start node already exists");
     }
-    const std::string start_node_id = "0";
     kv::Configuration::Nodes configuration;
     add_node(start_node_id);
     configuration.try_emplace(start_node_id);
@@ -240,7 +239,7 @@ public:
 
   void trust_nodes(
     const std::string& term,
-    std::vector<std::string> node_ids,
+    const std::vector<std::string>& node_ids,
     const size_t lineno)
   {
     for (const auto& node_id : node_ids)
