@@ -865,11 +865,6 @@ class CCFRemote(object):
                 "--enclave-file",
                 self.enclave_file,
             ]
-            if snp_security_context_directory_envvar is not None:
-                cmd += [
-                    "--snp-security-context-dir-var",
-                    snp_security_context_directory_envvar,
-                ]
 
         if start_type == StartType.start:
             members_info = kwargs.get("members_info")
