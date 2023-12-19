@@ -1,6 +1,6 @@
 # Create a Start Node, commit initial transaction and signature
 # Append transaction to the node's log, observe that they are committed
-start_node
+start_node,0
 assert_is_primary,0
 emit_signature,2
 
