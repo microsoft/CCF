@@ -37,5 +37,10 @@ def step_to_action(pre_state, action, post_state):
 
 if __name__ == "__main__":
     with open(sys.argv[1]) as trace:
-        for step in json.load(trace)["action"]:
+        steps = json.load(trace)["action"]
+        initial_state = steps[0][0][1]
+        initial_node, = [node for node, log in initial_state["log"].items() if log]
+        print(f"start_node,{initial_node}")
+        print(f"emit_signature,2")
+        for step in steps:
             print(step_to_action(*step))
