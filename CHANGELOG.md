@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0-dev11]
+
+[5.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev11
+
+### Removed
+
+- `ccf::historical::adapter_v2` is removed, replaced by `ccf::historical::adapter_v3` first introduced in 2.0.0.
+
 ## [5.0.0-dev10]
 
 [5.0.0-dev10]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev10
