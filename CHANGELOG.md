@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - `ccf::historical::adapter_v2` is removed, replaced by `ccf::historical::adapter_v3` first introduced in 2.0.0.
+- `ccf::EnclaveAttestationProvider` has been removed. It is replaced by `ccf::AttestationProvider`
 
 ## [5.0.0-dev10]
 
