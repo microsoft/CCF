@@ -82,15 +82,6 @@ class DefaultLiner(Liner):
                 ]
             )
         )
-        if self.write_views:
-            print(
-                " ".join(
-                    [
-                        f"Start of view 14: {cs(self.view_to_char(14), self._fg_colour, 'Grey')}"
-                    ]
-                )
-            )
-        print()
 
 
 def try_get_service_info(public_tables):
