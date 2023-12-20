@@ -675,8 +675,6 @@ AdvanceCommitIndex(i) ==
         \* See find_highest_possible_committable_index in raft.h
         new_index == SelectInSubSeq(log[i], commitIndex[i]+1, Len(log[i]),
             LAMBDA e : e.contentType = TypeSignature /\ e.term = currentTerm[i])
-        new_config_index == LastConfigurationToIndex(i, new_index)
-        new_configurations == RestrictDomain(configurations[i], LAMBDA c : c >= new_config_index)
         IN
         /\  \* Select those configs that need to have a quorum to agree on this leader
             \A config \in {c \in DOMAIN(configurations[i]) : new_index >= c } :
@@ -693,9 +691,12 @@ AdvanceCommitIndex(i) ==
         /\ IF /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ new_index >= NextConfigurationIndex(i)
            THEN
+              LET new_configurations == RestrictDomain(configurations[i], 
+                                            LAMBDA c : c >= LastConfigurationToIndex(i, new_index))
+              IN
               /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
               \* Retire if i is not in active configuration anymore
-              /\ IF i \notin configurations[i][Min(DOMAIN new_configurations)]
+              /\ IF i \notin configurations[i][Min(DOMAIN configurations'[i])]
                  THEN \E j \in PlausibleSucessorNodes(i) :
                     /\ state' = [state EXCEPT ![i] = RetiredLeader]
                     /\ LET msg == [type          |-> ProposeVoteRequest,
