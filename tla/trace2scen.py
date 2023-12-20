@@ -34,16 +34,27 @@ MAP = {
     "AppendEntriesAlreadyDone": lambda _, __, ___: ["# Noop"],
 }
 
-def asserts(post):
+def post_commit(post):
     return [["assert_commit_idx", node, str(idx)] for node, idx in post["commitIndex"].items()]
+
+def post_state(post):
+    entries = []
+    for node, state in post["state"].items():
+        if state == "Leader":
+            entries.append(["assert_is_primary", node])
+        elif state == "Follower":
+            entries.append(["assert_is_backup", node])
+        elif state == "Candidate":
+            entries.append(["assert_is_candidate", node])
+    return entries
 
 def step_to_action(pre_state, action, post_state):
     return os.linesep.join([
         comment(action),
         ','.join(MAP[action['name']](action['context'], pre_state[1], post_state[1]))])
 
-def asserts_for_step(pre_state, action, post_state):
-    return os.linesep.join([','.join(assertion) for assertion in asserts(post_state[1])])
+def asserts(pre_state, action, post_state, assert_gen):
+    return os.linesep.join([','.join(assertion) for assertion in assert_gen(post_state[1])])
 
 if __name__ == "__main__":
     with open(sys.argv[1]) as trace:
@@ -54,4 +65,5 @@ if __name__ == "__main__":
         print(f"emit_signature,2")
         for step in steps:
             print(step_to_action(*step))
-        print(asserts_for_step(*steps[-1]))
+            print(asserts(*step, post_state))
+        print(asserts(*steps[-1], post_commit))
