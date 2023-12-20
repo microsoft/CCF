@@ -279,9 +279,7 @@ public:
 
       if (_nodes.find(node_id) == _nodes.end())
       {
-        throw std::runtime_error(fmt::format(
-          "Node {} does not exist yet. Use \"create_new_node, <node_id>\"",
-          node_id));
+        create_new_node(node_id_s);
       }
 
       configuration.try_emplace(node_id);

@@ -11,26 +11,27 @@ def comment(action):
 def term(ctx, pre):
     return str(pre["currentTerm"][ctx['i']])
 
+def new_config(ctx, post):
+    return sorted(post["configurations"][ctx["i"]].items())[-1][1]
+
 MAP = {
-    "ClientRequest": lambda ctx, pre: ["replicate", term(ctx, pre), "42"],
-    "MCClientRequest": lambda ctx, pre: ["replicate", term(ctx, pre), "42"],
-    "CheckQuorum": lambda ctx, pre: ["periodic_one", ctx['i'], "110"],
-    "Timeout": lambda ctx, pre: ["periodic_one",  ctx['i'], "110"],
-    "MCTimeout": lambda ctx, pre: ["periodic_one",  ctx['i'], "110"],
-    "RequestVote": lambda _, __: ["# Noop"],
-    "AppendEntries": lambda _, __: ["dispatch_all"],
-    "BecomeLeader": lambda _, __: ["# Noop"],
-    "SignCommittableMessages": lambda ctx, pre: ["emit_signature", term(ctx, pre)],
-    "MCSignCommittableMessages": lambda ctx, pre: ["emit_signature", term(ctx, pre)],
-    "ChangeConfigurationInt": lambda ctx, pre: ["replicate_new_configuration", term(ctx, pre), *ctx['newConfiguration']],
-    "MCChangeConfigurationInt": lambda ctx, pre: ["replicate_new_configuration", term(ctx, pre), *ctx['newConfiguration']],
-    "ChangeConfiguration": lambda _, __: ["# Noop"],
-    "AdvanceCommitIndex": lambda _, __: ["# Noop"],
-    "HandleRequestVoteRequest": lambda _, __: ["dispatch_all"],
-    "HandleRequestVoteResponse": lambda _, __: ["# Noop"],
-    "RejectAppendEntriesRequest": lambda _, __: ["# Noop"],
-    "ReturnToFollowerState": lambda _, __: ["# Noop"],
-    "AppendEntriesAlreadyDone": lambda _, __: ["# Noop"],
+    "ClientRequest": lambda ctx, pre, post: ["replicate", term(ctx, pre), "42"],
+    "MCClientRequest": lambda ctx, pre, post: ["replicate", term(ctx, pre), "42"],
+    "CheckQuorum": lambda ctx, pre, post: ["periodic_one", ctx['i'], "110"],
+    "Timeout": lambda ctx, pre, post: ["periodic_one",  ctx['i'], "110"],
+    "MCTimeout": lambda ctx, pre, post: ["periodic_one",  ctx['i'], "110"],
+    "RequestVote": lambda _, __, ___: ["# Noop"],
+    "AppendEntries": lambda _, __, ___: ["dispatch_all"],
+    "BecomeLeader": lambda _, __, ___: ["# Noop"],
+    "SignCommittableMessages": lambda ctx, pre, post: ["emit_signature", term(ctx, pre)],
+    "MCSignCommittableMessages": lambda ctx, pre, post: ["emit_signature", term(ctx, pre)],
+    "ChangeConfiguration": lambda ctx, pre, post: ["replicate_new_configuration", term(ctx, pre), *new_config(ctx, post)],
+    "AdvanceCommitIndex": lambda _, __, ___: ["# Noop"],
+    "HandleRequestVoteRequest": lambda _, __, ___: ["dispatch_all"],
+    "HandleRequestVoteResponse": lambda _, __, ___: ["# Noop"],
+    "RejectAppendEntriesRequest": lambda _, __, ___: ["# Noop"],
+    "ReturnToFollowerState": lambda _, __, ___: ["# Noop"],
+    "AppendEntriesAlreadyDone": lambda _, __, ___: ["# Noop"],
 }
 
 def asserts(post):
@@ -40,7 +41,7 @@ def asserts(post):
 def step_to_action(pre_state, action, post_state):
     return os.linesep.join([
         comment(action),
-        ','.join(MAP[action['name']](action['context'], pre_state[1]))] +
+        ','.join(MAP[action['name']](action['context'], pre_state[1], post_state[1]))] +
         [','.join(assertion) for assertion in asserts(post_state[1])]
         )
 
