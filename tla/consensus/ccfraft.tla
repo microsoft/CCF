@@ -1142,6 +1142,7 @@ ElectionSafetyInv ==
 ----
 \* Every (index, term) pair determines a log prefix.
 \* From page 8 of the Raft paper: "If two logs contain an entry with the same index and term, then the logs are identical in all preceding entries."
+LogMatchingInv ==
     \A i, j \in Servers : i /= j =>
         \A n \in 1..min(Len(log[i]), Len(log[j])) :
             log[i][n].term = log[j][n].term =>
