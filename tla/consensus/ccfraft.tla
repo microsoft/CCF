@@ -675,11 +675,6 @@ AdvanceCommitIndex(i) ==
         \* See find_highest_possible_committable_index in raft.h
         new_index == SelectInSubSeq(log[i], commitIndex[i]+1, Len(log[i]),
             LAMBDA e : e.contentType = TypeSignature /\ e.term = currentTerm[i])
-        new_log ==
-            IF new_index > 1 THEN
-               [ j \in 1..new_index |-> log[i][j] ]
-            ELSE
-                  << >>
         new_config_index == LastConfigurationToIndex(i, new_index)
         new_configurations == RestrictDomain(configurations[i], LAMBDA c : c >= new_config_index)
         IN
