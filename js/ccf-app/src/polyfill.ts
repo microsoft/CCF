@@ -252,19 +252,33 @@ class CCFPolyfill implements CCF {
       return ecdsaKeyPair;
     },
     generateEddsaKeyPair(curve: string): CryptoKeyPair {
-      // `type` is always "ed25519" because currently only "curve25519" is supported for `curve`.
-      const type = "ed25519";
-      const ecdsaKeyPair = jscrypto.generateKeyPairSync(type, {
-        publicKeyEncoding: {
-          type: "spki",
-          format: "pem",
-        },
-        privateKeyEncoding: {
-          type: "pkcs8",
-          format: "pem",
-        },
-      });
-      return ecdsaKeyPair;
+      if (curve === "curve25519") {
+        return jscrypto.generateKeyPairSync("ed25519", {
+          publicKeyEncoding: {
+            type: "spki",
+            format: "pem",
+          },
+          privateKeyEncoding: {
+            type: "pkcs8",
+            format: "pem",
+          },
+        });
+      } else {
+        if (curve !== "x25519")
+          throw new Error(
+            "Unsupported curve for EdDSA key pair generation: " + curve,
+          );
+        return jscrypto.generateKeyPairSync("x25519", {
+          publicKeyEncoding: {
+            type: "spki",
+            format: "pem",
+          },
+          privateKeyEncoding: {
+            type: "pkcs8",
+            format: "pem",
+          },
+        });
+      }
     },
     wrapKey(
       key: ArrayBuffer,
@@ -309,6 +323,58 @@ class CCFPolyfill implements CCF {
         );
       } else {
         throw new Error("unsupported wrapAlgo.name");
+      }
+    },
+    unwrapKey(
+      wrappedKey: ArrayBuffer,
+      unwrappingKey: ArrayBuffer,
+      unwrapAlgo: WrapAlgoParams,
+    ): ArrayBuffer {
+      if (unwrapAlgo.name == "RSA-OAEP") {
+        return nodeBufToArrBuf(
+          jscrypto.privateDecrypt(
+            {
+              key: Buffer.from(unwrappingKey),
+              oaepHash: "sha256",
+              padding: jscrypto.constants.RSA_PKCS1_OAEP_PADDING,
+            },
+            new Uint8Array(wrappedKey),
+          ),
+        );
+      } else if (unwrapAlgo.name == "AES-KWP") {
+        const iv = Buffer.from("A65959A6", "hex"); // defined in RFC 5649
+        const decipher = jscrypto.createDecipheriv(
+          "id-aes256-wrap-pad",
+          new Uint8Array(unwrappingKey),
+          iv,
+        );
+        return nodeBufToArrBuf(
+          Buffer.concat([
+            decipher.update(new Uint8Array(wrappedKey)),
+            decipher.final(),
+          ]),
+        );
+      } else if (unwrapAlgo.name == "RSA-OAEP-AES-KWP") {
+        const keyInfo = jscrypto.createPrivateKey(Buffer.from(unwrappingKey));
+        // asymmetricKeyDetails added in Node.js 15.7.0, we're at 16.
+        console.log(
+          `Modulus length: `,
+          keyInfo?.asymmetricKeyDetails?.modulusLength,
+        );
+        const modulusLengthInBytes =
+          (keyInfo?.asymmetricKeyDetails?.modulusLength || 2048) / 8;
+
+        const wrap1 = wrappedKey.slice(0, modulusLengthInBytes);
+        const wrap2 = wrappedKey.slice(modulusLengthInBytes);
+        const aesKey = this.unwrapKey(wrap1, unwrappingKey, {
+          name: "RSA-OAEP",
+          label: unwrapAlgo.label,
+        });
+        return this.unwrapKey(wrap2, aesKey, {
+          name: "AES-KWP",
+        });
+      } else {
+        throw new Error("unsupported unwrapAlgo.name");
       }
     },
     digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer {
@@ -531,6 +597,14 @@ class CCFPolyfill implements CCF {
     parameters: WrapAlgoParams,
   ): ArrayBuffer {
     return this.crypto.wrapKey(key, wrappingKey, parameters);
+  }
+
+  unwrapKey(
+    key: ArrayBuffer,
+    wrappingKey: ArrayBuffer,
+    parameters: WrapAlgoParams,
+  ): ArrayBuffer {
+    return this.crypto.unwrapKey(key, wrappingKey, parameters);
   }
 
   digest(algorithm: DigestAlgorithm, data: ArrayBuffer): ArrayBuffer {

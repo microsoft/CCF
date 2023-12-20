@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0-dev11]
+
+[5.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev11
+
+### Removed
+
+- `ccf::historical::adapter_v2` is removed, replaced by `ccf::historical::adapter_v3` first introduced in 2.0.0.
+- `ccf::EnclaveAttestationProvider` has been removed. It is replaced by `ccf::AttestationProvider`
+- The `attestation.environment.security_context_directory` configuration entry and `--snp-security-context-dir-var` CLI option have been removed. SNP collateral must now be provided through the `snp_security_policy_file`, `snp_uvm_endorsements_file` and `snp_endorsement_servers` configuration values. See [documentation](https://microsoft.github.io/CCF/main/operations/platforms/snp.html) for details and platform-specific configuration samples.
+
+## [5.0.0-dev10]
+
+[5.0.0-dev10]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev10
+
+- The `url` field in `snp_endorsements_servers` can now contain environment variables that will be resolved at startup, such as "$Fabric_NodeIPOrFQDN:2377" (#5862).
+- Add a new `snp_security_policy_file` configuration value under `attestation`, superseding the lookup from `$UVM_SECURITY_CONTEXT_DIR`. The value can contain environment variables, for example: `"snp_security_policy_file": "$UVM_SECURITY_CONTEXT_DIR/security-policy-base64"`.
+- Add a new `snp_uvm_endorsements_file` configuration value under `attestation`, superseding the lookup from `$UVM_SECURITY_CONTEXT_DIR`. The value can contain environment variables, for example: `"snp_uvm_endorsements_file": "$UVM_SECURITY_CONTEXT_DIR/reference-info-base64"`. This value can come from an untrusted location, like `snp_security_policy_file` and AMD endorsements (fetched from `snp_endorsements_servers`), because the CCF code contains pre-defined roots of trust.
+
+## [5.0.0-dev9]
+
+[5.0.0-dev9]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev9
+
+- `snp_endorsements_servers` now supports a `THIM` type, which is the recommended value when running in [Confidential AKS preview](https://learn.microsoft.com/en-us/azure/aks/confidential-containers-overview).
+
+## [5.0.0-dev8]
+
+[5.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev8
+
+- `ccf.crypto.generateEddsaKeyPair`, `pubEddsaPemToJwk` and `eddsaPemToJwk` now support `x25519` as well as `curve25519` (#5846).
+- `POST /recovery/members/{memberId}:recover` is now authenticated by COSE Sign1, making it consistent with the other `POST` endpoints in governance, and avoiding a potential denial of service where un-authenticated and un-authorised clients could submit invalid shares repeatedly. The `submit_recovery_share.sh` script has been amended accordingly, and now takes a `--member-id-privk` and `--member-id-cert` (#5821).
+- CCF can now fetch SEV-SNP attestations from kernel 6.0 and above (#5848).
+
+## [5.0.0-dev7]
+
+[5.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev7
+
+- `POST /recovery/members/{memberId}:recover` is now authenticated by COSE Sign1, making it consistent with the other `POST` endpoints in governance, and avoiding a potential denial of service where un-authenticated and un-authorised clients could submit invalid shares repeatedly. The `submit_recovery_share.sh` script has been amended accordingly, and now takes a `--member-id-privk` and `--member-id-cert` (#5821).
+
+## [5.0.0-dev6]
+
+[5.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev6
+
+- Lifted parser size limits on forwarded request from default values to more permissive ones. Note that the limits set out on the interface of the inbound node still apply (#5803).
+- [ccf.crypto.unwrapKey()](https://microsoft.github.io/CCF/main/js/ccf-app/functions/crypto.unwrapKey.html) has been added to the JS API (#5792).
+
 ## [5.0.0-dev5]
 
 [5.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev5

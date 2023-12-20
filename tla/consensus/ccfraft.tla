@@ -48,21 +48,19 @@ CONSTANTS
     \*          /\ state[s] = Leader
     \*          /\  CurrentConfiguration(s) \ CurrentConfiguration(s)' = {s}
     \*          => state'[s] = RetiredLeader]_state
+    \* TODO: this should be split into a separate membership_state, as in
+    \* the implementation.
     RetiredLeader,
-    \* The node has passed attestation checks, but is waiting for member confirmation, 
-    \* and just isn't part of any configurations at all, nor has a communication channel
-    \* with other nodes in the network.
-    \*
-    \* More formally:
-    \*   \A i \in Servers : state[i] = Pending => i \notin { GetServerSet(s) : s \in Servers}
-    Pending
+    \* Initial state for a joiner node, until it has received a first message
+    \* from another node.
+    None
 
 States == {
     Follower,
     Candidate,
     Leader,
     RetiredLeader,
-    Pending
+    None
     }
 
 \* Message types:
@@ -71,7 +69,6 @@ CONSTANTS
     RequestVoteResponse,
     AppendEntriesRequest,
     AppendEntriesResponse,
-    NotifyCommitMessage,
     ProposeVoteRequest
 
 \* CCF: Content types (Normal entry or a signature that signs
@@ -81,25 +78,12 @@ CONSTANTS
     TypeSignature,
     TypeReconfiguration
 
-CONSTANTS
-    NodeOne,
-    NodeTwo,
-    NodeThree,
-    NodeFour,
-    NodeFive
-
-AllServers == {
-    NodeOne,
-    NodeTwo,
-    NodeThree,
-    NodeFour,
-    NodeFive
-}
-
 \* Set of nodes for this model
 CONSTANTS Servers
-ASSUME Servers /= {}
-ASSUME Servers \subseteq AllServers
+ASSUME Servers /= {} /\ IsFiniteSet(Servers)
+
+\* Initial term used by the Start node in the network
+StartTerm == 2
 
 Nil ==
   (*************************************************************************)
@@ -130,7 +114,6 @@ ConfigurationsTypeInv ==
     \A i \in Servers : 
         /\ \A c \in DOMAIN configurations[i] :
             configurations[i][c] \subseteq Servers
-        /\ DOMAIN configurations[i] # {}
 
 \* The set of servers that have been removed from configurations.  The implementation
 \* assumes that a server refrains from rejoining a configuration if it has been removed
@@ -198,10 +181,6 @@ RequestVoteResponseTypeOK(m) ==
     /\ m.type = RequestVoteResponse
     /\ m.voteGranted \in BOOLEAN
 
-NotifyCommitMessageTypeOK(m) ==
-    /\ m.type = NotifyCommitMessage
-    /\ m.commitIndex \in Nat
-
 ProposeVoteRequestTypeOK(m) ==
     /\ m.type = ProposeVoteRequest
     /\ m.term \in Nat
@@ -216,28 +195,14 @@ MessagesTypeInv ==
             \/ AppendEntriesResponseTypeOK(m)
             \/ RequestVoteRequestTypeOK(m)
             \/ RequestVoteResponseTypeOK(m)
-            \/ NotifyCommitMessageTypeOK(m)
             \/ ProposeVoteRequestTypeOK(m)
 
-\* CCF: After reconfiguration, a RetiredLeader leader may need to notify servers
-\* of the current commit level to ensure that no deadlock is reached through
-\* leaving the network after retirement (as that would lead to endless leader
-\* re-elects and drop-outs until f is reached and network fails).
-VARIABLE commitsNotified
-
-CommitsNotifiedTypeInv ==
-    \A i \in Servers :
-        /\ commitsNotified[i][1] \in Nat
-        /\ commitsNotified[i][2] \in Nat
-
 messageVars == <<
-    messages, 
-    commitsNotified
+    messages
 >>
 
 MessageVarsTypeInv ==
     /\ MessagesTypeInv
-    /\ CommitsNotifiedTypeInv
 
 ------------------------------------------------------------------------------
 \* The following variables are all per server (functions with domain Servers).
@@ -452,7 +417,8 @@ ConfigurationsToIndex(server, index) ==
 \* Index of the last reconfiguration up to (and including) the given index,
 \* assuming the given index is after the commit index
 LastConfigurationToIndex(server, index) ==
-    Max({c \in DOMAIN configurations[server] : c <= index})
+    LET configsBeforeIndex == {c \in DOMAIN configurations[server] : c <= index}
+    IN IF configsBeforeIndex = {} THEN 0 ELSE Max(configsBeforeIndex)
 
 \* The prefix of the log of server i that has been committed
 Committed(i) ==
@@ -493,28 +459,36 @@ PlausibleSucessorNodes(i) ==
         highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
     IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)}
 
+StartLog(startNode, _ignored) ==
+    << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNode],
+       [term |-> StartTerm, contentType |-> TypeSignature] >>
+
+InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
+    /\ reconfigurationCount = 0
+    /\ removedFromConfiguration = {}
+    /\ committableIndices  = [i \in Servers |-> {}]
+    /\ votedFor    = [i \in Servers |-> Nil]
+    /\ currentTerm = [i \in Servers |-> IF i \in startNodes THEN StartTerm ELSE 0]
+    /\ \E sn \in startNodes:
+        \* We make the following assumption about logPrefix, whose violation would violate SignatureInv and LogConfigurationConsistentInv.
+        \* Alternative, we could have conjoined this formula to Init, but this would have caused TLC to generate no initial states on a
+        \* bogus logPrefix.
+        \* <<[term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNodes], 
+        \*   [term |-> StartTerm, contentType |-> TypeSignature]>> \in Suffixes(logPrefix({sn}, startNodes))
+        /\ log         = [i \in Servers |-> IF i \in startNodes THEN logPrefix({sn}, startNodes) ELSE << >>]
+        /\ state       = [i \in Servers |-> IF i = sn THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
+        /\ commitIndex = [i \in Servers |-> IF i \in startNodes THEN Len(logPrefix({sn}, startNodes)) ELSE 0]
+    /\ configurations = [i \in Servers |-> IF i \in startNodes  THEN (Len(log[i])-1 :> startNodes) ELSE << >>]
+    
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
 
 InitReconfigurationVars ==
-    /\ reconfigurationCount = 0
-    /\ removedFromConfiguration = {}
-    \* Note that CCF has a bootstrapping procedure to start a new network and to join new nodes to the network (see 
-    \* https://microsoft.github.io/CCF/main/operations/start_network.html). In both cases, a node has the current (see 
-    \* https://microsoft.github.io/CCF/main/operations/ledger_snapshot.html#join-or-recover-from-snapshot) or some stale configuration
-    \* such as the initial configuration. A node's configuration is *never* "empty", i.e., the equivalent of configuration[node] = {} here. 
-    \* For simplicity, the set of servers/nodes all have the same initial configuration at startup.
-    /\ \E s \in Servers:
-        configurations = [i \in Servers |-> 0 :> {s} ]
+    \E startNode \in Servers:
+        InitLogConfigServerVars({startNode}, StartLog)
 
 InitMessagesVars ==
     /\ Network!InitMessageVar
-    /\ commitsNotified = [i \in Servers |-> <<0,0>>] \* i.e., <<index, times of notification>>
-
-InitServerVars ==
-    /\ currentTerm = [i \in Servers |-> 0]
-    /\ state       = [i \in Servers |-> IF i \in configurations[i][0] THEN Follower ELSE Pending]
-    /\ votedFor    = [i \in Servers |-> Nil]
 
 InitCandidateVars ==
     /\ votesGranted   = [i \in Servers |-> {}]
@@ -526,18 +500,11 @@ InitLeaderVars ==
     /\ nextIndex  = [i \in Servers |-> [j \in Servers |-> 1]]
     /\ matchIndex = [i \in Servers |-> [j \in Servers |-> 0]]
 
-InitLogVars ==
-    /\ log          = [i \in Servers |-> << >>]
-    /\ commitIndex  = [i \in Servers |-> 0]
-    /\ committableIndices  = [i \in Servers |-> {}]
-
 Init ==
     /\ InitReconfigurationVars
     /\ InitMessagesVars
-    /\ InitServerVars
     /\ InitCandidateVars
     /\ InitLeaderVars
-    /\ InitLogVars
 
 ------------------------------------------------------------------------------
 \* Define state transitions
@@ -576,7 +543,7 @@ RequestVote(i,j) ==
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
     /\ Send(msg)
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, votesGranted, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, votesGranted, leaderVars, logVars>>
 
 \* Leader i sends j an AppendEntries request
 AppendEntries(i, j) ==
@@ -588,10 +555,10 @@ AppendEntries(i, j) ==
     \* that index makes no difference.
     \* /\ IsInServerSetForIndex(j, i, nextIndex[i][j])
     /\ LET prevLogIndex == nextIndex[i][j] - 1
-           prevLogTerm == IF prevLogIndex > 0 /\ prevLogIndex <= Len(log[i]) THEN
+           prevLogTerm == IF prevLogIndex \in DOMAIN log[i] THEN
                               log[i][prevLogIndex].term
                           ELSE
-                              0
+                              StartTerm
            \* Send a number of entries (constrained by the end of the log).
            lastEntry(idx) == min(Len(log[i]), idx)
            index == nextIndex[i][j]
@@ -611,7 +578,7 @@ AppendEntries(i, j) ==
             \* Record the most recent index we have sent to this node.
             \* (see https://github.com/microsoft/CCF/blob/9fbde45bf5ab856ca7bcf655e8811dc7baf1e8a3/src/consensus/aft/raft.h#L935-L936)
             /\ nextIndex' = [nextIndex EXCEPT ![i][j] = @ + Len(m.entries)]
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, matchIndex, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, matchIndex, logVars>>
 
 \* Candidate i transitions to leader.
 BecomeLeader(i) ==
@@ -685,7 +652,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         newLog == Append(log[i], entry)
         IN
         /\ log' = [log EXCEPT ![i] = newLog]
-        /\ configurations' = [configurations EXCEPT ![i] = @ @@ Len(log[i]) + 1 :> newConfiguration]
+        /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars,
                     leaderVars, commitIndex, committableIndices>>
 
@@ -749,27 +716,7 @@ AdvanceCommitIndex(i) ==
                  ELSE UNCHANGED <<messages, serverVars, reconfigurationCount, removedFromConfiguration>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, serverVars, reconfigurationVars>>
-    /\ UNCHANGED <<commitsNotified, candidateVars, leaderVars, log>>
-
-\* CCF: RetiredLeader server i notifies the current commit level to server j
-\*  This allows to retire gracefully instead of deadlocking the system through removing itself from the network.
-NotifyCommit(i,j) ==
-    \* Only RetiredLeader servers send these commit messages
-    /\ state[i] = RetiredLeader
-    \* Only send notifications of commit to servers in the server set
-    /\ IsInServerSetForIndex(j, i, commitIndex[i])
-    /\ commitsNotified[i][1] < commitIndex[i]
-    /\ LET new_notified == IF commitsNotified[i][1] = commitIndex[i]
-                           THEN <<commitsNotified[i][1], commitsNotified[i][2] + 1>>
-                           ELSE <<commitIndex[i], 1>>
-       IN  commitsNotified' = [commitsNotified EXCEPT ![i] = new_notified]
-    /\ LET msg == [type          |-> NotifyCommitMessage,
-                   commitIndex   |-> commitIndex[i],
-                   term          |-> currentTerm[i],
-                   source        |-> i,
-                   dest          |-> j]
-       IN Send(msg)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars >>
+    /\ UNCHANGED <<candidateVars, leaderVars, log>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
@@ -801,7 +748,7 @@ HandleRequestVoteRequest(i, j, m) ==
                  source      |-> i,
                  dest        |-> j],
                  m)
-       /\ UNCHANGED <<reconfigurationVars, commitsNotified, state, currentTerm, candidateVars, leaderVars, logVars>>
+       /\ UNCHANGED <<reconfigurationVars, state, currentTerm, candidateVars, leaderVars, logVars>>
 
 \* Server i receives a RequestVote response from server j with
 \* m.term = currentTerm[i].
@@ -814,7 +761,7 @@ HandleRequestVoteResponse(i, j, m) ==
        \/ /\ ~m.voteGranted
           /\ UNCHANGED votesGranted
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, votedFor, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, votedFor, leaderVars, logVars>>
 
 \* Server i receives a RequestVote request from server j with
 \* m.term < currentTerm[i].
@@ -831,10 +778,10 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
        \/ /\ m.term >= currentTerm[i]
           /\ state[i] = Follower
           /\ ~logOk
-          /\ LET prevTerm == IF m.prevLogIndex = 0 THEN 0
-                             ELSE IF m.prevLogIndex > Len(log[i]) THEN 0 ELSE log[i][m.prevLogIndex].term
+          /\ LET prevTerm == IF m.prevLogIndex = 0 THEN StartTerm
+                             ELSE IF m.prevLogIndex > Len(log[i]) THEN 0 ELSE log[i][Len(log[i])].term
              IN /\ m.prevLogTerm # prevTerm
-                /\ \/ /\ prevTerm = 0
+                /\ \/ /\ prevTerm = StartTerm
                       /\ Reply([type        |-> AppendEntriesResponse,
                              success        |-> FALSE,
                              term           |-> currentTerm[i],
@@ -842,22 +789,22 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                              source         |-> i,
                              dest           |-> j],
                              m)
-                   \/ /\ prevTerm # 0
+                   \/ /\ prevTerm # StartTerm
                       /\ LET lli == FindHighestPossibleMatch(log[i], m.prevLogIndex, m.term)
                          IN Reply([type        |-> AppendEntriesResponse,
                                 success        |-> FALSE,
-                                term           |-> IF lli = 0 THEN 0 ELSE log[i][lli].term,
+                                term           |-> IF lli = 0 THEN StartTerm ELSE log[i][lli].term,
                                 lastLogIndex   |-> lli,
                                 source         |-> i,
                                 dest           |-> j],
                                 m)
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, logVars>>
 
 ReturnToFollowerState(i, m) ==
     /\ m.term = currentTerm[i]
     /\ state[i] = Candidate
     /\ state' = [state EXCEPT ![i] = Follower]
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, currentTerm, votedFor, logVars, messages>>
+    /\ UNCHANGED <<reconfigurationVars, currentTerm, votedFor, logVars, messages>>
 
 AppendEntriesAlreadyDone(i, j, index, m) ==
     /\ \/ m.entries = << >>
@@ -879,7 +826,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, commitsNotified, serverVars, log>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, log>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.entries /= << >>
@@ -890,7 +837,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ Len(log'[i])..Len(log[i])]
         \* Potentially also shorten the configurations if the removed txns contained reconfigurations
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, commitIndex, messages, commitsNotified>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, commitIndex, messages>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
@@ -910,8 +857,9 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         \* extended configurations with any new configurations
         new_configs == 
             configurations[i] @@ [idx \in reconfig_indexes |-> new_log_entries[idx].configuration]
-        new_conf_index == 
-            Max({c \in DOMAIN new_configs : c <= new_commit_index})
+        new_commmitted_configs == {c \in DOMAIN new_configs : c <= new_commit_index}
+        new_conf_index == IF new_commmitted_configs = {} THEN 0 ELSE
+            Max(new_commmitted_configs)
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         \* see committable_indices.push_back(i) in raft.h:execute_append_entries_sync, guarded by case PASS_SIGNATURE
@@ -923,7 +871,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         /\ configurations' = 
                 [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
         \* If we added a new configuration that we are in and were pending, we are now follower
-        /\ IF /\ state[i] = Pending
+        /\ IF /\ state[i] = None
               /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
            THEN state' = [state EXCEPT ![i] = Follower ]
            ELSE UNCHANGED state
@@ -934,12 +882,12 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, commitsNotified, currentTerm, votedFor>>
+    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, currentTerm, votedFor>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
     /\ m.term = currentTerm[i]
-    /\ state[i] \in {Follower, Pending}
+    /\ state[i] \in {Follower, None}
     /\ logOk
     /\ LET index == m.prevLogIndex + 1
        IN \/ AppendEntriesAlreadyDone(i, j, index, m)
@@ -975,7 +923,7 @@ HandleAppendEntriesResponse(i, j, m) ==
            \* "If AppendEntries fails because of log inconsistency: decrement nextIndex and retry"
           /\ UNCHANGED matchIndex
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, logVars>>
 
 \* Any RPC with a newer term causes the recipient to advance its term first.
 UpdateTerm(i, j, m) ==
@@ -995,7 +943,7 @@ UpdateTerm(i, j, m) ==
 DropStaleResponse(i, j, m) ==
     /\ m.term < currentTerm[i]
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 DropResponseWhenNotInState(i, j, m) ==
     \/ /\ m.type = AppendEntriesResponse
@@ -1003,25 +951,25 @@ DropResponseWhenNotInState(i, j, m) ==
     \/ /\ m.type = RequestVoteResponse
        /\ state[i] \in States \ { Candidate }
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 \* Drop messages if they are irrelevant to the node
 DropIgnoredMessage(i,j,m) ==
     \* Drop messages if...
     /\
-       \* .. recipient is still Pending..
-       \/ /\ state[i] = Pending
+       \* .. recipient is still None..
+       \/ /\ state[i] = None
           \* .. and the message is anything other than an append entries request
           /\ m.type /= AppendEntriesRequest
-       \*  OR if message is to a server that has surpassed the Pending stage ..
-       \/ /\ state[i] /= Pending
+       \*  OR if message is to a server that has surpassed the None stage ..
+       \/ /\ state[i] /= None
         \* .. and it comes from a server outside of the configuration
           /\ \lnot IsInServerSet(j, i)
        \*  OR if recipient is RetiredLeader and this is not a request to vote
        \/ /\ state[i] = RetiredLeader
           /\ m.type /= RequestVoteRequest
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, commitsNotified, candidateVars, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 \* RetiredLeader leaders send notify commit messages to update all nodes about the commit level
 UpdateCommitIndex(i,j,m) ==
@@ -1032,7 +980,7 @@ UpdateCommitIndex(i,j,m) ==
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = m.commitIndex]
         /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
-    /\ UNCHANGED <<reconfigurationCount, messages, commitsNotified, currentTerm,
+    /\ UNCHANGED <<reconfigurationCount, messages, currentTerm,
                    votedFor, candidateVars, leaderVars, log>>
 
 \* Receive a message.
@@ -1078,13 +1026,6 @@ RcvAppendEntriesResponse(i, j) ==
            \/ DropResponseWhenNotInState(m.dest, m.source, m)
            \/ DropStaleResponse(m.dest, m.source, m)
 
-RcvUpdateCommitIndex(i, j) ==
-    \E m \in Network!MessagesTo(i, j) :
-        /\ j = m.source
-        /\ m.type = NotifyCommitMessage
-        /\ UpdateCommitIndex(m.dest, m.source, m)
-        /\ Discard(m)
-
 RcvProposeVoteRequest(i, j) ==
     \E m \in Network!MessagesTo(i, j) :
         /\ j = m.source
@@ -1100,7 +1041,6 @@ Receive(i, j) ==
     \/ RcvRequestVoteResponse(i, j)
     \/ RcvAppendEntriesRequest(i, j)
     \/ RcvAppendEntriesResponse(i, j)
-    \/ RcvUpdateCommitIndex(i, j)
     \/ RcvProposeVoteRequest(i, j)
 
 \* End of message handlers.
@@ -1118,7 +1058,6 @@ Next ==
     \/ \E i \in Servers : ClientRequest(i)
     \/ \E i \in Servers : SignCommittableMessages(i)
     \/ \E i \in Servers : ChangeConfiguration(i)
-    \/ \E i, j \in Servers : NotifyCommit(i,j)
     \/ \E i \in Servers : AdvanceCommitIndex(i)
     \/ \E i, j \in Servers : AppendEntries(i, j)
     \/ \E i \in Servers : CheckQuorum(i)
@@ -1136,7 +1075,6 @@ Spec ==
     /\ \A i, j \in Servers : WF_vars(RcvRequestVoteResponse(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesRequest(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesResponse(i, j))
-    /\ \A i, j \in Servers : WF_vars(RcvUpdateCommitIndex(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvProposeVoteRequest(i, j))
     \* Node actions
     /\ \A s, t \in Servers : WF_vars(AppendEntries(s, t))
@@ -1160,8 +1098,14 @@ LogInv ==
 \* This is a key safety invariant and should always be checked
 THEOREM Spec => []LogInv
 
-\* There should not be more than one leader per term at the same time
-\* Note that this does not rule out multiple leaders in the same term at different times
+\* There is only ever one leader per term.  However, this does not preclude multiple
+\* servers being leader at the same time, i.e., |{s \in Servers: state[s] = Leader}| > 1,
+\* as long as each server is leader in a different term.
+\*
+\* However, this invariant is not violated if two servers *atomically* trade places as
+\* leader in the same term, i.e., state' = [state EXCEPT ![s] = Follower, ![t] = Leader]
+\* with state[s]=Leader /\ state[t]#Leader.  For that, we would need a suitable action
+\* property.
 MoreThanOneLeaderInv ==
     \A i,j \in Servers :
         (/\ currentTerm[i] = currentTerm[j]
@@ -1213,9 +1157,10 @@ LogMatchingInv ==
 \* of at least one server in every quorum
 QuorumLogInv ==
     \A i \in Servers :
-        \A S \in Quorums[CurrentConfiguration(i)] :
-            \E j \in S :
-                IsPrefix(Committed(i), log[j])
+        configurations[i] # << >> =>
+            \A S \in Quorums[CurrentConfiguration(i)] :
+                \E j \in S :
+                    IsPrefix(Committed(i), log[j])
 
 \* True if server i could receive a vote from server j based on the up-to-date check
 \* The "up-to-date" check performed by servers before issuing a vote implies that i receives
@@ -1252,7 +1197,8 @@ SignatureInv ==
 MonoTermInv ==
     \A m \in Network!Messages: currentTerm[m.source] >= m.term
 
-\* Terms in logs should be monotonically increasing
+\* Terms in logs increase monotonically. When projecting out TypeSignature entries, the 
+\* terms even increase in a *strictly* monotonic manner.
 MonoLogInv ==
     \A i \in Servers :
        log[i] # <<>> => 
@@ -1266,31 +1212,30 @@ MonoLogInv ==
 \* Each server's active configurations should be consistent with its own log and commit index
 LogConfigurationConsistentInv ==
     \A i \in Servers :
-        \* Configurations should have associated reconfiguration txs in the log
-        \* The only exception is the initial configuration (which has index 0)
-        /\ \A idx \in DOMAIN (configurations[i]) :
-            idx # 0 => 
-            /\ log[i][idx].contentType = TypeReconfiguration            
-            /\ log[i][idx].configuration = configurations[i][idx]
-        \* Current configuration should be committed
-        \* This is trivially true for the initial configuration (index 0)
-        /\ commitIndex[i] >= CurrentConfigurationIndex(i)
-        \* Pending configurations should not be committed yet
-        /\ Cardinality(DOMAIN configurations[i]) > 1 
-            => commitIndex[i] < NextConfigurationIndex(i)
-        \* There should be no committed reconfiguration txs since current configuration
-        /\ commitIndex[i] > CurrentConfigurationIndex(i)
-            => \A idx \in CurrentConfigurationIndex(i)+1..commitIndex[i] :
-                log[i][idx].contentType # TypeReconfiguration
-        \* There should be no uncommitted reconfiguration txs except pending configurations
-        /\ Len(log[i]) > commitIndex[i]
-            => \A idx \in commitIndex[i]+1..Len(log[i]) :
-                log[i][idx].contentType = TypeReconfiguration 
-                => configurations[i][idx] = log[i][idx].configuration
+        \/ state[i] = None
+        \/
+            \* Configurations should have associated reconfiguration txs in the log
+            /\ \A idx \in DOMAIN (configurations[i]) : 
+                /\ log[i][idx].contentType = TypeReconfiguration            
+                /\ log[i][idx].configuration = configurations[i][idx]
+            \* Current configuration should be committed
+            /\ commitIndex[i] >= CurrentConfigurationIndex(i)
+            \* Pending configurations should not be committed yet
+            /\ Cardinality(DOMAIN configurations[i]) > 1 
+                => commitIndex[i] < NextConfigurationIndex(i)
+            \* There should be no committed reconfiguration txs since current configuration
+            /\ commitIndex[i] > CurrentConfigurationIndex(i)
+                => \A idx \in CurrentConfigurationIndex(i)+1..commitIndex[i] :
+                    log[i][idx].contentType # TypeReconfiguration
+            \* \* There should be no uncommitted reconfiguration txs except pending configurations
+            /\ Len(log[i]) > commitIndex[i]
+                => \A idx \in commitIndex[i]+1..Len(log[i]) :
+                    log[i][idx].contentType = TypeReconfiguration 
+                    => configurations[i][idx] = log[i][idx].configuration
 
-NoLeaderInTermZeroInv ==
+NoLeaderBeforeInitialTerm ==
     \A i \in Servers :
-        currentTerm[i] = 0 => state[i] # Leader
+        currentTerm[i] < StartTerm => state[i] # Leader
 
 MatchIndexLowerBoundNextIndexInv ==
     \A i,j \in Servers :
@@ -1341,7 +1286,7 @@ MonotonicMatchIndexProp ==
 PermittedLogChangesProp ==
     [][\A i \in Servers :
         log[i] # log[i]' =>
-            \/ state[i]' = Pending
+            \/ state[i]' = None
             \/ state[i]' = Follower
             \* Established leader adding new entries
             \/ /\ state[i] = Leader
@@ -1363,7 +1308,7 @@ PermittedLogChangesProp ==
 
 StateTransitionsProp ==
     [][\A i \in Servers :
-        /\ state[i] = Pending => state[i]' \in {Pending, Follower}
+        /\ state[i] = None => state[i]' \in {None, Follower}
         /\ state[i] = Follower => state[i]' \in {Follower, Candidate}
         /\ state[i] = Candidate => state[i]' \in {Follower, Candidate, Leader}
         /\ state[i] = Leader => state[i]' \in {Follower, Leader, RetiredLeader}
@@ -1371,8 +1316,8 @@ StateTransitionsProp ==
         ]_vars
 
 PendingBecomesFollowerProp ==
-    \* A pending node that becomes part of any configuration immediately transitions to Follower.
-    [][\A s \in { s \in Servers : state[s] = Pending } : 
+    \* A pending node that becomes aware it is part of a configuration immediately transitions to Follower.
+    [][\A s \in { s \in Servers : state[s] = None } : 
             s \in GetServerSet(s)' => 
                 state[s]' = Follower]_vars
 
@@ -1400,12 +1345,6 @@ DebugInvLeaderCannotStepDown ==
         /\ m.type = AppendEntriesRequest
         /\ currentTerm[m.source] = m.term
         => state[m.source] = Leader
-
-\* This invariant shows that it should be possible for Node 4 or 5 to become leader
-\* Note that symmetry for the set of servers should be disabled to check this debug invariant
-DebugInvReconfigLeader ==
-    /\ state[NodeFour] /= Leader
-    /\ state[NodeFive] /= Leader
 
 \* This invariant shows that a txn can be committed after a reconfiguration
 DebugInvSuccessfulCommitAfterReconfig ==
@@ -1439,7 +1378,6 @@ DebugAlias ==
         removedFromConfiguration |-> removedFromConfiguration,
         configurations |-> configurations,
         messages |-> messages,
-        commitsNotified |-> commitsNotified,
         currentTerm |-> currentTerm,
         state |-> state,
         votedFor |-> votedFor,

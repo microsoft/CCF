@@ -371,7 +371,7 @@ export interface CCFCrypto {
   /**
    * Generate an EdDSA key pair.
    *
-   * @param curve The name of the curve. Currently only "curve25519" is supported.
+   * @param curve The name of the curve. Only "curve25519" and "x25519" are supported.
    */
   generateEddsaKeyPair(curve: string): CryptoKeyPair;
 
@@ -382,6 +382,18 @@ export interface CCFCrypto {
    * on the wrapping algorithm that is used (`wrapAlgo`).
    */
   wrapKey(
+    key: ArrayBuffer,
+    wrappingKey: ArrayBuffer,
+    wrapAlgo: WrapAlgoParams,
+  ): ArrayBuffer;
+
+  /**
+   * Unwraps a key using a wrapping key.
+   *
+   * Constraints on the `key` and `wrappingKey` parameters depend
+   * on the wrapping algorithm that is used (`wrapAlgo`).
+   */
+  unwrapKey(
     key: ArrayBuffer,
     wrappingKey: ArrayBuffer,
     wrapAlgo: WrapAlgoParams,
@@ -441,7 +453,7 @@ export interface CCFCrypto {
 
   /**
    * Converts an EdDSA public key as PEM to JSON Web Key (JWK) object.
-   * Currently only Curve25519 is supported.
+   * Only Curve25519 and X25519 are supported.
    *
    * @param pem EdDSA public key as PEM
    * @param kid Key identifier (optional)
@@ -450,7 +462,7 @@ export interface CCFCrypto {
 
   /**
    * Converts an EdDSA private key as PEM to JSON Web Key (JWK) object.
-   * Currently only Curve25519 is supported.
+   * Only Curve25519 and X25519 are supported.
    *
    * @param pem EdDSA private key as PEM
    * @param kid Key identifier (optional)

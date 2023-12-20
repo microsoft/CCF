@@ -8,11 +8,8 @@ import {
   RsaOaepAesKwpParams,
   RsaOaepParams,
 } from "../src/global.js";
-import {
-  unwrapKey,
-  generateSelfSignedCert,
-  generateCertChain,
-} from "./crypto.js";
+import * as textcodec from "../src/textcodec.js";
+import { generateSelfSignedCert, generateCertChain } from "./crypto.js";
 
 beforeEach(function () {
   // clear KV before each test
@@ -26,6 +23,39 @@ describe("polyfill", function () {
     it("converts string <--> ArrayBuffer", function () {
       const s = "foo";
       assert.equal(ccf.bufToStr(ccf.strToBuf(s)), s);
+    });
+  });
+  describe("TextEncoder", function () {
+    it("returns utf-8 for encoding field", function () {
+      const encoder = new textcodec.TextEncoder();
+      assert.equal(encoder.encoding, "utf-8");
+      const s = encoder.encode("foo");
+    });
+    it("returns an empty array for default empty input", function () {
+      assert.deepEqual(
+        new textcodec.TextEncoder().encode(""),
+        new Uint8Array(),
+      );
+    });
+    it("encodes ascii strings correctly", function () {
+      const sample = "foo";
+      assert.deepEqual(
+        new textcodec.TextEncoder().encode(sample),
+        new Uint8Array([0x66, 0x6f, 0x6f]),
+      );
+    });
+    it("encodes UTF-8 strings correctly", function () {
+      // a (U+0061, 0x61 in UTF-8), pound sign (U+00A3, 0xC2 0xA3 in UTF-8)
+      const sample = "\u0061\u00A3";
+      assert.deepEqual(
+        new textcodec.TextEncoder().encode(sample),
+        new Uint8Array([0x61, 0xc2, 0xa3]),
+      );
+    });
+    it("throws when unsupported method is called", function () {
+      assert.throws(() =>
+        new textcodec.TextEncoder().encodeInto("test", new Uint8Array([])),
+      );
     });
   });
   describe("jsonCompatibleToBuf/bufToJsonCompatible", function () {
@@ -80,6 +110,13 @@ describe("polyfill", function () {
       assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
+  describe("generateEddsaKeyPair/X25519", function () {
+    it("generates a random EdDSA X25519 key pair", function () {
+      const pair = ccf.crypto.generateEddsaKeyPair("x25519");
+      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
+      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
+    });
+  });
   describe("wrapKey", function () {
     it("performs RSA-OAEP wrapping correctly", function () {
       const key = ccf.crypto.generateAesKey(128);
@@ -92,7 +129,7 @@ describe("polyfill", function () {
         ccf.strToBuf(wrappingKey.publicKey),
         wrapAlgo,
       );
-      const unwrapped = unwrapKey(
+      const unwrapped = ccf.crypto.unwrapKey(
         wrapped,
         ccf.strToBuf(wrappingKey.privateKey),
         wrapAlgo,
@@ -106,7 +143,7 @@ describe("polyfill", function () {
         name: "AES-KWP",
       };
       const wrapped = ccf.crypto.wrapKey(key, wrappingKey, wrapAlgo);
-      const unwrapped = unwrapKey(wrapped, wrappingKey, wrapAlgo);
+      const unwrapped = ccf.crypto.unwrapKey(wrapped, wrappingKey, wrapAlgo);
       assert.deepEqual(unwrapped, key);
     });
     it("performs RSA-OAEP-AES-KWP wrapping correctly", function () {
@@ -121,7 +158,7 @@ describe("polyfill", function () {
         ccf.strToBuf(wrappingKey.publicKey),
         wrapAlgo,
       );
-      const unwrapped = unwrapKey(
+      const unwrapped = ccf.crypto.unwrapKey(
         wrapped,
         ccf.strToBuf(wrappingKey.privateKey),
         wrapAlgo,
@@ -612,9 +649,41 @@ describe("polyfill", function () {
         assert.equal(pem, pair.privateKey);
       }
     });
-    it("EdDSA", function () {
+    it("Ed25119", function () {
       const my_kid = "my_kid";
       const pair = ccf.crypto.generateEddsaKeyPair("curve25519");
+      {
+        const jwk = ccf.crypto.pubEddsaPemToJwk(pair.publicKey);
+        assert.equal(jwk.kty, "OKP");
+        assert.notEqual(jwk.kid, my_kid);
+        const pem = ccf.crypto.pubEddsaJwkToPem(jwk);
+        assert.equal(pem, pair.publicKey);
+      }
+      {
+        const jwk = ccf.crypto.pubEddsaPemToJwk(pair.publicKey, my_kid);
+        assert.equal(jwk.kty, "OKP");
+        assert.equal(jwk.kid, my_kid);
+        const pem = ccf.crypto.pubEddsaJwkToPem(jwk);
+        assert.equal(pem, pair.publicKey);
+      }
+      {
+        const jwk = ccf.crypto.eddsaPemToJwk(pair.privateKey);
+        assert.equal(jwk.kty, "OKP");
+        assert.notEqual(jwk.kid, my_kid);
+        const pem = ccf.crypto.eddsaJwkToPem(jwk);
+        assert.equal(pem, pair.privateKey);
+      }
+      {
+        const jwk = ccf.crypto.eddsaPemToJwk(pair.privateKey, my_kid);
+        assert.equal(jwk.kty, "OKP");
+        assert.equal(jwk.kid, my_kid);
+        const pem = ccf.crypto.eddsaJwkToPem(jwk);
+        assert.equal(pem, pair.privateKey);
+      }
+    });
+    it("X25119", function () {
+      const my_kid = "my_kid";
+      const pair = ccf.crypto.generateEddsaKeyPair("x25519");
       {
         const jwk = ccf.crypto.pubEddsaPemToJwk(pair.publicKey);
         assert.equal(jwk.kty, "OKP");

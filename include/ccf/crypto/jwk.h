@@ -82,10 +82,13 @@ namespace crypto
 
   enum class JsonWebKeyEdDSACurve
   {
-    ED25519 = 0
+    ED25519 = 0,
+    X25519 = 1
   };
   DECLARE_JSON_ENUM(
-    JsonWebKeyEdDSACurve, {{JsonWebKeyEdDSACurve::ED25519, "Ed25519"}});
+    JsonWebKeyEdDSACurve,
+    {{JsonWebKeyEdDSACurve::ED25519, "Ed25519"},
+     {JsonWebKeyEdDSACurve::X25519, "X25519"}});
 
   static JsonWebKeyEdDSACurve curve_id_to_jwk_eddsa_curve(CurveID curve_id)
   {
@@ -93,6 +96,8 @@ namespace crypto
     {
       case CurveID::CURVE25519:
         return JsonWebKeyEdDSACurve::ED25519;
+      case CurveID::X25519:
+        return JsonWebKeyEdDSACurve::X25519;
       default:
         throw std::logic_error(fmt::format("Unknown EdDSA curve {}", curve_id));
     }

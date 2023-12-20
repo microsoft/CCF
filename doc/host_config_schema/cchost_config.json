@@ -444,17 +444,13 @@
     "attestation": {
       "type": "object",
       "properties": {
-        "environment": {
-          "type": "object",
-          "properties": {
-            "security_context_directory": {
-              "type": ["string", "null"],
-              "description": "DEPRECATED: Replaced by --snp-security-context-dir-var CLI argument. Name of environment variable (e.g. ``UVM_SECURITY_CONTEXT_DIR``) specifying the directory containing the security context files (i.e. ``host-amd-cert-base64``, ``security-policy-base64`` and ``reference-info-base64``)."
-            }
-          },
-          "description": "Environment variables required to provide best auditability and serviceability for Azure Container Instance deployments (SEV-SNP only)",
-          "required": [],
-          "additionalProperties": false
+        "snp_security_policy_file": {
+          "type": ["string", "null"],
+          "description": "Path to file containing the security policy (SEV-SNP only), can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR"
+        },
+        "snp_uvm_endorsements_file": {
+          "type": ["string", "null"],
+          "description": "Path to file containing UVM endorsements as a base64-encoded COSE Sign1 (SEV-SNP only). Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR"
         },
         "snp_endorsements_servers": {
           "type": "array",
@@ -463,13 +459,13 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": ["Azure", "AMD"],
+                "enum": ["Azure", "AMD", "THIM"],
                 "default": "Azure",
                 "description": "Type of server used to retrieve attestation report endorsement certificates (SEV-SNP only)"
               },
               "url": {
                 "type": "string",
-                "description": "Server URLs used to retrieve attestation report endorsement certificates, e.g. \"kdsintf.amd.com\" (SEV-SNP only)"
+                "description": "Server URLs used to retrieve attestation report endorsement certificates, e.g. \"kdsintf.amd.com\" (AMD), \"global.acccache.azure.net\" (Azure) or \"169.254.169.254\" (THIM)"
               }
             },
             "required": ["url"],
@@ -657,17 +653,17 @@
       "properties": {
         "circuit_size": {
           "type": "string",
-          "default": "4MB",
+          "default": "16MB",
           "description": "Size (size string) of the internal host-enclave ringbuffers (must be a power of 2)"
         },
         "max_msg_size": {
           "type": "string",
-          "default": "16MB",
+          "default": "64MB",
           "description": "Maximum size (size string) for a message sent over the ringbuffer. Messages may be split into multiple fragments, but this limits the total size of the sum of those fragments"
         },
         "max_fragment_size": {
           "type": "string",
-          "default": "64KB",
+          "default": "256KB",
           "description": "Maximum size (size string) of individual ringbuffer message fragments. Messages larger than this will be split into multiple fragments"
         }
       },

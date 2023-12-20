@@ -10,16 +10,6 @@ steps:
       set -ex
       cd tla/
       parallel 'JSON={} ./tlc.sh consensus/Traceccfraft.tla' ::: \
-      ../build/replicate.ndjson \
-      ../build/election.ndjson \
-      ../build/multi_election.ndjson \
-      ../build/check_quorum.ndjson \
-      ../build/reconnect.ndjson \
-      ../build/reconnect_node.ndjson \
-      ../build/bad_network.ndjson \
-      ../build/fancy_election.1.ndjson \
-      ../build/fancy_election.2.ndjson \
-      ../build/suffix_collision.1.ndjson \
-      ../build/suffix_collision.2.ndjson \
-      ../build/suffix_collision.3.ndjson
+      ../build/startup.ndjson \
+      ../build/append.ndjson
     displayName: "Run trace validation"

@@ -19,6 +19,9 @@ import openapi_spec_validator
 from jwcrypto import jwk
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 import hmac
 import random
 
@@ -117,37 +120,38 @@ def generate_and_verify_jwk(client):
         assert body["pem"] == pub_pem
 
     # EdDSA
-    priv_pem, pub_pem = infra.crypto.generate_eddsa_keypair()
+    # Note: x25519 is not supported by jwcrypto just yet
+    for curve in ["curve25519"]:
+        priv_pem, pub_pem = infra.crypto.generate_eddsa_keypair(curve)
+        # Private
+        ref_priv_jwk = jwk.JWK.from_pem(priv_pem.encode()).export_private(as_dict=True)
+        r = client.post(
+            "/app/eddsaPemToJwk", body={"pem": priv_pem, "kid": ref_priv_jwk["kid"]}
+        )
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["kty"] == "OKP"
+        assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
 
-    # Private
-    ref_priv_jwk = jwk.JWK.from_pem(priv_pem.encode()).export(as_dict=True)
-    r = client.post(
-        "/app/eddsaPemToJwk", body={"pem": priv_pem, "kid": ref_priv_jwk["kid"]}
-    )
-    body = r.body.json()
-    assert r.status_code == http.HTTPStatus.OK
-    assert body["kty"] == "OKP"
-    assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
+        r = client.post("/app/eddsaJwkToPem", body={"jwk": body})
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["pem"] == priv_pem
 
-    r = client.post("/app/eddsaJwkToPem", body={"jwk": body})
-    body = r.body.json()
-    assert r.status_code == http.HTTPStatus.OK
-    assert body["pem"] == priv_pem
+        # Public
+        ref_pub_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
+        r = client.post(
+            "/app/pubEddsaPemToJwk", body={"pem": pub_pem, "kid": ref_pub_jwk["kid"]}
+        )
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["kty"] == "OKP"
+        assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
 
-    # Public
-    ref_pub_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
-    r = client.post(
-        "/app/pubEddsaPemToJwk", body={"pem": pub_pem, "kid": ref_pub_jwk["kid"]}
-    )
-    body = r.body.json()
-    assert r.status_code == http.HTTPStatus.OK
-    assert body["kty"] == "OKP"
-    assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
-
-    r = client.post("/app/pubEddsaJwkToPem", body={"jwk": body})
-    body = r.body.json()
-    assert r.status_code == http.HTTPStatus.OK
-    assert body["pem"] == pub_pem
+        r = client.post("/app/pubEddsaJwkToPem", body={"jwk": body})
+        body = r.body.json()
+        assert r.status_code == http.HTTPStatus.OK
+        assert body["pem"] == pub_pem
 
 
 @reqs.description("Test module import")
@@ -540,6 +544,18 @@ def test_npm_app(network, args):
             r.body.json()["privateKey"], r.body.json()["publicKey"]
         )
 
+        private_key = load_pem_private_key(r.body.json()["privateKey"].encode(), None)
+        assert isinstance(private_key, Ed25519PrivateKey)
+
+        r = c.post("/app/generateEddsaKeyPair", {"curve": "x25519"})
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert infra.crypto.check_key_pair_pem(
+            r.body.json()["privateKey"], r.body.json()["publicKey"]
+        )
+
+        private_key = load_pem_private_key(r.body.json()["privateKey"].encode(), None)
+        assert isinstance(private_key, X25519PrivateKey)
+
         aes_key_to_wrap = infra.crypto.generate_aes_key(256)
         wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(
             2048
@@ -556,10 +572,25 @@ def test_npm_app(network, args):
                 },
             },
         )
+        wrappedKey = r.body.data()
+        assert wrappedKey is not None
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        unwrapped = infra.crypto.unwrap_key_rsa_oaep(
-            r.body.data(), wrapping_key_priv_pem, label.encode("ascii")
+
+        r = c.post(
+            "/app/unwrapKey",
+            {
+                "key": b64encode(wrappedKey).decode(),
+                "unwrappingKey": b64encode(
+                    bytes(wrapping_key_priv_pem, "ascii")
+                ).decode(),
+                "wrapAlgo": {
+                    "name": "RSA-OAEP",
+                    "label": b64encode(bytes(label, "ascii")).decode(),
+                },
+            },
         )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        unwrapped = r.body.data()
         assert unwrapped == aes_key_to_wrap
 
         aes_wrapping_key = infra.crypto.generate_aes_key(256)
@@ -571,9 +602,22 @@ def test_npm_app(network, args):
                 "wrapAlgo": {"name": "AES-KWP"},
             },
         )
+        wrappedKey = r.body.data()
+        assert wrappedKey is not None
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        unwrapped = infra.crypto.unwrap_key_aes_pad(r.body.data(), aes_wrapping_key)
-        assert unwrapped == aes_key_to_wrap
+
+        r = c.post(
+            "/app/unwrapKey",
+            {
+                "key": b64encode(wrappedKey).decode(),
+                "unwrappingKey": b64encode(aes_wrapping_key).decode(),
+                "wrapAlgo": {"name": "AES-KWP"},
+            },
+        )
+
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        wrappedKey = r.body.data()
+        assert wrappedKey == aes_key_to_wrap
 
         wrapping_key_priv_pem, wrapping_key_pub_pem = infra.crypto.generate_rsa_keypair(
             2048
@@ -592,9 +636,25 @@ def test_npm_app(network, args):
             },
         )
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        unwrapped = infra.crypto.unwrap_key_rsa_oaep_aes_pad(
-            r.body.data(), wrapping_key_priv_pem, label.encode("ascii")
+        wrappedKey = r.body.data()
+        assert wrappedKey is not None
+
+        r = c.post(
+            "/app/unwrapKey",
+            {
+                "key": b64encode(wrappedKey).decode(),
+                "unwrappingKey": b64encode(
+                    bytes(wrapping_key_priv_pem, "ascii")
+                ).decode(),
+                "wrapAlgo": {
+                    "name": "RSA-OAEP-AES-KWP",
+                    "aesKeySize": 256,
+                    "label": b64encode(bytes(label, "ascii")).decode(),
+                },
+            },
         )
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        unwrapped = r.body.data()
         assert unwrapped == aes_key_to_wrap
 
         # Test RSA signing + verification
@@ -675,7 +735,7 @@ def test_npm_app(network, args):
                 pass
 
         # Test EDDSA signing + verification
-        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
+        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair("curve25519")
         algorithm = {"name": "EdDSA"}
         r = c.post(
             "/app/sign",
@@ -755,7 +815,7 @@ def test_npm_app(network, args):
             assert r.status_code == http.HTTPStatus.OK, r.status_code
             assert r.body.json() is True, r.body
 
-        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair()
+        key_priv_pem, key_pub_pem = infra.crypto.generate_eddsa_keypair("curve25519")
         algorithm = {"name": "EdDSA"}
         signature = infra.crypto.sign(algorithm, key_priv_pem, data)
         r = c.post(

@@ -264,7 +264,7 @@ def run_file_operations(args):
         json.dump(service_data, ntf)
         ntf.flush()
 
-        args.max_msg_size_bytes = f"{100 * 1024}"  # 100KB
+        args.max_msg_size_bytes = f"{1024 ** 2}"
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             txs = app.LoggingTxs("user0")
@@ -436,7 +436,7 @@ def run_sighup_check(args):
     ) as network:
         network.start_and_open(args)
         network.nodes[0].remote.remote.hangup()
-        time.sleep(1)
+        time.sleep(5)
         assert network.nodes[0].remote.check_done(), "Node should have exited"
         out, _ = network.nodes[0].remote.get_logs()
         with open(out, "r") as outf:

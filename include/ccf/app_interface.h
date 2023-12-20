@@ -22,13 +22,6 @@ namespace kv
   class Store;
 }
 
-namespace ccfapp
-{
-  CCF_DEPRECATED("Replace with make_user_endpoints")
-  std::shared_ptr<ccf::RpcFrontend> get_rpc_handler(
-    kv::Store& store, AbstractNodeContext& context);
-}
-
 namespace ccf
 {
   class UserEndpointRegistry : public CommonEndpointRegistry

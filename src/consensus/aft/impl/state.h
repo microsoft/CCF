@@ -10,6 +10,7 @@
 #include "consensus/aft/raft_types.h"
 #include "kv/kv_types.h"
 
+#include <deque>
 #include <map>
 #include <set>
 
@@ -160,6 +161,9 @@ namespace aft
     ViewHistory view_history;
     kv::Version new_view_idx = 0;
 
+    // Indices that are eligible for global commit, from a Node's perspective
+    std::deque<Index> committable_indices;
+
     // Replicas start in leadership state Follower. Apart from a single forced
     // transition from Follower to Leader on the initial node at startup,
     // the state machine is made up of the following transitions:
@@ -184,5 +188,6 @@ namespace aft
     commit_idx,
     new_view_idx,
     leadership_state,
-    membership_state);
+    membership_state,
+    committable_indices);
 }
