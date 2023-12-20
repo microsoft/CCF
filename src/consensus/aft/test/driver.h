@@ -1051,7 +1051,8 @@ public:
              idx)
         << std::endl;
       throw std::runtime_error(fmt::format(
-        "Node not at expected commit idx ({}) on line {} : {}",
+        "Node {} not at expected commit idx ({}) on line {} : {}",
+        node_id,
         idx,
         std::to_string((int)lineno),
         _nodes.at(node_id).raft->get_committed_seqno()));
