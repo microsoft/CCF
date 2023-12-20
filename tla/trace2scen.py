@@ -35,15 +35,15 @@ MAP = {
 }
 
 def asserts(post):
-    # idx > 0 check not great, but otherwise we end up asserting commit on nodes that don't exist, and the driver does not like that
-    return [["assert_commit_idx", node, str(idx)] for node, idx in post["commitIndex"].items() if idx > 0]
+    return [["assert_commit_idx", node, str(idx)] for node, idx in post["commitIndex"].items()]
 
 def step_to_action(pre_state, action, post_state):
     return os.linesep.join([
         comment(action),
-        ','.join(MAP[action['name']](action['context'], pre_state[1], post_state[1]))] +
-        [','.join(assertion) for assertion in asserts(post_state[1])]
-        )
+        ','.join(MAP[action['name']](action['context'], pre_state[1], post_state[1]))])
+
+def asserts_for_step(pre_state, action, post_state):
+    return os.linesep.join([','.join(assertion) for assertion in asserts(post_state[1])])
 
 if __name__ == "__main__":
     with open(sys.argv[1]) as trace:
@@ -54,3 +54,4 @@ if __name__ == "__main__":
         print(f"emit_signature,2")
         for step in steps:
             print(step_to_action(*step))
+        print(asserts_for_step(*steps[-1]))
