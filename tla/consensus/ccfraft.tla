@@ -669,20 +669,23 @@ ChangeConfiguration(i) ==
 AdvanceCommitIndex(i) ==
     /\ state[i] = Leader
     /\ LET
-        \* We want to get the smallest such index forward that is a signature
-        \* This index must be from the current term, 
-        \* as explained by Figure 8 and Section 5.4.2 of https://raft.github.io/raft.pdf
-        \* See find_highest_possible_committable_index in raft.h
-        new_index == SelectInSubSeq(log[i], commitIndex[i]+1, Len(log[i]),
-            LAMBDA e : e.contentType = TypeSignature /\ e.term = currentTerm[i])
+            \* Select those configs that need to have a quorum to agree on this leader.
+            \* Compare https://github.com/microsoft/CCF/blob/75670480c53519fcec1a09d36aefc11b23a597f9/src/consensus/aft/raft.h#L2081
+            HasConsensusWatermark(idx) ==
+                \A config \in {c \in DOMAIN(configurations[i]) : idx >= c } :
+                    \* In all of these configs, we now need a quorum in the servers that have the correct matchIndex
+                    LET config_servers == configurations[i][config]
+                        required_quorum == Quorums[config_servers]
+                        agree_servers == {k \in config_servers : matchIndex[i][k] >= idx}
+                    IN (IF i \in config_servers THEN {i} ELSE {}) \cup agree_servers \in required_quorum
+            \* We want to get the smallest such index forward that is a signature
+            \* This index must be from the current term, 
+            \* as explained by Figure 8 and Section 5.4.2 of https://raft.github.io/raft.pdf
+            \* See find_highest_possible_committable_index in raft.h
+            new_index == SelectInSubSeq(log[i], commitIndex[i]+1, Len(log[i]),
+                LAMBDA e : e.contentType = TypeSignature /\ e.term = currentTerm[i])
         IN
-        /\  \* Select those configs that need to have a quorum to agree on this leader
-            \A config \in {c \in DOMAIN(configurations[i]) : new_index >= c } :
-                \* In all of these configs, we now need a quorum in the servers that have the correct matchIndex
-                LET config_servers == configurations[i][config]
-                    required_quorum == Quorums[config_servers]
-                    agree_servers == {k \in config_servers : matchIndex[i][k] >= new_index}
-                IN (IF i \in config_servers THEN {i} ELSE {}) \cup agree_servers \in required_quorum
+        /\ HasConsensusWatermark(new_index)
          \* only advance if necessary (this is basically a sanity check after the Min above)
         /\ commitIndex[i] < new_index
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
