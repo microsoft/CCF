@@ -16,7 +16,7 @@ SNP attestation provide several fields needed to establish trust. Several deploy
 Confidential Azure Container Instance (ACI)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. note:: See `here <https://learn.microsoft.com/en-us/azure/container-instances/container-instances-tutorial-deploy-confidential-containers-cce-arm>`_ for more information on the deployment of confidential containers in Azure.
+.. note:: See `here <https://learn.microsoft.com/en-us/azure/container-instances/container-instances-tutorial-deploy-confidential-containers-cce-arm>`_ and `here <https://github.com/microsoft/confidential-aci-examples/blob/main/docs/Confidential_ACI_SCHEME.md>`_ for more information on the deployment of confidential containers in Azure.
 
 Azure Confidential ACI provides a security context directory containing the following files.
 
