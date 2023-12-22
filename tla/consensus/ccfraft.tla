@@ -635,10 +635,6 @@ SignCommittableMessages(i) ==
 ChangeConfigurationInt(i, newConfiguration) ==
     \* Only leader can propose changes
     /\ state[i] = Leader
-    \* Configuration is non empty
-    /\ newConfiguration /= {}
-    \* Configuration is a proper subset of the Servers
-    /\ newConfiguration \subseteq Servers
     \* Configuration is not equal to the previous configuration
     /\ newConfiguration /= MaxConfiguration(i)
     \* Keep track of running reconfigurations to limit state space
@@ -653,7 +649,8 @@ ChangeConfigurationInt(i, newConfiguration) ==
                     leaderVars, commitIndex, committableIndices>>
 
 ChangeConfiguration(i) ==
-    \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :
+    \* Reconfigure to any *non-empty* subset of servers.
+    \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) \ {{}}:
         ChangeConfigurationInt(i, newConfiguration)
 
 \* Leader i advances its commitIndex to the next possible Index.
