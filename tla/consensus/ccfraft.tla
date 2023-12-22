@@ -644,15 +644,11 @@ ChangeConfigurationInt(i, newConfiguration) ==
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
     /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
-    /\ LET
-        entry == [
-            term |-> currentTerm[i],
-            configuration |-> newConfiguration,
-            contentType |-> TypeReconfiguration]
-        newLog == Append(log[i], entry)
-        IN
-        /\ log' = [log EXCEPT ![i] = newLog]
-        /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
+    /\ log' = [log EXCEPT ![i] = Append(log[i], 
+                                            [term |-> currentTerm[i],
+                                             configuration |-> newConfiguration,
+                                             contentType |-> TypeReconfiguration])]
+    /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
     /\ UNCHANGED <<messageVars, serverVars, candidateVars,
                     leaderVars, commitIndex, committableIndices>>
 
