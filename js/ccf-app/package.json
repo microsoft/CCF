@@ -22,7 +22,7 @@
     "@types/mocha": "^10.0.0",
     "@types/node": "^20.1.0",
     "@types/node-forge": "^1.0.0",
-    "chai": "^4.3.4",
+    "chai": "^5.0.0",
     "colors": "1.4.0",
     "cross-env": "^7.0.3",
     "get-func-name": "3.0.0",
