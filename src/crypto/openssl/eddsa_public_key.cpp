@@ -28,15 +28,25 @@ namespace crypto
         "Cannot construct EdDSA public key from non-OKP JWK");
     }
 
-    if (jwk.crv != JsonWebKeyEdDSACurve::ED25519)
+    int curve = 0;
+    if (jwk.crv == JsonWebKeyEdDSACurve::ED25519)
+    {
+      curve = EVP_PKEY_ED25519;
+    }
+    else if (jwk.crv == JsonWebKeyEdDSACurve::X25519)
+    {
+      curve = EVP_PKEY_X25519;
+    }
+    else
     {
       throw std::logic_error(
-        "Cannot construct EdDSA public key from non-Ed25519 JWK");
+        "Cannot construct EdDSA key pair from JWK that is neither Ed25519 nor "
+        "X25519");
     }
 
     auto x_raw = raw_from_b64url(jwk.x);
-    key = EVP_PKEY_new_raw_public_key(
-      EVP_PKEY_ED25519, nullptr, x_raw.data(), x_raw.size());
+    key =
+      EVP_PKEY_new_raw_public_key(curve, nullptr, x_raw.data(), x_raw.size());
     if (key == nullptr)
     {
       throw std::logic_error("Error constructing EdDSA public key from JWK");
@@ -83,6 +93,8 @@ namespace crypto
     {
       case CurveID::CURVE25519:
         return EVP_PKEY_ED25519;
+      case CurveID::X25519:
+        return EVP_PKEY_X25519;
       default:
         throw std::logic_error(
           fmt::format("unsupported OpenSSL CurveID {}", gid));
@@ -97,6 +109,8 @@ namespace crypto
     {
       case NID_ED25519:
         return CurveID::CURVE25519;
+      case NID_X25519:
+        return CurveID::X25519;
       default:
         throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
     }

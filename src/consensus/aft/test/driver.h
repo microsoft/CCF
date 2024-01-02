@@ -219,6 +219,54 @@ public:
                     << std::endl;
   }
 
+  void create_start_node(const std::string& start_node_id, const size_t lineno)
+  {
+    if (!_nodes.empty())
+    {
+      throw std::logic_error("Start node already exists");
+    }
+    kv::Configuration::Nodes configuration;
+    add_node(start_node_id);
+    configuration.try_emplace(start_node_id);
+    _nodes[start_node_id].raft->force_become_primary();
+    _replicate("2", {}, lineno, false, configuration);
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  Note over {}: Node {} created",
+                         start_node_id,
+                         start_node_id)
+                    << std::endl;
+  }
+
+  void trust_nodes(
+    const std::string& term,
+    const std::vector<std::string>& node_ids,
+    const size_t lineno)
+  {
+    for (const auto& node_id : node_ids)
+    {
+      add_node(node_id);
+      RAFT_DRIVER_OUT << fmt::format(
+                           "  Note over {}: Node {} created", node_id, node_id)
+                      << std::endl;
+    }
+    kv::Configuration::Nodes configuration;
+    for (const auto& [id, node] : _nodes)
+    {
+      configuration.try_emplace(id);
+    }
+    for (const auto& node_id : node_ids)
+    {
+      for (const auto& [id, node] : _nodes)
+      {
+        if (id != node_id)
+        {
+          connect(id, node_id);
+        }
+      }
+    }
+    _replicate(term, {}, lineno, false, configuration);
+  }
+
   void replicate_new_configuration(
     const std::string& term_s,
     std::vector<std::string> node_ids,

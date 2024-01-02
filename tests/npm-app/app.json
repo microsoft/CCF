@@ -282,7 +282,7 @@
                     "wrappingKey": {
                       "type": "string"
                     },
-                    "parameters": {
+                    "wrapAlgo": {
                       "type": "object"
                     }
                   },
@@ -294,6 +294,46 @@
           "responses": {
             "200": {
               "description": "Wrapped key",
+              "content": {
+                "application/octet-stream": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/unwrapKey": {
+      "post": {
+        "js_module": "endpoints/crypto.js",
+        "js_function": "unwrapKey",
+        "forwarding_required": "sometimes",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "unwrappingKey": {
+                      "type": "string"
+                    },
+                    "wrapAlgo": {
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Unwrapped key",
               "content": {
                 "application/octet-stream": {}
               }

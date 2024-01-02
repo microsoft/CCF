@@ -619,6 +619,8 @@ class CCFRemote(object):
         node_container_image=None,
         follow_redirect=True,
         max_uncommitted_tx_count=0,
+        snp_security_policy_file=None,
+        snp_uvm_endorsements_file=None,
         **kwargs,
     ):
         """
@@ -725,7 +727,7 @@ class CCFRemote(object):
         snp_endorsements_servers_list = []
         for s in snp_endorsements_servers:
             try:
-                server_type, url = s.split(":")
+                server_type, url = s.split(":", 1)
             except ValueError as e:
                 raise ValueError(
                     "SNP endorsements servers should be in the format type:url"
@@ -734,6 +736,18 @@ class CCFRemote(object):
             s["type"] = server_type
             s["url"] = url
             snp_endorsements_servers_list.append(s)
+
+        # Default snp_security_policy_file if not set
+        if snp_security_policy_file is None:
+            snp_security_policy_file = (
+                "$UVM_SECURITY_CONTEXT_DIR/security-policy-base64"
+            )
+
+        # Default snp_uvm_endorsements_file if not set
+        if snp_uvm_endorsements_file is None:
+            snp_uvm_endorsements_file = (
+                "$UVM_SECURITY_CONTEXT_DIR/reference-info-base64"
+            )
 
         # Validate consensus timers
         if (
@@ -795,6 +809,8 @@ class CCFRemote(object):
                 node_address=remote_class.get_node_address(node_address),
                 follow_redirect=follow_redirect,
                 max_uncommitted_tx_count=max_uncommitted_tx_count,
+                snp_security_policy_file=snp_security_policy_file,
+                snp_uvm_endorsements_file=snp_uvm_endorsements_file,
                 **kwargs,
             )
 
@@ -849,11 +865,6 @@ class CCFRemote(object):
                 "--enclave-file",
                 self.enclave_file,
             ]
-            if snp_security_context_directory_envvar is not None:
-                cmd += [
-                    "--snp-security-context-dir-var",
-                    snp_security_context_directory_envvar,
-                ]
 
         if start_type == StartType.start:
             members_info = kwargs.get("members_info")

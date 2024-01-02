@@ -2288,6 +2288,11 @@ namespace ccf::js
     JS_SetPropertyStr(
       ctx, crypto, "wrapKey", JS_NewCFunction(ctx, js_wrap_key, "wrapKey", 3));
     JS_SetPropertyStr(
+      ctx,
+      crypto,
+      "unwrapKey",
+      JS_NewCFunction(ctx, js_unwrap_key, "unwrapKey", 3));
+    JS_SetPropertyStr(
       ctx, crypto, "digest", JS_NewCFunction(ctx, js_digest, "digest", 2));
     JS_SetPropertyStr(
       ctx,
@@ -2492,7 +2497,6 @@ namespace ccf::js
   {
     auto rpc = JS_NewObjectClass(ctx, rpc_class_id);
     ctx.globals.rpc_ctx = rpc_ctx;
-
     JS_SetPropertyStr(
       ctx,
       rpc,

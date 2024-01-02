@@ -1,0 +1,38 @@
+jobs:
+  - job: Simulation
+    displayName: Simulation
+    variables:
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
+
+    ${{ insert }}: ${{ parameters.env }}
+
+    steps:
+      - checkout: self
+        clean: true
+        fetchDepth: 1
+
+      - script: |
+          set -ex
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
+        displayName: Setup
+
+      - script: ./tlc.sh -workers auto -simulate -depth 500 consensus/SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
+        workingDirectory: tla
+        displayName: Simulation
+
+      - script: |
+          set -ex
+          ./cimetrics_env.sh python upload_tlc_stats.py sim ../tla/SIMccfraft_stats.json
+        env:
+          METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+        workingDirectory: tests
+        displayName: Uploading TLC stats to cimetrics
+
+      - task: PublishPipelineArtifact@1
+        inputs:
+          artifactName: "Simulation Traces"
+          targetPath: tla
+        condition: or(failed(), canceled())

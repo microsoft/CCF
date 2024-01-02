@@ -86,7 +86,7 @@ class DefaultLiner(Liner):
             print(
                 " ".join(
                     [
-                        f"Start of view 14: {cs(self.view_to_char(14), self._fg_colour, 'Grey')}"
+                        f"Start of view 3: {cs(self.view_to_char(3), self._fg_colour, 'DarkGrey')}"
                     ]
                 )
             )

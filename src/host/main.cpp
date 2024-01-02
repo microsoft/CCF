@@ -124,15 +124,6 @@ int main(int argc, char** argv)
     enclave_file_path,
     "Path to enclave application (security critical)");
 
-  std::string snp_security_context_dir_var = "UVM_SECURITY_CONTEXT_DIR";
-  app
-    .add_option(
-      "--snp-security-context-dir-var",
-      snp_security_context_dir_var,
-      "Name of environment variable specifying the directory containing the "
-      "SNP UVM security context files (security critical)")
-    ->capture_default_str();
-
   try
   {
     app.parse(argc, argv);
@@ -510,36 +501,64 @@ int main(int argc, char** argv)
 
     startup_config.snapshot_tx_interval = config.snapshots.tx_count;
 
-    if (config.attestation.environment.security_context_directory.has_value())
+    if (startup_config.attestation.snp_security_policy_file.has_value())
     {
-      LOG_FAIL_FMT(
-        "DEPRECATED: security_context_dir was specified in config file! This "
-        "should be removed from the config, and passed directly to the CLI. "
-        "Note that the CLI provides a default value, which may be sufficient");
+      auto security_policy_file =
+        startup_config.attestation.snp_security_policy_file.value();
+      LOG_DEBUG_FMT(
+        "Resolving snp_security_policy_file: {}", security_policy_file);
+      security_policy_file =
+        nonstd::expand_envvars_in_path(security_policy_file);
+      LOG_DEBUG_FMT(
+        "Resolved snp_security_policy_file: {}", security_policy_file);
 
-      snp_security_context_dir_var =
-        config.attestation.environment.security_context_directory.value();
+      startup_config.attestation.environment.security_policy =
+        files::try_slurp_string(security_policy_file);
     }
 
-    if (config.enclave.platform == host::EnclavePlatform::SNP)
+    if (startup_config.attestation.snp_uvm_endorsements_file.has_value())
     {
-      auto dir = read_required_environment_variable(
-        snp_security_context_dir_var, "security context directory");
+      auto snp_uvm_endorsements_file =
+        startup_config.attestation.snp_uvm_endorsements_file.value();
+      LOG_DEBUG_FMT(
+        "Resolving snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
+      snp_uvm_endorsements_file =
+        nonstd::expand_envvars_in_path(snp_uvm_endorsements_file);
+      LOG_DEBUG_FMT(
+        "Resolved snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
 
-      constexpr auto security_policy_filename = "security-policy-base64";
-      startup_config.attestation.environment.security_policy =
-        files::try_slurp_string(
-          fs::path(dir) / fs::path(security_policy_filename));
-
-      constexpr auto uvm_endorsements_filename = "reference-info-base64";
       startup_config.attestation.environment.uvm_endorsements =
-        files::try_slurp_string(
-          fs::path(dir) / fs::path(uvm_endorsements_filename));
+        files::try_slurp_string(snp_uvm_endorsements_file);
+    }
 
-      constexpr auto report_endorsements_filename = "host-amd-cert-base64";
-      startup_config.attestation.environment.report_endorsements =
-        files::try_slurp_string(
-          fs::path(dir) / fs::path(report_endorsements_filename));
+    for (auto endorsement_servers_it =
+           startup_config.attestation.snp_endorsements_servers.begin();
+         endorsement_servers_it !=
+         startup_config.attestation.snp_endorsements_servers.end();
+         ++endorsement_servers_it)
+    {
+      LOG_DEBUG_FMT(
+        "Resolving snp_endorsements_server url: {}",
+        endorsement_servers_it->url.value());
+      if (endorsement_servers_it->url.has_value())
+      {
+        auto& url = endorsement_servers_it->url.value();
+        auto pos = url.find(':');
+        if (pos == std::string::npos)
+        {
+          endorsement_servers_it->url = nonstd::expand_envvar(url);
+        }
+        else
+        {
+          endorsement_servers_it->url = fmt::format(
+            "{}:{}",
+            nonstd::expand_envvar(url.substr(0, pos)),
+            nonstd::expand_envvar(url.substr(pos + 1)));
+        }
+        LOG_DEBUG_FMT(
+          "Resolved snp_endorsements_server url: {}",
+          endorsement_servers_it->url);
+      }
     }
 
     if (config.node_data_json_file.has_value())

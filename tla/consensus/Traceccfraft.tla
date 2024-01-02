@@ -8,14 +8,7 @@ RaftMsgType ==
     "raft_propose_request_vote" :> ProposeVoteRequest
 
 LeadershipState ==
-    Leader :> "Leader" @@ Follower :> "Follower" @@ Candidate :> "Candidate" @@ Pending :> "Pending"
-
-\* In:  <<[idx |-> 0, nodes |-> [0 |-> [address |-> ":"]], rid |-> 0]>>
-\* Out: (0 :> {0})
-ToConfigurations(c) ==
-    IF c = <<>> 
-    THEN (0 :> {})
-    ELSE FoldSeq(LAMBDA x,y: (x.idx :> DOMAIN x.nodes) @@ y, <<>>, c)
+    Leader :> "Leader" @@ Follower :> "Follower" @@ Candidate :> "Candidate" @@ None :> "None"
 
 IsAppendEntriesRequest(msg, dst, src, logline) ==
     (*
@@ -58,13 +51,13 @@ IsAppendEntriesResponse(msg, dst, src, logline) ==
 ASSUME TLCGet("config").mode = "bfs"
 
 JsonFile ==
-    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "traces/election.ndjson"
+    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../../build/startup.ndjson"
 
 JsonLog ==
     \* Deserialize the System log as a sequence of records from the log file.
-     \* Run TLC with (assuming a suitable "tlc" shell alias):
-     \* $ JSON=../tests/raft_scenarios/4582.ndjson tlc -note Traceccfraft
-     \* Fall back to trace.ndjson if the JSON environment variable is not set.
+    \* Run TLC from under the tla/ directory with:
+    \* $ JSON=../build/startup.ndjson ./tlc.sh consensus/Traceccfraft.tla
+    \* Traces can be generated with: ./make_traces.sh, also under the tla/ directory.
     ndJsonDeserialize(JsonFile)
 
 TraceLog ==
@@ -75,6 +68,9 @@ JsonServers ==
     IN Print(<< "Trace:", JsonFile, "Length:", IF Card = 0 THEN "EMPTY" ELSE Len(TraceLog)>>, Card)
     
 ASSUME JsonServers \in Nat \ {0}
+
+CONSTANTS
+    NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive
 
 TraceServers ==
     Range(SubSeq(<<NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive>>, 1, JsonServers))
@@ -89,11 +85,7 @@ TraceAppendEntriesBatchsize(i, j) ==
 TraceInitReconfigurationVars ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
-    \* Weaken  ccfraft!InitReconfigurationVars  to allow a node's configuration to be initially empty.
-     \* This seems to be a quirk of raft_driver (related RaftDriverQuirk).
-    /\ configurations = [ s \in Servers |-> IF s = TraceLog[1].msg.state.node_id 
-                                            THEN ToConfigurations(<<TraceLog[1].msg.new_configuration>>)
-                                            ELSE [ j \in {0} |-> {} ] ]
+    /\ InitLogConfigServerVars({TraceLog[1].msg.state.node_id}, StartLog)
 
 -------------------------------------------------------------------------------------
 
@@ -105,9 +97,8 @@ TraceInit ==
     \* Constraint the set of initial states to the ones that match the nodes
      \* that are members of the initial configuration
      \* (see  \E c \in SUBSET Servers: ...  in ccraft!InitReconfigurationVars).
-    /\ TraceLog[1].msg.function = "add_configuration"
+    /\ TraceLog[1].msg.function = "bootstrap"
     /\ ts = TraceLog[1].h_ts
-    /\ ToConfigurations(<<TraceLog[1].msg.new_configuration>>) = configurations[TraceLog[1].msg.state.node_id]
 
 -------------------------------------------------------------------------------------
 
@@ -138,7 +129,7 @@ logline ==
 \* accepting that lost messages remain in messages.
 DropMessages ==
     /\ l \in 1..Len(TraceLog)
-    /\ UNCHANGED <<reconfigurationVars, commitsNotified, serverVars, candidateVars, leaderVars, logVars>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
     /\ UNCHANGED <<l, ts>>
     /\ Network!DropMessages(logline.msg.state.node_id)
 
@@ -166,8 +157,8 @@ IsBecomeLeader ==
     
 IsClientRequest ==
     /\ IsEvent("replicate")
-    /\ ~logline.msg.globally_committable
     /\ ClientRequest(logline.msg.state.node_id)
+    /\ ~logline.msg.globally_committable
     \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.
     \* TODO Alternatively, extract the written values from the system trace and redefine clientRequests at startup.
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
@@ -194,19 +185,20 @@ IsRcvAppendEntriesRequest ==
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
        IN /\ \E m \in Network!MessagesTo(i, j):
-              /\ IsAppendEntriesRequest(m, i, j, logline)
+              /\ m.type = AppendEntriesRequest
               /\ \/ HandleAppendEntriesRequest(i, j, m)
                  \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesRequest(i, j, m)
                  \* ConflictAppendEntriesRequest truncates the log but does *not* consume the AE request. In other words, there is a
                   \* HandleAppendEntriesRequest step that leaves messages unchanged.
                  \/ RAERRAER(m):: (UNCHANGED messages /\ HandleAppendEntriesRequest(i, j, m)) \cdot HandleAppendEntriesRequest(i, j, m)
+              /\ IsAppendEntriesRequest(m, i, j, logline)
 
 IsSendAppendEntriesResponse ==
     \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
        \* Find a similar pattern in Traceccfraft!IsRcvRequestVoteRequest below.
     /\ IsEvent("send_append_entries_response")
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
     /\ UNCHANGED vars
+    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
  
 IsAddConfiguration ==
     /\ IsEvent("add_configuration")
@@ -216,8 +208,8 @@ IsAddConfiguration ==
 
 IsSignCommittableMessages ==
     /\ IsEvent("replicate")
-    /\ logline.msg.globally_committable
     /\ SignCommittableMessages(logline.msg.state.node_id)
+    /\ logline.msg.globally_committable
     \* It is tempting to assert the effect of SignCommittableMessages(...node_id) here, i.e., 
      \* committableIndices'[logline.msg.state.node_id] = Range(logline'.msg.committable_indices).
      \* However, this assumes logline', i.e., TraceLog[l'], is less than or equal Len(TraceLog),
@@ -236,8 +228,8 @@ IsAdvanceCommitIndex ==
              /\ commitIndex'[i] = logline.msg.state.commit_idx
              /\ committableIndices'[i] = Range(logline.msg.state.committable_indices)
     \/ /\ IsEvent("commit")
-       /\ logline.msg.state.leadership_state = "Follower"
        /\ UNCHANGED vars
+       /\ logline.msg.state.leadership_state = "Follower"
 
 IsChangeConfiguration ==
     /\ IsEvent("add_configuration")
@@ -254,11 +246,12 @@ IsRcvAppendEntriesResponse ==
        IN /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
           /\ logline.msg.match_idx = matchIndex[i][j]
           /\ \E m \in Network!MessagesTo(i, j):
-               /\ IsAppendEntriesResponse(m, i, j, logline)
+               /\ m.type = AppendEntriesResponse
                /\ \/ HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m)
                   \/ DropResponseWhenNotInState(i, j, m)
+               /\ IsAppendEntriesResponse(m, i, j, logline)
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsSendRequestVote ==
@@ -298,11 +291,11 @@ IsExecuteAppendEntries ==
     \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
        \* and appends the entry to the ledger.
        /\ IsEvent("execute_append_entries_sync")
-       /\ state[logline.msg.state.node_id] = Follower
-       /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
        \* Not asserting committableIndices here because the impl and spec will only be in sync upon the subsequent send_append_entries.
        \* Also see IsSignCommittableMessages above.
        /\ UNCHANGED vars
+       /\ state[logline.msg.state.node_id] = Follower
+       /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
 
 IsRcvRequestVoteResponse ==
     /\ IsEvent("recv_request_vote_response")
@@ -322,15 +315,14 @@ IsRcvRequestVoteResponse ==
 
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
-    /\ state[logline.msg.state.node_id] \in {Follower}
-    /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
+    /\ state[logline.msg.state.node_id] # Leader
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsCheckQuorum ==
     /\ IsEvent("become_follower")
-    /\ state[logline.msg.state.node_id] = Leader
     /\ CheckQuorum(logline.msg.state.node_id)
+    /\ state[logline.msg.state.node_id] = Leader
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsRcvProposeVoteRequest ==
@@ -373,22 +365,6 @@ TraceNext ==
 
     \/ IsRcvProposeVoteRequest
 
-RaftDriverQuirks ==
-    \* The "nodes" command in raft scenarios causes N consecutive "add_configuration" log lines to be emitted,
-     \* where N is determined by the "nodes" parameter. At this stage, the nodes are in the "Pending" state.
-     \* However, the enablement condition of "ccfraft!Timeout" is only true for nodes in the "Candidate" or 
-     \* "Follower" state. Therefore, we include this action to address this quirk in the raft_driver.
-    \/ /\ IsEvent("add_configuration")
-       /\ state[logline.msg.state.node_id] = Pending
-       /\ configurations' = [ configurations EXCEPT ![logline.msg.state.node_id] = ToConfigurations(<<logline.msg.new_configuration>>)]
-       /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
-       /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>    
-    \/ /\ IsEvent("become_follower")
-       /\ state[logline.msg.state.node_id] = Pending
-       /\ configurations[logline.msg.state.node_id] = ToConfigurations(logline.msg.configurations)
-       /\ state' = [ state EXCEPT ![logline.msg.state.node_id] = Follower ]
-       /\ UNCHANGED <<reconfigurationVars, removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
-
 TraceSpec ==
     \* In an ideal world with extremely fast compute and a sophisticated TLC evaluator, we would simply compose  DropMessage and
     \* TraceNext, i.e.,  DropMessage ⋅ TraceNext.  However, we are not in an ideal world, and, thus, we have to resort to the 
@@ -402,7 +378,7 @@ TraceSpec ==
     \* mode in TLC that checks refinement only for the set of traces whose length equals Len(TraceLog). This means delaying the
     \* refinement check until after the log has been matched. The class tlc2.tool.CheckImplFile might be a good starting point, although
     \* its current implementation doesn't account for non-determinism arising from log gaps or missed messages.
-    TraceInit /\ [][(IF ~ENABLED TraceNext THEN DropMessages \cdot TraceNext ELSE TraceNext) \/ RaftDriverQuirks]_<<l, ts, vars>>
+    TraceInit /\ [][(IF ~ENABLED TraceNext THEN DropMessages \cdot TraceNext ELSE TraceNext)]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
@@ -451,7 +427,6 @@ TraceDifferentialInv ==
     \*    /\ d.removedFromConfiguration = removedFromConfiguration
     \*    /\ d.configurations = configurations
     \*    /\ d.messages = messages
-    \*    /\ d.commitsNotified = commitsNotified
     \*    /\ d.currentTerm = currentTerm
     \*    /\ d.state = state
     \*    /\ d.votedFor = votedFor
@@ -468,28 +443,28 @@ TraceDifferentialInv ==
 TraceAlias ==
     DebugAlias @@
     [
-        lvl |-> l,
-        ts |-> ts,
-        logline |-> logline.msg,
-        _ENABLED |-> 
-            [
-                Timeout                    |-> [ i \in Servers   |-> ENABLED Timeout(i) ],
-                RequestVote                |-> [ i,j \in Servers |-> ENABLED RequestVote(i, j) ],
-                BecomeLeader               |-> [ i \in Servers   |-> ENABLED BecomeLeader(i) ],
-                ClientRequest              |-> [ i \in Servers   |-> ENABLED ClientRequest(i) ],
-                SignCommittableMessages    |-> [ i \in Servers   |-> ENABLED SignCommittableMessages(i) ],
-                ChangeConfiguration        |-> [ i \in Servers   |-> ENABLED ChangeConfiguration(i) ],
-                NotifyCommit               |-> [ i,j \in Servers |-> ENABLED NotifyCommit(i,j) ],
-                AdvanceCommitIndex         |-> [ i \in Servers   |-> ENABLED AdvanceCommitIndex(i) ],
-                AppendEntries              |-> [ i,j \in Servers |-> ENABLED AppendEntries(i, j) ],
-                CheckQuorum                |-> [ i \in Servers   |-> ENABLED CheckQuorum(i) ],
-                Receive                    |-> [ m,n \in Servers |-> ENABLED Receive(m, n) ],
-                RcvAppendEntriesRequest    |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesRequest(m, n) ],
-                RcvAppendEntriesResponse   |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesResponse(m, n) ],
-                RcvUpdateTerm              |-> [ m,n \in Servers |-> ENABLED RcvUpdateTerm(m, n) ],
-                RcvRequestVoteRequest      |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteRequest(m, n) ],
-                RcvRequestVoteResponse     |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteResponse(m, n) ]
-            ]
+        _logline |-> TraceLog[l-1]
+
+        \* Uncomment _ENABLED when debugging the enablement state of ccfraft's actions.
+        \* ,_ENABLED |-> 
+        \*     [
+        \*         Timeout                    |-> [ i \in Servers   |-> ENABLED Timeout(i) ],
+        \*         RequestVote                |-> [ i,j \in Servers |-> ENABLED RequestVote(i, j) ],
+        \*         BecomeLeader               |-> [ i \in Servers   |-> ENABLED BecomeLeader(i) ],
+        \*         ClientRequest              |-> [ i \in Servers   |-> ENABLED ClientRequest(i) ],
+        \*         SignCommittableMessages    |-> [ i \in Servers   |-> ENABLED SignCommittableMessages(i) ],
+        \*         ChangeConfiguration        |-> [ i \in Servers   |-> ENABLED ChangeConfiguration(i) ],
+        \*         AdvanceCommitIndex         |-> [ i \in Servers   |-> ENABLED AdvanceCommitIndex(i) ],
+        \*         AppendEntries              |-> [ i,j \in Servers |-> ENABLED AppendEntries(i, j) ],
+        \*         CheckQuorum                |-> [ i \in Servers   |-> ENABLED CheckQuorum(i) ],
+        \*         Receive                    |-> [ m,n \in Servers |-> ENABLED Receive(m, n) ],
+        \*         RcvAppendEntriesRequest    |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesRequest(m, n) ],
+        \*         RcvAppendEntriesResponse   |-> [ m,n \in Servers |-> ENABLED RcvAppendEntriesResponse(m, n) ],
+        \*         RcvUpdateTerm              |-> [ m,n \in Servers |-> ENABLED RcvUpdateTerm(m, n) ],
+        \*         RcvRequestVoteRequest      |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteRequest(m, n) ],
+        \*         RcvRequestVoteResponse     |-> [ m,n \in Servers |-> ENABLED RcvRequestVoteResponse(m, n) ]
+        \*     ]
+
         \* See TraceDifferentialInv above.
         \* ,_TraceDiffState |-> LET t == INSTANCE trace IN t!Trace[l]
     ]
@@ -546,6 +521,6 @@ CCF == INSTANCE ccfraft
 DropAndReceive(i, j) ==
     DropMessages \cdot CCF!Receive(i, j)
 
-CCFSpec == CCF!Init /\ [][CCF!Next \/ (DropMessages \cdot ComposedNext) \/ RaftDriverQuirks]_CCF!vars
+CCFSpec == CCF!Init /\ [][CCF!Next \/ (DropMessages \cdot ComposedNext)]_CCF!vars
 
 ==================================================================================
