@@ -467,7 +467,8 @@ namespace ccf::js
 
     JSWrappedValue get_global_property(const char* s) const
     {
-      return W(JS_GetPropertyStr(ctx, JS_GetGlobalObject(ctx), s));
+      auto g = get_global_obj();
+      return W(JS_GetPropertyStr(ctx, g.val, s));
     }
 
     JSWrappedValue json_stringify(const JSWrappedValue& obj) const
