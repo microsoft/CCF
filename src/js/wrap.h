@@ -36,15 +36,6 @@
     } \
   } while (0)
 
-#define JS_CHECK_NULL(val) \
-  do \
-  { \
-    if (val.is_null()) \
-    { \
-      return ccf::js::constants::Exception; \
-    } \
-  } while (0)
-
 namespace ccf::js
 {
   extern JSClassID kv_class_id;
@@ -127,11 +118,6 @@ namespace ccf::js
       {
         JS_FreeValue(ctx, val);
       }
-    }
-
-    operator const JSValue&() const
-    {
-      return val;
     }
 
     JSWrappedValue& operator=(const JSWrappedValue& other)
@@ -233,6 +219,11 @@ namespace ccf::js
       return JS_IsException(val);
     }
 
+    bool is_error() const
+    {
+      return JS_IsError(ctx, val);
+    }
+
     bool is_obj() const
     {
       return JS_IsObject(val);
@@ -247,6 +238,11 @@ namespace ccf::js
     {
       int rc = JS_ToBool(ctx, val);
       return rc > 0;
+    }
+
+    bool is_undefined() const
+    {
+      return JS_IsUndefined(val);
     }
 
     JSValue take()
@@ -471,13 +467,14 @@ namespace ccf::js
 
     JSWrappedValue get_global_property(const char* s) const
     {
-      return W(JS_GetPropertyStr(ctx, get_global_obj(), s));
+      auto g = get_global_obj();
+      return W(JS_GetPropertyStr(ctx, g.val, s));
     }
 
     JSWrappedValue json_stringify(const JSWrappedValue& obj) const
     {
       return W(JS_JSONStringify(
-        ctx, obj, ccf::js::constants::Null, ccf::js::constants::Null));
+        ctx, obj.val, ccf::js::constants::Null, ccf::js::constants::Null));
     }
 
     JSWrappedValue new_array() const
@@ -592,7 +589,7 @@ namespace ccf::js
 
     JSWrappedValue eval_function(const JSWrappedValue& module) const
     {
-      return W(JS_EvalFunction(ctx, module));
+      return W(JS_EvalFunction(ctx, module.val));
     }
 
     JSWrappedValue default_function(
@@ -656,12 +653,12 @@ namespace ccf::js
       size_t* pbytes_per_element) const
     {
       return W(JS_GetTypedArrayBuffer(
-        ctx, obj, pbyte_offset, pbyte_length, pbytes_per_element));
+        ctx, obj.val, pbyte_offset, pbyte_length, pbytes_per_element));
     }
 
     std::optional<std::string> to_str(const JSWrappedValue& x) const
     {
-      auto val = JS_ToCString(ctx, x);
+      auto val = JS_ToCString(ctx, x.val);
       if (!val)
       {
         new_type_error("value is not a string");
@@ -740,7 +737,7 @@ namespace ccf::js
           ctx,
           &prop_enum,
           &prop_count,
-          value,
+          value.val,
           JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) == -1)
       {
         throw std::logic_error(
