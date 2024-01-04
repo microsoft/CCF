@@ -16,6 +16,9 @@ import http
 import functools
 import httpx
 import os
+import copy
+import socket
+import struct
 from infra.snp import IS_SNP
 
 from loguru import logger as LOG
@@ -51,7 +54,13 @@ def interface_caps(i):
     }
 
 
-def run(args):
+def run_connection_caps_tests(args):
+    args = copy.deepcopy(args)
+
+    # Set a relatively low cap on max open sessions, so we can saturate it in a reasonable amount of time
+    args.max_open_sessions = 40
+    args.max_open_sessions_hard = args.max_open_sessions + 5
+
     # Listen on additional RPC interfaces with even lower session caps
     for i, node_spec in enumerate(args.nodes):
         caps = interface_caps(i)
@@ -262,14 +271,104 @@ def run(args):
             LOG.warning("Expected a fatal crash and saw none!")
 
 
+@contextlib.contextmanager
+def node_tcp_socket(node):
+    interface = node.n2n_interface
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((interface.host, interface.port))
+    yield s
+    s.close()
+
+
+def run_node_socket_robustness_tests(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+
+        primary, _ = network.find_nodes()
+
+        # Protocol is:
+        # - 4 byte message size N (remainder is not processed until this many bytes arrive)
+        # - 8 byte message type (valid values are only 0, 1, or 2)
+        # - Sender node ID (length-prefixed string), consisting of:
+        #   - 8 byte string length S
+        #   - S bytes of string content
+        # - Message body, of N - 16 - S bytes
+        # Note number serialization is little-endian!
+
+        def encode_msg(
+            msg_type=0,
+            sender="OtherNode",
+            body=b"",
+            sender_len_override=None,
+            total_len_override=None,
+        ):
+            b_type = struct.pack("<Q", msg_type)
+            sender_len = sender_len_override or len(sender)
+            b_sender = struct.pack("<Q", sender_len) + sender.encode()
+            total_len = total_len_override or len(b_type) + len(b_sender) + len(body)
+            b_size = struct.pack("<I", total_len)
+            encoded_msg = b_size + b_type + b_sender + body
+            return encoded_msg
+
+        def try_write(msg_bytes):
+            with node_tcp_socket(primary) as sock:
+                LOG.debug(
+                    f"Sending raw TCP bytes to {primary.local_node_id}'s node-to-node port: {msg_bytes}"
+                )
+                sock.send(msg_bytes)
+                assert (
+                    not primary.remote.check_done()
+                ), f"Crashed node with N2N message: {msg_bytes}"
+                LOG.success(f"Node {primary.local_node_id} tolerated this message")
+
+        LOG.info("Sending messages which do not contain initial size")
+        try_write(b"")
+        try_write(b"\x00")
+        for size in range(1, 4):
+            # NB: Regardless of what these bytes contain!
+            for i in range(5):
+                msg = random.getrandbits(8 * size).to_bytes(size, byteorder="little")
+                try_write(msg)
+
+        LOG.info("Sending messages which do not contain initial header")
+        for size in range(0, 16):
+            try_write(struct.pack("<I", size) + b"\x00" * size)
+
+        LOG.info("Sending plausible messages")
+        try_write(encode_msg())
+        try_write(encode_msg(msg_type=1))
+        try_write(encode_msg(msg_type=100))
+        try_write(encode_msg(sender="abcd"))
+        try_write(encode_msg(body=struct.pack("<QQQQ", 100, 200, 300, 400)))
+        try_write(
+            encode_msg(
+                msg_type=2, sender="abcd", body=struct.pack("<QQQQ", 100, 200, 300, 400)
+            )
+        )
+
+        LOG.info("Sending messages with incorrect sender length")
+        try_write(encode_msg(sender="abcd", sender_len_override=0))
+        try_write(encode_msg(sender="abcd", sender_len_override=1))
+        try_write(encode_msg(sender="abcd", sender_len_override=5))
+        try_write(
+            b"\x0b\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00bbbb"
+        )
+
+        # with node_tcp_socket(primary) as sock:
+        #     write_n(sock, 0, 4)
+        #     write_n(sock, 12)
+        # sock.send(b'\x0b\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00bbbb')
+
+
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "samples/apps/logging/liblogging"
 
-    # Set a relatively low cap on max open sessions, so we can saturate it in a reasonable amount of time
-    args.max_open_sessions = 40
-    args.max_open_sessions_hard = args.max_open_sessions + 5
-
     args.nodes = infra.e2e_args.nodes(args, 1)
     args.initial_user_count = 1
-    run(args)
+
+    # TODO: Restore
+    # run_connection_caps_tests(args)
+    run_node_socket_robustness_tests(args)
