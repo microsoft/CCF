@@ -40,6 +40,6 @@ Using TLC to exhaustively check our models can take any time between minutes (fo
 Trace validation
 ----------------
 
-It is possible to produce fresh traces quickly from the driver by running the make_traces.sh`` script from the ``tla`` directory.
+It is possible to produce fresh traces quickly from the driver by running the ``make_traces.sh`` script from the ``tla`` directory.
 
 Calling the trace validation on, for example, the ``replicate`` scenario can then be done with ``JSON=../build/replicate.ndjson ./tlc.sh consensus/Traceccfraft.tla``.
