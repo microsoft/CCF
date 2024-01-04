@@ -132,12 +132,6 @@ namespace serialized
     write(data, size, (const uint8_t*)v.data(), v.size());
   }
 
-  inline void write_lps(uint8_t*& data, size_t& size, const std::string& v)
-  {
-    write<uint16_t>(data, size, v.size());
-    write(data, size, (const uint8_t*)v.data(), v.size());
-  }
-
   template <class T>
   T& overlay(const uint8_t*& data, size_t& size)
   {
