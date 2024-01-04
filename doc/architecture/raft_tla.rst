@@ -42,4 +42,4 @@ Trace validation
 
 It is possible to produce fresh traces quickly from the driver by running the ``make_traces.sh`` script from the ``tla`` directory.
 
-Calling the trace validation on, for example, the ``replicate`` scenario can then be done with ``JSON=../build/replicate.ndjson ./tlc.sh consensus/Traceccfraft.tla``.
+Calling the trace validation on, for example, the ``append`` scenario can then be done with ``JSON=../build/append.ndjson ./tlc.sh consensus/Traceccfraft.tla``.
