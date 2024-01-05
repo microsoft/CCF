@@ -635,29 +635,26 @@ SignCommittableMessages(i) ==
 ChangeConfigurationInt(i, newConfiguration) ==
     \* Only leader can propose changes
     /\ state[i] = Leader
-    \* Configuration is non empty
-    /\ newConfiguration /= {}
-    \* Configuration is a proper subset of the Servers
-    /\ newConfiguration \subseteq Servers
-    \* Configuration is not equal to the previous configuration
+    \* Configuration is not equal to the previous configuration.
     /\ newConfiguration /= MaxConfiguration(i)
+    \* CCF's integrity demands that a previously removed server cannot rejoin the network,
+    \* i.e., be re-added to a new configuration.  Instead, the node has to rejoin with a
+    \* "fresh" identity (compare sec 6.2, page 8, https://arxiv.org/abs/2310.11559).
+    /\ \A s \in newConfiguration: s \notin removedFromConfiguration
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
     /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
-    /\ LET
-        entry == [
-            term |-> currentTerm[i],
-            configuration |-> newConfiguration,
-            contentType |-> TypeReconfiguration]
-        newLog == Append(log[i], entry)
-        IN
-        /\ log' = [log EXCEPT ![i] = newLog]
-        /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
-    /\ UNCHANGED <<messageVars, serverVars, candidateVars,
-                    leaderVars, commitIndex, committableIndices>>
+    /\ log' = [log EXCEPT ![i] = Append(log[i], 
+                                            [term |-> currentTerm[i],
+                                             configuration |-> newConfiguration,
+                                             contentType |-> TypeReconfiguration])]
+    /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
+    /\ UNCHANGED <<messageVars, serverVars, candidateVars, leaderVars, commitIndex, committableIndices>>
 
 ChangeConfiguration(i) ==
-    \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :
+    \* Reconfigure to any *non-empty* subset of servers.  ChangeConfigurationInt checks that the new
+    \* configuration newConfiguration does not reintroduce nodes that have been removed previously.
+    \E newConfiguration \in SUBSET(Servers) \ {{}}:
         ChangeConfigurationInt(i, newConfiguration)
 
 \* Leader i advances its commitIndex to the next possible Index.
