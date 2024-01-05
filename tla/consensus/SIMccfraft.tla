@@ -48,6 +48,10 @@ StopAfter ==
     (* The smoke test has a time budget of 20 minutes. *)
     IN TLCSet("exit", TLCGet("duration") > timeout)
 
+DebugInvUpToDepth ==
+    \* The following invariant causes TLC to terminate with a counterexample of length
+    \* -depth after generating the first trace.
+    TLCGet("level") < TLCGet("config").depth
 =============================================================================
 
 ------------------------------- MODULE SIMPostCondition -------------------------------
