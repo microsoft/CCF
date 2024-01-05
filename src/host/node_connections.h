@@ -35,7 +35,7 @@ namespace asynchost
         node(node)
       {}
 
-      void on_read(size_t len, uint8_t*& incoming, sockaddr)
+      bool on_read(size_t len, uint8_t*& incoming, sockaddr) override
       {
         LOG_DEBUG_FMT(
           "from node {} received {} bytes",
@@ -71,8 +71,35 @@ namespace asynchost
           }
 
           const auto size_pre_headers = size;
-          auto msg_type = serialized::read<ccf::NodeMsgType>(data, size);
-          ccf::NodeId from = serialized::read<ccf::NodeId::Value>(data, size);
+
+          ccf::NodeMsgType msg_type;
+          try
+          {
+            msg_type = serialized::read<ccf::NodeMsgType>(data, size);
+          }
+          catch (const std::exception& e)
+          {
+            LOG_DEBUG_FMT(
+              "Received invalid node-to-node traffic. Unable to read message "
+              "type ({}). Closing connection.",
+              e.what());
+            return false;
+          }
+
+          ccf::NodeId from;
+          try
+          {
+            from = serialized::read<ccf::NodeId::Value>(data, size);
+          }
+          catch (const std::exception& e)
+          {
+            LOG_DEBUG_FMT(
+              "Received invalid node-to-node traffic. Unable to read sender "
+              "node ID ({}). Closing connection.",
+              e.what());
+            return false;
+          }
+
           const auto size_post_headers = size;
           const size_t payload_size =
             msg_size.value() - (size_pre_headers - size_post_headers);
@@ -107,6 +134,8 @@ namespace asynchost
         {
           pending.erase(pending.begin(), pending.begin() + used);
         }
+
+        return true;
       }
 
       virtual void associate_incoming(const ccf::NodeId&) {}
