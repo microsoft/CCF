@@ -11,8 +11,8 @@ def comment(action):
 def term(ctx, pre):
     return str(pre["currentTerm"][ctx['i']])
 
-def new_config(ctx, post):
-    return sorted(post["configurations"][ctx["i"]].items())[-1][1]
+def noop(ctx, pre, post):
+    return ["# Noop"]
 
 MAP = {
     "ClientRequest": lambda ctx, pre, post: ["replicate", term(ctx, pre), "42"],
@@ -20,18 +20,22 @@ MAP = {
     "CheckQuorum": lambda ctx, pre, post: ["periodic_one", ctx['i'], "110"],
     "Timeout": lambda ctx, pre, post: ["periodic_one",  ctx['i'], "110"],
     "MCTimeout": lambda ctx, pre, post: ["periodic_one",  ctx['i'], "110"],
-    "RequestVote": lambda _, __, ___: ["# Noop"],
+    "RequestVote": noop,
     "AppendEntries": lambda _, __, ___: ["dispatch_all"],
-    "BecomeLeader": lambda _, __, ___: ["# Noop"],
+    "BecomeLeader": noop,
     "SignCommittableMessages": lambda ctx, pre, post: ["emit_signature", term(ctx, pre)],
     "MCSignCommittableMessages": lambda ctx, pre, post: ["emit_signature", term(ctx, pre)],
-    "ChangeConfiguration": lambda ctx, pre, post: ["replicate_new_configuration", term(ctx, pre), *new_config(ctx, post)],
-    "AdvanceCommitIndex": lambda _, __, ___: ["# Noop"],
+    "ChangeConfigurationInt": lambda ctx, pre, post: ["replicate_new_configuration", term(ctx, pre), *ctx["newConfiguration"]],
+    "AdvanceCommitIndex": noop,
     "HandleRequestVoteRequest": lambda _, __, ___: ["dispatch_all"],
-    "HandleRequestVoteResponse": lambda _, __, ___: ["# Noop"],
-    "RejectAppendEntriesRequest": lambda _, __, ___: ["# Noop"],
-    "ReturnToFollowerState": lambda _, __, ___: ["# Noop"],
-    "AppendEntriesAlreadyDone": lambda _, __, ___: ["# Noop"],
+    "HandleRequestVoteResponse": noop,
+    "RejectAppendEntriesRequest": noop,
+    "ReturnToFollowerState": noop,
+    "AppendEntriesAlreadyDone": noop,
+    "RcvDropIgnoredMessage": noop,
+    "RcvUpdateTerm": noop,
+    "RcvRequestVoteRequest": noop,
+    "RcvRequestVoteResponse": noop,
 }
 
 def post_commit(post):
