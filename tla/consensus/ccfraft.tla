@@ -680,7 +680,7 @@ AdvanceCommitIndex(i) ==
                     IN (IF i \in config_servers THEN {i} ELSE {}) \cup agree_servers \in required_quorum
             \* The function find_highest_possible_committable_index in raft.h returns the largest committable index
             \* in the current term (Figure 8 and Section 5.4.2 of https://raft.github.io/raft.pdf explains why it has
-            \* to be the *current* term).  Finding the largest index is an (mplementation-level) optimization that
+            \* to be the *current* term).  Finding the largest index is an (implementation-level) optimization that
             \* reduces the number of AdvanceCommitIndex calls, but this optimization also shrinks this spec's state-space.
             \*
             \* Theoretically, any committable index in the current term works, i.e., highestCommittableIndex could be
