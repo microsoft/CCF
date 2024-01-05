@@ -356,10 +356,19 @@ def run_node_socket_robustness_tests(args):
             b"\x0b\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00bbbb"
         )
 
-        # with node_tcp_socket(primary) as sock:
-        #     write_n(sock, 0, 4)
-        #     write_n(sock, 12)
-        # sock.send(b'\x0b\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00bbbb')
+        LOG.info("Sending messages with randomised bodies")
+        for _ in range(10):
+            body_len = random.randrange(10, 100)
+            body = random.getrandbits(body_len * 8).to_bytes(body_len, "little")
+            try_write(encode_msg(msg_type=random.randrange(0, 3), body=body))
+
+        # Don't fill the output with failure messages from this probing
+        network.ignore_error_pattern_on_shutdown(
+            "Exception in bool ccf::Channel::recv_key_exchange_message"
+        )
+        network.ignore_error_pattern_on_shutdown("Unknown node message type")
+        network.ignore_error_pattern_on_shutdown("Unhandled AFT message type")
+        network.ignore_error_pattern_on_shutdown("Unknown frontend msg type")
 
 
 if __name__ == "__main__":
@@ -369,6 +378,5 @@ if __name__ == "__main__":
     args.nodes = infra.e2e_args.nodes(args, 1)
     args.initial_user_count = 1
 
-    # TODO: Restore
-    # run_connection_caps_tests(args)
+    run_connection_caps_tests(args)
     run_node_socket_robustness_tests(args)
