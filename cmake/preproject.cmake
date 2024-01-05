@@ -58,6 +58,8 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   )
 endif()
 
+option(TSAN "Enable Thread Sanitizers" OFF)
+
 option(COLORED_OUTPUT "Always produce ANSI-colored output." ON)
 
 if(${COLORED_OUTPUT})
@@ -86,7 +88,7 @@ if("${COMPILE_TARGET}" STREQUAL "snp")
 endif()
 
 if("${COMPILE_TARGET}" STREQUAL "snp" OR "${COMPILE_TARGET}" STREQUAL "virtual")
-  if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+  if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" AND NOT TSAN)
     add_compile_options(-flto)
     add_link_options(-flto)
   endif()
