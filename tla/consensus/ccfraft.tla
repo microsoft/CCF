@@ -921,7 +921,7 @@ HandleAppendEntriesResponse(i, j, m) ==
           /\ m.success \* successful
           \* max(...) because why would we ever want to go backwards on a success response?!
           /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, m.lastLogIndex)]
-          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = max(@, m.lastLogIndex + 1)]
+          /\ UNCHANGED nextIndex
        \/ /\ \lnot m.success \* not successful
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
              IN nextIndex' = [nextIndex EXCEPT ![i][j] = max(min(tm, nextIndex[i][j]-1), matchIndex[i][j]) + 1 ]
