@@ -103,7 +103,6 @@ if(USE_NULL_ENCRYPTOR)
 endif()
 
 option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
-option(TSAN "Enable Thread Sanitizers" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
