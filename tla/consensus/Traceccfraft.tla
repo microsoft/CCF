@@ -30,8 +30,8 @@ IsAppendEntriesRequest(msg, dst, src, logline) ==
     /\ msg.term = logline.msg.packet.term
     /\ msg.commitIndex = logline.msg.packet.leader_commit_idx
     /\ msg.prevLogTerm = logline.msg.packet.prev_term
-    \* /\ Len(msg.entries) = logline.msg.packet.idx - logline.msg.packet.prev_idx
-    \* /\ msg.prevLogIndex + Len(msg.entries) = logline.msg.packet.idx
+    /\ Len(msg.entries) = logline.msg.packet.idx - logline.msg.packet.prev_idx
+    /\ msg.prevLogIndex + Len(msg.entries) = logline.msg.packet.idx
     /\ msg.prevLogIndex = logline.msg.packet.prev_idx
 
 IsAppendEntriesResponse(msg, dst, src, logline) ==
@@ -176,7 +176,7 @@ IsSendAppendEntries ==
                 /\ IsAppendEntriesRequest(msg, j, i, logline)
                 \* There is now one more message of this type.
                 /\ Network!OneMoreMessage(msg)
-          /\ logline.msg.sent_idx = nextIndex[i][j]
+\*          /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
           /\ logline.msg.match_idx = matchIndex[i][j]
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
