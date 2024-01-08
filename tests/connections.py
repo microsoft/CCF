@@ -55,7 +55,6 @@ def interface_caps(i):
 
 
 def run_connection_caps_tests(args):
-
     # Listen on additional RPC interfaces with even lower session caps
     for i, node_spec in enumerate(args.nodes):
         caps = interface_caps(i)
