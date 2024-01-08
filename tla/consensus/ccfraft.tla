@@ -276,7 +276,7 @@ CandidateVarsTypeInv ==
 
 \* The next entry to send to each follower, called send_idx in raft.h
 \* In CCF, the leader updates nextIndex optimically when an AE message is dispatched
-\* In contrast, In Raft the leader only updates nextIndex when an AE response is received
+\* In contrast, in Raft the leader only updates nextIndex when an AE response is received
 VARIABLE nextIndex
 
 \* nextIndex cannot be zero as its the index of the first log
