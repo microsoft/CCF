@@ -1247,6 +1247,9 @@ NoLeaderBeforeInitialTerm ==
     \A i \in Servers :
         currentTerm[i] < StartTerm => state[i] # Leader
 
+\* MatchIndexLowerBoundNextIndexInv is not currently an invariant but 
+\* we might wish to add it in the future. This could be achieved by updating 
+\* nextIndex to max of current nextIndex and matchIndex when an AE ACK is received.
 MatchIndexLowerBoundNextIndexInv ==
     \A i,j \in Servers :
         state[i] = Leader =>
