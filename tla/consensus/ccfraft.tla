@@ -273,7 +273,10 @@ CandidateVarsTypeInv ==
     /\ VotesGrantedTypeInv
 
 \* The following variables are used only on leaders:
+
 \* The next entry to send to each follower.
+\* nextIndex is called send_idx in raft.h
+\* In CCF, the leader updates nextIndex optimically when an AE message is dispatched
 VARIABLE nextIndex
 
 \* nextIndex cannot be zero as its the index of the first log
@@ -921,6 +924,7 @@ HandleAppendEntriesResponse(i, j, m) ==
           /\ m.success \* successful
           \* max(...) because why would we ever want to go backwards on a success response?!
           /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, m.lastLogIndex)]
+          \* nextIndex is unchanged on successful AE response as it was already updated when the AE was dispatched
           /\ UNCHANGED nextIndex
        \/ /\ \lnot m.success \* not successful
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
