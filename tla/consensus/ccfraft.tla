@@ -1259,10 +1259,11 @@ NoLeaderBeforeInitialTerm ==
 \* MatchIndexLowerBoundNextIndexInv is not currently an invariant but 
 \* we might wish to add it in the future. This could be achieved by updating 
 \* nextIndex to max of current nextIndex and matchIndex when an AE ACK is received.
+\* HandleAppendEntriesResponse can rev up matchIndex but not nextIndex
 MatchIndexLowerBoundNextIndexInv ==
     \A i,j \in Servers :
         state[i] = Leader =>
-            nextIndex[i][j] > matchIndex[i][j]
+            nextIndex[i][j] >= matchIndex[i][j]
 
 CommitCommittableIndices ==
     \A i \in Servers :
