@@ -550,6 +550,7 @@ AppendEntries(i, j) ==
     \* No messages to itself and sender is primary
     /\ state[i] = Leader
     /\ i /= j
+    /\ j \in GetServerSet(i)
     \* AppendEntries must be sent for historical entries, unless
     \* snapshots are used. Whether the node is in configuration at
     \* that index makes no difference.
@@ -1222,13 +1223,18 @@ MonoLogInv ==
 LogConfigurationConsistentInv ==
     \A i \in Servers :
         \/ state[i] = None
+        \* Follower, but no known configurations yet
+        \/ /\ state[i] = Follower
+           /\ Cardinality(DOMAIN configurations[i]) = 0
         \/
             \* Configurations should have associated reconfiguration txs in the log
             /\ \A idx \in DOMAIN (configurations[i]) : 
                 /\ log[i][idx].contentType = TypeReconfiguration            
                 /\ log[i][idx].configuration = configurations[i][idx]
-            \* Current configuration should be committed
-            /\ commitIndex[i] >= CurrentConfigurationIndex(i)
+            \* Current configuration should be committed if there is one
+            \* but a configuration may not be committable yet.
+            \* /\ Cardinality(DOMAIN configurations[i]) > 0
+            \*     => commitIndex[i] >= CurrentConfigurationIndex(i)
             \* Pending configurations should not be committed yet
             /\ Cardinality(DOMAIN configurations[i]) > 1 
                 => commitIndex[i] < NextConfigurationIndex(i)
