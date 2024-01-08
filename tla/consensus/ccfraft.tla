@@ -553,6 +553,7 @@ AppendEntries(i, j) ==
     \* No messages to itself and sender is primary
     /\ state[i] = Leader
     /\ i /= j
+    /\ j \in GetServerSet(i)
     \* AppendEntries must be sent for historical entries, unless
     \* snapshots are used. Whether the node is in configuration at
     \* that index makes no difference.
