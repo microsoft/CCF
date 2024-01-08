@@ -252,19 +252,33 @@ class CCFPolyfill implements CCF {
       return ecdsaKeyPair;
     },
     generateEddsaKeyPair(curve: string): CryptoKeyPair {
-      // `type` is always "ed25519" because currently only "curve25519" is supported for `curve`.
-      const type = "ed25519";
-      const ecdsaKeyPair = jscrypto.generateKeyPairSync(type, {
-        publicKeyEncoding: {
-          type: "spki",
-          format: "pem",
-        },
-        privateKeyEncoding: {
-          type: "pkcs8",
-          format: "pem",
-        },
-      });
-      return ecdsaKeyPair;
+      if (curve === "curve25519") {
+        return jscrypto.generateKeyPairSync("ed25519", {
+          publicKeyEncoding: {
+            type: "spki",
+            format: "pem",
+          },
+          privateKeyEncoding: {
+            type: "pkcs8",
+            format: "pem",
+          },
+        });
+      } else {
+        if (curve !== "x25519")
+          throw new Error(
+            "Unsupported curve for EdDSA key pair generation: " + curve,
+          );
+        return jscrypto.generateKeyPairSync("x25519", {
+          publicKeyEncoding: {
+            type: "spki",
+            format: "pem",
+          },
+          privateKeyEncoding: {
+            type: "pkcs8",
+            format: "pem",
+          },
+        });
+      }
     },
     wrapKey(
       key: ArrayBuffer,

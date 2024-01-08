@@ -41,7 +41,4 @@ namespace ccf
       const std::vector<uint8_t>& expected_node_public_key_der,
       pal::PlatformAttestationMeasurement& measurement);
   };
-
-  using EnclaveAttestationProvider CCF_DEPRECATED("Will be removed in 4.x") =
-    AttestationProvider;
 }

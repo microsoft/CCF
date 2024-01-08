@@ -83,7 +83,7 @@ CONSTANTS Servers
 ASSUME Servers /= {} /\ IsFiniteSet(Servers)
 
 \* Initial term used by the Start node in the network
-CONSTANT StartTerm
+StartTerm == 2
 
 Nil ==
   (*************************************************************************)
@@ -459,45 +459,33 @@ PlausibleSucessorNodes(i) ==
         highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
     IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)}
 
-\* Generate initial state for a given startNode
-StartState(startNode, servers) ==
+StartLog(startNode, _ignored) ==
+    << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNode],
+       [term |-> StartTerm, contentType |-> TypeSignature] >>
+
+InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
     /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
-    /\ configurations = [ i \in servers |-> IF i = startNode THEN (1 :> {startNode}) ELSE << >>]
-    /\ currentTerm = [i \in servers |-> IF i = startNode THEN StartTerm ELSE 0]
-    /\ state       = [i \in servers |-> IF i = startNode THEN Leader ELSE None]
-    /\ votedFor    = [i \in servers |-> Nil]
-    /\ log         = [i \in servers |-> IF i = startNode
-                                        THEN << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
-                                                [term |-> StartTerm, contentType |-> TypeSignature] >>
-                                        ELSE << >>]
-    /\ commitIndex  = [i \in servers |-> IF i = startNode THEN Len(log[i]) ELSE 0]
-    /\ committableIndices  = [i \in servers |-> {}]
-
-\* Generate initial state for a startNodes configuration
-JoinedState(startNodes, servers) ==
-    /\ reconfigurationCount = 0
-    /\ removedFromConfiguration = {}
-    /\ \E startNode \in startNodes:
-        /\ configurations = [ i \in servers |-> IF i \in startNodes  THEN (3 :> startNodes) ELSE << >>]
-        /\ currentTerm = [i \in servers |-> IF i \in startNodes THEN StartTerm ELSE 0]
-        /\ state       = [i \in servers |-> IF i = startNode THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
-        /\ votedFor    = [i \in servers |-> Nil]
-        /\ log         = [i \in servers |-> IF i \in startNodes
-                                            THEN << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> {startNode}],
-                                                    [term |-> StartTerm, contentType |-> TypeSignature],
-                                                    [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNodes],
-                                                    [term |-> StartTerm, contentType |-> TypeSignature] >>
-                                            ELSE << >>]
-        /\ commitIndex  = [i \in servers |-> IF i \in startNodes THEN Len(log[i]) ELSE 0]
-        /\ committableIndices  = [i \in servers |-> {}]
-
+    /\ committableIndices  = [i \in Servers |-> {}]
+    /\ votedFor    = [i \in Servers |-> Nil]
+    /\ currentTerm = [i \in Servers |-> IF i \in startNodes THEN StartTerm ELSE 0]
+    /\ \E sn \in startNodes:
+        \* We make the following assumption about logPrefix, whose violation would violate SignatureInv and LogConfigurationConsistentInv.
+        \* Alternative, we could have conjoined this formula to Init, but this would have caused TLC to generate no initial states on a
+        \* bogus logPrefix.
+        \* <<[term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNodes], 
+        \*   [term |-> StartTerm, contentType |-> TypeSignature]>> \in Suffixes(logPrefix({sn}, startNodes))
+        /\ log         = [i \in Servers |-> IF i \in startNodes THEN logPrefix({sn}, startNodes) ELSE << >>]
+        /\ state       = [i \in Servers |-> IF i = sn THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
+        /\ commitIndex = [i \in Servers |-> IF i \in startNodes THEN Len(logPrefix({sn}, startNodes)) ELSE 0]
+    /\ configurations = [i \in Servers |-> IF i \in startNodes  THEN (Len(log[i])-1 :> startNodes) ELSE << >>]
+    
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
 
 InitReconfigurationVars ==
     \E startNode \in Servers:
-        StartState(startNode, Servers)
+        InitLogConfigServerVars({startNode}, StartLog)
 
 InitMessagesVars ==
     /\ Network!InitMessageVar
@@ -647,30 +635,28 @@ SignCommittableMessages(i) ==
 ChangeConfigurationInt(i, newConfiguration) ==
     \* Only leader can propose changes
     /\ state[i] = Leader
-    \* Configuration is non empty
-    /\ newConfiguration /= {}
-    \* Configuration is a proper subset of the Servers
-    /\ newConfiguration \subseteq Servers
-    \* Configuration is not equal to the previous configuration
+    \* Configuration is not equal to the previous configuration.
     /\ newConfiguration /= MaxConfiguration(i)
+    \* CCF's integrity demands that a previously removed server cannot rejoin the network,
+    \* i.e., be re-added to a new configuration.  Instead, the node has to rejoin with a
+    \* "fresh" identity (compare sec 6.2, page 8, https://arxiv.org/abs/2310.11559).
+    /\ \A s \in newConfiguration: s \notin removedFromConfiguration
+    \* See raft.h:2401
+    /\ \A addedNode \in (newConfiguration \ CurrentConfiguration(i)) : nextIndex' = [nextIndex EXCEPT ![i][addedNode] = Len(log[i]) + 1]
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
     /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
-    /\ \A addedNode \in (newConfiguration \ CurrentConfiguration(i)) : nextIndex' = [nextIndex EXCEPT ![i][addedNode] = Len(log[i]) + 1]
-    /\ LET
-        entry == [
-            term |-> currentTerm[i],
-            configuration |-> newConfiguration,
-            contentType |-> TypeReconfiguration]
-        newLog == Append(log[i], entry)
-        IN
-        /\ log' = [log EXCEPT ![i] = newLog]
-        /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
-    /\ UNCHANGED <<messageVars, serverVars, candidateVars,
-                    matchIndex, commitIndex, committableIndices>>
+    /\ log' = [log EXCEPT ![i] = Append(log[i], 
+                                            [term |-> currentTerm[i],
+                                             configuration |-> newConfiguration,
+                                             contentType |-> TypeReconfiguration])]
+    /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
+    /\ UNCHANGED <<messageVars, serverVars, candidateVars, leaderVars, commitIndex, committableIndices>>
 
 ChangeConfiguration(i) ==
-    \E newConfiguration \in SUBSET(Servers \ removedFromConfiguration) :
+    \* Reconfigure to any *non-empty* subset of servers.  ChangeConfigurationInt checks that the new
+    \* configuration newConfiguration does not reintroduce nodes that have been removed previously.
+    \E newConfiguration \in SUBSET(Servers) \ {{}}:
         ChangeConfigurationInt(i, newConfiguration)
 
 \* Leader i advances its commitIndex to the next possible Index.
@@ -685,38 +671,47 @@ ChangeConfiguration(i) ==
 AdvanceCommitIndex(i) ==
     /\ state[i] = Leader
     /\ LET
-        \* We want to get the smallest such index forward that is a signature
-        \* This index must be from the current term, 
-        \* as explained by Figure 8 and Section 5.4.2 of https://raft.github.io/raft.pdf
-        \* See find_highest_possible_committable_index in raft.h
-        new_index == SelectInSubSeq(log[i], commitIndex[i]+1, Len(log[i]),
-            LAMBDA e : e.contentType = TypeSignature /\ e.term = currentTerm[i])
-        new_log ==
-            IF new_index > 1 THEN
-               [ j \in 1..new_index |-> log[i][j] ]
-            ELSE
-                  << >>
-        new_config_index == LastConfigurationToIndex(i, new_index)
-        new_configurations == RestrictDomain(configurations[i], LAMBDA c : c >= new_config_index)
+            \* Select those configs that need to have a quorum to agree on this leader.
+            \* Compare https://github.com/microsoft/CCF/blob/75670480c53519fcec1a09d36aefc11b23a597f9/src/consensus/aft/raft.h#L2081
+            HasConsensusWatermark(idx) ==
+                \A config \in {c \in DOMAIN(configurations[i]) : idx >= c } :
+                    \* In all of these configs, we now need a quorum in the servers that have the correct matchIndex
+                    LET config_servers == configurations[i][config]
+                        required_quorum == Quorums[config_servers]
+                        agree_servers == {k \in config_servers : matchIndex[i][k] >= idx}
+                    IN (IF i \in config_servers THEN {i} ELSE {}) \cup agree_servers \in required_quorum
+            \* The function find_highest_possible_committable_index in raft.h returns the largest committable index
+            \* in the current term (Figure 8 and Section 5.4.2 of https://raft.github.io/raft.pdf explains why it has
+            \* to be the *current* term).  Finding the largest index is an (implementation-level) optimization that
+            \* reduces the number of AdvanceCommitIndex calls, but this optimization also shrinks this spec's state-space.
+            \*
+            \* Theoretically, any committable index in the current term works, i.e., highestCommittableIndex could be
+            \* defined non-deterministically as:
+            \*       \E idx \in { j \in (commitIndex[i]+1)..Len(log[i]) : /\ log[i][j].term = currentTerm[i] 
+            \*                                                            /\ log[i][j].contentType = TypeSignature }
+            \*          /\ HasConsensusWatermark(idx)
+            \*          /\ ...
+            \* 
+            \* Max({0} \cup {...}) to default to 0 if no committable index is found.
+            highestCommittableIndex == Max({0} \cup { j \in (commitIndex[i]+1)..Len(log[i]) : 
+                                                                    /\ log[i][j].term = currentTerm[i] 
+                                                                    /\ log[i][j].contentType = TypeSignature
+                                                                    /\ HasConsensusWatermark(j) })
         IN
-        /\  \* Select those configs that need to have a quorum to agree on this leader
-            \A config \in {c \in DOMAIN(configurations[i]) : new_index >= c } :
-                \* In all of these configs, we now need a quorum in the servers that have the correct matchIndex
-                LET config_servers == configurations[i][config]
-                    required_quorum == Quorums[config_servers]
-                    agree_servers == {k \in config_servers : matchIndex[i][k] >= new_index}
-                IN (IF i \in config_servers THEN {i} ELSE {}) \cup agree_servers \in required_quorum
-         \* only advance if necessary (this is basically a sanity check after the Min above)
-        /\ commitIndex[i] < new_index
-        /\ commitIndex' = [commitIndex EXCEPT ![i] = new_index]
+         \* only advance if necessary (this is basically a sanity)
+        /\ commitIndex[i] < highestCommittableIndex
+        /\ commitIndex' = [commitIndex EXCEPT ![i] = highestCommittableIndex]
         /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ 0..commitIndex'[i] ]
         \* If commit index surpasses the next configuration, pop configs, and retire as leader if removed
         /\ IF /\ Cardinality(DOMAIN configurations[i]) > 1
-              /\ new_index >= NextConfigurationIndex(i)
+              /\ highestCommittableIndex >= NextConfigurationIndex(i)
            THEN
+              LET new_configurations == RestrictDomain(configurations[i], 
+                                            LAMBDA c : c >= LastConfigurationToIndex(i, highestCommittableIndex))
+              IN
               /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
               \* Retire if i is not in active configuration anymore
-              /\ IF i \notin configurations[i][Min(DOMAIN new_configurations)]
+              /\ IF i \notin configurations[i][Min(DOMAIN configurations'[i])]
                  THEN \E j \in PlausibleSucessorNodes(i) :
                     /\ state' = [state EXCEPT ![i] = RetiredLeader]
                     /\ LET msg == [type          |-> ProposeVoteRequest,
@@ -1111,8 +1106,14 @@ LogInv ==
 \* This is a key safety invariant and should always be checked
 THEOREM Spec => []LogInv
 
-\* There should not be more than one leader per term at the same time
-\* Note that this does not rule out multiple leaders in the same term at different times
+\* There is only ever one leader per term.  However, this does not preclude multiple
+\* servers being leader at the same time, i.e., |{s \in Servers: state[s] = Leader}| > 1,
+\* as long as each server is leader in a different term.
+\*
+\* However, this invariant is not violated if two servers *atomically* trade places as
+\* leader in the same term, i.e., state' = [state EXCEPT ![s] = Follower, ![t] = Leader]
+\* with state[s]=Leader /\ state[t]#Leader.  For that, we would need a suitable action
+\* property.
 MoreThanOneLeaderInv ==
     \A i,j \in Servers :
         (/\ currentTerm[i] = currentTerm[j]
@@ -1204,7 +1205,8 @@ SignatureInv ==
 MonoTermInv ==
     \A m \in Network!Messages: currentTerm[m.source] >= m.term
 
-\* Terms in logs should be monotonically increasing
+\* Terms in logs increase monotonically. When projecting out TypeSignature entries, the 
+\* terms even increase in a *strictly* monotonic manner.
 MonoLogInv ==
     \A i \in Servers :
        log[i] # <<>> => 

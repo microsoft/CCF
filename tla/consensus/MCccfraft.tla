@@ -94,16 +94,20 @@ MCSend(msg) ==
 MCInMaxSimultaneousCandidates(i) ==
     Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
 
-\* Alternative to CCF!Init that uses the above MCInitReconfigurationVars
+JoinedLog(startNode, nextNodes) ==
+    StartLog(startNode, nextNodes) \o
+        << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> nextNodes],
+           [term |-> StartTerm, contentType |-> TypeSignature] >>
+
 MCInit ==
-    /\ CCF!InitMessagesVars
-    /\ CCF!InitCandidateVars
-    /\ CCF!InitLeaderVars
+    /\ InitMessagesVars
+    /\ InitCandidateVars
+    /\ InitLeaderVars
     /\ IF Cardinality(Configurations[1]) = 1
-       \* If the first config is just one node, we can start with a two-tx log and a single config
-       THEN CCF!StartState(CHOOSE s \in Configurations[1]: TRUE, ToServers)
-       \* If we want to start with multiple nodes, a four-tx log with a reconfiguration already appended
-       ELSE CCF!JoinedState(Configurations[1], ToServers)
+       \* If the first config is just one node, we can start with a two-tx log and a single config.
+       THEN InitLogConfigServerVars(Configurations[1], StartLog)
+       \* If we want to start with multiple nodes, we can start with a four-tx log with a reconfiguration already appended.
+       ELSE InitLogConfigServerVars(Configurations[1], JoinedLog)
 
 \* Alternative to CCF!Spec that uses the above MCInit
 mc_spec ==   

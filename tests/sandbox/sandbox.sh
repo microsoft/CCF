@@ -23,7 +23,7 @@ platform=$(<"${PLATFORM_FILE}")
 if [ "${platform}" == "sgx" ]; then
     enclave_type="release"
 else
-    enclave_type="virtual"
+    enclave_type="debug"
 fi
 
 extra_args=()

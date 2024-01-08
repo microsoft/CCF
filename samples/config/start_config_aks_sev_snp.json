@@ -36,11 +36,11 @@
   "attestation": {
     "snp_endorsements_servers": [
       {
-        "type": "AMD",
-        "url": "kdsintf.amd.com"
+        "type": "THIM",
+        "url": "169.254.169.254"
       }
     ],
     "snp_security_policy_file": "/path/to/security-policy-base64",
-    "snp_uvm_endorsements_file": "/path/to/reference-info-base64"
+    "snp_uvm_endorsements_file": "/opt/confidential-containers/share/kata-containers/reference-info-base64"
   }
 }

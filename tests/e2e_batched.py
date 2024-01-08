@@ -17,7 +17,6 @@ id_gen = itertools.count()
 
 
 @reqs.description("Running batch submission of new entries")
-@reqs.supports_methods("/app/batch/submit", "/app/batch/fetch")
 def test(network, args, batch_size=100, write_key_divisor=1, write_size_multiplier=1):
     LOG.info(f"Number of batched entries: {batch_size}")
     primary, _ = network.find_primary()
@@ -108,10 +107,9 @@ def run_to_destruction(args):
                     )
                     raise ValueError(wsm)
                 else:
-                    wsm += 50000  # Grow very quickly, expect to fail on the second iteration
-
+                    wsm += 100000  # Grow very quickly, expect to fail on the second iteration
         except Exception as e:
-            timeout = 10
+            timeout = 120
 
             LOG.info("Large write set caused an exception, as expected")
             LOG.info(f"Exception was: {e}")
@@ -120,10 +118,11 @@ def run_to_destruction(args):
             end_time = time.time() + timeout
             while time.time() < end_time:
                 time.sleep(0.1)
-                exit_code = network.nodes[0].remote.remote.proc.poll()
-                if exit_code is not None:
-                    LOG.info(f"Node terminated with exit code {exit_code}")
-                    assert exit_code != 0
+                exit_codes = [node.remote.remote.proc.poll() for node in network.nodes]
+                if any(exit_codes):
+                    LOG.info(
+                        f"One or more nodes terminated with exit codes {exit_codes}"
+                    )
                     break
 
             if time.time() > end_time:

@@ -32,7 +32,7 @@ FUNCTIONS = {
     None: "",
 }
 
-OK = {"Y": ":white_check_mark:", "N": ":x:", " ": "  "}
+TAG = {"Y": ":white_check_mark:", "N": ":x:", " ": "  ", "S": ":pencil:"}
 
 
 def digits(value):
@@ -46,17 +46,17 @@ def diffed_key(old, new, key, suffix, size):
     return f"[{color}]{new[key]:>{size}}{suffix}[/{color}]"
 
 
-def render_state(state, func, old_state, ok, cfg):
+def render_state(state, func, old_state, tag, cfg):
     if state is None:
         return " "
     ls = LEADERSHIP_STATUS[state["leadership_state"]]
     nid = state["node_id"]
-    v = diffed_key(old_state, state, "current_view", "v", cfg.view)
-    i = diffed_key(old_state, state, "last_idx", "i", cfg.index)
-    c = diffed_key(old_state, state, "commit_idx", "c", cfg.commit)
+    v = diffed_key(old_state, state, "current_view", "", cfg.view)
+    i = diffed_key(old_state, state, "last_idx", "", cfg.index)
+    c = diffed_key(old_state, state, "commit_idx", "", cfg.commit)
     f = FUNCTIONS[func]
     opc = "bold bright_white on red" if func else "normal"
-    return f"[{opc}]{nid:>{cfg.nodes}}{ls}{f:<4} [/{opc}]{OK[ok]} {v} {i} {c}"
+    return f"[{opc}]{nid:>{cfg.nodes}}{ls}{f:<4} [/{opc}]{TAG[tag]} {v}.{i} {c}"
 
 
 class DigitsCfg:
@@ -90,18 +90,20 @@ def table(lines):
         node_id = entry["msg"]["state"]["node_id"]
         old_state = node_to_state.get(node_id)
         node_to_state[node_id] = entry["msg"]["state"]
-        ok = " "
+        tag = " "
         if "packet" in entry["msg"]:
             if "success" in entry["msg"]["packet"]:
-                ok = "Y" if entry["msg"]["packet"]["success"] == "OK" else "N"
+                tag = "Y" if entry["msg"]["packet"]["success"] == "OK" else "N"
             if "vote_granted" in entry["msg"]["packet"]:
-                ok = "Y" if entry["msg"]["packet"]["vote_granted"] else "N"
+                tag = "Y" if entry["msg"]["packet"]["vote_granted"] else "N"
+        if entry["msg"].get("globally_committable"):
+            tag = "S"
         states = [
             (
                 node_to_state.get(node),
                 entry["msg"]["function"] if node == node_id else None,
                 old_state if node == node_id else None,
-                ok if node == node_id else " ",
+                tag if node == node_id else " ",
             )
             for node in nodes
         ]

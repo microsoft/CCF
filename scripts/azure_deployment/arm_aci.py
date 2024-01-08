@@ -44,6 +44,7 @@ def setup_environment_command():
         append_envvar_to_well_known_file("UVM_REFERENCE_INFO"),
         append_envvar_to_well_known_file("UVM_HOST_AMD_CERTIFICATE"),
         append_envvar_to_well_known_file("UVM_SECURITY_CONTEXT_DIR"),
+        append_envvar_to_well_known_file("Fabric_NodeIPOrFQDN"),
     ]
 
 
@@ -132,7 +133,7 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
         "--aci-image",
         help="The name of the image to deploy in the ACI",
         type=str,
-        default="ccfmsrc.azurecr.io/ccf/ci:26-10-2023-snp",
+        default="ccfmsrc.azurecr.io/ccf/ci:07-12-2023-snp",
     )
     parser.add_argument(
         "--aci-type",

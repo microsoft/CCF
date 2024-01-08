@@ -80,6 +80,11 @@ namespace ccf
         nullptr, std::nullopt, std::nullopt, std::nullopt, false));
     }
 
+    std::shared_ptr<ClientSession> create_unencrypted_client()
+    {
+      return rpcsessions->create_unencrypted_client();
+    }
+
     void send_request(
       const std::shared_ptr<ClientSession>& client,
       const EndpointInfo& endpoint)
@@ -90,11 +95,15 @@ namespace ccf
         {
           r.set_query_param(k, v);
         }
+        for (auto const& [k, v] : endpoint.headers)
+        {
+          r.set_header(k, v);
+        }
         r.set_header(http::headers::HOST, endpoint.host);
 
         LOG_INFO_FMT(
-          "Fetching endorsements for attestation report at https://{}{}{}",
-          endpoint.host,
+          "Fetching endorsements for attestation report at {}{}{}",
+          endpoint,
           r.get_path(),
           r.get_formatted_query());
         client->send_request(std::move(r));
@@ -112,8 +121,7 @@ namespace ccf
           if (msg->data.request_id >= msg->data.self->last_received_request_id)
           {
             LOG_FAIL_FMT(
-              "Timed out reaching endorsement server {}",
-              msg->data.endpoint.host);
+              "Timed out reaching endorsement server {}", msg->data.endpoint);
 
             auto& servers = msg->data.self->config.servers;
             msg->data.self->server_retries_count++;
@@ -170,6 +178,18 @@ namespace ccf
         auto raw = crypto::cert_der_to_pem(data).raw();
         endorsements_pem.insert(endorsements_pem.end(), raw.begin(), raw.end());
       }
+      else if (response_endpoint.response_is_thim_json)
+      {
+        auto j = nlohmann::json::parse(data);
+        auto vcekCert = j.at("vcekCert").get<std::string>();
+        auto certificateChain = j.at("certificateChain").get<std::string>();
+        endorsements_pem.insert(
+          endorsements_pem.end(), vcekCert.begin(), vcekCert.end());
+        endorsements_pem.insert(
+          endorsements_pem.end(),
+          certificateChain.begin(),
+          certificateChain.end());
+      }
       else
       {
         endorsements_pem.insert(
@@ -180,6 +200,8 @@ namespace ccf
       if (server.empty())
       {
         LOG_INFO_FMT("Complete endorsement chain successfully retrieved");
+        LOG_INFO_FMT(
+          "{}", std::string(endorsements_pem.begin(), endorsements_pem.end()));
         has_completed = true;
         done_cb(std::move(endorsements_pem));
       }
@@ -193,7 +215,8 @@ namespace ccf
     {
       auto endpoint = server.front();
 
-      auto c = create_unauthenticated_client();
+      auto c = endpoint.tls ? create_unauthenticated_client() :
+                              create_unencrypted_client();
       c->connect(
         endpoint.host,
         endpoint.port,
@@ -241,7 +264,7 @@ namespace ccf
             LOG_INFO_FMT(
               "{} endorsements endpoint had too many requests. Retrying "
               "in {}s",
-              endpoint.host,
+              endpoint,
               retry_after_s);
 
             threading::ThreadMessaging::instance().add_task_after(
@@ -249,10 +272,10 @@ namespace ccf
           }
           return;
         },
-        [host = endpoint.host](const std::string& error_msg) {
+        [endpoint](const std::string& error_msg) {
           LOG_FAIL_FMT(
             "TLS error when connecting to quote endorsements endpoint {}: {}",
-            host,
+            endpoint,
             error_msg);
         });
       send_request(c, endpoint);
