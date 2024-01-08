@@ -1,4 +1,4 @@
-start_node
+start_node,0
 assert_is_primary,0
 emit_signature,2
 
