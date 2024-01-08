@@ -641,7 +641,8 @@ ChangeConfigurationInt(i, newConfiguration) ==
     \* i.e., be re-added to a new configuration.  Instead, the node has to rejoin with a
     \* "fresh" identity (compare sec 6.2, page 8, https://arxiv.org/abs/2310.11559).
     /\ \A s \in newConfiguration: s \notin removedFromConfiguration
-    \* See raft.h:2401
+    \* See raft.h:2401, nodes are only sent future entries initially, they will NACK if necessary.
+    \* This is because they are expected to start from a fairly recent snapshot, not from scratch.
     /\ \A addedNode \in (newConfiguration \ CurrentConfiguration(i)) : nextIndex' = [nextIndex EXCEPT ![i][addedNode] = Len(log[i]) + 1]
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
