@@ -55,11 +55,6 @@ def interface_caps(i):
 
 
 def run_connection_caps_tests(args):
-    args = copy.deepcopy(args)
-
-    # Set a relatively low cap on max open sessions, so we can saturate it in a reasonable amount of time
-    args.max_open_sessions = 40
-    args.max_open_sessions_hard = args.max_open_sessions + 5
 
     # Listen on additional RPC interfaces with even lower session caps
     for i, node_spec in enumerate(args.nodes):
@@ -376,7 +371,13 @@ if __name__ == "__main__":
     args.package = "samples/apps/logging/liblogging"
 
     args.nodes = infra.e2e_args.nodes(args, 1)
+    run_node_socket_robustness_tests(args)
+
+    # Set a relatively low cap on max open sessions, so we can saturate it in a reasonable amount of time
+    args.max_open_sessions = 40
+    args.max_open_sessions_hard = args.max_open_sessions + 5
+
+    args.nodes = infra.e2e_args.nodes(args, 1)
     args.initial_user_count = 1
 
     run_connection_caps_tests(args)
-    run_node_socket_robustness_tests(args)
