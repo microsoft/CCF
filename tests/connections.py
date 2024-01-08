@@ -16,7 +16,6 @@ import http
 import functools
 import httpx
 import os
-import copy
 import socket
 import struct
 from infra.snp import IS_SNP
