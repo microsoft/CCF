@@ -273,7 +273,10 @@ CandidateVarsTypeInv ==
     /\ VotesGrantedTypeInv
 
 \* The following variables are used only on leaders:
-\* The next entry to send to each follower.
+
+\* The next entry to send to each follower, called sent_idx in raft.h
+\* In CCF, the leader updates nextIndex optimically when an AE message is dispatched
+\* In contrast, in Raft the leader only updates nextIndex when an AE response is received
 VARIABLE nextIndex
 
 \* nextIndex cannot be zero as its the index of the first log
@@ -925,7 +928,8 @@ HandleAppendEntriesResponse(i, j, m) ==
           /\ m.success \* successful
           \* max(...) because why would we ever want to go backwards on a success response?!
           /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, m.lastLogIndex)]
-          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = max(@, m.lastLogIndex + 1)]
+          \* nextIndex is unchanged on successful AE response as it was already updated when the AE was dispatched
+          /\ UNCHANGED nextIndex
        \/ /\ \lnot m.success \* not successful
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
              IN nextIndex' = [nextIndex EXCEPT ![i][j] = max(min(tm, nextIndex[i][j]-1), matchIndex[i][j]) + 1 ]
@@ -1252,6 +1256,9 @@ NoLeaderBeforeInitialTerm ==
     \A i \in Servers :
         currentTerm[i] < StartTerm => state[i] # Leader
 
+\* MatchIndexLowerBoundNextIndexInv is not currently an invariant but 
+\* we might wish to add it in the future. This could be achieved by updating 
+\* nextIndex to max of current nextIndex and matchIndex when an AE ACK is received.
 MatchIndexLowerBoundNextIndexInv ==
     \A i,j \in Servers :
         state[i] = Leader =>
