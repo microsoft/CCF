@@ -21,6 +21,8 @@ function group(){
     # https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables
     if [[ ${CI} ]]; then
       echo "::group::$1"
+    else
+      echo "-=[ $1 ]=-"
     fi
 }
 function endgroup() {
