@@ -55,12 +55,22 @@ CONSTANTS
     \* from another node.
     None
 
+\* Membership states
+CONSTANTS
+    Active,
+    Retired
+
 LeadershipStates == {
     Follower,
     Candidate,
     Leader,
     RetiredLeader,
     None
+    }
+
+MembershipStates == {
+    Active,
+    Retired
     }
 
 \* Message types:
