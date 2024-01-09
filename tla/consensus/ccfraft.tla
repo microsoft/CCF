@@ -223,11 +223,11 @@ VARIABLE currentTerm
 CurrentTermTypeInv ==
     \A i \in Servers : currentTerm[i] \in Nat
 
-\* The server's state.
-VARIABLE state
+\* The leadership state.
+VARIABLE leadershipState
 
 StateTypeInv ==
-    \A i \in Servers : state[i] \in LeadershipStates
+    \A i \in Servers : leadershipState[i] \in LeadershipStates
 
 \* The candidate the server voted for in its current term, or
 \* Nil if it hasn't voted for any.
@@ -236,7 +236,7 @@ VARIABLE votedFor
 VotedForTypeInv ==
     \A i \in Servers : votedFor[i] \in {Nil} \cup Servers
 
-serverVars == <<currentTerm, state, votedFor>>
+serverVars == <<currentTerm, leadershipState, votedFor>>
 
 ServerVarsTypeInv ==
     /\ CurrentTermTypeInv
@@ -489,7 +489,7 @@ InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
         \* <<[term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNodes], 
         \*   [term |-> StartTerm, contentType |-> TypeSignature]>> \in Suffixes(logPrefix({sn}, startNodes))
         /\ log         = [i \in Servers |-> IF i \in startNodes THEN logPrefix({sn}, startNodes) ELSE << >>]
-        /\ state       = [i \in Servers |-> IF i = sn THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
+        /\ leadershipState = [i \in Servers |-> IF i = sn THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
         /\ commitIndex = [i \in Servers |-> IF i \in startNodes THEN Len(logPrefix({sn}, startNodes)) ELSE 0]
     /\ configurations = [i \in Servers |-> IF i \in startNodes  THEN (Len(log[i])-1 :> startNodes) ELSE << >>]
     
@@ -525,12 +525,12 @@ Init ==
 \* Server i times out and starts a new election.
 Timeout(i) ==
     \* Only servers that are followers/candidates can become candidates
-    /\ state[i] \in {Follower, Candidate}
+    /\ leadershipState[i] \in {Follower, Candidate}
     \* Check that the reconfiguration which added this node is at least committable
     /\ \E c \in DOMAIN configurations[i] :
         /\ i \in configurations[i][c]
         /\ MaxCommittableIndex(log[i]) >= c
-    /\ state' = [state EXCEPT ![i] = Candidate]
+    /\ leadershipState' = [leadershipState EXCEPT ![i] = Candidate]
     /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i] + 1]
     \* Candidate votes for itself
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
@@ -552,7 +552,7 @@ RequestVote(i,j) ==
     \* Timeout votes for itself atomically. Thus we do not need to request our own vote.
     /\ i /= j
     \* Only requests vote if we are candidate
-    /\ state[i] = Candidate
+    /\ leadershipState[i] = Candidate
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
     /\ Send(msg)
@@ -561,7 +561,7 @@ RequestVote(i,j) ==
 \* Leader i sends j an AppendEntries request
 AppendEntries(i, j) ==
     \* No messages to itself and sender is primary
-    /\ state[i] = Leader
+    /\ leadershipState[i] = Leader
     /\ i /= j
     /\ j \in GetServerSet(i)
     \* AppendEntries must be sent for historical entries, unless
@@ -596,10 +596,10 @@ AppendEntries(i, j) ==
 
 \* Candidate i transitions to leader.
 BecomeLeader(i) ==
-    /\ state[i] = Candidate
+    /\ leadershipState[i] = Candidate
     \* To become leader, the candidate must have received votes from a majority in each active configuration
     /\ \A c \in DOMAIN configurations[i] : votesGranted[i] \in Quorums[configurations[i][c]]
-    /\ state'      = [state EXCEPT ![i] = Leader]
+    /\ leadershipState' = [leadershipState EXCEPT ![i] = Leader]
     \* CCF: We reset our own log to its committable subsequence, throwing out
     \* all unsigned log entries of the previous leader.
     \* See occurrence of last_committable_index() in raft.h::become_leader.
@@ -615,7 +615,7 @@ BecomeLeader(i) ==
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
     \* Only leaders receive client requests
-    /\ state[i] = Leader
+    /\ leadershipState[i] = Leader
     /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex, committableIndices>>
 
@@ -629,7 +629,7 @@ ClientRequest(i) ==
 \* See history::start_signature_emit_timer
 SignCommittableMessages(i) ==
     \* Only applicable to Leaders with a log that contains at least one entry.
-    /\ state[i] = Leader
+    /\ leadershipState[i] = Leader
     \* The first log entry cannot be a signature.
     /\ log[i] # << >>
     \* Create a new entry in the log that has the contentType Signature and append it
@@ -648,7 +648,7 @@ SignCommittableMessages(i) ==
 \* this means waiting for the signature to be committed)
 ChangeConfigurationInt(i, newConfiguration) ==
     \* Only leader can propose changes
-    /\ state[i] = Leader
+    /\ leadershipState[i] = Leader
     \* Configuration is not equal to the previous configuration.
     /\ newConfiguration /= MaxConfiguration(i)
     \* CCF's integrity demands that a previously removed server cannot rejoin the network,
@@ -681,7 +681,7 @@ ChangeConfiguration(i) ==
 \*    all configurations of at least that index need to have a quorum of
 \*    servers agree on the index before it can be seen as committed.
 AdvanceCommitIndex(i) ==
-    /\ state[i] = Leader
+    /\ leadershipState[i] = Leader
     /\ LET
             \* Select those configs that need to have a quorum to agree on this leader.
             \* Compare https://github.com/microsoft/CCF/blob/75670480c53519fcec1a09d36aefc11b23a597f9/src/consensus/aft/raft.h#L2081
@@ -725,7 +725,7 @@ AdvanceCommitIndex(i) ==
               \* Retire if i is not in active configuration anymore
               /\ IF i \notin configurations[i][Min(DOMAIN configurations'[i])]
                  THEN \E j \in PlausibleSucessorNodes(i) :
-                    /\ state' = [state EXCEPT ![i] = RetiredLeader]
+                    /\ leadershipState' = [leadershipState EXCEPT ![i] = RetiredLeader]
                     /\ LET msg == [type          |-> ProposeVoteRequest,
                                     term          |-> currentTerm[i],
                                     source        |-> i,
@@ -740,8 +740,8 @@ AdvanceCommitIndex(i) ==
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
-    /\ state[i] = Leader
-    /\ state' = [state EXCEPT ![i] = Follower]
+    /\ leadershipState[i] = Leader
+    /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars>>
 
 ------------------------------------------------------------------------------
@@ -768,13 +768,13 @@ HandleRequestVoteRequest(i, j, m) ==
                  source      |-> i,
                  dest        |-> j],
                  m)
-       /\ UNCHANGED <<reconfigurationVars, state, currentTerm, candidateVars, leaderVars, logVars>>
+       /\ UNCHANGED <<reconfigurationVars, leadershipState, currentTerm, candidateVars, leaderVars, logVars>>
 
 \* Server i receives a RequestVote response from server j with
 \* m.term = currentTerm[i].
 HandleRequestVoteResponse(i, j, m) ==
     /\ m.term = currentTerm[i]
-    /\ state[i] = Candidate \* Only Candidates need to tally votes
+    /\ leadershipState[i] = Candidate \* Only Candidates need to tally votes
     /\ \/ /\ m.voteGranted
           /\ votesGranted' = [votesGranted EXCEPT ![i] =
                                   votesGranted[i] \cup {j}]
@@ -796,7 +796,7 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                  dest           |-> j],
                  m)
        \/ /\ m.term >= currentTerm[i]
-          /\ state[i] = Follower
+          /\ leadershipState[i] = Follower
           /\ ~logOk
           /\ LET prevTerm == IF m.prevLogIndex = 0 THEN StartTerm
                              ELSE IF m.prevLogIndex > Len(log[i]) THEN 0 ELSE log[i][Len(log[i])].term
@@ -822,8 +822,8 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
 
 ReturnToFollowerState(i, m) ==
     /\ m.term = currentTerm[i]
-    /\ state[i] = Candidate
-    /\ state' = [state EXCEPT ![i] = Follower]
+    /\ leadershipState[i] = Candidate
+    /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ UNCHANGED <<reconfigurationVars, currentTerm, votedFor, logVars, messages>>
 
 AppendEntriesAlreadyDone(i, j, index, m) ==
@@ -891,10 +891,10 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         /\ configurations' = 
                 [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
         \* If we added a new configuration that we are in and were pending, we are now follower
-        /\ IF /\ state[i] = None
+        /\ IF /\ leadershipState[i] = None
               /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
-           THEN state' = [state EXCEPT ![i] = Follower ]
-           ELSE UNCHANGED state
+           THEN leadershipState' = [leadershipState EXCEPT ![i] = Follower ]
+           ELSE UNCHANGED leadershipState
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -907,7 +907,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
     /\ m.term = currentTerm[i]
-    /\ state[i] \in {Follower, None}
+    /\ leadershipState[i] \in {Follower, None}
     /\ logOk
     /\ LET index == m.prevLogIndex + 1
        IN \/ AppendEntriesAlreadyDone(i, j, index, m)
@@ -931,7 +931,7 @@ HandleAppendEntriesRequest(i, j, m) ==
 \* m.term = currentTerm[i].
 HandleAppendEntriesResponse(i, j, m) ==
     /\ \/ /\ m.term = currentTerm[i]
-          /\ state[i] = Leader \* Only Leaders need to tally append entries responses
+          /\ leadershipState[i] = Leader \* Only Leaders need to tally append entries responses
           /\ m.success \* successful
           \* max(...) because why would we ever want to go backwards on a success response?!
           /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, m.lastLogIndex)]
@@ -950,7 +950,7 @@ HandleAppendEntriesResponse(i, j, m) ==
 UpdateTerm(i, j, m) ==
     /\ m.term > currentTerm[i]
     /\ currentTerm'    = [currentTerm EXCEPT ![i] = m.term]
-    /\ state'          = [state       EXCEPT ![i] = IF @ \in {Leader, Candidate} THEN Follower ELSE @]
+    /\ leadershipState' = [leadershipState EXCEPT ![i] = IF @ \in {Leader, Candidate} THEN Follower ELSE @]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
     \* See rollback(last_committable_index()) in raft::become_follower
     /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(i))]
@@ -968,9 +968,9 @@ DropStaleResponse(i, j, m) ==
 
 DropResponseWhenNotInState(i, j, m) ==
     \/ /\ m.type = AppendEntriesResponse
-       /\ state[i] \in LeadershipStates \ { Leader }
+       /\ leadershipState[i] \in LeadershipStates \ { Leader }
     \/ /\ m.type = RequestVoteResponse
-       /\ state[i] \in LeadershipStates \ { Candidate }
+       /\ leadershipState[i] \in LeadershipStates \ { Candidate }
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
@@ -979,15 +979,15 @@ DropIgnoredMessage(i,j,m) ==
     \* Drop messages if...
     /\
        \* .. recipient is still None..
-       \/ /\ state[i] = None
+       \/ /\ leadershipState[i] = None
           \* .. and the message is anything other than an append entries request
           /\ m.type /= AppendEntriesRequest
        \*  OR if message is to a server that has surpassed the None stage ..
-       \/ /\ state[i] /= None
+       \/ /\ leadershipState[i] /= None
         \* .. and it comes from a server outside of the configuration
           /\ \lnot IsInServerSet(j, i)
        \*  OR if recipient is RetiredLeader and this is not a request to vote
-       \/ /\ state[i] = RetiredLeader
+       \/ /\ leadershipState[i] = RetiredLeader
           /\ m.type /= RequestVoteRequest
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
@@ -1120,25 +1120,25 @@ LogInv ==
 THEOREM Spec => []LogInv
 
 \* There is only ever one leader per term.  However, this does not preclude multiple
-\* servers being leader at the same time, i.e., |{s \in Servers: state[s] = Leader}| > 1,
+\* servers being leader at the same time, i.e., |{s \in Servers: leadershipState[s] = Leader}| > 1,
 \* as long as each server is leader in a different term.
 \*
 \* However, this invariant is not violated if two servers *atomically* trade places as
-\* leader in the same term, i.e., state' = [state EXCEPT ![s] = Follower, ![t] = Leader]
-\* with state[s]=Leader /\ state[t]#Leader.  For that, we would need a suitable action
+\* leader in the same term, i.e., leadershipState' = [leadershipState EXCEPT ![s] = Follower, ![t] = Leader]
+\* with leadershipState[s]=Leader /\ leadershipState[t]#Leader.  For that, we would need a suitable action
 \* property.
 MoreThanOneLeaderInv ==
     \A i,j \in Servers :
         (/\ currentTerm[i] = currentTerm[j]
-         /\ state[i] = Leader
-         /\ state[j] = Leader)
+         /\ leadershipState[i] = Leader
+         /\ leadershipState[j] = Leader)
         => i = j
 
 \* If a candidate has a chance of being elected, there
 \* are no log entries with that candidate's term
 CandidateTermNotInLogInv ==
     \A i \in Servers :
-        (/\ state[i] = Candidate
+        (/\ leadershipState[i] = Candidate
         /\ \A k \in DOMAIN (configurations[i]) :
             {j \in Servers :
                 /\ currentTerm[j] = currentTerm[i]
@@ -1154,7 +1154,7 @@ CandidateTermNotInLogInv ==
 \* mean all of its log will survive if it is not committed + signed yet)
 ElectionSafetyInv ==
     \A i \in Servers :
-        state[i] = Leader =>
+        leadershipState[i] = Leader =>
         \A j \in Servers : i /= j =>
             LET FilterAndMax(a, b) == 
                     IF a.term = currentTerm[i] THEN max(a.term, b) ELSE b
@@ -1194,7 +1194,7 @@ UpToDateCheck(i, j) ==
 \* If a server i might request a vote from j, receives it and counts it then i 
 \* has all of j's committed entries
 MoreUpToDateCorrectInv ==
-    \A i \in { s \in Servers : state[s] = Candidate } :
+    \A i \in { s \in Servers : leadershipState[s] = Candidate } :
         \A j \in GetServerSet(i) :
             /\ i /= j 
             /\ UpToDateCheck(i, j)
@@ -1205,7 +1205,7 @@ MoreUpToDateCorrectInv ==
 \* elected without the old leader stepping down yet)
 LeaderCompletenessInv ==
     \A i \in Servers :
-        state[i] = Leader =>
+        leadershipState[i] = Leader =>
         \A j \in Servers : i /= j =>
             IsPrefix(CommittedTermPrefix(j, currentTerm[i]),log[i])
 
@@ -1233,7 +1233,7 @@ MonoLogInv ==
 \* Each server's active configurations should be consistent with its own log and commit index
 LogConfigurationConsistentInv ==
     \A i \in Servers :
-        \/ state[i] = None
+        \/ leadershipState[i] = None
         \/
             \* Configurations should have associated reconfiguration txs in the log
             /\ \A idx \in DOMAIN (configurations[i]) : 
@@ -1256,7 +1256,7 @@ LogConfigurationConsistentInv ==
 
 NoLeaderBeforeInitialTerm ==
     \A i \in Servers :
-        currentTerm[i] < StartTerm => state[i] # Leader
+        currentTerm[i] < StartTerm => leadershipState[i] # Leader
 
 \* MatchIndexLowerBoundNextIndexInv is not currently an invariant but 
 \* we might wish to add it in the future. This could be achieved by updating 
@@ -1264,7 +1264,7 @@ NoLeaderBeforeInitialTerm ==
 MatchIndexLowerBoundSentIndexInv ==
 
     \A i,j \in Servers :
-        state[i] = Leader =>
+        leadershipState[i] = Leader =>
             sentIndex[i][j] >= matchIndex[i][j]
 
 CommitCommittableIndices ==
@@ -1311,44 +1311,44 @@ MonotonicMatchIndexProp ==
 PermittedLogChangesProp ==
     [][\A i \in Servers :
         log[i] # log[i]' =>
-            \/ state[i]' = None
-            \/ state[i]' = Follower
+            \/ leadershipState[i]' = None
+            \/ leadershipState[i]' = Follower
             \* Established leader adding new entries
-            \/ /\ state[i] = Leader
-               /\ state[i]' = Leader
+            \/ /\ leadershipState[i] = Leader
+               /\ leadershipState[i]' = Leader
                /\ IsPrefix(log[i], log[i]')
             \* Newly elected leader is truncating its log
-            \/ /\ state[i] = Candidate
-               /\ state[i]' = Leader
+            \/ /\ leadershipState[i] = Candidate
+               /\ leadershipState[i]' = Leader
                /\ log[i]' = Committable(i)
             \* Retired leader is truncating its log, i.e.,
             \* the retired leader learns about a new term
             \* (see raft::become_aware_of_new_term called from
             \* raft::recv_append_entries and the corresponding
             \* action UpdateTerm above).
-            \/ /\ state[i] = RetiredLeader
-               /\ state[i]' = RetiredLeader
+            \/ /\ leadershipState[i] = RetiredLeader
+               /\ leadershipState[i]' = RetiredLeader
                /\ log[i]' = Committable(i)
         ]_vars
 
 StateTransitionsProp ==
     [][\A i \in Servers :
-        /\ state[i] = None => state[i]' \in {None, Follower}
-        /\ state[i] = Follower => state[i]' \in {Follower, Candidate}
-        /\ state[i] = Candidate => state[i]' \in {Follower, Candidate, Leader}
-        /\ state[i] = Leader => state[i]' \in {Follower, Leader, RetiredLeader}
-        /\ state[i] = RetiredLeader => state[i]' = RetiredLeader
+        /\ leadershipState[i] = None => leadershipState[i]' \in {None, Follower}
+        /\ leadershipState[i] = Follower => leadershipState[i]' \in {Follower, Candidate}
+        /\ leadershipState[i] = Candidate => leadershipState[i]' \in {Follower, Candidate, Leader}
+        /\ leadershipState[i] = Leader => leadershipState[i]' \in {Follower, Leader, RetiredLeader}
+        /\ leadershipState[i] = RetiredLeader => leadershipState[i]' = RetiredLeader
         ]_vars
 
 PendingBecomesFollowerProp ==
     \* A pending node that becomes aware it is part of a configuration immediately transitions to Follower.
-    [][\A s \in { s \in Servers : state[s] = None } : 
+    [][\A s \in { s \in Servers : leadershipState[s] = None } : 
             s \in GetServerSet(s)' => 
-                state[s]' = Follower]_vars
+                leadershipState[s]' = Follower]_vars
 
 \* Raft Paper section 5.4.2: "[A leader] never commits log entries from previous terms...".
 NeverCommitEntryPrevTermsProp ==
-    [][\A i \in { s \in Servers : state[s] = Leader }:
+    [][\A i \in { s \in Servers : leadershipState[s] = Leader }:
         \* If the commitIndex of a leader changes, the log entry's term that the new commitIndex
         \* points to equals the leader's term.
         commitIndex'[i] > commitIndex[i] => log[i][commitIndex'[i]].term = currentTerm'[i] ]_vars
@@ -1357,7 +1357,7 @@ LogMatchingProp ==
     \A i, j \in Servers : []<>(log[i] = log[j])
 
 LeaderProp ==
-    []<><<\E i \in Servers : state[i] = Leader>>_vars
+    []<><<\E i \in Servers : leadershipState[i] = Leader>>_vars
 
 ------------------------------------------------------------------------------
 \* Debugging invariants
@@ -1369,7 +1369,7 @@ DebugInvLeaderCannotStepDown ==
     \A m \in Network!Messages :
         /\ m.type = AppendEntriesRequest
         /\ currentTerm[m.source] = m.term
-        => state[m.source] = Leader
+        => leadershipState[m.source] = Leader
 
 \* This invariant shows that a txn can be committed after a reconfiguration
 DebugInvSuccessfulCommitAfterReconfig ==
@@ -1389,7 +1389,7 @@ DebugInvAllMessagesProcessable ==
 \* The Retirement state is reached by Leaders that remove themselves from the configuration.
 \* It should be reachable if a leader is removed.
 DebugInvRetirementReachable ==
-    \A i \in Servers : state[i] /= RetiredLeader
+    \A i \in Servers : leadershipState[i] /= RetiredLeader
 
 \* The Leader may send any number of entries per AppendEntriesRequest.  This spec assumes that
  \* the Leader only sends zero or one entries.
@@ -1404,7 +1404,7 @@ DebugAlias ==
         configurations |-> configurations,
         messages |-> messages,
         currentTerm |-> currentTerm,
-        state |-> state,
+        leadershipState |-> leadershipState,
         votedFor |-> votedFor,
         log |-> log,
         commitIndex |-> commitIndex,

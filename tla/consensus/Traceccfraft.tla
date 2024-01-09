@@ -202,7 +202,7 @@ IsSendAppendEntriesResponse ==
  
 IsAddConfiguration ==
     /\ IsEvent("add_configuration")
-    /\ state[logline.msg.state.node_id] = Follower
+    /\ leadershipState[logline.msg.state.node_id] = Follower
     /\ UNCHANGED vars
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
@@ -233,7 +233,7 @@ IsAdvanceCommitIndex ==
 
 IsChangeConfiguration ==
     /\ IsEvent("add_configuration")
-    /\ state[logline.msg.state.node_id] = Leader
+    /\ leadershipState[logline.msg.state.node_id] = Leader
     /\ LET i == logline.msg.state.node_id
            newConfiguration == DOMAIN logline.msg.new_configuration.nodes
        IN ChangeConfigurationInt(i, newConfiguration)
@@ -294,7 +294,7 @@ IsExecuteAppendEntries ==
        \* Not asserting committableIndices here because the impl and spec will only be in sync upon the subsequent send_append_entries.
        \* Also see IsSignCommittableMessages above.
        /\ UNCHANGED vars
-       /\ state[logline.msg.state.node_id] = Follower
+       /\ leadershipState[logline.msg.state.node_id] = Follower
        /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
 
 IsRcvRequestVoteResponse ==
@@ -316,18 +316,18 @@ IsRcvRequestVoteResponse ==
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
-    /\ state[logline.msg.state.node_id] # Leader
+    /\ leadershipState[logline.msg.state.node_id] # Leader
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsCheckQuorum ==
     /\ IsEvent("become_follower")
     /\ CheckQuorum(logline.msg.state.node_id)
-    /\ state[logline.msg.state.node_id] = Leader
+    /\ leadershipState[logline.msg.state.node_id] = Leader
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsRcvProposeVoteRequest ==
     /\ IsEvent("recv_propose_request_vote")
-    /\ state[logline.msg.state.node_id] = Leader
+    /\ leadershipState[logline.msg.state.node_id] = Leader
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.to_node_id
        IN /\ \E m \in Network!Messages':
