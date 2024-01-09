@@ -1,0 +1,14 @@
+start_node,0
+assert_is_primary,0
+emit_signature,2
+
+assert_is_primary,0
+assert_commit_idx,0,2
+
+trust_node,2,1
+emit_signature,2
+
+dispatch_all
+# periodic_all,10
+# dispatch_all
+# assert_commit_idx,0,4
