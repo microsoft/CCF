@@ -648,7 +648,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
     \* See raft.h:2401, nodes are only sent future entries initially, they will NACK if necessary.
     \* This is because they are expected to start from a fairly recent snapshot, not from scratch.
     /\ LET addedNodes == newConfiguration \ CurrentConfiguration(i)
-       IN IF Cardinality(addedNodes) > 0 THEN \A addedNode \in addedNodes : nextIndex' = [nextIndex EXCEPT ![i][addedNode] = Len(log[i]) + 1] ELSE nextIndex' = nextIndex
+       IN IF Cardinality(addedNodes) > 0 THEN \A addedNode \in addedNodes : sentIndex' = [sentIndex EXCEPT ![i][addedNode] = Len(log[i])] ELSE sentIndex' = sentIndex
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
     /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
