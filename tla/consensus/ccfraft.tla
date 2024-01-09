@@ -31,7 +31,7 @@ CONSTANT
     Reordered,
     Guarantee
 
-\* Server states
+\* Leadership states
 CONSTANTS
     \* See original Raft paper (https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf)
     \* and comments for leadership_state in../src/consensus/aft/raft.h for details on the Follower,
@@ -55,7 +55,7 @@ CONSTANTS
     \* from another node.
     None
 
-States == {
+LeadershipStates == {
     Follower,
     Candidate,
     Leader,
@@ -217,7 +217,7 @@ CurrentTermTypeInv ==
 VARIABLE state
 
 StateTypeInv ==
-    \A i \in Servers : state[i] \in States
+    \A i \in Servers : state[i] \in LeadershipStates
 
 \* The candidate the server voted for in its current term, or
 \* Nil if it hasn't voted for any.
@@ -958,9 +958,9 @@ DropStaleResponse(i, j, m) ==
 
 DropResponseWhenNotInState(i, j, m) ==
     \/ /\ m.type = AppendEntriesResponse
-       /\ state[i] \in States \ { Leader }
+       /\ state[i] \in LeadershipStates \ { Leader }
     \/ /\ m.type = RequestVoteResponse
-       /\ state[i] \in States \ { Candidate }
+       /\ state[i] \in LeadershipStates \ { Candidate }
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
