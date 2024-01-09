@@ -279,9 +279,7 @@ public:
 
       if (_nodes.find(node_id) == _nodes.end())
       {
-        throw std::runtime_error(fmt::format(
-          "Node {} does not exist yet. Use \"create_new_node, <node_id>\"",
-          node_id));
+        create_new_node(node_id_s);
       }
 
       configuration.try_emplace(node_id);
@@ -1053,7 +1051,8 @@ public:
              idx)
         << std::endl;
       throw std::runtime_error(fmt::format(
-        "Node not at expected commit idx ({}) on line {} : {}",
+        "Node {} not at expected commit idx ({}) on line {} : {}",
+        node_id,
         idx,
         std::to_string((int)lineno),
         _nodes.at(node_id).raft->get_committed_seqno()));
