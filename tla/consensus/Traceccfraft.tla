@@ -80,7 +80,7 @@ ASSUME TraceServers \subseteq Servers
 
 TraceAppendEntriesBatchsize(i, j) ==
     \* -1) .. to explicitly model heartbeats, i.e. a message with zero entries.
-    (nextIndex[i][j] - 1) .. Len(log[i])
+    sentIndex[i][j] .. Len(log[i])
 
 TraceInitReconfigurationVars ==
     /\ reconfigurationCount = 0
@@ -176,7 +176,7 @@ IsSendAppendEntries ==
                 /\ IsAppendEntriesRequest(msg, j, i, logline)
                 \* There is now one more message of this type.
                 /\ Network!OneMoreMessage(msg)
-          /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
+          /\ logline.msg.sent_idx = sentIndex[i][j]
           /\ logline.msg.match_idx = matchIndex[i][j]
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
@@ -243,7 +243,7 @@ IsRcvAppendEntriesResponse ==
     /\ IsEvent("recv_append_entries_response")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
-       IN /\ logline.msg.sent_idx + 1 = nextIndex[i][j]
+       IN /\ logline.msg.sent_idx = sentIndex[i][j]
           /\ logline.msg.match_idx = matchIndex[i][j]
           /\ \E m \in Network!MessagesTo(i, j):
                /\ m.type = AppendEntriesResponse
@@ -435,7 +435,7 @@ TraceDifferentialInv ==
     \*    /\ d.clientRequests = clientRequests
     \*    /\ d.votesGranted = votesGranted
     \*    /\ d.votesRequested = votesRequested
-    \*    /\ d.nextIndex = nextIndex
+    \*    /\ d.sentIndex = sentIndex
     \*    /\ d.matchIndex = matchIndex
 
 -------------------------------------------------------------------------------------

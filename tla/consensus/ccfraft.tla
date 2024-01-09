@@ -274,16 +274,16 @@ CandidateVarsTypeInv ==
 
 \* The following variables are used only on leaders:
 
-\* The next entry to send to each follower, called sent_idx in raft.h
+\* The last entry sent to each follower.
+\* sentIndex in CCF is similar in function to nextIndex in Raft
 \* In CCF, the leader updates nextIndex optimically when an AE message is dispatched
 \* In contrast, in Raft the leader only updates nextIndex when an AE response is received
-VARIABLE nextIndex
+VARIABLE sentIndex
 
-\* nextIndex cannot be zero as its the index of the first log
-\* entry in the AE message (recalling that TLA+ is 1-indexed).
-NextIndexTypeInv ==
+
+SentIndexTypeInv ==
     \A i, j \in Servers : i /= j =>
-        /\ nextIndex[i][j] \in Nat \ {0}
+        /\ sentIndex[i][j] \in Nat
 
 \* The latest entry that each follower has acknowledged is the same as the
 \* leader's. This is used to calculate commitIndex on the leader.
@@ -293,10 +293,10 @@ MatchIndexTypeInv ==
     \A i, j \in Servers : i /= j =>
         matchIndex[i][j] \in Nat
 
-leaderVars == <<nextIndex, matchIndex>>
+leaderVars == <<sentIndex, matchIndex>>
 
 LeaderVarsTypeInv ==
-    /\ NextIndexTypeInv
+    /\ SentIndexTypeInv
     /\ MatchIndexTypeInv
 
 \* End of per server variables.
@@ -452,7 +452,7 @@ CommittedTermPrefix(i, x) ==
 AppendEntriesBatchsize(i, j) ==
     \* The Leader is modeled to send zero to one entries per AppendEntriesRequest.
      \* This can be redefined to send bigger batches of entries.
-    {nextIndex[i][j]}
+    {sentIndex[i][j] + 1}
 
 
 PlausibleSucessorNodes(i) ==
@@ -496,11 +496,11 @@ InitMessagesVars ==
 InitCandidateVars ==
     /\ votesGranted   = [i \in Servers |-> {}]
 
-\* The values nextIndex[i][i] and matchIndex[i][i] are never read, since the
+\* The values sentIndex[i][i] and matchIndex[i][i] are never read, since the
 \* leader does not send itself messages. It's still easier to include these
 \* in the functions.
 InitLeaderVars ==
-    /\ nextIndex  = [i \in Servers |-> [j \in Servers |-> 1]]
+    /\ sentIndex  = [i \in Servers |-> [j \in Servers |-> 0]]
     /\ matchIndex = [i \in Servers |-> [j \in Servers |-> 0]]
 
 Init ==
@@ -557,15 +557,15 @@ AppendEntries(i, j) ==
     \* AppendEntries must be sent for historical entries, unless
     \* snapshots are used. Whether the node is in configuration at
     \* that index makes no difference.
-    \* /\ IsInServerSetForIndex(j, i, nextIndex[i][j])
-    /\ LET prevLogIndex == nextIndex[i][j] - 1
+    \* /\ IsInServerSetForIndex(j, i, sentIndex[i][j])
+    /\ LET prevLogIndex == sentIndex[i][j]
            prevLogTerm == IF prevLogIndex \in DOMAIN log[i] THEN
                               log[i][prevLogIndex].term
                           ELSE
                               StartTerm
            \* Send a number of entries (constrained by the end of the log).
            lastEntry(idx) == min(Len(log[i]), idx)
-           index == nextIndex[i][j]
+           index == sentIndex[i][j] + 1
            msg(idx) == 
                [type          |-> AppendEntriesRequest,
                 term          |-> currentTerm[i],
@@ -581,7 +581,7 @@ AppendEntries(i, j) ==
             /\ Send(m)
             \* Record the most recent index we have sent to this node.
             \* (see https://github.com/microsoft/CCF/blob/9fbde45bf5ab856ca7bcf655e8811dc7baf1e8a3/src/consensus/aft/raft.h#L935-L936)
-            /\ nextIndex' = [nextIndex EXCEPT ![i][j] = @ + Len(m.entries)]
+            /\ sentIndex' = [sentIndex EXCEPT ![i][j] = @ + Len(m.entries)]
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, matchIndex, logVars>>
 
 \* Candidate i transitions to leader.
@@ -594,8 +594,8 @@ BecomeLeader(i) ==
     \* all unsigned log entries of the previous leader.
     \* See occurrence of last_committable_index() in raft.h::become_leader.
     /\ log' = [log EXCEPT ![i] = SubSeq(log[i],1, MaxCommittableIndex(log[i]))]
-    \* Reset our nextIndex to the end of the *new* log.
-    /\ nextIndex'  = [nextIndex EXCEPT ![i] = [j \in Servers |-> Len(log'[i]) + 1]]
+    \* Reset our sentIndex to the end of the *new* log.
+    /\ sentIndex'  = [sentIndex EXCEPT ![i] = [j \in Servers |-> Len(log'[i])]]
     /\ matchIndex' = [matchIndex EXCEPT ![i] = [j \in Servers |-> 0]]
     \* Shorten the configurations if the removed txs contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
@@ -925,13 +925,13 @@ HandleAppendEntriesResponse(i, j, m) ==
           /\ m.success \* successful
           \* max(...) because why would we ever want to go backwards on a success response?!
           /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, m.lastLogIndex)]
-          \* nextIndex is unchanged on successful AE response as it was already updated when the AE was dispatched
-          /\ UNCHANGED nextIndex
+          \* sentIndex is unchanged on successful AE response as it was already updated when the AE was dispatched
+          /\ UNCHANGED sentIndex
        \/ /\ \lnot m.success \* not successful
           /\ LET tm == FindHighestPossibleMatch(log[i], m.lastLogIndex, m.term)
-             IN nextIndex' = [nextIndex EXCEPT ![i][j] = max(min(tm, nextIndex[i][j]-1), matchIndex[i][j]) + 1 ]
+             IN sentIndex' = [sentIndex EXCEPT ![i][j] = max(min(tm, sentIndex[i][j]), matchIndex[i][j])]
           \* UNCHANGED matchIndex is implied by the following statement in figure 2, page 4 in the raft paper:
-           \* "If AppendEntries fails because of log inconsistency: decrement nextIndex and retry"
+           \* "If AppendEntries fails because of log inconsistency: decrement nextIndex (aka sentIndex +1) and retry"
           /\ UNCHANGED matchIndex
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, logVars>>
@@ -1251,10 +1251,11 @@ NoLeaderBeforeInitialTerm ==
 \* MatchIndexLowerBoundNextIndexInv is not currently an invariant but 
 \* we might wish to add it in the future. This could be achieved by updating 
 \* nextIndex to max of current nextIndex and matchIndex when an AE ACK is received.
-MatchIndexLowerBoundNextIndexInv ==
+MatchIndexLowerBoundSentIndexInv ==
+
     \A i,j \in Servers :
         state[i] = Leader =>
-            nextIndex[i][j] > matchIndex[i][j]
+            sentIndex[i][j] >= matchIndex[i][j]
 
 CommitCommittableIndices ==
     \A i \in Servers :
@@ -1399,7 +1400,7 @@ DebugAlias ==
         commitIndex |-> commitIndex,
         committableIndices |-> committableIndices,
         votesGranted |-> votesGranted,
-        nextIndex |-> nextIndex,
+        sentIndex |-> sentIndex,
         matchIndex |-> matchIndex,
 
         _MessagesTo |-> [ s, t \in Servers |-> Network!MessagesTo(s, t) ]
