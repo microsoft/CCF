@@ -451,7 +451,7 @@ CommittedTermPrefix(i, x) ==
 AppendEntriesBatchsize(i, j) ==
     \* The Leader is modeled to send zero to one entries per AppendEntriesRequest.
      \* This can be redefined to send bigger batches of entries.
-    {sentIndex[i][j]}
+    {sentIndex[i][j] + 1}
 
 
 PlausibleSucessorNodes(i) ==
