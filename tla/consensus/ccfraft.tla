@@ -944,6 +944,7 @@ HandleAppendEntriesResponse(i, j, m) ==
 UpdateTerm(i, j, m) ==
     /\ m.term > currentTerm[i]
     /\ currentTerm'    = [currentTerm EXCEPT ![i] = m.term]
+    \* See become_aware_of_new_term() in raft.h:1915
     /\ state'          = [state       EXCEPT ![i] = IF @ \in {Leader, Candidate, None} THEN Follower ELSE @]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
     \* See rollback(last_committable_index()) in raft::become_follower
@@ -1236,10 +1237,6 @@ LogConfigurationConsistentInv ==
             /\ \A idx \in DOMAIN (configurations[i]) : 
                 /\ log[i][idx].contentType = TypeReconfiguration            
                 /\ log[i][idx].configuration = configurations[i][idx]
-            \* Current configuration should be committed if there is one
-            \* but a configuration may not be committable yet.
-            \* /\ Cardinality(DOMAIN configurations[i]) > 0
-            \*     => commitIndex[i] >= CurrentConfigurationIndex(i)
             \* Pending configurations should not be committed yet
             /\ Cardinality(DOMAIN configurations[i]) > 1 
                 => commitIndex[i] < NextConfigurationIndex(i)
