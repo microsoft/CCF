@@ -350,7 +350,15 @@ namespace ccf
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, ccf::node_inbound, [this](const uint8_t* data, size_t size) {
-            node->recv_node_inbound(data, size);
+            try
+            {
+              node->recv_node_inbound(data, size);
+            }
+            catch (const std::exception& e)
+            {
+              LOG_DEBUG_FMT(
+                "Ignoring node_inbound message due to exception: {}", e.what());
+            }
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(

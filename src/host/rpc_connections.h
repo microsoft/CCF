@@ -116,7 +116,7 @@ namespace asynchost
         cleanup();
       }
 
-      void on_read(size_t len, uint8_t*& data, sockaddr) override
+      bool on_read(size_t len, uint8_t*& data, sockaddr) override
       {
         LOG_DEBUG_FMT("rpc read {}: {}", id, len);
 
@@ -125,6 +125,8 @@ namespace asynchost
           parent.to_enclave,
           id,
           serializer::ByteRange{data, len});
+
+        return true;
       }
 
       void on_disconnect() override
@@ -195,7 +197,7 @@ namespace asynchost
         }
       }
 
-      void on_read(size_t len, uint8_t*& data, sockaddr addr) override
+      bool on_read(size_t len, uint8_t*& data, sockaddr addr) override
       {
         // UDP connections don't have clients, it's all done in the server
         if constexpr (isUDP<ConnType>())
@@ -211,6 +213,8 @@ namespace asynchost
             addr_data,
             serializer::ByteRange{data, len});
         }
+
+        return true;
       }
 
       void cleanup()
