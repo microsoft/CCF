@@ -275,6 +275,7 @@ CandidateVarsTypeInv ==
 \* The following variables are used only on leaders:
 
 \* The last entry sent to each follower.
+\* sentIndex in CCF is similar in function to nextIndex in Raft
 \* In CCF, the leader updates nextIndex optimically when an AE message is dispatched
 \* In contrast, in Raft the leader only updates nextIndex when an AE response is received
 VARIABLE sentIndex
