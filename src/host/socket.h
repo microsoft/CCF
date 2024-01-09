@@ -30,7 +30,11 @@ namespace asynchost
     virtual ~SocketBehaviour() {}
 
     /// To be implemented by clients
-    virtual void on_read(size_t, uint8_t*&, sockaddr) {}
+    /// Return false to immediately disconnect socket.
+    virtual bool on_read(size_t, uint8_t*&, sockaddr)
+    {
+      return true;
+    }
 
     /// To be implemented by servers with connections
     virtual void on_accept(ConnType&) {}

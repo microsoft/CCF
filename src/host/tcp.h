@@ -789,11 +789,17 @@ namespace asynchost
       }
 
       uint8_t* p = (uint8_t*)buf->base;
-      behaviour->on_read((size_t)sz, p, {});
+      const bool read_good = behaviour->on_read((size_t)sz, p, {});
 
       if (p != nullptr)
       {
         on_free(buf);
+      }
+
+      if (!read_good)
+      {
+        behaviour->on_disconnect();
+        return;
       }
     }
 
