@@ -562,7 +562,8 @@ AppendEntries(i, j) ==
            prevLogTerm == IF prevLogIndex \in DOMAIN log[i] THEN
                               log[i][prevLogIndex].term
                           ELSE
-                              StartTerm
+                              \* state.h::view_at (:64) indices before the version of the first view are unknown
+                              0
            \* Send a number of entries (constrained by the end of the log).
            lastEntry(idx) == min(Len(log[i]), idx)
            index == sentIndex[i][j] + 1
