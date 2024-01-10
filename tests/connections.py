@@ -333,7 +333,13 @@ def run_node_socket_robustness_tests(args):
         try_write(encode_msg())
         try_write(encode_msg(msg_type=1))
         try_write(encode_msg(msg_type=100))
+        try_write(encode_msg(sender="a"))
+        try_write(encode_msg(sender="ab"))
+        try_write(encode_msg(sender="abc"))
         try_write(encode_msg(sender="abcd"))
+        try_write(encode_msg(sender="abcde"))
+        try_write(encode_msg(sender="abcdef"))
+        try_write(encode_msg(sender="abcdefg"))
         try_write(encode_msg(body=struct.pack("<QQQQ", 100, 200, 300, 400)))
         try_write(
             encode_msg(
