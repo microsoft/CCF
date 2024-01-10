@@ -1315,8 +1315,7 @@ namespace ccf
           return;
         }
       };
-      make_read_only_endpoint(
-        "/backup", HTTP_GET, get_backup, no_auth_required)
+      make_read_only_endpoint("/backup", HTTP_GET, get_backup, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
