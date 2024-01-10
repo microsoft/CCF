@@ -44,7 +44,7 @@ namespace serialized
     if (reinterpret_cast<std::uintptr_t>(data) % alignment != 0)
     {
       // Data is not aligned - copy to scratch memory
-      alignas(64) thread_local uint8_t scratch[max_size];
+      alignas(T) uint8_t scratch[max_size];
       std::memcpy(scratch, data, sizeof(T));
       return *(T*)scratch;
     }
