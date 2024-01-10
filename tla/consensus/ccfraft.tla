@@ -19,7 +19,7 @@
 \* - https://github.com/dricketts/raft.tla/blob/master/raft.tla
 \*   (e.g. certain invariants)
 
-EXTENDS Naturals, FiniteSets, Sequences, TLC, FiniteSetsExt, SequencesExt, Functions
+EXTENDS Naturals, FiniteSets, Sequences, TLC, TLCExt, FiniteSetsExt, SequencesExt, Functions
 
 ------------------------------------------------------------------------------
 \* Constants
@@ -1075,17 +1075,20 @@ Receive(i, j) ==
 \* For example, ``BecomeLeader`` is only a possible step if the selected node has enough votes to do so.
 
 \* Defines how the variables may transition.
+NextInt(i) ==
+    \/ Timeout(i)
+    \/ BecomeLeader(i)
+    \/ ClientRequest(i)
+    \/ SignCommittableMessages(i)
+    \/ ChangeConfiguration(i)
+    \/ AdvanceCommitIndex(i)
+    \/ CheckQuorum(i)
+    \/ \E j \in Servers : RequestVote(i, j)
+    \/ \E j \in Servers : AppendEntries(i, j)
+    \/ \E j \in Servers : Receive(i, j)
+
 Next ==
-    \/ \E i \in Servers : Timeout(i)
-    \/ \E i, j \in Servers : RequestVote(i, j)
-    \/ \E i \in Servers : BecomeLeader(i)
-    \/ \E i \in Servers : ClientRequest(i)
-    \/ \E i \in Servers : SignCommittableMessages(i)
-    \/ \E i \in Servers : ChangeConfiguration(i)
-    \/ \E i \in Servers : AdvanceCommitIndex(i)
-    \/ \E i, j \in Servers : AppendEntries(i, j)
-    \/ \E i \in Servers : CheckQuorum(i)
-    \/ \E i, j \in Servers : Receive(i, j)
+    \E i \in Servers: NextInt(i)
 
 \* The specification must start with the initial state and transition according
 \* to Next.
@@ -1391,7 +1394,68 @@ DebugAppendEntriesRequests ==
     \A m \in { m \in Network!Messages: m.type = AppendEntriesRequest } :
         Len(m.entries) <= 1
 
-DebugAlias ==
+------------------------------------------------------------------------------
+
+srv == CHOOSE s \in Servers : [NextInt(s)]_vars
+L == TypeReconfiguration :> "r" @@ TypeSignature :> "s" @@ TypeEntry :> "e"
+S == CHOOSE f \in [ States -> {"▵", "▿", "▴", "◉", "○"} ] : IsInjective(f)
+C == CHOOSE f \in [ Servers -> {"[0;30m", "[0;31m", "[0;32m", "[0;33m", "[0;34m"}]: IsInjective(f)
+B == CHOOSE f \in [ Servers -> {"[47m", "[41m", "[42m", "[43m", "[44m"}]: IsInjective(f)
+Colorize(server, str) == C[server] \o str \o "[0m"
+ColorizeServer(server, prefix) == Colorize(server, prefix \o ToString(server))
+ColorizeTerm(term) == "[0;3" \o ToString(term-2) \o "m"
+StringifyLog(s) == FoldSeq(LAMBDA e, acc: acc \o ColorizeTerm(e.term) \o L[e.contentType] \o "[0m", "", log[s])
+
+DebugAliasGlobals ==
+    [
+        \* Total number of leader elections, i.e.,  BecomeLeader actions.
+        le  |-> TLCGetAndSet(8, +, IF \E s \in Servers: <<BecomeLeader(s)>>_vars THEN 1 ELSE 0, 1),
+        \* Set of nodes that are active right now.
+        cluster |-> { Colorize(s, ToString(s)) : s \in { s \in Servers : state[s] \in {Leader, Follower} } },
+        \* Sequence showing which node is active when.
+        tl  |-> TLCGetAndSet(9, LAMBDA o, v: o \o C[v] \o "▧" \o "[0m", CHOOSE i \in Servers: [NextInt(i)]_vars, "")
+    ]
+
+DebugAliasAggregates ==
+    LET Cup(f, g) == Pointwise(f, g, \cup)
+        Plus(f, g) == Pointwise(f, g, +) IN
+    [
+        \* Per Node (node-local):
+            \* The set of nodes granting a vote to this node, ever.
+            vg   |-> TLCGetAndSet(0, Cup, votesGranted, [s \in Servers |-> {}]),
+            \* Aggregate the set of a node's committable indices.
+            ci   |-> TLCGetAndSet(1, Cup, committableIndices, [s \in Servers |-> {}]),
+            \* \* Set of messages received by or pending at a node.
+            \*mr   |-> TLCGetAndSet(2,
+            \*            LAMBDA o, v: [s \in Servers |-> o[s] \cup { m \in v : m.dest = s }],
+            \*            Network!Messages, [s \in Servers |-> {}]),
+            \* \* Total number of delivered/received messages per node (message is considered delivered if it is no longer in a node's inbox)
+            rms  |-> TLCGetAndSet(3,
+                        LAMBDA o, v: 
+                            [ s \in Servers |-> o[s] + IF Len(v[s]) > Len(v'[s]) THEN Len(v[s]) - Len(v'[s]) ELSE 0 ], 
+                        messages, [s \in Servers |-> 0]),
+            \* \* Set of nodes, a node has ever voted for.
+            vf   |-> TLCGetAndSet(4, 
+                        LAMBDA o, v: 
+                            [ s \in Servers |-> o[s] \cup IF v[s] = Nil THEN {} ELSE {v[s]} ],
+                        votedFor, [s \in Servers |-> {}]),
+            \* Sequence of state transitions of this node.
+            st   |-> TLCGetAndSet(5, 
+                        LAMBDA o, v: 
+                            [ s \in Servers |-> IF IsSuffix(<<v[s]>>, o[s]) 
+                                                THEN o[s] 
+                                                ELSE o[s] \o <<TLCGet("level")', v[s]>>],
+                        state, [s \in Servers |-> <<>>]),
+            ss   |-> TLCGetAndSet(6, 
+                        LAMBDA o, v: [s \in Servers |-> o[s] \o C[s] \o S[v[s]] \o "[0m"],
+                        state, [s \in Servers |-> ""])
+            \* Times at which this node is active (this becomes unwidely for longer traces).
+            \*ta   |-> TLCGetAndSet(7, 
+            \*            LAMBDA o, v: [ o EXCEPT ![v] = @ \cup {TLCGet("level")} ],
+            \*            CHOOSE i \in Servers: NextOfI(i), [s \in Servers |-> {}]),
+    ]
+
+DebugAliasVars ==
     [
         reconfigurationCount |-> reconfigurationCount,
         removedFromConfiguration |-> removedFromConfiguration,
@@ -1400,14 +1464,55 @@ DebugAlias ==
         currentTerm |-> currentTerm,
         leadershipState |-> leadershipState,
         votedFor |-> votedFor,
+        \* More compact visualization of the log.  
+\*        lg |-> [ s \in Servers |-> StringifyLog(s) ],
         log |-> log,
         commitIndex |-> commitIndex,
         committableIndices |-> committableIndices,
         votesGranted |-> votesGranted,
         sentIndex |-> sentIndex,
         matchIndex |-> matchIndex,
-
         _MessagesTo |-> [ s, t \in Servers |-> Network!MessagesTo(s, t) ]
     ]
+
+DebugAlias ==
+    [ _format |-> B[srv] \o "/\\[0m %1$s = %2$s\n" ]
+      @@
+    DebugAliasAggregates
+      @@
+    DebugAliasGlobals
+      @@
+    DebugAliasVars
+
+\* Print only the state of the acting server in that state.
+DebugActingServerAlias ==
+    [
+        \* Comment this format in VSCode because it breaks its parser. :-()
+        _format |-> B[srv] \o "/\\[0m %1$s = %2$s\n",
+        srv |-> srv,
+        removedFromConfiguration |-> removedFromConfiguration,
+        configurations |-> configurations[srv],
+        currentTerm |-> currentTerm[srv],
+        votedFor |-> votedFor[srv],
+        state |-> state[srv],
+        log |-> StringifyLog(srv),
+        commitIndex |-> commitIndex[srv],
+        committableIndices |-> committableIndices[srv],
+        votesGranted |-> votesGranted[srv],
+        sentIndex |-> sentIndex[srv],
+        matchIndex |-> matchIndex[srv]
+    ]
+
+\* tput rmam ; tlc -note -simulate SIMccfraft.tla ; tput smam  ## tput rmam disables line breaks. tput smam re-enables them.
+AnimateLogAndStateAlias ==
+    \* ...overwrite tells TLC to overwrite the previous state instead of printing a new one.
+    IF TLCSet("-Dtlc2.output.StatePrinter.overwrite", 150)
+    THEN
+        DebugAliasGlobals
+        @@
+        FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "log_") :> StringifyLog(s), <<>>, Servers)
+        @@
+        FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "ste_") :> state[s], <<>>, Servers)
+    ELSE <<>>
 
 ===============================================================================
