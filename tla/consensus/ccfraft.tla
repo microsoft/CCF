@@ -39,18 +39,6 @@ CONSTANTS
     Follower,
     Candidate,
     Leader,
-    \* CCF adds the RetiredLeader state to the protocol: A Leader transitions to RetiredLeader
-    \* after committing a reconfiguration transaction which removes the Leader from the
-    \* configuration (see also ../src/consensus/aft/raft.h).
-    \* More formally: 
-    \*   /\ [][\E s \in Servers: state'[s] = RetiredLeader => state[s] = Leader]_state
-    \*   /\ [][\A s \in Servers:
-    \*          /\ state[s] = Leader
-    \*          /\  CurrentConfiguration(s) \ CurrentConfiguration(s)' = {s}
-    \*          => state'[s] = RetiredLeader]_state
-    \* TODO: this should be split into a separate membership_state, as in
-    \* the implementation.
-    RetiredLeader,
     \* Initial state for a joiner node, until it has received a first message
     \* from another node.
     None
@@ -64,7 +52,6 @@ LeadershipStates == {
     Follower,
     Candidate,
     Leader,
-    RetiredLeader,
     None
     }
 
@@ -740,7 +727,7 @@ AdvanceCommitIndex(i) ==
               \* Retire if i is not in active configuration anymore
               /\ IF i \notin configurations[i][Min(DOMAIN configurations'[i])]
                  THEN \E j \in PlausibleSucessorNodes(i) :
-                    /\ leadershipState' = [leadershipState EXCEPT ![i] = RetiredLeader]
+                    /\ membershipState' = [membershipState EXCEPT ![i] = Retired]
                     /\ LET msg == [type          |-> ProposeVoteRequest,
                                     term          |-> currentTerm[i],
                                     source        |-> i,
@@ -751,7 +738,7 @@ AdvanceCommitIndex(i) ==
                  ELSE UNCHANGED <<messages, serverVars, reconfigurationCount, removedFromConfiguration>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, serverVars, reconfigurationVars>>
-    /\ UNCHANGED <<candidateVars, leaderVars, log, membershipState>>
+    /\ UNCHANGED <<candidateVars, leaderVars, log, leadershipState>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
@@ -1002,13 +989,13 @@ DropIgnoredMessage(i,j,m) ==
        \/ /\ leadershipState[i] /= None
         \* .. and it comes from a server outside of the configuration
           /\ \lnot IsInServerSet(j, i)
-       \*  OR if recipient is RetiredLeader and this is not a request to vote
-       \/ /\ leadershipState[i] = RetiredLeader
+       \*  OR if recipient is Retired and this is not a request to vote
+       \/ /\ membershipState[i] = Retired
           /\ m.type /= RequestVoteRequest
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars, membershipState>>
 
-\* RetiredLeader leaders send notify commit messages to update all nodes about the commit level
+\* Retired leaders send notify commit messages to update all nodes about the commit level
 UpdateCommitIndex(i,j,m) ==
     /\ m.commitIndex > commitIndex[i]
     /\ LET
@@ -1337,14 +1324,6 @@ PermittedLogChangesProp ==
             \/ /\ leadershipState[i] = Candidate
                /\ leadershipState[i]' = Leader
                /\ log[i]' = Committable(i)
-            \* Retired leader is truncating its log, i.e.,
-            \* the retired leader learns about a new term
-            \* (see raft::become_aware_of_new_term called from
-            \* raft::recv_append_entries and the corresponding
-            \* action UpdateTerm above).
-            \/ /\ leadershipState[i] = RetiredLeader
-               /\ leadershipState[i]' = RetiredLeader
-               /\ log[i]' = Committable(i)
         ]_vars
 
 StateTransitionsProp ==
@@ -1352,8 +1331,7 @@ StateTransitionsProp ==
         /\ leadershipState[i] = None => leadershipState[i]' \in {None, Follower}
         /\ leadershipState[i] = Follower => leadershipState[i]' \in {Follower, Candidate}
         /\ leadershipState[i] = Candidate => leadershipState[i]' \in {Follower, Candidate, Leader}
-        /\ leadershipState[i] = Leader => leadershipState[i]' \in {Follower, Leader, RetiredLeader}
-        /\ leadershipState[i] = RetiredLeader => leadershipState[i]' = RetiredLeader
+        /\ leadershipState[i] = Leader => leadershipState[i]' \in {Follower, Leader}
         ]_vars
 
 PendingBecomesFollowerProp ==
@@ -1402,10 +1380,10 @@ DebugInvSuccessfulCommitAfterReconfig ==
 DebugInvAllMessagesProcessable ==
     Network!Messages # {} ~> Network!Messages = {}
 
-\* The Retirement state is reached by Leaders that remove themselves from the configuration.
-\* It should be reachable if a leader is removed.
+\* The Retirement state is reached by nodes that are removed from the configuration.
+\* It should be reachable if any node is removed.
 DebugInvRetirementReachable ==
-    \A i \in Servers : leadershipState[i] /= RetiredLeader
+    \A i \in Servers : membershipState[i] /= Retired
 
 \* The Leader may send any number of entries per AppendEntriesRequest.  This spec assumes that
  \* the Leader only sends zero or one entries.
