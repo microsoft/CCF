@@ -216,7 +216,7 @@ VARIABLE leadershipState
 LeadershipStateTypeInv ==
     \A i \in Servers : leadershipState[i] \in LeadershipStates
 
-\* The membership state. Currently unused by spec
+\* The membership state.
 VARIABLE membershipState
 
 MembershipStateTypeInv ==
