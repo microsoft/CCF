@@ -30,13 +30,29 @@ namespace serialized
   template <class T>
   T peek(const uint8_t*& data, size_t& size)
   {
+    // This should only be used for numeric types and small structs
+    static constexpr auto max_size = 32u;
+    static_assert(sizeof(T) <= max_size);
+
     if (size < sizeof(T))
     {
       throw InsufficientSpaceException(
         fmt::format("Insufficient space (peek<T>: {} < {})", size, sizeof(T)));
     }
 
-    return *(T*)data;
+    static constexpr auto alignment = alignof(T);
+    if (reinterpret_cast<std::uintptr_t>(data) % alignment != 0)
+    {
+      // Data is not aligned - copy to scratch memory
+      alignas(T) uint8_t scratch[max_size];
+      std::memcpy(scratch, data, sizeof(T));
+      return *(T*)scratch;
+    }
+    else
+    {
+      // Cast directly from source memory
+      return *(T*)data;
+    }
   }
 
   template <class T>
