@@ -580,7 +580,8 @@ AppendEntries(i, j) ==
            prevLogTerm == IF prevLogIndex \in DOMAIN log[i] THEN
                               log[i][prevLogIndex].term
                           ELSE
-                              StartTerm
+                              \* state.h::view_at (:64) indices before the version of the first view are unknown
+                              0
            \* Send a number of entries (constrained by the end of the log).
            lastEntry(idx) == min(Len(log[i]), idx)
            index == sentIndex[i][j] + 1
@@ -663,6 +664,12 @@ ChangeConfigurationInt(i, newConfiguration) ==
     \* i.e., be re-added to a new configuration.  Instead, the node has to rejoin with a
     \* "fresh" identity (compare sec 6.2, page 8, https://arxiv.org/abs/2310.11559).
     /\ \A s \in newConfiguration: s \notin removedFromConfiguration
+    \* See raft.h:2401, nodes are only sent future entries initially, they will NACK if necessary.
+    \* This is because they are expected to start from a fairly recent snapshot, not from scratch.
+    /\ LET
+        addedNodes == newConfiguration \ CurrentConfiguration(i)
+        newSentIndex == [ k \in Servers |-> IF k \in addedNodes THEN Len(log[i]) ELSE sentIndex[i][k]]
+       IN sentIndex' = [sentIndex EXCEPT ![i] = newSentIndex]
     \* Keep track of running reconfigurations to limit state space
     /\ reconfigurationCount' = reconfigurationCount + 1
     /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
@@ -671,7 +678,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
                                              configuration |-> newConfiguration,
                                              contentType |-> TypeReconfiguration])]
     /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
-    /\ UNCHANGED <<messageVars, serverVars, candidateVars, leaderVars, commitIndex, committableIndices, membershipState>>
+    /\ UNCHANGED <<messageVars, serverVars, candidateVars, matchIndex, commitIndex, committableIndices, membershipState>>
 
 ChangeConfiguration(i) ==
     \* Reconfigure to any *non-empty* subset of servers.  ChangeConfigurationInt checks that the new
@@ -958,7 +965,8 @@ HandleAppendEntriesResponse(i, j, m) ==
 UpdateTerm(i, j, m) ==
     /\ m.term > currentTerm[i]
     /\ currentTerm'    = [currentTerm EXCEPT ![i] = m.term]
-    /\ leadershipState' = [leadershipState EXCEPT ![i] = IF @ \in {Leader, Candidate} THEN Follower ELSE @]
+    \* See become_aware_of_new_term() in raft.h:1915
+    /\ leadershipState' = [leadershipState EXCEPT ![i] = IF @ \in {Leader, Candidate, None} THEN Follower ELSE @]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
     \* See rollback(last_committable_index()) in raft::become_follower
     /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(i))]
@@ -1242,13 +1250,14 @@ MonoLogInv ==
 LogConfigurationConsistentInv ==
     \A i \in Servers :
         \/ leadershipState[i] = None
+        \* Follower, but no known configurations yet
+        \/ /\ leadershipState[i] = Follower
+           /\ Cardinality(DOMAIN configurations[i]) = 0
         \/
             \* Configurations should have associated reconfiguration txs in the log
             /\ \A idx \in DOMAIN (configurations[i]) : 
                 /\ log[i][idx].contentType = TypeReconfiguration            
                 /\ log[i][idx].configuration = configurations[i][idx]
-            \* Current configuration should be committed
-            /\ commitIndex[i] >= CurrentConfigurationIndex(i)
             \* Pending configurations should not be committed yet
             /\ Cardinality(DOMAIN configurations[i]) > 1 
                 => commitIndex[i] < NextConfigurationIndex(i)
@@ -1270,7 +1279,6 @@ NoLeaderBeforeInitialTerm ==
 \* we might wish to add it in the future. This could be achieved by updating 
 \* nextIndex to max of current nextIndex and matchIndex when an AE ACK is received.
 MatchIndexLowerBoundSentIndexInv ==
-
     \A i,j \in Servers :
         leadershipState[i] = Leader =>
             sentIndex[i][j] >= matchIndex[i][j]

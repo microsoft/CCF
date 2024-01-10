@@ -21,6 +21,8 @@ function group(){
     # https://docs.github.com/en/actions/learn-github-actions/environment-variables#default-environment-variables
     if [[ ${CI} ]]; then
       echo "::group::$1"
+    else
+      echo "-=[ $1 ]=-"
     fi
 }
 function endgroup() {
@@ -119,7 +121,11 @@ pip install -U -r python/requirements.txt 1>/dev/null
 endgroup
 
 group "Python lint"
-ruff check python/ tests/
+if [ $FIX -ne 0 ]; then
+  ruff check --fix python/ tests/
+else
+  ruff check python/ tests/
+fi
 endgroup
 
 group "Python types"
