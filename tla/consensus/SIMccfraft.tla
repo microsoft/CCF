@@ -10,16 +10,22 @@ Servers_mc == {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
 
 CCF == INSTANCE ccfraft
 
+SIMInitReconfigurationVars ==
+    \* Start with all servers in the active configuration.
+    \/ CCF!InitLogConfigServerVars(Servers, JoinedLog)
+    \* Start with any subset of servers in the active configuration.
+    \/ CCF!InitReconfigurationVars
+
 SIMCheckQuorum(i) ==
     /\ 1 = RandomElement(1..10)
     /\ CCF!CheckQuorum(i)
 
 SIMChangeConfigurationInt(i, newConfiguration) ==
-    /\ 1 = RandomElement(1..10)
+    /\ 1 = RandomElement(1..100)
     /\ CCF!ChangeConfigurationInt(i, newConfiguration)
 
 SIMTimeout(i) ==
-    /\ \/ 1 = RandomElement(1..10)
+    /\ \/ 1 = RandomElement(1..100)
        \* Always allow Timeout if no messages are in the network
        \* and no node is a candidate or leader.  Otherise, the system
        \* will deadlock if 1 # RandomElement(...).

@@ -461,6 +461,11 @@ StartLog(startNode, _ignored) ==
     << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNode],
        [term |-> StartTerm, contentType |-> TypeSignature] >>
 
+JoinedLog(startNode, nextNodes) ==
+    StartLog(startNode, nextNodes) \o
+        << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> nextNodes],
+           [term |-> StartTerm, contentType |-> TypeSignature] >>
+
 InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
     /\ removedFromConfiguration = {}
     /\ committableIndices  = [i \in Servers |-> {}]
