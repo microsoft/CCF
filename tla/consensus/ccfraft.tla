@@ -1502,7 +1502,8 @@ AnimateLogAndStateAlias ==
         @@
         FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "log_") :> StringifyLog(s), <<>>, Servers)
         @@
-        FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "ste_") :> leadershipState[s], <<>>, Servers)
+        FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "ste_") :>
+            ToString(leadershipState[s]) \o " " \o ToString(currentTerm[s]), <<>>, Servers)
     ELSE <<>>
 
 ===============================================================================
