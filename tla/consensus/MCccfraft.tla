@@ -36,10 +36,11 @@ CCF == INSTANCE ccfraft
 
 \* Limit the reconfigurations to the next configuration in Configurations
 MCChangeConfigurationInt(i, newConfiguration) ==
-    /\ reconfigurationCount < Len(Configurations) - 1
-    \* reconfigurationCount starts at 0, +2 to skip the first and get the next configuration
-    /\ newConfiguration = Configurations[reconfigurationCount+2]
-    /\ CCF!ChangeConfigurationInt(i, newConfiguration)
+    /\ Len(Configurations) > 1
+    /\ configurations[i] # <<>>
+    /\ \E configCount \in 1..Len(Configurations)-1:
+        /\ Configurations[configCount] = CCF!MaxConfiguration(i)
+        /\ CCF!ChangeConfigurationInt(i, Configurations[configCount+1])
 
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
 \* evaluate all relevant states. If set to only 2, the candidate_quorum
@@ -56,7 +57,7 @@ MCTimeout(i) ==
     \* is reached. We solve this below. If TermLimit is set to any number >2, this is
     \* not an issue since breadth-first search will make sure that a similar
     \* situation is simulated at term==1 which results in a term increase to 2.
-    /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
+    /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : leadershipState[s] = Candidate}) < 1
     /\ CCF!Timeout(i)
 
 \* Limit number of requests (new entries) that can be made
@@ -92,7 +93,7 @@ MCSend(msg) ==
 
 \* Limit max number of simultaneous candidates
 MCInMaxSimultaneousCandidates(i) ==
-    Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
+    Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : leadershipState[s] = Candidate}) < 1
 
 JoinedLog(startNode, nextNodes) ==
     StartLog(startNode, nextNodes) \o

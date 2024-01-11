@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Nodes are now more robust to unexpected traffic on node-to-node ports (#5889).
+- Added a GET /node/backup endpoint, returning 200 when backup and 404 when not, for load balancers to use (#5789).
 
 ## [5.0.0-dev11]
 

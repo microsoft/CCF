@@ -905,7 +905,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "4.7.0"
+    "version": "4.8.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -952,6 +952,21 @@
         "summary": "Usage metrics for endpoints",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/node/backup": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
