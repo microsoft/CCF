@@ -1385,6 +1385,12 @@ StateTransitionsProp ==
         /\ leadershipState[i] = Leader => leadershipState[i]' \in {Follower, Leader}
         ]_vars
 
+RetirementPhaseTransitionsProp ==
+    [][\A i \in Servers :
+        \* RetirementCompleted is the terminal state
+        leadershipState[i] = RetirementCompleted 
+        => leadershipState[i]' = RetirementCompleted]_vars
+
 PendingBecomesFollowerProp ==
     \* A pending node that becomes aware it is part of a configuration immediately transitions to Follower.
     [][\A s \in { s \in Servers : leadershipState[s] = None } : 
