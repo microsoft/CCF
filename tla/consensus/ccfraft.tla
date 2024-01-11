@@ -1492,10 +1492,11 @@ DebugActingServerAlias ==
         matchIndex |-> matchIndex[srv]
     ]
 
-\* tput rmam ; tlc -note -simulate SIMccfraft.tla ; tput smam  ## tput rmam disables line breaks. tput smam re-enables them.
+\* $ tput rmam ; tlc -note -simulate SIMccfraft.tla; tput smam  ## tput rmam/smam disables/enables line breaks.
+\* $ tput rmam ; tlc -note -simulate SIMccfraft.tla -continue; tput smam  ## Run forever while eye-balling the output.
 AnimateLogAndStateAlias ==
     \* ...overwrite tells TLC to overwrite the previous state instead of printing a new one.
-    IF TLCSet("-Dtlc2.output.StatePrinter.overwrite", 150)
+    IF TLCSet("-Dtlc2.output.StatePrinter.overwrite", 150 (*in milliseconds*))
     THEN
         DebugAliasGlobals
         @@
