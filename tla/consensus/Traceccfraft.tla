@@ -83,7 +83,6 @@ TraceAppendEntriesBatchsize(i, j) ==
     sentIndex[i][j] .. Len(log[i])
 
 TraceInitReconfigurationVars ==
-    /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
     /\ InitLogConfigServerVars({TraceLog[1].msg.state.node_id}, StartLog)
 
@@ -203,7 +202,7 @@ IsSendAppendEntriesResponse ==
  
 IsAddConfiguration ==
     /\ IsEvent("add_configuration")
-    /\ state[logline.msg.state.node_id] = Follower
+    /\ leadershipState[logline.msg.state.node_id] = Follower
     /\ UNCHANGED vars
 \* This won't work in situations where we receive an AE range that contains a configuration at first followed by committable indices:
 \* recv_append_entries will update the committable indices in the spec, but not in the impl state, which then goes on to handle an
@@ -237,7 +236,7 @@ IsAdvanceCommitIndex ==
 
 IsChangeConfiguration ==
     /\ IsEvent("add_configuration")
-    /\ state[logline.msg.state.node_id] = Leader
+    /\ leadershipState[logline.msg.state.node_id] = Leader
     /\ LET i == logline.msg.state.node_id
            newConfiguration == DOMAIN logline.msg.new_configuration.nodes
        IN ChangeConfigurationInt(i, newConfiguration)
@@ -298,7 +297,7 @@ IsExecuteAppendEntries ==
        \* Not asserting committableIndices here because the impl and spec will only be in sync upon the subsequent send_append_entries.
        \* Also see IsSignCommittableMessages above.
        /\ UNCHANGED vars
-       /\ state[logline.msg.state.node_id] = Follower
+       /\ leadershipState[logline.msg.state.node_id] = Follower
        /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
 
 IsRcvRequestVoteResponse ==
@@ -320,18 +319,18 @@ IsRcvRequestVoteResponse ==
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
     /\ UNCHANGED vars \* UNCHANGED implies that it doesn't matter if we prime the previous variables.
-    /\ state[logline.msg.state.node_id] # Leader
+    /\ leadershipState[logline.msg.state.node_id] # Leader
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsCheckQuorum ==
     /\ IsEvent("become_follower")
     /\ CheckQuorum(logline.msg.state.node_id)
-    /\ state[logline.msg.state.node_id] = Leader
+    /\ leadershipState[logline.msg.state.node_id] = Leader
     /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsRcvProposeVoteRequest ==
     /\ IsEvent("recv_propose_request_vote")
-    /\ state[logline.msg.state.node_id] = Leader
+    /\ leadershipState[logline.msg.state.node_id] = Leader
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.to_node_id
        IN /\ \E m \in Network!Messages':
@@ -427,8 +426,7 @@ TraceDifferentialInv ==
      \* 1) Toggle comments of TRUE and the LET/IN below
     TRUE
     \* LET t == INSTANCE trace d == t!Trace[l]
-    \* IN /\ d.reconfigurationCount = reconfigurationCount
-    \*    /\ d.removedFromConfiguration = removedFromConfiguration
+    \* IN /\ d.removedFromConfiguration = removedFromConfiguration
     \*    /\ d.configurations = configurations
     \*    /\ d.messages = messages
     \*    /\ d.currentTerm = currentTerm
