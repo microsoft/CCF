@@ -17,6 +17,10 @@ VARIABLE conf
 
 CCF == INSTANCE ccfraft
 
+SIMInitReconfigurationVars == 
+    \/ CCF!InitLogConfigServerVars(Servers, JoinedLog)
+    \/ CCF!InitReconfigurationVars
+
 SIMCheckQuorum(i) ==
     /\ conf[1] # "Next" => RandomElement(1..1000) \in conf[3]
     /\ CCF!CheckQuorum(i)
@@ -31,7 +35,7 @@ SIMTimeout(i) ==
        \* Always allow Timeout if no messages are in the network
        \* and no node is a candidate or leader.  Otherise, the system
        \* will deadlock if 1 # RandomElement(...).
-       \/ /\ \A s \in Servers: state[s] \notin {Leader, Candidate}
+       \/ /\ \A s \in Servers: leadershipState[s] \notin {Leader, Candidate}
           /\ Network!Messages = {}
     /\ CCF!Timeout(i)
 
@@ -45,7 +49,7 @@ SIMCoverageSpec ==
 CSVFile == "SIMCoverageccfraft_S" \o ToString(Cardinality(Servers)) \o ".csv"
 
 CSVColumnHeaders ==
-    "Spec#P#Q#R#reconfigurationCount#currentTerm#state#node"
+    "Spec#P#Q#R#currentTerm#state#commitIndex#log#node"
 
 ASSUME
     CSVRecords(CSVFile) = 0 => 
@@ -53,8 +57,9 @@ ASSUME
 
 StatisticsStateConstraint ==
     (TLCGet("level") > TLCGet("config").depth) =>
-        TLCDefer(\A s \in Servers : CSVWrite("%1$s#%2$s#%3$s#%4$s#%5$s#%6$s#%7$s#%8$s",
+        TLCDefer(\A s \in Servers : CSVWrite("%1$s#%2$s#%3$s#%4$s#%5$s#%6$s#%7$s#%8$s#%9$s",
                 << conf[1], Cardinality(conf[2]), Cardinality(conf[3]), Cardinality(conf[4]), 
-                   reconfigurationCount, currentTerm[s], state[s], s>>,
+                   currentTerm[s], leadershipState[s], commitIndex[s], Len(log[s]), s
+                   >>,
                 CSVFile))
 =============================================================================
