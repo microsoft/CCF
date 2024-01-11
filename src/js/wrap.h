@@ -63,7 +63,8 @@ namespace ccf::js
   enum class TxAccess
   {
     /// Application code, during evaluation of an endpoint handler function
-    APP,
+    APP_RO,
+    APP_RW, // TODO: Update comments
 
     /// Read-only governance execution, during evaluation of ballots, and of the
     /// 'validate' and 'resolve' functions in the constitution
@@ -325,8 +326,9 @@ namespace ccf::js
     void add_ccf_classdefs();
 
   public:
-    bool log_exception_details = false;
-    bool return_exception_details = false;
+    // TODO: Make sure these aren't checked in true
+    bool log_exception_details = true;
+    bool return_exception_details = true;
 
     Runtime();
     ~Runtime();

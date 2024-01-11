@@ -24,7 +24,7 @@ namespace ccf::js
       const JSDynamicEndpoint& endpoint,
       size_t freshness_marker) override
     {
-      if (access != js::TxAccess::APP)
+      if (access != js::TxAccess::APP_RW && access != js::TxAccess::APP_RO)
       {
         throw std::logic_error(
           "JS interpreter reuse lru is only supported for APP "
@@ -49,7 +49,15 @@ namespace ccf::js
         {
           case ccf::endpoints::InterpreterReusePolicy::KeyBased:
           {
-            const auto key = endpoint.properties.interpreter_reuse->key;
+            auto key = endpoint.properties.interpreter_reuse->key;
+            if (access == js::TxAccess::APP_RW)
+            {
+              key += " (rw)";
+            }
+            else if (access == js::TxAccess::APP_RO)
+            {
+              key += " (ro)";
+            }
             auto it = lru.find(key);
             if (it == lru.end())
             {
