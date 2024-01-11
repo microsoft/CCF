@@ -37,6 +37,7 @@ CCF == INSTANCE ccfraft
 \* Limit the reconfigurations to the next configuration in Configurations
 MCChangeConfigurationInt(i, newConfiguration) ==
     /\ Len(Configurations) > 1
+    /\ configurations[i] # <<>>
     /\ \E configCount \in 1..Len(Configurations)-1:
         /\ Configurations[configCount] = CCF!MaxConfiguration(i)
         /\ CCF!ChangeConfigurationInt(i, Configurations[configCount+1])
