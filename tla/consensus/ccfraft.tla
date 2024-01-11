@@ -1400,6 +1400,8 @@ DebugAliasGlobals ==
     [
         \* Total number of leader elections, i.e.,  BecomeLeader actions.
         le  |-> TLCGetAndSet(8, +, IF \E s \in Servers: <<BecomeLeader(s)>>_vars THEN 1 ELSE 0, 1),
+        \* Set of nodes that are blocked right now.
+        blocked  |-> { s \in Servers : ~[NextInt(s)]_vars},
         \* Set of nodes that are active right now.
         cluster |-> { Colorize(s, ToString(s)) : s \in { s \in Servers : leadershipState[s] \in {Leader, Follower} } },
         \* Sequence showing which node is active when.
