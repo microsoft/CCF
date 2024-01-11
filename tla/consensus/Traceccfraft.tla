@@ -83,7 +83,6 @@ TraceAppendEntriesBatchsize(i, j) ==
     sentIndex[i][j] .. Len(log[i])
 
 TraceInitReconfigurationVars ==
-    /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
     /\ InitLogConfigServerVars({TraceLog[1].msg.state.node_id}, StartLog)
 
@@ -427,8 +426,7 @@ TraceDifferentialInv ==
      \* 1) Toggle comments of TRUE and the LET/IN below
     TRUE
     \* LET t == INSTANCE trace d == t!Trace[l]
-    \* IN /\ d.reconfigurationCount = reconfigurationCount
-    \*    /\ d.removedFromConfiguration = removedFromConfiguration
+    \* IN /\ d.removedFromConfiguration = removedFromConfiguration
     \*    /\ d.configurations = configurations
     \*    /\ d.messages = messages
     \*    /\ d.currentTerm = currentTerm

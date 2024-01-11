@@ -94,13 +94,6 @@ Nil ==
 ------------------------------------------------------------------------------
 \* Global variables
 
-\* Keep track of current number of reconfigurations to limit it through the MC.
-\* TLC: Finite state space.
-VARIABLE reconfigurationCount
-
-ReconfigurationCountTypeInv == 
-    reconfigurationCount \in Nat
-
 \* Each server keeps track of the active configurations.
 \* This includes the current configuration plus any pending configurations.
 \* The current configuration is the initial configuration or the last committed reconfiguration.
@@ -130,13 +123,11 @@ RemovedFromConfigurationTypeInv ==
     removedFromConfiguration \subseteq Servers
 
 reconfigurationVars == <<
-    reconfigurationCount, 
     removedFromConfiguration, 
     configurations
 >>
 
 ReconfigurationVarsTypeInv ==
-    /\ ReconfigurationCountTypeInv
     /\ ConfigurationsTypeInv
     /\ RemovedFromConfigurationTypeInv
 
@@ -467,7 +458,6 @@ StartLog(startNode, _ignored) ==
        [term |-> StartTerm, contentType |-> TypeSignature] >>
 
 InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
-    /\ reconfigurationCount = 0
     /\ removedFromConfiguration = {}
     /\ committableIndices  = [i \in Servers |-> {}]
     /\ votedFor    = [i \in Servers |-> Nil]
@@ -600,7 +590,7 @@ BecomeLeader(i) ==
     /\ matchIndex' = [matchIndex EXCEPT ![i] = [j \in Servers |-> 0]]
     \* Shorten the configurations if the removed txs contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
+    /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor,
         candidateVars, commitIndex, committableIndices>>
 
 \* Leader i receives a client request to add v to the log.
@@ -652,8 +642,6 @@ ChangeConfigurationInt(i, newConfiguration) ==
         addedNodes == newConfiguration \ CurrentConfiguration(i)
         newSentIndex == [ k \in Servers |-> IF k \in addedNodes THEN Len(log[i]) ELSE sentIndex[i][k]]
        IN sentIndex' = [sentIndex EXCEPT ![i] = newSentIndex]
-    \* Keep track of running reconfigurations to limit state space
-    /\ reconfigurationCount' = reconfigurationCount + 1
     /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
     /\ log' = [log EXCEPT ![i] = Append(log[i], 
                                             [term |-> currentTerm[i],
@@ -728,9 +716,9 @@ AdvanceCommitIndex(i) ==
                                     source        |-> i,
                                     dest          |-> j ]
                         IN Send(msg)
-                    /\ UNCHANGED << currentTerm, votedFor, reconfigurationCount, removedFromConfiguration >>
+                    /\ UNCHANGED << currentTerm, votedFor, removedFromConfiguration >>
                  \* Otherwise, states remain unchanged
-                 ELSE UNCHANGED <<messages, serverVars, reconfigurationCount, removedFromConfiguration>>
+                 ELSE UNCHANGED <<messages, serverVars, removedFromConfiguration>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, serverVars, reconfigurationVars>>
     /\ UNCHANGED <<candidateVars, leaderVars, log>>
@@ -843,7 +831,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, log>>
+    /\ UNCHANGED <<removedFromConfiguration, serverVars, log>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.entries /= << >>
@@ -854,7 +842,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ Len(log'[i])..Len(log[i])]
         \* Potentially also shorten the configurations if the removed txns contained reconfigurations
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, serverVars, commitIndex, messages>>
+    /\ UNCHANGED <<removedFromConfiguration, serverVars, commitIndex, messages>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
@@ -899,7 +887,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, currentTerm, votedFor>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, votedFor>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -956,7 +944,7 @@ UpdateTerm(i, j, m) ==
     \* Potentially also shorten the configurations if the removed txns contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))]
     \* messages is unchanged so m can be processed further.
-    /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, candidateVars, leaderVars, commitIndex>>
+    /\ UNCHANGED <<removedFromConfiguration, messageVars, candidateVars, leaderVars, commitIndex>>
 
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
@@ -999,7 +987,7 @@ UpdateCommitIndex(i,j,m) ==
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = m.commitIndex]
         /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
-    /\ UNCHANGED <<reconfigurationCount, messages, currentTerm,
+    /\ UNCHANGED <<messages, currentTerm,
                    votedFor, candidateVars, leaderVars, log>>
 
 \* Receive a message.
@@ -1461,7 +1449,6 @@ DebugAliasAggregates ==
 
 DebugAliasVars ==
     [
-        reconfigurationCount |-> reconfigurationCount,
         removedFromConfiguration |-> removedFromConfiguration,
         configurations |-> configurations,
         messages |-> messages,
