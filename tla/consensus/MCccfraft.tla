@@ -36,10 +36,10 @@ CCF == INSTANCE ccfraft
 
 \* Limit the reconfigurations to the next configuration in Configurations
 MCChangeConfigurationInt(i, newConfiguration) ==
-    /\ reconfigurationCount < Len(Configurations) - 1
-    \* reconfigurationCount starts at 0, +2 to skip the first and get the next configuration
-    /\ newConfiguration = Configurations[reconfigurationCount+2]
-    /\ CCF!ChangeConfigurationInt(i, newConfiguration)
+    /\ Len(Configurations) > 1
+    /\ \E configCount \in 1..Len(Configurations)-1:
+        /\ Configurations[configCount] = CCF!MaxConfiguration(i)
+        /\ CCF!ChangeConfigurationInt(i, Configurations[configCount+1])
 
 \* Limit the terms that can be reached. Needs to be set to at least 3 to
 \* evaluate all relevant states. If set to only 2, the candidate_quorum
