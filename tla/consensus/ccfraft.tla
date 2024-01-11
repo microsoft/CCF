@@ -1398,7 +1398,7 @@ DebugAppendEntriesRequests ==
 
 srv == CHOOSE s \in Servers : [NextInt(s)]_vars
 L == TypeReconfiguration :> "r" @@ TypeSignature :> "s" @@ TypeEntry :> "e"
-S == CHOOSE f \in [ States -> {"▵", "▿", "▴", "◉", "○"} ] : IsInjective(f)
+S == CHOOSE f \in [ LeadershipStates -> {"▵", "▿", "▴", "○"} ] : IsInjective(f)
 C == CHOOSE f \in [ Servers -> {"[0;30m", "[0;31m", "[0;32m", "[0;33m", "[0;34m"}]: IsInjective(f)
 B == CHOOSE f \in [ Servers -> {"[47m", "[41m", "[42m", "[43m", "[44m"}]: IsInjective(f)
 Colorize(server, str) == C[server] \o str \o "[0m"
@@ -1411,7 +1411,7 @@ DebugAliasGlobals ==
         \* Total number of leader elections, i.e.,  BecomeLeader actions.
         le  |-> TLCGetAndSet(8, +, IF \E s \in Servers: <<BecomeLeader(s)>>_vars THEN 1 ELSE 0, 1),
         \* Set of nodes that are active right now.
-        cluster |-> { Colorize(s, ToString(s)) : s \in { s \in Servers : state[s] \in {Leader, Follower} } },
+        cluster |-> { Colorize(s, ToString(s)) : s \in { s \in Servers : leadershipState[s] \in {Leader, Follower} } },
         \* Sequence showing which node is active when.
         tl  |-> TLCGetAndSet(9, LAMBDA o, v: o \o C[v] \o "▧" \o "[0m", CHOOSE i \in Servers: [NextInt(i)]_vars, "")
     ]
@@ -1445,10 +1445,10 @@ DebugAliasAggregates ==
                             [ s \in Servers |-> IF IsSuffix(<<v[s]>>, o[s]) 
                                                 THEN o[s] 
                                                 ELSE o[s] \o <<TLCGet("level")', v[s]>>],
-                        state, [s \in Servers |-> <<>>]),
+                        leadershipState, [s \in Servers |-> <<>>]),
             ss   |-> TLCGetAndSet(6, 
                         LAMBDA o, v: [s \in Servers |-> o[s] \o C[s] \o S[v[s]] \o "[0m"],
-                        state, [s \in Servers |-> ""])
+                        leadershipState, [s \in Servers |-> ""])
             \* Times at which this node is active (this becomes unwidely for longer traces).
             \*ta   |-> TLCGetAndSet(7, 
             \*            LAMBDA o, v: [ o EXCEPT ![v] = @ \cup {TLCGet("level")} ],
@@ -1494,7 +1494,7 @@ DebugActingServerAlias ==
         configurations |-> configurations[srv],
         currentTerm |-> currentTerm[srv],
         votedFor |-> votedFor[srv],
-        state |-> state[srv],
+        leadershipState |-> leadershipState[srv],
         log |-> StringifyLog(srv),
         commitIndex |-> commitIndex[srv],
         committableIndices |-> committableIndices[srv],
@@ -1512,7 +1512,7 @@ AnimateLogAndStateAlias ==
         @@
         FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "log_") :> StringifyLog(s), <<>>, Servers)
         @@
-        FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "ste_") :> state[s], <<>>, Servers)
+        FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "ste_") :> leadershipState[s], <<>>, Servers)
     ELSE <<>>
 
 ===============================================================================
