@@ -8,38 +8,24 @@ Servers_mc == {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
 
 ----
 
-CC ==
-    \E i \in Servers :
-        ChangeConfiguration(i)
+CCF == INSTANCE ccfraft
 
-CQ ==
-    \E i \in Servers : CheckQuorum(i)
+SIMCheckQuorum(i) ==
+    /\ 1 = RandomElement(1..10)
+    /\ CCF!CheckQuorum(i)
 
-TO ==
-    \E i \in Servers : Timeout(i)
+SIMChangeConfigurationInt(i, newConfiguration) ==
+    /\ 1 = RandomElement(1..10)
+    /\ CCF!ChangeConfigurationInt(i, newConfiguration)
 
-Forward ==
-    \/ \E i, j \in Servers : RequestVote(i, j)
-    \/ \E i \in Servers : BecomeLeader(i)
-    \/ \E i \in Servers : ClientRequest(i)
-    \/ \E i \in Servers : SignCommittableMessages(i)
-    \/ \E i \in Servers : AdvanceCommitIndex(i)
-    \/ \E i, j \in Servers : AppendEntries(i, j)
-    \/ \E i, j \in Servers : Receive(i, j)
-
-SIMNext ==
-    \* To increase coverage, favor sub-actions during simulation that move the 
-    \* system state forward.
-    LET rnd == RandomElement(1..1000)
-    IN  \* TODO Evaluating ENABLED A is a performance bottleneck. An upcoming
-        \* TODO change in TLC should remove the need for ENABLED A.
-        CASE rnd = 1        /\ ENABLED TO -> TO
-          [] rnd = 2        /\ ENABLED CQ -> CQ
-          [] rnd \in 10..20 /\ ENABLED CC -> CC
-          [] OTHER -> IF ENABLED Forward THEN Forward ELSE Next
-
-SIMSpec ==
-    Init /\ [][SIMNext]_vars
+SIMTimeout(i) ==
+    /\ \/ 1 = RandomElement(1..10)
+       \* Always allow Timeout if no messages are in the network
+       \* and no node is a candidate or leader.  Otherise, the system
+       \* will deadlock if 1 # RandomElement(...).
+       \/ /\ \A s \in Servers: leadershipState[s] \notin {Leader, Candidate}
+          /\ Network!Messages = {}
+    /\ CCF!Timeout(i)
 
 \* The state constraint  StopAfter  stops TLC after the alloted
 \* time budget is up, unless TLC encounteres an error first.
