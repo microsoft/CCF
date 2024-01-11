@@ -9,7 +9,5 @@ steps:
   - script: |
       set -ex
       cd tla/
-      parallel 'JSON={} ./tlc.sh consensus/Traceccfraft.tla' ::: \
-      ../build/startup.ndjson \
-      ../build/append.ndjson
+      parallel 'JSON={} ./tlc.sh consensus/Traceccfraft.tla' ::: $(ls ../build/*.ndjson | grep -v _deprecated)
     displayName: "Run trace validation"
