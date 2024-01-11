@@ -1,0 +1,50 @@
+start_node,0
+assert_is_primary,0
+emit_signature,2
+
+assert_is_primary,0
+assert_commit_idx,0,2
+
+trust_node,2,1
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
+assert_state_sync
+
+state_all
+
+# Reconfiguration: add two nodes at once that are necessary to 
+# commit reconfiguration entry itself
+# New configuration: [0, 1, 2, 3] in term 2
+trust_nodes,2,2,3
+emit_signature,2
+periodic_all,10
+dispatch_one,0
+
+state_all
+
+dispatch_one,1 # ACK 2.6 from 1
+
+state_all # 5 isn't committed until one of the new nodes (either 2 or 3) acks
+assert_commit_idx,0,4
+
+dispatch_one,2 # NACK 2.6 from 2
+periodic_one,0,10
+dispatch_one,0 # AE catchup from 0
+dispatch_one,2 # ACK 2.6 from 2
+
+state_all # 6 is now committed as new node 2 has acked
+assert_commit_idx,0,6
+
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+
+state_all
+assert_state_sync
