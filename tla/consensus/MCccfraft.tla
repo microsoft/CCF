@@ -57,7 +57,7 @@ MCTimeout(i) ==
     \* is reached. We solve this below. If TermLimit is set to any number >2, this is
     \* not an issue since breadth-first search will make sure that a similar
     \* situation is simulated at term==1 which results in a term increase to 2.
-    /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
+    /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : leadershipState[s] = Candidate}) < 1
     /\ CCF!Timeout(i)
 
 \* Limit number of requests (new entries) that can be made
@@ -93,7 +93,7 @@ MCSend(msg) ==
 
 \* Limit max number of simultaneous candidates
 MCInMaxSimultaneousCandidates(i) ==
-    Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : state[s] = Candidate}) < 1
+    Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : leadershipState[s] = Candidate}) < 1
 
 JoinedLog(startNode, nextNodes) ==
     StartLog(startNode, nextNodes) \o
