@@ -205,7 +205,10 @@ IsAddConfiguration ==
     /\ IsEvent("add_configuration")
     /\ leadershipState[logline.msg.state.node_id] = Follower
     /\ UNCHANGED vars
-    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
+\* This won't work in situations where we receive an AE range that contains a configuration at first followed by committable indices:
+\* recv_append_entries will update the committable indices in the spec, but not in the impl state, which then goes on to handle an
+\* add_configuration event on which state->committable_indices is (correctly) empty.
+\*    /\ committableIndices[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
 
 IsSignCommittableMessages ==
     /\ IsEvent("replicate")
