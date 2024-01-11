@@ -19,6 +19,10 @@ def test_primary(network, args):
         assert r.status_code == http.HTTPStatus.OK.value
         r = c.get("/node/primary")
         assert r.status_code == http.HTTPStatus.OK.value
+        r = c.get("/node/backup")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND.value
+        assert r.body.json()["error"]["code"] == "ResourceNotFound"
+        assert r.body.json()["error"]["message"] == "Node is not backup"
 
     backup = network.find_any_backup()
     for interface_name in backup.host.rpc_interfaces.keys():
@@ -37,6 +41,8 @@ def test_primary(network, args):
             assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r
             assert r.body.json()["error"]["code"] == "ResourceNotFound"
             assert r.body.json()["error"]["message"] == "Node is not primary"
+            r = c.get("/node/backup", allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.OK.value, r
     return network
 
 
