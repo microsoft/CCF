@@ -64,6 +64,7 @@ class DigitsCfg:
     view = 0
     index = 0
     commit = 0
+    ts = 0
 
 
 def table(lines):
@@ -72,6 +73,7 @@ def table(lines):
     max_view = 0
     max_index = 0
     max_commit = 0
+    max_ts = 0
     for entry in entries:
         node_id = entry["msg"]["state"]["node_id"]
         if node_id not in nodes:
@@ -79,11 +81,13 @@ def table(lines):
         max_view = max(max_view, entry["msg"]["state"]["current_view"])
         max_index = max(max_index, entry["msg"]["state"]["last_idx"])
         max_commit = max(max_commit, entry["msg"]["state"]["commit_idx"])
+        max_ts = max(max_ts, int(entry["h_ts"]))
     dcfg = DigitsCfg()
     dcfg.nodes = max(nodes, key=len)
     dcfg.view = digits(max_view)
     dcfg.index = digits(max_index)
     dcfg.commit = digits(max_commit)
+    dcfg.ts = digits(max_ts)
     node_to_state = {}
     rows = []
     for entry in entries:
@@ -107,7 +111,10 @@ def table(lines):
             )
             for node in nodes
         ]
-        rows.append("     ".join(render_state(*state, dcfg) for state in states))
+        rows.append(
+            f"[{entry['h_ts']:>{dcfg.ts}}] "
+            + "     ".join(render_state(*state, dcfg) for state in states)
+        )
     return rows
 
 
