@@ -39,7 +39,9 @@ IsAppendEntriesResponse(msg, dst, src, logline) ==
     /\ msg.type = RaftMsgType[logline.msg.packet.msg]
     /\ msg.dest   = dst
     /\ msg.source = src
-    /\ msg.term = logline.msg.packet.term
+    \* raft.h::send_append_entries_response:1348 RAeR FAIL set their term to the term of index
+    \* for the last entry in the batch, not the term of the current leader. 
+    \* /\ msg.term = logline.msg.packet.term
     \* raft_types.h enum AppendEntriesResponseType
     /\ msg.success = (logline.msg.packet.success = "OK")
     /\ msg.lastLogIndex = logline.msg.packet.last_log_idx
