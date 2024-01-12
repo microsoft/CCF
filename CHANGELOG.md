@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- JS endpoints marked as `"mode": "readonly"` are prevented from writing to the KV. Attempting to call `map.set(k, v)`, `map.delete(k)`, or `map.clear()` on any KV table in such an endpoint will now result in an error being thrown.
+- JS endpoints marked as `"mode": "readonly"` are prevented from writing to the KV. Attempting to call `map.set(k, v)`, `map.delete(k)`, or `map.clear()` on any KV table in such an endpoint will now result in an error being thrown (#5921).
 
 ### Fixed
 
