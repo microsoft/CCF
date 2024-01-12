@@ -63,7 +63,12 @@ namespace ccf::js
   enum class TxAccess
   {
     /// Application code, during evaluation of an endpoint handler function
-    APP,
+    /// marked as readonly
+    APP_RO,
+
+    /// Application code, during evaluation of an endpoint handler function
+    /// marked as readwrite
+    APP_RW,
 
     /// Read-only governance execution, during evaluation of ballots, and of the
     /// 'validate' and 'resolve' functions in the constitution

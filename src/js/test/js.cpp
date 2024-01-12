@@ -21,43 +21,59 @@ TEST_CASE("Check KV Map access")
     {
       INFO("Public internal tables are read-only");
       REQUIRE(
-        _check_kv_map_access(TxAccess::APP, public_internal_table_name) ==
+        _check_kv_map_access(TxAccess::APP_RW, public_internal_table_name) ==
         MapAccessPermissions::READ_ONLY);
     }
 
     {
       INFO("Private tables in internal namespace cannot even be read");
       REQUIRE(
-        _check_kv_map_access(TxAccess::APP, private_internal_table_name) ==
+        _check_kv_map_access(TxAccess::APP_RW, private_internal_table_name) ==
         MapAccessPermissions::ILLEGAL);
     }
 
     {
       INFO("Governance tables are read-only");
       REQUIRE(
-        _check_kv_map_access(TxAccess::APP, public_gov_table_name) ==
+        _check_kv_map_access(TxAccess::APP_RW, public_gov_table_name) ==
         MapAccessPermissions::READ_ONLY);
     }
 
     {
       INFO("Private tables in governance namespace cannot even be read");
       REQUIRE(
-        _check_kv_map_access(TxAccess::APP, private_gov_table_name) ==
+        _check_kv_map_access(TxAccess::APP_RW, private_gov_table_name) ==
         MapAccessPermissions::ILLEGAL);
     }
 
     {
       INFO("Public application tables are read-write");
       REQUIRE(
-        _check_kv_map_access(TxAccess::APP, public_app_table_name) ==
+        _check_kv_map_access(TxAccess::APP_RW, public_app_table_name) ==
         MapAccessPermissions::READ_WRITE);
+
+      {
+        INFO(
+          "Unless the operation is read-only, in which case they're read-only");
+        REQUIRE(
+          _check_kv_map_access(TxAccess::APP_RO, public_app_table_name) ==
+          MapAccessPermissions::READ_ONLY);
+      }
     }
 
     {
       INFO("Private application tables are read-write");
       REQUIRE(
-        _check_kv_map_access(TxAccess::APP, private_app_table_name) ==
+        _check_kv_map_access(TxAccess::APP_RW, private_app_table_name) ==
         MapAccessPermissions::READ_WRITE);
+
+      {
+        INFO(
+          "Unless the operation is read-only, in which case they're read-only");
+        REQUIRE(
+          _check_kv_map_access(TxAccess::APP_RO, private_app_table_name) ==
+          MapAccessPermissions::READ_ONLY);
+      }
     }
   }
 

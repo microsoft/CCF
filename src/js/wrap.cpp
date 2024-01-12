@@ -104,7 +104,8 @@ namespace ccf::js
   {
     switch (access)
     {
-      case (js::TxAccess::APP):
+      case (js::TxAccess::APP_RO):
+      case (js::TxAccess::APP_RW):
       {
         CCF_APP_INFO("{}", s);
         break;
@@ -574,10 +575,16 @@ namespace ccf::js
         // nor write to private tables, and if private governance or internal
         // tables exist then applications should not be able to read them.
         if (
-          execution_context == TxAccess::APP &&
+          execution_context == TxAccess::APP_RW &&
           namespace_of_table == kv::AccessCategory::APPLICATION)
         {
           return MapAccessPermissions::READ_WRITE;
+        }
+        else if (
+          execution_context == TxAccess::APP_RO &&
+          namespace_of_table == kv::AccessCategory::APPLICATION)
+        {
+          return MapAccessPermissions::READ_ONLY;
         }
         else
         {
@@ -608,13 +615,20 @@ namespace ccf::js
 
           case kv::AccessCategory::APPLICATION:
           {
-            if (execution_context == TxAccess::APP)
+            switch (execution_context)
             {
-              return MapAccessPermissions::READ_WRITE;
-            }
-            else
-            {
-              return MapAccessPermissions::ILLEGAL;
+              case (TxAccess::APP_RW):
+              {
+                return MapAccessPermissions::READ_WRITE;
+              }
+              case (TxAccess::APP_RO):
+              {
+                return MapAccessPermissions::READ_ONLY;
+              }
+              default:
+              {
+                return MapAccessPermissions::ILLEGAL;
+              }
             }
           }
         }
@@ -644,12 +658,30 @@ namespace ccf::js
     char const* table_kind = permission == MapAccessPermissions::READ_ONLY ? \
       "read-only" : \
       "inaccessible"; \
-    char const* exec_context = jsctx.access == TxAccess::APP ? \
-      "application" : \
-      (jsctx.access == TxAccess::GOV_RO ? \
-         "read-only governance" : \
-         (jsctx.access == TxAccess::GOV_RW ? "read-write governance" : \
-                                             "unknown")); \
+    char const* exec_context = "unknown"; \
+    switch (jsctx.access) \
+    { \
+      case (TxAccess::APP_RW): \
+      { \
+        exec_context = "application"; \
+        break; \
+      } \
+      case (TxAccess::APP_RO): \
+      { \
+        exec_context = "read-only application"; \
+        break; \
+      } \
+      case (TxAccess::GOV_RO): \
+      { \
+        exec_context = "read-only governance"; \
+        break; \
+      } \
+      case (TxAccess::GOV_RW): \
+      { \
+        exec_context = "read-write governance"; \
+        break; \
+      } \
+    } \
     return JS_ThrowTypeError( \
       ctx, \
       "Cannot call " #JS_METHOD_NAME \
@@ -1725,7 +1757,7 @@ namespace ccf::js
 
     auto& tx = *tx_ptr;
 
-    js::Context ctx2(js::TxAccess::APP);
+    js::Context ctx2(js::TxAccess::APP_RW);
     ctx2.runtime().set_runtime_options(
       tx_ptr, js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
     JS_SetModuleLoaderFunc(
@@ -1877,7 +1909,8 @@ namespace ccf::js
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     switch (jsctx.access)
     {
-      case (js::TxAccess::APP):
+      case (js::TxAccess::APP_RO):
+      case (js::TxAccess::APP_RW):
       {
         CCF_APP_FAIL("{}", ss->str());
         break;
@@ -1910,7 +1943,8 @@ namespace ccf::js
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
     switch (jsctx.access)
     {
-      case (js::TxAccess::APP):
+      case (js::TxAccess::APP_RO):
+      case (js::TxAccess::APP_RW):
       {
         CCF_APP_FATAL("{}", ss->str());
         break;

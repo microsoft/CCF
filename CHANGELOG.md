@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [5.0.0-dev12]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev12
 
+### Changed
+
+- JS endpoints marked as `"mode": "readonly"` are prevented from writing to the KV. Attempting to call `map.set(k, v)`, `map.delete(k)`, or `map.clear()` on any KV table in such an endpoint will now result in an error being thrown (#5921).
+
 ### Fixed
 
 - Nodes are now more robust to unexpected traffic on node-to-node ports (#5889).

@@ -293,9 +293,12 @@ namespace ccfapp
           js_runtime_options->max_cached_interpreters);
       }
 
+      const auto rw_access =
+        endpoint->properties.mode == ccf::endpoints::Mode::ReadWrite ?
+        js::TxAccess::APP_RW :
+        js::TxAccess::APP_RO;
       std::shared_ptr<js::Context> interpreter =
-        interpreter_cache->get_interpreter(
-          js::TxAccess::APP, *endpoint, flush_marker);
+        interpreter_cache->get_interpreter(rw_access, *endpoint, flush_marker);
       if (interpreter == nullptr)
       {
         throw std::logic_error("Cache failed to produce interpreter");
