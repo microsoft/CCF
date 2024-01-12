@@ -1,24 +1,40 @@
-nodes,0,1,2
-connect,0,1
-connect,1,2
-connect,0,2
+start_node,0
+assert_is_primary,0
+emit_signature,2
 
-# Node 0 starts first, and begins sending messages first
-periodic_one,0,110
+assert_is_primary,0
+assert_commit_idx,0,2
+
+trust_node,2,1
+emit_signature,2
+
 dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
 
+trust_node,2,2
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,6
+assert_state_sync
+
+assert_is_primary,0
+assert_is_backup,1
+assert_is_backup,2
+
+replicate,2,hello world
+emit_signature,2
 periodic_all,10
 dispatch_all
 
-state_all
-
-replicate,1,hello world
-emit_signature,1
-periodic_all,10
-dispatch_all
-
-replicate,1,saluton mondo
-emit_signature,1
+replicate,2,saluton mondo
+emit_signature,2
 periodic_all,10
 dispatch_all
 
@@ -31,8 +47,8 @@ state_all
 disconnect,0,1
 disconnect,0,2
 
-replicate,1,drop me 1
-emit_signature,1
+replicate,2,drop me 1
+emit_signature,2
 periodic_all,10
 dispatch_all
 
@@ -48,13 +64,13 @@ dispatch_all  #< This AppendEntries starts at a point that Node 1 would accept, 
 state_all
 
 # Node 1 replicates a new entry, resulting in the same seqno as Node 0
-replicate,2,keep me 1
-emit_signature,2
+replicate,3,keep me 1
+emit_signature,3
 periodic_all,10
 dispatch_all
 
-replicate,2,keep me 2
-emit_signature,2
+replicate,3,keep me 2
+emit_signature,3
 periodic_all,10
 dispatch_all
 
