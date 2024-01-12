@@ -65,7 +65,7 @@ namespace ccf::js
     /// Application code, during evaluation of an endpoint handler function
     /// marked as readonly
     APP_RO,
-    
+
     /// Application code, during evaluation of an endpoint handler function
     /// marked as readwrite
     APP_RW,

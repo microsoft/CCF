@@ -1757,7 +1757,6 @@ namespace ccf::js
 
     auto& tx = *tx_ptr;
 
-    // TODO
     js::Context ctx2(js::TxAccess::APP_RW);
     ctx2.runtime().set_runtime_options(
       tx_ptr, js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
