@@ -644,8 +644,8 @@ AppendEntries(i, j) ==
 \* Candidate i transitions to leader.
 BecomeLeader(i) ==
     /\ leadershipState[i] = Candidate
-    \* Node shouldn't have completed retirement
-    /\ retirementPhase[i] # CompletedRetirement
+    \* Node shouldn't have already completed retirement
+    /\ retirementPhase[i] # RetirementCompleted
     \* To become leader, the candidate must have received votes from a majority in each active configuration
     /\ \A c \in DOMAIN configurations[i] : votesGranted[i] \in Quorums[configurations[i][c]]
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Leader]
@@ -658,15 +658,22 @@ BecomeLeader(i) ==
     /\ matchIndex' = [matchIndex EXCEPT ![i] = [j \in Servers |-> 0]]
     \* Shorten the configurations if the removed txs contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
+    \* If the leader was in the RetirementOrdered state, then its retirement has
+    \* been rolled back as it was unsigned
+    /\ IF retirementPhase = RetirementOrdered THEN
+        /\ membershipState' = [membershipState EXCEPT ![i] = Active]
+        /\ retirementPhase' = [retirementPhase EXCEPT ![i] = NotRetiring]
+       ELSE UNCHANGED <<retirementPhase, membershipState>>
     /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor,
-        candidateVars, commitIndex, committableIndices, membershipState, retirementPhase>>
+        candidateVars, commitIndex, committableIndices>>
 
 \* Leader i receives a client request to add 42 to the log.
 ClientRequest(i) ==
     \* Only leaders receive client requests
     /\ leadershipState[i] = Leader
-    \* Leaders stop accepting requests once their retirement is signed
+    \* Leaders stop accepting new requests once their retirement is signed
     /\ retirementPhase[i] \notin {RetirementCompleted, RetirementSigned}
+    \* Add new request to leader's log
     /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
         leaderVars, commitIndex, committableIndices, membershipState, retirementPhase>>
@@ -684,11 +691,17 @@ SignCommittableMessages(i) ==
     /\ leadershipState[i] = Leader
     \* The first log entry cannot be a signature.
     /\ log[i] # << >>
+    \* Leader hasn't completed retirement
+    /\ retirementPhase[i] # RetirementCompleted
     \* Create a new entry in the log that has the contentType Signature and append it
     /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
     /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \cup {Len(log'[i])} ]
+    \* If retirementphase was RetirementOrdered then its now RetirementSigned
+    /\ IF retirementPhase = RetirementOrdered THEN
+        /\ retirementPhase' = [retirementPhase EXCEPT ![i] = RetirementSigned]
+       ELSE UNCHANGED retirementPhase
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, 
-        leaderVars, commitIndex, membershipState, retirementPhase>>
+        leaderVars, commitIndex, membershipState>>
 
 \* CCF: Reconfiguration of servers
 \* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
@@ -702,6 +715,8 @@ SignCommittableMessages(i) ==
 ChangeConfigurationInt(i, newConfiguration) ==
     \* Only leader can propose changes
     /\ leadershipState[i] = Leader
+    \* Leader hasn't completed retirement
+    /\ retirementPhase[i] # RetirementCompleted
     \* Configuration is not equal to the previous configuration.
     /\ newConfiguration /= MaxConfiguration(i)
     \* CCF's integrity demands that a previously removed server cannot rejoin the network,
@@ -720,8 +735,15 @@ ChangeConfigurationInt(i, newConfiguration) ==
                                              configuration |-> newConfiguration,
                                              contentType |-> TypeReconfiguration])]
     /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
+    \* Check if node is starting its own retirement
+    /\ IF /\ retirementPhase = NotRetiring
+          /\ i \notin newConfiguration
+        THEN 
+            /\ retirementPhase' = RetirementOrdered
+            /\ membershipState' = Retired
+        ELSE UNCHANGED <<retirementPhase, membershipState>>
     /\ UNCHANGED <<messageVars, serverVars, candidateVars, matchIndex, 
-        commitIndex, committableIndices, membershipState, retirementPhase>>
+        commitIndex, committableIndices>>
 
 ChangeConfiguration(i) ==
     \* Reconfigure to any *non-empty* subset of servers.  ChangeConfigurationInt checks that the new
@@ -783,18 +805,18 @@ AdvanceCommitIndex(i) ==
               \* Retire if i is not in active configuration anymore
               /\ IF i \notin configurations[i][Min(DOMAIN configurations'[i])]
                  THEN \E j \in PlausibleSucessorNodes(i) :
-                    /\ membershipState' = [membershipState EXCEPT ![i] = Retired]
+                    /\ retirementPhase' = [retirementPhase EXCEPT ![i] = RetirementCompleted]
                     /\ LET msg == [type          |-> ProposeVoteRequest,
                                     term          |-> currentTerm[i],
                                     source        |-> i,
                                     dest          |-> j ]
                         IN Send(msg)
-                    /\ UNCHANGED << currentTerm, votedFor, removedFromConfiguration >>
+                    /\ UNCHANGED <<currentTerm, votedFor>>
                  \* Otherwise, states remain unchanged
-                 ELSE UNCHANGED <<messages, serverVars, removedFromConfiguration>>
+                 ELSE UNCHANGED <<messages, serverVars, retirementPhase>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, serverVars, reconfigurationVars>>
-    /\ UNCHANGED <<candidateVars, leaderVars, log, leadershipState, retirementPhase>>
+    /\ UNCHANGED <<candidateVars, leaderVars, log, leadershipState, removedFromConfiguration>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
@@ -901,6 +923,9 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
           /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ 0..commitIndex'[i] ]
           \* Pop any newly committed reconfigurations, except the most recent
           /\ configurations' = [configurations EXCEPT ![i] = RestrictDomain(@, LAMBDA c : c >= newConfigurationIndex)]
+          \* Check if updating the commit index completes a pending retirement
+          /\ retirementPhase' = [retirementPhase EXCEPT ![i] = 
+                IF retirementPhase = RetirementSigned /\ commitIndex' > RetirementIndex(i) THEN RetirementCompleted ELSE @]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -909,7 +934,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               dest           |-> j],
               m)
     /\ UNCHANGED <<removedFromConfiguration, serverVars, 
-        log, membershipState, retirementPhase>>
+        log, membershipState>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.entries /= << >>
@@ -920,6 +945,16 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ Len(log'[i])..Len(log[i])]
         \* Potentially also shorten the configurations if the removed txns contained reconfigurations
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
+          \* Potentially rollback retirement phase
+          /\ IF /\ retirementPhase[i] \in {RetirementOrdered, RetirementSigned}
+                /\ RetirementIndex(i) > Len(log'[i])
+              THEN /\ retirementPhase[i] = NotRetiring 
+                   /\ membershipState[i] = Active
+              ELSE IF /\ retirementPhase[i] = RetirementSigned 
+                      /\ RetirementIndex(i) < MaxCommittableIndex(log'[i])
+              THEN /\ retirementPhase[i] = RetirementOrdered 
+                   /\ UNCHANGED membershipState
+              ELSE UNCHANGED <<retirementPhase, membershipState>>
     /\ UNCHANGED <<removedFromConfiguration, serverVars, 
         commitIndex, messages, membershipState, retirementPhase>>
 
