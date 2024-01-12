@@ -483,6 +483,26 @@ CommittedTermPrefix(i, x) ==
     \* Otherwise the prefix is the empty tuple
     ELSE << >>
 
+ConfigIndexesWith(i) ==
+    {index \in DOMAIN log[i]: 
+        /\ log[i][index].contentType = TypeReconfiguration
+        /\ i \in log[i][index].configuration}
+
+ConfigIndexesWithout(i) ==
+    {index \in DOMAIN log[i]: 
+        /\ log[i][index].contentType = TypeReconfiguration
+        /\ i \notin log[i][index].configuration}
+
+\* Index at which node i is first removed from the configuration according to the log of node i
+\* 0 iff the node i has not been removed
+RetirementIndex(i) ==
+    IF /\ ConfigIndexesWithout(i) # {}
+       /\ ConfigIndexesWith(i) # {}
+       /\ Max(ConfigIndexesWith(i)) < Min(ConfigIndexesWithout(i))
+    THEN Min(ConfigIndexesWithout(i))
+    ELSE 0
+
+
 AppendEntriesBatchsize(i, j) ==
     \* The Leader is modeled to send zero to one entries per AppendEntriesRequest.
      \* This can be redefined to send bigger batches of entries.
@@ -1308,6 +1328,11 @@ LogConfigurationConsistentInv ==
                 => \A idx \in commitIndex[i]+1..Len(log[i]) :
                     log[i][idx].contentType = TypeReconfiguration 
                     => configurations[i][idx] = log[i][idx].configuration
+
+RetirementPhaseConsistentInv ==
+    \A i \in Servers :
+        /\ retirementPhase[i] = NotRetiring <=> RetirementIndex(i) = 0
+        /\ retirementPhase[i] # NotRetiring <=> RetirementIndex(i) # 0
 
 NoLeaderBeforeInitialTerm ==
     \A i \in Servers :
