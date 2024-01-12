@@ -570,6 +570,8 @@ Init ==
 
 \* Server i times out and starts a new election.
 Timeout(i) ==
+    \* Only server that haven't completed retirement can become candidates
+    /\ retirementPhase[i] # RetirementCompleted
     \* Only servers that are followers/candidates can become candidates
     /\ leadershipState[i] \in {Follower, Candidate}
     \* Check that the reconfiguration which added this node is at least committable
@@ -600,6 +602,8 @@ RequestVote(i,j) ==
     /\ i /= j
     \* Only requests vote if we are candidate
     /\ leadershipState[i] = Candidate
+    \* and we haven't completed retirement
+    /\ retirementPhase[i] # RetirementCompleted
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
     /\ Send(msg)
@@ -608,9 +612,12 @@ RequestVote(i,j) ==
 
 \* Leader i sends j an AppendEntries request
 AppendEntries(i, j) ==
-    \* No messages to itself and sender is primary
+    \* Sender is primary
     /\ leadershipState[i] = Leader
+    \* No messages to itself 
     /\ i /= j
+    \* Sender hasn't completed its own retirement
+    /\ retirementPhase[i] # RetirementCompleted
     /\ j \in GetServerSet(i)
     \* AppendEntries must be sent for historical entries, unless
     \* snapshots are used. Whether the node is in configuration at
@@ -647,6 +654,8 @@ AppendEntries(i, j) ==
 \* Candidate i transitions to leader.
 BecomeLeader(i) ==
     /\ leadershipState[i] = Candidate
+    \* Node shouldn't have completed retirement
+    /\ retirementPhase[i] # CompletedRetirement
     \* To become leader, the candidate must have received votes from a majority in each active configuration
     /\ \A c \in DOMAIN configurations[i] : votesGranted[i] \in Quorums[configurations[i][c]]
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Leader]
@@ -662,10 +671,12 @@ BecomeLeader(i) ==
     /\ UNCHANGED <<reconfigurationCount, removedFromConfiguration, messageVars, currentTerm, votedFor,
         candidateVars, commitIndex, committableIndices, membershipState, retirementPhase>>
 
-\* Leader i receives a client request to add v to the log.
+\* Leader i receives a client request to add 42 to the log.
 ClientRequest(i) ==
     \* Only leaders receive client requests
     /\ leadershipState[i] = Leader
+    \* Leaders stop accepting requests once their retirement is signed
+    /\ retirementPhase[i] \notin {RetirementCompleted, RetirementSigned}
     /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
         leaderVars, commitIndex, committableIndices, membershipState, retirementPhase>>
@@ -1329,10 +1340,22 @@ LogConfigurationConsistentInv ==
                     log[i][idx].contentType = TypeReconfiguration 
                     => configurations[i][idx] = log[i][idx].configuration
 
+\* Check each node's retirement phase is consistent with its local state
 RetirementPhaseConsistentInv ==
     \A i \in Servers :
-        /\ retirementPhase[i] = NotRetiring <=> RetirementIndex(i) = 0
-        /\ retirementPhase[i] # NotRetiring <=> RetirementIndex(i) # 0
+        \/ /\ retirementPhase[i] = NotRetiring 
+           /\ RetirementIndex(i) = 0
+        \* RetirementOrdered - node's retirement in its log
+        \/ /\ retirementPhase[i] = RetirementOrdered 
+           /\ RetirementIndex(i) # 0
+        \* RetirementSigned - node' retirement is signed 
+        \/ /\ retirementPhase[i] = RetirementSigned
+           /\ RetirementIndex(i) # 0
+           /\ RetirementIndex(i) <= MaxCommittableIndex(log[i])
+        \* RetirementCompleted - node's retired is committed
+        \/ /\ retirementPhase[i] = RetirementCompleted
+           /\ RetirementIndex(i) # 0
+           /\ RetirementIndex(i) <= commitIndex[i]
 
 NoLeaderBeforeInitialTerm ==
     \A i \in Servers :
