@@ -21,6 +21,7 @@
 #include "node/endpoint_context_impl.h"
 #include "node/node_configuration_subsystem.h"
 #include "rpc_exception.h"
+#include "service/internal_tables_access.h"
 
 #define FMT_HEADER_ONLY
 
@@ -199,12 +200,38 @@ namespace ccf
     }
 
     std::optional<std::string> redirect_location_for_primary(
+      kv::ReadOnlyTx& tx,
       const std::optional<ccf::ListenInterfaceID>& listen_interface)
     {
+      // TODO: Look up config based on interface ID, maybe redirect to static
+      // location
+      if (consensus)
+      {
+        const auto primary_id = consensus->primary();
+        if (primary_id.has_value())
+        {
+          const auto nodes = InternalTablesAccess::get_trusted_nodes(tx);
+          const auto node_it = nodes.find(primary_id.value());
+          if (node_it != nodes.end())
+          {
+            const auto& interfaces = node_it->second.rpc_interfaces;
+            // TODO: Let this configure which interface we redirect to on the
+            // primary?
+            const auto interface_it = interfaces.find(
+              listen_interface.value_or(ccf::PRIMARY_RPC_INTERFACE));
+            if (interface_it != interfaces.end())
+            {
+              return interface_it->second.published_address;
+            }
+          }
+        }
+      }
+
       return std::nullopt;
     }
 
     bool check_redirect(
+      kv::ReadOnlyTx& tx,
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
@@ -222,13 +249,33 @@ namespace ccf
           if (!is_primary)
           {
             const auto location = redirect_location_for_primary(
-              ctx->get_session_context()->interface_id);
+              tx, ctx->get_session_context()->interface_id);
+            if (location.has_value())
+            {
+              ctx->set_response_header(
+                http::headers::LOCATION,
+                fmt::format(
+                  "https://{}{}", location.value(), ctx->get_request_url()));
+              ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
+              return true;
+            }
+            else
+            {
+              // Should redirect, but don't know how to. Return an error
+              ctx->set_error(
+                HTTP_STATUS_BAD_GATEWAY,
+                ccf::errors::PrimaryNotFound,
+                "Request should be redirected to primary, but receiving node "
+                "does not know current primary address");
+              return true;
+            }
           }
-          {}
+          return false;
         }
         default:
         {
           LOG_FAIL_FMT("Unhandled redirection strategy: {}", rs);
+          return false;
         }
       }
     }
@@ -493,12 +540,13 @@ namespace ccf
             return;
           }
 
-          if (check_redirect(ctx, endpoint))
+          if (check_redirect(*tx_p, ctx, endpoint))
           {
             return;
           }
 
-          const bool is_primary = (consensus == nullptr) ||
+          // TODO: Remove all of this block?
+          bool is_primary = (consensus == nullptr) ||
             consensus->can_replicate() || ctx->is_create_request;
           const bool forwardable = (consensus != nullptr);
 
@@ -528,7 +576,6 @@ namespace ccf
               }
             }
           }
-
           std::unique_ptr<AuthnIdentity> identity =
             get_authenticated_identity(ctx, *tx_p, endpoint);
 
