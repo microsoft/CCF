@@ -33,7 +33,7 @@ SIMTimeout(i) ==
     /\ \/ RandomElement(1..1000) \in conf[2]
        \/ conf[1] # "Next"
        \* Always allow Timeout if no messages are in the network
-       \* and no node is a candidate or leader.  Otherise, the system
+       \* and no node is a candidate or leader.  Otherwise, the system
        \* will deadlock if 1 # RandomElement(...).
        \/ /\ \A s \in Servers: leadershipState[s] \notin {Leader, Candidate}
           /\ Network!Messages = {}
