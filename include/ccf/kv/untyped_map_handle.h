@@ -57,6 +57,8 @@ namespace kv::untyped
 
     bool has(const KeyType& key);
 
+    bool has_globally_committed(const KeyType& key);
+
     void put(const KeyType& key, const ValueType& value);
 
     void remove(const KeyType& key);
