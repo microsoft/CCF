@@ -57,7 +57,7 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v1, rpchost, pubhost, nodehost, nodeport, rpcport, pubport);
 
-  static constexpr auto PRIMARY_RPC_INTERFACE = "ccf.default_rpc_interface";
+  static constexpr auto PRIMARY_RPC_INTERFACE = "default_rpc_interface";
 
   /// Node network information
   struct NodeInfoNetwork_v2
