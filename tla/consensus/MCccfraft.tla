@@ -95,11 +95,6 @@ MCSend(msg) ==
 MCInMaxSimultaneousCandidates(i) ==
     Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : leadershipState[s] = Candidate}) < 1
 
-JoinedLog(startNode, nextNodes) ==
-    StartLog(startNode, nextNodes) \o
-        << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> nextNodes],
-           [term |-> StartTerm, contentType |-> TypeSignature] >>
-
 MCInit ==
     /\ InitMessagesVars
     /\ InitCandidateVars
