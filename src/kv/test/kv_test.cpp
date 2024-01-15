@@ -219,7 +219,8 @@ TEST_CASE("sets and values")
       REQUIRE(set_handle->contains(k1));
       REQUIRE(!set_handle->contains(k2));
 
-      REQUIRE(set_handle->contains_globally_committed(k1));
+      // NB: Previous transaction committed locally, but not yet globally
+      REQUIRE(!set_handle->contains_globally_committed(k1));
       REQUIRE(!set_handle->contains_globally_committed(k2));
 
       REQUIRE(set_handle->size() == 1);
@@ -232,6 +233,26 @@ TEST_CASE("sets and values")
       REQUIRE(std_set.find(k1) != std_set.end());
       REQUIRE(std_set.find(k2) == std_set.end());
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Read committed writes");
+      kv_store.compact(kv_store.current_version());
+
+      auto tx = kv_store.create_tx();
+      auto set_handle = tx.rw(set);
+
+      REQUIRE(set_handle->contains_globally_committed(k1));
+      REQUIRE(!set_handle->contains_globally_committed(k2));
+
+      // Local modifications do not affect globally_committed
+      set_handle->remove(k1);
+      set_handle->insert(k2);
+
+      REQUIRE(set_handle->contains_globally_committed(k1));
+      REQUIRE(!set_handle->contains_globally_committed(k2));
+
+      // This tx is deliberately dropped, not committed
     }
 
     {
@@ -250,10 +271,30 @@ TEST_CASE("sets and values")
       REQUIRE(!set_handle->contains(k1));
       REQUIRE(set_handle->size() == 0);
 
+      // Not even locally committed, so globally_committed is unaffected
       REQUIRE(set_handle->contains_globally_committed(k1));
       REQUIRE(!set_handle->contains_globally_committed(k2));
 
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    }
+
+    {
+      INFO("Read committed removals");
+      {
+        auto tx = kv_store.create_tx();
+        auto set_handle = tx.ro(set);
+        // Removal is still only locally committed
+        REQUIRE(set_handle->contains_globally_committed(k1));
+        REQUIRE(!set_handle->contains_globally_committed(k2));
+      }
+      kv_store.compact(kv_store.current_version());
+      {
+        auto tx = kv_store.create_tx();
+        auto set_handle = tx.ro(set);
+        // Removal is now globally committed
+        REQUIRE(!set_handle->contains_globally_committed(k1));
+        REQUIRE(!set_handle->contains_globally_committed(k2));
+      }
     }
 
     {
