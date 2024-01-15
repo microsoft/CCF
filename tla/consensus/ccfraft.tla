@@ -788,7 +788,7 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
        \/ /\ m.term >= currentTerm[i]
           /\ leadershipState[i] = Follower
           /\ ~logOk
-          \* raft.h::send_append_entries_response:1348 RAeR FAIL set their term to the term of index
+          \* raft.h::send_append_entries_response:1348 AppendEntriesResponse messages with answer == FAIL set their term to the term of index
           \* for the last entry in the backup's log, not the term of the current leader
           /\ LET prevTerm == IF m.prevLogIndex = 0 THEN 0
                              ELSE IF m.prevLogIndex > Len(log[i]) THEN 0 ELSE log[i][Len(log[i])].term
