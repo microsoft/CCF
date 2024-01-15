@@ -38,7 +38,7 @@ IsAppendEntriesResponse(msg, dst, src, logline) ==
     /\ msg.type = AppendEntriesResponse
     /\ msg.type = RaftMsgType[logline.msg.packet.msg]
     /\ msg.dest   = dst
-    /\ msg.source = src 
+    /\ msg.source = src
     /\ msg.term = logline.msg.packet.term
     \* raft_types.h enum AppendEntriesResponseType
     /\ msg.success = (logline.msg.packet.success = "OK")
