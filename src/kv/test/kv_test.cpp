@@ -199,9 +199,15 @@ TEST_CASE("sets and values")
       REQUIRE(set_handle->contains(k2));
       REQUIRE(set_handle->size() == 2);
 
+      REQUIRE(!set_handle->contains_globally_committed(k1));
+      REQUIRE(!set_handle->contains_globally_committed(k2));
+
       set_handle->remove(k2);
       REQUIRE(!set_handle->contains(k2));
       REQUIRE(set_handle->size() == 1);
+
+      REQUIRE(!set_handle->contains_globally_committed(k1));
+      REQUIRE(!set_handle->contains_globally_committed(k2));
 
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
@@ -212,6 +218,10 @@ TEST_CASE("sets and values")
       auto set_handle = tx.ro(set);
       REQUIRE(set_handle->contains(k1));
       REQUIRE(!set_handle->contains(k2));
+
+      REQUIRE(set_handle->contains_globally_committed(k1));
+      REQUIRE(!set_handle->contains_globally_committed(k2));
+
       REQUIRE(set_handle->size() == 1);
       std::set<std::string> std_set;
       set_handle->foreach([&std_set](const std::string& entry) {
@@ -239,6 +249,9 @@ TEST_CASE("sets and values")
       set_handle->remove(k1);
       REQUIRE(!set_handle->contains(k1));
       REQUIRE(set_handle->size() == 0);
+
+      REQUIRE(set_handle->contains_globally_committed(k1));
+      REQUIRE(!set_handle->contains_globally_committed(k2));
 
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     }
