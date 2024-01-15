@@ -1,0 +1,79 @@
+# This scenario checks that an election completes successfully and with the right 
+# quorums when a reconfiguration is in flight
+# Note: This is a fix for the issue described in https://github.com/microsoft/CCF/issues/3948
+start_node,0
+assert_is_primary,0
+emit_signature,2
+
+assert_is_primary,0
+assert_commit_idx,0,2
+
+trust_node,2,1
+emit_signature,2 # Initial configuration: C0=[0,1]
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
+assert_state_sync
+
+# Reconfiguration: add three nodes
+trust_nodes,2,2,3,4 # New configuration: C1=[0,1,2,3,4] in term 2 (quorum=3)
+emit_signature,2
+periodic_all,10
+
+# New nodes first respond with NACKs as they don't have full history
+dispatch_one,0
+
+periodic_all,10
+dispatch_one,2
+dispatch_one,3
+dispatch_one,4
+
+periodic_all,10
+dispatch_one,0
+
+state_all # All nodes have seen the reconfiguration entry
+assert_commit_idx,0,4 # But it is not committed, because 0 has not heard back from 1
+
+# One new node calls for an election (e.g. because primary 0 is dead)
+periodic_one,2,100
+dispatch_one,2
+assert_is_candidate,2
+
+dispatch_one,3 # 3 sends vote response to 2
+assert_is_candidate,2
+
+dispatch_one,4 # 4 sends vote response to 2: 2 becomes primary
+
+# Even though candidate 2 has received a majority of votes in C1, it does not have any votes
+# from C0 and so remains candidate
+assert_is_candidate,2
+state_all
+
+dispatch_one,0 # 0 sends vote response to 2
+assert_is_candidate,2
+
+dispatch_one,1 # 1 sends vote response to 2
+
+# Eventually, 2 has received votes from a majority of nodes in _both_ configurations
+state_all
+assert_is_primary,2
+
+# But commit has not progressed yet
+assert_commit_idx,2,4
+
+# New primary appends a new committable entry to confirm its primaryship
+emit_signature,3
+
+dispatch_all
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+state_all
+assert_state_sync
