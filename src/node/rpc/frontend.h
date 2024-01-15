@@ -198,6 +198,41 @@ namespace ccf
       return true;
     }
 
+    std::optional<std::string> redirect_location_for_primary(
+      const std::optional<ccf::ListenInterfaceID>& listen_interface)
+    {
+      return std::nullopt;
+    }
+
+    bool check_redirect(
+      std::shared_ptr<ccf::RpcContextImpl> ctx,
+      const endpoints::EndpointDefinitionPtr& endpoint)
+    {
+      const auto rs = endpoint->properties.redirection_strategy;
+      switch (rs)
+      {
+        case (ccf::endpoints::RedirectionStrategy::None):
+        {
+          return false;
+        }
+        case (ccf::endpoints::RedirectionStrategy::ToPrimary):
+        {
+          const bool is_primary =
+            (consensus != nullptr) && consensus->can_replicate();
+          if (!is_primary)
+          {
+            const auto location = redirect_location_for_primary(
+              ctx->get_session_context()->interface_id);
+          }
+          {}
+        }
+        default:
+        {
+          LOG_FAIL_FMT("Unhandled redirection strategy: {}", rs);
+        }
+      }
+    }
+
     bool check_session_consistency(std::shared_ptr<ccf::RpcContextImpl> ctx)
     {
       if (consensus != nullptr)
@@ -454,6 +489,11 @@ namespace ccf
         try
         {
           if (!check_uri_allowed(ctx, endpoint))
+          {
+            return;
+          }
+
+          if (check_redirect(ctx, endpoint))
           {
             return;
           }

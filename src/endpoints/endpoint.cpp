@@ -69,6 +69,12 @@ namespace ccf::endpoints
     return *this;
   }
 
+  Endpoint& Endpoint::set_redirection_strategy(RedirectionStrategy rs)
+  {
+    properties.redirection_strategy = rs;
+    return *this;
+  }
+
   Endpoint& Endpoint::set_openapi_description(const std::string& description)
   {
     openapi_description = description;
