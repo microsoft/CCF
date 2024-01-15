@@ -461,6 +461,11 @@ StartLog(startNode, _ignored) ==
     << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNode],
        [term |-> StartTerm, contentType |-> TypeSignature] >>
 
+JoinedLog(startNode, nextNodes) ==
+    StartLog(startNode, nextNodes) \o
+        << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> nextNodes],
+           [term |-> StartTerm, contentType |-> TypeSignature] >>
+
 InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
     /\ removedFromConfiguration = {}
     /\ committableIndices  = [i \in Servers |-> {}]
@@ -1401,6 +1406,8 @@ DebugAliasGlobals ==
     [
         \* Total number of leader elections, i.e.,  BecomeLeader actions.
         le  |-> TLCGetAndSet(8, +, IF \E s \in Servers: <<BecomeLeader(s)>>_vars THEN 1 ELSE 0, 1),
+        \* Set of nodes that are blocked right now.
+        blocked  |-> { s \in Servers : ~[NextInt(s)]_vars},
         \* Set of nodes that are active right now.
         cluster |-> { Colorize(s, ToString(s)) : s \in { s \in Servers : leadershipState[s] \in {Leader, Follower} } },
         \* Sequence showing which node is active when.
@@ -1493,16 +1500,18 @@ DebugActingServerAlias ==
         matchIndex |-> matchIndex[srv]
     ]
 
-\* tput rmam ; tlc -note -simulate SIMccfraft.tla ; tput smam  ## tput rmam disables line breaks. tput smam re-enables them.
+\* $ tput rmam ; tlc -note -simulate SIMccfraft.tla; tput smam  ## tput rmam/smam disables/enables line breaks.
+\* $ tput rmam ; tlc -note -simulate SIMccfraft.tla -continue; tput smam  ## Run forever while eye-balling the output.
 AnimateLogAndStateAlias ==
     \* ...overwrite tells TLC to overwrite the previous state instead of printing a new one.
-    IF TLCSet("-Dtlc2.output.StatePrinter.overwrite", 150)
+    IF TLCSet("-Dtlc2.output.StatePrinter.overwrite", 150 (*in milliseconds*))
     THEN
         DebugAliasGlobals
         @@
         FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "log_") :> StringifyLog(s), <<>>, Servers)
         @@
-        FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "ste_") :> leadershipState[s], <<>>, Servers)
+        FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "ste_") :>
+            ToString(leadershipState[s]) \o " " \o ToString(currentTerm[s]), <<>>, Servers)
     ELSE <<>>
 
 ===============================================================================
