@@ -34,6 +34,21 @@ namespace kv
       return read_handle.has(KSerialiser::to_serialised(key));
     }
 
+    /** Test whether a key's presence is globally committed, meaning it has been
+     * replciated and acknowledged by consensus protocol.
+     *
+     * @see kv::ReadableMapHandle::get_globally_committed
+     *
+     * @param key Key to test
+     *
+     * @return Boolean true iff key exists in globally committed state
+     */
+    bool contains_globally_committed(const K& key)
+    {
+      return read_handle.has_globally_committed(
+        KSerialiser::to_serialised(key));
+    }
+
     /** Get version when this key was last added to the set.
      *
      * Returns nullopt if the key is not present.
