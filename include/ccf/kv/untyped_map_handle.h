@@ -56,6 +56,8 @@ namespace kv::untyped
     std::optional<ValueType> get_globally_committed(const KeyType& key);
 
     bool has(const KeyType& key);
+    
+    bool has_globally_committed(const KeyType& key);
 
     void put(const KeyType& key, const ValueType& value);
 
