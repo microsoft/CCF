@@ -793,10 +793,12 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
        \/ /\ m.term >= currentTerm[i]
           /\ leadershipState[i] = Follower
           /\ ~logOk
-          /\ LET prevTerm == IF m.prevLogIndex = 0 THEN StartTerm
+          \* raft.h::send_append_entries_response:1348 AppendEntriesResponse messages with answer == FAIL set their term to the term of index
+          \* for the last entry in the backup's log, not the term of the current leader
+          /\ LET prevTerm == IF m.prevLogIndex = 0 THEN 0
                              ELSE IF m.prevLogIndex > Len(log[i]) THEN 0 ELSE log[i][Len(log[i])].term
              IN /\ m.prevLogTerm # prevTerm
-                /\ \/ /\ prevTerm = StartTerm
+                /\ \/ /\ prevTerm = 0
                       /\ Reply([type        |-> AppendEntriesResponse,
                              success        |-> FALSE,
                              term           |-> currentTerm[i],
@@ -804,7 +806,7 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                              source         |-> i,
                              dest           |-> j],
                              m)
-                   \/ /\ prevTerm # StartTerm
+                   \/ /\ prevTerm # 0
                       /\ LET lli == FindHighestPossibleMatch(log[i], m.prevLogIndex, m.term)
                          IN Reply([type        |-> AppendEntriesResponse,
                                 success        |-> FALSE,

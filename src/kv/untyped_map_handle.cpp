@@ -153,6 +153,12 @@ namespace kv::untyped
     return found;
   }
 
+  bool MapHandle::has_globally_committed(const MapHandle::KeyType& key)
+  {
+    auto raw = tx_changes.committed.getp(key);
+    return raw != nullptr;
+  }
+
   void MapHandle::put(
     const MapHandle::KeyType& key, const MapHandle::ValueType& value)
   {

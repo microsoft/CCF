@@ -1,19 +1,33 @@
-nodes,0,1,2
-connect,0,1
-connect,1,2
-connect,0,2
+start_node,0
+assert_is_primary,0
+emit_signature,2
 
-# Node 0 starts first, and wins the first election
-periodic_one,0,110
+assert_is_primary,0
+assert_commit_idx,0,2
+
+trust_node,2,1
+emit_signature,2
+
 dispatch_all
-
 periodic_all,10
 dispatch_all
+assert_commit_idx,0,4
+
+trust_node,2,2
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,6
+
 assert_is_primary,0
+assert_is_backup,1
+assert_is_backup,2
 
 # An initial entry is written and successfully replicated
-replicate,1,helloworld
-emit_signature,1
+replicate,2,helloworld
+emit_signature,2
 
 periodic_all,10
 dispatch_all
@@ -25,8 +39,8 @@ state_all
 assert_state_sync
 
 # An additional entry takes much longer to replicate, as it is lost on bad connection between nodes
-replicate,1,salutonmondo
-emit_signature,1
+replicate,2,salutonmondo
+emit_signature,2
 
 periodic_all,10
 drop_pending,0
@@ -53,7 +67,7 @@ dispatch_all_once
 drop_pending_to,1,0  #< This is dropped!
 dispatch_all_once
 
-# At this point, 1.2 is committed, but nobody knows that yet
+# At this point, 2.10 is committed, but nobody knows that yet
 
 # Eventually Node 2 is partitioned for so long that it calls an election
 periodic_one,2,100
