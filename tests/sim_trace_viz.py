@@ -80,6 +80,23 @@ def extract_node_state(global_state, node_id):
         "commit_idx": global_state["commitIndex"][node_id],
     }
 
+def render_log(log, dcfg):
+    term = 2
+    chars = []
+    for entry in log:
+        if entry["term"] != term:
+            term = entry["term"] 
+            chars.append(f"{term:>{dcfg.view}}")
+        if entry["contentType"] == "Reconfiguration":
+            chars.append("C")
+        elif entry["contentType"] == "Signature":
+            chars.append(":pencil:")
+        elif entry["contentType"] == "Entry":
+            chars.append("E")
+        else:
+            assert False, f"unknown content type {entry['contentType']}"
+    return "".join(chars)
+
 def table(entries):
     nodes = []
     max_view = 0
@@ -114,11 +131,12 @@ def table(entries):
                 extract_node_state(pre[1], node) if node == node_id else None,
                 " " # tag
             )
-            for node in nodes
+            for node in sorted(nodes)
         ]
         rows.append(
             f"[{ts:>{dcfg.ts}}] "
             + "     ".join(render_state(*state, dcfg) for state in states)
+            + f"     {render_log(post[1]['log'][node_id], dcfg)}"
         )
     return rows
 
