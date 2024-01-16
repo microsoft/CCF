@@ -13,23 +13,27 @@ LEADERSHIP_STATUS = {
 }
 
 FUNCTIONS = {
-    "add_configuration": "Cfg",
-    "replicate": "Rpl",
-    "send_append_entries": "SAe",
-    "recv_append_entries": "RAe",
+    "SIMChangeConfigurationInt": "Cfg",
+    "ClientRequest": "Rpl",
+    "AppendEntries": "SAe",
+    "RcvAppendEntriesRequest": "RAe",
     "execute_append_entries_sync": "EAe",
     "send_append_entries_response": "SAeR",
-    "recv_append_entries_response": "RAeR",
-    "send_request_vote": "SRv",
-    "recv_request_vote": "RRv",
-    "recv_request_vote_response": "RRvR",
+    "RcvAppendEntriesResponse": "RAeR",
+    "RequestVote": "SRv",
+    "RcvRequestVoteRequest": "RRv",
+    "RcvRequestVoteResponse": "RRvR",
     "recv_propose_request_vote": "RPRv",
     "become_candidate": "BCan",
-    "become_leader": "BLea",
+    "BecomeLeader": "BLea",
     "become_follower": "BFol",
-    "commit": "Cmt",
+    "AdvanceCommitIndex": "Cmt",
     "bootstrap": "Boot",
     None: "",
+    "SignCommittableMessages": "Sig",
+    "SIMTimeout": "Tmou",
+    "RcvUpdateTerm": "UTrm",
+    "SIMCheckQuorum": "ChkQ"
 }
 
 TAG = {"Y": ":white_check_mark:", "N": ":x:", " ": "  ", "S": ":pencil:"}
@@ -56,6 +60,7 @@ def render_state(state, func, old_state, tag, cfg):
     c = diffed_key(old_state, state, "commit_idx", "", cfg.commit)
     f = FUNCTIONS[func]
     opc = "bold bright_white on red" if func else "normal"
+    # import pdb; pdb.set_trace()
     return f"[{opc}]{nid:>{cfg.nodes}}{ls}{f:<4} [/{opc}]{TAG[tag]} {v}.{i} {c}"
 
 
@@ -66,53 +71,53 @@ class DigitsCfg:
     commit = 0
     ts = 0
 
+def extract_node_state(global_state, node_id):
+    return {
+        "node_id": node_id,
+        "leadership_state": global_state["leadershipState"][node_id],
+        "current_view": global_state["currentTerm"][node_id],
+        "last_idx": len(global_state["log"][node_id]),
+        "commit_idx": global_state["commitIndex"][node_id],
+    }
 
-def table(lines):
-    entries = [json.loads(line) for line in lines]
+def table(entries):
     nodes = []
     max_view = 0
     max_index = 0
     max_commit = 0
     max_ts = 0
-    for entry in entries:
-        node_id = entry["msg"]["state"]["node_id"]
+    rows = []
+    for pre, action, post in entries:
+        node_id = action["context"]["i"]
         if node_id not in nodes:
             nodes.append(node_id)
-        max_view = max(max_view, entry["msg"]["state"]["current_view"])
-        max_index = max(max_index, entry["msg"]["state"]["last_idx"])
-        max_commit = max(max_commit, entry["msg"]["state"]["commit_idx"])
-        max_ts = max(max_ts, int(entry["h_ts"]))
+        max_view = max(max_view, post[1]["currentTerm"][node_id])
+        max_index = max(max_index, len(post[1]["log"][node_id]))
+        max_commit = max(max_commit, post[1]["commitIndex"][node_id])
+        max_ts += 1
     dcfg = DigitsCfg()
     dcfg.nodes = len(max(nodes, key=len))
     dcfg.view = digits(max_view)
     dcfg.index = digits(max_index)
     dcfg.commit = digits(max_commit)
     dcfg.ts = digits(max_ts)
-    node_to_state = {}
-    rows = []
-    for entry in entries:
-        node_id = entry["msg"]["state"]["node_id"]
-        old_state = node_to_state.get(node_id)
-        node_to_state[node_id] = entry["msg"]["state"]
-        tag = " "
-        if "packet" in entry["msg"]:
-            if "success" in entry["msg"]["packet"]:
-                tag = "Y" if entry["msg"]["packet"]["success"] == "OK" else "N"
-            if "vote_granted" in entry["msg"]["packet"]:
-                tag = "Y" if entry["msg"]["packet"]["vote_granted"] else "N"
-        if entry["msg"].get("globally_committable"):
-            tag = "S"
+    ts = 0
+    for pre, action, post in entries:
+        ts += 1
+        node_id = action["context"]["i"]
+        # TODO: need success, vote granted and globally committable
+        # to be extracted from pre or post state
         states = [
             (
-                node_to_state.get(node),
-                entry["msg"]["function"] if node == node_id else None,
-                old_state if node == node_id else None,
-                tag if node == node_id else " ",
+                extract_node_state(post[1], node),
+                action["name"] if node == node_id else None,
+                extract_node_state(pre[1], node) if node == node_id else None,
+                " " # tag
             )
             for node in nodes
         ]
         rows.append(
-            f"[{entry['h_ts']:>{dcfg.ts}}] "
+            f"[{ts:>{dcfg.ts}}] "
             + "     ".join(render_state(*state, dcfg) for state in states)
         )
     return rows
@@ -120,5 +125,5 @@ def table(lines):
 
 if __name__ == "__main__":
     with open(sys.argv[1]) as tf:
-        for line in table(tf.readlines()):
+        for line in table(json.load(tf)["action"]):
             rich.print(line)
