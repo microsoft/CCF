@@ -30,10 +30,10 @@ FUNCTIONS = {
     "AdvanceCommitIndex": "Cmt",
     "bootstrap": "Boot",
     None: "",
-    "SignCommittableMessages": "Sig",
+    "SignCommittableMessages": "Rpl",
     "SIMTimeout": "Tmou",
     "RcvUpdateTerm": "UTrm",
-    "SIMCheckQuorum": "ChkQ"
+    "SIMCheckQuorum": "ChkQ",
 }
 
 TAG = {"Y": ":white_check_mark:", "N": ":x:", " ": "  ", "S": ":pencil:"}
@@ -70,6 +70,7 @@ class DigitsCfg:
     commit = 0
     ts = 0
 
+
 def extract_node_state(global_state, node_id):
     return {
         "node_id": node_id,
@@ -79,21 +80,24 @@ def extract_node_state(global_state, node_id):
         "commit_idx": global_state["commitIndex"][node_id],
     }
 
+
 LOG = {
     "Reconfiguration": ":recycle:",
     "Signature": ":pencil:",
-    "Entry": ":page_facing_up:"
+    "Entry": ":page_facing_up:",
 }
+
 
 def render_log(log, dcfg):
     term = 2
     chars = []
     for entry in log:
         if entry["term"] != term:
-            term = entry["term"] 
+            term = entry["term"]
             chars.append(f" {term:>{dcfg.view}}")
         chars.append(LOG[entry["contentType"]])
     return "".join(chars)
+
 
 def table(entries):
     nodes = []
@@ -120,14 +124,16 @@ def table(entries):
     for pre, action, post in entries:
         ts += 1
         node_id = action["context"]["i"]
-        # TODO: need success, vote granted and globally committable
-        # to be extracted from pre or post state
+        # TODO: need success, vote granted to be extracted from pre or post state
+        tag = " "
+        if action["name"] == "SignCommittableMessages":
+            tag = "S"
         states = [
             (
                 extract_node_state(post[1], node),
                 action["name"] if node == node_id else None,
                 extract_node_state(pre[1], node) if node == node_id else None,
-                " " # tag
+                tag if node == node_id else " ",
             )
             for node in sorted(nodes)
         ]
