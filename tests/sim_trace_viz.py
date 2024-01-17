@@ -124,6 +124,8 @@ def table(entries):
     ts = 0
     for pre, action, post in entries:
         ts += 1
+        if action["name"] in {"SIMTimeout", "SIMCheckQuorum", "UpdateTerm"}:
+            continue
         node_id = action["context"]["i"]
 
         def last_recvd():
