@@ -4,6 +4,7 @@
 import sys
 import json
 import rich
+from gelidum import freeze
 
 LEADERSHIP_STATUS = {
     "None": ":beginner:",
@@ -124,8 +125,18 @@ def table(entries):
     for pre, action, post in entries:
         ts += 1
         node_id = action["context"]["i"]
-        # TODO: need success, vote granted to be extracted from pre or post state
+
+        def last_recvd():
+            (msg,) = set(freeze(d) for d in pre[1]["messages"][node_id]) - set(
+                freeze(d) for d in post[1]["messages"][node_id]
+            )
+            return msg
+
         tag = " "
+        if action["name"] == "RcvAppendEntriesResponse":
+            tag = "Y" if last_recvd()["success"] else "N"
+        if action["name"] == "RcvRequestVoteResponse":
+            tag = "Y" if last_recvd()["voteGranted"] else "N"
         if action["name"] == "SignCommittableMessages":
             tag = "S"
         states = [
