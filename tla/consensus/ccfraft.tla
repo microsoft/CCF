@@ -589,7 +589,8 @@ AppendEntries(i, j) ==
 BecomeLeader(i) ==
     /\ leadershipState[i] = Candidate
     \* To become leader, the candidate must have received votes from a majority in each active configuration
-    /\ \A c \in DOMAIN configurations[i] : votesGranted[i] \in Quorums[configurations[i][c]]
+    \* Only votes by nodes part of a given configuration should be tallied against it
+    /\ \A c \in DOMAIN configurations[i] : (votesGranted[i] \intersect configurations[i][c]) \in Quorums[configurations[i][c]]
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Leader]
     \* CCF: We reset our own log to its committable subsequence, throwing out
     \* all unsigned log entries of the previous leader.
