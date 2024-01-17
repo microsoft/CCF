@@ -60,7 +60,6 @@ def render_state(state, func, old_state, tag, cfg):
     c = diffed_key(old_state, state, "commit_idx", "", cfg.commit)
     f = FUNCTIONS[func]
     opc = "bold bright_white on red" if func else "normal"
-    # import pdb; pdb.set_trace()
     return f"[{opc}]{nid:>{cfg.nodes}}{ls}{f:<4} [/{opc}]{TAG[tag]} {v}.{i} {c}"
 
 
@@ -80,21 +79,20 @@ def extract_node_state(global_state, node_id):
         "commit_idx": global_state["commitIndex"][node_id],
     }
 
+LOG = {
+    "Reconfiguration": ":recycle:",
+    "Signature": ":pencil:",
+    "Entry": ":page_facing_up:"
+}
+
 def render_log(log, dcfg):
     term = 2
     chars = []
     for entry in log:
         if entry["term"] != term:
             term = entry["term"] 
-            chars.append(f"{term:>{dcfg.view}}")
-        if entry["contentType"] == "Reconfiguration":
-            chars.append("C")
-        elif entry["contentType"] == "Signature":
-            chars.append(":pencil:")
-        elif entry["contentType"] == "Entry":
-            chars.append("E")
-        else:
-            assert False, f"unknown content type {entry['contentType']}"
+            chars.append(f" {term:>{dcfg.view}}")
+        chars.append(LOG[entry["contentType"]])
     return "".join(chars)
 
 def table(entries):
