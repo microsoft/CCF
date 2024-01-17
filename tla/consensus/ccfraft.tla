@@ -1279,6 +1279,13 @@ CommittableIndicesAreKnownSignaturesInv ==
             /\ j \in DOMAIN(log[i])
             /\ HasTypeSignature(log[i][j])
 
+\* Once a log entry is committed, then there should not be conflicting entries from higher terms
+CommittedEntriesTermsInv ==
+    \A i, j \in Servers :
+        \A k \in DOMAIN log[i] \intersect DOMAIN log[j] :
+            k <= commitIndex[i]
+            => log[i][k].term >= log[j][k].term
+
 ------------------------------------------------------------------------------
 \* Properties
 
