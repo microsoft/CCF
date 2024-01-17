@@ -1,5 +1,10 @@
 ---------- MODULE SIMCoverageccfraft ----------
-EXTENDS SIMccfraft, TLC, Integers, CSV, TLCExt
+EXTENDS ccfraft, TLC, Integers, CSV, TLCExt
+
+CONSTANTS
+    NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive
+
+Servers_mc == {NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive}
 
 Baseline ==
     {<<"Next", 0..0, 0..0, 0..0>>}
@@ -10,34 +15,41 @@ Confs ==
 
 VARIABLE conf
 
-SIMCoverageNext ==
-    \* To increase coverage, favor sub-actions during simulation that move the 
-    \* system state forward.
-    LET rnd == RandomElement(1..1000)
-        \* TODO Evaluating ENABLED is a performance bottleneck. An upcoming
-        \* TODO change in TLC should remove the need for ENABLED to prevent
-        \* TODO deadlocks.
-        \* An orthogonal problem is that TLC does not split the next-state
-        \* relation into multiple Action instances, which would allow us to
-        \* collect sub-action level statistics to assess coverage. With SIMNext,
-        \* TLC's statistics reports only the number of SIMNext steps in behaviors.
-    IN
-        CASE rnd \in conf[2] /\ ENABLED TO -> TO
-          [] rnd \in conf[3] /\ ENABLED CQ -> CQ
-          [] rnd \in conf[4] /\ ENABLED CC -> CC
-          [] OTHER -> IF ENABLED Forward THEN Forward ELSE Next
+CCF == INSTANCE ccfraft
+
+SIMInitReconfigurationVars == 
+    \/ CCF!InitLogConfigServerVars(Servers, JoinedLog)
+    \/ CCF!InitReconfigurationVars
+
+SIMCheckQuorum(i) ==
+    /\ conf[1] # "Next" => RandomElement(1..1000) \in conf[3]
+    /\ CCF!CheckQuorum(i)
+
+SIMChangeConfigurationInt(i, newConfiguration) ==
+    /\ conf[1] # "Next" => RandomElement(1..1000) \in conf[4]
+    /\ CCF!ChangeConfigurationInt(i, newConfiguration)
+
+SIMTimeout(i) ==
+    /\ \/ RandomElement(1..1000) \in conf[2]
+       \/ conf[1] # "Next"
+       \* Always allow Timeout if no messages are in the network
+       \* and no node is a candidate or leader.  Otherwise, the system
+       \* will deadlock if 1 # RandomElement(...).
+       \/ /\ \A s \in Servers: leadershipState[s] \notin {Leader, Candidate}
+          /\ Network!Messages = {}
+    /\ CCF!Timeout(i)
 
 SIMCoverageSpec ==
     /\ Init
     /\ conf \in Confs
-    /\ [][UNCHANGED conf /\ IF conf[1] = "SIMNext" THEN SIMCoverageNext ELSE Next]_<<vars, conf>>
+    /\ [][UNCHANGED conf /\ Next]_<<vars, conf>>
 
 ------------------------------------------------------------------------------
 
 CSVFile == "SIMCoverageccfraft_S" \o ToString(Cardinality(Servers)) \o ".csv"
 
 CSVColumnHeaders ==
-    "Spec#P#Q#R#reconfigurationCount#committedLog#clientRequests#currentTerm#state#node"
+    "Spec#P#Q#R#currentTerm#state#commitIndex#log#node"
 
 ASSUME
     CSVRecords(CSVFile) = 0 => 
@@ -45,9 +57,9 @@ ASSUME
 
 StatisticsStateConstraint ==
     (TLCGet("level") > TLCGet("config").depth) =>
-        TLCDefer(\A srv \in Servers : CSVWrite("%1$s#%2$s#%3$s#%4$s#%5$s#%6$s#%7$s#%8$s#%9$s#%10$s",
+        TLCDefer(\A s \in Servers : CSVWrite("%1$s#%2$s#%3$s#%4$s#%5$s#%6$s#%7$s#%8$s#%9$s",
                 << conf[1], Cardinality(conf[2]), Cardinality(conf[3]), Cardinality(conf[4]), 
-                   reconfigurationCount, committedLog.index, clientRequests, 
-                   currentTerm[srv], state[srv], srv>>,
+                   currentTerm[s], leadershipState[s], commitIndex[s], Len(log[s]), s
+                   >>,
                 CSVFile))
 =============================================================================
