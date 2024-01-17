@@ -22,17 +22,9 @@ periodic_all,10
 dispatch_all
 assert_state_sync
 
-# Node 0 advances to term 3, becomes primary again
-periodic_one,0,100
-assert_is_backup,0
-periodic_one,0,100
-assert_is_candidate,0
-dispatch_all
-assert_is_primary,0
-
 # Node 0 produces a slightly longer suffix in term 2
-emit_signature,3
-emit_signature,3
+emit_signature,2
+emit_signature,2
 
 # Roundtrip advances the commit on node 0
 periodic_all,10
@@ -41,8 +33,8 @@ dispatch_all
 assert_commit_idx,0,6
 
 # Node 0 produces a further uncommitted suffix
-emit_signature,3
-emit_signature,3
+emit_signature,2
+emit_signature,2
 
 # But they're partitioned, so no-one hears this final suffix or the latest commit point
 disconnect_node,0
@@ -57,8 +49,8 @@ dispatch_all
 assert_is_primary,1
 
 # Node 1 produces an alternative branch
-emit_signature,4
-emit_signature,4
+emit_signature,3
+emit_signature,3
 
 # But before _that_ is shared, the partition flips:
 # - Node 0 reconnects
@@ -78,8 +70,8 @@ assert_is_candidate,0
 dispatch_all
 assert_is_primary,0
 
-# Node 0 further extends their branch, in term 5
-emit_signature,5
+# Node 0 further extends their branch, in term 4
+emit_signature,4
 
 # But before _that_ is shared, the partition flips again:
 # - Node 1 reconnects
@@ -106,8 +98,8 @@ assert_is_candidate,1
 dispatch_all
 assert_is_primary,1
 
-# Node 1 further extends their branch, in term 6
-emit_signature,6
+# Node 1 further extends their branch, in term 5
+emit_signature,5
 
 # Node 1 finally shares their branch with 2 and 3, advancing commit
 periodic_one,1,10
@@ -124,6 +116,8 @@ disconnect_node,3
 periodic_one,1,10
 dispatch_one_first_n,1,1
 dispatch_one,4
+
+state_all
 
 periodic_one,1,10
 dispatch_one_first_n,1,1
