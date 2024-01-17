@@ -768,6 +768,7 @@ ChangeConfiguration(i) ==
 \*    servers agree on the index before it can be seen as committed.
 AdvanceCommitIndex(i) ==
     /\ leadershipState[i] = Leader
+    /\ retirementPhase[i] # RetirementCompleted
     /\ LET
             \* Select those configs that need to have a quorum to agree on this leader.
             \* Compare https://github.com/microsoft/CCF/blob/75670480c53519fcec1a09d36aefc11b23a597f9/src/consensus/aft/raft.h#L2081
@@ -827,6 +828,7 @@ AdvanceCommitIndex(i) ==
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
     /\ leadershipState[i] = Leader
+    /\ retirementPhase[i] # RetirementCompleted
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, votedFor, 
         candidateVars, leaderVars, logVars, membershipState, retirementPhase>>
@@ -1098,9 +1100,11 @@ DropIgnoredMessage(i,j,m) ==
        \/ /\ leadershipState[i] /= None
         \* .. and it comes from a server outside of the configuration
           /\ \lnot IsInServerSet(j, i)
-       \*  OR if recipient is Retired and this is not a request to vote
-       \/ /\ membershipState[i] = Retired
-          /\ m.type /= RequestVoteRequest
+       \*  OR if recipient has completed retirement and this is not a request to vote or append entries request
+       \* This spec requires that a retired node still helps with voting and appending entries to ensure 
+       \* the next configurations learns that its retirement has been committed.
+       \/ /\ retirementPhase[i] = RetirementCompleted
+          /\ m.type \notin {RequestVoteRequest, AppendEntriesRequest}
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, 
         logVars, membershipState, retirementPhase>>
