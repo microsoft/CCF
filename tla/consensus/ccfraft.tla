@@ -64,10 +64,17 @@ MembershipStates == {
     }
 
 \* Retirement phases, defined in ../src/kv/kv_types.h
-CONSTANTS 
+CONSTANTS
+    \* Node is current not in the process of retiring
+    \* This is the same as Active \in MembershipStates, duplicated here for consistency with implementation
     NotRetiring,
+    \* Node has added its own retirement to its log, but it not yet committed or even signed
+    \* The node can still revert to NotRetiring upon rollback
     RetirementOrdered,
+    \* Node has added its own retirement to its log and it has been signed but it is not yet committed
+    \* The node can still revert to RetirementOrdered or NotRetiring upon rollback
     RetirementSigned,
+    \* Nodes retirement has been committed and it is no longer part of the network
     RetirementCompleted
 
 RetirementPhases == {
@@ -474,24 +481,28 @@ CommittedTermPrefix(i, x) ==
     \* Otherwise the prefix is the empty tuple
     ELSE << >>
 
-ConfigIndexesWith(i) ==
-    {index \in DOMAIN log[i]: 
-        /\ log[i][index].contentType = TypeReconfiguration
-        /\ i \in log[i][index].configuration}
+ConfigIndexesWith(node_log) ==
+    {index \in DOMAIN node_log: 
+        /\ node_log[index].contentType = TypeReconfiguration
+        /\ i \in node_log[index].configuration}
 
-ConfigIndexesWithout(i) ==
-    {index \in DOMAIN log[i]: 
-        /\ log[i][index].contentType = TypeReconfiguration
-        /\ i \notin log[i][index].configuration}
+ConfigIndexesWithout(node_log) ==
+    {index \in DOMAIN node_log: 
+        /\ node_log[index].contentType = TypeReconfiguration
+        /\ i \notin node_log[index].configuration}
 
-\* Index at which node i is first removed from the configuration according to the log of node i
+RetirementIndexLog(node_log) ==
+    IF /\ ConfigIndexesWithout(node_log) # {}
+       /\ ConfigIndexesWith(node_log) # {}
+       \* TODO: fix this logic
+       /\ Max(ConfigIndexesWith(node_log)) < Min(ConfigIndexesWithout(node_log))
+    THEN Min(ConfigIndexesWithout(node_log))
+    ELSE 0
+
+\* RetirementIndex is the index at which node i is first removed from the configuration according to the log of node i
 \* 0 iff the node i has not been removed
 RetirementIndex(i) ==
-    IF /\ ConfigIndexesWithout(i) # {}
-       /\ ConfigIndexesWith(i) # {}
-       /\ Max(ConfigIndexesWith(i)) < Min(ConfigIndexesWithout(i))
-    THEN Min(ConfigIndexesWithout(i))
-    ELSE 0
+    RetirementIndexLog(log[i])
 
 
 AppendEntriesBatchsize(i, j) ==
@@ -997,6 +1008,8 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
            THEN leadershipState' = [leadershipState EXCEPT ![i] = Follower ]
            ELSE UNCHANGED leadershipState
+        \* TODO: Recalculate retirement state based on log' and commitIndex'
+        /\ UNCHANGED <<membershipState, retirementPhase>>
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -1005,7 +1018,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               dest           |-> j],
               m)
     /\ UNCHANGED <<removedFromConfiguration, currentTerm, 
-        votedFor, membershipState, retirementPhase>>
+        votedFor>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
