@@ -1044,7 +1044,8 @@ RcvAppendEntriesResponse(i, j) ==
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
            \/ DropResponseWhenNotInState(m.dest, m.source, m)
-           \/ DropStaleResponse(m.dest, m.source, m)
+           \/ /\ \lnot m.success
+              /\ DropStaleResponse(m.dest, m.source, m)
 
 RcvProposeVoteRequest(i, j) ==
     \E m \in Network!MessagesTo(i, j) :
