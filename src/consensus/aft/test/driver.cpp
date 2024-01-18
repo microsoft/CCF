@@ -137,10 +137,6 @@ int main(int argc, char** argv)
         assert(items.size() == 1);
         driver->shuffle_messages_all();
         break;
-      case shash("dispatch_one_first_n"):
-        assert(items.size() == 3);
-        driver->dispatch_one(items[1], stoi(items[2]));
-        break;
       case shash("dispatch_one"):
         assert(items.size() == 2);
         driver->dispatch_one(items[1]);
