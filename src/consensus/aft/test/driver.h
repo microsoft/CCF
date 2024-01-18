@@ -464,13 +464,29 @@ public:
     }
   }
 
+  std::string summarise_ledger(TRaft& r)
+  {
+    std::vector<std::string> entries;
+    for (auto i = 1; i <= r.get_last_idx(); ++i)
+    {
+      const auto t = r.get_view(i);
+      auto s = fmt::format("{}.{}", t, i);
+      if (i == r.get_committed_seqno())
+      {
+        s = fmt::format("[{}]", s);
+      }
+      entries.push_back(s);
+    }
+    return fmt::format("{}", fmt::join(entries, ", "));
+  }
+
   void state_one(ccf::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;
     RAFT_DRIVER_OUT
       << fmt::format(
            "  Note right of {}: leadership {} membership {} @{}.{} (committed "
-           "{})",
+           "{}) {}",
            node_id,
            raft->is_backup() ?
              "F" :
@@ -478,7 +494,8 @@ public:
            raft->is_retired() ? "R" : "A",
            raft->get_view(),
            raft->get_last_idx(),
-           raft->get_committed_seqno())
+           raft->get_committed_seqno(),
+           summarise_ledger(*raft))
       << std::endl;
   }
 
@@ -508,6 +525,67 @@ public:
     }
   }
 
+  // Returns true if actually sent
+  bool send_single_message(
+    ccf::NodeId src, ccf::NodeId dst, std::vector<uint8_t> contents)
+  {
+    if (_connections.find(std::make_pair(src, dst)) != _connections.end())
+    {
+      // If this is an AppendEntries, then append the corresponding entry from
+      // the sender's ledger
+      const uint8_t* data = contents.data();
+      auto size = contents.size();
+      auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+      bool should_send = true;
+      if (msg_type == aft::raft_append_entries)
+      {
+        // Parse the indices to be sent to the recipient.
+        auto ae = *(aft::AppendEntries*)data;
+
+        auto& sender_raft = _nodes.at(src).raft;
+        const auto payload_opt =
+          sender_raft->ledger->get_append_entries_payload(ae);
+
+        if (!payload_opt.has_value())
+        {
+          // While trying to construct an AppendEntries, we asked for an
+          // entry that doesn't exist. This is a valid situation - we queued
+          // the AppendEntries, but rolled back before it was dispatched!
+          // We abandon this operation here.
+          // We could log this in Mermaid with the line below, but since
+          // this does not occur in a real node it is silently ignored. In a
+          // real node, the AppendEntries and truncate messages are ordered
+          // and processed by the host in that order. All AppendEntries
+          // referencing a specific index will be processed before any
+          // truncation that removes that index.
+          // RAFT_DRIVER_OUT
+          //   << fmt::format(
+          //        "  Note right of {}: Abandoning AppendEntries"
+          //        "containing {} - no longer in ledger",
+          //        node_id,
+          //        idx)
+          //   << std::endl;
+          should_send = false;
+        }
+        else
+        {
+          contents.insert(
+            contents.end(), payload_opt->begin(), payload_opt->end());
+        }
+      }
+
+      if (should_send)
+      {
+        log_msg_details(src, dst, contents);
+        _nodes.at(dst).raft->recv_message(
+          src, contents.data(), contents.size());
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   template <class Messages>
   size_t dispatch_one_queue(
     ccf::NodeId node_id,
@@ -521,60 +599,9 @@ public:
       auto [tgt_node_id, contents] = messages.front();
       messages.pop_front();
 
-      if (
-        _connections.find(std::make_pair(node_id, tgt_node_id)) !=
-        _connections.end())
+      if (send_single_message(node_id, tgt_node_id, contents))
       {
-        // If this is an AppendEntries, then append the corresponding entry from
-        // the sender's ledger
-        const uint8_t* data = contents.data();
-        auto size = contents.size();
-        auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
-        bool should_send = true;
-        if (msg_type == aft::raft_append_entries)
-        {
-          // Parse the indices to be sent to the recipient.
-          auto ae = *(aft::AppendEntries*)data;
-
-          auto& sender_raft = _nodes.at(node_id).raft;
-          const auto payload_opt =
-            sender_raft->ledger->get_append_entries_payload(ae);
-
-          if (!payload_opt.has_value())
-          {
-            // While trying to construct an AppendEntries, we asked for an
-            // entry that doesn't exist. This is a valid situation - we queued
-            // the AppendEntries, but rolled back before it was dispatched!
-            // We abandon this operation here.
-            // We could log this in Mermaid with the line below, but since
-            // this does not occur in a real node it is silently ignored. In a
-            // real node, the AppendEntries and truncate messages are ordered
-            // and processed by the host in that order. All AppendEntries
-            // referencing a specific index will be processed before any
-            // truncation that removes that index.
-            // RAFT_DRIVER_OUT
-            //   << fmt::format(
-            //        "  Note right of {}: Abandoning AppendEntries"
-            //        "containing {} - no longer in ledger",
-            //        node_id,
-            //        idx)
-            //   << std::endl;
-            should_send = false;
-          }
-          else
-          {
-            contents.insert(
-              contents.end(), payload_opt->begin(), payload_opt->end());
-          }
-        }
-
-        if (should_send)
-        {
-          log_msg_details(node_id, tgt_node_id, contents);
-          _nodes.at(tgt_node_id)
-            .raft->recv_message(node_id, contents.data(), contents.size());
-          count++;
-        }
+        ++count;
       }
     }
 
@@ -622,6 +649,26 @@ public:
            iterations++ < 5)
     {
       dispatch_all_once();
+    }
+  }
+
+  void dispatch_single(ccf::NodeId src, ccf::NodeId dst)
+  {
+    auto messages = channel_stub_proxy(*_nodes.at(src).raft)->messages;
+    auto it = messages.begin();
+    while (it != messages.end())
+    {
+      auto [target, contents] = *it;
+      if (target == dst)
+      {
+        send_single_message(src, dst, contents);
+        it = messages.erase(it);
+        break;
+      }
+      else
+      {
+        ++it;
+      }
     }
   }
 
