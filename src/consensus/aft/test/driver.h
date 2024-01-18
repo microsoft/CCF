@@ -464,7 +464,7 @@ public:
     }
   }
 
-  std::string summarise_ledger(TRaft& r)
+  std::string get_ledger_summary(TRaft& r)
   {
     std::vector<std::string> entries;
     for (auto i = 1; i <= r.get_last_idx(); ++i)
@@ -480,13 +480,28 @@ public:
     return fmt::format("{}", fmt::join(entries, ", "));
   }
 
+  void summarise_log(ccf::NodeId node_id)
+  {
+    RAFT_DRIVER_OUT << node_id << ": "
+                    << get_ledger_summary(*_nodes.at(node_id).raft)
+                    << std::endl;
+  }
+
+  void summarise_logs_all()
+  {
+    for (auto& [node_id, _] : _nodes)
+    {
+      summarise_log(node_id);
+    }
+  }
+
   void state_one(ccf::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;
     RAFT_DRIVER_OUT
       << fmt::format(
            "  Note right of {}: leadership {} membership {} @{}.{} (committed "
-           "{}) {}",
+           "{})",
            node_id,
            raft->is_backup() ?
              "F" :
@@ -494,8 +509,7 @@ public:
            raft->is_retired() ? "R" : "A",
            raft->get_view(),
            raft->get_last_idx(),
-           raft->get_committed_seqno(),
-           summarise_ledger(*raft))
+           raft->get_committed_seqno())
       << std::endl;
   }
 

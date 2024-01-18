@@ -155,12 +155,14 @@ dispatch_one,4
 # commit their own branch. Node 1 must wait for an entry in current term (6.9) to
 # advance commit
 state_all
+summarise_logs_all
 assert_commit_idx,1,4
 
 # But if we keep delivering messages, then we _do_ safely advance commit
 periodic_one,1,10
 dispatch_all
 state_all
+summarise_logs_all
 assert_commit_idx,1,9
 
 # And just as a sanity check, we can bring all nodes in-sync on this
@@ -185,3 +187,5 @@ state_all
 assert_is_primary,4
 assert_commit_idx,4,9
 assert_state_sync
+
+summarise_logs_all
