@@ -455,7 +455,7 @@ PlausibleSucessorNodes(i) ==
     LET
         activeServers == Servers \ removedFromConfiguration
         highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
-    IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)}
+    IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)} \ {i}
 
 StartLog(startNode, _ignored) ==
     << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNode],
