@@ -1195,7 +1195,10 @@ UpToDateCheck(i, j) ==
 
 \* If a server i might request a vote from j, receives it and counts it then i 
 \* has all of j's committed entries
-MoreUpToDateCorrectInv ==
+\* This is not an invariant, it is possible for j to vote for i despite i not
+\* having all of j's committed entries. What isn't possible is for i to win
+\* an election without having all of j's committed entries.
+DebugMoreUpToDateCorrectInv ==
     \A i \in { s \in Servers : leadershipState[s] = Candidate } :
         \A j \in GetServerSet(i) :
             /\ i /= j 
