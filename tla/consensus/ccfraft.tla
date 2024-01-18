@@ -1431,10 +1431,10 @@ DebugAliasAggregates ==
             \*            LAMBDA o, v: [s \in Servers |-> o[s] \cup { m \in v : m.dest = s }],
             \*            Network!Messages, [s \in Servers |-> {}]),
             \* \* Total number of delivered/received messages per node (message is considered delivered if it is no longer in a node's inbox)
-            rms  |-> TLCGetAndSet(3,
-                        LAMBDA o, v: 
-                            [ s \in Servers |-> o[s] + IF Len(v[s]) > Len(v'[s]) THEN Len(v[s]) - Len(v'[s]) ELSE 0 ], 
-                        messages, [s \in Servers |-> 0]),
+            \* rms  |-> TLCGetAndSet(3,
+            \*             LAMBDA o, v: 
+            \*                 [ s \in Servers |-> o[s] + IF Len(v[s]) > Len(v'[s]) THEN Len(v[s]) - Len(v'[s]) ELSE 0 ], 
+            \*             messages, [s \in Servers |-> 0]),
             \* \* Set of nodes, a node has ever voted for.
             vf   |-> TLCGetAndSet(4, 
                         LAMBDA o, v: 

@@ -78,28 +78,28 @@ LOCAL ReorderNoDupDropMessages ==
 \* Point-to-Point Ordering and duplication of messages:
 
 LOCAL OrderInitMessageVar ==
-    messages = [ s \in Servers |-> <<>>]
+    messages = [ src \in Servers |-> [ dst \in Servers |-> <<>> ] ]
 
 LOCAL OrderWithMessage(m, msgs) ==
-    [ msgs EXCEPT ![m.dest] = Append(@, m) ]
+    [ msgs EXCEPT ![m.source][m.dest] = Append(@, m) ]
 
 LOCAL OrderWithoutMessage(m, msgs) ==
-    [ msgs EXCEPT ![m.dest] = RemoveFirst(@, m) ]
+    [ msgs EXCEPT ![m.source][m.dest] = RemoveFirst(@, m) ]
 
 LOCAL OrderMessages ==
-    UNION { Range(messages[s]) : s \in Servers }
+    UNION { UNION { Range(messages[src][dst]) : dst \in Servers } : src \in Servers }
 
 LOCAL OrderMessagesTo(dest, source) ==
-    FoldLeft(LAMBDA acc, e: IF acc = {} /\ e.source = source THEN acc \cup {e} ELSE acc, {}, messages[dest])
+    Range(messages[source][dest])
 
 LOCAL OrderOneMoreMessage(m) ==
     \/ /\ m \notin OrderMessages
        /\ m \in OrderMessages'
-    \/ Len(SelectSeq(messages[m.dest], LAMBDA e: m = e)) < Len(SelectSeq(messages'[m.dest], LAMBDA e: m = e))
+    \/ Len(SelectSeq(messages[m.source][m.dest], LAMBDA e: m = e)) < Len(SelectSeq(messages'[m.source][m.dest], LAMBDA e: m = e))
 
-LOCAL OrderDropMessages(dest, source) ==
-    \E s \in Suffixes(OrderMessagesTo(dest, source)):  \* TODO - Change to SubSeqs if more sophisticated message loss is needed.
-        messages' = [ messages EXCEPT ![dest] = @ \ s ]
+LOCAL OrderDropMessagesTo(dest, source) ==
+    \E s \in Suffixes(messages[source][dest]):  \* TODO - Change to SubSeqs if more sophisticated message loss is needed.
+        messages' = [ messages EXCEPT ![source][dest] = s ]
 
 ----------------------------------------------------------------------------------
 \* Point-to-Point Ordering and no duplication of messages:
@@ -108,7 +108,7 @@ LOCAL OrderNoDupInitMessageVar ==
     OrderInitMessageVar
 
 LOCAL OrderNoDupWithMessage(m, msgs) ==
-    IF \E i \in 1..Len(msgs[m.dest]) : msgs[m.dest][i] = m THEN
+    IF \E i \in 1..Len(msgs[m.source][m.dest]) : msgs[m.source][m.dest][i] = m THEN
         msgs
     ELSE
         OrderWithMessage(m, msgs)
@@ -128,9 +128,9 @@ LOCAL OrderNoDupOneMoreMessage(m) ==
     \/ /\ m \in OrderMessages
        /\ m \in OrderMessages'
 
-LOCAL OrderNoDupDropMessages(dest, source) ==
-    \E subSeq \in SubSeqs(OrderNoDupMessagesTo(dest, source)):
-        messages' = [ messages EXCEPT ![dest] = @ \ subSeq ]
+LOCAL OrderNoDupDropMessagesTo(dest, source) ==
+    \E subSeq \in SubSeqs(messages[source][dest]):
+        messages' = [ messages EXCEPT ![source][dest] = subSeq ]
 
 ----------------------------------------------------------------------------------
 
@@ -175,8 +175,8 @@ OneMoreMessage(msg) ==
       [] Guarantee = Reordered      -> ReorderDupOneMoreMessage(msg)
 
 DropMessagesTo(dest, source) ==
-    CASE Guarantee = OrderedNoDup   -> OrderNoDupDropMessages(dest, source)
-      [] Guarantee = Ordered        -> OrderDropMessages(dest, source)
+    CASE Guarantee = OrderedNoDup   -> OrderNoDupDropMessagesTo(dest, source)
+      [] Guarantee = Ordered        -> OrderDropMessagesTo(dest, source)
       [] Guarantee = ReorderedNoDup -> ReorderNoDupDropMessages
       [] Guarantee = Reordered      -> ReorderDupDropMessages
 
