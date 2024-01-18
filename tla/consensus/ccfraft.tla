@@ -595,10 +595,8 @@ RequestVote(i,j) ==
     IN
     \* Timeout votes for itself atomically. Thus we do not need to request our own vote.
     /\ i /= j
-    \* Only requests vote if we are candidate
+    \* Only requests vote if we are already candidate (and therefore have not completed retirement)
     /\ leadershipState[i] = Candidate
-    \* and we haven't completed retirement
-    /\ retirementPhase[i] # RetirementCompleted
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
     /\ Send(msg)
@@ -607,12 +605,10 @@ RequestVote(i,j) ==
 
 \* Leader i sends j an AppendEntries request
 AppendEntries(i, j) ==
-    \* Sender is primary
+    \* Sender is primary (and therefore has not completed retirement)
     /\ leadershipState[i] = Leader
     \* No messages to itself 
     /\ i /= j
-    \* Sender hasn't completed its own retirement
-    /\ retirementPhase[i] # RetirementCompleted
     /\ j \in GetServerSet(i)
     \* AppendEntries must be sent for historical entries, unless
     \* snapshots are used. Whether the node is in configuration at
@@ -648,9 +644,8 @@ AppendEntries(i, j) ==
 
 \* Candidate i transitions to leader.
 BecomeLeader(i) ==
+    \* Node should already be a candidate (and therefore hasn't completed retirement)
     /\ leadershipState[i] = Candidate
-    \* Node shouldn't have already completed retirement
-    /\ retirementPhase[i] # RetirementCompleted
     \* To become leader, the candidate must have received votes from a majority in each active configuration
     \* Only votes by nodes part of a given configuration should be tallied against it
     /\ \A c \in DOMAIN configurations[i] : (votesGranted[i] \intersect configurations[i][c]) \in Quorums[configurations[i][c]]
@@ -675,10 +670,10 @@ BecomeLeader(i) ==
 
 \* Leader i receives a client request to add 42 to the log.
 ClientRequest(i) ==
-    \* Only leaders receive client requests
+    \* Only leaders receive client requests (and therefore they have not yet completed retirement)
     /\ leadershipState[i] = Leader
     \* Leaders stop accepting new requests once their retirement is signed
-    /\ retirementPhase[i] \notin {RetirementCompleted, RetirementSigned}
+    /\ retirementPhase[i] # RetirementSigned
     \* Add new request to leader's log
     /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
@@ -697,8 +692,6 @@ SignCommittableMessages(i) ==
     /\ leadershipState[i] = Leader
     \* The first log entry cannot be a signature.
     /\ log[i] # << >>
-    \* Leader hasn't completed retirement
-    /\ retirementPhase[i] # RetirementCompleted
     \* Create a new entry in the log that has the contentType Signature and append it
     /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
     /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \cup {Len(log'[i])} ]
@@ -721,8 +714,6 @@ SignCommittableMessages(i) ==
 ChangeConfigurationInt(i, newConfiguration) ==
     \* Only leader can propose changes
     /\ leadershipState[i] = Leader
-    \* Leader hasn't completed retirement
-    /\ retirementPhase[i] # RetirementCompleted
     \* Configuration is not equal to the previous configuration.
     /\ newConfiguration /= MaxConfiguration(i)
     \* CCF's integrity demands that a previously removed server cannot rejoin the network,
@@ -768,7 +759,6 @@ ChangeConfiguration(i) ==
 \*    servers agree on the index before it can be seen as committed.
 AdvanceCommitIndex(i) ==
     /\ leadershipState[i] = Leader
-    /\ retirementPhase[i] # RetirementCompleted
     /\ LET
             \* Select those configs that need to have a quorum to agree on this leader.
             \* Compare https://github.com/microsoft/CCF/blob/75670480c53519fcec1a09d36aefc11b23a597f9/src/consensus/aft/raft.h#L2081
@@ -813,6 +803,7 @@ AdvanceCommitIndex(i) ==
               /\ IF i \notin configurations[i][Min(DOMAIN configurations'[i])]
                  THEN \E j \in PlausibleSucessorNodes(i) :
                     /\ retirementPhase' = [retirementPhase EXCEPT ![i] = RetirementCompleted]
+                    /\ leadershipState' = Follower
                     /\ LET msg == [type          |-> ProposeVoteRequest,
                                     term          |-> currentTerm[i],
                                     source        |-> i,
@@ -820,15 +811,15 @@ AdvanceCommitIndex(i) ==
                         IN Send(msg)
                     /\ UNCHANGED <<currentTerm, votedFor>>
                  \* Otherwise, states remain unchanged
-                 ELSE UNCHANGED <<messages, serverVars, retirementPhase>>
+                 ELSE UNCHANGED <<messages, serverVars, retirementPhase, leadershipState>>
            \* Otherwise, Configuration and states remain unchanged
-           ELSE UNCHANGED <<messages, serverVars, reconfigurationVars>>
-    /\ UNCHANGED <<candidateVars, leaderVars, log, leadershipState, removedFromConfiguration>>
+           ELSE UNCHANGED <<messages, serverVars, reconfigurationVars, leadershipState>>
+    /\ UNCHANGED <<candidateVars, leaderVars, log, removedFromConfiguration>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
+    \* Check node is a leader (and therefore has not completed retirement)
     /\ leadershipState[i] = Leader
-    /\ retirementPhase[i] # RetirementCompleted
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, votedFor, 
         candidateVars, leaderVars, logVars, membershipState, retirementPhase>>
@@ -839,6 +830,7 @@ CheckQuorum(i) ==
 
 \* Server i receives a RequestVote request from server j with
 \* m.term <= currentTerm[i].
+\* Note that nodes can reply to RequestVotes even if they have completed retirement
 HandleRequestVoteRequest(i, j, m) ==
     LET logOk == \/ m.lastCommittableTerm > MaxCommittableTerm(log[i])
                  \/ /\ m.lastCommittableTerm = MaxCommittableTerm(log[i])
@@ -864,7 +856,8 @@ HandleRequestVoteRequest(i, j, m) ==
 \* m.term = currentTerm[i].
 HandleRequestVoteResponse(i, j, m) ==
     /\ m.term = currentTerm[i]
-    /\ leadershipState[i] = Candidate \* Only Candidates need to tally votes
+    \* Only Candidates need to tally votes
+    /\ leadershipState[i] = Candidate
     /\ \/ /\ m.voteGranted
           /\ votesGranted' = [votesGranted EXCEPT ![i] =
                                   votesGranted[i] \cup {j}]
@@ -1056,7 +1049,10 @@ HandleAppendEntriesResponse(i, j, m) ==
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, logVars, membershipState, retirementPhase>>
 
-\* Any RPC with a newer term causes the recipient to advance its term first.
+\* Any message with a newer term causes the recipient to advance its term first.
+\* Note that UpdateTerm does not discard message m from the set of messages so this 
+\* message can parsed again by receiver. Note that all other message parsing action should
+\* check that m.term = currentTerm[i] to ensure that this action is not skipped.
 UpdateTerm(i, j, m) ==
     /\ m.term > currentTerm[i]
     /\ currentTerm'    = [currentTerm EXCEPT ![i] = m.term]
@@ -1391,6 +1387,7 @@ RetirementPhaseConsistentInv ==
         \/ /\ retirementPhase[i] = RetirementCompleted
            /\ RetirementIndex(i) # 0
            /\ RetirementIndex(i) <= commitIndex[i]
+           /\ leadershipState[i] \notin {Candidate, Leader}
 
 NoLeaderBeforeInitialTerm ==
     \A i \in Servers :
