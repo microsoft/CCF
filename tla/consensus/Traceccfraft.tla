@@ -130,7 +130,7 @@ DropMessages ==
     /\ l \in 1..Len(TraceLog)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
     /\ UNCHANGED <<l, ts>>
-    /\ Network!DropMessages(logline.msg.state.node_id)
+    /\ Network!DropMessagesTo(logline.msg.state.node_id, logline.msg.from_node_id)
 
 \* Beware to only prime e.g. inbox in inbox'[rcv] and *not* also rcv, i.e.,
  \* inbox[rcv]'.  rcv is defined in terms of TLCGet("level") that correctly

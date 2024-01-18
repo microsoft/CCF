@@ -97,9 +97,9 @@ LOCAL OrderOneMoreMessage(m) ==
        /\ m \in OrderMessages'
     \/ Len(SelectSeq(messages[m.dest], LAMBDA e: m = e)) < Len(SelectSeq(messages'[m.dest], LAMBDA e: m = e))
 
-LOCAL OrderDropMessages(server) ==
-    \E s \in Suffixes(messages[server]):  \* TODO - Change to SubSeqs if more sophisticated message loss is needed.
-        messages' = [ messages EXCEPT ![server] = s ]
+LOCAL OrderDropMessages(dest, source) ==
+    \E s \in Suffixes(OrderMessagesTo(dest, source)):  \* TODO - Change to SubSeqs if more sophisticated message loss is needed.
+        messages' = [ messages EXCEPT ![dest] = @ \ s ]
 
 ----------------------------------------------------------------------------------
 \* Point-to-Point Ordering and no duplication of messages:
@@ -128,9 +128,9 @@ LOCAL OrderNoDupOneMoreMessage(m) ==
     \/ /\ m \in OrderMessages
        /\ m \in OrderMessages'
 
-LOCAL OrderNoDupDropMessages(server) ==
-    \E subSeq \in SubSeqs(messages[server]):
-        messages' = [ messages EXCEPT ![server] = subSeq ]
+LOCAL OrderNoDupDropMessages(dest, source) ==
+    \E subSeq \in SubSeqs(OrderNoDupMessagesTo(dest, source)):
+        messages' = [ messages EXCEPT ![dest] = @ \ subSeq ]
 
 ----------------------------------------------------------------------------------
 
@@ -174,9 +174,9 @@ OneMoreMessage(msg) ==
       [] Guarantee = ReorderedNoDup -> ReorderNoDupOneMoreMessage(msg) 
       [] Guarantee = Reordered      -> ReorderDupOneMoreMessage(msg)
 
-DropMessages(server) ==
-    CASE Guarantee = OrderedNoDup   -> OrderNoDupDropMessages(server)
-      [] Guarantee = Ordered        -> OrderDropMessages(server)
+DropMessagesTo(dest, source) ==
+    CASE Guarantee = OrderedNoDup   -> OrderNoDupDropMessages(dest, source)
+      [] Guarantee = Ordered        -> OrderDropMessages(dest, source)
       [] Guarantee = ReorderedNoDup -> ReorderNoDupDropMessages
       [] Guarantee = Reordered      -> ReorderDupDropMessages
 
