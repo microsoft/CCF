@@ -941,6 +941,9 @@ HandleAppendEntriesResponse(i, j, m) ==
           \* UNCHANGED matchIndex is implied by the following statement in figure 2, page 4 in the raft paper:
            \* "If AppendEntries fails because of log inconsistency: decrement nextIndex (aka sentIndex +1) and retry"
           /\ UNCHANGED matchIndex
+       \/ /\ m.term < currentTerm[i]
+          /\ m.success
+          /\ UNCHANGED <<matchIndex, sentIndex>>
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, logVars, membershipState>>
 
