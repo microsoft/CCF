@@ -9,23 +9,23 @@
     "ms-azure-devops.azure-pipelines",
     "ms-python.black-formatter",
     "ms-python.python",
-    "ms-vscode.cpptools"
+    "ms-vscode.cpptools",
   ],
   "settings": {
     "python.defaultInterpreterPath": "python3",
     "[python]": {
-      "editor.defaultFormatter": "ms-python.black-formatter"
+      "editor.defaultFormatter": "ms-python.black-formatter",
     },
     "python.formatting.provider": "none",
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
-      "source.fixAll": true
-    }
+      "source.fixAll": true,
+    },
   },
   "features": {
     "ghcr.io/devcontainers/features/docker-from-docker:1": {
-      "version": "latest"
-    }
-  }
+      "version": "latest",
+    },
+  },
 }
