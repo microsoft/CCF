@@ -316,7 +316,15 @@ namespace ccf
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
-      const auto rs = endpoint->properties.redirection_strategy;
+      auto rs = endpoint->properties.redirection_strategy;
+
+      if (
+        endpoint->properties.forwarding_required ==
+        endpoints::ForwardingRequired::Always)
+      {
+        rs = ccf::endpoints::RedirectionStrategy::ToPrimary;
+      }
+
       switch (rs)
       {
         case (ccf::endpoints::RedirectionStrategy::None):
@@ -334,8 +342,7 @@ namespace ccf
               ctx->get_session_context()->interface_id.value_or(
                 PRIMARY_RPC_INTERFACE);
 
-            auto resolver = get_redirect_resolver_config(
-              endpoint->properties.redirection_strategy, listen_interface);
+            auto resolver = get_redirect_resolver_config(rs, listen_interface);
 
             if (!resolver.has_value())
             {
@@ -643,37 +650,38 @@ namespace ccf
             return;
           }
 
-          // TODO: Remove all of this block?
-          bool is_primary = (consensus == nullptr) ||
-            consensus->can_replicate() || ctx->is_create_request;
-          const bool forwardable = (consensus != nullptr);
+          // // TODO: Remove all of this block?
+          // bool is_primary = (consensus == nullptr) ||
+          //   consensus->can_replicate() || ctx->is_create_request;
+          // const bool forwardable = (consensus != nullptr);
 
-          if (!is_primary && forwardable)
-          {
-            switch (endpoint->properties.forwarding_required)
-            {
-              case endpoints::ForwardingRequired::Never:
-              {
-                break;
-              }
+          // if (!is_primary && forwardable)
+          // {
+          //   switch (endpoint->properties.forwarding_required)
+          //   {
+          //     case endpoints::ForwardingRequired::Never:
+          //     {
+          //       break;
+          //     }
 
-              case endpoints::ForwardingRequired::Sometimes:
-              {
-                if (ctx->get_session_context()->is_forwarding)
-                {
-                  forward(ctx, *tx_p, endpoint);
-                  return;
-                }
-                break;
-              }
+          //     case endpoints::ForwardingRequired::Sometimes:
+          //     {
+          //       if (ctx->get_session_context()->is_forwarding)
+          //       {
+          //         forward(ctx, *tx_p, endpoint);
+          //         return;
+          //       }
+          //       break;
+          //     }
 
-              case endpoints::ForwardingRequired::Always:
-              {
-                forward(ctx, *tx_p, endpoint);
-                return;
-              }
-            }
-          }
+          //     case endpoints::ForwardingRequired::Always:
+          //     {
+          //       forward(ctx, *tx_p, endpoint);
+          //       return;
+          //     }
+          //   }
+          // }
+
           std::unique_ptr<AuthnIdentity> identity =
             get_authenticated_identity(ctx, *tx_p, endpoint);
 
