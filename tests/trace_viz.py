@@ -83,7 +83,7 @@ def table(lines):
         max_commit = max(max_commit, entry["msg"]["state"]["commit_idx"])
         max_ts = max(max_ts, int(entry["h_ts"]))
     dcfg = DigitsCfg()
-    dcfg.nodes = max(nodes, key=len)
+    dcfg.nodes = len(max(nodes, key=len))
     dcfg.view = digits(max_view)
     dcfg.index = digits(max_index)
     dcfg.commit = digits(max_commit)
