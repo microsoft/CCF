@@ -199,35 +199,116 @@ namespace ccf
       return true;
     }
 
-    std::optional<std::string> redirect_location_for_primary(
+    std::optional<std::string> resolve_redirect_location(
+      const RedirectionResolverConfig& resolver,
       kv::ReadOnlyTx& tx,
-      const std::optional<ccf::ListenInterfaceID>& listen_interface)
+      const ccf::ListenInterfaceID& incoming_interface)
     {
-      // TODO: Look up config based on interface ID, maybe redirect to static
-      // location
-      if (consensus)
+      switch (resolver.kind)
       {
-        const auto primary_id = consensus->primary();
-        if (primary_id.has_value())
+        case (RedirectionResolutionKind::NodeByRole):
         {
+          const auto role_it = resolver.target.find("role");
+          const bool primary =
+            role_it == resolver.target.end() || role_it.value() == "primary";
+          if (!primary)
+          {
+            // TODO: Error?
+          }
+
+          const auto interface_it = resolver.target.find("interface");
+          const auto target_interface =
+            (interface_it == resolver.target.end()) ?
+            incoming_interface :
+            interface_it.value().get<std::string>();
+
+          const auto primary_id = consensus->primary();
+          if (!primary_id.has_value())
+          {
+            // TODO: Error!
+          }
+
           const auto nodes = InternalTablesAccess::get_trusted_nodes(tx);
           const auto node_it = nodes.find(primary_id.value());
           if (node_it != nodes.end())
           {
             const auto& interfaces = node_it->second.rpc_interfaces;
-            // TODO: Let this configure which interface we redirect to on the
-            // primary?
-            const auto interface_it = interfaces.find(
-              listen_interface.value_or(ccf::PRIMARY_RPC_INTERFACE));
-            if (interface_it != interfaces.end())
+
+            const auto target_interface_it = interfaces.find(target_interface);
+            if (target_interface_it != interfaces.end())
             {
-              return interface_it->second.published_address;
+              return target_interface_it->second.published_address;
             }
           }
+          else
+          {
+            // TODO: Bad internal error!?
+          }
+          break;
+        }
+
+        case (RedirectionResolutionKind::StaticAddress):
+        {
+          return resolver.target["address"].get<std::string>();
+          break;
         }
       }
 
       return std::nullopt;
+    }
+
+    std::optional<RedirectionResolverConfig> get_redirect_resolver_config(
+      endpoints::RedirectionStrategy strategy,
+      const ccf::ListenInterfaceID& incoming_interface)
+    {
+      switch (strategy)
+      {
+        case (ccf::endpoints::RedirectionStrategy::None):
+        {
+          return std::nullopt;
+        }
+
+        case (ccf::endpoints::RedirectionStrategy::ToPrimary):
+        {
+          if (!node_configuration_subsystem)
+          {
+            node_configuration_subsystem =
+              node_context.get_subsystem<NodeConfigurationSubsystem>();
+            if (!node_configuration_subsystem)
+            {
+              LOG_FAIL_FMT("Unable to access NodeConfigurationSubsystem");
+              return std::nullopt;
+            }
+          }
+
+          const auto& node_config_state = node_configuration_subsystem->get();
+          const auto& interfaces =
+            node_config_state.node_config.network.rpc_interfaces;
+          const auto interface_it = interfaces.find(incoming_interface);
+          if (interface_it == interfaces.end())
+          {
+            LOG_FAIL_FMT(
+              "Could not find startup config for interface {}",
+              incoming_interface);
+            return std::nullopt;
+          }
+
+          const auto strategy_s = nlohmann::json(strategy).get<std::string>();
+
+          const auto& redirections = interface_it->second.redirections;
+          const auto resolver_it = redirections.find(strategy_s);
+          if (resolver_it == redirections.end())
+          {
+            // Return default primary resolution behaviour, which is to redirect
+            // to the current primary
+            RedirectionResolverConfig standard;
+            standard.kind = RedirectionResolutionKind::NodeByRole;
+            return standard;
+          }
+
+          return resolver_it->second;
+        }
+      }
     }
 
     bool check_redirect(
@@ -242,14 +323,32 @@ namespace ccf
         {
           return false;
         }
+
         case (ccf::endpoints::RedirectionStrategy::ToPrimary):
         {
           const bool is_primary =
             (consensus != nullptr) && consensus->can_replicate();
           if (!is_primary)
           {
-            const auto location = redirect_location_for_primary(
-              tx, ctx->get_session_context()->interface_id);
+            const auto listen_interface =
+              ctx->get_session_context()->interface_id.value_or(
+                PRIMARY_RPC_INTERFACE);
+
+            auto resolver = get_redirect_resolver_config(
+              endpoint->properties.redirection_strategy, listen_interface);
+
+            if (!resolver.has_value())
+            {
+              ctx->set_error(
+                HTTP_STATUS_BAD_GATEWAY,
+                ccf::errors::PrimaryNotFound,
+                "Request should be redirected to primary, but receiving node "
+                "is not configured to find primary address");
+              return true;
+            }
+
+            const auto location =
+              resolve_redirect_location(resolver.value(), tx, listen_interface);
             if (location.has_value())
             {
               ctx->set_response_header(
@@ -259,19 +358,18 @@ namespace ccf
               ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
               return true;
             }
-            else
-            {
-              // Should redirect, but don't know how to. Return an error
-              ctx->set_error(
-                HTTP_STATUS_BAD_GATEWAY,
-                ccf::errors::PrimaryNotFound,
-                "Request should be redirected to primary, but receiving node "
-                "does not know current primary address");
-              return true;
-            }
+
+            // Should have redirected, but don't know how to. Return an error
+            ctx->set_error(
+              HTTP_STATUS_BAD_GATEWAY,
+              ccf::errors::PrimaryNotFound,
+              "Request should be redirected to primary, but receiving node "
+              "does not know current primary address");
+            return true;
           }
           return false;
         }
+
         default:
         {
           LOG_FAIL_FMT("Unhandled redirection strategy: {}", rs);

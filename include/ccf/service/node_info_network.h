@@ -59,6 +59,26 @@ namespace ccf
 
   static constexpr auto PRIMARY_RPC_INTERFACE = "default_rpc_interface";
 
+  enum class RedirectionResolutionKind
+  {
+    NodeByRole,
+    StaticAddress
+  };
+  DECLARE_JSON_ENUM(
+    RedirectionResolutionKind,
+    {{RedirectionResolutionKind::NodeByRole, "NodeByRole"},
+     {RedirectionResolutionKind::StaticAddress, "StaticAddress"}});
+
+  struct RedirectionResolverConfig
+  {
+    RedirectionResolutionKind kind;
+    nlohmann::json target;
+
+    bool operator==(const RedirectionResolverConfig&) const = default;
+  };
+  DECLARE_JSON_TYPE(RedirectionResolverConfig);
+  DECLARE_JSON_REQUIRED_FIELDS(RedirectionResolverConfig, kind, target);
+
   /// Node network information
   struct NodeInfoNetwork_v2
   {
@@ -94,6 +114,11 @@ namespace ccf
       /// Timeout for forwarded RPC calls (in milliseconds)
       std::optional<size_t> forwarding_timeout_ms = std::nullopt;
 
+      /// TODO
+      // Keyed by RedirectionStrategy, but softly validated for easier
+      // extensions
+      std::map<std::string, RedirectionResolverConfig> redirections = {};
+
       bool operator==(const NetInterface& other) const
       {
         return bind_address == other.bind_address &&
@@ -104,7 +129,8 @@ namespace ccf
           endorsement == other.endorsement &&
           http_configuration == other.http_configuration &&
           accepted_endpoints == other.accepted_endpoints &&
-          forwarding_timeout_ms == other.forwarding_timeout_ms;
+          forwarding_timeout_ms == other.forwarding_timeout_ms &&
+          redirections == other.redirections;
       }
     };
 
@@ -142,7 +168,8 @@ namespace ccf
     app_protocol,
     http_configuration,
     accepted_endpoints,
-    forwarding_timeout_ms);
+    forwarding_timeout_ms,
+    redirections);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::ACME, configurations);
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
