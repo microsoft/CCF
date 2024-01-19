@@ -1044,7 +1044,7 @@ RcvAppendEntriesResponse(i, j) ==
         /\ m.type = AppendEntriesResponse
         /\ \/ HandleAppendEntriesResponse(m.dest, m.source, m)
            \/ DropResponseWhenNotInState(m.dest, m.source, m)
-          \* CCF does not drop NACKs under the same conditions as acks, because it re-uses the term
+          \* CCF does not drop NACKs under the same conditions as ACKS, because it re-uses the term
           \* field as an optimisation to convey the term of the last matching entry. See #5927.
            \/ /\ m.success
               /\ DropStaleResponse(m.dest, m.source, m)
