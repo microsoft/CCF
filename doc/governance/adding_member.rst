@@ -56,7 +56,7 @@ First, the new member should update and retrieve the latest state digest via the
 
     $ touch empty_file
     $ ccf_cose_sign1 \
-      --ccf-gov-msg-type ack \
+      --ccf-gov-msg-type state_digest \
       --ccf-gov-msg-created_at `date -uIs` \
       --signing-key new_member_privk.pem \
       --signing-cert new_member_cert.pem \
