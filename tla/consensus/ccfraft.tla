@@ -455,7 +455,7 @@ PlausibleSucessorNodes(i) ==
     LET
         activeServers == Servers \ removedFromConfiguration
         highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
-    IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)}
+    IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)} \ {i}
 
 StartLog(startNode, _ignored) ==
     << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNode],
@@ -1393,6 +1393,19 @@ DebugInvRetirementReachable ==
 DebugAppendEntriesRequests ==
     \A m \in { m \in Network!Messages: m.type = AppendEntriesRequest } :
         Len(m.entries) <= 1
+
+\* The following is an invariant of Multi-Paxos but is not an invariant of Raft
+\* DebugCommittedEntriesTermsInv states that if a log entry is committed, then there should 
+\* not be conflicting entries from higher terms.
+\* In Raft, this situation can occur, following a fork, when a leader commits entries from a previous term.
+\* This is safe because the leader will only commit a log entry from a previous term after sealing it
+\* with a committed log entry from the current term
+\* See https://dl.acm.org/doi/abs/10.1145/3380787.3393681 for further details
+DebugCommittedEntriesTermsInv ==
+    \A i, j \in Servers :
+        \A k \in DOMAIN log[i] \intersect DOMAIN log[j] :
+            k <= commitIndex[i]
+            => log[i][k].term >= log[j][k].term
 
 ------------------------------------------------------------------------------
 
