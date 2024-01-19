@@ -455,11 +455,16 @@ PlausibleSucessorNodes(i) ==
     LET
         activeServers == Servers \ removedFromConfiguration
         highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
-    IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)}
+    IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)} \ {i}
 
 StartLog(startNode, _ignored) ==
     << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> startNode],
        [term |-> StartTerm, contentType |-> TypeSignature] >>
+
+JoinedLog(startNode, nextNodes) ==
+    StartLog(startNode, nextNodes) \o
+        << [term |-> StartTerm, contentType |-> TypeReconfiguration, configuration |-> nextNodes],
+           [term |-> StartTerm, contentType |-> TypeSignature] >>
 
 InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
     /\ removedFromConfiguration = {}
@@ -584,7 +589,8 @@ AppendEntries(i, j) ==
 BecomeLeader(i) ==
     /\ leadershipState[i] = Candidate
     \* To become leader, the candidate must have received votes from a majority in each active configuration
-    /\ \A c \in DOMAIN configurations[i] : votesGranted[i] \in Quorums[configurations[i][c]]
+    \* Only votes by nodes part of a given configuration should be tallied against it
+    /\ \A c \in DOMAIN configurations[i] : (votesGranted[i] \intersect configurations[i][c]) \in Quorums[configurations[i][c]]
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Leader]
     \* CCF: We reset our own log to its committable subsequence, throwing out
     \* all unsigned log entries of the previous leader.
@@ -1189,7 +1195,10 @@ UpToDateCheck(i, j) ==
 
 \* If a server i might request a vote from j, receives it and counts it then i 
 \* has all of j's committed entries
-MoreUpToDateCorrectInv ==
+\* This is not an invariant, it is possible for j to vote for i despite i not
+\* having all of j's committed entries. What isn't possible is for i to win
+\* an election without having all of j's committed entries.
+DebugMoreUpToDateCorrectInv ==
     \A i \in { s \in Servers : leadershipState[s] = Candidate } :
         \A j \in GetServerSet(i) :
             /\ i /= j 
@@ -1384,6 +1393,19 @@ DebugAppendEntriesRequests ==
     \A m \in { m \in Network!Messages: m.type = AppendEntriesRequest } :
         Len(m.entries) <= 1
 
+\* The following is an invariant of Multi-Paxos but is not an invariant of Raft
+\* DebugCommittedEntriesTermsInv states that if a log entry is committed, then there should 
+\* not be conflicting entries from higher terms.
+\* In Raft, this situation can occur, following a fork, when a leader commits entries from a previous term.
+\* This is safe because the leader will only commit a log entry from a previous term after sealing it
+\* with a committed log entry from the current term
+\* See https://dl.acm.org/doi/abs/10.1145/3380787.3393681 for further details
+DebugCommittedEntriesTermsInv ==
+    \A i, j \in Servers :
+        \A k \in DOMAIN log[i] \intersect DOMAIN log[j] :
+            k <= commitIndex[i]
+            => log[i][k].term >= log[j][k].term
+
 ------------------------------------------------------------------------------
 
 srv == CHOOSE s \in Servers : [NextInt(s)]_vars
@@ -1400,6 +1422,8 @@ DebugAliasGlobals ==
     [
         \* Total number of leader elections, i.e.,  BecomeLeader actions.
         le  |-> TLCGetAndSet(8, +, IF \E s \in Servers: <<BecomeLeader(s)>>_vars THEN 1 ELSE 0, 1),
+        \* Set of nodes that are blocked right now.
+        blocked  |-> { s \in Servers : ~[NextInt(s)]_vars},
         \* Set of nodes that are active right now.
         cluster |-> { Colorize(s, ToString(s)) : s \in { s \in Servers : leadershipState[s] \in {Leader, Follower} } },
         \* Sequence showing which node is active when.
@@ -1492,16 +1516,18 @@ DebugActingServerAlias ==
         matchIndex |-> matchIndex[srv]
     ]
 
-\* tput rmam ; tlc -note -simulate SIMccfraft.tla ; tput smam  ## tput rmam disables line breaks. tput smam re-enables them.
+\* $ tput rmam ; tlc -note -simulate SIMccfraft.tla; tput smam  ## tput rmam/smam disables/enables line breaks.
+\* $ tput rmam ; tlc -note -simulate SIMccfraft.tla -continue; tput smam  ## Run forever while eye-balling the output.
 AnimateLogAndStateAlias ==
     \* ...overwrite tells TLC to overwrite the previous state instead of printing a new one.
-    IF TLCSet("-Dtlc2.output.StatePrinter.overwrite", 150)
+    IF TLCSet("-Dtlc2.output.StatePrinter.overwrite", 150 (*in milliseconds*))
     THEN
         DebugAliasGlobals
         @@
         FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "log_") :> StringifyLog(s), <<>>, Servers)
         @@
-        FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "ste_") :> leadershipState[s], <<>>, Servers)
+        FoldSet(LAMBDA s, rcd: rcd @@ ColorizeServer(s, "ste_") :>
+            ToString(leadershipState[s]) \o " " \o ToString(currentTerm[s]), <<>>, Servers)
     ELSE <<>>
 
 ===============================================================================
