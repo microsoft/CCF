@@ -915,7 +915,9 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
           /\ configurations' = [configurations EXCEPT ![i] = RestrictDomain(@, LAMBDA c : c >= newConfigurationIndex)]
           \* Check if updating the commit index completes a pending retirement
           /\ membershipState' = [membershipState EXCEPT ![i] = 
-                IF membershipState = RetirementSigned /\ commitIndex' > RetirementIndex(i) THEN RetirementCompleted ELSE @]
+                IF membershipState = RetirementSigned /\ commitIndex' > RetirementIndex(i) 
+                THEN RetirementCompleted 
+                ELSE @]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -967,6 +969,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         new_commmitted_configs == {c \in DOMAIN new_configs : c <= new_commit_index}
         new_conf_index == IF new_commmitted_configs = {} THEN 0 ELSE
             Max(new_commmitted_configs)
+        new_retirement_index == RetirementIndexLog(log'[i],i)
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         \* see committable_indices.push_back(i) in raft.h:execute_append_entries_sync, guarded by case PASS_SIGNATURE
@@ -982,8 +985,14 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
            THEN leadershipState' = [leadershipState EXCEPT ![i] = Follower ]
            ELSE UNCHANGED leadershipState
-        \* TODO: Recalculate retirement state based on log' and commitIndex'
-        /\ UNCHANGED membershipState
+        \* Recalculate retirement state based on log' and commitIndex'
+        /\ IF new_retirement_index # 0
+           THEN IF new_retirement_index >= commitIndex'[i] 
+                THEN membershipState' = [membershipState EXCEPT [i] = RetirementCompleted]
+                ELSE IF new_retirement_index > MaxCommittableIndex(log'[i])
+                     THEN membershipState' = [membershipState EXCEPT [i] = RetirementSigned]
+                     ELSE membershipState' = [membershipState EXCEPT [i] = RetirementOrdered]
+           ELSE membershipState' = [membershipState EXCEPT [i] = Active]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -1038,7 +1047,7 @@ HandleAppendEntriesResponse(i, j, m) ==
 
 \* Any message with a newer term causes the recipient to advance its term first.
 \* Note that UpdateTerm does not discard message m from the set of messages so this 
-\* message can parsed again by receiver. Note that all other message parsing action should
+\* message can parsed again by receiver. Note that all other message parsing actions should
 \* check that m.term = currentTerm[i] to ensure that this action is not skipped.
 UpdateTerm(i, j, m) ==
     /\ m.term > currentTerm[i]
@@ -1051,9 +1060,13 @@ UpdateTerm(i, j, m) ==
     /\ committableIndices' = [committableIndices EXCEPT ![i] = @ \ Len(log'[i])+1..Len(log[i])]
     \* Potentially also shorten the configurations if the removed txns contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))]
+    \* If the leader was in the RetirementOrdered state, then its retirement has
+    \* been rolled back as it was unsigned
+    /\ IF membershipState = RetirementOrdered THEN
+        /\ membershipState' = [membershipState EXCEPT ![i] = Active]
     \* messages is unchanged so m can be processed further.
     /\ UNCHANGED <<removedFromConfiguration, messageVars, 
-        candidateVars, leaderVars, commitIndex, membershipState>>
+        candidateVars, leaderVars, commitIndex>>
 
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
