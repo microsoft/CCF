@@ -68,13 +68,17 @@ CONSTANTS
     \* Node is current not in the process of retiring
     \* This is the same as Active \in MembershipStates, duplicated here for consistency with implementation
     NotRetiring,
-    \* Node has added its own retirement to its log, but it not yet committed or even signed
+    \* Node has added its own retirement to its log, but it is not yet committed or even signed
     \* The node can still revert to NotRetiring upon rollback
+    \* RetirementOrdered does not change the behaviour of the node
     RetirementOrdered,
     \* Node has added its own retirement to its log and it has been signed but it is not yet committed
     \* The node can still revert to RetirementOrdered or NotRetiring upon rollback
+    \* If this node is a leader, it stops accepting new client requests or configuration changes
     RetirementSigned,
     \* Nodes retirement has been committed and it is no longer part of the network
+    \* This node will continue to respond to AppendEntries and RequestVote messages
+    \* If this node was a leader, it will step down. It will not run for election again.
     RetirementCompleted
 
 RetirementPhases == {
@@ -499,8 +503,9 @@ RetirementIndexLog(node_log) ==
     THEN Min(ConfigIndexesWithout(node_log))
     ELSE 0
 
-\* RetirementIndex is the index at which node i is first removed from the configuration according to the log of node i
-\* 0 iff the node i has not been removed
+\* RetirementIndex is the index at which node i is first removed from the 
+\* configuration according to the log of node i. 0 iff the node i has not been removed (or even added)
+\* Note that is spec does not explicitly track retirement_idx, instead it calculates it as needed
 RetirementIndex(i) ==
     RetirementIndexLog(log[i])
 
@@ -1112,6 +1117,8 @@ DropIgnoredMessage(i,j,m) ==
        \*  OR if recipient has completed retirement and this is not a request to vote or append entries request
        \* This spec requires that a retired node still helps with voting and appending entries to ensure 
        \* the next configurations learns that its retirement has been committed.
+       \* TODO: the spec diverages from implementation here, in the implementation is seems that a 
+       \* node stops helping with append entries (sends NACKs) if they pass its retirement_committable_index
        \/ /\ retirementPhase[i] = RetirementCompleted
           /\ m.type \notin {RequestVoteRequest, AppendEntriesRequest}
     /\ Discard(m)
