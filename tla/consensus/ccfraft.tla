@@ -230,7 +230,6 @@ VARIABLE membershipState
 MembershipStateTypeInv ==
     \A i \in Servers : membershipState[i] \in MembershipStates
 
-
 \* The candidate the server voted for in its current term, or
 \* Nil if it hasn't voted for any.
 VARIABLE votedFor
@@ -464,18 +463,18 @@ CommittedTermPrefix(i, x) ==
 
 RetirementIndexLog(node_log, i) ==
     LET 
-        in_indexes = {index \in DOMAIN node_log: 
-            /\ node_log.contentType = TypeReconfiguration
-            /\ i \in node_log.configuration}
-        out_indexes = {index \in DOMAIN node_log: 
-            /\ node_log.contentType = TypeReconfiguration
-            /\ i \notin node_log.configuration}
+        inIndexes == {index \in DOMAIN node_log: 
+            /\ node_log[index].contentType = TypeReconfiguration
+            /\ i \in node_log[index].configuration}
+        outIndexes == {index \in DOMAIN node_log: 
+            /\ node_log[index].contentType = TypeReconfiguration
+            /\ i \notin node_log[index].configuration}
     IN IF 
         \* At least one configuration with node i
-        in_indexes # {}
+        inIndexes # {}
     THEN 
-        LET retired_indexes = {k \in out_indexes: k > Max(in_indexes)}
-        IN IF retired_indexes = {} THEN 0 ELSE Min(retired_indexes)
+        LET retiredIndexes == {k \in outIndexes: k > Max(inIndexes)}
+        IN IF retiredIndexes = {} THEN 0 ELSE Min(retiredIndexes)
     ELSE 0
 
 \* RetirementIndex is the index at which node i is first removed from the 
@@ -557,7 +556,7 @@ Init ==
 \* Server i times out and starts a new election.
 Timeout(i) ==
     \* Only server that haven't completed retirement can become candidates
-    /\ membership[i] # RetirementCompleted
+    /\ membershipState[i] # RetirementCompleted
     \* Only servers that are followers/candidates can become candidates
     /\ leadershipState[i] \in {Follower, Candidate}
     \* Check that the reconfiguration which added this node is at least committable
@@ -723,7 +722,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
                                              contentType |-> TypeReconfiguration])]
     /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
     \* Check if node is starting its own retirement
-    /\ IF /\ membershipState[i] = NotRetiring
+    /\ IF /\ membershipState[i] = Active
           /\ i \notin newConfiguration
         THEN membershipState' = [membershipState EXCEPT ![i] = RetirementOrdered]
         ELSE UNCHANGED membershipState
@@ -892,7 +891,7 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                                 source         |-> i,
                                 dest           |-> j],
                                 m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, logVars, membershipStatee>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, logVars, membershipState>>
 
 ReturnToFollowerState(i, m) ==
     /\ m.term = currentTerm[i]
@@ -1089,7 +1088,7 @@ DropIgnoredMessage(i,j,m) ==
        \* the next configurations learns that its retirement has been committed.
        \* TODO: the spec diverages from implementation here, in the implementation is seems that a 
        \* node stops helping with append entries (sends NACKs) if they pass its retirement_committable_index
-       \/ /\ membershipPhase[i] = RetirementCompleted
+       \/ /\ membershipState[i] = RetirementCompleted
           /\ m.type \notin {RequestVoteRequest, AppendEntriesRequest}
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, 
@@ -1365,7 +1364,7 @@ LogConfigurationConsistentInv ==
                     => configurations[i][idx] = log[i][idx].configuration
 
 \* Check each node's retirement phase is consistent with its local state
-membershipStateConsistentInv ==
+MembershipStateConsistentInv ==
     \A i \in Servers :
         \/ /\ membershipState[i] = Active 
            /\ RetirementIndex(i) = 0
@@ -1516,7 +1515,7 @@ DebugInvAllMessagesProcessable ==
 \* The Retirement state is reached by nodes that are removed from the configuration.
 \* It should be reachable if any node is removed.
 DebugInvRetirementReachable ==
-    \A i \in Servers : membershipState[i] /= Retired
+    \A i \in Servers : membershipState[i] /= RetirementCompleted
 
 \* The Leader may send any number of entries per AppendEntriesRequest.  This spec assumes that
  \* the Leader only sends zero or one entries.
