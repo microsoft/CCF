@@ -152,7 +152,7 @@ IsBecomeLeader ==
     /\ IsEvent("become_leader")
     /\ logline.msg.state.leadership_state = "Leader"
     /\ BecomeLeader(logline.msg.state.node_id)
-    \* /\ committableIndices'[logline.msg.state.node_id] = Range(logline.msg.state.committable_indices)
+    /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     
 IsClientRequest ==
     /\ IsEvent("replicate")
@@ -229,7 +229,7 @@ IsAdvanceCommitIndex ==
        /\ LET i == logline.msg.state.node_id
           IN /\ AdvanceCommitIndex(i)
              /\ commitIndex'[i] = logline.msg.state.commit_idx
-             \* /\ committableIndices'[i] = Range(logline.msg.state.committable_indices)
+             /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     \/ /\ IsEvent("commit")
        /\ UNCHANGED vars
        /\ logline.msg.state.leadership_state = "Follower"
