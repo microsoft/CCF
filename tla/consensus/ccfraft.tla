@@ -485,29 +485,27 @@ CommittedTermPrefix(i, x) ==
     \* Otherwise the prefix is the empty tuple
     ELSE << >>
 
-ConfigIndexesWith(node_log) ==
-    {index \in DOMAIN node_log: 
-        /\ node_log[index].contentType = TypeReconfiguration
-        /\ i \in node_log[index].configuration}
-
-ConfigIndexesWithout(node_log) ==
-    {index \in DOMAIN node_log: 
-        /\ node_log[index].contentType = TypeReconfiguration
-        /\ i \notin node_log[index].configuration}
-
-RetirementIndexLog(node_log) ==
-    IF /\ ConfigIndexesWithout(node_log) # {}
-       /\ ConfigIndexesWith(node_log) # {}
-       \* TODO: fix this logic
-       /\ Max(ConfigIndexesWith(node_log)) < Min(ConfigIndexesWithout(node_log))
-    THEN Min(ConfigIndexesWithout(node_log))
+RetirementIndexLog(node_log, i) ==
+    LET 
+        in_indexes = {index \in DOMAIN node_log: 
+            /\ node_log[index].contentType = TypeReconfiguration
+            /\ i \in node_log[index].configuration}
+        out_indexes = {index \in DOMAIN node_log: 
+            /\ node_log[index].contentType = TypeReconfiguration
+            /\ i \notin node_log[index].configuration}
+    IN IF 
+        \* At least one configuration with node i
+        in_indexes # {}
+    THEN 
+        LET retired_indexes = {k \in out_indexes: k > Max(in_indexes)}
+        IN IF retired_indexes = {} THEN 0 ELSE Min(retired_indexes)
     ELSE 0
 
 \* RetirementIndex is the index at which node i is first removed from the 
 \* configuration according to the log of node i. 0 iff the node i has not been removed (or even added)
-\* Note that is spec does not explicitly track retirement_idx, instead it calculates it as needed
+\* Note that is spec does not explicitly track retirement_idx like raft.h, instead it calculates it as needed
 RetirementIndex(i) ==
-    RetirementIndexLog(log[i])
+    RetirementIndexLog(log[i], i)
 
 
 AppendEntriesBatchsize(i, j) ==
