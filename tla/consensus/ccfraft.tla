@@ -79,6 +79,7 @@ CONSTANTS
     \* Nodes retirement has been committed and it is no longer part of the network
     \* This node will continue to respond to AppendEntries and RequestVote messages
     \* If this node was a leader, it will step down. It will not run for election again.
+    \* Note that this spec does not model when nodes can be safety removed
     RetirementCompleted
 
 RetirementPhases == {
@@ -488,11 +489,11 @@ CommittedTermPrefix(i, x) ==
 RetirementIndexLog(node_log, i) ==
     LET 
         in_indexes = {index \in DOMAIN node_log: 
-            /\ node_log[index].contentType = TypeReconfiguration
-            /\ i \in node_log[index].configuration}
+            /\ node_log.contentType = TypeReconfiguration
+            /\ i \in node_log.configuration}
         out_indexes = {index \in DOMAIN node_log: 
-            /\ node_log[index].contentType = TypeReconfiguration
-            /\ i \notin node_log[index].configuration}
+            /\ node_log.contentType = TypeReconfiguration
+            /\ i \notin node_log.configuration}
     IN IF 
         \* At least one configuration with node i
         in_indexes # {}
@@ -504,6 +505,7 @@ RetirementIndexLog(node_log, i) ==
 \* RetirementIndex is the index at which node i is first removed from the 
 \* configuration according to the log of node i. 0 iff the node i has not been removed (or even added)
 \* Note that is spec does not explicitly track retirement_idx like raft.h, instead it calculates it as needed
+\* The same is true of retirement_committable_idx
 RetirementIndex(i) ==
     RetirementIndexLog(log[i], i)
 
@@ -1491,6 +1493,9 @@ RetirementPhaseTransitionsProp ==
         \* RetirementCompleted is the terminal state
         leadershipState[i] = RetirementCompleted 
         => leadershipState[i]' = RetirementCompleted]_vars
+        \* Note that all other transitions betweem retirement phases are permitted
+        \* For instance, a node could go from NotRetiring to RetirementCompleted in one step if it 
+        \* receives an append entries with its retirement signed and committed
 
 PendingBecomesFollowerProp ==
     \* A pending node that becomes aware it is part of a configuration immediately transitions to Follower.
