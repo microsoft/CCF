@@ -1262,12 +1262,6 @@ CommitCommittableIndices ==
             /\ CommittableIndices(i) = {}
         \/ commitIndex[i] \in CommittableIndices(i)
 
-CommittableIndicesAreKnownSignaturesInv ==
-    \A i \in Servers :
-        \A j \in CommittableIndices(i) :
-            /\ j \in DOMAIN(log[i])
-            /\ HasTypeSignature(log[i][j])
-
 ------------------------------------------------------------------------------
 \* Properties
 
