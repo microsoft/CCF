@@ -242,17 +242,15 @@ VARIABLE commitIndex
 CommitIndexTypeInv ==
     \A i \in Servers : commitIndex[i] \in Nat
 
-VARIABLE committableIndices
+logVars == <<log, commitIndex>>
 
-CommittableIndicesTypeInv ==
-    \A i \in Servers : committableIndices[i] \subseteq Nat
-
-logVars == <<log, commitIndex, committableIndices>>
+\* The indices of the committable entries in the log of server i
+CommittableIndices(i) ==
+    {idx \in DOMAIN log[i] : log[i][idx].contentType = TypeSignature}
 
 LogVarsTypeInv ==
     /\ LogTypeInv
     /\ CommitIndexTypeInv
-    /\ CommittableIndicesTypeInv
 
 \* The set of servers from which the candidate has received a vote in its
 \* currentTerm.
@@ -341,7 +339,7 @@ HasTypeReconfiguration(e) == e.contentType = TypeReconfiguration
 
 LastCommittableIndex(i) ==
     \* raft.h::last_committable_index
-    Max({commitIndex[i]} \cup committableIndices[i])
+    Max({commitIndex[i]} \cup CommittableIndices(i))
 
 LastCommittableTerm(i) ==
     \* raft.h::get_term_internal
@@ -468,7 +466,6 @@ JoinedLog(startNode, nextNodes) ==
 
 InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
     /\ removedFromConfiguration = {}
-    /\ committableIndices  = [i \in Servers |-> {}]
     /\ votedFor    = [i \in Servers |-> Nil]
     /\ currentTerm = [i \in Servers |-> IF i \in startNodes THEN StartTerm ELSE 0]
     /\ \E sn \in startNodes:
@@ -602,14 +599,14 @@ BecomeLeader(i) ==
     \* Shorten the configurations if the removed txs contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
     /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor,
-        candidateVars, commitIndex, committableIndices, membershipState>>
+        candidateVars, commitIndex, membershipState>>
 
 \* Leader i receives a client request to add v to the log.
 ClientRequest(i) ==
     \* Only leaders receive client requests
     /\ leadershipState[i] = Leader
     /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
-    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex, committableIndices, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex, membershipState>>
 
 \* CCF: Signed commits
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
@@ -626,7 +623,6 @@ SignCommittableMessages(i) ==
     /\ log[i] # << >>
     \* Create a new entry in the log that has the contentType Signature and append it
     /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
-    /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \cup {Len(log'[i])} ]
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex, membershipState>>
 
 \* CCF: Reconfiguration of servers
@@ -659,7 +655,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
                                              configuration |-> newConfiguration,
                                              contentType |-> TypeReconfiguration])]
     /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
-    /\ UNCHANGED <<messageVars, serverVars, candidateVars, matchIndex, commitIndex, committableIndices, membershipState>>
+    /\ UNCHANGED <<messageVars, serverVars, candidateVars, matchIndex, commitIndex, membershipState>>
 
 ChangeConfiguration(i) ==
     \* Reconfigure to any *non-empty* subset of servers.  ChangeConfigurationInt checks that the new
@@ -709,7 +705,6 @@ AdvanceCommitIndex(i) ==
          \* only advance if necessary (this is basically a sanity)
         /\ commitIndex[i] < highestCommittableIndex
         /\ commitIndex' = [commitIndex EXCEPT ![i] = highestCommittableIndex]
-        /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ 0..commitIndex'[i] ]
         \* If commit index surpasses the next configuration, pop configs, and retire as leader if removed
         /\ IF /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ highestCommittableIndex >= NextConfigurationIndex(i)
@@ -834,7 +829,6 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
     /\ LET newCommitIndex == max(min(MaxCommittableIndex(log[i]), m.commitIndex), commitIndex[i])
            newConfigurationIndex == LastConfigurationToIndex(i, newCommitIndex)
        IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
-          /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ 0..commitIndex'[i] ]
           \* Pop any newly committed reconfigurations, except the most recent
           /\ configurations' = [configurations EXCEPT ![i] = RestrictDomain(@, LAMBDA c : c >= newConfigurationIndex)]
     /\ Reply([type           |-> AppendEntriesResponse,
@@ -852,8 +846,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
     /\ log[i][index].term /= m.entries[1].term
     /\ LET new_log == [index2 \in 1..m.prevLogIndex |-> log[i][index2]] \* Truncate log
        IN /\ log' = [log EXCEPT ![i] = new_log]
-          /\ committableIndices' = [ committableIndices EXCEPT ![i] = @ \ Len(log'[i])..Len(log[i])]
-        \* Potentially also shorten the configurations if the removed txns contained reconfigurations
+          \* Potentially also shorten the configurations if the removed txns contained reconfigurations
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
     /\ UNCHANGED <<removedFromConfiguration, serverVars, commitIndex, messages, membershipState>>
 
@@ -880,12 +873,6 @@ NoConflictAppendEntriesRequest(i, j, m) ==
             Max(new_commmitted_configs)
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
-        \* see committable_indices.push_back(i) in raft.h:execute_append_entries_sync, guarded by case PASS_SIGNATURE
-        /\ committableIndices' =
-                [ committableIndices EXCEPT ![i] =
-                    (@ \cup
-                        {n \in Len(log[i])..Len(log'[i]) \ {0} : log'[i][n].contentType = TypeSignature})
-                    \ 0..commitIndex'[i]]
         /\ configurations' = 
                 [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
         \* If we added a new configuration that we are in and were pending, we are now follower
@@ -953,7 +940,6 @@ UpdateTerm(i, j, m) ==
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
     \* See rollback(last_committable_index()) in raft::become_follower
     /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(i))]
-    /\ committableIndices' = [committableIndices EXCEPT ![i] = @ \ Len(log'[i])+1..Len(log[i])]
     \* Potentially also shorten the configurations if the removed txns contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))]
     \* messages is unchanged so m can be processed further.
@@ -1277,13 +1263,10 @@ MatchIndexLowerBoundSentIndexInv ==
 
 CommitCommittableIndices ==
     \A i \in Servers :
-        committableIndices[i] # {} => commitIndex[i] < Min(committableIndices[i])
-
-CommittableIndicesAreKnownSignaturesInv ==
-    \A i \in Servers :
-        \A j \in committableIndices[i] :
-            /\ j \in DOMAIN(log[i])
-            /\ HasTypeSignature(log[i][j])
+        \/
+            /\ commitIndex[i] = 0
+            /\ CommittableIndices(i) = {}
+        \/ commitIndex[i] \in CommittableIndices(i)
 
 ------------------------------------------------------------------------------
 \* Properties
@@ -1440,8 +1423,6 @@ DebugAliasAggregates ==
         \* Per Node (node-local):
             \* The set of nodes granting a vote to this node, ever.
             vg   |-> TLCGetAndSet(0, Cup, votesGranted, [s \in Servers |-> {}]),
-            \* Aggregate the set of a node's committable indices.
-            ci   |-> TLCGetAndSet(1, Cup, committableIndices, [s \in Servers |-> {}]),
             \* \* Set of messages received by or pending at a node.
             \*mr   |-> TLCGetAndSet(2,
             \*            LAMBDA o, v: [s \in Servers |-> o[s] \cup { m \in v : m.dest = s }],
@@ -1484,7 +1465,6 @@ DebugAliasVars ==
 \*        lg |-> [ s \in Servers |-> StringifyLog(s) ],
         log |-> log,
         commitIndex |-> commitIndex,
-        committableIndices |-> committableIndices,
         votesGranted |-> votesGranted,
         sentIndex |-> sentIndex,
         matchIndex |-> matchIndex,
@@ -1513,7 +1493,6 @@ DebugActingServerAlias ==
         leadershipState |-> leadershipState[srv],
         log |-> StringifyLog(srv),
         commitIndex |-> commitIndex[srv],
-        committableIndices |-> committableIndices[srv],
         votesGranted |-> votesGranted[srv],
         sentIndex |-> sentIndex[srv],
         matchIndex |-> matchIndex[srv]
