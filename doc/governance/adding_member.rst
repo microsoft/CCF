@@ -54,7 +54,14 @@ First, the new member should update and retrieve the latest state digest via the
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/gov/members/state-digests/7f46110b62ccbbd5f18b4c9bda876024399fd538133f8c26d4bfe5a9d80e59e6:update?api-version=2023-06-01-preview \
+    $ touch empty_file
+    $ ccf_cose_sign1 \
+      --ccf-gov-msg-type ack \
+      --ccf-gov-msg-created_at `date -uIs` \
+      --signing-key new_member_privk.pem \
+      --signing-cert new_member_cert.pem \
+      --content empty_file \ # Note that passing an empty file is required
+    | curl https://<ccf-node-address>/gov/members/state-digests/7f46110b62ccbbd5f18b4c9bda876024399fd538133f8c26d4bfe5a9d80e59e6:update?api-version=2023-06-01-preview \
       -X POST \
       --cacert service_cert.pem \
       --key new_member_privk.pem \
