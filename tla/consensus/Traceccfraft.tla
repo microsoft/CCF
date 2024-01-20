@@ -430,13 +430,11 @@ TraceDifferentialInv ==
     \*    /\ d.configurations = configurations
     \*    /\ d.messages = messages
     \*    /\ d.currentTerm = currentTerm
-    \*    /\ d.state = state
+    \*    /\ d.state = leadershipState
     \*    /\ d.votedFor = votedFor
     \*    /\ d.log = log
     \*    /\ d.commitIndex = commitIndex
-    \*    /\ d.clientRequests = clientRequests
     \*    /\ d.votesGranted = votesGranted
-    \*    /\ d.votesRequested = votesRequested
     \*    /\ d.sentIndex = sentIndex
     \*    /\ d.matchIndex = matchIndex
 
