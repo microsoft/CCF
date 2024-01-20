@@ -1,5 +1,5 @@
 -------------------------------- MODULE Traceccfraft -------------------------------
-EXTENDS ccfraft, Json, IOUtils, Sequences
+EXTENDS ccfraft, Json, IOUtils, Sequences, MCAliases
 
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
