@@ -62,7 +62,7 @@ CONSTANTS
     RetirementOrdered,
     \* Node has added its own retirement to its log and it has been signed but it is not yet committed
     \* The node can still revert to RetirementOrdered or NotRetiring upon rollback
-    \* RetirementSigned does not change the behavior of the node
+    \* If the node is a leader, it will stop accepting new client requests
     RetirementSigned,
     \* Nodes retirement has been committed and it is no longer part of the network
     \* If this node was a leader, it will step down. It will not run for election again.
@@ -659,6 +659,8 @@ BecomeLeader(i) ==
 ClientRequest(i) ==
     \* Only leaders receive client requests (and therefore they have not yet completed retirement)
     /\ leadershipState[i] = Leader
+    \* and the leader should not have its retirement signed
+    /\ membershipState[i] # RetirementSigned
     \* Add new request to leader's log
     /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
