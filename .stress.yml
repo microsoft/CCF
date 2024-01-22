@@ -2,6 +2,8 @@ pr:
   branches:
     include:
       - main
+    exclude:
+      - "release/[0-3].x"
   paths:
     include:
       - .stress.yml
@@ -15,6 +17,8 @@ schedules:
     branches:
       include:
         - main
+      exclude:
+        - "release/[0-3].x"
     always: true
 
 resources:
