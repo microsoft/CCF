@@ -1,5 +1,5 @@
 -------------------------------- MODULE Traceccfraft -------------------------------
-EXTENDS ccfraft, Json, IOUtils, Sequences
+EXTENDS ccfraft, Json, IOUtils, Sequences, MCAliases
 
 \* raft_types.h enum RaftMsgType
 RaftMsgType ==
@@ -430,13 +430,11 @@ TraceDifferentialInv ==
     \*    /\ d.configurations = configurations
     \*    /\ d.messages = messages
     \*    /\ d.currentTerm = currentTerm
-    \*    /\ d.state = state
+    \*    /\ d.state = leadershipState
     \*    /\ d.votedFor = votedFor
     \*    /\ d.log = log
     \*    /\ d.commitIndex = commitIndex
-    \*    /\ d.clientRequests = clientRequests
     \*    /\ d.votesGranted = votesGranted
-    \*    /\ d.votesRequested = votesRequested
     \*    /\ d.sentIndex = sentIndex
     \*    /\ d.matchIndex = matchIndex
 
@@ -470,6 +468,20 @@ TraceAlias ==
         \* See TraceDifferentialInv above.
         \* ,_TraceDiffState |-> LET t == INSTANCE trace IN t!Trace[l]
     ]
+    \* Differential trace validation, i.e., compare the current run to an earlier, recorded TLA+ trace:
+     \* First run:
+     \* 1) Enable deadlock checking to make TLC report a counterexample
+     \* 2) Run TLC with -dumptrace TLCplain trace.tla
+     \* 3) Add EXTENDS ccfraft to top of trace.tla
+     \* Second Run:
+     \* 1) Toggle comments below and adjust record definition to your needs. 
+    \* @@
+    \* LET t == INSTANCE trace d == t!Trace[l] IN
+    \* [
+    \*     \* here and there are the messages in the current run that are not in the previous run and vice versa.
+    \*     here  |-> Network!Messages \ UNION { UNION { Range(d.messages[src][dst]) : dst \in Servers } : src \in Servers },
+    \*     there |-> UNION { UNION { Range(d.messages[src][dst]) : dst \in Servers } : src \in Servers } \ Network!Messages
+    \* ]
 
 -------------------------------------------------------------------------------------
 
