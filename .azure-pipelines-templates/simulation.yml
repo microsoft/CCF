@@ -20,6 +20,8 @@ jobs:
         displayName: Setup
 
       - script: ./tlc.sh -workers auto -simulate -depth 500 consensus/SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
+        env:
+          SIM_TIMEOUT: ${{ parameters.timeout }}
         workingDirectory: tla
         displayName: Simulation
 
