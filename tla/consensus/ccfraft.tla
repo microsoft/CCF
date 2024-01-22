@@ -976,7 +976,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
            ELSE UNCHANGED leadershipState
         \* Recalculate retirement state based on log' and commitIndex'
         /\ IF new_retirement_index # 0
-           THEN IF new_retirement_index >= commitIndex'[i] 
+           THEN IF new_retirement_index <= commitIndex'[i] 
                 THEN membershipState' = [membershipState EXCEPT ![i] = RetirementCompleted]
                 ELSE IF new_retirement_index > MaxCommittableIndex(log'[i])
                      THEN membershipState' = [membershipState EXCEPT ![i] = RetirementSigned]
