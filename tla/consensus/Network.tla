@@ -98,7 +98,7 @@ LOCAL OrderOneMoreMessage(m) ==
     \/ Len(SelectSeq(messages[m.dest], LAMBDA e: m = e)) < Len(SelectSeq(messages'[m.dest], LAMBDA e: m = e))
 
 LOCAL OrderDropMessages(server) ==
-    \E s \in Suffixes(messages[server]):  \* TODO - Change to SubSeqs if more sophisticated message loss is needed.
+    \E s \in AllSubSeqs(messages[server]):
         messages' = [ messages EXCEPT ![server] = s ]
 
 ----------------------------------------------------------------------------------
