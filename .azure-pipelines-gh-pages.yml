@@ -5,6 +5,8 @@ trigger:
       - main
       - "refs/tags/ccf-*"
 
+permissions: read-all
+
 jobs:
   - job: build_and_publish_docs
     displayName: "Build and publish docs"

@@ -50,6 +50,8 @@ variables:
     perf_or_release: perf
     perf_tests: run
 
+permissions: read-all
+
 jobs:
   - template: .azure-pipelines-templates/configure.yml
 
