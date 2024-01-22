@@ -67,7 +67,7 @@ CONSTANTS
     \* Node retirement has been committed and it is no longer part of the network
     \* If this node was a leader, it will step down. It will not run for election again.
     \* This node will continue to respond to AppendEntries and RequestVote messages
-    \* Note that this spec does not model when nodes can be safety removed
+    \* Note that this spec does not model when nodes can be safely removed
     \* RetirementCompleted is a terminal state
     RetirementCompleted
 
