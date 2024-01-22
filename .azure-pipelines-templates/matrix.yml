@@ -163,6 +163,7 @@ jobs:
           target: Virtual
           env: ${{ parameters.env.Virtual }}
           installExtendedTestingTools: false
+          metrics: true
           depends_on:
             - configure
 
