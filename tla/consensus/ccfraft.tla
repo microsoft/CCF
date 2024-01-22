@@ -923,7 +923,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, serverVars, log, leadershipState>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, log>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.entries /= << >>
@@ -941,7 +941,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
                       /\ RetirementIndex(i) > MaxCommittableIndex(log'[i])
               THEN membershipState[i] = RetirementOrdered 
               ELSE UNCHANGED membershipState
-    /\ UNCHANGED <<removedFromConfiguration, serverVars, commitIndex, messages>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, commitIndex, messages>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
@@ -1032,7 +1032,7 @@ HandleAppendEntriesResponse(i, j, m) ==
            \* "If AppendEntries fails because of log inconsistency: decrement nextIndex (aka sentIndex +1) and retry"
           /\ UNCHANGED matchIndex
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, logVars>>
 
 \* Any message with a newer term causes the recipient to advance its term first.
 \* Note that UpdateTerm does not discard message m from the set of messages so this 
@@ -1071,8 +1071,7 @@ DropResponseWhenNotInState(i, j, m) ==
     \/ /\ m.type = RequestVoteResponse
        /\ leadershipState[i] \in LeadershipStates \ { Candidate }
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, 
-        logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 \* Drop messages if they are irrelevant to the node
 DropIgnoredMessage(i,j,m) ==
@@ -1094,8 +1093,7 @@ DropIgnoredMessage(i,j,m) ==
        \/ /\ membershipState[i] = RetirementCompleted
           /\ m.type \notin {RequestVoteRequest, AppendEntriesRequest}
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, 
-        logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 \* Retired leaders send notify commit messages to update all nodes about the commit level
 UpdateCommitIndex(i,j,m) ==
