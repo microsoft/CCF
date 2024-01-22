@@ -8,6 +8,8 @@ on:
       - labeled
       - closed
 
+permissions: read-all
+
 jobs:
   backport:
     name: Backport PR
