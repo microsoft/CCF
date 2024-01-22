@@ -23,8 +23,6 @@ resources:
       image: ccfmsrc.azurecr.io/ccf/ci:07-12-2023-virtual-clang15
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
-permissions: read-all
-
 jobs:
   - template: .azure-pipelines-templates/configure.yml
 
