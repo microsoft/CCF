@@ -25,13 +25,14 @@ jobs:
         workingDirectory: tla
         displayName: Simulation
 
-      - script: |
-          set -ex
-          ./cimetrics_env.sh python upload_tlc_stats.py sim ../tla/SIMccfraft_stats.json
-        env:
-          METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
-        workingDirectory: tests
-        displayName: Uploading TLC stats to cimetrics
+      - ${{ if eq(parameters.metrics, true) }}:
+        - script: |
+            set -ex
+            ./cimetrics_env.sh python upload_tlc_stats.py sim ../tla/SIMccfraft_stats.json
+          env:
+            METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
+          workingDirectory: tests
+          displayName: Uploading TLC stats to cimetrics
 
       - task: PublishPipelineArtifact@1
         inputs:
