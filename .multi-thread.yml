@@ -3,11 +3,15 @@ trigger:
   branches:
     include:
       - main
+    exclude:
+      - "release/[0-3].x"
 
 pr:
   branches:
     include:
       - main
+    exclude:
+      - "release/[0-3].x"
   paths:
     include:
       - .multi-thread.yml
