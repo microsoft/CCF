@@ -51,23 +51,24 @@ LeadershipStates == {
     }
 
 \* Membership states, defined in ../src/kv/kv_types.h
-\* In the spec, the membership state of Retired also includes retirement phase (also defined in ../src/kv/kv_types.h)
-\* to avoid the need for another variable
+\* In this specification, the membership state of Retired also describes the
+\* retirement phase (also defined in ../src/kv/kv_types.h) to avoid the need for an additional variable
 CONSTANTS
     \* Node is not in the process of leaving the CCF service.
     Active,
     \* Node has added its own retirement to its log, but it is not yet committed or even signed
-    \* The node can still revert to NotRetiring upon rollback
+    \* The node can still revert to Active upon rollback
     \* RetirementOrdered does not change the behavior of the node
     RetirementOrdered,
     \* Node has added its own retirement to its log and it has been signed but it is not yet committed
-    \* The node can still revert to RetirementOrdered or NotRetiring upon rollback
+    \* The node can still revert to RetirementOrdered or Active upon rollback
     \* If the node is a leader, it will stop accepting new client requests
     RetirementSigned,
-    \* Nodes retirement has been committed and it is no longer part of the network
+    \* Node retirement has been committed and it is no longer part of the network
     \* If this node was a leader, it will step down. It will not run for election again.
     \* This node will continue to respond to AppendEntries and RequestVote messages
     \* Note that this spec does not model when nodes can be safety removed
+    \* RetirementCompleted is a terminal state
     RetirementCompleted
 
 MembershipStates == {
