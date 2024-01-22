@@ -626,7 +626,7 @@ AppendEntries(i, j) ==
             LET m == msg(b) IN
             \* The implementation does not allow a leader with their retirement signed to send heartbeats
             \* TODO: how does this interact with a new leader's AE message? or a existing leader's first AE to a new node?
-            /\ \/ membershipState[i] # RetirementOrder 
+            /\ \/ membershipState[i] # RetirementOrdered
                \/ m.entries # <<>>
             /\ Send(m)
             \* Record the most recent index we have sent to this node.
@@ -1090,7 +1090,7 @@ DropIgnoredMessage(i,j,m) ==
        \* This spec requires that a retired node still helps with voting and appending entries to ensure 
        \* the next configurations learns that its retirement has been committed.
        \* TODO: the spec diverges from implementation here, in the implementation is seems that a 
-       \* node stops helping with append entries (sends NACKs) if they pass its retirement_committable_index
+       \* node stops helping with append entries (sends NACKs) if they pass its retirement_committable_idx
        \/ /\ membershipState[i] = RetirementCompleted
           /\ m.type \notin {RequestVoteRequest, AppendEntriesRequest}
     /\ Discard(m)
