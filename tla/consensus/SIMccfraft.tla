@@ -1,5 +1,5 @@
 ---------- MODULE SIMccfraft ----------
-EXTENDS ccfraft, TLC, Integers, StatsFile, IOUtils
+EXTENDS ccfraft, TLC, Integers, StatsFile, IOUtils, MCAliases
 
 CONSTANTS
     NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive
