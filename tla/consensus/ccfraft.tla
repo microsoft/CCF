@@ -460,6 +460,7 @@ CommittedTermPrefix(i, x) ==
     \* Otherwise the prefix is the empty tuple
     ELSE << >>
 
+\* RetirementIndexLog is the index at which node i is first removed from node_log, 0 otherwise
 RetirementIndexLog(node_log, i) ==
     LET 
         inIndexes == {index \in DOMAIN node_log: 
@@ -473,7 +474,9 @@ RetirementIndexLog(node_log, i) ==
         inIndexes # {}
     THEN 
         LET retiredIndexes == {k \in outIndexes: k > Max(inIndexes)}
-        IN IF retiredIndexes = {} THEN 0 ELSE Min(retiredIndexes)
+        IN IF retiredIndexes = {} 
+        THEN 0 
+        ELSE Min(retiredIndexes)
     ELSE 0
 
 \* RetirementIndex is the index at which node i is first removed from the 
@@ -553,7 +556,7 @@ Init ==
 
 \* Server i times out and starts a new election.
 Timeout(i) ==
-    \* Only server that haven't completed retirement can become candidates
+    \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] # RetirementCompleted
     \* Only servers that are followers/candidates can become candidates
     /\ leadershipState[i] \in {Follower, Candidate}
@@ -566,8 +569,7 @@ Timeout(i) ==
     \* Candidate votes for itself
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
-    /\ UNCHANGED <<reconfigurationVars, messageVars, leaderVars,
-        logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, messageVars, leaderVars, logVars, membershipState>>
 
 \* Candidate i sends j a RequestVote request.
 RequestVote(i,j) ==
@@ -583,18 +585,16 @@ RequestVote(i,j) ==
     IN
     \* Timeout votes for itself atomically. Thus we do not need to request our own vote.
     /\ i /= j
-    \* Only requests vote if we are already candidate (and therefore have not completed retirement)
+    \* Only requests vote if we are already a candidate (and therefore have not completed retirement)
     /\ leadershipState[i] = Candidate
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
     /\ Send(msg)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, votesGranted, leaderVars,
-        logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, votesGranted, leaderVars, logVars, membershipState>>
 
 \* Leader i sends j an AppendEntries request
 AppendEntries(i, j) ==
     \* Sender is primary (and therefore has not completed retirement)
-    \* TODO: The implementation seems to allow retired leaders to send AE if they are not heartbeat
     /\ leadershipState[i] = Leader
     \* No messages to itself 
     /\ i /= j
@@ -624,6 +624,10 @@ AppendEntries(i, j) ==
        IN
        /\ \E b \in AppendEntriesBatchsize(i, j):
             LET m == msg(b) IN
+            \* The implementation does not allow a leader with their retirement signed to send heartbeats
+            \* TODO: how does this interact with a new leader's AE message? or a existing leader's first AE to a new node?
+            /\ \/ membershipState[i] # RetirementOrder 
+               \/ m.entries # <<>>
             /\ Send(m)
             \* Record the most recent index we have sent to this node.
             \* (see https://github.com/microsoft/CCF/blob/9fbde45bf5ab856ca7bcf655e8811dc7baf1e8a3/src/consensus/aft/raft.h#L935-L936)
@@ -660,12 +664,11 @@ BecomeLeader(i) ==
 ClientRequest(i) ==
     \* Only leaders receive client requests (and therefore they have not yet completed retirement)
     /\ leadershipState[i] = Leader
-    \* and the leader should not have its retirement signed
+    \* ... and the leader should not have its retirement signed
     /\ membershipState[i] # RetirementSigned
     \* Add new request to leader's log
     /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
-    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars,
-        leaderVars, commitIndex, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex, membershipState>>
 
 \* CCF: Signed commits
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
@@ -683,11 +686,10 @@ SignCommittableMessages(i) ==
     \* Create a new entry in the log that has the contentType Signature and append it
     /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
     \* If membershipState was RetirementOrdered then its now RetirementSigned
-    /\ IF membershipState[i] = RetirementOrdered THEN
-        /\ membershipState' = [membershipState EXCEPT ![i] = RetirementSigned]
+    /\ IF membershipState[i] = RetirementOrdered
+       THEN membershipState' = [membershipState EXCEPT ![i] = RetirementSigned]
        ELSE UNCHANGED membershipState
-    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, 
-        leaderVars, commitIndex>>
+    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
 
 \* CCF: Reconfiguration of servers
 \* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
@@ -805,8 +807,7 @@ CheckQuorum(i) ==
     \* Check node is a leader (and therefore has not completed retirement)
     /\ leadershipState[i] = Leader
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
-    /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, votedFor, 
-        candidateVars, leaderVars, logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars, membershipState>>
 
 ------------------------------------------------------------------------------
 \* Message handlers
@@ -937,11 +938,10 @@ ConflictAppendEntriesRequest(i, index, m) ==
                 /\ RetirementIndex(i) > Len(log'[i])
               THEN membershipState[i] = Active
               ELSE IF /\ membershipState[i] = RetirementSigned 
-                      /\ RetirementIndex(i) < MaxCommittableIndex(log'[i])
+                      /\ RetirementIndex(i) > MaxCommittableIndex(log'[i])
               THEN membershipState[i] = RetirementOrdered 
               ELSE UNCHANGED membershipState
-    /\ UNCHANGED <<removedFromConfiguration, serverVars, 
-        commitIndex, messages>>
+    /\ UNCHANGED <<removedFromConfiguration, serverVars, commitIndex, messages>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
