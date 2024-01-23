@@ -632,8 +632,7 @@ AppendEntries(i, j) ==
             \* Record the most recent index we have sent to this node.
             \* (see https://github.com/microsoft/CCF/blob/9fbde45bf5ab856ca7bcf655e8811dc7baf1e8a3/src/consensus/aft/raft.h#L935-L936)
             /\ sentIndex' = [sentIndex EXCEPT ![i][j] = @ + Len(m.entries)]
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, matchIndex, 
-        logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, matchIndex, logVars, membershipState>>
 
 \* Candidate i transitions to leader.
 BecomeLeader(i) ==
@@ -657,8 +656,7 @@ BecomeLeader(i) ==
     /\ IF membershipState = RetirementOrdered THEN
         /\ membershipState' = [membershipState EXCEPT ![i] = Active]
        ELSE UNCHANGED membershipState
-    /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor,
-         candidateVars, commitIndex>>
+    /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, commitIndex>>
 
 \* Leader i receives a client request to add 42 to the log.
 ClientRequest(i) ==
@@ -668,7 +666,7 @@ ClientRequest(i) ==
     /\ membershipState[i] # RetirementSigned
     \* Add new request to leader's log
     /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
-    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
 
 \* CCF: Signed commits
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
@@ -689,7 +687,7 @@ SignCommittableMessages(i) ==
     /\ IF membershipState[i] = RetirementOrdered
        THEN membershipState' = [membershipState EXCEPT ![i] = RetirementSigned]
        ELSE UNCHANGED membershipState
-    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
+    /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, leadershipState, votedFor, candidateVars, leaderVars, commitIndex>>
 
 \* CCF: Reconfiguration of servers
 \* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
@@ -726,7 +724,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
           /\ i \notin newConfiguration
         THEN membershipState' = [membershipState EXCEPT ![i] = RetirementOrdered]
         ELSE UNCHANGED membershipState
-    /\ UNCHANGED <<messageVars, serverVars, candidateVars, matchIndex, commitIndex>>
+    /\ UNCHANGED <<messageVars, currentTerm, leadershipState, votedFor, candidateVars, matchIndex, commitIndex>>
 
 ChangeConfiguration(i) ==
     \* Reconfigure to any *non-empty* subset of servers.  ChangeConfigurationInt checks that the new
@@ -797,7 +795,7 @@ AdvanceCommitIndex(i) ==
                         IN Send(msg)
                     /\ UNCHANGED <<currentTerm, votedFor>>
                  \* Otherwise, states remain unchanged
-                 ELSE UNCHANGED <<messages, serverVars, leadershipState>>
+                 ELSE UNCHANGED <<messages, serverVars>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, serverVars, reconfigurationVars, leadershipState>>
     /\ UNCHANGED <<candidateVars, leaderVars, log, removedFromConfiguration>>
