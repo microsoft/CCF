@@ -13,6 +13,8 @@ permissions: read-all
 jobs:
   backport:
     name: Backport PR
+    permissions:
+      pull-requests: write
     runs-on: ubuntu-latest
     if: |
       github.event.pull_request.merged == true
@@ -29,7 +31,7 @@ jobs:
 
       # This is necessary as the repository is checked out to avoid merge conflicts
       # on daily canary file
-      - name: Sets committed to GitHub Actions bot
+      - name: Sets committer to GitHub Actions bot
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
