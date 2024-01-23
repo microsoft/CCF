@@ -30,21 +30,25 @@ assert_commit_idx,1,4
 
 # Tries to sign/extend, without success
 emit_signature,3
+periodic_all,10
 dispatch_all
 dispatch_all
 assert_commit_idx,1,4
 
 emit_signature,3
+periodic_all,10
 dispatch_all
 dispatch_all
 assert_commit_idx,1,4
 
 emit_signature,3
+periodic_all,10
 dispatch_all
 dispatch_all
 assert_commit_idx,1,4
 
 emit_signature,3
+periodic_all,10
 dispatch_all
 dispatch_all
 assert_commit_idx,1,4
