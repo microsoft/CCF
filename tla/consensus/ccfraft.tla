@@ -624,9 +624,10 @@ AppendEntries(i, j) ==
        IN
        /\ \E b \in AppendEntriesBatchsize(i, j):
             LET m == msg(b) IN
-            \* The implementation does not allow a leader with their retirement signed to send heartbeats
+            \* The implementation does not allow a leader with their retirement signed to send heartbeats, see raft.h:L928
             \* TODO: how does this interact with a new leader's AE message? or a existing leader's first AE to a new node?
-            /\ \/ membershipState[i] # RetirementOrdered
+            \* The former cannot happen in the implementation as a node which is not Active cannot become leader
+            /\ \/ membershipState[i] # RetirementSigned
                \/ m.entries # <<>>
             /\ Send(m)
             \* Record the most recent index we have sent to this node.
