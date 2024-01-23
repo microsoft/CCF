@@ -9,6 +9,8 @@ on:
       - "tla/**"
   workflow_dispatch:
 
+permissions: read-all
+
 jobs:
   model-checking-consistency:
     name: Model Checking - Consistency

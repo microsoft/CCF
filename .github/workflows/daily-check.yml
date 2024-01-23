@@ -2,6 +2,8 @@ name: "Daily Build Status"
 
 on: [push, pull_request]
 
+permissions: read-all
+
 jobs:
   daily:
     name: Check Daily Build status
