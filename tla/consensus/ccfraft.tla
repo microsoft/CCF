@@ -653,9 +653,8 @@ BecomeLeader(i) ==
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
     \* If the leader was in the RetirementOrdered state, then its retirement has
     \* been rolled back as it was unsigned
-    /\ IF membershipState = RetirementOrdered THEN
-        /\ membershipState' = [membershipState EXCEPT ![i] = Active]
-       ELSE UNCHANGED membershipState
+    /\ membershipState' = [membershipState EXCEPT ![i] = 
+        IF @ = RetirementOrdered THEN Active ELSE @]
     /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, commitIndex>>
 
 \* Leader i receives a client request to add 42 to the log.
@@ -787,7 +786,7 @@ AdvanceCommitIndex(i) ==
                  THEN \E j \in PlausibleSucessorNodes(i) :
                     /\ membershipState' = [membershipState EXCEPT ![i] = RetirementCompleted]
                     \* TODO: implementation steps down to None instead of Follower
-                    /\ leadershipState' = Follower
+                    /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
                     /\ LET msg == [type          |-> ProposeVoteRequest,
                                     term          |-> currentTerm[i],
                                     source        |-> i,
@@ -976,7 +975,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         /\ IF new_retirement_index # 0
            THEN IF new_retirement_index <= commitIndex'[i] 
                 THEN membershipState' = [membershipState EXCEPT ![i] = RetirementCompleted]
-                ELSE IF new_retirement_index > MaxCommittableIndex(log'[i])
+                ELSE IF new_retirement_index < MaxCommittableIndex(log'[i])
                      THEN membershipState' = [membershipState EXCEPT ![i] = RetirementSigned]
                      ELSE membershipState' = [membershipState EXCEPT ![i] = RetirementOrdered]
            ELSE membershipState' = [membershipState EXCEPT ![i] = Active]
@@ -1049,9 +1048,8 @@ UpdateTerm(i, j, m) ==
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))]
     \* If the leader was in the RetirementOrdered state, then its retirement has
     \* been rolled back as it was unsigned
-    /\ IF membershipState = RetirementOrdered THEN
-        membershipState' = [membershipState EXCEPT ![i] = Active]
-        ELSE UNCHANGED membershipState
+    /\ membershipState' = [membershipState EXCEPT ![i] = 
+        IF @ = RetirementOrdered THEN Active ELSE @]
     \* messages is unchanged so m can be processed further.
     /\ UNCHANGED <<removedFromConfiguration, messageVars, 
         candidateVars, leaderVars, commitIndex>>
