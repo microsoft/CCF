@@ -267,6 +267,34 @@ public:
     _replicate(term, {}, lineno, false, configuration);
   }
 
+  void swap_node(
+    const std::string& term,
+    const std::string& node_out,
+    const std::string& node_in,
+    const size_t lineno)
+  {
+    add_node(node_in);
+    RAFT_DRIVER_OUT << fmt::format(
+                          "  Note over {}: Node {} created", node_in, node_in)
+                    << std::endl;
+    kv::Configuration::Nodes configuration;
+    for (const auto& [id, node] : _nodes)
+    {
+      if (id != node_out)
+      {
+        configuration.try_emplace(id);
+      }
+    }
+    for (const auto& [id, node] : _nodes)
+    {
+      if (id != node_in)
+      {
+        connect(id, node_in);
+      }
+    }
+    _replicate(term, {}, lineno, false, configuration);
+  }
+
   void replicate_new_configuration(
     const std::string& term_s,
     std::vector<std::string> node_ids,
