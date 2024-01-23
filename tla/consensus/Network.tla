@@ -101,6 +101,17 @@ LOCAL OrderDropMessages(server) ==
     \E s \in AllSubSeqs(messages[server]):
         messages' = [ messages EXCEPT ![server] = s ]
 
+\* These alternatives of OrderDropMessages may be useful for debugging
+LOCAL OrderDropOlderMessages(server) ==
+   (* Always drop older messages first, i.e., an old message has to be handled or dropped before a new message can be handled or dropped. *)
+    \E s \in Suffixes(messages[server]):
+        messages' = [ messages EXCEPT ![server] = s ]
+
+LOCAL OrderDropConsecutiveMessages(server) ==
+   (* Drop messages regardless of "time", but only ever drop consecutive messages. *)
+    \E s \in SubSeqs(messages[server]):
+        messages' = [ messages EXCEPT ![server] = s ]
+
 ----------------------------------------------------------------------------------
 \* Point-to-Point Ordering and no duplication of messages:
 
