@@ -1,5 +1,5 @@
 ---------- MODULE MCccfraft ----------
-EXTENDS ccfraft, StatsFile
+EXTENDS ccfraft, StatsFile, MCAliases
 
 CONSTANTS
     NodeOne, NodeTwo, NodeThree
