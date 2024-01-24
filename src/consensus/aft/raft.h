@@ -573,16 +573,6 @@ namespace aft
         if (index != state->last_idx + 1)
           return false;
 
-        if (retirement_committable_idx.has_value())
-        {
-          CCF_ASSERT_FMT(
-            index > retirement_committable_idx.value(),
-            "Index {} unexpectedly lower than retirement_committable_idx {}",
-            index,
-            retirement_committable_idx.value());
-          return false;
-        }
-
         RAFT_DEBUG_FMT(
           "Replicated on leader {}: {}{} ({} hooks)",
           state->node_id,
@@ -1809,7 +1799,10 @@ namespace aft
 
     void become_leader(bool force_become_leader = false)
     {
-      if (is_retired())
+      // A node may need to become leader until its retirement has been
+      // committed because the new configuration might not contain any eligible
+      // nodes until that point.
+      if (is_retired() && retirement_phase >= kv::RetirementPhase::Completed)
       {
         return;
       }
@@ -1873,7 +1866,8 @@ namespace aft
 
     bool can_endorse_primary()
     {
-      return state->membership_state != kv::MembershipState::Retired;
+      return state->membership_state != kv::MembershipState::Retired &&
+        retirement_phase < kv::RetirementPhase::Committed;
     }
 
   public:
@@ -1890,23 +1884,20 @@ namespace aft
       // receiving a conflicting AppendEntries
       rollback(last_committable_index());
 
-      if (can_endorse_primary())
-      {
-        state->leadership_state = kv::LeadershipState::Follower;
-        RAFT_INFO_FMT(
-          "Becoming follower {}: {}.{}",
-          state->node_id,
-          state->current_view,
-          state->commit_idx);
+      state->leadership_state = kv::LeadershipState::Follower;
+      RAFT_INFO_FMT(
+        "Becoming follower {}: {}.{}",
+        state->node_id,
+        state->current_view,
+        state->commit_idx);
 
 #ifdef CCF_RAFT_TRACING
-        nlohmann::json j = {};
-        j["function"] = "become_follower";
-        j["state"] = *state;
-        j["configurations"] = configurations;
-        RAFT_TRACE_JSON_OUT(j);
+      nlohmann::json j = {};
+      j["function"] = "become_follower";
+      j["state"] = *state;
+      j["configurations"] = configurations;
+      RAFT_TRACE_JSON_OUT(j);
 #endif
-      }
     }
 
     // Called when a replica becomes aware of the existence of a new term

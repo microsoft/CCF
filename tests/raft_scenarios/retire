@@ -28,27 +28,12 @@ dispatch_all
 dispatch_all
 assert_commit_idx,1,4
 
-# Tries to sign/extend, without success
+# Signs to extend, observes retirement committed
 emit_signature,3
 periodic_all,10
 dispatch_all
-dispatch_all
-assert_commit_idx,1,4
-
-emit_signature,3
-periodic_all,10
-dispatch_all
-dispatch_all
-assert_commit_idx,1,4
-
-emit_signature,3
-periodic_all,10
-dispatch_all
-dispatch_all
-assert_commit_idx,1,4
-
-emit_signature,3
-periodic_all,10
-dispatch_all
-dispatch_all
-assert_commit_idx,1,4
+assert_commit_idx,1,7
+assert_is_retired,0
+assert_is_primary,1
+assert_is_backup,0
+assert_is_backup,2

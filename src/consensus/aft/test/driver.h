@@ -807,7 +807,8 @@ public:
              "  Note over {}: Node is not in expected state: backup", node_id)
         << std::endl;
       throw std::runtime_error(fmt::format(
-        "Node not in expected state backup on line {}",
+        "Node {} not in expected state backup on line {}",
+        node_id,
         std::to_string((int)lineno)));
     }
   }
