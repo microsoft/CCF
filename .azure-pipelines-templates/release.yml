@@ -20,6 +20,7 @@ jobs:
       - script: |
           set -ex
           cd $(Build.ArtifactStagingDirectory)
+          ls
           rename.ul + _ *+*.deb || true
           ls
         displayName: Remove characters that break GitHubRelease
