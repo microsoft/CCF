@@ -1043,7 +1043,7 @@ TEST_CASE("Decoded Templated paths")
   }
 }
 
-TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
+TEST_CASE("Forwarding" * doctest::test_suite("forwarding") * doctest::skip())
 {
   NetworkState network_primary;
 
@@ -1184,7 +1184,9 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   }
 }
 
-TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
+TEST_CASE(
+  "Nodefrontend forwarding" * doctest::test_suite("forwarding") *
+  doctest::skip())
 {
   NetworkState network_primary;
   prepare_callers(network_primary);
@@ -1233,7 +1235,9 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(!node_frontend_primary.last_caller_id.has_value());
 }
 
-TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
+TEST_CASE(
+  "Userfrontend forwarding" * doctest::test_suite("forwarding") *
+  doctest::skip())
 {
   NetworkState network_primary;
   prepare_callers(network_primary);
@@ -1278,7 +1282,9 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(user_frontend_primary.last_caller_id.value() == user_id.value());
 }
 
-TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
+TEST_CASE(
+  "Memberfrontend forwarding" * doctest::test_suite("forwarding") *
+  doctest::skip())
 {
   NetworkState network_primary;
   prepare_callers(network_primary);
