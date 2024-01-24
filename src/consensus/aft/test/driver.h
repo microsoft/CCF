@@ -193,9 +193,10 @@ private:
 public:
   RaftDriver() = default;
 
+  // Note: deprecated, to be removed when the last scenario using it is removed
   void create_new_nodes(std::vector<std::string> node_ids)
   {
-    // Opinionated way to create network. Initial configuration is automatically
+    // Unrealistic way to create network. Initial configuration is automatically
     // added to all nodes.
     kv::Configuration::Nodes configuration;
     for (auto const& n : node_ids)
@@ -210,6 +211,7 @@ public:
     }
   }
 
+  // Note: deprecated, to be removed when the last scenario using it is removed
   void create_new_node(std::string node_id_s)
   {
     ccf::NodeId node_id(node_id_s);
@@ -219,6 +221,7 @@ public:
                     << std::endl;
   }
 
+  // Note: deprecated, to be removed when the last scenario using it is removed
   void create_start_node(const std::string& start_node_id, const size_t lineno)
   {
     if (!_nodes.empty())
@@ -246,7 +249,7 @@ public:
     {
       add_node(node_id);
       RAFT_DRIVER_OUT << fmt::format(
-                           "  Note over {}: Node {} created", node_id, node_id)
+                           "  Note over {}: Node {} trusted", node_id, node_id)
                       << std::endl;
     }
     kv::Configuration::Nodes configuration;
@@ -275,7 +278,10 @@ public:
   {
     add_node(node_in);
     RAFT_DRIVER_OUT << fmt::format(
-                          "  Note over {}: Node {} created", node_in, node_in)
+                         "  Note over {}: Node {} trusted", node_in, node_in)
+                    << std::endl;
+    RAFT_DRIVER_OUT << fmt::format(
+                         "  Note over {}: Node {} retired", node_out, node_out)
                     << std::endl;
     kv::Configuration::Nodes configuration;
     for (const auto& [id, node] : _nodes)
@@ -295,6 +301,7 @@ public:
     _replicate(term, {}, lineno, false, configuration);
   }
 
+  // Note: deprecated, to be removed when the last scenario using it is removed
   void replicate_new_configuration(
     const std::string& term_s,
     std::vector<std::string> node_ids,
