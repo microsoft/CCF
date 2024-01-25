@@ -1,7 +1,7 @@
 trigger:
   tags:
     include:
-    - ccf-5.*
+      - ccf-5.*
 
 resources:
   containers:
