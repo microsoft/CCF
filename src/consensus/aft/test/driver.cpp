@@ -80,11 +80,13 @@ int main(int argc, char** argv)
       // Terminate early if four or more '=' appear on a line.
       return 0;
     }
+#ifdef CCF_RAFT_TRACING
     if (!line.empty())
     {
       std::cout << "{\"tag\": \"raft_trace\", \"cmd\": \"" << line << "\"}"
                 << std::endl;
     }
+#endif
     switch (shash(in))
     {
       case shash("start_node"):
