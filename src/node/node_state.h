@@ -2160,7 +2160,7 @@ namespace ccf
               {
                 if (node_info->retired_committed)
                 {
-                  consensus->set_retired_committed();
+                  consensus->set_retired_committed(hook_version);
                 }
                 return;
               }

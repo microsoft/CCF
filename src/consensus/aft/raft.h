@@ -161,6 +161,9 @@ namespace aft
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
     // Earliest index at which this node's retirement can be committed
     std::optional<ccf::SeqNo> retirement_committable_idx = std::nullopt;
+    // Index at which this node observes its retired_committed, only set when
+    // that index itself is committed
+    std::optional<ccf::SeqNo> retired_committed_idx = std::nullopt;
 
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
@@ -297,9 +300,16 @@ namespace aft
       return state->membership_state == kv::MembershipState::Retired;
     }
 
-    void set_retired_committed() override
+    void set_retired_committed(ccf::SeqNo seqno) override
     {
       retirement_phase = kv::RetirementPhase::RetiredCommitted;
+      CCF_ASSERT_FMT(
+        retired_committed_idx == state->commit_idx,
+        "Retired "
+        "committed index {} does not match current commit index {}",
+        retired_committed_idx.value_or(0),
+        state->commit_idx);
+      retired_committed_idx = seqno;
     }
 
     Index last_committable_index() const
