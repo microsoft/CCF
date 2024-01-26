@@ -1934,11 +1934,7 @@ namespace aft
         state->current_view,
         idx);
 
-      if (phase == kv::RetirementPhase::Committed)
-      {
-        assert(retirement_phase == std::nullopt);
-      }
-      else if (phase == kv::RetirementPhase::Ordered)
+      if (phase == kv::RetirementPhase::Ordered)
       {
         CCF_ASSERT_FMT(
           !retirement_idx.has_value(),
