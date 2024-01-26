@@ -1,30 +1,7 @@
 trigger:
-  batch: true
-  branches:
+  tags:
     include:
-      - main
-      - "refs/tags/ccf-*"
-
-pr:
-  autoCancel: true
-  branches:
-    include:
-      - main
-      - "release/*"
-  paths:
-    include:
-      - "*"
-
-schedules:
-  - cron: "0 3 * * Mon-Fri"
-    displayName: Daily morning build
-    branches:
-      include:
-        - main
-        - "release/*"
-      exclude:
-        - "release/[0-2].x"
-    always: true
+      - ccf-5.*
 
 resources:
   containers:
