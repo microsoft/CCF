@@ -476,7 +476,7 @@ namespace kv
 
     virtual void enable_all_domains() {}
 
-    virtual void set_retired_committed() {};
+    virtual void set_retired_committed(){};
   };
 
   struct PendingTxInfo
