@@ -723,7 +723,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         addedNodes == newConfiguration \ CurrentConfiguration(i)
         newSentIndex == [ k \in Servers |-> IF k \in addedNodes THEN Len(log[i]) ELSE sentIndex[i][k]]
        IN sentIndex' = [sentIndex EXCEPT ![i] = newSentIndex]
-    /\ removedFromConfiguration' = removedFromConfiguration \cup (CurrentConfiguration(i) \ newConfiguration)
+    /\ removedFromConfiguration' = removedFromConfiguration \cup (MaxConfiguration(i) \ newConfiguration)
     /\ log' = [log EXCEPT ![i] = Append(log[i], 
                                             [term |-> currentTerm[i],
                                              configuration |-> newConfiguration,
