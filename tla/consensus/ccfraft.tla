@@ -1035,7 +1035,7 @@ HandleAppendEntriesResponse(i, j, m) ==
 \* Any message with a newer term causes the recipient to advance its term first.
 \* Note that UpdateTerm does not discard message m from the set of messages so this 
 \* message can be parsed again by the receiver. Note that all other message parsing actions should
-\* check that m.term = currentTerm[i] to ensure that this action is not skipped.
+\* check that m.term = currentTerm[i] to ensure that this action is the only one ENABLED.
 \* Analogous to raft.h::become_aware_of_new_term
 UpdateTerm(i, j, m) ==
     /\ m.term > currentTerm[i]
