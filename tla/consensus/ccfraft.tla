@@ -1461,7 +1461,7 @@ MembershipStateTransitionsProp ==
         membershipState[i] = RetirementCompleted 
         => membershipState[i]' = RetirementCompleted]_vars
         \* Note that all other transitions between retirement phases are permitted
-        \* For instance, a node could go from NotRetiring to RetirementCompleted in one step if it 
+        \* For instance, a node could go from Active to RetirementCompleted in one step if it 
         \* receives an append entries with its retirement signed and committed
 
 PendingBecomesFollowerProp ==
