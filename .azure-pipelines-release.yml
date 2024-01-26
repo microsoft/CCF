@@ -3,6 +3,8 @@ trigger:
     include:
       - ccf-5.*
 
+pr: none
+
 resources:
   containers:
     - container: virtual
