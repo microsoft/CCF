@@ -2144,6 +2144,29 @@ namespace ccf
             return;
           }));
 
+      network.tables->set_global_hook(
+        network.nodes.get_name(),
+        network.nodes.wrap_commit_hook(
+          [this](kv::Version hook_version, const Nodes::Write& w) {
+            for (const auto& [node_id, node_info] : w)
+            {
+              if (node_id != self)
+              {
+                // Only update our own state
+                continue;
+              }
+
+              if (node_info.has_value())
+              {
+                if (node_info->retired_committed)
+                {
+                  // set consensus to finalised state
+                }
+                return;
+              }
+            }
+          }));
+
       // Service-endorsed certificate is passed to history as early as _local_
       // commit since a new node may become primary (and thus, e.g. generate
       // signatures) before the transaction that added it is _globally_
