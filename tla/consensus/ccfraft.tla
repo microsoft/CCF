@@ -486,6 +486,16 @@ RetirementIndexLog(node_log, i) ==
 RetirementIndex(i) ==
     RetirementIndexLog(log[i], i)
 
+\* Returns the membership state of a node i given its log and commit index
+CalcMembershipState(log_i, commit_index_i, i) ==
+    LET retirement_index == RetirementIndexLog(log_i,i)
+    IN IF retirement_index # 0
+       THEN IF retirement_index <= commit_index_i 
+            THEN RetirementCompleted
+            ELSE IF retirement_index < MaxCommittableIndex(log_i)
+                 THEN RetirementSigned
+                 ELSE RetirementOrdered
+       ELSE Active
 
 AppendEntriesBatchsize(i, j) ==
     \* The Leader is modeled to send zero to one entries per AppendEntriesRequest.
@@ -931,14 +941,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
        IN /\ log' = [log EXCEPT ![i] = new_log]
           \* Potentially also shorten the configurations if the removed txns contained reconfigurations
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
-          \* Potentially rollback retirement phase
-          /\ IF /\ membershipState[i] \in {RetirementOrdered, RetirementSigned}
-                /\ RetirementIndex(i) > Len(log'[i])
-              THEN membershipState[i] = Active
-              ELSE IF /\ membershipState[i] = RetirementSigned 
-                      /\ RetirementIndex(i) > MaxCommittableIndex(log'[i])
-              THEN membershipState[i] = RetirementOrdered 
-              ELSE UNCHANGED membershipState
+          /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex'[i], i)]
     /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, commitIndex, messages>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
@@ -972,14 +975,8 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
            THEN leadershipState' = [leadershipState EXCEPT ![i] = Follower ]
            ELSE UNCHANGED leadershipState
-        \* Recalculate retirement state based on log' and commitIndex'
-        /\ IF new_retirement_index # 0
-           THEN IF new_retirement_index <= commitIndex'[i] 
-                THEN membershipState' = [membershipState EXCEPT ![i] = RetirementCompleted]
-                ELSE IF new_retirement_index < MaxCommittableIndex(log'[i])
-                     THEN membershipState' = [membershipState EXCEPT ![i] = RetirementSigned]
-                     ELSE membershipState' = [membershipState EXCEPT ![i] = RetirementOrdered]
-           ELSE membershipState' = [membershipState EXCEPT ![i] = Active]
+          \* Recalculate membership state based on log' and commitIndex'
+          /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex'[i], i)]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
