@@ -34,7 +34,7 @@ CONSTANT
 \* Leadership states
 CONSTANTS
     \* See original Raft paper (https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf)
-    \* and comments for leadership_state in../src/consensus/aft/raft.h for details on the Follower,
+    \* and comments for leadership_state in ../src/consensus/aft/raft.h for details on the Follower,
     \* Candidate, and Leader states.
     Follower,
     Candidate,
@@ -43,11 +43,6 @@ CONSTANTS
     \* from another node.
     None
 
-\* Membership states
-CONSTANTS
-    Active,
-    Retired
-
 LeadershipStates == {
     Follower,
     Candidate,
@@ -55,9 +50,32 @@ LeadershipStates == {
     None
     }
 
+\* Membership states, defined in ../src/kv/kv_types.h
+\* In this specification, the membership state of Retired also describes the
+\* retirement phase (also defined in ../src/kv/kv_types.h) to avoid the need for an additional variable
+CONSTANTS
+    \* Node is not in the process of leaving the CCF service.
+    Active,
+    \* Node has added its own retirement to its log, but it is not yet committed or even signed
+    \* The node can still revert to Active upon rollback
+    \* RetirementOrdered does not change the behavior of the node
+    RetirementOrdered,
+    \* Node has added its own retirement to its log and it has been signed but it is not yet committed
+    \* The node can still revert to RetirementOrdered or Active upon rollback
+    \* If the node is a leader, it will stop accepting new client requests
+    RetirementSigned,
+    \* Node retirement has been committed and it is no longer part of the network
+    \* If this node was a leader, it will step down. It will not run for election again.
+    \* This node will continue to respond to AppendEntries and RequestVote messages
+    \* Note that this spec does not model when nodes can be safely removed
+    \* RetirementCompleted is a terminal state
+    RetirementCompleted
+
 MembershipStates == {
     Active,
-    Retired
+    RetirementOrdered,
+    RetirementSigned,
+    RetirementCompleted
     }
 
 \* Message types:
@@ -269,7 +287,7 @@ CandidateVarsTypeInv ==
 
 \* The last entry sent to each follower.
 \* sentIndex in CCF is similar in function to nextIndex in Raft
-\* In CCF, the leader updates nextIndex optimically when an AE message is dispatched
+\* In CCF, the leader updates nextIndex optimistically when an AE message is dispatched
 \* In contrast, in Raft the leader only updates nextIndex when an AE response is received
 VARIABLE sentIndex
 
@@ -442,6 +460,43 @@ CommittedTermPrefix(i, x) ==
     \* Otherwise the prefix is the empty tuple
     ELSE << >>
 
+\* RetirementIndexLog is the index at which node i is first removed from node_log, 0 otherwise
+RetirementIndexLog(node_log, i) ==
+    LET 
+        inIndexes == {index \in DOMAIN node_log: 
+            /\ node_log[index].contentType = TypeReconfiguration
+            /\ i \in node_log[index].configuration}
+        outIndexes == {index \in DOMAIN node_log: 
+            /\ node_log[index].contentType = TypeReconfiguration
+            /\ i \notin node_log[index].configuration}
+    IN IF 
+        \* At least one configuration with node i
+        inIndexes # {}
+    THEN 
+        LET retiredIndexes == {k \in outIndexes: k > Max(inIndexes)}
+        IN IF retiredIndexes = {} 
+        THEN 0 
+        ELSE Min(retiredIndexes)
+    ELSE 0
+
+\* RetirementIndex is the index at which node i is first removed from the 
+\* configuration according to the log of node i. 0 iff the node i has not been removed (or even added)
+\* Note that is spec does not explicitly track retirement_idx like raft.h, instead it calculates it as needed
+\* The same is true of retirement_committable_idx
+RetirementIndex(i) ==
+    RetirementIndexLog(log[i], i)
+
+\* Returns the membership state of a node i given its log and commit index
+CalcMembershipState(log_i, commit_index_i, i) ==
+    LET retirement_index == RetirementIndexLog(log_i,i)
+    IN IF retirement_index # 0
+       THEN IF retirement_index <= commit_index_i 
+            THEN RetirementCompleted
+            ELSE IF retirement_index < MaxCommittableIndex(log_i)
+                 THEN RetirementSigned
+                 ELSE RetirementOrdered
+       ELSE Active
+
 AppendEntriesBatchsize(i, j) ==
     \* The Leader is modeled to send zero to one entries per AppendEntriesRequest.
      \* This can be redefined to send bigger batches of entries.
@@ -511,6 +566,8 @@ Init ==
 
 \* Server i times out and starts a new election.
 Timeout(i) ==
+    \* Only servers that haven't completed retirement can become candidates
+    /\ membershipState[i] # RetirementCompleted
     \* Only servers that are followers/candidates can become candidates
     /\ leadershipState[i] \in {Follower, Candidate}
     \* Check that the reconfiguration which added this node is at least committable
@@ -538,7 +595,7 @@ RequestVote(i,j) ==
     IN
     \* Timeout votes for itself atomically. Thus we do not need to request our own vote.
     /\ i /= j
-    \* Only requests vote if we are candidate
+    \* Only requests vote if we are already a candidate (and therefore have not completed retirement)
     /\ leadershipState[i] = Candidate
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
@@ -547,8 +604,9 @@ RequestVote(i,j) ==
 
 \* Leader i sends j an AppendEntries request
 AppendEntries(i, j) ==
-    \* No messages to itself and sender is primary
+    \* Sender is primary (and therefore has not completed retirement)
     /\ leadershipState[i] = Leader
+    \* No messages to itself 
     /\ i /= j
     /\ j \in GetServerSet(i)
     \* AppendEntries must be sent for historical entries, unless
@@ -576,6 +634,11 @@ AppendEntries(i, j) ==
        IN
        /\ \E b \in AppendEntriesBatchsize(i, j):
             LET m == msg(b) IN
+            \* The implementation does not allow a leader with their retirement signed to send heartbeats, see raft.h:L928
+            \* TODO: how does this interact with a new leader's AE message? or a existing leader's first AE to a new node?
+            \* The former cannot happen in the implementation as a node which is not Active cannot become leader
+            /\ \/ membershipState[i] # RetirementSigned
+               \/ m.entries # <<>>
             /\ Send(m)
             \* Record the most recent index we have sent to this node.
             \* (see https://github.com/microsoft/CCF/blob/9fbde45bf5ab856ca7bcf655e8811dc7baf1e8a3/src/consensus/aft/raft.h#L935-L936)
@@ -584,6 +647,7 @@ AppendEntries(i, j) ==
 
 \* Candidate i transitions to leader.
 BecomeLeader(i) ==
+    \* Node should already be a candidate (and therefore hasn't completed retirement)
     /\ leadershipState[i] = Candidate
     \* To become leader, the candidate must have received votes from a majority in each active configuration
     \* Only votes by nodes part of a given configuration should be tallied against it
@@ -598,15 +662,21 @@ BecomeLeader(i) ==
     /\ matchIndex' = [matchIndex EXCEPT ![i] = [j \in Servers |-> 0]]
     \* Shorten the configurations if the removed txs contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i, Len(log'[i]))]
-    /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor,
-        candidateVars, commitIndex, membershipState>>
+    \* If the leader was in the RetirementOrdered state, then its retirement has
+    \* been rolled back as it was unsigned
+    /\ membershipState' = [membershipState EXCEPT ![i] = 
+        IF @ = RetirementOrdered THEN Active ELSE @]
+    /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, commitIndex>>
 
-\* Leader i receives a client request to add v to the log.
+\* Leader i receives a client request to add 42 to the log.
 ClientRequest(i) ==
-    \* Only leaders receive client requests
+    \* Only leaders receive client requests (and therefore they have not yet completed retirement)
     /\ leadershipState[i] = Leader
+    \* ... and the leader should not have its retirement signed
+    /\ membershipState[i] # RetirementSigned
+    \* Add new request to leader's log
     /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
-    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
 
 \* CCF: Signed commits
 \* In CCF, the leader periodically signs the latest log prefix. Only these signatures are committable in CCF.
@@ -623,7 +693,11 @@ SignCommittableMessages(i) ==
     /\ log[i] # << >>
     \* Create a new entry in the log that has the contentType Signature and append it
     /\ log' = [log EXCEPT ![i] = @ \o <<[term  |-> currentTerm[i], contentType  |-> TypeSignature]>>]
-    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex, membershipState>>
+    \* If membershipState was RetirementOrdered then its now RetirementSigned
+    /\ IF membershipState[i] = RetirementOrdered
+       THEN membershipState' = [membershipState EXCEPT ![i] = RetirementSigned]
+       ELSE UNCHANGED membershipState
+    /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, leadershipState, votedFor, candidateVars, leaderVars, commitIndex>>
 
 \* CCF: Reconfiguration of servers
 \* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
@@ -655,7 +729,12 @@ ChangeConfigurationInt(i, newConfiguration) ==
                                              configuration |-> newConfiguration,
                                              contentType |-> TypeReconfiguration])]
     /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
-    /\ UNCHANGED <<messageVars, serverVars, candidateVars, matchIndex, commitIndex, membershipState>>
+    \* Check if node is starting its own retirement
+    /\ IF /\ membershipState[i] = Active
+          /\ i \notin newConfiguration
+        THEN membershipState' = [membershipState EXCEPT ![i] = RetirementOrdered]
+        ELSE UNCHANGED membershipState
+    /\ UNCHANGED <<messageVars, currentTerm, leadershipState, votedFor, candidateVars, matchIndex, commitIndex>>
 
 ChangeConfiguration(i) ==
     \* Reconfigure to any *non-empty* subset of servers.  ChangeConfigurationInt checks that the new
@@ -716,21 +795,24 @@ AdvanceCommitIndex(i) ==
               \* Retire if i is not in active configuration anymore
               /\ IF i \notin configurations[i][Min(DOMAIN configurations'[i])]
                  THEN \E j \in PlausibleSucessorNodes(i) :
-                    /\ membershipState' = [membershipState EXCEPT ![i] = Retired]
+                    /\ membershipState' = [membershipState EXCEPT ![i] = RetirementCompleted]
+                    \* TODO: implementation steps down to None instead of Follower
+                    /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
                     /\ LET msg == [type          |-> ProposeVoteRequest,
                                     term          |-> currentTerm[i],
                                     source        |-> i,
                                     dest          |-> j ]
                         IN Send(msg)
-                    /\ UNCHANGED << currentTerm, votedFor, removedFromConfiguration >>
+                    /\ UNCHANGED <<currentTerm, votedFor>>
                  \* Otherwise, states remain unchanged
-                 ELSE UNCHANGED <<messages, serverVars, removedFromConfiguration>>
+                 ELSE UNCHANGED <<messages, serverVars>>
            \* Otherwise, Configuration and states remain unchanged
-           ELSE UNCHANGED <<messages, serverVars, reconfigurationVars>>
-    /\ UNCHANGED <<candidateVars, leaderVars, log, leadershipState>>
+           ELSE UNCHANGED <<messages, serverVars, reconfigurationVars, leadershipState>>
+    /\ UNCHANGED <<candidateVars, leaderVars, log, removedFromConfiguration>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
+    \* Check node is a leader (and therefore has not completed retirement)
     /\ leadershipState[i] = Leader
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars, membershipState>>
@@ -741,6 +823,7 @@ CheckQuorum(i) ==
 
 \* Server i receives a RequestVote request from server j with
 \* m.term <= currentTerm[i].
+\* Note that nodes can reply to RequestVotes even if they have completed retirement
 HandleRequestVoteRequest(i, j, m) ==
     LET logOk == \/ m.lastCommittableTerm > MaxCommittableTerm(log[i])
                  \/ /\ m.lastCommittableTerm = MaxCommittableTerm(log[i])
@@ -759,20 +842,23 @@ HandleRequestVoteRequest(i, j, m) ==
                  source      |-> i,
                  dest        |-> j],
                  m)
-       /\ UNCHANGED <<reconfigurationVars, leadershipState, currentTerm, candidateVars, leaderVars, logVars, membershipState>>
+       /\ UNCHANGED <<reconfigurationVars, leadershipState, currentTerm, 
+        candidateVars, leaderVars, logVars, membershipState>>
 
 \* Server i receives a RequestVote response from server j with
 \* m.term = currentTerm[i].
 HandleRequestVoteResponse(i, j, m) ==
     /\ m.term = currentTerm[i]
-    /\ leadershipState[i] = Candidate \* Only Candidates need to tally votes
+    \* Only Candidates need to tally votes
+    /\ leadershipState[i] = Candidate
     /\ \/ /\ m.voteGranted
           /\ votesGranted' = [votesGranted EXCEPT ![i] =
                                   votesGranted[i] \cup {j}]
        \/ /\ ~m.voteGranted
           /\ UNCHANGED votesGranted
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, votedFor, leaderVars, logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, votedFor, leaderVars, 
+        logVars, membershipState>>
 
 \* Server i receives a RequestVote request from server j with
 \* m.term < currentTerm[i].
@@ -817,7 +903,8 @@ ReturnToFollowerState(i, m) ==
     /\ m.term = currentTerm[i]
     /\ leadershipState[i] = Candidate
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
-    /\ UNCHANGED <<reconfigurationVars, currentTerm, votedFor, logVars, messages, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, currentTerm, votedFor, logVars, 
+        messages, membershipState>>
 
 AppendEntriesAlreadyDone(i, j, index, m) ==
     /\ \/ m.entries = << >>
@@ -831,6 +918,12 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
        IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
           \* Pop any newly committed reconfigurations, except the most recent
           /\ configurations' = [configurations EXCEPT ![i] = RestrictDomain(@, LAMBDA c : c >= newConfigurationIndex)]
+          \* Check if updating the commit index completes a pending retirement
+          \* Note the node is already a follower so leadershipState remains unchanged
+          /\ membershipState' = [membershipState EXCEPT ![i] = 
+                IF membershipState = RetirementSigned /\ commitIndex' > RetirementIndex(i) 
+                THEN RetirementCompleted 
+                ELSE @]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -838,7 +931,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, serverVars, log, membershipState>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, log>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.entries /= << >>
@@ -848,7 +941,8 @@ ConflictAppendEntriesRequest(i, index, m) ==
        IN /\ log' = [log EXCEPT ![i] = new_log]
           \* Potentially also shorten the configurations if the removed txns contained reconfigurations
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
-    /\ UNCHANGED <<removedFromConfiguration, serverVars, commitIndex, messages, membershipState>>
+          /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex[i], i)]
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, commitIndex, messages>>
 
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
@@ -871,6 +965,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         new_commmitted_configs == {c \in DOMAIN new_configs : c <= new_commit_index}
         new_conf_index == IF new_commmitted_configs = {} THEN 0 ELSE
             Max(new_commmitted_configs)
+        new_retirement_index == RetirementIndexLog(log'[i],i)
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         /\ configurations' = 
@@ -880,6 +975,8 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
            THEN leadershipState' = [leadershipState EXCEPT ![i] = Follower ]
            ELSE UNCHANGED leadershipState
+          \* Recalculate membership state based on log' and commitIndex'
+          /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex'[i], i)]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -887,7 +984,8 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, votedFor, membershipState>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, 
+        votedFor>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -929,9 +1027,13 @@ HandleAppendEntriesResponse(i, j, m) ==
            \* "If AppendEntries fails because of log inconsistency: decrement nextIndex (aka sentIndex +1) and retry"
           /\ UNCHANGED matchIndex
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, logVars>>
 
-\* Any RPC with a newer term causes the recipient to advance its term first.
+\* Any message with a newer term causes the recipient to advance its term first.
+\* Note that UpdateTerm does not discard message m from the set of messages so this 
+\* message can be parsed again by the receiver. Note that all other message parsing actions should
+\* check that m.term = currentTerm[i] to ensure that this action is the only one ENABLED.
+\* Analogous to raft.h::become_aware_of_new_term
 UpdateTerm(i, j, m) ==
     /\ m.term > currentTerm[i]
     /\ currentTerm'    = [currentTerm EXCEPT ![i] = m.term]
@@ -942,14 +1044,20 @@ UpdateTerm(i, j, m) ==
     /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(i))]
     \* Potentially also shorten the configurations if the removed txns contained reconfigurations
     /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))]
+    \* If the leader was in the RetirementOrdered state, then its retirement has
+    \* been rolled back as it was unsigned
+    /\ membershipState' = [membershipState EXCEPT ![i] = 
+        IF @ = RetirementOrdered THEN Active ELSE @]
     \* messages is unchanged so m can be processed further.
-    /\ UNCHANGED <<removedFromConfiguration, messageVars, candidateVars, leaderVars, commitIndex, membershipState>>
+    /\ UNCHANGED <<removedFromConfiguration, messageVars, 
+        candidateVars, leaderVars, commitIndex>>
 
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
     /\ m.term < currentTerm[i]
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars,
+        logVars, membershipState>>
 
 DropResponseWhenNotInState(i, j, m) ==
     \/ /\ m.type = AppendEntriesResponse
@@ -957,7 +1065,7 @@ DropResponseWhenNotInState(i, j, m) ==
     \/ /\ m.type = RequestVoteResponse
        /\ leadershipState[i] \in LeadershipStates \ { Candidate }
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 \* Drop messages if they are irrelevant to the node
 DropIgnoredMessage(i,j,m) ==
@@ -971,11 +1079,15 @@ DropIgnoredMessage(i,j,m) ==
        \/ /\ leadershipState[i] /= None
         \* .. and it comes from a server outside of the configuration
           /\ \lnot IsInServerSet(j, i)
-       \*  OR if recipient is Retired and this is not a request to vote
-       \/ /\ membershipState[i] = Retired
-          /\ m.type /= RequestVoteRequest
+       \*  OR if recipient has completed retirement and this is not a request to vote or append entries request
+       \* This spec requires that a retired node still helps with voting and appending entries to ensure 
+       \* the next configurations learns that its retirement has been committed.
+       \* TODO: the spec diverges from implementation here, in the implementation is seems that a 
+       \* node stops helping with append entries (sends NACKs) if they pass its retirement_committable_idx
+       \/ /\ membershipState[i] = RetirementCompleted
+          /\ m.type \notin {RequestVoteRequest, AppendEntriesRequest}
     /\ Discard(m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 \* Retired leaders send notify commit messages to update all nodes about the commit level
 UpdateCommitIndex(i,j,m) ==
@@ -987,7 +1099,7 @@ UpdateCommitIndex(i,j,m) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = m.commitIndex]
         /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
     /\ UNCHANGED <<messages, currentTerm,
-                   votedFor, candidateVars, leaderVars, log, membershipState>>
+        votedFor, candidateVars, leaderVars, log, membershipState>>
 
 \* Receive a message.
 
@@ -1249,6 +1361,24 @@ LogConfigurationConsistentInv ==
                     log[i][idx].contentType = TypeReconfiguration 
                     => configurations[i][idx] = log[i][idx].configuration
 
+\* Check each node's retirement phase is consistent with its local state
+MembershipStateConsistentInv ==
+    \A i \in Servers :
+        \/ /\ membershipState[i] = Active 
+           /\ RetirementIndex(i) = 0
+        \* RetirementOrdered - node's retirement in its log
+        \/ /\ membershipState[i] = RetirementOrdered 
+           /\ RetirementIndex(i) # 0
+        \* RetirementSigned - node' retirement is signed 
+        \/ /\ membershipState[i] = RetirementSigned
+           /\ RetirementIndex(i) # 0
+           /\ RetirementIndex(i) <= MaxCommittableIndex(log[i])
+        \* RetirementCompleted - node's retired is committed
+        \/ /\ membershipState[i] = RetirementCompleted
+           /\ RetirementIndex(i) # 0
+           /\ RetirementIndex(i) <= commitIndex[i]
+           /\ leadershipState[i] \notin {Candidate, Leader}
+
 NoLeaderBeforeInitialTerm ==
     \A i \in Servers :
         currentTerm[i] < StartTerm => leadershipState[i] # Leader
@@ -1322,6 +1452,15 @@ StateTransitionsProp ==
         /\ leadershipState[i] = Leader => leadershipState[i]' \in {Follower, Leader}
         ]_vars
 
+MembershipStateTransitionsProp ==
+    [][\A i \in Servers :
+        \* RetirementCompleted is the terminal state
+        membershipState[i] = RetirementCompleted 
+        => membershipState[i]' = RetirementCompleted]_vars
+        \* Note that all other transitions between retirement phases are permitted
+        \* For instance, a node could go from Active to RetirementCompleted in one step if it 
+        \* receives an append entries with its retirement signed and committed
+
 PendingBecomesFollowerProp ==
     \* A pending node that becomes aware it is part of a configuration immediately transitions to Follower.
     [][\A s \in { s \in Servers : leadershipState[s] = None } : 
@@ -1371,7 +1510,7 @@ DebugInvAllMessagesProcessable ==
 \* The Retirement state is reached by nodes that are removed from the configuration.
 \* It should be reachable if any node is removed.
 DebugInvRetirementReachable ==
-    \A i \in Servers : membershipState[i] /= Retired
+    \A i \in Servers : membershipState[i] /= RetirementCompleted
 
 \* The Leader may send any number of entries per AppendEntriesRequest.  This spec assumes that
  \* the Leader only sends zero or one entries.
