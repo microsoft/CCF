@@ -297,6 +297,11 @@ namespace aft
       return state->membership_state == kv::MembershipState::Retired;
     }
 
+    void set_retired_committed() override
+    {
+      retirement_phase = kv::RetirementPhase::RetiredCommitted;
+    }
+
     Index last_committable_index() const
     {
       return state->committable_indices.empty() ?

@@ -163,14 +163,16 @@ namespace kv
   {
     Ordered = 1,
     Signed = 2,
-    Completed = 3
+    Completed = 3,
+    RetiredCommitted = 4,
   };
 
   DECLARE_JSON_ENUM(
     RetirementPhase,
     {{RetirementPhase::Ordered, "Ordered"},
      {RetirementPhase::Signed, "Signed"},
-     {RetirementPhase::Completed, "Completed"}});
+     {RetirementPhase::Completed, "Completed"},
+     {RetirementPhase::RetiredCommitted, "RetiredCommitted"}});
 
   DECLARE_JSON_TYPE(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration, idx, nodes, rid);
@@ -473,6 +475,8 @@ namespace kv
     virtual void periodic_end() {}
 
     virtual void enable_all_domains() {}
+
+    virtual void set_retired_committed() {};
   };
 
   struct PendingTxInfo
