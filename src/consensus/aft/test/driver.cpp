@@ -80,6 +80,11 @@ int main(int argc, char** argv)
       // Terminate early if four or more '=' appear on a line.
       return 0;
     }
+    if (!line.empty())
+    {
+      std::cout << "{\"tag\": \"raft_trace\", \"cmd\": \"" << line << "\"}"
+                << std::endl;
+    }
     switch (shash(in))
     {
       case shash("start_node"):

@@ -114,6 +114,7 @@ def table(lines):
         rows.append(
             f"[{entry['h_ts']:>{dcfg.ts}}] "
             + "     ".join(render_state(*state, dcfg) for state in states)
+            + (f"    {entry['cmd']}" if entry.get("cmd") else "")
         )
     return rows
 
