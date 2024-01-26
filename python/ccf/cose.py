@@ -274,9 +274,9 @@ def sign_cli():
             args.ccf_gov_msg_proposal_id is not None
         ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
 
-    with open(
-        args.content, "rb"
-    ) if args.content != "-" else sys.stdin.buffer as content_:
+    with (
+        open(args.content, "rb") if args.content != "-" else sys.stdin.buffer
+    ) as content_:
         content = content_.read()
 
     with open(args.signing_key, "r", encoding="utf-8") as signing_key_:
@@ -304,9 +304,9 @@ def prepare_cli():
             args.ccf_gov_msg_proposal_id is not None
         ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
 
-    with open(
-        args.content, "rb"
-    ) if args.content != "-" else sys.stdin.buffer as content_:
+    with (
+        open(args.content, "rb") if args.content != "-" else sys.stdin.buffer
+    ) as content_:
         content = content_.read()
 
     with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
@@ -331,9 +331,9 @@ def finish_cli():
             args.ccf_gov_msg_proposal_id is not None
         ), f"Message type {args.ccf_gov_msg_type} requires a proposal id"
 
-    with open(
-        args.content, "rb"
-    ) if args.content != "-" else sys.stdin.buffer as content_:
+    with (
+        open(args.content, "rb") if args.content != "-" else sys.stdin.buffer
+    ) as content_:
         content = content_.read()
 
     with open(args.signing_cert, "r", encoding="utf-8") as signing_cert_:
