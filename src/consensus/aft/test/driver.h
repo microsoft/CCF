@@ -301,6 +301,48 @@ public:
     _replicate(term, {}, lineno, false, configuration);
   }
 
+  void swap_nodes(
+    const std::string& term,
+    const std::vector<std::string>& nodes_out,
+    const std::vector<std::string>& nodes_in,
+    const size_t lineno)
+  {
+    for (auto node_in : nodes_in)
+    {
+      add_node(node_in);
+      RAFT_DRIVER_OUT << fmt::format(
+                           "  Note over {}: Node {} trusted", node_in, node_in)
+                      << std::endl;
+    }
+    for (auto node_out : nodes_out)
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format("  Note over {}: Node {} retired", node_out, node_out)
+        << std::endl;
+    }
+    std::set<std::string> out(nodes_out.begin(), nodes_out.end());
+
+    kv::Configuration::Nodes configuration;
+    for (const auto& [id, node] : _nodes)
+    {
+      if (out.find(id) == out.end())
+      {
+        configuration.try_emplace(id);
+      }
+    }
+    for (const auto& [id, node] : _nodes)
+    {
+      for (auto& node_in : nodes_in)
+      {
+        if (id != node_in)
+        {
+          connect(id, node_in);
+        }
+      }
+    }
+    _replicate(term, {}, lineno, false, configuration);
+  }
+
   // Note: deprecated, to be removed when the last scenario using it is removed
   void replicate_new_configuration(
     const std::string& term_s,
