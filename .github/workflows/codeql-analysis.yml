@@ -68,7 +68,7 @@ jobs:
       - run: |
           mkdir build
           cd build
-          cmake -DCOMPILE_TARGET=virtual -DREQUIRE_OPEN_ENCLAVE=OFF -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DLVI_MITIGATIONS=OFF -DCMAKE_C_COMPILER=`which clang-11` -DCMAKE_CXX_COMPILER=`which clang++-11` ..
+          cmake -DCOMPILE_TARGET=virtual -DREQUIRE_OPENENCLAVE=OFF -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DLVI_MITIGATIONS=OFF -DCMAKE_C_COMPILER=`which clang-11` -DCMAKE_CXX_COMPILER=`which clang++-11` ..
 
       - run: |
           cd build
