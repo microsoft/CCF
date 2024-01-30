@@ -468,6 +468,71 @@ TEST_CASE("enum")
   }
 }
 
+struct Stringable
+{
+  std::string s;
+  Stringable() = default;
+  Stringable(const std::string& s_) : s(s_) {}
+  operator std::string() const
+  {
+    return s;
+  }
+  bool operator<(const Stringable& other) const
+  {
+    return s < other.s;
+  }
+};
+
+TEST_CASE("mappings")
+{
+  {
+    INFO("string-keyed maps");
+    std::map<std::string, size_t> m;
+    const auto schema = ds::json::build_schema<decltype(m)>("Map");
+    REQUIRE(schema["type"] == "object");
+
+    m["foo"] = 42;
+    nlohmann::json j(m);
+    REQUIRE(j.is_object());
+  }
+
+  {
+    INFO("num-keyed maps");
+    std::map<size_t, size_t> m;
+    const auto schema = ds::json::build_schema<decltype(m)>("Map");
+    REQUIRE(schema["type"] == "array");
+
+    m[5] = 42;
+    nlohmann::json j(m);
+    REQUIRE(j.is_array());
+  }
+
+  {
+    INFO("stringable-keyed maps");
+    std::map<Stringable, size_t> m;
+    const auto schema = ds::json::build_schema<decltype(m)>("Map");
+    REQUIRE(schema["type"] == "object");
+
+    Stringable foo("foo");
+    m[foo] = 42;
+    nlohmann::json j(m);
+    REQUIRE(j.is_object());
+  }
+
+  // Surprising! Enums are stringed in JSON, but produce pair-arrays rather than
+  // objects. Schema generation correctly documents this.
+  {
+    INFO("enum-keyed maps");
+    std::map<EnumStruct::SampleEnum, size_t> m;
+    const auto schema = ds::json::build_schema<decltype(m)>("Map");
+    REQUIRE(schema["type"] == "array");
+
+    m[EnumStruct::SampleEnum::One] = 42;
+    nlohmann::json j(m);
+    REQUIRE(j.is_array());
+  }
+}
+
 namespace examples
 {
   struct X
