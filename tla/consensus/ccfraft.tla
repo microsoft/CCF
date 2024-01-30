@@ -1098,18 +1098,6 @@ DropIgnoredMessage(i,j,m) ==
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
-\* Retired leaders send notify commit messages to update all nodes about the commit level
-UpdateCommitIndex(i,j,m) ==
-    /\ m.commitIndex > commitIndex[i]
-    /\ LET
-        new_config_index == LastConfigurationToIndex(i,m.commitIndex)
-        new_configurations == RestrictDomain(configurations[i], LAMBDA c : c >= new_config_index)
-        IN
-        /\ commitIndex' = [commitIndex EXCEPT ![i] = m.commitIndex]
-        /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
-    /\ UNCHANGED <<messages, currentTerm,
-        votedFor, candidateVars, leaderVars, log, membershipState>>
-
 \* Receive a message.
 
 RcvDropIgnoredMessage(i, j) ==
