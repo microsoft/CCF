@@ -105,10 +105,15 @@ int main(int argc, char** argv)
         break;
       case shash("swap_node"):
         assert(items.size() == 4);
-        driver->swap_node(items[1], items[2], items[3], lineno);
+        driver->swap_nodes(items[1], {items[2]}, {items[3]}, lineno);
         break;
       case shash("swap_nodes"):
       {
+        // Usage is: swap_nodes,<term>,in,<node1>,...,out,<node3>,...
+        // swap_nodes,<term>,in,<node1>,...
+        // swap_nodes,<term>,out,<node1>,...
+        // are also permitted, and so is
+        // swap_nodes,<term>,out,<node1>,...,in,<node3>,...
         assert(items.size() >= 4);
         auto vargs_begin = std::next(std::next(items.begin()));
         auto in_pos = std::find(vargs_begin, items.end(), "in");
@@ -117,24 +122,25 @@ int main(int argc, char** argv)
         {
           driver->swap_nodes(
             items[1],
-            {std::next(in_pos), out_pos},
             {out_pos != items.end() ? std::next(out_pos) : items.end(),
-             items.end()},
+             items.end()}, // out nodes if any
+            {std::next(vargs_begin), out_pos}, // in nodes
             lineno);
         }
         else if (out_pos == vargs_begin)
         {
           driver->swap_nodes(
             items[1],
-            {std::next(out_pos), in_pos},
+            {std::next(vargs_begin), in_pos}, // out nodes
             {in_pos != items.end() ? std::next(in_pos) : items.end(),
-             items.end()},
+             items.end()}, // in nodes if any
             lineno);
         }
         else
         {
-          throw std::runtime_error(
-            fmt::format("swap_nodes: expected 'in' or 'out'"));
+          throw std::runtime_error(fmt::format(
+            "swap_nodes: expected 'in' or 'out' after term on line {}",
+            lineno));
         }
 
         break;

@@ -270,37 +270,6 @@ public:
     _replicate(term, {}, lineno, false, configuration);
   }
 
-  void swap_node(
-    const std::string& term,
-    const std::string& node_out,
-    const std::string& node_in,
-    const size_t lineno)
-  {
-    add_node(node_in);
-    RAFT_DRIVER_OUT << fmt::format(
-                         "  Note over {}: Node {} trusted", node_in, node_in)
-                    << std::endl;
-    RAFT_DRIVER_OUT << fmt::format(
-                         "  Note over {}: Node {} retired", node_out, node_out)
-                    << std::endl;
-    kv::Configuration::Nodes configuration;
-    for (const auto& [id, node] : _nodes)
-    {
-      if (id != node_out)
-      {
-        configuration.try_emplace(id);
-      }
-    }
-    for (const auto& [id, node] : _nodes)
-    {
-      if (id != node_in)
-      {
-        connect(id, node_in);
-      }
-    }
-    _replicate(term, {}, lineno, false, configuration);
-  }
-
   void swap_nodes(
     const std::string& term,
     const std::vector<std::string>& nodes_out,
