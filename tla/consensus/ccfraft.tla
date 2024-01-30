@@ -541,6 +541,9 @@ InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
         /\ leadershipState = [i \in Servers |-> IF i = sn THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
         /\ membershipState = [i \in Servers |-> Active]
         /\ commitIndex = [i \in Servers |-> IF i \in startNodes THEN Len(logPrefix({sn}, startNodes)) ELSE 0]
+        /\ sentIndex  = [i \in Servers |-> IF i = sn 
+            THEN [j \in Servers |-> Len(logPrefix({sn}, startNodes))] 
+            ELSE [j \in Servers |-> 0]]
     /\ configurations = [i \in Servers |-> IF i \in startNodes  THEN (Len(log[i])-1 :> startNodes) ELSE << >>]
     
 ------------------------------------------------------------------------------
@@ -560,7 +563,6 @@ InitCandidateVars ==
 \* leader does not send itself messages. It's still easier to include these
 \* in the functions.
 InitLeaderVars ==
-    /\ sentIndex  = [i \in Servers |-> [j \in Servers |-> 0]]
     /\ matchIndex = [i \in Servers |-> [j \in Servers |-> 0]]
 
 Init ==
