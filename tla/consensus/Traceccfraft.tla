@@ -372,6 +372,9 @@ TraceSpec ==
 
 -------------------------------------------------------------------------------------
 
+Termination ==
+    l = Len(TraceLog) => TLCSet("exit", TRUE)
+
 TraceView ==
     \* A high-level state  s  can appear multiple times in a system trace.  Including the
      \* current level in TLC's view ensures that TLC will not stop model checking when  s
