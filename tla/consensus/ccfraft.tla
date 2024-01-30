@@ -945,7 +945,6 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
     /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, log>>
 
 ConflictAppendEntriesRequest(i, index, m) ==
-    /\ m.entries /= << >>
     /\ Len(log[i]) >= index
     /\ log[i][index].term /= m.entries[1].term
     /\ isNewFollower[i] = TRUE
