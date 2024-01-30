@@ -860,8 +860,10 @@ HandleRequestVoteResponse(i, j, m) ==
     /\ UNCHANGED <<reconfigurationVars, serverVars, votedFor, leaderVars, 
         logVars, membershipState>>
 
-\* Server i receives a RequestVote request from server j with
-\* m.term < currentTerm[i].
+\* Server i replies to a AppendEntries request from server j with a NACK
+\* A NACK is sent if either:
+\* (1) the leader's term is behind the follower's term 
+\* (2) the follower log does not have the m.prevLogTerm at m.prevLogIndex
 RejectAppendEntriesRequest(i, j, m, logOk) ==
     \* See recv_append_entries and send_append_entries_response in raft.h.
     /\ \/ /\ m.term < currentTerm[i]
@@ -899,13 +901,17 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                                 m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, logVars, membershipState>>
 
+\* Candidate i steps down to follower in the same term after receiving a message m from a leader in the current term
+\* Must check that m is an AppendEntries message before returning to follower state
 ReturnToFollowerState(i, m) ==
     /\ m.term = currentTerm[i]
     /\ leadershipState[i] = Candidate
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
+    \* Note that the set of message is unchanged as m is discarded
     /\ UNCHANGED <<reconfigurationVars, currentTerm, votedFor, logVars, 
         messages, membershipState>>
 
+\* Follower i receives a AppendEntries from leader j for log entries it already has
 AppendEntriesAlreadyDone(i, j, index, m) ==
     /\ \/ m.entries = << >>
        \/ /\ m.entries /= << >>
@@ -933,6 +939,8 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               m)
     /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, log>>
 
+\* Follower i receives an AppendEntries request m where it has conflicting entries
+\* This action rolls back the log and leaves m in messages for further processing
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ m.entries /= << >>
     /\ Len(log[i]) >= index
@@ -944,6 +952,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex[i], i)]
     /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, commitIndex, messages>>
 
+\* Follower i receives an AppendEntries request m from leader j for log entries which directly follow its log
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
     /\ Len(log[i]) = m.prevLogIndex
@@ -1032,7 +1041,7 @@ HandleAppendEntriesResponse(i, j, m) ==
 \* Any message with a newer term causes the recipient to advance its term first.
 \* Note that UpdateTerm does not discard message m from the set of messages so this 
 \* message can be parsed again by the receiver. Note that all other message parsing actions should
-\* check that m.term = currentTerm[i] to ensure that this action is the only one ENABLED.
+\* check that m.term <= currentTerm[i] to ensure that this action is the only one ENABLED.
 \* Analogous to raft.h::become_aware_of_new_term
 UpdateTerm(i, j, m) ==
     /\ m.term > currentTerm[i]
@@ -1155,6 +1164,7 @@ RcvProposeVoteRequest(i, j) ==
         /\ Timeout(m.dest)
         /\ Discard(m)
 
+\* Node i receives a message from node j.
 Receive(i, j) ==
     \/ RcvDropIgnoredMessage(i, j)
     \/ RcvUpdateTerm(i, j)
@@ -1171,7 +1181,7 @@ Receive(i, j) ==
 \* Each of these transitions has additional constraints that have to be fulfilled for the state to be an allowed step.
 \* For example, ``BecomeLeader`` is only a possible step if the selected node has enough votes to do so.
 
-\* Defines how the variables may transition.
+\* Defines how the variables may transition, given an node i.
 NextInt(i) ==
     \/ Timeout(i)
     \/ BecomeLeader(i)
