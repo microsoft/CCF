@@ -39,3 +39,4 @@ assert_is_candidate,0
 dispatch_all
 
 state_all
+assert_is_primary,0
