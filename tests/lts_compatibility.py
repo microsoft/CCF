@@ -65,16 +65,20 @@ def issue_activity_on_live_service(network, args):
 def get_new_constitution_for_install(args, install_path):
     constitution_directory = os.path.join(
         install_path,
-        "../samples/constitutions/default"
-        if install_path == LOCAL_CHECKOUT_DIRECTORY
-        else "bin",
+        (
+            "../samples/constitutions/default"
+            if install_path == LOCAL_CHECKOUT_DIRECTORY
+            else "bin"
+        ),
     )
 
     def replace_constitution_fragment(args, fragment_name):
         args.constitution[:] = [
-            os.path.join(constitution_directory, fragment_name)
-            if fragment_name in f
-            else f
+            (
+                os.path.join(constitution_directory, fragment_name)
+                if fragment_name in f
+                else f
+            )
             for f in args.constitution
         ]
 
@@ -533,9 +537,13 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
                     # Recovery count is not stored in pre-2.0.3 ledgers
                     network.recover(
                         args,
-                        expected_recovery_count=1
-                        if not infra.node.version_after(previous_version, "ccf-2.0.3")
-                        else None,
+                        expected_recovery_count=(
+                            1
+                            if not infra.node.version_after(
+                                previous_version, "ccf-2.0.3"
+                            )
+                            else None
+                        ),
                     )
 
                 previous_version = version

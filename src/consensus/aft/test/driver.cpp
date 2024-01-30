@@ -80,6 +80,13 @@ int main(int argc, char** argv)
       // Terminate early if four or more '=' appear on a line.
       return 0;
     }
+#ifdef CCF_RAFT_TRACING
+    if (!line.empty())
+    {
+      std::cout << "{\"tag\": \"raft_trace\", \"cmd\": \"" << line << "\"}"
+                << std::endl;
+    }
+#endif
     switch (shash(in))
     {
       case shash("start_node"):
@@ -95,6 +102,10 @@ int main(int argc, char** argv)
         items.erase(items.begin());
         driver->trust_nodes(
           items[0], {std::next(items.begin()), items.end()}, lineno);
+        break;
+      case shash("swap_node"):
+        assert(items.size() == 4);
+        driver->swap_node(items[1], items[2], items[3], lineno);
         break;
       case shash("nodes"):
         assert(items.size() >= 2);
