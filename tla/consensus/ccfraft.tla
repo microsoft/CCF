@@ -946,7 +946,6 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
 
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ Len(log[i]) >= index
-    /\ log[i][index].term /= m.entries[1].term
     /\ isNewFollower[i] = TRUE
     /\ LET new_log == [index2 \in 1..m.prevLogIndex |-> log[i][index2]] \* Truncate log
        IN /\ log' = [log EXCEPT ![i] = new_log]
