@@ -1169,7 +1169,7 @@ Receive(i, j) ==
 \* Each of these transitions has additional constraints that have to be fulfilled for the state to be an allowed step.
 \* For example, ``BecomeLeader`` is only a possible step if the selected node has enough votes to do so.
 
-\* Defines how the variables may transition, given an node i.
+\* Defines how the variables may transition, given a node i.
 NextInt(i) ==
     \/ Timeout(i)
     \/ BecomeLeader(i)
