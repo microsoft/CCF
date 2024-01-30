@@ -1017,9 +1017,10 @@ AcceptAppendEntriesRequest(i, j, logOk, m) ==
     /\ logOk
     /\ LET index == m.prevLogIndex + 1
        IN \/ AppendEntriesAlreadyDone(i, j, index, m)
-          \/ ConflictAppendEntriesRequest(i, index, m)
           \/ NoConflictAppendEntriesRequest(i, j, m)
-
+          \/ ConflictAppendEntriesRequest(i, index, m) \cdot AppendEntriesAlreadyDone(i, j, index, m)
+          \/ ConflictAppendEntriesRequest(i, index, m) \cdot NoConflictAppendEntriesRequest(i, j, m)
+          
 \* Server i receives an AppendEntries request from server j with
 \* m.term <= currentTerm[i].
 HandleAppendEntriesRequest(i, j, m) ==
