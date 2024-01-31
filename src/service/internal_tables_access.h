@@ -285,13 +285,23 @@ namespace ccf
 
       auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
 
-      nodes->foreach([&active_nodes,
-                      self_to_exclude](const NodeId& nid, const NodeInfo& ni) {
+      nodes->foreach([&active_nodes, &nodes, self_to_exclude](
+                       const NodeId& nid, const NodeInfo& ni) {
         if (
-          (ni.status == ccf::NodeStatus::TRUSTED) &&
+          ni.status == ccf::NodeStatus::TRUSTED &&
           (!self_to_exclude.has_value() || self_to_exclude.value() != nid))
         {
           active_nodes[nid] = ni;
+        }
+        else if (ni.status == ccf::NodeStatus::RETIRED)
+        {
+          // If a node is retired, but knowledge of their retirement has not yet
+          // been globally committed, they are still considered active.
+          auto cni = nodes->get_globally_committed(nid);
+          if (cni.has_value() && !cni->retired_committed)
+          {
+            active_nodes[nid] = ni;
+          }
         }
         return true;
       });
