@@ -4,55 +4,60 @@ import infra.e2e_args
 import infra.network
 import struct
 import boofuzz
-
+import datetime
 from loguru import logger as LOG
 
 
 class CCFFuzzLogger(boofuzz.IFuzzLogger):
-    def __init__(self):
-        self.indent_level = 0
+    def __init__(self, print_period=datetime.timedelta(seconds=3), keep_lines=50):
+        self.log_lines = []
+        self.print_period = print_period
+        self.last_printed = None
+        self.keep_lines = keep_lines
 
-    def _indent(self):
-        return "  " * self.indent_level
+        self.session = None
 
-    def _fuzz_log(self, s, fn="info", **kwargs):
-        logger = getattr(LOG.opt(**kwargs), fn)
-        logger(s)
+    def _store_line(self, s):
+        self.log_lines.append(s)
+        self.log_lines = self.log_lines[-self.keep_lines :]
+
+        if self.session is not None:
+            now = datetime.datetime.now()
+            if self.last_printed is None or now - self.last_printed > self.print_period:
+                LOG.info(
+                    f"Fuzzed {self.session.num_cases_actually_fuzzed} total cases in {self.session.runtime:.2f}s (rate={self.session.exec_speed:.2f}/s)"
+                )
+                self.last_printed = now
 
     def open_test_case(self, test_case_id, name, index, *args, **kwargs):
-        self._fuzz_log(f"<yellow>Test case: {name} ({index=})</>", colors=True)
-        self.indent_level += 2
+        self._store_line(f"Test case: {name} ({index=})")
 
     def open_test_step(self, description):
-        self.indent_level -= 1
-        self._fuzz_log(
-            f"<magenta>{self._indent()}Test step: {description}</>", colors=True
-        )
-        self.indent_level += 1
+        self._store_line(f" Test step: {description}")
 
     def log_send(self, data):
-        self._fuzz_log(f"{self._indent()}Sent: {data}", fn="debug")
+        self._store_line(infra.clients.escape_loguru_tags(f"  Sent: {data}"))
 
     def log_recv(self, data):
-        self._fuzz_log(f"{self._indent()}Received: {data}", fn="debug")
+        self._store_line(infra.clients.escape_loguru_tags(f"  Received: {data}"))
 
     def log_check(self, description):
-        self._fuzz_log(f"{self._indent()}Checking: {description}", fn="debug")
+        self._store_line(f"  Checking: {description}")
 
     def log_pass(self, description=""):
-        self._fuzz_log(f"{self._indent()}Passed: {description}", fn="success")
+        self._store_line(f"  Passed: {description}")
 
     def log_fail(self, description=""):
-        self._fuzz_log(f"{self._indent()}Fail: {description}", fn="warning")
+        self._store_line(f"  Fail: {description}")
 
     def log_info(self, description):
-        self._fuzz_log(f"{self._indent()}{description}")
+        self._store_line(f"  {description}")
 
     def log_error(self, description):
-        self._fuzz_log(f"{self._indent()}Error: {description}", fn="error")
+        self._store_line(f"  Error: {description}")
 
     def close_test_case(self):
-        self.indent_level -= 2
+        pass
 
     def close_test(self):
         pass
@@ -126,6 +131,7 @@ def fuzz_node_to_node(network, args):
     primary, _ = network.find_primary()
     interface = primary.n2n_interface
 
+    fuzz_logger = CCFFuzzLogger()
     session = boofuzz.Session(
         target=boofuzz.Target(
             connection=boofuzz.TCPSocketConnection(interface.host, interface.port),
@@ -135,21 +141,41 @@ def fuzz_node_to_node(network, args):
         # Fail if ever asked to restart a node
         restart_callbacks=[ccf_node_restart_callback],
         # Use loguru output formatted like everything else
-        fuzz_loggers=[CCFFuzzLogger()],
+        fuzz_loggers=[fuzz_logger],
         # Don't try to host a web UI
         web_port=None,
         # Don't try to read any responses
         receive_data_after_fuzz=False,
         receive_data_after_each_request=False,
     )
+    fuzz_logger.session = session
 
     session.connect(req)
 
+    LOG.warning("These tests are verbose and run for a long time")
+    LOG.warning(
+        f"Limiting spam by summarising every {fuzz_logger.print_period.total_seconds()}s"
+    )
+
     LOG.info("Confirming non-fuzzed request format")
-    session.feature_check()
+    try:
+        session.feature_check()
+    except:
+        LOG.error("Error during feature check")
+        LOG.error(
+            "Recent fuzz session output was:\n" + "\n".join(fuzz_logger.log_lines)
+        )
+        raise
 
     LOG.info("Fuzzing")
-    session.fuzz(max_depth=2)
+    try:
+        session.fuzz(max_depth=2)
+    except:
+        LOG.error("Error during fuzzing")
+        LOG.error(
+            "Recent fuzz session output was:\n" + "\n".join(fuzz_logger.log_lines)
+        )
+        raise
 
     LOG.info(f"Fuzzed {session.num_cases_actually_fuzzed} cases")
 
