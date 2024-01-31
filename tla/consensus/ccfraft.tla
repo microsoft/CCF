@@ -637,7 +637,9 @@ AppendEntries(i, j) ==
             \* The implementation does not allow a leader with their retirement signed to send heartbeats, see raft.h:L928
             \* TODO: how does this interact with a new leader's AE message? or a existing leader's first AE to a new node?
             \* The former cannot happen in the implementation as a node which is not Active cannot become leader
-            /\ \/ membershipState[i] # RetirementSigned
+            \* TODO: Still not right, but differently: now the implementation will send append entries until after finding
+            \* out that retired_committed itself is committed. This is not modeled here.
+            /\ \/ membershipState[i] # RetirementCompleted
                \/ m.entries # <<>>
             /\ Send(m)
             \* Record the most recent index we have sent to this node.
