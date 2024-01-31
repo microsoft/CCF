@@ -148,8 +148,10 @@ def fuzz_node_to_node(network, args):
     LOG.info("Confirming non-fuzzed request format")
     session.feature_check()
 
-    LOG.info(f"Fuzzing")
+    LOG.info("Fuzzing")
     session.fuzz(max_depth=2)
+
+    LOG.info(f"Fuzzed {session.num_cases_actually_fuzzed} cases")
 
 
 def run(args):
