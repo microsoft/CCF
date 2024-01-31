@@ -15,17 +15,19 @@ class CCFFuzzLogger(boofuzz.IFuzzLogger):
     def _indent(self):
         return "  " * self.indent_level
 
-    def _fuzz_log(self, s, fn="info"):
-        logger = getattr(LOG.opt(colors=True), fn)
+    def _fuzz_log(self, s, fn="info", **kwargs):
+        logger = getattr(LOG.opt(**kwargs), fn)
         logger(s)
 
     def open_test_case(self, test_case_id, name, index, *args, **kwargs):
-        self._fuzz_log(f"<yellow>Test case: {name} ({index=})</>")
+        self._fuzz_log(f"<yellow>Test case: {name} ({index=})</>", colors=True)
         self.indent_level += 2
 
     def open_test_step(self, description):
         self.indent_level -= 1
-        self._fuzz_log(f"<magenta>{self._indent()}Test step: {description}</>")
+        self._fuzz_log(
+            f"<magenta>{self._indent()}Test step: {description}</>", colors=True
+        )
         self.indent_level += 1
 
     def log_send(self, data):
@@ -67,7 +69,9 @@ def ccf_node_post_send(node):
 
 
 def ccf_node_restart_callback(*args, **kwargs):
-    raise boofuzz.exception.BoofuzzRestartFailedError("CCF nodes cannot be restarted - see earlier failure")
+    raise boofuzz.exception.BoofuzzRestartFailedError(
+        "CCF nodes cannot be restarted - see earlier failure"
+    )
 
 
 def fuzz_node_to_node(network, args):
@@ -81,6 +85,7 @@ def fuzz_node_to_node(network, args):
                         "TotalSize",
                         block_name="N2N",
                         length=4,
+                        # Non-inclusive. inclusive=False doesn't work, so manually offset
                         offset=-4,
                     ),
                     boofuzz.Group(
@@ -96,10 +101,10 @@ def fuzz_node_to_node(network, args):
                                 length=8,
                                 inclusive=False,
                             ),
-                            boofuzz.Bytes(
+                            boofuzz.RandomData(
                                 "SenderContent",
                                 default_value="OtherNode".encode(),
-                                max_len=32,
+                                max_length=32,
                             ),
                         ],
                     ),
@@ -109,7 +114,10 @@ def fuzz_node_to_node(network, args):
             boofuzz.Block(
                 "Body",
                 children=[
-                    boofuzz.Bytes("BodyContent", max_len=20, default_value=b"\x42\x10"),
+                    boofuzz.RandomData(
+                        "BodyContent",
+                        max_length=128,
+                    ),
                 ],
             ),
         ],
@@ -122,18 +130,26 @@ def fuzz_node_to_node(network, args):
         target=boofuzz.Target(
             connection=boofuzz.TCPSocketConnection(interface.host, interface.port),
         ),
+        # Check if the node process is alive after each send
         post_test_case_callbacks=[ccf_node_post_send(primary)],
+        # Fail if ever asked to restart a node
         restart_callbacks=[ccf_node_restart_callback],
+        # Use loguru output formatted like everything else
         fuzz_loggers=[CCFFuzzLogger()],
+        # Don't try to host a web UI
         web_port=None,
+        # Don't try to read any responses
         receive_data_after_fuzz=False,
         receive_data_after_each_request=False,
     )
+
     session.connect(req)
 
+    LOG.info("Confirming non-fuzzed request format")
     session.feature_check()
 
-    session.fuzz()
+    LOG.info(f"Fuzzing")
+    session.fuzz(max_depth=2)
 
 
 def run(args):
@@ -141,6 +157,17 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
+
+        # Don't fill the output with failure messages from fuzzing
+        network.ignore_error_pattern_on_shutdown(
+            "Exception in bool ccf::Channel::recv_key_exchange_message"
+        )
+        network.ignore_error_pattern_on_shutdown(
+            "Exception in void ccf::Forwarder<ccf::NodeToNode>::recv_message"
+        )
+        network.ignore_error_pattern_on_shutdown("Unknown node message type")
+        network.ignore_error_pattern_on_shutdown("Unhandled AFT message type")
+        network.ignore_error_pattern_on_shutdown("Unknown frontend msg type")
 
         fuzz_node_to_node(network, args)
 
