@@ -238,7 +238,16 @@ VARIABLE votedFor
 VotedForTypeInv ==
     \A i \in Servers : votedFor[i] \in {Nil} \cup Servers
 
-\* isNewFollower is a flag used by followers to limit the number of times they rollback per term to 1
+\* isNewFollower is a flag used by followers to limit the
+\* number of times they rollback to once per term
+\* In Raft, a follower only rolls back if it receives an 
+\* AE message with a consistent previous log entry 
+\* but conflicting new entries. 
+\* In CCF, a follower rolls back when it receives a AE message with
+\* a consistent previous log entry, even if the AE includes
+\* no new entries (heartbeat) or non-conflicting
+\* entries and the follower's log extends past the previous 
+\* log entry. isNewFollower ensures this happens only once.
 VARIABLE isNewFollower
 
 IsNewFollowerTypeInv ==
@@ -293,7 +302,7 @@ CandidateVarsTypeInv ==
 \* The following variables are used only on leaders:
 
 \* The last entry sent to each follower.
-\* sentIndex in CCF is similar in function to nextIndex in Raft
+\* sentIndex in CCF is similar in function to nextIndex - 1 in Raft
 \* In CCF, the leader updates nextIndex optimistically when an AE message is dispatched
 \* In contrast, in Raft the leader only updates nextIndex when an AE response is received
 VARIABLE sentIndex
@@ -952,7 +961,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               m)
     /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, log>>
 
-\* Follower i receives an AppendEntries request m where it has conflicting entries
+\* Follower i receives an AppendEntries request m where it needs to roll back first
 \* This action rolls back the log and leaves m in messages for further processing
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ Len(log[i]) >= index
