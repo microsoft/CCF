@@ -1429,8 +1429,7 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME fuzz_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
+      NAME fuzz_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
     )
 
     if(CLIENT_PROTOCOLS_TEST)
