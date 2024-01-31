@@ -300,6 +300,12 @@ namespace aft
       return state->membership_state == kv::MembershipState::Retired;
     }
 
+    bool is_retired_committed() const
+    {
+      return state->membership_state == kv::MembershipState::Retired &&
+        retirement_phase == kv::RetirementPhase::RetiredCommitted;
+    }
+
     void set_retired_committed(ccf::SeqNo seqno) override
     {
       retirement_phase = kv::RetirementPhase::RetiredCommitted;
@@ -579,6 +585,15 @@ namespace aft
         return false;
       }
 
+      if (is_retired_committed())
+      {
+        RAFT_DEBUG_FMT(
+          "Failed to replicate {} items: node retirement is complete",
+          entries.size());
+        rollback(state->last_idx);
+        return false;
+      }
+
       RAFT_DEBUG_FMT("Replicating {} entries", entries.size());
 
       for (auto& [index, data, is_globally_committable, hooks] : entries)
@@ -587,16 +602,6 @@ namespace aft
 
         if (index != state->last_idx + 1)
           return false;
-
-        if (retirement_committable_idx.has_value())
-        {
-          CCF_ASSERT_FMT(
-            index > retirement_committable_idx.value(),
-            "Index {} unexpectedly lower than retirement_committable_idx {}",
-            index,
-            retirement_committable_idx.value());
-          return false;
-        }
 
         RAFT_DEBUG_FMT(
           "Replicated on leader {}: {}{} ({} hooks)",
@@ -818,7 +823,7 @@ namespace aft
       else
       {
         if (
-          can_endorse_primary() && ticking &&
+          !is_retired_committed() && ticking &&
           timeout_elapsed >= election_timeout)
         {
           // Start an election.
@@ -888,7 +893,7 @@ namespace aft
     bool can_replicate_unsafe()
     {
       return state->leadership_state == kv::LeadershipState::Leader &&
-        !retirement_committable_idx.has_value();
+        !is_retired_committed();
     }
 
     Index get_commit_idx_unsafe()
@@ -1088,10 +1093,10 @@ namespace aft
       }
 
       // Then check if those append entries extend past our retirement
-      if (is_retired() && retirement_phase >= kv::RetirementPhase::Completed)
+      if (is_retired_committed())
       {
-        assert(retirement_committable_idx.has_value());
-        if (r.idx > retirement_committable_idx)
+        assert(retired_committed_idx.has_value());
+        if (r.idx > retired_committed_idx.value())
         {
           send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
@@ -1749,7 +1754,7 @@ namespace aft
       j["from_node_id"] = from;
       RAFT_TRACE_JSON_OUT(j);
 #endif
-      if (can_endorse_primary() && ticking && r.term == state->current_view)
+      if (!is_retired_committed() && ticking && r.term == state->current_view)
       {
         RAFT_INFO_FMT(
           "Becoming candidate early due to propose request vote from {}", from);
@@ -1824,7 +1829,7 @@ namespace aft
 
     void become_leader(bool force_become_leader = false)
     {
-      if (is_retired())
+      if (is_retired_committed())
       {
         return;
       }
@@ -1886,11 +1891,6 @@ namespace aft
       }
     }
 
-    bool can_endorse_primary()
-    {
-      return state->membership_state != kv::MembershipState::Retired;
-    }
-
   public:
     // Called when a replica becomes follower in the same term, e.g. when the
     // primary node has not received a majority of acks (CheckQuorum)
@@ -1905,23 +1905,20 @@ namespace aft
       // receiving a conflicting AppendEntries
       rollback(last_committable_index());
 
-      if (can_endorse_primary())
-      {
-        state->leadership_state = kv::LeadershipState::Follower;
-        RAFT_INFO_FMT(
-          "Becoming follower {}: {}.{}",
-          state->node_id,
-          state->current_view,
-          state->commit_idx);
+      state->leadership_state = kv::LeadershipState::Follower;
+      RAFT_INFO_FMT(
+        "Becoming follower {}: {}.{}",
+        state->node_id,
+        state->current_view,
+        state->commit_idx);
 
 #ifdef CCF_RAFT_TRACING
-        nlohmann::json j = {};
-        j["function"] = "become_follower";
-        j["state"] = *state;
-        j["configurations"] = configurations;
-        RAFT_TRACE_JSON_OUT(j);
+      nlohmann::json j = {};
+      j["function"] = "become_follower";
+      j["state"] = *state;
+      j["configurations"] = configurations;
+      RAFT_TRACE_JSON_OUT(j);
 #endif
-      }
     }
 
     // Called when a replica becomes aware of the existence of a new term
