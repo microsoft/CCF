@@ -268,7 +268,7 @@ namespace aft
     Consensus::SignatureDisposition get_signature_disposition() override
     {
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);
-      if (can_replicate_unsafe())
+      if (can_sign_unsafe())
       {
         if (should_sign)
         {
@@ -891,6 +891,12 @@ namespace aft
     }
 
     bool can_replicate_unsafe()
+    {
+      return state->leadership_state == kv::LeadershipState::Leader &&
+        retirement_phase < kv::RetirementPhase::RetiredCommitted;
+    }
+
+    bool can_sign_unsafe()
     {
       return state->leadership_state == kv::LeadershipState::Leader &&
         !is_retired_committed();
