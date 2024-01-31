@@ -124,7 +124,6 @@ namespace asynchost
             node.value(),
             msg_size.value(),
             msg_type);
-          LOG_DEBUG_FMT("  {:02x}", fmt::join(data, data + payload_size, " "));
 
           RINGBUFFER_WRITE_MESSAGE(
             ccf::node_inbound,
