@@ -74,8 +74,7 @@ CONSTANTS
 MembershipStates == {
     Active,
     RetirementOrdered,
-    RetirementSigned,
-    RetirementCompleted
+    RetirementSigned
     }
 
 \* Message types:
@@ -91,7 +90,8 @@ CONSTANTS
 CONSTANTS
     TypeEntry,
     TypeSignature,
-    TypeReconfiguration
+    TypeReconfiguration,
+    TypeRetiredCommitted
 
 \* Set of nodes for this model
 CONSTANTS Servers
@@ -163,7 +163,7 @@ EntryTypeOK(entry) ==
     /\ \/ /\ entry.contentType = TypeEntry
           /\ entry.request \in Nat \ {0}
        \/ entry.contentType = TypeSignature
-       \/ /\ entry.contentType = TypeReconfiguration
+       \/ /\ entry.contentType \in {TypeReconfiguration, TypeRetiredCommitted}
           /\ entry.configuration \subseteq Servers
 
 AppendEntriesRequestTypeOK(m) ==
@@ -685,6 +685,7 @@ BecomeLeader(i) ==
     \* been rolled back as it was unsigned
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
+    \* TODO: Check if any node's retirement has been committed and add retired_committed if so
     /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex>>
 
 \* Leader i receives a client request to add 42 to the log.
@@ -825,6 +826,7 @@ AdvanceCommitIndex(i) ==
                     /\ UNCHANGED <<currentTerm, votedFor, isNewFollower>>
                  \* Otherwise, states remain unchanged
                  ELSE UNCHANGED <<messages, serverVars>>
+              \* TODO: Check if any node's retirement has been committed and add retired_committed if so
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, serverVars, reconfigurationVars, leadershipState>>
     /\ UNCHANGED <<candidateVars, leaderVars, log, removedFromConfiguration>>
