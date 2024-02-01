@@ -293,14 +293,14 @@ namespace aft
 
     void set_retired_committed(ccf::SeqNo seqno) override
     {
-      retirement_phase = kv::RetirementPhase::RetiredCommitted;
+      state->retirement_phase = kv::RetirementPhase::RetiredCommitted;
       CCF_ASSERT_FMT(
-        retired_committed_idx == state->commit_idx,
+        state->retired_committed_idx == state->commit_idx,
         "Retired "
         "committed index {} does not match current commit index {}",
-        retired_committed_idx.value_or(0),
+        state->retired_committed_idx.value_or(0),
         state->commit_idx);
-      retired_committed_idx = seqno;
+      state->retired_committed_idx = seqno;
     }
 
     Index last_committable_index() const
