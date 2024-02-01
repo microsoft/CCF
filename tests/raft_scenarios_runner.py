@@ -48,7 +48,7 @@ def preprocess_for_trace_validation(log):
         return log
     log_by_node = defaultdict(list)
     initial_node = None
-    last_cmd = None
+    last_cmd = ""
     for line in log:
         entry = json.loads(line)
         if "cmd" in entry:
@@ -56,7 +56,7 @@ def preprocess_for_trace_validation(log):
             continue
         node = entry["msg"]["state"]["node_id"]
         entry["cmd"] = last_cmd
-        last_cmd = None
+        last_cmd = ""
         if initial_node is None:
             initial_node = node
         if entry["msg"]["function"] == "add_configuration":
