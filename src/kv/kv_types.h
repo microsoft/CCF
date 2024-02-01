@@ -161,7 +161,6 @@ namespace kv
 
   enum class RetirementPhase
   {
-    Committed = 0,
     Ordered = 1,
     Signed = 2,
     Completed = 3
@@ -169,8 +168,7 @@ namespace kv
 
   DECLARE_JSON_ENUM(
     RetirementPhase,
-    {{RetirementPhase::Committed, "Committed"},
-     {RetirementPhase::Ordered, "Ordered"},
+    {{RetirementPhase::Ordered, "Ordered"},
      {RetirementPhase::Signed, "Signed"},
      {RetirementPhase::Completed, "Completed"}});
 
