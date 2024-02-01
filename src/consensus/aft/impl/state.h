@@ -181,6 +181,10 @@ namespace aft
     kv::MembershipState membership_state = kv::MembershipState::Active;
 
     std::optional<kv::RetirementPhase> retirement_phase = std::nullopt;
+    // Index at which this node observes its retirement
+    std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
+    // Earliest index at which this node's retirement can be committed
+    std::optional<ccf::SeqNo> retirement_committable_idx = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(State);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -193,5 +197,6 @@ namespace aft
     leadership_state,
     membership_state,
     committable_indices);
-  DECLARE_JSON_OPTIONAL_FIELDS(State, retirement_phase);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    State, retirement_phase, retirement_idx, retirement_committable_idx);
 }

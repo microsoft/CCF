@@ -156,11 +156,6 @@ namespace aft
     // Used to remove retired nodes from store
     std::unique_ptr<ccf::RetiredNodeCleanup> retired_node_cleanup;
 
-    // Index at which this node observes its retirement
-    std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
-    // Earliest index at which this node's retirement can be committed
-    std::optional<ccf::SeqNo> retirement_committable_idx = std::nullopt;
-
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
     Index entries_batch_size = 20;
@@ -572,13 +567,13 @@ namespace aft
         if (index != state->last_idx + 1)
           return false;
 
-        if (retirement_committable_idx.has_value())
+        if (state->retirement_committable_idx.has_value())
         {
           CCF_ASSERT_FMT(
-            index > retirement_committable_idx.value(),
+            index > state->retirement_committable_idx.value(),
             "Index {} unexpectedly lower than retirement_committable_idx {}",
             index,
-            retirement_committable_idx.value());
+            state->retirement_committable_idx.value());
           return false;
         }
 
@@ -872,7 +867,7 @@ namespace aft
     bool can_replicate_unsafe()
     {
       return state->leadership_state == kv::LeadershipState::Leader &&
-        !retirement_committable_idx.has_value();
+        !state->retirement_committable_idx.has_value();
     }
 
     Index get_commit_idx_unsafe()
@@ -1076,8 +1071,8 @@ namespace aft
         is_retired() &&
         state->retirement_phase >= kv::RetirementPhase::Completed)
       {
-        assert(retirement_committable_idx.has_value());
-        if (r.idx > retirement_committable_idx)
+        assert(state->retirement_committable_idx.has_value());
+        if (r.idx > state->retirement_committable_idx)
         {
           send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
@@ -1938,21 +1933,21 @@ namespace aft
       if (phase == kv::RetirementPhase::Ordered)
       {
         CCF_ASSERT_FMT(
-          !retirement_idx.has_value(),
+          !state->retirement_idx.has_value(),
           "retirement_idx already set to {}",
-          retirement_idx.value());
-        retirement_idx = idx;
+          state->retirement_idx.value());
+        state->retirement_idx = idx;
         RAFT_INFO_FMT("Node retiring at {}", idx);
       }
       else if (phase == kv::RetirementPhase::Signed)
       {
-        assert(retirement_idx.has_value());
+        assert(state->retirement_idx.has_value());
         CCF_ASSERT_FMT(
-          idx >= retirement_idx.value(),
+          idx >= state->retirement_idx.value(),
           "Index {} unexpectedly lower than retirement_idx {}",
           idx,
-          retirement_idx.value());
-        retirement_committable_idx = idx;
+          state->retirement_idx.value());
+        state->retirement_committable_idx = idx;
         RAFT_INFO_FMT("Node retirement committable at {}", idx);
       }
       else if (phase == kv::RetirementPhase::Completed)
@@ -2192,8 +2187,8 @@ namespace aft
       if (
         is_retired() &&
         state->retirement_phase == kv::RetirementPhase::Signed &&
-        retirement_committable_idx.has_value() &&
-        idx >= retirement_committable_idx.value())
+        state->retirement_committable_idx.has_value() &&
+        idx >= state->retirement_committable_idx.value())
       {
         become_retired(idx, kv::RetirementPhase::Completed);
       }
@@ -2303,10 +2298,10 @@ namespace aft
         state->membership_state == kv::MembershipState::Retired &&
         state->retirement_phase == kv::RetirementPhase::Signed)
       {
-        assert(retirement_committable_idx.has_value());
-        if (retirement_committable_idx.value() > idx)
+        assert(state->retirement_committable_idx.has_value());
+        if (state->retirement_committable_idx.value() > idx)
         {
-          retirement_committable_idx = std::nullopt;
+          state->retirement_committable_idx = std::nullopt;
           state->retirement_phase = kv::RetirementPhase::Ordered;
         }
       }
@@ -2315,10 +2310,10 @@ namespace aft
         state->membership_state == kv::MembershipState::Retired &&
         state->retirement_phase == kv::RetirementPhase::Ordered)
       {
-        assert(retirement_idx.has_value());
-        if (retirement_idx.value() > idx)
+        assert(state->retirement_idx.has_value());
+        if (state->retirement_idx.value() > idx)
         {
-          retirement_idx = std::nullopt;
+          state->retirement_idx = std::nullopt;
           state->retirement_phase = std::nullopt;
           state->membership_state = kv::MembershipState::Active;
           RAFT_DEBUG_FMT("Becoming Active after rollback");
