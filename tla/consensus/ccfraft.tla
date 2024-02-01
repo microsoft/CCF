@@ -238,13 +238,29 @@ VARIABLE votedFor
 VotedForTypeInv ==
     \A i \in Servers : votedFor[i] \in {Nil} \cup Servers
 
-serverVars == <<currentTerm, leadershipState, membershipState, votedFor>>
+\* isNewFollower is a flag used by followers to limit the
+\* number of times they rollback to once per term
+\* In Raft, a follower only rolls back if it receives an 
+\* AE message with a consistent previous log entry 
+\* but conflicting new entries. 
+\* In CCF, a follower rolls back when it receives a AE message with
+\* a consistent previous log entry, even if the AE includes
+\* no new entries (heartbeat) or non-conflicting
+\* entries and the follower's log extends past the previous 
+\* log entry. isNewFollower ensures this happens only once.
+VARIABLE isNewFollower
+
+IsNewFollowerTypeInv ==
+    \A i \in Servers : isNewFollower[i] \in BOOLEAN
+
+serverVars == <<currentTerm, leadershipState, membershipState, votedFor, isNewFollower>>
 
 ServerVarsTypeInv ==
     /\ CurrentTermTypeInv
     /\ LeadershipStateTypeInv
     /\ MembershipStateTypeInv
     /\ VotedForTypeInv
+    /\ IsNewFollowerTypeInv
 
 \* A Sequence of log entries. The index into this sequence is the index of the
 \* log entry. Sequences in TLA+ are 1-indexed.
@@ -286,7 +302,7 @@ CandidateVarsTypeInv ==
 \* The following variables are used only on leaders:
 
 \* The last entry sent to each follower.
-\* sentIndex in CCF is similar in function to nextIndex in Raft
+\* sentIndex in CCF is similar in function to nextIndex - 1 in Raft
 \* In CCF, the leader updates nextIndex optimistically when an AE message is dispatched
 \* In contrast, in Raft the leader only updates nextIndex when an AE response is received
 VARIABLE sentIndex
@@ -522,6 +538,7 @@ JoinedLog(startNode, nextNodes) ==
 InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
     /\ removedFromConfiguration = {}
     /\ votedFor    = [i \in Servers |-> Nil]
+    /\ isNewFollower = [i \in Servers |-> TRUE]
     /\ currentTerm = [i \in Servers |-> IF i \in startNodes THEN StartTerm ELSE 0]
     /\ \E sn \in startNodes:
         \* We make the following assumption about logPrefix, whose violation would violate SignatureInv and LogConfigurationConsistentInv.
@@ -533,6 +550,9 @@ InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
         /\ leadershipState = [i \in Servers |-> IF i = sn THEN Leader ELSE IF i \in startNodes THEN Follower ELSE None]
         /\ membershipState = [i \in Servers |-> Active]
         /\ commitIndex = [i \in Servers |-> IF i \in startNodes THEN Len(logPrefix({sn}, startNodes)) ELSE 0]
+        /\ sentIndex  = [i \in Servers |-> IF i = sn 
+            THEN [j \in Servers |-> Len(logPrefix({sn}, startNodes))] 
+            ELSE [j \in Servers |-> 0]]
     /\ configurations = [i \in Servers |-> IF i \in startNodes  THEN (Len(log[i])-1 :> startNodes) ELSE << >>]
     
 ------------------------------------------------------------------------------
@@ -552,7 +572,6 @@ InitCandidateVars ==
 \* leader does not send itself messages. It's still easier to include these
 \* in the functions.
 InitLeaderVars ==
-    /\ sentIndex  = [i \in Servers |-> [j \in Servers |-> 0]]
     /\ matchIndex = [i \in Servers |-> [j \in Servers |-> 0]]
 
 Init ==
@@ -579,7 +598,7 @@ Timeout(i) ==
     \* Candidate votes for itself
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
-    /\ UNCHANGED <<reconfigurationVars, messageVars, leaderVars, logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, messageVars, leaderVars, logVars, membershipState, isNewFollower>>
 
 \* Candidate i sends j a RequestVote request.
 RequestVote(i,j) ==
@@ -600,7 +619,7 @@ RequestVote(i,j) ==
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ IsInServerSet(j, i)
     /\ Send(msg)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, votesGranted, leaderVars, logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, votesGranted, leaderVars, logVars>>
 
 \* Leader i sends j an AppendEntries request
 AppendEntries(i, j) ==
@@ -666,7 +685,7 @@ BecomeLeader(i) ==
     \* been rolled back as it was unsigned
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
-    /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor, candidateVars, commitIndex>>
+    /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex>>
 
 \* Leader i receives a client request to add 42 to the log.
 ClientRequest(i) ==
@@ -697,7 +716,7 @@ SignCommittableMessages(i) ==
     /\ IF membershipState[i] = RetirementOrdered
        THEN membershipState' = [membershipState EXCEPT ![i] = RetirementSigned]
        ELSE UNCHANGED membershipState
-    /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, leadershipState, votedFor, candidateVars, leaderVars, commitIndex>>
+    /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, leaderVars, commitIndex>>
 
 \* CCF: Reconfiguration of servers
 \* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
@@ -734,7 +753,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
           /\ i \notin newConfiguration
         THEN membershipState' = [membershipState EXCEPT ![i] = RetirementOrdered]
         ELSE UNCHANGED membershipState
-    /\ UNCHANGED <<messageVars, currentTerm, leadershipState, votedFor, candidateVars, matchIndex, commitIndex>>
+    /\ UNCHANGED <<messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, matchIndex, commitIndex>>
 
 ChangeConfiguration(i) ==
     \* Reconfigure to any *non-empty* subset of servers.  ChangeConfigurationInt checks that the new
@@ -803,7 +822,7 @@ AdvanceCommitIndex(i) ==
                                     source        |-> i,
                                     dest          |-> j ]
                         IN Send(msg)
-                    /\ UNCHANGED <<currentTerm, votedFor>>
+                    /\ UNCHANGED <<currentTerm, votedFor, isNewFollower>>
                  \* Otherwise, states remain unchanged
                  ELSE UNCHANGED <<messages, serverVars>>
            \* Otherwise, Configuration and states remain unchanged
@@ -815,6 +834,7 @@ CheckQuorum(i) ==
     \* Check node is a leader (and therefore has not completed retirement)
     /\ leadershipState[i] = Leader
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
+    /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
     /\ UNCHANGED <<reconfigurationVars, messageVars, currentTerm, votedFor, candidateVars, leaderVars, logVars, membershipState>>
 
 ------------------------------------------------------------------------------
@@ -843,7 +863,7 @@ HandleRequestVoteRequest(i, j, m) ==
                  dest        |-> j],
                  m)
        /\ UNCHANGED <<reconfigurationVars, leadershipState, currentTerm, 
-        candidateVars, leaderVars, logVars, membershipState>>
+        candidateVars, leaderVars, logVars, membershipState, isNewFollower>>
 
 \* Server i receives a RequestVote response from server j with
 \* m.term = currentTerm[i].
@@ -858,10 +878,12 @@ HandleRequestVoteResponse(i, j, m) ==
           /\ UNCHANGED votesGranted
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, votedFor, leaderVars, 
-        logVars, membershipState>>
+        logVars, membershipState, isNewFollower>>
 
-\* Server i receives a RequestVote request from server j with
-\* m.term < currentTerm[i].
+\* Server i replies to a AppendEntries request from server j with a NACK
+\* A NACK is sent if either:
+\* (1) the leader's term is behind the follower's term 
+\* (2) the follower log does not have the m.prevLogTerm at m.prevLogIndex
 RejectAppendEntriesRequest(i, j, m, logOk) ==
     \* See recv_append_entries and send_append_entries_response in raft.h.
     /\ \/ /\ m.term < currentTerm[i]
@@ -897,15 +919,20 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                                 source         |-> i,
                                 dest           |-> j],
                                 m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, logVars, membershipState>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, logVars, membershipState, isNewFollower, candidateVars, leaderVars>>
 
+\* Candidate i steps down to follower in the same term after receiving a message m from a leader in the current term
+\* Must check that m is an AppendEntries message before returning to follower state
 ReturnToFollowerState(i, m) ==
     /\ m.term = currentTerm[i]
     /\ leadershipState[i] = Candidate
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
+    /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
+    \* Note that the set of message is unchanged as m is discarded
     /\ UNCHANGED <<reconfigurationVars, currentTerm, votedFor, logVars, 
-        messages, membershipState>>
+        messages, membershipState, candidateVars, leaderVars>>
 
+\* Follower i receives a AppendEntries from leader j for log entries it already has
 AppendEntriesAlreadyDone(i, j, index, m) ==
     /\ \/ m.entries = << >>
        \/ /\ m.entries /= << >>
@@ -924,6 +951,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
                 IF membershipState = RetirementSigned /\ commitIndex' > RetirementIndex(i) 
                 THEN RetirementCompleted 
                 ELSE @]
+    /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -931,19 +959,22 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, log>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, log, candidateVars, leaderVars>>
 
+\* Follower i receives an AppendEntries request m where it needs to roll back first
+\* This action rolls back the log and leaves m in messages for further processing
 ConflictAppendEntriesRequest(i, index, m) ==
-    /\ m.entries /= << >>
     /\ Len(log[i]) >= index
-    /\ log[i][index].term /= m.entries[1].term
+    /\ isNewFollower[i] = TRUE
     /\ LET new_log == [index2 \in 1..m.prevLogIndex |-> log[i][index2]] \* Truncate log
        IN /\ log' = [log EXCEPT ![i] = new_log]
           \* Potentially also shorten the configurations if the removed txns contained reconfigurations
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex[i], i)]
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, commitIndex, messages>>
+    /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars>>
 
+\* Follower i receives an AppendEntries request m from leader j for log entries which directly follow its log
 NoConflictAppendEntriesRequest(i, j, m) ==
     /\ m.entries /= << >>
     /\ Len(log[i]) = m.prevLogIndex
@@ -977,6 +1008,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
            ELSE UNCHANGED leadershipState
           \* Recalculate membership state based on log' and commitIndex'
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex'[i], i)]
+    /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -984,8 +1016,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, 
-        votedFor>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, votedFor, candidateVars, leaderVars>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -994,9 +1025,10 @@ AcceptAppendEntriesRequest(i, j, logOk, m) ==
     /\ logOk
     /\ LET index == m.prevLogIndex + 1
        IN \/ AppendEntriesAlreadyDone(i, j, index, m)
-          \/ ConflictAppendEntriesRequest(i, index, m)
           \/ NoConflictAppendEntriesRequest(i, j, m)
-
+          \/ ConflictAppendEntriesRequest(i, index, m) \cdot AppendEntriesAlreadyDone(i, j, index, m)
+          \/ ConflictAppendEntriesRequest(i, index, m) \cdot NoConflictAppendEntriesRequest(i, j, m)
+          
 \* Server i receives an AppendEntries request from server j with
 \* m.term <= currentTerm[i].
 HandleAppendEntriesRequest(i, j, m) ==
@@ -1008,7 +1040,6 @@ HandleAppendEntriesRequest(i, j, m) ==
        /\ \/ RejectAppendEntriesRequest(i, j, m, logOk)
           \/ ReturnToFollowerState(i, m)
           \/ AcceptAppendEntriesRequest(i, j, logOk, m)
-       /\ UNCHANGED <<candidateVars, leaderVars>>
 
 \* Server i receives an AppendEntries response from server j with
 \* m.term = currentTerm[i].
@@ -1032,13 +1063,14 @@ HandleAppendEntriesResponse(i, j, m) ==
 \* Any message with a newer term causes the recipient to advance its term first.
 \* Note that UpdateTerm does not discard message m from the set of messages so this 
 \* message can be parsed again by the receiver. Note that all other message parsing actions should
-\* check that m.term = currentTerm[i] to ensure that this action is the only one ENABLED.
+\* check that m.term <= currentTerm[i] to ensure that this action is the only one ENABLED.
 \* Analogous to raft.h::become_aware_of_new_term
 UpdateTerm(i, j, m) ==
     /\ m.term > currentTerm[i]
     /\ currentTerm'    = [currentTerm EXCEPT ![i] = m.term]
     \* See become_aware_of_new_term() in raft.h:1915
     /\ leadershipState' = [leadershipState EXCEPT ![i] = IF @ \in {Leader, Candidate, None} THEN Follower ELSE @]
+    /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
     \* See rollback(last_committable_index()) in raft::become_follower
     /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(i))]
@@ -1088,18 +1120,6 @@ DropIgnoredMessage(i,j,m) ==
           /\ m.type \notin {RequestVoteRequest, AppendEntriesRequest}
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
-
-\* Retired leaders send notify commit messages to update all nodes about the commit level
-UpdateCommitIndex(i,j,m) ==
-    /\ m.commitIndex > commitIndex[i]
-    /\ LET
-        new_config_index == LastConfigurationToIndex(i,m.commitIndex)
-        new_configurations == RestrictDomain(configurations[i], LAMBDA c : c >= new_config_index)
-        IN
-        /\ commitIndex' = [commitIndex EXCEPT ![i] = m.commitIndex]
-        /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
-    /\ UNCHANGED <<messages, currentTerm,
-        votedFor, candidateVars, leaderVars, log, membershipState>>
 
 \* Receive a message.
 
@@ -1155,6 +1175,7 @@ RcvProposeVoteRequest(i, j) ==
         /\ Timeout(m.dest)
         /\ Discard(m)
 
+\* Node i receives a message from node j.
 Receive(i, j) ==
     \/ RcvDropIgnoredMessage(i, j)
     \/ RcvUpdateTerm(i, j)
@@ -1171,7 +1192,7 @@ Receive(i, j) ==
 \* Each of these transitions has additional constraints that have to be fulfilled for the state to be an allowed step.
 \* For example, ``BecomeLeader`` is only a possible step if the selected node has enough votes to do so.
 
-\* Defines how the variables may transition.
+\* Defines how the variables may transition, given a node i.
 NextInt(i) ==
     \/ Timeout(i)
     \/ BecomeLeader(i)
