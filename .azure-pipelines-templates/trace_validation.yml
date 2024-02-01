@@ -9,5 +9,5 @@ steps:
   - script: |
       set -ex
       cd tla/
-      parallel 'JSON={} java -XX:+UseParallelGC -Dtlc2.tool.impl.Tool.cdot=true -Dtlc2.tool.queue.IStateQueue=StateDeque -cp tla2tools.jar:CommunityModules-deps.jar tlc2.TLC -lncheck final consensus/Traceccfraft.tla' ::: $(ls ../build/*.ndjson | grep -v _deprecated)
+      parallel 'JSON={} java -XX:+UseParallelGC -Dtlc2.tool.impl.Tool.cdot=true -Dtlc2.tool.queue.IStateQueue=StateDeque -cp tla2tools.jar:CommunityModules-deps.jar tlc2.TLC -lncheck final -checkpoint 0 consensus/Traceccfraft.tla' ::: $(ls ../build/*.ndjson | grep -v _deprecated)
     displayName: "Run trace validation"
