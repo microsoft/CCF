@@ -74,7 +74,8 @@ CONSTANTS
 MembershipStates == {
     Active,
     RetirementOrdered,
-    RetirementSigned
+    RetirementSigned,
+    RetirementCompleted
     }
 
 \* Message types:
