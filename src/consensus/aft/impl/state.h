@@ -151,6 +151,7 @@ namespace aft
   struct State
   {
     State(const ccf::NodeId& node_id_) : node_id(node_id_) {}
+    State() = default;
 
     ccf::pal::Mutex lock;
 
@@ -178,8 +179,10 @@ namespace aft
     // Candidate -> Follower, when receiving entries for a newer term
     kv::LeadershipState leadership_state = kv::LeadershipState::None;
     kv::MembershipState membership_state = kv::MembershipState::Active;
+
+    std::optional<kv::RetirementPhase> retirement_phase = std::nullopt;
   };
-  DECLARE_JSON_TYPE(State);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(State);
   DECLARE_JSON_REQUIRED_FIELDS(
     State,
     node_id,
@@ -190,4 +193,5 @@ namespace aft
     leadership_state,
     membership_state,
     committable_indices);
+  DECLARE_JSON_OPTIONAL_FIELDS(State, retirement_phase);
 }
