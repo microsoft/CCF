@@ -919,7 +919,7 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                                 source         |-> i,
                                 dest           |-> j],
                                 m)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, logVars, membershipState, isNewFollower>>
+    /\ UNCHANGED <<reconfigurationVars, serverVars, logVars, membershipState, isNewFollower, candidateVars, leaderVars>>
 
 \* Candidate i steps down to follower in the same term after receiving a message m from a leader in the current term
 \* Must check that m is an AppendEntries message before returning to follower state
@@ -930,7 +930,7 @@ ReturnToFollowerState(i, m) ==
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
     \* Note that the set of message is unchanged as m is discarded
     /\ UNCHANGED <<reconfigurationVars, currentTerm, votedFor, logVars, 
-        messages, membershipState>>
+        messages, membershipState, candidateVars, leaderVars>>
 
 \* Follower i receives a AppendEntries from leader j for log entries it already has
 AppendEntriesAlreadyDone(i, j, index, m) ==
@@ -959,7 +959,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, log>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, log, candidateVars, leaderVars>>
 
 \* Follower i receives an AppendEntries request m where it needs to roll back first
 \* This action rolls back the log and leaves m in messages for further processing
@@ -972,7 +972,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex[i], i)]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, commitIndex, messages>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars>>
 
 \* Follower i receives an AppendEntries request m from leader j for log entries which directly follow its log
 NoConflictAppendEntriesRequest(i, j, m) ==
@@ -1016,8 +1016,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, 
-        votedFor>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, votedFor, candidateVars, leaderVars>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -1041,7 +1040,6 @@ HandleAppendEntriesRequest(i, j, m) ==
        /\ \/ RejectAppendEntriesRequest(i, j, m, logOk)
           \/ ReturnToFollowerState(i, m)
           \/ AcceptAppendEntriesRequest(i, j, logOk, m)
-       /\ UNCHANGED <<candidateVars, leaderVars>>
 
 \* Server i receives an AppendEntries response from server j with
 \* m.term = currentTerm[i].
