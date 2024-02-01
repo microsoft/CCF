@@ -185,6 +185,9 @@ namespace aft
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
     // Earliest index at which this node's retirement can be committed
     std::optional<ccf::SeqNo> retirement_committable_idx = std::nullopt;
+    // Index at which this node observes its retired_committed, only set when
+    // that index itself is committed
+    std::optional<ccf::SeqNo> retired_committed_idx = std::nullopt;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(State);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -198,5 +201,9 @@ namespace aft
     membership_state,
     committable_indices);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    State, retirement_phase, retirement_idx, retirement_committable_idx);
+    State,
+    retirement_phase,
+    retirement_idx,
+    retirement_committable_idx,
+    retired_committed_idx);
 }

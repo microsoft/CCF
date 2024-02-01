@@ -1046,7 +1046,7 @@ class Network:
                     )
         except (ValueError, TimeoutError):
             LOG.error(
-                f"NFailed to replace {node_to_retire.node_id} with {node_to_add.node_id}"
+                f"Failed to replace {node_to_retire.node_id} with {node_to_add.node_id}"
             )
             node_to_add.stop()
             raise

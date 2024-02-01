@@ -690,7 +690,8 @@
         "enum": [
           "Ordered",
           "Signed",
-          "Completed"
+          "Completed",
+          "RetiredCommitted"
         ],
         "type": "string"
       },
