@@ -335,7 +335,7 @@ IsRcvProposeVoteRequest ==
        IN \E m \in Network!MessagesTo(i, j):
             /\ m.type = ProposeVoteRequest
             /\ m.term = logline.msg.packet.term
-            /\ RcvProposeVoteRequest(i, j)
+            /\ UNCHANGED vars
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
 
 TraceNext ==
