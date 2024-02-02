@@ -330,7 +330,6 @@ IsCheckQuorum ==
 
 IsRcvProposeVoteRequest ==
     /\ IsEvent("recv_propose_request_vote")
-    /\ leadershipState[logline.msg.state.node_id] = Leader
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.to_node_id
        IN /\ \E m \in Network!Messages':
