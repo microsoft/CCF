@@ -294,7 +294,7 @@ namespace aft
     bool is_retired_committed() const
     {
       return state->membership_state == kv::MembershipState::Retired &&
-             state->retirement_phase == kv::RetirementPhase::RetiredCommitted;
+        state->retirement_phase == kv::RetirementPhase::RetiredCommitted;
     }
 
     void set_retired_committed(ccf::SeqNo seqno) override
@@ -884,13 +884,13 @@ namespace aft
     bool can_replicate_unsafe()
     {
       return state->leadership_state == kv::LeadershipState::Leader &&
-             state->retirement_phase < kv::RetirementPhase::RetiredCommitted;
+        state->retirement_phase < kv::RetirementPhase::RetiredCommitted;
     }
 
     bool can_sign_unsafe()
     {
       return state->leadership_state == kv::LeadershipState::Leader &&
-             !is_retired_committed();
+        !is_retired_committed();
     }
 
     Index get_commit_idx_unsafe()
