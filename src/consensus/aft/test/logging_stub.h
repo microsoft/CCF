@@ -269,12 +269,14 @@ namespace aft
   enum class ReplicatedDataType
   {
     raw = 0,
-    reconfiguration = 1
+    reconfiguration = 1,
+    retired_committed = 2
   };
   DECLARE_JSON_ENUM(
     ReplicatedDataType,
     {{ReplicatedDataType::raw, "raw"},
-     {ReplicatedDataType::reconfiguration, "reconfiguration"}});
+     {ReplicatedDataType::reconfiguration, "reconfiguration"},
+     {ReplicatedDataType::retired_committed, "retired_committed"}});
 
   struct ReplicatedData
   {
@@ -456,8 +458,46 @@ namespace aft
 
   class LoggingStubStoreConfig : public LoggingStubStore
   {
+    std::vector<std::pair<Index, nlohmann::json>> retired_commit_entries = {};
+
   public:
     LoggingStubStoreConfig(ccf::NodeId id) : LoggingStubStore(id) {}
+
+    virtual void compact(Index i) override {
+      for (auto& [version, configuration] : retired_commit_entries)
+      {
+        if (version <= i)
+        {
+          // how do we call set_retired_committed() on raft here?
+          std::cout << "Retired committed configuration: " << configuration.dump()
+                    << std::endl;
+        }
+        else
+        {
+          break;
+        }
+      }
+      retired_commit_entries.erase(
+        std::remove_if(
+          retired_commit_entries.begin(),
+          retired_commit_entries.end(),
+          [i](const auto& entry) {
+            return entry.first < i;
+          }),
+        retired_commit_entries.end());
+    }
+
+    virtual void rollback(const kv::TxID& tx_id, Term t) override
+    {
+      retired_commit_entries.erase(
+        std::remove_if(
+          retired_commit_entries.begin(),
+          retired_commit_entries.end(),
+          [tx_id](const auto& entry) {
+            return entry.first > tx_id.version;
+          }),
+        retired_commit_entries.end());
+    }
 
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
@@ -479,6 +519,11 @@ namespace aft
         auto hook = std::make_unique<aft::ConfigurationChangeHook>(
           configuration, version);
         hooks.push_back(std::move(hook));
+      }
+      if (r.type == ReplicatedDataType::retired_committed)
+      {
+        kv::Configuration::Nodes configuration = nlohmann::json::parse(r.data);
+        retired_commit_entries.emplace_back(version, configuration);
       }
 
       return std::make_unique<ExecutionWrapper>(

@@ -124,7 +124,8 @@ private:
     std::vector<uint8_t> data,
     const size_t lineno,
     bool committable = false,
-    const std::optional<kv::Configuration::Nodes>& configuration = std::nullopt)
+    const std::optional<kv::Configuration::Nodes>& configuration = std::nullopt,
+    const std::optional<kv::Configuration::Nodes>& retired_committed = std::nullopt)
   {
     const auto opt = find_primary_in_term(term_s, lineno);
     if (!opt.has_value())
@@ -151,6 +152,11 @@ private:
 
     aft::ReplicatedDataType type = aft::ReplicatedDataType::raw;
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    if (configuration.has_value() && retired_committed.has_value())
+    {
+      throw std::logic_error(
+        "Cannot replicate both configuration and retired_committed in the same entry");
+    }
     if (configuration.has_value())
     {
       auto hook = std::make_unique<aft::ConfigurationChangeHook>(
@@ -161,6 +167,12 @@ private:
 
       // If the entry is a reconfiguration, the replicated data is overwritten
       // with the serialised configuration
+      data = std::vector<uint8_t>(c.begin(), c.end());
+    }
+    if (retired_committed.has_value())
+    {
+      type = aft::ReplicatedDataType::retired_committed;
+      auto c = nlohmann::json(retired_committed).dump();
       data = std::vector<uint8_t>(c.begin(), c.end());
     }
 
@@ -238,6 +250,19 @@ public:
                          start_node_id,
                          start_node_id)
                     << std::endl;
+  }
+
+  void cleanup_nodes(
+    const std::string& term,
+    const std::vector<std::string>& node_ids,
+    const size_t lineno)
+  {
+    kv::Configuration::Nodes retired_committed;
+    for (const auto& id : node_ids)
+    {
+      retired_committed.try_emplace(id);
+    }
+    _replicate(term, {}, lineno, false, std::nullopt, retired_committed);
   }
 
   void trust_nodes(
