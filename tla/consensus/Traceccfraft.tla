@@ -228,7 +228,7 @@ IsAdvanceCommitIndex ==
        /\ logline.msg.state.leadership_state = "Leader"
        /\ LET i == logline.msg.state.node_id
           IN /\ AdvanceCommitIndex(i)
-             /\ commitIndex'[i] = logline.msg.state.commit_idx
+             /\ commitIndex'[i] = logline.msg.new_commit_idx
              /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     \/ /\ IsEvent("commit")
        /\ UNCHANGED vars
