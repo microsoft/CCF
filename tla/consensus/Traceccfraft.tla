@@ -332,13 +332,10 @@ IsRcvProposeVoteRequest ==
     /\ IsEvent("recv_propose_request_vote")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
-       IN /\ \E m \in Network!Messages':
-                /\ m.type = ProposeVoteRequest
-                /\ RcvProposeVoteRequest(i, j)
-                /\ m.type = RaftMsgType[logline.msg.packet.msg]
-                /\ m.term = logline.msg.packet.term
-                \* There is now one more message of this type.
-                /\ Network!OneMoreMessage(m)
+       IN \E m \in Network!MessagesTo(i, j):
+            /\ m.type = ProposeVoteRequest
+            /\ m.term = logline.msg.packet.term
+            /\ RcvProposeVoteRequest(i, j)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
 
 TraceNext ==
