@@ -331,7 +331,7 @@ IsCheckQuorum ==
 IsRcvProposeVoteRequest ==
     /\ IsEvent("recv_propose_request_vote")
     /\ LET i == logline.msg.state.node_id
-           j == logline.msg.to_node_id
+           j == logline.msg.from_node_id
        IN /\ \E m \in Network!Messages':
                 /\ m.type = ProposeVoteRequest
                 /\ RcvProposeVoteRequest(i, j)
