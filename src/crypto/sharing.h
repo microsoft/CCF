@@ -16,7 +16,10 @@
 
 namespace crypto
 {
-  static constexpr size_t LIMBS = 10; // = ((256+80)/31)
+  // We get (almost) 31 bits of entropy per limb, hence to get 256 bits of
+  // entropy of derived key material, with 80 bits of safety margin,
+  // ((256+80)/31) = 10 limbs.
+  static constexpr size_t LIMBS = 10;
   static constexpr const char* key_label = "CCF Wrapping Key v1";
 
   struct Share
@@ -83,13 +86,15 @@ namespace crypto
     }
   };
 
-  /** Sample a secret into @p raw_secret, and split it into @p output.
+  /** Sample a secret into @p raw_secret, and split it into @p shares.
    * Enforces 1 < @p threshold <= number of shares.
    *
-   * @param[out] raw_secret sampled secret value
-   * @param[out] shares shares of raw_secret
-   * @param threshold number of shares necessary to recover the secret
+   * @param[out] raw_secret Sampled secret value.
+   * @param[out] shares Shares of raw_secret. Note that the size of the span
+   * determines the number of shares.
+   * @param[in] threshold Number of shares necessary to recover the secret.
    *
+   * The secret is guaranteed to contain at least 256 bits of entropy.
    * Note that is it not safe to use the secret as a key directly,
    * and that a round of key derivation is necessary (Share::key()).
    */
@@ -98,9 +103,11 @@ namespace crypto
 
   /** Using @p shares, recover @p secret, without authentication.
    *
-   * @param[out] raw_secret recovered secret value
-   * @param[in] shares shares of raw_secret
-   * @param threshold number of shares necessary to recover the secret
+   * @param[out] raw_secret Recovered secret value.
+   * @param[in] shares Shares of raw_secret.
+   * @param threshold Number of shares necessary to recover the secret.
+   *
+   * Note that shares passed in excess of the threshold are ignored.
    *
    * @throws std::invalid_argument if the number of shares is insufficient,
    * or if two shares have the same x coordinate.

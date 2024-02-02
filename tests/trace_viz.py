@@ -12,6 +12,10 @@ LEADERSHIP_STATUS = {
     "Candidate": ":person_raising_hand:",
 }
 
+MEMBERSHIP_STATUS = {"Active": "A", "Retired": "R"}
+
+RETIREMENT_PHASE = {"Ordered": "o", "Signed": "s", "Completed": "c", None: " "}
+
 FUNCTIONS = {
     "add_configuration": "Cfg",
     "replicate": "Rpl",
@@ -39,24 +43,37 @@ def digits(value):
     return len(str(value))
 
 
-def diffed_key(old, new, key, suffix, size):
+def diffed_key(old, new, key, suffix, size, sub=lambda x: x):
     if old is None or old[key] == new[key]:
-        return f"{new[key]:>{size}}{suffix}"
+        return f"{sub(new[key]):>{size}}{suffix}"
     color = "bright_white on red"
-    return f"[{color}]{new[key]:>{size}}{suffix}[/{color}]"
+    return f"[{color}]{sub(new[key]):>{size}}{suffix}[/{color}]"
+
+
+def diffed_opt_key(old, new, key, suffix, size, sub=lambda x: x):
+    if old is None or old.get(key) == new.get(key):
+        return f"{sub(new.get(key)):>{size}}{suffix}"
+    color = "bright_white on red"
+    return f"[{color}]{sub(new.get(key)):>{size}}{suffix}[/{color}]"
 
 
 def render_state(state, func, old_state, tag, cfg):
     if state is None:
         return " "
     ls = LEADERSHIP_STATUS[state["leadership_state"]]
+    ms = diffed_key(old_state, state, "membership_state", "", 1, MEMBERSHIP_STATUS.get)
+    rp = diffed_opt_key(
+        old_state, state, "retirement_phase", "", 1, RETIREMENT_PHASE.get
+    )
     nid = state["node_id"]
     v = diffed_key(old_state, state, "current_view", "", cfg.view)
     i = diffed_key(old_state, state, "last_idx", "", cfg.index)
     c = diffed_key(old_state, state, "commit_idx", "", cfg.commit)
     f = FUNCTIONS[func]
     opc = "bold bright_white on red" if func else "normal"
-    return f"[{opc}]{nid:>{cfg.nodes}}{ls}{f:<4} [/{opc}]{TAG[tag]} {v}.{i} {c}"
+    return (
+        f"[{opc}]{nid:>{cfg.nodes}}{ls}{f:<4} [/{opc}]{TAG[tag]} {ms}{rp} {v}.{i} {c}"
+    )
 
 
 class DigitsCfg:
@@ -115,7 +132,7 @@ def table(lines):
             f"[{entry['h_ts']:>{dcfg.ts}}] "
             + "     ".join(render_state(*state, dcfg) for state in states if state[0])
             + "   "
-            + (entry["cmd"] or "")
+            + entry["cmd"]
         )
     return rows
 
