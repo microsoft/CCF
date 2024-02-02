@@ -78,7 +78,7 @@ def preprocess_for_trace_validation(log):
     assert signature["msg"]["globally_committable"], signature
     commit = head()
     assert commit["msg"]["function"] == "commit", commit
-    assert commit["msg"]["state"]["commit_idx"] == 2, commit
+    assert commit["msg"]["new_commit_idx"] == 2, commit
     # Commit becomes bootstrap, the entry point into the trace validation
     commit["msg"]["function"] = "bootstrap"
     log_by_node[initial_node].insert(0, commit)
