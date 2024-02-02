@@ -1174,7 +1174,7 @@ RcvProposeVoteRequest(i, j) ==
         /\ j = m.source
         /\ m.type = ProposeVoteRequest
         /\ m.term = currentTerm[i]
-        /\ Timeout(m.dest)
+        \* /\ Timeout(m.dest)
         /\ Discard(m)
 
 \* Node i receives a message from node j.
