@@ -1886,6 +1886,11 @@ namespace aft
         // Send an empty append_entries to all nodes.
         send_append_entries(node.first, next);
       }
+
+      if (retired_node_cleanup)
+      {
+        retired_node_cleanup->cleanup();
+      }
     }
 
   public:
