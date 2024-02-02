@@ -332,7 +332,7 @@ IsRcvProposeVoteRequest ==
     /\ IsEvent("recv_propose_request_vote")
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
-       IN /\ \E m \in Network!Messages(i, j):
+       IN \E m \in Network!Messages(i, j):
                 /\ m.type = ProposeVoteRequest
                 /\ m.term = logline.msg.packet.term
                 /\ UNCHANGED vars
