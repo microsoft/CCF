@@ -404,6 +404,10 @@ TraceMatched ==
     \* Note: Consider changing {1,2,3} to (Nat \ {0}) while validating traces with holes.
     [](l <= Len(TraceLog) => [](TLCGet("queue") \in Nat \ {0} \/ l > Len(TraceLog)))
 
+TraceMatchedNonTrivially ==
+    \* If, e.g., the FALSE state constraint excludes all states, TraceMatched won't be violated.
+    TLCGet("stats").diameter = Len(TraceLog)
+
 -------------------------------------------------------------------------------------
 
 TraceDifferentialInv ==
