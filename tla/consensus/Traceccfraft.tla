@@ -228,7 +228,7 @@ IsAdvanceCommitIndex ==
        /\ logline.msg.state.leadership_state = "Leader"
        /\ LET i == logline.msg.state.node_id
           IN /\ AdvanceCommitIndex(i)
-             /\ commitIndex'[i] = logline.msg.state.commit_idx
+             /\ commitIndex'[i] = logline.msg.args.idx
              /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     \/ /\ IsEvent("commit")
        /\ UNCHANGED vars
@@ -238,7 +238,7 @@ IsChangeConfiguration ==
     /\ IsEvent("add_configuration")
     /\ leadershipState[logline.msg.state.node_id] = Leader
     /\ LET i == logline.msg.state.node_id
-           newConfiguration == DOMAIN logline.msg.new_configuration.nodes
+           newConfiguration == DOMAIN logline.msg.args.configuration.nodes
        IN ChangeConfigurationInt(i, newConfiguration)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
 
