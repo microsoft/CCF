@@ -164,8 +164,10 @@ EntryTypeOK(entry) ==
     /\ \/ /\ entry.contentType = TypeEntry
           /\ entry.request \in Nat \ {0}
        \/ entry.contentType = TypeSignature
-       \/ /\ entry.contentType \in {TypeReconfiguration, TypeRetiredCommitted}
+       \/ /\ entry.contentType = TypeReconfiguration
           /\ entry.configuration \subseteq Servers
+       \/ /\ entry.contentType = TypeRetiredCommitted
+          /\ entry.retired \subseteq Servers
 
 AppendEntriesRequestTypeOK(m) ==
     /\ m.type = AppendEntriesRequest
@@ -514,6 +516,14 @@ CalcMembershipState(log_i, commit_index_i, i) ==
                  ELSE RetirementOrdered
        ELSE Active
 
+\* Set of nodes with retired committed transactions in a given log
+AllRetiredCommittedTxns(log_i) ==
+    UNION {entry.retired: entry \in {k \in log_i: k.contentType = TypeRetiredCommitted}}
+
+\* Set of retired nodes in a given log
+AllRetired(log_i) ==
+    {n \in Servers: RetirementIndexLog(log_i, n) # 0}
+
 AppendEntriesBatchsize(i, j) ==
     \* The Leader is modeled to send zero to one entries per AppendEntriesRequest.
      \* This can be redefined to send bigger batches of entries.
@@ -811,6 +821,8 @@ AdvanceCommitIndex(i) ==
            THEN
               LET new_configurations == RestrictDomain(configurations[i], 
                                             LAMBDA c : c >= LastConfigurationToIndex(i, highestCommittableIndex))
+                  \* Calculate which nodes have had their retirement committed but no retired committed txn
+                  retire_committed_nodes == AllRetired(SubSeq(log[i],1,commitIndex'[i])) \ AllRetiredCommittedTxns(log[i])
               IN
               /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
               \* Retire if i is not in active configuration anymore
@@ -827,10 +839,16 @@ AdvanceCommitIndex(i) ==
                     /\ UNCHANGED <<currentTerm, votedFor, isNewFollower>>
                  \* Otherwise, states remain unchanged
                  ELSE UNCHANGED <<messages, serverVars>>
-              \* TODO: Check if any node's retirement has been committed and add retired_committed if so
+              \* Check if any node's retirement has been committed and add retired_committed if so
+              /\ IF retire_committed_nodes = {} 
+                 THEN UNCHANGED log
+                 ELSE log = [log EXCEPT ![i] = Append(@, [
+                    term  |-> currentTerm[i], 
+                    contentType |-> TypeRetiredCommitted, 
+                    retired |-> retire_committed_nodes])]
            \* Otherwise, Configuration and states remain unchanged
-           ELSE UNCHANGED <<messages, serverVars, reconfigurationVars, leadershipState>>
-    /\ UNCHANGED <<candidateVars, leaderVars, log, removedFromConfiguration>>
+           ELSE UNCHANGED <<messages, serverVars, reconfigurationVars, log, leadershipState>>
+    /\ UNCHANGED <<candidateVars, leaderVars, removedFromConfiguration>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
