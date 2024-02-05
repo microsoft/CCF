@@ -1026,6 +1026,8 @@ AcceptAppendEntriesRequest(i, j, logOk, m) ==
     /\ m.term = currentTerm[i]
     /\ leadershipState[i] \in {Follower, None}
     /\ logOk
+    \* raft.h ignores AE messages before commit index
+    /\ m.prevLogIndex >= commitIndex[i]
     /\ LET index == m.prevLogIndex + 1
        IN \/ AppendEntriesAlreadyDone(i, j, index, m)
           \/ NoConflictAppendEntriesRequest(i, j, m)
