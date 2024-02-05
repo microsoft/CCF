@@ -175,8 +175,7 @@ IsSendAppendEntries ==
                 /\ IsAppendEntriesRequest(msg, j, i, logline)
                 \* There is now one more message of this type.
                 /\ Network!OneMoreMessage(msg)
-\* TODO revisit once nextIndex-related changes are merged in the spec
-\*          /\ logline.msg.sent_idx = nextIndex[i][j]
+          /\ logline.msg.sent_idx = sentIndex[i][j]
           /\ logline.msg.match_idx = matchIndex[i][j]
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
 
