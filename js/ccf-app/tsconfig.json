@@ -10,8 +10,8 @@
     "declaration": true,
     "strict": true,
     "rootDir": "src",
-    "outDir": ".",
+    "outDir": "."
   },
   "include": ["src"],
-  "exclude": [],
+  "exclude": []
 }

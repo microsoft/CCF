@@ -125,7 +125,8 @@ private:
     const size_t lineno,
     bool committable = false,
     const std::optional<kv::Configuration::Nodes>& configuration = std::nullopt,
-    const std::optional<kv::Configuration::Nodes>& retired_committed = std::nullopt)
+    const std::optional<kv::Configuration::Nodes>& retired_committed =
+      std::nullopt)
   {
     const auto opt = find_primary_in_term(term_s, lineno);
     if (!opt.has_value())
@@ -155,7 +156,8 @@ private:
     if (configuration.has_value() && retired_committed.has_value())
     {
       throw std::logic_error(
-        "Cannot replicate both configuration and retired_committed in the same entry");
+        "Cannot replicate both configuration and retired_committed in the same "
+        "entry");
     }
     if (configuration.has_value())
     {
@@ -171,6 +173,9 @@ private:
     }
     if (retired_committed.has_value())
     {
+      _nodes.at(node_id).kv->retired_commit_entries.emplace_back(
+        idx, retired_committed.value());
+
       type = aft::ReplicatedDataType::retired_committed;
       auto c = nlohmann::json(retired_committed).dump();
       data = std::vector<uint8_t>(c.begin(), c.end());
@@ -192,6 +197,8 @@ private:
       std::make_shared<aft::ChannelStubProxy>(),
       std::make_shared<aft::State>(node_id),
       nullptr);
+    kv->set_set_retired_committed_hook(
+      [&raft](aft::Index idx) { raft->set_retired_committed(idx); });
     raft->start_ticking();
 
     if (_nodes.find(node_id) != _nodes.end())

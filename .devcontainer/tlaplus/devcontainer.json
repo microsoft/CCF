@@ -4,7 +4,7 @@
     "alygin.vscode-tlaplus-nightly",
     "joaompinto.vscode-graphviz",
     "EFanZh.graphviz-preview",
-    "cssho.vscode-svgviewer",
+    "cssho.vscode-svgviewer"
   ],
   "settings": {
     "tlaplus.tlc.statisticsSharing": "share",
@@ -12,9 +12,9 @@
     "tlaplus.java.home": "/home/codespace/java/current/",
     "[tlaplus]": {
       "editor.codeActionsOnSave": {
-        "source": true,
-      },
-    },
+        "source": true
+      }
+    }
   },
-  "postCreateCommand": "(cd tla/ && python install_deps.py)",
+  "postCreateCommand": "(cd tla/ && python install_deps.py)"
 }

@@ -333,9 +333,16 @@ namespace aft
   {
   protected:
     ccf::NodeId _id;
+    std::function<void(Index)> set_retired_committed_hook;
 
   public:
     LoggingStubStore(ccf::NodeId id) : _id(id) {}
+
+    virtual void set_set_retired_committed_hook(
+      std::function<void(Index)> set_retired_committed_hook_)
+    {
+      set_retired_committed_hook = set_retired_committed_hook_;
+    }
 
     virtual void compact(Index i) {}
 
@@ -458,19 +465,27 @@ namespace aft
 
   class LoggingStubStoreConfig : public LoggingStubStore
   {
+  public:
     std::vector<std::pair<Index, nlohmann::json>> retired_commit_entries = {};
 
-  public:
     LoggingStubStoreConfig(ccf::NodeId id) : LoggingStubStore(id) {}
 
-    virtual void compact(Index i) override {
+    virtual void compact(Index i) override
+    {
       for (auto& [version, configuration] : retired_commit_entries)
       {
         if (version <= i)
         {
-          // how do we call set_retired_committed() on raft here?
-          std::cout << "Retired committed configuration: " << configuration.dump()
-                    << std::endl;
+          std::cout << "Retired committed configuration: "
+                    << configuration.dump() << std::endl;
+          if (configuration.find(_id) != configuration.end())
+          {
+            std::cout << "Node id: " << _id
+                      << " is in the retired committed configuration, calling "
+                         "set_retired_committed hook"
+                      << std::endl;
+            set_retired_committed_hook(i);
+          }
         }
         else
         {
@@ -481,9 +496,7 @@ namespace aft
         std::remove_if(
           retired_commit_entries.begin(),
           retired_commit_entries.end(),
-          [i](const auto& entry) {
-            return entry.first < i;
-          }),
+          [i](const auto& entry) { return entry.first < i; }),
         retired_commit_entries.end());
     }
 
@@ -493,9 +506,7 @@ namespace aft
         std::remove_if(
           retired_commit_entries.begin(),
           retired_commit_entries.end(),
-          [tx_id](const auto& entry) {
-            return entry.first > tx_id.version;
-          }),
+          [tx_id](const auto& entry) { return entry.first > tx_id.version; }),
         retired_commit_entries.end());
     }
 
