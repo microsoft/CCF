@@ -270,6 +270,11 @@ public:
     kv::Configuration::Nodes retired_committed;
     for (const auto& id : node_ids)
     {
+      if (_nodes.find(id) == _nodes.end())
+      {
+        throw std::runtime_error(fmt::format(
+          "Attempted to clean up unknown node {} on line {}", id, lineno));
+      }
       retired_committed.try_emplace(id);
     }
     _replicate(term, {}, lineno, false, std::nullopt, retired_committed);
@@ -744,10 +749,8 @@ public:
       }
     }
 
-    throw std::runtime_error(fmt::format(
-      "Found no primary in term {} on line {}",
-      term_s,
-      std::to_string((int)lineno)));
+    throw std::runtime_error(
+      fmt::format("Found no primary in term {} on line {}", term_s, lineno));
   }
 
   void replicate(
