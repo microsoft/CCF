@@ -518,7 +518,7 @@ CalcMembershipState(log_i, commit_index_i, i) ==
 
 \* Set of nodes with retired committed transactions in a given log
 AllRetiredCommittedTxns(log_i) ==
-    UNION {entry.retired: entry \in {k \in log_i: k.contentType = TypeRetiredCommitted}}
+    UNION {log_i[idx].retired: idx \in {k \in DOMAIN log_i: log_i[k].contentType = TypeRetiredCommitted}}
 
 \* Set of retired nodes in a given log
 AllRetired(log_i) ==
