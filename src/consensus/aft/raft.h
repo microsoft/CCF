@@ -463,7 +463,8 @@ namespace aft
       j["function"] = "add_configuration";
       j["state"] = *state;
       j["configurations"] = configurations;
-      j["new_configuration"] = Configuration{idx, conf, idx};
+      j["args"] = nlohmann::json::object();
+      j["args"]["configuration"] = Configuration{idx, conf, idx};
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -2196,7 +2197,8 @@ namespace aft
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
       j["function"] = "commit";
-      j["new_commit_idx"] = idx;
+      j["args"] = nlohmann::json::object();
+      j["args"]["idx"] = idx;
       j["state"] = *state;
       j["configurations"] = configurations;
       RAFT_TRACE_JSON_OUT(j);

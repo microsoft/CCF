@@ -120,8 +120,8 @@ def table(lines):
         if entry["msg"].get("globally_committable"):
             tag = "S"
         # Display commit index changes on the Cmt line itself
-        if "new_commit_idx" in entry["msg"]:
-            entry["msg"]["state"]["commit_idx"] = entry["msg"]["new_commit_idx"]
+        if "args" in entry["msg"] and "commit_idx" in entry["msg"]["args"]:
+            entry["msg"]["state"]["commit_idx"] = entry["msg"]["args"]["commit_idx"]
         states = [
             (
                 node_to_state.get(node),
