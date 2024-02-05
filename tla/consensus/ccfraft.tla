@@ -1442,6 +1442,17 @@ CommitCommittableIndices ==
             /\ CommittableIndices(i) = {}
         \/ commitIndex[i] \in CommittableIndices(i)
 
+
+\* Check that retired committed transactions are added only when retirement committed has been observed
+RetiredCommittedInv ==
+    \A i \in Servers :
+        \A k \in DOMAIN log[i] : 
+            log[i][k].contentType = TypeRetiredCommitted
+            => \A j \in log[i][k].retired : 
+                /\ RetirementIndexLog(log[i],j) # 0 
+                /\ RetirementIndexLog(log[i],j) <= k
+                /\ RetirementIndexLog(log[i],j) <= commitIndex[i]
+
 ------------------------------------------------------------------------------
 \* Properties
 
