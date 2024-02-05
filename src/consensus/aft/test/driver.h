@@ -168,12 +168,15 @@ private:
       auto c = nlohmann::json(configuration).dump();
 
       // If the entry is a reconfiguration, the replicated data is overwritten
-      // with the serialised configuration
+      // with the serialised configuration.
       data = std::vector<uint8_t>(c.begin(), c.end());
     }
     if (retired_committed.has_value())
     {
-      _nodes.at(node_id).kv->retired_commit_entries.emplace_back(
+      // Update the node's own retired committed entries collection when
+      // replicating There is no direct equivalent in a real node, but this is
+      // necessary to emulate the global commit hook effectively.
+      _nodes.at(node_id).kv->retired_committed_entries.emplace_back(
         idx, retired_committed.value());
 
       type = aft::ReplicatedDataType::retired_committed;

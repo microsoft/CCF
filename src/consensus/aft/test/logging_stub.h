@@ -466,13 +466,17 @@ namespace aft
   class LoggingStubStoreConfig : public LoggingStubStore
   {
   public:
-    std::vector<std::pair<Index, nlohmann::json>> retired_commit_entries = {};
+    std::vector<std::pair<Index, nlohmann::json>> retired_committed_entries =
+      {};
 
     LoggingStubStoreConfig(ccf::NodeId id) : LoggingStubStore(id) {}
 
+    // compact and rollback emulate the behaviour of the retired_committed hook
+    // in the real store through the retired_committed_entries vector, see
+    // node_state.h, circa line 2147
     virtual void compact(Index i) override
     {
-      for (auto& [version, configuration] : retired_commit_entries)
+      for (auto& [version, configuration] : retired_committed_entries)
       {
         if (version <= i)
         {
@@ -492,22 +496,22 @@ namespace aft
           break;
         }
       }
-      retired_commit_entries.erase(
+      retired_committed_entries.erase(
         std::remove_if(
-          retired_commit_entries.begin(),
-          retired_commit_entries.end(),
+          retired_committed_entries.begin(),
+          retired_committed_entries.end(),
           [i](const auto& entry) { return entry.first < i; }),
-        retired_commit_entries.end());
+        retired_committed_entries.end());
     }
 
     virtual void rollback(const kv::TxID& tx_id, Term t) override
     {
-      retired_commit_entries.erase(
+      retired_committed_entries.erase(
         std::remove_if(
-          retired_commit_entries.begin(),
-          retired_commit_entries.end(),
+          retired_committed_entries.begin(),
+          retired_committed_entries.end(),
           [tx_id](const auto& entry) { return entry.first > tx_id.version; }),
-        retired_commit_entries.end());
+        retired_committed_entries.end());
     }
 
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
@@ -534,7 +538,7 @@ namespace aft
       if (r.type == ReplicatedDataType::retired_committed)
       {
         kv::Configuration::Nodes configuration = nlohmann::json::parse(r.data);
-        retired_commit_entries.emplace_back(version, configuration);
+        retired_committed_entries.emplace_back(version, configuration);
       }
 
       return std::make_unique<ExecutionWrapper>(
