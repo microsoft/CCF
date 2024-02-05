@@ -463,7 +463,8 @@ namespace aft
       j["function"] = "add_configuration";
       j["state"] = *state;
       j["configurations"] = configurations;
-      j["new_configuration"] = Configuration{idx, conf, idx};
+      j["args"] = nlohmann::json::object();
+      j["args"]["configuration"] = Configuration{idx, conf, idx};
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -2193,6 +2194,16 @@ namespace aft
       if (idx <= state->commit_idx)
         return;
 
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "commit";
+      j["args"] = nlohmann::json::object();
+      j["args"]["idx"] = idx;
+      j["state"] = *state;
+      j["configurations"] = configurations;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
       compact_committable_indices(idx);
 
       state->commit_idx = idx;
@@ -2210,14 +2221,6 @@ namespace aft
       ledger->commit(idx);
 
       RAFT_DEBUG_FMT("Commit on {}: {}", state->node_id, idx);
-
-#ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "commit";
-      j["state"] = *state;
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
-#endif
 
       // Examine each configuration that is followed by a globally committed
       // configuration.
