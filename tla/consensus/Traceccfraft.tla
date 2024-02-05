@@ -253,6 +253,9 @@ IsRcvAppendEntriesResponse ==
                   \/ UpdateTerm(i, j, m) \cdot HandleAppendEntriesResponse(i, j, m)
                   \/ UpdateTerm(i, j, m) \cdot DropResponseWhenNotInState(i, j, m)
                   \/ DropResponseWhenNotInState(i, j, m)
+                  \* See comment on RcvAppendEntriesResponse in ccfraft
+                  \/ /\ m.success
+                     /\ DropStaleResponse(i, j, m)
                /\ IsAppendEntriesResponse(m, i, j, logline)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
 
@@ -364,21 +367,12 @@ TraceNext ==
     \/ IsRcvProposeVoteRequest
 
 TraceSpec ==
-    \* In an ideal world with extremely fast compute and a sophisticated TLC evaluator, we would simply compose  DropMessage and
-    \* TraceNext, i.e.,  DropMessage ⋅ TraceNext.  However, we are not in an ideal world, and, thus, we have to resort to the 
-    \* ~ENABLED TraceNext... workaround that mitigates state-space explosion by constraining the loss of messages to when a behavior
-    \* cannot be extended without losing/dropping messages. TLC handles the state-space explosion due to DropMessages at the level
-    \* of TraceSpec just fine. Instead, the bottleneck is rather checking refinement of ccfraft, which involves evaluating the big
-    \* formula  DropMessages ⋅ CCF!Next many times, which becomes prohibitively expensive with only modest state-space explosion.
-    \*
-    \* Other techniques, such as using an action constraint to ignore successors that unnecessarily discard messages, proved difficult
-    \* to express. Excluding the variable 'messages' in TraceView also proved ineffective. In the end, it seems as if it needs a new
-    \* mode in TLC that checks refinement only for the set of traces whose length equals Len(TraceLog). This means delaying the
-    \* refinement check until after the log has been matched. The class tlc2.tool.CheckImplFile might be a good starting point, although
-    \* its current implementation doesn't account for non-determinism arising from log gaps or missed messages.
-    TraceInit /\ [][(IF ~ENABLED TraceNext THEN DropMessages \cdot TraceNext ELSE TraceNext)]_<<l, ts, vars>>
+    TraceInit /\ [][IF ENABLED TraceNext THEN TraceNext ELSE DropMessages \cdot TraceNext]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
+
+Termination ==
+    l = Len(TraceLog) => TLCSet("exit", TRUE)
 
 TraceView ==
     \* A high-level state  s  can appear multiple times in a system trace.  Including the
@@ -494,42 +488,25 @@ AppendEntriesResponses ==
 
 -------------------------------------------------------------------------------------
 
-RcvUpdateTermReqVote(i, j) ==
-    RcvUpdateTerm(i, j) \cdot RcvRequestVoteRequest(i, j)
-
-RcvUpdateTermRcvRequestVoteResponse(i, j) ==
-    RcvUpdateTerm(i, j) \cdot RcvRequestVoteResponse(i, j)
-
-RcvUpdateTermReqAppendEntries(i, j) ==
-    RcvUpdateTerm(i, j) \cdot RcvAppendEntriesRequest(i, j)
-
-RcvUpdateTermRcvAppendEntriesResponse(i, j) ==
-    RcvUpdateTerm(i, j) \cdot RcvAppendEntriesResponse(i, j)
-
-RcvAppendEntriesRequestRcvAppendEntriesRequest(i, j) ==
-    RcvAppendEntriesRequest(i, j) \cdot RcvAppendEntriesRequest(i, j)
-
 ComposedNext ==
     \* The implementation raft.h piggybacks UpdateTerm messages on the AppendEntries
      \* and Vote messages.  Thus, we need to compose the UpdateTerm action with the
      \* corresponding AppendEntries and RequestVote actions.  This is a reasonable
      \* code-level optimization that we do not want to model explicitly in TLA+.
     \E i, j \in Servers:
-        \/ RcvUpdateTermReqVote(i, j)
-        \/ RcvUpdateTermRcvRequestVoteResponse(i, j)
-        \/ RcvUpdateTermReqAppendEntries(i, j)
-        \/ RcvUpdateTermRcvAppendEntriesResponse(i, j)
+        \/ RcvUpdateTerm(i, j) \cdot
+            \/ RcvRequestVoteRequest(i, j)
+            \/ RcvRequestVoteResponse(i, j)
+            \/ RcvAppendEntriesRequest(i, j)
+            \/ RcvAppendEntriesResponse(i, j)
         \* The sub-action IsRcvAppendEntriesRequest requires a disjunct composing two 
         \* successive RcvAppendEntriesRequest to validate suffix_collision.1 and fancy_election.1.
         \* The trace validation fails with violations of property CCFSpec if we do not
         \* conjoin the composed action below. See the (marker) label RAERRAER above.
-        \/ RcvAppendEntriesRequestRcvAppendEntriesRequest(i, j)
+        \/ RcvAppendEntriesRequest(i, j) \cdot RcvAppendEntriesRequest(i, j)
 
 CCF == INSTANCE ccfraft
 
-DropAndReceive(i, j) ==
-    DropMessages \cdot CCF!Receive(i, j)
-
-CCFSpec == CCF!Init /\ [][CCF!Next \/ (DropMessages \cdot ComposedNext)]_CCF!vars
+CCFSpec == CCF!Init /\ [][DropMessages \cdot (CCF!Next \/ ComposedNext)]_CCF!vars
 
 ==================================================================================
