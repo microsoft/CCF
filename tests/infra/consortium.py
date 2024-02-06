@@ -217,11 +217,13 @@ class Consortium:
             cert=slurp_file(
                 os.path.join(self.common_dir, f"{new_member_local_id}_cert.pem")
             ),
-            encryption_pub_key=slurp_file(
-                os.path.join(self.common_dir, f"{new_member_local_id}_enc_pubk.pem")
-            )
-            if recovery_member
-            else None,
+            encryption_pub_key=(
+                slurp_file(
+                    os.path.join(self.common_dir, f"{new_member_local_id}_enc_pubk.pem")
+                )
+                if recovery_member
+                else None
+            ),
             member_data=member_data,
         )
 

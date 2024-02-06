@@ -80,6 +80,13 @@ int main(int argc, char** argv)
       // Terminate early if four or more '=' appear on a line.
       return 0;
     }
+#ifdef CCF_RAFT_TRACING
+    if (!line.empty())
+    {
+      std::cout << "{\"tag\": \"raft_trace\", \"cmd\": \"" << line << "\"}"
+                << std::endl;
+    }
+#endif
     switch (shash(in))
     {
       case shash("start_node"):
@@ -96,6 +103,48 @@ int main(int argc, char** argv)
         driver->trust_nodes(
           items[0], {std::next(items.begin()), items.end()}, lineno);
         break;
+      case shash("swap_node"):
+        assert(items.size() == 4);
+        driver->swap_nodes(items[1], {items[2]}, {items[3]}, lineno);
+        break;
+      case shash("swap_nodes"):
+      {
+        // Usage is: swap_nodes,<term>,in,<node1>,...,out,<node3>,...
+        // swap_nodes,<term>,in,<node1>,...
+        // swap_nodes,<term>,out,<node1>,...
+        // are also permitted, and so is
+        // swap_nodes,<term>,out,<node1>,...,in,<node3>,...
+        assert(items.size() >= 4);
+        auto vargs_begin = std::next(std::next(items.begin()));
+        auto in_pos = std::find(vargs_begin, items.end(), "in");
+        auto out_pos = std::find(vargs_begin, items.end(), "out");
+        if (in_pos == vargs_begin)
+        {
+          driver->swap_nodes(
+            items[1],
+            {out_pos != items.end() ? std::next(out_pos) : items.end(),
+             items.end()}, // out nodes if any
+            {std::next(vargs_begin), out_pos}, // in nodes
+            lineno);
+        }
+        else if (out_pos == vargs_begin)
+        {
+          driver->swap_nodes(
+            items[1],
+            {std::next(vargs_begin), in_pos}, // out nodes
+            {in_pos != items.end() ? std::next(in_pos) : items.end(),
+             items.end()}, // in nodes if any
+            lineno);
+        }
+        else
+        {
+          throw std::runtime_error(fmt::format(
+            "swap_nodes: expected 'in' or 'out' after term on line {}",
+            lineno));
+        }
+
+        break;
+      }
       case shash("nodes"):
         assert(items.size() >= 2);
         items.erase(items.begin());

@@ -1,31 +1,9 @@
 trigger:
-  batch: true
-  branches:
+  tags:
     include:
-      - main
+      - ccf-5.*
 
-pr:
-  autoCancel: true
-  branches:
-    include:
-      - main
-      - "release/*"
-    exclude:
-      - "release/[0-3].x"
-  paths:
-    include:
-      - "*"
-
-schedules:
-  - cron: "0 3 * * Mon-Fri"
-    displayName: Daily morning build
-    branches:
-      include:
-        - main
-        - "release/*"
-      exclude:
-        - "release/[0-3].x"
-    always: true
+pr: none
 
 resources:
   containers:
@@ -42,16 +20,20 @@ resources:
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
 
 variables:
-  perf_or_release: perf
-  perf_tests: run
+  ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-') }}:
+    perf_or_release: release
+    perf_tests: no_run
+  ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')) }}:
+    perf_or_release: perf
+    perf_tests: run
 
 jobs:
   - template: .azure-pipelines-templates/configure.yml
 
-  - template: .azure-pipelines-templates/matrix.yml
+  - template: .azure-pipelines-templates/release-matrix.yml
     parameters:
-      perf_or_release: perf
-      perf_tests: run
+      perf_or_release: ${{ variables['perf_or_release'] }}
+      perf_tests: ${{ variables['perf_tests'] }}
 
   - job: CredScan
     variables:
