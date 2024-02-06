@@ -98,7 +98,18 @@ LOCAL OrderOneMoreMessage(m) ==
     \/ Len(SelectSeq(messages[m.dest], LAMBDA e: m = e)) < Len(SelectSeq(messages'[m.dest], LAMBDA e: m = e))
 
 LOCAL OrderDropMessages(server) ==
-    \E s \in Suffixes(messages[server]):  \* TODO - Change to SubSeqs if more sophisticated message loss is needed.
+    \E s \in AllSubSeqs(messages[server]):
+        messages' = [ messages EXCEPT ![server] = s ]
+
+\* These alternatives of OrderDropMessages may be useful for debugging
+LOCAL OrderDropOlderMessages(server) ==
+   (* Always drop older messages first, i.e., an old message has to be handled or dropped before a new message can be handled or dropped. *)
+    \E s \in Suffixes(messages[server]):
+        messages' = [ messages EXCEPT ![server] = s ]
+
+LOCAL OrderDropConsecutiveMessages(server) ==
+   (* Drop messages regardless of "time", but only ever drop consecutive messages. *)
+    \E s \in SubSeqs(messages[server]):
         messages' = [ messages EXCEPT ![server] = s ]
 
 ----------------------------------------------------------------------------------
