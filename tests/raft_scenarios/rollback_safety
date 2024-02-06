@@ -72,7 +72,6 @@ dispatch_one,0
 dispatch_one,1
 dispatch_single,2,0 # NB: dispatch_single, to avoid touching the NACK for 1
 dispatch_single,2,0
-dispatch_single,2,0
 
 # Node 0 sends useful AEs
 periodic_one,0,10
@@ -80,9 +79,6 @@ dispatch_one,0
 
 # Node 0 receives response, advancing commit
 dispatch_one,1
-dispatch_single,2,0
-dispatch_single,2,0
-dispatch_single,2,0
 dispatch_single,2,0
 dispatch_single,2,0
 
@@ -114,6 +110,9 @@ dispatch_single,2,1
 
 # Node 0 produces AEs
 periodic_one,1,10
+
+state_all
+assert_commit_safety,0 # Sanity check, we're fine here
 
 # This AE reaches 2
 dispatch_single,1,2

@@ -3,10 +3,6 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
-
-// To allow testing of scenarios with partial incomplete catchup, try to ensure
-// that AEs are maximally fragmented
-#define OVERRIDE_APPEND_ENTRIES_SIZE_LIMIT 1
 #include "consensus/aft/raft.h"
 #include "logging_stub.h"
 
