@@ -172,7 +172,6 @@ namespace aft
 
   public:
     static constexpr size_t append_entries_size_limit = 20000;
-
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ccf::NodeToNode> channels;
 
