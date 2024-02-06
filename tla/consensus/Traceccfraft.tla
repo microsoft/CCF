@@ -367,8 +367,11 @@ TraceNext ==
 
     \/ IsRcvProposeVoteRequest
 
+DropAndNext ==
+    IF ENABLED TraceNext THEN TraceNext ELSE DropMessages \cdot TraceNext
+
 TraceSpec ==
-    TraceInit /\ [][IF ENABLED TraceNext THEN TraceNext ELSE DropMessages \cdot TraceNext]_<<l, ts, vars>>
+    TraceInit /\ [][DropAndNext]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
