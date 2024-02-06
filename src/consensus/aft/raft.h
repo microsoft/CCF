@@ -171,7 +171,13 @@ namespace aft
     std::default_random_engine rand;
 
   public:
-    static constexpr size_t append_entries_size_limit = 20000;
+    static constexpr size_t append_entries_size_limit =
+#ifdef OVERRIDE_APPEND_ENTRIES_SIZE_LIMIT
+      OVERRIDE_APPEND_ENTRIES_SIZE_LIMIT;
+#else
+      20000;
+#endif
+
     std::unique_ptr<LedgerProxy> ledger;
     std::shared_ptr<ccf::NodeToNode> channels;
 
