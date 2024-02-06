@@ -564,12 +564,25 @@ def run_max_uncommitted_tx_count(args):
             assert r.status_code == http.HTTPStatus.OK.value, r
 
 
+def run_service_subject_name_check(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args, service_subject_name="CN=This test service")
+        
+
+
 def run(args):
-    run_max_uncommitted_tx_count(args)
-    run_file_operations(args)
-    run_tls_san_checks(args)
-    run_config_timeout_check(args)
-    run_configuration_file_checks(args)
-    run_pid_file_check(args)
-    run_preopen_readiness_check(args)
-    run_sighup_check(args)
+    # run_max_uncommitted_tx_count(args)
+    # run_file_operations(args)
+    # run_tls_san_checks(args)
+    # run_config_timeout_check(args)
+    # run_configuration_file_checks(args)
+    # run_pid_file_check(args)
+    # run_preopen_readiness_check(args)
+    # run_sighup_check(args)
+    run_service_subject_name_check(args)

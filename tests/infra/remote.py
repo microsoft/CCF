@@ -621,6 +621,7 @@ class CCFRemote(object):
         max_uncommitted_tx_count=0,
         snp_security_policy_file=None,
         snp_uvm_endorsements_file=None,
+        service_subject_name="CN=CCF Test Service",
         **kwargs,
     ):
         """
@@ -813,6 +814,7 @@ class CCFRemote(object):
                 max_uncommitted_tx_count=max_uncommitted_tx_count,
                 snp_security_policy_file=snp_security_policy_file,
                 snp_uvm_endorsements_file=snp_uvm_endorsements_file,
+                service_subject_name=service_subject_name,
                 **kwargs,
             )
 

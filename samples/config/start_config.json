@@ -50,7 +50,8 @@
         "recovery_threshold": 1,
         "maximum_node_certificate_validity_days": 365
       },
-      "initial_service_certificate_validity_days": 1
+      "initial_service_certificate_validity_days": 1,
+      "service_subject_name": "CN=A Sample CCF Service"
     }
   },
   "ledger": {

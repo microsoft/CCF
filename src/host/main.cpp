@@ -633,6 +633,8 @@ int main(int argc, char** argv)
         recovery_threshold;
       startup_config.initial_service_certificate_validity_days =
         config.command.start.initial_service_certificate_validity_days;
+      startup_config.service_subject_name =
+        config.command.start.service_subject_name;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",
@@ -656,6 +658,8 @@ int main(int argc, char** argv)
       LOG_INFO_FMT("Creating new node - recover");
       startup_config.initial_service_certificate_validity_days =
         config.command.recover.initial_service_certificate_validity_days;
+      startup_config.service_subject_name =
+        config.command.recover.service_subject_name;
       auto idf = config.command.recover.previous_service_identity_file;
       if (!files::exists(idf))
       {

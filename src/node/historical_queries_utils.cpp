@@ -122,7 +122,7 @@ namespace ccf
               auto ncv = crypto::make_unique_verifier(network_identity->cert);
               auto endorsement = create_endorsed_cert(
                 hpubkey,
-                ReplicatedNetworkIdentity::subject_name,
+                network_identity->subject_name,
                 {},
                 ncv->validity_period(),
                 network_identity->priv_key,

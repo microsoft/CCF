@@ -115,6 +115,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   startup_host_time,
   snapshot_tx_interval,
   initial_service_certificate_validity_days,
+  service_subject_name,
   service_data,
   node_data,
   start,
