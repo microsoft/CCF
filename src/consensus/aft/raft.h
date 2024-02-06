@@ -1134,40 +1134,12 @@ namespace aft
         r.idx,
         r.prev_idx);
 
-      if (is_new_follower)
-      {
-        if (state->last_idx > r.prev_idx)
-        {
-          RAFT_DEBUG_FMT(
-            "New follower received first append entries with mismatch - "
-            "rolling back from {} to {}",
-            state->last_idx,
-            r.prev_idx);
-          auto rollback_level = r.prev_idx;
-          rollback(rollback_level);
-        }
-        else
-        {
-          RAFT_DEBUG_FMT(
-            "New follower has no conflict with prev_idx {}", r.prev_idx);
-        }
-        is_new_follower = false;
-      }
-
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
         append_entries;
       // Finally, deserialise each entry in the batch
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
       {
-        if (i <= state->last_idx)
-        {
-          // If the current entry has already been deserialised, skip the
-          // payload for that entry
-          ledger->skip_entry(data, size);
-          continue;
-        }
-
         std::vector<uint8_t> entry;
         try
         {
@@ -1197,8 +1169,50 @@ namespace aft
           send_append_entries_response(from, AppendEntriesResponseType::FAIL);
           return;
         }
+
+        if (i <= state->last_idx)
+        {
+          const auto incoming_term = ds->get_term();
+          const auto local_term = state->view_history.view_at(i);
+          if (incoming_term != local_term)
+          {
+            if (is_new_follower)
+            {
+              auto rollback_level = i - 1;
+              RAFT_DEBUG_FMT(
+                "New follower received AppendEntries with conflict. Incoming "
+                "entry {}.{} conflicts with local {}.{}. Rolling back to {}.",
+                incoming_term,
+                i,
+                local_term,
+                i,
+                rollback_level);
+              rollback(rollback_level);
+              // NB: Continue to process this AE as normal
+            }
+            else
+            {
+              RAFT_FAIL_FMT(
+                "Found conflict at {}.{} (incoming AppendEntries contains "
+                "{}.{}). Ignoring due to is_new_follower=false.",
+                local_term,
+                i,
+                incoming_term,
+                i);
+            }
+          }
+          else
+          {
+            // If the current entry has already been deserialised, skip the
+            // payload for that entry
+            continue;
+          }
+        }
+
         append_entries.push_back(std::make_tuple(std::move(ds), i));
       }
+
+      is_new_follower = false;
 
       execute_append_entries_sync(
         std::move(append_entries), from, std::move(r));
@@ -1290,6 +1304,9 @@ namespace aft
                 // know our previous signature locally.
                 state->view_history.update(r.prev_idx + 1, ds->get_term());
               }
+
+              // TODO: Why do we do this inline? In particular, this means we
+              // don't do it if we skipped existing entries
               commit_if_possible(r.leader_commit_idx);
             }
             break;
