@@ -301,13 +301,14 @@ CandidateVarsTypeInv ==
 
 \* The following variables are used only on leaders:
 
-\* The last entry sent to each follower.
-\* sentIndex in CCF is similar in function to nextIndex - 1 in Raft
-\* In CCF, the leader updates nextIndex optimistically when an AE message is dispatched
+\* sentIndex is generally the last entry sent to each follower.
+\* The leader updates sentIndex optimistically when an AE message is dispatched
 \* For all AE messages sent, the prevLogIndex is equal to the sendIndex before dispatch
-\* In contrast, in Raft the leader only updates nextIndex when an AE response is received
+\* When a node becomes leader, it sets sentIndex for all nodes to the length of its log 
+\* When a node joins, the leader sets sentIndex for the new node to the length of its log before the node joined
+\* sentIndex in CCF is similar in function to nextIndex - 1 in Raft, however in Raft 
+\* the leader only updates nextIndex when an AE response is received
 VARIABLE sentIndex
-
 
 SentIndexTypeInv ==
     \A i, j \in Servers : i /= j =>
