@@ -301,12 +301,14 @@ CandidateVarsTypeInv ==
 
 \* The following variables are used only on leaders:
 
-\* The last entry sent to each follower.
-\* sentIndex in CCF is similar in function to nextIndex - 1 in Raft
-\* In CCF, the leader updates nextIndex optimistically when an AE message is dispatched
-\* In contrast, in Raft the leader only updates nextIndex when an AE response is received
+\* sentIndex is generally the last entry sent to each follower.
+\* The leader updates sentIndex optimistically when an AE message is dispatched
+\* For all AE messages sent, the prevLogIndex is equal to the sendIndex before dispatch
+\* When a node becomes leader, it sets sentIndex for all nodes to the length of its log 
+\* When a node joins, the leader sets sentIndex for the new node to the length of its log before the node joined
+\* sentIndex in CCF is similar in function to nextIndex - 1 in Raft, however in Raft 
+\* the leader only updates nextIndex when an AE response is received
 VARIABLE sentIndex
-
 
 SentIndexTypeInv ==
     \A i, j \in Servers : i /= j =>
@@ -738,6 +740,8 @@ ChangeConfigurationInt(i, newConfiguration) ==
     /\ \A s \in newConfiguration: s \notin removedFromConfiguration
     \* See raft.h:2401, nodes are only sent future entries initially, they will NACK if necessary.
     \* This is because they are expected to start from a fairly recent snapshot, not from scratch.
+    \* Note that the sentIndex is set to the log entry *before* the reconfiguration was added
+    \* This is to allow the send AE action to send an initial heartbeat which matches the implementation
     /\ LET
         addedNodes == newConfiguration \ CurrentConfiguration(i)
         newSentIndex == [ k \in Servers |-> IF k \in addedNodes THEN Len(log[i]) ELSE sentIndex[i][k]]
