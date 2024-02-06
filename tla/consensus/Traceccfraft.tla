@@ -411,6 +411,27 @@ TraceMatchedNonTrivially ==
     \* If, e.g., the FALSE state constraint excludes all states, TraceMatched won't be violated.
     TLCGet("stats").diameter = Len(TraceLog)
 
+TraceMatchesConstraints ==
+    \* ccfraft's invariants become (state) constraints in Traceccfraft.  When validating traces,
+    \* the constraints exclude all states that do not satisfy the "invariants".  If no states
+    \* remain and the level  l  is less than the length of the trace log, i.e.,  Len(TraceLog),
+    \* TraceMatched  above will be violated and TLC will print a counterexample.
+    /\ LogInv
+    /\ MoreThanOneLeaderInv
+    /\ CandidateTermNotInLogInv
+    /\ ElectionSafetyInv
+    /\ LogMatchingInv
+    /\ QuorumLogInv
+    /\ LeaderCompletenessInv
+    /\ SignatureInv
+    /\ TypeInv
+    /\ MonoTermInv
+    /\ MonoLogInv
+    /\ NoLeaderBeforeInitialTerm
+    /\ LogConfigurationConsistentInv
+    /\ MembershipStateConsistentInv
+    /\ CommitCommittableIndices
+
 -------------------------------------------------------------------------------------
 
 TraceDifferentialInv ==
