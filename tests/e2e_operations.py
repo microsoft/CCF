@@ -20,6 +20,8 @@ import subprocess
 import time
 import http
 import infra.snp as snp
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 from loguru import logger as LOG
 
@@ -573,16 +575,27 @@ def run_service_subject_name_check(args):
         pdb=args.pdb,
     ) as network:
         network.start_and_open(args, service_subject_name="CN=This test service")
-        
+        # Check service_cert.pem
+        with open(network.cert_path, "rb") as cert_file:
+            cert = x509.load_pem_x509_certificate(cert_file.read(), default_backend())
+            assert cert.subject.rfc4514_string() == "CN=This test service", cert
+        # Check /node/service endpoint
+        primary, _ = network.find_primary()
+        with primary.client() as c:
+            r = c.get("/node/network")
+            assert r.status_code == http.HTTPStatus.OK.value, r
+            cert_pem = r.body.json()["service_certificate"]
+            cert = x509.load_pem_x509_certificate(cert_pem.encode(), default_backend())
+            assert cert.subject.rfc4514_string() == "CN=This test service", cert
 
 
 def run(args):
-    # run_max_uncommitted_tx_count(args)
-    # run_file_operations(args)
-    # run_tls_san_checks(args)
-    # run_config_timeout_check(args)
-    # run_configuration_file_checks(args)
-    # run_pid_file_check(args)
-    # run_preopen_readiness_check(args)
-    # run_sighup_check(args)
+    run_max_uncommitted_tx_count(args)
+    run_file_operations(args)
+    run_tls_san_checks(args)
+    run_config_timeout_check(args)
+    run_configuration_file_checks(args)
+    run_pid_file_check(args)
+    run_preopen_readiness_check(args)
+    run_sighup_check(args)
     run_service_subject_name_check(args)

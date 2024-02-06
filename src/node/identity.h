@@ -31,7 +31,10 @@ namespace ccf
         type == other.type && subject_name == other.subject_name;
     }
 
-    NetworkIdentity(const std::string& subject_name_) : type(IdentityType::REPLICATED), subject_name(subject_name_) {}
+    NetworkIdentity(const std::string& subject_name_) :
+      type(IdentityType::REPLICATED),
+      subject_name(subject_name_)
+    {}
     NetworkIdentity() = default;
 
     virtual crypto::Pem issue_certificate(
