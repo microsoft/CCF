@@ -1304,8 +1304,6 @@ namespace aft
                 state->view_history.update(r.prev_idx + 1, ds->get_term());
               }
 
-              // TODO: Why do we do this inline? In particular, this means we
-              // don't do it if we skipped existing entries
               commit_if_possible(r.leader_commit_idx);
             }
             break;
