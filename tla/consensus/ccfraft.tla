@@ -738,16 +738,16 @@ ChangeConfigurationInt(i, newConfiguration) ==
     /\ \A s \in newConfiguration: s \notin removedFromConfiguration
     \* See raft.h:2401, nodes are only sent future entries initially, they will NACK if necessary.
     \* This is because they are expected to start from a fairly recent snapshot, not from scratch.
-    /\ LET
-        addedNodes == newConfiguration \ CurrentConfiguration(i)
-        newSentIndex == [ k \in Servers |-> IF k \in addedNodes THEN Len(log[i]) ELSE sentIndex[i][k]]
-       IN sentIndex' = [sentIndex EXCEPT ![i] = newSentIndex]
-    /\ removedFromConfiguration' = removedFromConfiguration \cup (MaxConfiguration(i) \ newConfiguration)
     /\ log' = [log EXCEPT ![i] = Append(log[i], 
                                             [term |-> currentTerm[i],
                                              configuration |-> newConfiguration,
                                              contentType |-> TypeReconfiguration])]
     /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
+    /\ LET
+        addedNodes == newConfiguration \ CurrentConfiguration(i)
+        newSentIndex == [ k \in Servers |-> IF k \in addedNodes THEN Len(log'[i]) ELSE sentIndex[i][k]]
+       IN sentIndex' = [sentIndex EXCEPT ![i] = newSentIndex]
+    /\ removedFromConfiguration' = removedFromConfiguration \cup (MaxConfiguration(i) \ newConfiguration)
     \* Check if node is starting its own retirement
     /\ IF /\ membershipState[i] = Active
           /\ i \notin newConfiguration
