@@ -297,16 +297,30 @@ namespace aft
         state->retirement_phase == kv::RetirementPhase::RetiredCommitted;
     }
 
-    void set_retired_committed(ccf::SeqNo seqno) override
+    void set_retired_committed(
+      ccf::SeqNo seqno, const std::vector<kv::NodeId>& node_ids) override
     {
-      state->retirement_phase = kv::RetirementPhase::RetiredCommitted;
-      CCF_ASSERT_FMT(
-        state->retired_committed_idx == state->commit_idx,
-        "Retired "
-        "committed index {} does not match current commit index {}",
-        state->retired_committed_idx.value_or(0),
-        state->commit_idx);
-      state->retired_committed_idx = seqno;
+      for (auto& node_id : node_ids)
+      {
+        if (id() == node_id)
+        {
+          state->retirement_phase = kv::RetirementPhase::RetiredCommitted;
+          CCF_ASSERT_FMT(
+            state->retired_committed_idx == state->commit_idx,
+            "Retired "
+            "committed index {} does not match current commit index {}",
+            state->retired_committed_idx.value_or(0),
+            state->commit_idx);
+          state->retired_committed_idx = seqno;
+        }
+        else
+        {
+          // This does not seem right, because it means a retiring backup
+          // probably never finds out that its retirement_committed has been
+          // committed.
+          all_other_nodes.erase(node_id);
+        }
+      }
     }
 
     Index last_committable_index() const
@@ -2385,11 +2399,14 @@ namespace aft
         }
       }
 
-      for (auto node_id : to_remove)
-      {
-        all_other_nodes.erase(node_id);
-        RAFT_INFO_FMT("Removed raft node {}", node_id);
-      }
+      // This is too early: the node's removal has been committed, so although
+      // we don't need to track the configuration it belongs to anymore, we need
+      // to keep sending it append entries, until its retired_committed commits.
+      // for (auto node_id : to_remove)
+      // {
+      //   all_other_nodes.erase(node_id);
+      //   RAFT_INFO_FMT("Removed raft node {}", node_id);
+      // }
 
       // Add all active nodes that are not already present in the node state.
       for (auto node_info : active_nodes)

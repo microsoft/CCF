@@ -476,7 +476,8 @@ namespace kv
 
     virtual void enable_all_domains() {}
 
-    virtual void set_retired_committed(ccf::SeqNo){};
+    virtual void set_retired_committed(
+      ccf::SeqNo, const std::vector<NodeId>& node_ids){};
   };
 
   struct PendingTxInfo
