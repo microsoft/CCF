@@ -198,6 +198,10 @@ int main(int argc, char** argv)
         assert(items.size() == 1);
         driver->dispatch_all_once();
         break;
+      case shash("dispatch_single"):
+        assert(items.size() == 3);
+        driver->dispatch_single(items[1], items[2]);
+        break;
       case shash("replicate"):
         assert(items.size() == 3);
         data = std::make_shared<std::vector<uint8_t>>(
