@@ -1185,7 +1185,7 @@ namespace aft
         }
 
         kv::TxID expected{r.term_of_idx, i};
-        auto ds = store->apply(entry, public_only, expected);
+        auto ds = store->deserialize(entry, public_only, expected);
         if (ds == nullptr)
         {
           RAFT_FAIL_FMT(
