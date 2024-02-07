@@ -474,7 +474,7 @@ namespace HMAC_bench
   PICOBENCH(openssl_hmac_sha256_64).PICO_HASH_SUFFIX();
 }
 
-std::vector<crypto::Share> shares;
+std::vector<crypto::sharing::Share> shares;
 
 PICOBENCH_SUITE("share");
 namespace SHARE_bench
@@ -488,8 +488,8 @@ namespace SHARE_bench
     for (auto _ : s)
     {
       (void)_;
-      crypto::Share secret;
-      crypto::sample_secret_and_shares(secret, shares, threshold);
+      crypto::sharing::Share secret;
+      crypto::sharing::sample_secret_and_shares(secret, shares, threshold);
       do_not_optimize(secret);
       clobber_memory();
     }
@@ -521,9 +521,10 @@ namespace SHARE_bench
     for (auto _ : s)
     {
       (void)_;
-      crypto::Share secret;
-      crypto::sample_secret_and_shares(secret, shares, threshold);
-      crypto::recover_unauthenticated_secret(secret, shares, threshold);
+      crypto::sharing::Share secret;
+      crypto::sharing::sample_secret_and_shares(secret, shares, threshold);
+      crypto::sharing::recover_unauthenticated_secret(
+        secret, shares, threshold);
       do_not_optimize(secret);
       clobber_memory();
     }

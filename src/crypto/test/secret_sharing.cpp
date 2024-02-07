@@ -10,7 +10,7 @@
 
 #include <fmt/format.h>
 
-using namespace crypto;
+using namespace crypto::sharing;
 
 void share_and_recover(size_t num_shares, size_t threshold, size_t recoveries)
 {
@@ -129,4 +129,26 @@ TEST_CASE("Serialisation")
   INFO(new_share.to_str());
 
   REQUIRE(share == new_share);
+}
+
+constexpr element prime = (1ul << 31) - 1ul; // a notorious Mersenne prime
+static element reduce(element x)
+{
+  // Actually CT, as compiled by Clang 11+, but obviously not guaranteed to be
+  // so
+  return (x % prime);
+}
+
+TEST_CASE("Smoke test ct_reduce against reduce")
+{
+  for (size_t i = 0; i < (1ul << 16); ++i)
+  {
+    size_t under = prime * i - 1;
+    size_t over = prime * i;
+    size_t mid = prime * i + (prime / 2);
+
+    REQUIRE_MESSAGE(reduce(under) == ct_reduce(under), std::to_string(under));
+    REQUIRE_MESSAGE(reduce(over) == ct_reduce(over), std::to_string(over));
+    REQUIRE_MESSAGE(reduce(mid) == ct_reduce(mid), std::to_string(mid));
+  }
 }
