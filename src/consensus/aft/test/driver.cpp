@@ -103,6 +103,12 @@ int main(int argc, char** argv)
         driver->trust_nodes(
           items[0], {std::next(items.begin()), items.end()}, lineno);
         break;
+      case shash("cleanup_nodes"):
+        assert(items.size() >= 3);
+        items.erase(items.begin());
+        driver->cleanup_nodes(
+          items[0], {std::next(items.begin()), items.end()}, lineno);
+        break;
       case shash("swap_node"):
         assert(items.size() == 4);
         driver->swap_nodes(items[1], {items[2]}, {items[3]}, lineno);
