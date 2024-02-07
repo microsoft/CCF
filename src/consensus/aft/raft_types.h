@@ -36,7 +36,7 @@ namespace aft
     virtual void compact(Index v) = 0;
     virtual void rollback(const kv::TxID& tx_id, Term term_of_next_version) = 0;
     virtual void initialise_term(Term t) = 0;
-    virtual std::unique_ptr<kv::AbstractExecutionWrapper> apply(
+    virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t> data,
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt) = 0;
@@ -78,7 +78,7 @@ namespace aft
       }
     }
 
-    std::unique_ptr<kv::AbstractExecutionWrapper> apply(
+    std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t> data,
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt) override

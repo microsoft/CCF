@@ -170,6 +170,11 @@ namespace aft
     std::uniform_int_distribution<int> distrib;
     std::default_random_engine rand;
 
+    // AppendEntries messages are currently constrained to only contain entries
+    // from a single term, so that the receiver can know the term of each entry
+    // pre-deserialisation, without an additional header.
+    static constexpr size_t max_terms_per_append_entries = 1;
+
   public:
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
@@ -927,6 +932,9 @@ namespace aft
         // Cap the end index in 2 ways:
         // - Must contain no more than entries_batch_size entries
         // - Must contain entries from a single term
+        static_assert(
+          max_terms_per_append_entries == 1,
+          "AppendEntries construction logic enforces single term");
         auto max_idx = state->last_idx;
         const auto term_of_ae = state->view_history.view_at(start);
         const auto index_at_end_of_term =
@@ -1208,7 +1216,7 @@ namespace aft
         }
 
         kv::TxID expected{r.term_of_idx, i};
-        auto ds = store->apply(entry, public_only, expected);
+        auto ds = store->deserialize(entry, public_only, expected);
         if (ds == nullptr)
         {
           RAFT_FAIL_FMT(
@@ -1310,6 +1318,10 @@ namespace aft
                 // NB: This is only safe as long as AppendEntries only contain a
                 // single term. If they cover multiple terms, then we need to
                 // know our previous signature locally.
+                static_assert(
+                  max_terms_per_append_entries == 1,
+                  "AppendEntries processing for term updates assumes single "
+                  "term");
                 state->view_history.update(r.prev_idx + 1, ds->get_term());
               }
               commit_if_possible(r.leader_commit_idx);
