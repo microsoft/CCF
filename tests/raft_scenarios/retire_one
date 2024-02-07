@@ -34,7 +34,7 @@ assert_state_sync
 assert_commit_idx,0,11
 assert_commit_idx,1,11
 
-## the leader 0 reconfigures to remove 1
+## the leader 0 reconfigures to remove 1 at index 12
 swap_nodes,2,out,1
 
 periodic_all,30
@@ -60,6 +60,28 @@ assert_is_primary,0
 assert_is_backup,1
 assert_is_retired,1
 
-## leader 0 continues to commit to 15, but 1 is stopped at 11
+## leader 0 commits 15
 assert_commit_idx,0,15
 assert_commit_idx,1,11
+
+# Since the retirement of 1 is now committed, 0 emits a retired_committed transaction
+# followed by a signature
+cleanup_nodes,2,1
+emit_signature,2
+
+state_all
+
+periodic_all,30
+dispatch_all
+
+state_all
+
+periodic_all,30
+dispatch_all
+
+state_all
+
+periodic_all,30
+dispatch_all
+
+state_all
