@@ -269,12 +269,14 @@ namespace aft
   enum class ReplicatedDataType
   {
     raw = 0,
-    reconfiguration = 1
+    reconfiguration = 1,
+    retired_committed = 2
   };
   DECLARE_JSON_ENUM(
     ReplicatedDataType,
     {{ReplicatedDataType::raw, "raw"},
-     {ReplicatedDataType::reconfiguration, "reconfiguration"}});
+     {ReplicatedDataType::reconfiguration, "reconfiguration"},
+     {ReplicatedDataType::retired_committed, "retired_committed"}});
 
   struct ReplicatedData
   {
@@ -331,9 +333,16 @@ namespace aft
   {
   protected:
     ccf::NodeId _id;
+    std::function<void(Index)> set_retired_committed_hook;
 
   public:
     LoggingStubStore(ccf::NodeId id) : _id(id) {}
+
+    virtual void set_set_retired_committed_hook(
+      std::function<void(Index)> set_retired_committed_hook_)
+    {
+      set_retired_committed_hook = set_retired_committed_hook_;
+    }
 
     virtual void compact(Index i) {}
 
@@ -457,7 +466,53 @@ namespace aft
   class LoggingStubStoreConfig : public LoggingStubStore
   {
   public:
+    std::vector<std::pair<Index, nlohmann::json>> retired_committed_entries =
+      {};
+
     LoggingStubStoreConfig(ccf::NodeId id) : LoggingStubStore(id) {}
+
+    // compact and rollback emulate the behaviour of the retired_committed hook
+    // in the real store through the retired_committed_entries vector, see
+    // node_state.h, circa line 2147
+    virtual void compact(Index i) override
+    {
+      for (auto& [version, configuration] : retired_committed_entries)
+      {
+        if (version <= i)
+        {
+          std::cout << "Retired committed configuration: "
+                    << configuration.dump() << std::endl;
+          if (configuration.find(_id) != configuration.end())
+          {
+            std::cout << "Node id: " << _id
+                      << " is in the retired committed configuration, calling "
+                         "set_retired_committed hook"
+                      << std::endl;
+            set_retired_committed_hook(i);
+          }
+        }
+        else
+        {
+          break;
+        }
+      }
+      retired_committed_entries.erase(
+        std::remove_if(
+          retired_committed_entries.begin(),
+          retired_committed_entries.end(),
+          [i](const auto& entry) { return entry.first < i; }),
+        retired_committed_entries.end());
+    }
+
+    virtual void rollback(const kv::TxID& tx_id, Term t) override
+    {
+      retired_committed_entries.erase(
+        std::remove_if(
+          retired_committed_entries.begin(),
+          retired_committed_entries.end(),
+          [tx_id](const auto& entry) { return entry.first > tx_id.version; }),
+        retired_committed_entries.end());
+    }
 
     virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
@@ -479,6 +534,11 @@ namespace aft
         auto hook = std::make_unique<aft::ConfigurationChangeHook>(
           configuration, version);
         hooks.push_back(std::move(hook));
+      }
+      if (r.type == ReplicatedDataType::retired_committed)
+      {
+        kv::Configuration::Nodes configuration = nlohmann::json::parse(r.data);
+        retired_committed_entries.emplace_back(version, configuration);
       }
 
       return std::make_unique<ExecutionWrapper>(
