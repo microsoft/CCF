@@ -175,7 +175,7 @@ IsSendAppendEntries ==
                 /\ IsAppendEntriesRequest(msg, j, i, logline)
                 \* There is now one more message of this type.
                 /\ Network!OneMoreMessage(msg)
-\* TODO revisit once nextIndex-related changes are merged in the spec
+\* TODO revisit this. See https://github.com/microsoft/CCF/pull/5988 for discussion.
 \*          /\ logline.msg.sent_idx = nextIndex[i][j]
           /\ logline.msg.match_idx = matchIndex[i][j]
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
@@ -367,8 +367,11 @@ TraceNext ==
 
     \/ IsRcvProposeVoteRequest
 
+DropAndNext ==
+    IF ENABLED TraceNext THEN TraceNext ELSE DropMessages \cdot TraceNext
+
 TraceSpec ==
-    TraceInit /\ [][IF ENABLED TraceNext THEN TraceNext ELSE DropMessages \cdot TraceNext]_<<l, ts, vars>>
+    TraceInit /\ [][DropAndNext]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
@@ -401,8 +404,33 @@ TraceMatched ==
     \* the variable messages. However, the loglines before h_ts 506 do not allow us to determine
     \* which request it is.
     \*
-    \* Note: Consider changing {1,2,3} to (Nat \ {0}) while validating traces with holes.
+    \* Note: Consider strengthening (Nat \ {0}) to {1} when validating traces with no nondeterminism.
     [](l <= Len(TraceLog) => [](TLCGet("queue") \in Nat \ {0} \/ l > Len(TraceLog)))
+
+TraceMatchedNonTrivially ==
+    \* If, e.g., the FALSE state constraint excludes all states, TraceMatched won't be violated.
+    TLCGet("stats").diameter = Len(TraceLog)
+
+TraceMatchesConstraints ==
+    \* ccfraft's invariants become (state) constraints in Traceccfraft.  When validating traces,
+    \* the constraints exclude all states that do not satisfy the "invariants".  If no states
+    \* remain and the level  l  is less than the length of the trace log, i.e.,  Len(TraceLog),
+    \* TraceMatched  above will be violated and TLC will print a counterexample.
+    /\ LogInv
+    /\ MoreThanOneLeaderInv
+    /\ CandidateTermNotInLogInv
+    /\ ElectionSafetyInv
+    /\ LogMatchingInv
+    /\ QuorumLogInv
+    /\ LeaderCompletenessInv
+    /\ SignatureInv
+    /\ TypeInv
+    /\ MonoTermInv
+    /\ MonoLogInv
+    /\ NoLeaderBeforeInitialTerm
+    /\ LogConfigurationConsistentInv
+    /\ MembershipStateConsistentInv
+    /\ CommitCommittableIndices
 
 -------------------------------------------------------------------------------------
 
