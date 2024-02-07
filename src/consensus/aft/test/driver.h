@@ -510,6 +510,37 @@ public:
     }
   }
 
+  std::string get_ledger_summary(TRaft& r)
+  {
+    std::vector<std::string> entries;
+    for (auto i = 1; i <= r.get_last_idx(); ++i)
+    {
+      const auto t = r.get_view(i);
+      auto s = fmt::format("{}.{}", t, i);
+      if (i == r.get_committed_seqno())
+      {
+        s = fmt::format("[{}]", s);
+      }
+      entries.push_back(s);
+    }
+    return fmt::format("{}", fmt::join(entries, ", "));
+  }
+
+  void summarise_log(ccf::NodeId node_id)
+  {
+    RAFT_DRIVER_OUT << node_id << ": "
+                    << get_ledger_summary(*_nodes.at(node_id).raft)
+                    << std::endl;
+  }
+
+  void summarise_logs_all()
+  {
+    for (auto& [node_id, _] : _nodes)
+    {
+      summarise_log(node_id);
+    }
+  }
+
   void state_one(ccf::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;

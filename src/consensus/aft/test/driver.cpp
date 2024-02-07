@@ -170,6 +170,14 @@ int main(int argc, char** argv)
         assert(items.size() == 1);
         driver->state_all();
         break;
+      case shash("summarise_log"):
+        assert(items.size() == 2);
+        driver->summarise_log(items[1]);
+        break;
+      case shash("summarise_logs_all"):
+        assert(items.size() == 1);
+        driver->summarise_logs_all();
+        break;
       case shash("shuffle_one"):
         assert(items.size() == 2);
         driver->shuffle_messages_one(items[1]);
