@@ -1535,7 +1535,7 @@ namespace aft
       RequestVote rv;
       rv.term = state->current_view;
       rv.last_committable_idx = last_committable_idx;
-      rv.term_of_last_committable_idx = last_committable_idx;
+      rv.term_of_last_committable_idx = get_term_internal(last_committable_idx);
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
