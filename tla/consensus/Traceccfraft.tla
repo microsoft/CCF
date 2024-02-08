@@ -141,6 +141,13 @@ IsEvent(e) ==
     /\ logline.msg.function = e
     /\ l' = l + 1
     /\ ts' = logline.h_ts
+    
+IsDropPendingTo ==
+    /\ IsEvent("drop_pending_to")
+    \* TODO Add other message types.
+    /\ \/ /\ "raft_append_entries" = logline.msg.packet.msg
+          /\ Network!DropMessage(logline.msg.to_node_id, LAMBDA msg: IsAppendEntriesRequest(msg, logline.msg.to_node_id, logline.msg.from_node_id, logline))
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 IsTimeout ==
     /\ IsEvent("become_candidate")
@@ -368,7 +375,8 @@ TraceNext ==
     \/ IsRcvProposeVoteRequest
 
 DropAndNext ==
-    IF ENABLED TraceNext THEN TraceNext ELSE DropMessages \cdot TraceNext
+    \/ IF ENABLED TraceNext THEN TraceNext ELSE DropMessages \cdot TraceNext
+    \/ IsDropPendingTo
 
 TraceSpec ==
     TraceInit /\ [][DropAndNext]_<<l, ts, vars>>
@@ -536,6 +544,6 @@ ComposedNext ==
 
 CCF == INSTANCE ccfraft
 
-CCFSpec == CCF!Init /\ [][DropMessages \cdot (CCF!Next \/ ComposedNext)]_CCF!vars
+CCFSpec == CCF!Init /\ [][IsDropPendingTo \/ (DropMessages \cdot (CCF!Next \/ ComposedNext))]_CCF!vars
 
 ==================================================================================

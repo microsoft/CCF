@@ -406,6 +406,19 @@ public:
       rv.term_of_last_committable_idx,
       rv.last_committable_idx);
     log(node_id, tgt_node_id, s, dropped);
+#ifdef CCF_RAFT_TRACING
+    if (dropped) {
+      nlohmann::json j = {};
+      j["function"] = "drop_pending_to";
+      j["from_node_id"] = node_id;
+      j["to_node_id"] = tgt_node_id;
+      // state is a dummy value to make tests/raft_scenarios_runner.py happy.
+      j["state"] = nlohmann::json::object();
+      j["state"]["node_id"] = node_id;
+      j["packet"] = rv;
+      RAFT_TRACE_JSON_OUT(j);
+    }
+#endif
   }
 
   void log_msg_details(
@@ -419,6 +432,19 @@ public:
       rv.term,
       (rv.vote_granted ? "Y" : "N"));
     rlog(node_id, tgt_node_id, s, dropped);
+#ifdef CCF_RAFT_TRACING
+    if (dropped) {
+      nlohmann::json j = {};
+      j["function"] = "drop_pending_to";
+      j["from_node_id"] = node_id;
+      j["to_node_id"] = tgt_node_id;
+      // state is a dummy value to make tests/raft_scenarios_runner.py happy.
+      j["state"] = nlohmann::json::object();
+      j["state"]["node_id"] = node_id;
+      j["packet"] = rv;
+      RAFT_TRACE_JSON_OUT(j);
+    }
+#endif
   }
 
   void log_msg_details(
@@ -436,6 +462,19 @@ public:
       ae.term,
       ae.leader_commit_idx);
     log(node_id, tgt_node_id, s, dropped);
+#ifdef CCF_RAFT_TRACING
+    if (dropped) {
+      nlohmann::json j = {};
+      j["function"] = "drop_pending_to";
+      j["from_node_id"] = node_id;
+      j["to_node_id"] = tgt_node_id;
+      // state is a dummy value to make tests/raft_scenarios_runner.py happy.
+      j["state"] = nlohmann::json::object();
+      j["state"]["node_id"] = node_id;
+      j["packet"] = ae;
+      RAFT_TRACE_JSON_OUT(j);
+    }
+#endif
   }
 
   void log_msg_details(
@@ -464,6 +503,19 @@ public:
       aer.term,
       aer.last_log_idx);
     rlog(node_id, tgt_node_id, s, dropped);
+#ifdef CCF_RAFT_TRACING
+    if (dropped) {
+      nlohmann::json j = {};
+      j["function"] = "drop_pending_to";
+      j["from_node_id"] = node_id;
+      j["to_node_id"] = tgt_node_id;
+      // state is a dummy value to make tests/raft_scenarios_runner.py happy.
+      j["state"] = nlohmann::json::object();
+      j["state"]["node_id"] = node_id;
+      j["packet"] = aer;
+      RAFT_TRACE_JSON_OUT(j);
+    }
+#endif
   }
 
   void log_msg_details(
@@ -474,6 +526,19 @@ public:
   {
     const auto s = fmt::format("propose_request_vote for term {}", prv.term);
     log(node_id, tgt_node_id, s, dropped);
+#ifdef CCF_RAFT_TRACING
+    if (dropped) {
+      nlohmann::json j = {};
+      j["function"] = "drop_pending_to";
+      j["from_node_id"] = node_id;
+      j["to_node_id"] = tgt_node_id;
+      // state is a dummy value to make tests/raft_scenarios_runner.py happy.
+      j["state"] = nlohmann::json::object();
+      j["state"]["node_id"] = node_id;
+      j["packet"] = prv;
+      RAFT_TRACE_JSON_OUT(j);
+    }
+#endif
   }
 
   void log_msg_details(
