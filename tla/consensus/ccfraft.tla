@@ -959,7 +959,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
-              lastLogIndex   |-> m.prevLogIndex + Len(m.entries),
+              lastLogIndex   |-> Len(log[i]),
               source         |-> i,
               dest           |-> j],
               m)
