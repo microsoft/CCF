@@ -1,6 +1,7 @@
 steps:
   - script: |
       set -ex
+      set -o pipefail
       cd ${{ parameters.src_dir }}
       docker build -t ${{ parameters.image_name }} ${{ parameters.docker_build_options }} .
       az acr login --name ${{ parameters.container_registry }}
