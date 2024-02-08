@@ -1206,4 +1206,47 @@ public:
         _nodes.at(node_id).raft->get_committed_seqno()));
     }
   }
+
+  void assert_detail(
+    ccf::NodeId node_id,
+    const std::string& detail,
+    const std::string& expected,
+    const size_t lineno)
+  {
+    auto details = _nodes.at(node_id).raft->get_details();
+    nlohmann::json d = details;
+    if (d.find(detail) == d.end())
+    {
+      RAFT_DRIVER_OUT << fmt::format(
+                           "  Note over {}: Node does not have detail {}",
+                           node_id,
+                           detail)
+                      << std::endl;
+      throw std::runtime_error(fmt::format(
+        "Node {} does not have detail {} on line {}",
+        node_id,
+        detail,
+        std::to_string((int)lineno)));
+    }
+
+    std::string value = d[detail];
+    if (value != expected)
+    {
+      RAFT_DRIVER_OUT
+        << fmt::format(
+             "  Note over {}: Node detail {} is not as expected: {} != {}",
+             node_id,
+             detail,
+             value,
+             expected)
+        << std::endl;
+      throw std::runtime_error(fmt::format(
+        "Node {} detail {} is not as expected: {} != {} on line {}",
+        node_id,
+        detail,
+        value,
+        expected,
+        std::to_string((int)lineno)));
+    }
+  }
 };

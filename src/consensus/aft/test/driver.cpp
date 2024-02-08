@@ -286,6 +286,10 @@ int main(int argc, char** argv)
         assert(items.size() == 3);
         driver->assert_commit_idx(items[1], items[2], lineno);
         break;
+      case shash("assert_detail"):
+        assert(items.size() == 4);
+        driver->assert_detail(items[1], items[2], items[3], lineno);
+        break;
       case shash("replicate_new_configuration"):
         assert(items.size() >= 3);
         items.erase(items.begin());
