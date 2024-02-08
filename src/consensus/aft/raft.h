@@ -1047,7 +1047,7 @@ namespace aft
           from,
           state->current_view,
           r.term);
-        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+        send_append_entries_response_nack(from);
         return;
       }
 
@@ -1068,7 +1068,7 @@ namespace aft
             state->node_id,
             from,
             r.prev_idx);
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+          send_append_entries_response_nack(from);
         }
         else
         {
@@ -1081,8 +1081,7 @@ namespace aft
             prev_term,
             r.prev_term);
           const ccf::TxID rejected_tx{r.prev_term, r.prev_idx};
-          send_append_entries_response(
-            from, AppendEntriesResponseType::FAIL, rejected_tx);
+          send_append_entries_response_nack(from, rejected_tx);
         }
         return;
       }
@@ -1095,7 +1094,7 @@ namespace aft
         assert(state->retirement_committable_idx.has_value());
         if (r.idx > state->retirement_committable_idx)
         {
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+          send_append_entries_response_nack(from);
           return;
         }
       }
@@ -1188,7 +1187,7 @@ namespace aft
             state->node_id,
             from,
             e.what());
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+          send_append_entries_response_nack(from);
           return;
         }
 
@@ -1201,7 +1200,7 @@ namespace aft
             "deserialised",
             state->node_id,
             from);
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+          send_append_entries_response_nack(from);
           return;
         }
         append_entries.push_back(std::make_tuple(std::move(ds), i));
@@ -1237,7 +1236,7 @@ namespace aft
         if (apply_success == kv::ApplyResult::FAIL)
         {
           ledger->truncate(i - 1);
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+          send_append_entries_response_nack(from);
           return;
         }
         state->last_idx = i;
@@ -1266,7 +1265,7 @@ namespace aft
             RAFT_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
             ledger->truncate(state->last_idx);
-            send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+            send_append_entries_response_nack(from);
             break;
           }
 
@@ -1355,29 +1354,53 @@ namespace aft
         }
       }
 
-      send_append_entries_response(from, AppendEntriesResponseType::OK);
+      send_append_entries_response_ack(from, r);
+    }
+
+    void send_append_entries_response_ack(
+      ccf::NodeId to, const AppendEntries& ae)
+    {
+      // If we get to here, we have applied up to r.idx in this AppendEntries.
+      // We must only ACK this far, as we know nothing about the agreement of a
+      // suffix we may still hold _after_ r.idx with the leader's log
+      const auto response_idx = ae.idx;
+      send_append_entries_response(
+        to, AppendEntriesResponseType::OK, state->current_view, response_idx);
+    }
+
+    void send_append_entries_response_nack(
+      ccf::NodeId to, const std::optional<ccf::TxID>& rejected = std::nullopt)
+    {
+      if (rejected.has_value())
+      {
+        const auto response_idx = find_highest_possible_match(rejected.value());
+        const auto response_term = get_term_internal(response_idx);
+
+        send_append_entries_response(
+          to, AppendEntriesResponseType::FAIL, response_term, response_idx);
+      }
+      else
+      {
+        send_append_entries_response(
+          to,
+          AppendEntriesResponseType::FAIL,
+          state->current_view,
+          state->last_idx);
+      }
     }
 
     void send_append_entries_response(
       ccf::NodeId to,
       AppendEntriesResponseType answer,
-      const std::optional<ccf::TxID>& rejected = std::nullopt)
+      aft::Term response_term,
+      aft::Index response_idx)
     {
-      aft::Index response_idx = state->last_idx;
-      aft::Term response_term = state->current_view;
-
-      if (answer == AppendEntriesResponseType::FAIL && rejected.has_value())
-      {
-        response_idx = find_highest_possible_match(rejected.value());
-        response_term = get_term_internal(response_idx);
-      }
-
       RAFT_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
         state->node_id,
         to,
         response_idx,
-        answer);
+        (answer == AppendEntriesResponseType::OK ? "ACK" : "NACK"));
 
       AppendEntriesResponse response = {
         {raft_append_entries_response}, response_term, response_idx, answer};
