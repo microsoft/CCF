@@ -655,11 +655,9 @@ AppendEntries(i, j) ==
        IN
        /\ \E b \in AppendEntriesBatchsize(i, j):
             LET m == msg(b) IN
-            \* The implementation does not allow a leader with their retirement signed to send heartbeats, see raft.h:L928
-            \* TODO: how does this interact with a new leader's AE message? or a existing leader's first AE to a new node?
-            \* The former cannot happen in the implementation as a node which is not Active cannot become leader
-            \* TODO: Still not right, but differently: now the implementation will send append entries until after finding
-            \* out that retired_committed itself is committed. This is not modeled here.
+            \* TODO: Pending https://github.com/microsoft/CCF/pull/5978
+            \* This condition is too strict compared to the implementation in the current change:
+            \* AEs should be produced until the node observed RetirementCommitted committed 
             /\ \/ membershipState[i] # RetirementCompleted
                \/ m.entries # <<>>
             /\ Send(m)
