@@ -1437,7 +1437,7 @@ GetConfigurations(log_x, idx) ==
     IN
     {log_x[i].configuration : i \in (configs_after \union config_last)}
 
-\* ReplicationInv states that all log entires that are believed to be committed must be
+\* ReplicationInv states that all log entries that are believed to be committed must be
 \* replicated on a quorum of servers from the preceding configuration and all subsequent
 \* committed configurations.
 ReplicationInv ==
