@@ -106,9 +106,9 @@ drop_pending_to,1,2
 # Now we deliver a stale NACK
 dispatch_single,2,1
 
-# 1 may now believe 0's log is too short!
+# 1 may now believe 2's log is too short!
 
-# Node 0 produces AEs
+# Node 1 produces AEs
 periodic_one,1,10
 
 state_all
