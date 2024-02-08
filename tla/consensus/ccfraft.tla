@@ -1054,7 +1054,8 @@ HandleAppendEntriesResponse(i, j, m) ==
           /\ leadershipState[i] = Leader \* Only Leaders need to tally append entries responses
           /\ m.success \* successful
           \* max(...) because why would we ever want to go backwards on a success response?!
-          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, m.lastLogIndex)]
+          \* min(...) because we don't want to calculate a match past our own log's tail
+          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, min(Len(log[i]), m.lastLogIndex))]
           \* sentIndex is unchanged on successful AE response as it was already updated when the AE was dispatched
           /\ UNCHANGED sentIndex
        \/ /\ \lnot m.success \* not successful
