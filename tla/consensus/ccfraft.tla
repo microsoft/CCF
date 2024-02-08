@@ -1441,8 +1441,9 @@ GetConfigurations(log_x, idx) ==
 \* replicated on a quorum of servers from the preceding configuration and all subsequent
 \* committed configurations.
 ReplicationInv ==
-    \A i \in Servers : 
-        \A idx \in DOMAIN Committed(i) :
+    \E i \in Servers : 
+        /\ \A j \in Servers: commitIndex[i] >= commitIndex[j]
+        /\ \A idx \in DOMAIN Committed(i) :
             \A config \in GetConfigurations(Committed(i), idx) :
                 \E quorum \in Quorums[config] :
                     \A node \in quorum : 
