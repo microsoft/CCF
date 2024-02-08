@@ -35,6 +35,8 @@ periodic_all,10
 dispatch_all
 dispatch_all
 assert_commit_idx,1,7
+assert_detail,0,membership_state,Retired
+assert_detail,0,retirement_phase,Completed
 # Now that the retirement of 0 is committed, 1 schedules retired_committed
 cleanup_nodes,3,0
 emit_signature,3
@@ -43,3 +45,15 @@ dispatch_all
 dispatch_all
 # retired_committed committed
 assert_commit_idx,1,9
+
+# the operator shuts down 0
+disconnect,0,1
+disconnect,0,2
+
+# the network continues
+replicate,3,some_tx
+emit_signature,3
+periodic_all,10
+dispatch_all
+dispatch_all
+assert_commit_idx,1,11
