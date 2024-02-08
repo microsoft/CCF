@@ -12,12 +12,17 @@ dispatch_all
 periodic_all,10
 dispatch_all
 assert_commit_idx,0,4
-# Initial network state with nodes 0 and 1
+assert_commit_idx,1,2
+# Initial network state: [0, 1]
 
 # Reconfig [0, 1] -> [1, 2]
 swap_nodes,2,out,0,in,2
 emit_signature,2
+# 0 knows its retirement is signed
+assert_detail,0,membership_state,Retired
+assert_detail,0,retirement_phase,Signed
 
+# 0 replicates
 periodic_all,10
 dispatch_all
 dispatch_all
