@@ -251,7 +251,9 @@ public:
     _nodes[start_node_id].raft->force_become_primary();
     _replicate("2", {}, lineno, false, configuration);
     RAFT_DRIVER_PRINT(
-      "Note over {}: Node {} created", start_node_id, start_node_id);
+      "Note over {}: Node {} created",
+      ccf::NodeId(start_node_id),
+      start_node_id);
   }
 
   void cleanup_nodes(
@@ -280,7 +282,8 @@ public:
     for (const auto& node_id : node_ids)
     {
       add_node(node_id);
-      RAFT_DRIVER_PRINT("Note over {}: Node {} trusted", node_id, node_id);
+      RAFT_DRIVER_PRINT(
+        "Note over {}: Node {} trusted", ccf::NodeId(node_id), node_id);
     }
     kv::Configuration::Nodes configuration;
     for (const auto& [id, node] : _nodes)
@@ -309,11 +312,13 @@ public:
     for (auto node_in : nodes_in)
     {
       add_node(node_in);
-      RAFT_DRIVER_PRINT("Note over {}: Node {} trusted", node_in, node_in);
+      RAFT_DRIVER_PRINT(
+        "Note over {}: Node {} trusted", ccf::NodeId(node_in), node_in);
     }
     for (auto node_out : nodes_out)
     {
-      RAFT_DRIVER_PRINT("Note over {}: Node {} retired", node_out, node_out);
+      RAFT_DRIVER_PRINT(
+        "Note over {}: Node {} retired", ccf::NodeId(node_out), node_out);
     }
     std::set<std::string> out(nodes_out.begin(), nodes_out.end());
 
