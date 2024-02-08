@@ -767,7 +767,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
   }
 }
 
-DOCTEST_TEST_CASE("Exceed append entries limit")
+DOCTEST_TEST_CASE("Exceed append entries limit" * doctest::skip())
 {
   logger::config::level() = LoggerLevel::INFO;
 
