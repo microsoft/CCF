@@ -14,7 +14,7 @@ dispatch_all
 assert_commit_idx,0,4
 # Initial network state with nodes 0 and 1
 
-# Reconfig [0, 1] -> [0, 2]
+# Reconfig [0, 1] -> [1, 2]
 swap_nodes,2,out,0,in,2
 emit_signature,2
 
@@ -37,3 +37,12 @@ assert_is_retired,0
 assert_is_primary,1
 assert_is_backup,0
 assert_is_backup,2
+
+# Now that the retirement of 0 is committed, 1 schedules retired_committed
+cleanup_nodes,3,0
+emit_signature,3
+periodic_all,10
+dispatch_all
+dispatch_all
+# retired_committed committed
+assert_commit_idx,1,9
