@@ -682,11 +682,7 @@ namespace aft
         }
       }
 
-      // If we are the only node, attempt to commit immediately.
-      if (all_other_nodes.size() == 0)
-      {
-        update_commit();
-      }
+      update_commit();
 
       return true;
     }

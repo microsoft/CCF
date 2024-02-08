@@ -68,20 +68,13 @@ assert_commit_idx,1,11
 # followed by a signature
 cleanup_nodes,2,1
 emit_signature,2
-
-state_all
-
-periodic_all,30
-dispatch_all
-
-state_all
+# 0 commits immediately, now that 1 is out of configuration
+assert_commit_idx,0,17
 
 periodic_all,30
 dispatch_all
-
-state_all
-
-periodic_all,30
-dispatch_all
-
-state_all
+# 1 does not get notified, because its RC is committed
+assert_commit_idx,1,11
+# and so it attempts to become candidate
+periodic_all,100
+assert_is_candidate,1
