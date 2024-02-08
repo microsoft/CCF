@@ -202,7 +202,7 @@ private:
       nullptr);
     kv->set_set_retired_committed_hook(
       [raft](aft::Index idx, const std::vector<kv::NodeId>& nodes) {
-        std::cout << raft << " idx: " << idx  << std::endl;
+        std::cout << raft << " idx: " << idx << std::endl;
         raft->set_retired_committed(idx, nodes);
       });
     raft->start_ticking();

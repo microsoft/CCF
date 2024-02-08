@@ -490,7 +490,11 @@ namespace aft
             retired_committed_nodes.push_back(node_id);
           }
 
-          std::cout << fmt::format("set_retired_committed_hook({}, {})", i, retired_committed_nodes.size()) << std::endl;
+          std::cout << fmt::format(
+                         "set_retired_committed_hook({}, {})",
+                         i,
+                         retired_committed_nodes.size())
+                    << std::endl;
           set_retired_committed_hook(i, retired_committed_nodes);
         }
         else

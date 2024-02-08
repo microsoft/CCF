@@ -309,9 +309,11 @@ namespace aft
       {
         if (id() == node_id)
         {
-          CCF_ASSERT(state->membership_state == kv::MembershipState::Retired,
+          CCF_ASSERT(
+            state->membership_state == kv::MembershipState::Retired,
             "Node is not retired, cannot become retired committed");
-          CCF_ASSERT(state->retirement_phase == kv::RetirementPhase::Completed,
+          CCF_ASSERT(
+            state->retirement_phase == kv::RetirementPhase::Completed,
             "Node is not retired, cannot become retired committed");
           state->retirement_phase = kv::RetirementPhase::RetiredCommitted;
           CCF_ASSERT_FMT(
