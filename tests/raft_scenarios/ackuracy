@@ -1,0 +1,21 @@
+# Start a 5-node network
+start_node,0
+assert_is_primary,0
+emit_signature,2
+
+assert_is_primary,0
+assert_commit_idx,0,2
+
+trust_nodes,2,1,2,3,4
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
+periodic_all,10
+dispatch_all
+
+assert_state_sync
+
+state_all
