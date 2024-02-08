@@ -4,6 +4,7 @@ parameters:
 steps:
   - script: |
       set -ex
+      set -o pipefail
       cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
       cpack -V -G DEB
       INITIAL_PKG=`ls *.deb`
@@ -25,12 +26,14 @@ steps:
   - ${{ if not(eq(parameters.target, 'SNPCC')) }}:
       - script: |
           set -ex
+          set -o pipefail
           cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
         workingDirectory: build
         displayName: Test installed CCF
 
       - script: |
           set -ex
+          set -o pipefail
           cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
         workingDirectory: build
         displayName: Recovery benchmark for installed CCF

@@ -124,7 +124,9 @@ private:
     std::vector<uint8_t> data,
     const size_t lineno,
     bool committable = false,
-    const std::optional<kv::Configuration::Nodes>& configuration = std::nullopt)
+    const std::optional<kv::Configuration::Nodes>& configuration = std::nullopt,
+    const std::optional<kv::Configuration::Nodes>& retired_committed =
+      std::nullopt)
   {
     const auto opt = find_primary_in_term(term_s, lineno);
     if (!opt.has_value())
@@ -151,6 +153,12 @@ private:
 
     aft::ReplicatedDataType type = aft::ReplicatedDataType::raw;
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    if (configuration.has_value() && retired_committed.has_value())
+    {
+      throw std::logic_error(
+        "Cannot replicate both configuration and retired_committed in the same "
+        "entry");
+    }
     if (configuration.has_value())
     {
       auto hook = std::make_unique<aft::ConfigurationChangeHook>(
@@ -160,7 +168,19 @@ private:
       auto c = nlohmann::json(configuration).dump();
 
       // If the entry is a reconfiguration, the replicated data is overwritten
-      // with the serialised configuration
+      // with the serialised configuration.
+      data = std::vector<uint8_t>(c.begin(), c.end());
+    }
+    if (retired_committed.has_value())
+    {
+      // Update the node's own retired committed entries collection when
+      // replicating There is no direct equivalent in a real node, but this is
+      // necessary to emulate the global commit hook effectively.
+      _nodes.at(node_id).kv->retired_committed_entries.emplace_back(
+        idx, retired_committed.value());
+
+      type = aft::ReplicatedDataType::retired_committed;
+      auto c = nlohmann::json(retired_committed).dump();
       data = std::vector<uint8_t>(c.begin(), c.end());
     }
 
@@ -180,6 +200,8 @@ private:
       std::make_shared<aft::ChannelStubProxy>(),
       std::make_shared<aft::State>(node_id),
       nullptr);
+    kv->set_set_retired_committed_hook(
+      [&raft](aft::Index idx) { raft->set_retired_committed(idx); });
     raft->start_ticking();
 
     if (_nodes.find(node_id) != _nodes.end())
@@ -238,6 +260,24 @@ public:
                          start_node_id,
                          start_node_id)
                     << std::endl;
+  }
+
+  void cleanup_nodes(
+    const std::string& term,
+    const std::vector<std::string>& node_ids,
+    const size_t lineno)
+  {
+    kv::Configuration::Nodes retired_committed;
+    for (const auto& id : node_ids)
+    {
+      if (_nodes.find(id) == _nodes.end())
+      {
+        throw std::runtime_error(fmt::format(
+          "Attempted to clean up unknown node {} on line {}", id, lineno));
+      }
+      retired_committed.try_emplace(id);
+    }
+    _replicate(term, {}, lineno, false, std::nullopt, retired_committed);
   }
 
   void trust_nodes(
@@ -586,7 +626,7 @@ public:
   }
 
   // Returns true if actually sent
-  bool send_single_message(
+  bool dispatch_single_message(
     ccf::NodeId src, ccf::NodeId dst, std::vector<uint8_t> contents)
   {
     if (_connections.find(std::make_pair(src, dst)) != _connections.end())
@@ -659,7 +699,7 @@ public:
       auto [tgt_node_id, contents] = messages.front();
       messages.pop_front();
 
-      if (send_single_message(node_id, tgt_node_id, contents))
+      if (dispatch_single_message(node_id, tgt_node_id, contents))
       {
         ++count;
       }
@@ -721,7 +761,7 @@ public:
       auto [target, contents] = *it;
       if (target == dst)
       {
-        send_single_message(src, dst, contents);
+        dispatch_single_message(src, dst, contents);
         it = messages.erase(it);
         break;
       }
@@ -770,10 +810,8 @@ public:
       }
     }
 
-    throw std::runtime_error(fmt::format(
-      "Found no primary in term {} on line {}",
-      term_s,
-      std::to_string((int)lineno)));
+    throw std::runtime_error(
+      fmt::format("Found no primary in term {} on line {}", term_s, lineno));
   }
 
   void replicate(
