@@ -1425,6 +1425,31 @@ CommitCommittableIndices ==
             /\ CommittableIndices(i) = {}
         \/ commitIndex[i] \in CommittableIndices(i)
 
+\* Given a committed log log_x for some node and an index idx into that log, 
+\* GetConfigurations returns all configurations which should have replicated 
+\* the log entry at idx.
+GetConfigurations(log_x, idx) ==
+    LET
+    configs_all == {k \in DOMAIN log_x : log_x[k].contentType = TypeReconfiguration}
+    configs_before == {k \in configs_all : k < idx}
+    config_last == IF configs_before = {} THEN {} ELSE {Max(configs_before)}
+    configs_after == {k \in configs_all : k >= idx}
+    IN
+    {log_x[i].configuration : i \in (configs_after \union config_last)}
+
+\* ReplicationInv states that all log entires that are believed to be committed must be
+\* replicated on a quorum of servers from the preceding configuration and all subsequent
+\* committed configurations.
+ReplicationInv ==
+    \A i \in Servers : 
+        \A idx \in DOMAIN Committed(i) :
+            \A config \in GetConfigurations(Committed(i), idx) :
+                \E quorum \in Quorums[config] :
+                    \A node \in quorum : 
+                        /\ Len(log[node]) >= idx
+                        /\ log[node][idx] = log[i][idx]
+
+
 ------------------------------------------------------------------------------
 \* Properties
 
