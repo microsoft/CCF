@@ -14,7 +14,13 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#ifdef CCF_RAFT_TRACING
+#define RAFT_DRIVER_OUT \
+  std::cout << fmt::format( \
+    "<RaftDriver>  Note left of 0: ts={}\n<RaftDriver>", logger::logical_clock)
+#else
 #define RAFT_DRIVER_OUT std::cout << "<RaftDriver>"
+#endif
 
 std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
 {
