@@ -856,8 +856,8 @@ AdvanceCommitIndex(i) ==
                  \* Otherwise, states remain unchanged
                  ELSE UNCHANGED <<messages, serverVars>>
            \* Otherwise, Configuration and states remain unchanged
-           ELSE UNCHANGED <<messages, serverVars, reconfigurationVars, log, leadershipState>>
-    /\ UNCHANGED <<candidateVars, leaderVars, removedFromConfiguration>>
+           ELSE UNCHANGED <<messages, serverVars, reconfigurationVars, leadershipState>>
+    /\ UNCHANGED <<candidateVars, leaderVars, removedFromConfiguration, log>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
