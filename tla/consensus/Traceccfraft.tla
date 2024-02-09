@@ -7,8 +7,11 @@ RaftMsgType ==
     "raft_request_vote" :> RequestVoteRequest @@ "raft_request_vote_response" :> RequestVoteResponse @@
     "raft_propose_request_vote" :> ProposeVoteRequest
 
-LeadershipState ==
-    Leader :> "Leader" @@ Follower :> "Follower" @@ Candidate :> "Candidate" @@ None :> "None"
+ToLeadershipState ==
+    "Leader" :> Leader @@
+    "Follower" :>  Follower @@ 
+    "Candidate" :> Candidate @@
+    "None" :> None
 
 IsAppendEntriesRequest(msg, dst, src, logline) ==
     (*
@@ -148,6 +151,7 @@ IsTimeout ==
     /\ Timeout(logline.msg.state.node_id)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsBecomeLeader ==
     /\ IsEvent("become_leader")
@@ -155,6 +159,7 @@ IsBecomeLeader ==
     /\ BecomeLeader(logline.msg.state.node_id)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     
 IsClientRequest ==
     /\ IsEvent("replicate")
@@ -164,6 +169,7 @@ IsClientRequest ==
     \* TODO Alternatively, extract the written values from the system trace and redefine clientRequests at startup.
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsSendAppendEntries ==
     /\ IsEvent("send_append_entries")
@@ -183,6 +189,7 @@ IsSendAppendEntries ==
           /\ logline.msg.match_idx = matchIndex[i][j]
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsRcvAppendEntriesRequest ==
     /\ IsEvent("recv_append_entries")
@@ -197,6 +204,7 @@ IsRcvAppendEntriesRequest ==
                  \/ RAERRAER(m):: (UNCHANGED messages /\ HandleAppendEntriesRequest(i, j, m)) \cdot HandleAppendEntriesRequest(i, j, m)
               /\ IsAppendEntriesRequest(m, i, j, logline)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    \* TODO /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsSendAppendEntriesResponse ==
     \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
@@ -205,6 +213,7 @@ IsSendAppendEntriesResponse ==
     /\ UNCHANGED vars
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
  
 IsAddConfiguration ==
     /\ IsEvent("add_configuration")
@@ -215,6 +224,7 @@ IsAddConfiguration ==
 \* add_configuration event on which state->committable_indices is (correctly) empty.
 \*    /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     \* TODO: /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsSignCommittableMessages ==
     /\ IsEvent("replicate")
@@ -228,6 +238,7 @@ IsSignCommittableMessages ==
      \* Also see IsExecuteAppendEntries below.
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsAdvanceCommitIndex ==
     \* This is enabled *after* a SignCommittableMessages because ACI looks for a 
@@ -239,10 +250,12 @@ IsAdvanceCommitIndex ==
              /\ commitIndex'[i] = logline.msg.args.idx
              /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
        /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+       /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     \/ /\ IsEvent("commit")
        /\ UNCHANGED vars
        /\ logline.msg.state.leadership_state = "Follower"
        \* TODO: /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+       /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsChangeConfiguration ==
     /\ IsEvent("add_configuration")
@@ -252,6 +265,7 @@ IsChangeConfiguration ==
        IN ChangeConfigurationInt(i, newConfiguration)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsRcvAppendEntriesResponse ==
     /\ IsEvent("recv_append_entries_response")
@@ -271,6 +285,7 @@ IsRcvAppendEntriesResponse ==
                /\ IsAppendEntriesResponse(m, i, j, logline)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    \*TODO /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsSendRequestVote ==
     /\ IsEvent("send_request_vote")
@@ -287,6 +302,7 @@ IsSendRequestVote ==
                 /\ Network!OneMoreMessage(m)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsRcvRequestVoteRequest ==
     \/ /\ IsEvent("recv_request_vote")
@@ -306,6 +322,7 @@ IsRcvRequestVoteRequest ==
                   \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteRequest(i, j, m)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    \*TODO/\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsExecuteAppendEntries ==
     \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
@@ -317,6 +334,7 @@ IsExecuteAppendEntries ==
        /\ leadershipState[logline.msg.state.node_id] = Follower
        /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
        \* TODO: /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+       /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsRcvRequestVoteResponse ==
     /\ IsEvent("recv_request_vote_response")
@@ -334,6 +352,7 @@ IsRcvRequestVoteResponse ==
                \/ DropResponseWhenNotInState(i, j, m)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    \*TODO/\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
@@ -341,6 +360,7 @@ IsBecomeFollower ==
     /\ leadershipState[logline.msg.state.node_id] # Leader
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsCheckQuorum ==
     /\ IsEvent("become_follower")
@@ -348,6 +368,7 @@ IsCheckQuorum ==
     /\ leadershipState[logline.msg.state.node_id] = Leader
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 IsRcvProposeVoteRequest ==
     /\ IsEvent("recv_propose_request_vote")
@@ -359,6 +380,7 @@ IsRcvProposeVoteRequest ==
                 /\ UNCHANGED vars
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
 
 TraceNext ==
     \/ IsTimeout
