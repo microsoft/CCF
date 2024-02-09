@@ -588,7 +588,14 @@ public:
       }
       case (aft::RaftMsgType::raft_append_entries):
       {
-        return "AE";
+        auto ae = *(aft::AppendEntries*)data;
+        return fmt::format(
+          "AE(t{}, ({}.{}, {}.{}])",
+          ae.term,
+          ae.prev_term,
+          ae.prev_idx,
+          ae.term_of_idx,
+          ae.idx);
       }
       case (aft::RaftMsgType::raft_append_entries_response):
       {
