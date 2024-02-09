@@ -114,7 +114,8 @@ namespace crypto
      * @param[in] shares Shares of raw_secret.
      * @param threshold Number of shares necessary to recover the secret.
      *
-     * Note that shares passed in excess of the threshold are ignored.
+     * Note that shares passed in excess of the threshold are ignored,
+     * and that recovery does not authenticate the shares or the threshold.
      *
      * @throws std::invalid_argument if the number of shares is insufficient,
      * or if two shares have the same x coordinate.
