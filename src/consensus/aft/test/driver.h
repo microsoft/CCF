@@ -963,30 +963,6 @@ public:
     }
   }
 
-  void assert_is_retired(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_retired())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: retired", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state retired on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_active(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_active())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: active", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state active on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
   void assert_state_sync(const size_t lineno)
   {
     auto [target_id, nd] = *_nodes.begin();
@@ -1153,6 +1129,44 @@ public:
         idx,
         std::to_string((int)lineno),
         _nodes.at(node_id).raft->get_committed_seqno()));
+    }
+  }
+
+  void assert_detail(
+    ccf::NodeId node_id,
+    const std::string& detail,
+    const std::string& expected,
+    const size_t lineno)
+  {
+    auto details = _nodes.at(node_id).raft->get_details();
+    nlohmann::json d = details;
+    if (d.find(detail) == d.end())
+    {
+      RAFT_DRIVER_PRINT(
+        "  Note over {}: Node does not have detail {}", node_id, detail);
+      throw std::runtime_error(fmt::format(
+        "Node {} does not have detail {} on line {}",
+        node_id,
+        detail,
+        std::to_string((int)lineno)));
+    }
+
+    std::string value = d[detail];
+    if (value != expected)
+    {
+      RAFT_DRIVER_PRINT(
+        "  Note over {}: Node detail {} is not as expected: {} != {}",
+        node_id,
+        detail,
+        value,
+        expected);
+      throw std::runtime_error(fmt::format(
+        "Node {} detail {} is not as expected: {} != {} on line {}",
+        node_id,
+        detail,
+        value,
+        expected,
+        std::to_string((int)lineno)));
     }
   }
 };

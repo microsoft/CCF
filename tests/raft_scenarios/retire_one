@@ -58,7 +58,8 @@ dispatch_all
 
 assert_is_primary,0
 assert_is_backup,1
-assert_is_retired,1
+assert_detail,1,membership_state,Retired
+assert_detail,1,retirement_phase,Signed
 
 ## leader 0 continues to commit to 15, but 1 is stopped at 11
 assert_commit_idx,0,15
