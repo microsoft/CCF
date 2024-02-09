@@ -142,6 +142,16 @@ IsEvent(e) ==
     /\ l' = l + 1
     /\ ts' = logline.h_ts
 
+IsDropPendingTo ==
+    /\ IsEvent("drop_pending_to")
+    /\ Network!DropMessage(logline.msg.to_node_id,
+        LAMBDA msg:
+            /\ msg.type = RaftMsgType[logline.msg.packet.msg]
+            /\ msg.dest = logline.msg.to_node_id
+            /\ msg.source = logline.msg.from_node_id
+        )
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
+
 IsTimeout ==
     /\ IsEvent("become_candidate")
     /\ logline.msg.state.leadership_state = "Candidate"
