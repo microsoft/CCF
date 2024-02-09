@@ -1427,22 +1427,27 @@ CommitCommittableIndices ==
 
 \* Given a committed log log_x for some node and an index idx into that log, 
 \* GetConfigurations returns all configurations which should have replicated 
-\* the log entry at idx.
+\* the transaction at idx.
 GetConfigurations(log_x, idx) ==
     LET
     configs_all == {k \in DOMAIN log_x : log_x[k].contentType = TypeReconfiguration}
-    configs_before == {k \in configs_all : k < idx}
+    configs_before ==  {k \in configs_all : k <= idx}
+    \* This if-statement should not be needed as genesis transaction should be a configuration
     config_last == IF configs_before = {} THEN {} ELSE {Max(configs_before)}
-    configs_after == {k \in configs_all : k >= idx}
+    configs_after == {k \in configs_all : k > idx}
     IN
     {log_x[i].configuration : i \in (configs_after \union config_last)}
 
 \* ReplicationInv states that all log entries that are believed to be committed must be
-\* replicated on a quorum of servers from the preceding configuration and all subsequent
+\* replicated on a quorum of nodes from the preceding configuration and all subsequent
 \* committed configurations.
 ReplicationInv ==
     \E i \in Servers : 
+        \* We just check the node with the highest commitIndex
+        \* LogInv ensures that includes all committed transactions
         /\ \A j \in Servers: commitIndex[i] >= commitIndex[j]
+        \* Every committed transaction must be replicated to at least 
+        \* one quorum in each configuration which should have a copy
         /\ \A idx \in DOMAIN Committed(i) :
             \A config \in GetConfigurations(Committed(i), idx) :
                 \E quorum \in Quorums[config] :
