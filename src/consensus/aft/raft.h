@@ -2030,10 +2030,11 @@ namespace aft
               successor.value(), ccf::NodeMsgType::consensus_msg, prv);
           }
         }
+
+        leader_id.reset();
+        state->leadership_state = kv::LeadershipState::None;
       }
 
-      leader_id.reset();
-      state->leadership_state = kv::LeadershipState::None;
       state->membership_state = kv::MembershipState::Retired;
       state->retirement_phase = phase;
     }
