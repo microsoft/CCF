@@ -184,6 +184,10 @@ int main(int argc, char** argv)
         assert(items.size() == 1);
         driver->summarise_logs_all();
         break;
+      case shash("summarise_messages"):
+        assert(items.size() == 3);
+        driver->summarise_messages(items[1], items[2]);
+        break;
       case shash("shuffle_one"):
         assert(items.size() == 2);
         driver->shuffle_messages_one(items[1]);
