@@ -987,15 +987,18 @@ public:
     }
   }
 
-  void assert_state_sync(const size_t lineno)
+  using Discrepancies = std::map<ccf::NodeId, std::vector<std::string>>;
+
+  Discrepancies check_state_sync()
   {
+    Discrepancies discrepancies;
+
     auto [target_id, nd] = *_nodes.begin();
     auto& target_raft = nd.raft;
     const auto target_term = target_raft->get_view();
     const auto target_last_idx = target_raft->get_last_idx();
     const auto target_commit_idx = target_raft->get_committed_seqno();
 
-    bool all_match = true;
     for (auto it = std::next(_nodes.begin()); it != _nodes.end(); ++it)
     {
       const auto& node_id = it->first;
@@ -1003,25 +1006,20 @@ public:
 
       if (raft->get_view() != target_term)
       {
-        RAFT_DRIVER_PRINT(
-          "Note over {}: Term {} doesn't match term {} on {}",
-          node_id,
+        discrepancies[node_id].push_back(fmt::format(
+          "Term {} doesn't match term {} on {}",
           raft->get_view(),
           target_term,
-          target_id);
-        all_match = false;
+          target_id));
       }
 
       if (raft->get_last_idx() != target_last_idx)
       {
-        RAFT_DRIVER_PRINT(
-          "Note over {}: Last index {} doesn't match "
-          "last index {} on {}",
-          node_id,
+        discrepancies[node_id].push_back(fmt::format(
+          "Last index {} doesn't match last index {} on {}",
           raft->get_last_idx(),
           target_last_idx,
-          target_id);
-        all_match = false;
+          target_id));
       }
       else
       {
@@ -1031,9 +1029,8 @@ public:
           const auto target_entry = target_raft->ledger->get_entry_by_idx(idx);
           if (!target_entry.has_value())
           {
-            RAFT_DRIVER_PRINT(
-              "Note over {}: Missing ledger entry at {}", target_id, idx);
-            all_match = false;
+            discrepancies[node_id].push_back(
+              fmt::format("Missing ledger entry at {}", idx));
             break;
           }
           else
@@ -1041,22 +1038,18 @@ public:
             const auto entry = raft->ledger->get_entry_by_idx(idx);
             if (!entry.has_value())
             {
-              RAFT_DRIVER_PRINT(
-                "Note over {}: Missing ledger entry at {}", node_id, idx);
-              all_match = false;
+              discrepancies[node_id].push_back(
+                fmt::format("Missing ledger entry at {}", idx));
               break;
             }
             else if (entry != target_entry)
             {
-              RAFT_DRIVER_PRINT(
-                "Note over {}: Entry at index {} "
-                "doesn't match entry on {}: {} != {}",
-                node_id,
+              discrepancies[node_id].push_back(fmt::format(
+                "Entry at index {} doesn't match entry on {}: {} != {}",
                 idx,
                 target_id,
                 stringify(entry.value()),
-                stringify(target_entry.value()));
-              all_match = false;
+                stringify(target_entry.value())));
               break;
             }
           }
@@ -1065,19 +1058,31 @@ public:
 
       if (raft->get_committed_seqno() != target_commit_idx)
       {
-        RAFT_DRIVER_PRINT(
-          "Note over {}: Commit index {} doesn't "
-          "match commit index {} on {}",
-          node_id,
+        discrepancies[node_id].push_back(fmt::format(
+          "Commit index {} doesn't match commit index {} on {}",
           raft->get_committed_seqno(),
           target_commit_idx,
-          target_id);
-        all_match = false;
+          target_id));
       }
     }
 
-    if (!all_match)
+    return discrepancies;
+  }
+
+  void assert_state_sync(const size_t lineno)
+  {
+    const auto discrepancies = check_state_sync();
+
+    if (!discrepancies.empty())
     {
+      for (const auto& [node_id, reasons] : discrepancies)
+      {
+        for (const auto& reason : reasons)
+        {
+          RAFT_DRIVER_PRINT("Note over {}: {}", node_id, reason);
+        }
+      }
+
       throw std::runtime_error(fmt::format(
         "States not in sync on line {}", std::to_string((int)lineno)));
     }
