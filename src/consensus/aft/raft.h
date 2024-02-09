@@ -960,13 +960,17 @@ namespace aft
         end_idx,
         state->commit_idx);
 
-      AppendEntries ae;
-      ae.idx = end_idx;
-      ae.prev_idx = prev_idx;
-      ae.term = state->current_view;
-      ae.prev_term = prev_term;
-      ae.leader_commit_idx = state->commit_idx;
-      ae.term_of_idx = term_of_idx;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc99-designator"
+      AppendEntries ae{
+        {},
+        {.idx = end_idx, .prev_idx = prev_idx},
+        .term = state->current_view,
+        .prev_term = prev_term,
+        .leader_commit_idx = state->commit_idx,
+        .term_of_idx = term_of_idx,
+      };
+#pragma clang diagnostic pop
 
       auto& node = all_other_nodes.at(to);
 
@@ -1376,10 +1380,11 @@ namespace aft
         response_idx,
         answer);
 
-      AppendEntriesResponse response;
-      response.term = response_term;
-      response.last_log_idx = response_idx;
-      response.success = answer;
+      AppendEntriesResponse response{
+        .term = response_term,
+        .last_log_idx = response_idx,
+        .success = answer,
+      };
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1532,10 +1537,11 @@ namespace aft
         last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
-      RequestVote rv;
-      rv.term = state->current_view;
-      rv.last_committable_idx = last_committable_idx;
-      rv.term_of_last_committable_idx = get_term_internal(last_committable_idx);
+      RequestVote rv{
+        .term = state->current_view,
+        .last_committable_idx = last_committable_idx,
+        .term_of_last_committable_idx = get_term_internal(last_committable_idx),
+      };
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1658,9 +1664,8 @@ namespace aft
         to,
         answer);
 
-      RequestVoteResponse response;
-      response.term = state->current_view;
-      response.vote_granted = answer;
+      RequestVoteResponse response{
+        .term = state->current_view, .vote_granted = answer};
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -1978,8 +1983,7 @@ namespace aft
       {
         leader_id.reset();
         state->leadership_state = kv::LeadershipState::None;
-        ProposeRequestVote prv;
-        prv.term = state->current_view;
+        ProposeRequestVote prv{.term = state->current_view};
 
         std::optional<ccf::NodeId> successor = std::nullopt;
         Index max_match_idx = 0;
