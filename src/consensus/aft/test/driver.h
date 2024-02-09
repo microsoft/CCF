@@ -1199,6 +1199,20 @@ public:
       }
     }
   }
+
+  void assert_commit_safety_all(const size_t lineno)
+  {
+    for (const auto& [node_id, _] : _nodes)
+    {
+      assert_commit_safety(node_id, lineno);
+    }
+  }
+
+  void assert_invariants(const size_t lineno)
+  {
+    // Check invariants:
+    // Assert commit_index on all nodes is safe
+    assert_commit_safety_all(lineno);
   }
 
   void assert_commit_idx(
