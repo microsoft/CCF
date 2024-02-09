@@ -1081,7 +1081,7 @@ public:
     }
 
     std::string value = d[detail];
-    if (equal ? value != expected : value == expected)
+    if (equal ? (value != expected) : (value == expected))
     {
       std::string cmp = equal ? "!" : "=";
       RAFT_DRIVER_PRINT(
