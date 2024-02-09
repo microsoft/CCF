@@ -993,8 +993,6 @@ public:
     // majority of nodes (ledger matches exactly up to and including this
     // seqno).
     // Similar to the QuorumLogInv invariant from the TLA spec.
-    // NB: This currently assumes a single configuration, as it checks a quorum
-    // of all nodes rather than within each configuration
     const auto& raft = _nodes.at(node_id).raft;
     const auto committed_seqno = raft->get_committed_seqno();
 
@@ -1015,32 +1013,62 @@ public:
     };
     const auto committed_prefix = get_ledger_prefix(node_id, committed_seqno);
 
-    auto is_present = [&](const auto& it) {
-      const auto& [id, _] = it;
-      return get_ledger_prefix(id, committed_seqno) == committed_prefix;
-    };
-
-    const auto present_count =
-      std::count_if(_nodes.begin(), _nodes.end(), is_present);
-
-    const auto quorum = (_nodes.size() / 2) + 1;
-    if (present_count < quorum)
+    std::map<ccf::NodeId, bool> present_on;
+    for (const auto& [node_id, _] : _nodes)
     {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node has advanced commit to {}, "
-        "yet this entry is only present on {}/{} nodes "
-        "(need at least {} for safety)",
-        node_id,
-        committed_seqno,
-        present_count,
-        _nodes.size(),
-        quorum);
-      throw std::runtime_error(fmt::format(
-        "Node ({}) at unsafe commit idx ({}) on line {}",
-        node_id,
-        committed_seqno,
-        lineno));
+      present_on[node_id] =
+        get_ledger_prefix(node_id, committed_seqno) == committed_prefix;
     }
+
+    const auto details = raft->get_details();
+    for (const auto& configuration : details.configs)
+    {
+      if (configuration.idx <= committed_seqno)
+      {
+        const auto nodes = configuration.nodes;
+        const auto present_count = std::count_if(
+          nodes.begin(), nodes.end(), [&present_on](const auto& it) {
+            const auto& [id, _] = it;
+            return present_on[id];
+          });
+
+        const auto quorum = (nodes.size() / 2) + 1;
+        if (present_count < quorum)
+        {
+          RAFT_DRIVER_PRINT(
+            "Note over {}: Node has advanced commit to {},  yet this entry is "
+            "only present on {}/{} nodes (need at least {} for safety in "
+            "configuration {}, beginning at {})",
+            node_id,
+            committed_seqno,
+            present_count,
+            _nodes.size(),
+            quorum,
+            configuration.rid,
+            configuration.idx);
+          throw std::runtime_error(fmt::format(
+            "Node ({}) at unsafe commit idx ({}) on line {}",
+            node_id,
+            committed_seqno,
+            lineno));
+        }
+      }
+    }
+  }
+
+  void assert_commit_safety_all(const size_t lineno)
+  {
+    for (const auto& [node_id, _] : _nodes)
+    {
+      assert_commit_safety(node_id, lineno);
+    }
+  }
+
+  void assert_invariants(const size_t lineno)
+  {
+    // Check invariants:
+    // Assert commit_index on all nodes is safe
+    assert_commit_safety_all(lineno);
   }
 
   void assert_commit_idx(

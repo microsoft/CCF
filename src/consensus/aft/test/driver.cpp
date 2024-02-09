@@ -87,6 +87,9 @@ int main(int argc, char** argv)
                 << std::endl;
     }
 #endif
+    // Steps which don't alter state don't need to recheck invariants
+    bool skip_invariants = false;
+
     switch (shash(in))
     {
       case shash("start_node"):
@@ -170,18 +173,22 @@ int main(int argc, char** argv)
         break;
       case shash("state_one"):
         assert(items.size() == 2);
+        skip_invariants = true;
         driver->state_one(items[1]);
         break;
       case shash("state_all"):
         assert(items.size() == 1);
+        skip_invariants = true;
         driver->state_all();
         break;
       case shash("summarise_log"):
         assert(items.size() == 2);
+        skip_invariants = true;
         driver->summarise_log(items[1]);
         break;
       case shash("summarise_logs_all"):
         assert(items.size() == 1);
+        skip_invariants = true;
         driver->summarise_logs_all();
         break;
       case shash("shuffle_one"):
@@ -244,6 +251,7 @@ int main(int argc, char** argv)
         break;
       case shash("assert_state_sync"):
         assert(items.size() == 1);
+        skip_invariants = true;
         driver->assert_state_sync(lineno);
         break;
       case shash("assert_commit_safety"):
@@ -252,6 +260,7 @@ int main(int argc, char** argv)
         break;
       case shash("assert_commit_idx"):
         assert(items.size() == 3);
+        skip_invariants = true;
         driver->assert_commit_idx(items[1], items[2], lineno);
         break;
       case shash("assert_detail"):
@@ -274,11 +283,18 @@ int main(int argc, char** argv)
         break;
       case shash(""):
         // Ignore empty lines
+        skip_invariants = true;
         break;
       default:
         throw std::runtime_error(
           fmt::format("Unknown action '{}' at line {}", items[0], lineno));
     }
+
+    if (!skip_invariants)
+    {
+      driver->assert_invariants(lineno);
+    }
+
     ++lineno;
   }
 

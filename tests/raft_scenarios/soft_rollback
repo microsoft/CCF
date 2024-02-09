@@ -37,7 +37,6 @@ dispatch_all
 # NB: This dispatch includes the response, so node 0 has advanced commit
 # This response could arrive much later, since 0 and 1 do not need to communicate further
 state_all
-assert_commit_safety,0
 
 # Disconnect node 0. Not strictly required, but simplifies work going forwards
 disconnect_node,0
@@ -59,7 +58,6 @@ dispatch_one,2
 
 # Node 1 should retain the committed state!
 state_all
-assert_commit_safety,0
 
 # Node 1 should not vote for node 2!
 dispatch_one,1
@@ -69,7 +67,6 @@ assert_!detail,2,leadership_state,Primary
 periodic_all,10
 dispatch_all
 state_all
-assert_commit_safety,0
 
 # Now restore comms between 0 and 1, and disconnect 2
 reconnect_node,0
