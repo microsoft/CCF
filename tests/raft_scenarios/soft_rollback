@@ -63,7 +63,7 @@ assert_commit_safety,0
 
 # Node 1 should not vote for node 2!
 dispatch_one,1
-assert_isnot_primary,2
+assert_!detail,2,leadership_state,Primary
 
 # Because if they did, then node 2's AEs would break persistence!
 periodic_all,10

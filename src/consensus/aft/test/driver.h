@@ -903,18 +903,6 @@ public:
     }
   }
 
-  void assert_isnot_backup(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (_nodes.at(node_id).raft->is_backup())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is in unexpected state: backup", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node in unexpected state backup on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
   void assert_is_primary(ccf::NodeId node_id, const size_t lineno)
   {
     if (!_nodes.at(node_id).raft->is_primary())
@@ -927,18 +915,6 @@ public:
     }
   }
 
-  void assert_isnot_primary(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (_nodes.at(node_id).raft->is_primary())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is in unexpected state: primary", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node in unexpected state primary on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
   void assert_is_candidate(ccf::NodeId node_id, const size_t lineno)
   {
     if (!_nodes.at(node_id).raft->is_candidate())
@@ -947,18 +923,6 @@ public:
         "Note over {}: Node is not in expected state: candidate", node_id);
       throw std::runtime_error(fmt::format(
         "Node not in expected state candidate on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_isnot_candidate(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (_nodes.at(node_id).raft->is_candidate())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is in unexpected state: candidate", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node in unexpected state candidate on line {}",
         std::to_string((int)lineno)));
     }
   }
@@ -1136,6 +1100,7 @@ public:
     ccf::NodeId node_id,
     const std::string& detail,
     const std::string& expected,
+    bool equal,
     const size_t lineno)
   {
     auto details = _nodes.at(node_id).raft->get_details();
@@ -1152,19 +1117,22 @@ public:
     }
 
     std::string value = d[detail];
-    if (value != expected)
+    if (equal ? value != expected : value == expected)
     {
+      std::string cmp = equal ? "!" : "=";
       RAFT_DRIVER_PRINT(
-        "  Note over {}: Node detail {} is not as expected: {} != {}",
+        "  Note over {}: Node detail {} is not as expected: {} {}= {}",
         node_id,
         detail,
         value,
+        cmp,
         expected);
       throw std::runtime_error(fmt::format(
-        "Node {} detail {} is not as expected: {} != {} on line {}",
+        "Node {} detail {} is not as expected: {} {}= {} on line {}",
         node_id,
         detail,
         value,
+        cmp,
         expected,
         std::to_string((int)lineno)));
     }

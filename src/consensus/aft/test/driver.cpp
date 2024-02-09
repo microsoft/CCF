@@ -254,25 +254,13 @@ int main(int argc, char** argv)
         assert(items.size() == 2);
         driver->assert_is_backup(items[1], lineno);
         break;
-      case shash("assert_isnot_backup"):
-        assert(items.size() == 2);
-        driver->assert_isnot_backup(items[1], lineno);
-        break;
       case shash("assert_is_primary"):
         assert(items.size() == 2);
         driver->assert_is_primary(items[1], lineno);
         break;
-      case shash("assert_isnot_primary"):
-        assert(items.size() == 2);
-        driver->assert_isnot_primary(items[1], lineno);
-        break;
       case shash("assert_is_candidate"):
         assert(items.size() == 2);
         driver->assert_is_candidate(items[1], lineno);
-        break;
-      case shash("assert_isnot_candidate"):
-        assert(items.size() == 2);
-        driver->assert_isnot_candidate(items[1], lineno);
         break;
       case shash("assert_commit_idx"):
         assert(items.size() == 3);
@@ -280,7 +268,11 @@ int main(int argc, char** argv)
         break;
       case shash("assert_detail"):
         assert(items.size() == 4);
-        driver->assert_detail(items[1], items[2], items[3], lineno);
+        driver->assert_detail(items[1], items[2], items[3], true, lineno);
+        break;
+      case shash("assert_!detail"):
+        assert(items.size() == 4);
+        driver->assert_detail(items[1], items[2], items[3], false, lineno);
         break;
       case shash("replicate_new_configuration"):
         assert(items.size() >= 3);
