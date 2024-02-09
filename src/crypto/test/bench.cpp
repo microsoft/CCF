@@ -97,8 +97,7 @@ template <MDType M, size_t NContents>
 static void benchmark_hmac(picobench::state& s)
 {
   const auto contents = make_contents<NContents>();
-  const auto key =
-    crypto::create_entropy()->random(crypto::GCM_DEFAULT_KEY_SIZE);
+  const auto key = crypto::get_entropy()->random(crypto::GCM_DEFAULT_KEY_SIZE);
 
   s.start_timer();
   for (auto _ : s)

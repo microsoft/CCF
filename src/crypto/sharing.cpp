@@ -148,7 +148,7 @@ namespace crypto
         shares[s].x = s + 1;
       }
 
-      auto entropy = crypto::create_entropy();
+      auto entropy = crypto::get_entropy();
 
       for (size_t limb = 0; limb < LIMBS; limb++)
       {
