@@ -897,102 +897,6 @@ public:
     }
   }
 
-  void assert_is_backup(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_backup())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: backup", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state backup on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_isnot_backup(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (_nodes.at(node_id).raft->is_backup())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is in unexpected state: backup", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node in unexpected state backup on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_primary(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_primary())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: primary", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state primary on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_isnot_primary(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (_nodes.at(node_id).raft->is_primary())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is in unexpected state: primary", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node in unexpected state primary on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_candidate(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_candidate())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: candidate", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state candidate on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_isnot_candidate(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (_nodes.at(node_id).raft->is_candidate())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is in unexpected state: candidate", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node in unexpected state candidate on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_retired(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_retired())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: retired", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state retired on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_active(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_active())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: active", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state active on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
   using Discrepancies = std::map<ccf::NodeId, std::vector<std::string>>;
 
   Discrepancies check_state_sync(const std::map<ccf::NodeId, NodeDriver> nodes)
@@ -1181,8 +1085,6 @@ public:
     // majority of nodes (ledger matches exactly up to and including this
     // seqno).
     // Similar to the QuorumLogInv invariant from the TLA spec.
-    // NB: This currently assumes a single configuration, as it checks a quorum
-    // of all nodes rather than within each configuration
     const auto& raft = _nodes.at(node_id).raft;
     const auto committed_seqno = raft->get_committed_seqno();
 
@@ -1203,32 +1105,62 @@ public:
     };
     const auto committed_prefix = get_ledger_prefix(node_id, committed_seqno);
 
-    auto is_present = [&](const auto& it) {
-      const auto& [id, _] = it;
-      return get_ledger_prefix(id, committed_seqno) == committed_prefix;
-    };
-
-    const auto present_count =
-      std::count_if(_nodes.begin(), _nodes.end(), is_present);
-
-    const auto quorum = (_nodes.size() / 2) + 1;
-    if (present_count < quorum)
+    std::map<ccf::NodeId, bool> present_on;
+    for (const auto& [node_id, _] : _nodes)
     {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node has advanced commit to {}, "
-        "yet this entry is only present on {}/{} nodes "
-        "(need at least {} for safety)",
-        node_id,
-        committed_seqno,
-        present_count,
-        _nodes.size(),
-        quorum);
-      throw std::runtime_error(fmt::format(
-        "Node ({}) at unsafe commit idx ({}) on line {}",
-        node_id,
-        committed_seqno,
-        lineno));
+      present_on[node_id] =
+        get_ledger_prefix(node_id, committed_seqno) == committed_prefix;
     }
+
+    const auto details = raft->get_details();
+    for (const auto& configuration : details.configs)
+    {
+      if (configuration.idx <= committed_seqno)
+      {
+        const auto nodes = configuration.nodes;
+        const auto present_count = std::count_if(
+          nodes.begin(), nodes.end(), [&present_on](const auto& it) {
+            const auto& [id, _] = it;
+            return present_on[id];
+          });
+
+        const auto quorum = (nodes.size() / 2) + 1;
+        if (present_count < quorum)
+        {
+          RAFT_DRIVER_PRINT(
+            "Note over {}: Node has advanced commit to {},  yet this entry is "
+            "only present on {}/{} nodes (need at least {} for safety in "
+            "configuration {}, beginning at {})",
+            node_id,
+            committed_seqno,
+            present_count,
+            _nodes.size(),
+            quorum,
+            configuration.rid,
+            configuration.idx);
+          throw std::runtime_error(fmt::format(
+            "Node ({}) at unsafe commit idx ({}) on line {}",
+            node_id,
+            committed_seqno,
+            lineno));
+        }
+      }
+    }
+  }
+
+  void assert_commit_safety_all(const size_t lineno)
+  {
+    for (const auto& [node_id, _] : _nodes)
+    {
+      assert_commit_safety(node_id, lineno);
+    }
+  }
+
+  void assert_invariants(const size_t lineno)
+  {
+    // Check invariants:
+    // Assert commit_index on all nodes is safe
+    assert_commit_safety_all(lineno);
   }
 
   void assert_commit_idx(
@@ -1245,6 +1177,48 @@ public:
         idx,
         std::to_string((int)lineno),
         _nodes.at(node_id).raft->get_committed_seqno()));
+    }
+  }
+
+  void assert_detail(
+    ccf::NodeId node_id,
+    const std::string& detail,
+    const std::string& expected,
+    bool equal,
+    const size_t lineno)
+  {
+    auto details = _nodes.at(node_id).raft->get_details();
+    nlohmann::json d = details;
+    if (d.find(detail) == d.end())
+    {
+      RAFT_DRIVER_PRINT(
+        "  Note over {}: Node does not have detail {}", node_id, detail);
+      throw std::runtime_error(fmt::format(
+        "Node {} does not have detail {} on line {}",
+        node_id,
+        detail,
+        std::to_string((int)lineno)));
+    }
+
+    std::string value = d[detail];
+    if (equal ? (value != expected) : (value == expected))
+    {
+      std::string cmp = equal ? "!" : "=";
+      RAFT_DRIVER_PRINT(
+        "  Note over {}: Node detail {} is not as expected: {} {}= {}",
+        node_id,
+        detail,
+        value,
+        cmp,
+        expected);
+      throw std::runtime_error(fmt::format(
+        "Node {} detail {} is not as expected: {} {}= {} on line {}",
+        node_id,
+        detail,
+        value,
+        cmp,
+        expected,
+        std::to_string((int)lineno)));
     }
   }
 };

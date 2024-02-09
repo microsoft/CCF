@@ -1,8 +1,8 @@
 start_node,0
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 emit_signature,2
 
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_node,2,1
@@ -41,8 +41,8 @@ periodic_all,30
 dispatch_all
 
 state_all
-assert_is_primary,0
-assert_is_backup,1
+assert_detail,0,leadership_state,Leader
+assert_detail,1,leadership_state,Follower
 ## Index 13 is a signature, index 14 some random transaction and index 15 is a signature. 
 emit_signature,2
 assert_commit_idx,0,11
@@ -56,9 +56,10 @@ assert_commit_idx,0,11
 periodic_all,30
 dispatch_all
 
-assert_is_primary,0
-assert_is_backup,1
-assert_is_retired,1
+assert_detail,0,leadership_state,Leader
+assert_detail,1,leadership_state,Follower
+assert_detail,1,membership_state,Retired
+assert_detail,1,retirement_phase,Signed
 
 ## leader 0 continues to commit to 15, but 1 is stopped at 11
 assert_commit_idx,0,15
