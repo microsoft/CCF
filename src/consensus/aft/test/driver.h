@@ -1122,8 +1122,8 @@ public:
       if (configuration.idx <= committed_seqno)
       {
         const auto nodes = configuration.nodes;
-        const auto present_count =
-          std::count_if(nodes.begin(), nodes.end(), [&present_on](const auto& it) {
+        const auto present_count = std::count_if(
+          nodes.begin(), nodes.end(), [&present_on](const auto& it) {
             const auto& [id, _] = it;
             return present_on[id];
           });
@@ -1131,28 +1131,23 @@ public:
         const auto quorum = (nodes.size() / 2) + 1;
         if (present_count < quorum)
         {
-          RAFT_DRIVER_OUT
-            << fmt::format(
-                 "  Note over {}: Node has advanced commit to {}, "
-                 "yet this entry is only present on {}/{} nodes "
-                 "(need at least {} for safety in configuration {}, beginning "
-                 "at {})",
-                 node_id,
-                 committed_seqno,
-                 present_count,
-                 _nodes.size(),
-                 quorum,
-                 configuration.rid,
-                 configuration.idx)
-            << std::endl;
+          RAFT_DRIVER_PRINT(
+            "Note over {}: Node has advanced commit to {},  yet this entry is "
+            "only present on {}/{} nodes (need at least {} for safety in "
+            "configuration {}, beginning at {})",
+            node_id,
+            committed_seqno,
+            present_count,
+            _nodes.size(),
+            quorum,
+            configuration.rid,
+            configuration.idx);
           throw std::runtime_error(fmt::format(
             "Node ({}) at unsafe commit idx ({}) on line {}",
             node_id,
             committed_seqno,
             lineno));
         }
-        RAFT_DRIVER_OUT << "Note right of bob: Checked quorumloginv!"
-                        << std::endl;
       }
     }
   }
