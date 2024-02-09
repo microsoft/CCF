@@ -891,42 +891,6 @@ public:
     }
   }
 
-  void assert_is_backup(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_backup())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: backup", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state backup on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_primary(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_primary())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: primary", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state primary on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_candidate(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_candidate())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: candidate", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state candidate on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
   void assert_state_sync(const size_t lineno)
   {
     auto [target_id, nd] = *_nodes.begin();

@@ -1,8 +1,8 @@
 start_node,0
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 emit_signature,2
 
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_node,2,1
@@ -64,17 +64,17 @@ periodic_one,0,50
 dispatch_all
 
 state_all
-assert_is_primary,0
-assert_is_backup,1
-assert_is_backup,2
-assert_is_backup,3
+assert_detail,0,leadership_state,Leader
+assert_detail,1,leadership_state,Follower
+assert_detail,2,leadership_state,Follower
+assert_detail,3,leadership_state,Follower
 
 # Now disconnect primary 0 from another backup 1. 
 # Majority of backups [1,2] is disconnected and primary 0 should step down.
 
 disconnect,0,2
 
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 
 periodic_all,10
 dispatch_all
@@ -82,17 +82,17 @@ dispatch_all
 periodic_one,0,50
 dispatch_all
 
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 
 # 0 has now not received an ACK from [1,2] for longer than election timeout 100
 periodic_one,0,50
 
 # Node 0 has stepped down as backup (check quorum)
 state_all
-assert_is_backup,0
-assert_is_backup,1
-assert_is_backup,2
-assert_is_backup,3
+assert_detail,0,leadership_state,Follower
+assert_detail,1,leadership_state,Follower
+assert_detail,2,leadership_state,Follower
+assert_detail,3,leadership_state,Follower
 
 # Eventually, the partition is lifted and a new leader is elected.
 # In this case, we check that node 0 can be re-elected.
@@ -104,6 +104,6 @@ dispatch_all
 periodic_one,0,100
 dispatch_all
 
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 
 state_all
