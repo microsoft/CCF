@@ -158,6 +158,7 @@ IsTimeout ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsBecomeLeader ==
     /\ IsEvent("become_leader")
@@ -167,6 +168,7 @@ IsBecomeLeader ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
     
 IsClientRequest ==
     /\ IsEvent("replicate")
@@ -178,6 +180,7 @@ IsClientRequest ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsSendAppendEntries ==
     /\ IsEvent("send_append_entries")
@@ -199,6 +202,7 @@ IsSendAppendEntries ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsRcvAppendEntriesRequest ==
     /\ IsEvent("recv_append_entries")
@@ -215,6 +219,7 @@ IsRcvAppendEntriesRequest ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     \* TODO /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsSendAppendEntriesResponse ==
     \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
@@ -225,6 +230,7 @@ IsSendAppendEntriesResponse ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
  
 IsAddConfiguration ==
     /\ IsEvent("add_configuration")
@@ -237,6 +243,7 @@ IsAddConfiguration ==
     \* TODO: /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     \*TODO /\ membershipState'[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsSignCommittableMessages ==
     /\ IsEvent("replicate")
@@ -252,6 +259,7 @@ IsSignCommittableMessages ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsAdvanceCommitIndex ==
     \* This is enabled *after* a SignCommittableMessages because ACI looks for a 
@@ -265,12 +273,14 @@ IsAdvanceCommitIndex ==
        /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
        /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
        /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+       /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
     \/ /\ IsEvent("commit")
        /\ UNCHANGED vars
        /\ logline.msg.state.leadership_state = "Follower"
        \* TODO: /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
        /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
        /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+       \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsChangeConfiguration ==
     /\ IsEvent("add_configuration")
@@ -282,6 +292,7 @@ IsChangeConfiguration ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsRcvAppendEntriesResponse ==
     /\ IsEvent("recv_append_entries_response")
@@ -303,6 +314,7 @@ IsRcvAppendEntriesResponse ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     \*TODO /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsSendRequestVote ==
     /\ IsEvent("send_request_vote")
@@ -321,6 +333,7 @@ IsSendRequestVote ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsRcvRequestVoteRequest ==
     \/ /\ IsEvent("recv_request_vote")
@@ -342,6 +355,7 @@ IsRcvRequestVoteRequest ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     \*TODO/\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsExecuteAppendEntries ==
     \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
@@ -355,6 +369,7 @@ IsExecuteAppendEntries ==
        \* TODO: /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
        /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
        /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+       \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsRcvRequestVoteResponse ==
     /\ IsEvent("recv_request_vote_response")
@@ -374,6 +389,7 @@ IsRcvRequestVoteResponse ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     \*TODO/\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsBecomeFollower ==
     /\ IsEvent("become_follower")
@@ -383,6 +399,7 @@ IsBecomeFollower ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsCheckQuorum ==
     /\ IsEvent("become_follower")
@@ -392,6 +409,7 @@ IsCheckQuorum ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsRcvProposeVoteRequest ==
     /\ IsEvent("recv_propose_request_vote")
@@ -405,6 +423,7 @@ IsRcvProposeVoteRequest ==
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 TraceNext ==
     \/ IsTimeout
