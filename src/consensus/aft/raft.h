@@ -1369,24 +1369,22 @@ namespace aft
     }
 
     void send_append_entries_response_nack(
-      ccf::NodeId to, const std::optional<ccf::TxID>& rejected = std::nullopt)
+      ccf::NodeId to, const ccf::TxID& rejected)
     {
-      if (rejected.has_value())
-      {
-        const auto response_idx = find_highest_possible_match(rejected.value());
-        const auto response_term = get_term_internal(response_idx);
+      const auto response_idx = find_highest_possible_match(rejected);
+      const auto response_term = get_term_internal(response_idx);
 
-        send_append_entries_response(
-          to, AppendEntriesResponseType::FAIL, response_term, response_idx);
-      }
-      else
-      {
-        send_append_entries_response(
-          to,
-          AppendEntriesResponseType::FAIL,
-          state->current_view,
-          state->last_idx);
-      }
+      send_append_entries_response(
+        to, AppendEntriesResponseType::FAIL, response_term, response_idx);
+    }
+
+    void send_append_entries_response_nack(ccf::NodeId to)
+    {
+      send_append_entries_response(
+        to,
+        AppendEntriesResponseType::FAIL,
+        state->current_view,
+        state->last_idx);
     }
 
     void send_append_entries_response(
