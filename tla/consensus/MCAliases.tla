@@ -69,6 +69,7 @@ DebugAliasVars ==
         messages |-> messages,
         currentTerm |-> currentTerm,
         leadershipState |-> leadershipState,
+        membershipState |-> membershipState,
         votedFor |-> votedFor,
         \* More compact visualization of the log.  
 \*        lg |-> [ s \in Servers |-> StringifyLog(s) ],
