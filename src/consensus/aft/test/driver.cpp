@@ -254,10 +254,6 @@ int main(int argc, char** argv)
         skip_invariants = true;
         driver->assert_state_sync(lineno);
         break;
-      case shash("assert_commit_safety"):
-        assert(items.size() == 2);
-        driver->assert_commit_safety(items[1], lineno);
-        break;
       case shash("assert_is_backup"):
         assert(items.size() == 2);
         skip_invariants = true;
