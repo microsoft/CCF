@@ -949,8 +949,6 @@ namespace aft
 
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
-      const bool contains_new_view =
-        (state->new_view_idx > prev_idx) && (state->new_view_idx <= end_idx);
 
       RAFT_DEBUG_FMT(
         "Send append entries from {} to {}: ({}.{}, {}.{}] ({})",
@@ -962,14 +960,17 @@ namespace aft
         end_idx,
         state->commit_idx);
 
-      AppendEntries ae = {
-        {raft_append_entries},
-        {end_idx, prev_idx},
-        state->current_view,
-        prev_term,
-        state->commit_idx,
-        term_of_idx,
-        contains_new_view};
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc99-designator"
+      AppendEntries ae{
+        {},
+        {.idx = end_idx, .prev_idx = prev_idx},
+        .term = state->current_view,
+        .prev_term = prev_term,
+        .leader_commit_idx = state->commit_idx,
+        .term_of_idx = term_of_idx,
+      };
+#pragma clang diagnostic pop
 
       auto& node = all_other_nodes.at(to);
 
@@ -1400,8 +1401,11 @@ namespace aft
         response_idx,
         (answer == AppendEntriesResponseType::OK ? "ACK" : "NACK"));
 
-      AppendEntriesResponse response = {
-        {raft_append_entries_response}, response_term, response_idx, answer};
+      AppendEntriesResponse response{
+        .term = response_term,
+        .last_log_idx = response_idx,
+        .success = answer,
+      };
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1554,11 +1558,11 @@ namespace aft
         last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
-      RequestVote rv = {
-        {raft_request_vote},
-        state->current_view,
-        last_committable_idx,
-        get_term_internal(last_committable_idx)};
+      RequestVote rv{
+        .term = state->current_view,
+        .last_committable_idx = last_committable_idx,
+        .term_of_last_committable_idx = get_term_internal(last_committable_idx),
+      };
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1681,8 +1685,8 @@ namespace aft
         to,
         answer);
 
-      RequestVoteResponse response = {
-        {raft_request_vote_response}, state->current_view, answer};
+      RequestVoteResponse response{
+        .term = state->current_view, .vote_granted = answer};
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -2000,8 +2004,7 @@ namespace aft
       {
         leader_id.reset();
         state->leadership_state = kv::LeadershipState::None;
-        ProposeRequestVote prv{
-          {raft_propose_request_vote}, state->current_view};
+        ProposeRequestVote prv{.term = state->current_view};
 
         std::optional<ccf::NodeId> successor = std::nullopt;
         Index max_match_idx = 0;
