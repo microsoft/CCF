@@ -199,6 +199,7 @@ IsRcvAppendEntriesRequest ==
                   \* HandleAppendEntriesRequest step that leaves messages unchanged.
                  \/ RAERRAER(m):: (UNCHANGED messages /\ HandleAppendEntriesRequest(i, j, m)) \cdot HandleAppendEntriesRequest(i, j, m)
               /\ IsAppendEntriesRequest(m, i, j, logline)
+          /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsSendAppendEntriesResponse ==
     \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
@@ -206,6 +207,7 @@ IsSendAppendEntriesResponse ==
     /\ IsEvent("send_append_entries_response")
     /\ UNCHANGED vars
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
  
 IsAddConfiguration ==
     /\ IsEvent("add_configuration")
@@ -266,6 +268,7 @@ IsRcvAppendEntriesResponse ==
                      /\ DropStaleResponse(i, j, m)
                /\ IsAppendEntriesResponse(m, i, j, logline)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsSendRequestVote ==
     /\ IsEvent("send_request_vote")
