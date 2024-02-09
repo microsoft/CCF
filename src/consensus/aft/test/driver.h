@@ -524,16 +524,20 @@ public:
     }
 
 #ifdef CCF_RAFT_TRACING
-    nlohmann::json j = {};
-    j["function"] = "drop_pending_to";
-    j["from_node_id"] = node_id;
-    j["to_node_id"] = tgt_node_id;
-    // state is used by raft_scenarios_runner.py to identify indicate which node
-    // a log occurred on. Here we assign all dropped messages to the sender.
-    j["state"] = nlohmann::json::object();
-    j["state"]["node_id"] = node_id;
-    j["packet"] = packet;
-    RAFT_TRACE_JSON_OUT(j);
+    if (dropped)
+    {
+      nlohmann::json j = {};
+      j["function"] = "drop_pending_to";
+      j["from_node_id"] = node_id;
+      j["to_node_id"] = tgt_node_id;
+      // state is used by raft_scenarios_runner.py to identify indicate which
+      // node a log occurred on. Here we assign all dropped messages to the
+      // sender.
+      j["state"] = nlohmann::json::object();
+      j["state"]["node_id"] = node_id;
+      j["packet"] = packet;
+      RAFT_TRACE_JSON_OUT(j);
+    }
 #endif
   }
 
