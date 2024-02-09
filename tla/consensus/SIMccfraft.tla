@@ -13,7 +13,7 @@ CCF == INSTANCE ccfraft
 SIMInitReconfigurationVars ==
     \* Start with all servers in the active configuration.
     \/ CCF!InitLogConfigServerVars(Servers, JoinedLog)
-    \* \* Start with any subset of servers in the active configuration.
+    \* Start with any subset of servers in the active configuration.
     \/ CCF!InitReconfigurationVars
 
 SIMCheckQuorum(i) ==
