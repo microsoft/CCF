@@ -12,12 +12,27 @@
 
 using namespace crypto::sharing;
 
+void check_share_is_not_trivially_wrong(const Share& share)
+{
+  REQUIRE(share.x != 0);
+  for (size_t i = 0; i < LIMBS; ++i)
+  {
+    REQUIRE(share.y[i] != 0);
+    REQUIRE(share.y[i] != 0xFFFFFFFF);
+  }
+}
+
 void share_and_recover(size_t num_shares, size_t threshold, size_t recoveries)
 {
   std::vector<Share> shares(num_shares);
 
   Share secret;
   sample_secret_and_shares(secret, shares, threshold);
+
+  for (const auto& share : shares)
+  {
+    check_share_is_not_trivially_wrong(share);
+  }
 
   std::mt19937 rng{std::random_device{}()};
 
