@@ -88,7 +88,7 @@ int main(int argc, char** argv)
     }
 #endif
     // Steps which don't alter state don't need to recheck invariants
-    bool skip_invariants = false; 
+    bool skip_invariants = false;
 
     switch (shash(in))
     {
