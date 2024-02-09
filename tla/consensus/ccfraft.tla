@@ -777,6 +777,20 @@ ChangeConfiguration(i) ==
     \E newConfiguration \in SUBSET(Servers) \ {{}}:
         ChangeConfigurationInt(i, newConfiguration)
 
+RetiredCommitted(i) ==
+    /\ leadershipState[i] = Leader
+    /\ LET 
+        \* Calculate which nodes have had their retirement committed but no retired committed txn
+        retire_committed_nodes == AllRetired(SubSeq(log[i],1,commitIndex[i])) \ AllRetiredCommittedTxns(log[i]) 
+        IN 
+        /\ retire_committed_nodes # {}
+        /\ log' = [log EXCEPT ![i] = Append(@, [
+                    term  |-> currentTerm[i], 
+                    contentType |-> TypeRetiredCommitted, 
+                    retired |-> retire_committed_nodes])]
+    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
+
+
 \* Leader i advances its commitIndex to the next possible Index.
 \* This is done as a separate step from handling AppendEntries responses,
 \* in part to minimize atomic regions, and in part so that leaders of
@@ -825,8 +839,6 @@ AdvanceCommitIndex(i) ==
            THEN
               LET new_configurations == RestrictDomain(configurations[i], 
                                             LAMBDA c : c >= LastConfigurationToIndex(i, highestCommittableIndex))
-                  \* Calculate which nodes have had their retirement committed but no retired committed txn
-                  retire_committed_nodes == AllRetired(SubSeq(log[i],1,commitIndex'[i])) \ AllRetiredCommittedTxns(log[i])
               IN
               /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
               \* Retire if i is not in active configuration anymore
@@ -843,13 +855,6 @@ AdvanceCommitIndex(i) ==
                     /\ UNCHANGED <<currentTerm, votedFor, isNewFollower>>
                  \* Otherwise, states remain unchanged
                  ELSE UNCHANGED <<messages, serverVars>>
-              \* Check if any node's retirement has been committed and add retired_committed if so
-              /\ IF retire_committed_nodes = {} 
-                 THEN UNCHANGED log
-                 ELSE log = [log EXCEPT ![i] = Append(@, [
-                    term  |-> currentTerm[i], 
-                    contentType |-> TypeRetiredCommitted, 
-                    retired |-> retire_committed_nodes])]
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, serverVars, reconfigurationVars, log, leadershipState>>
     /\ UNCHANGED <<candidateVars, leaderVars, removedFromConfiguration>>
@@ -1226,6 +1231,7 @@ NextInt(i) ==
     \/ ClientRequest(i)
     \/ SignCommittableMessages(i)
     \/ ChangeConfiguration(i)
+    \/ RetiredCommitted(i)
     \/ AdvanceCommitIndex(i)
     \/ CheckQuorum(i)
     \/ \E j \in Servers : RequestVote(i, j)
