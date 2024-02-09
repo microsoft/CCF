@@ -1,9 +1,9 @@
 # Fully-connected 3-node network
 start_node,0
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 emit_signature,2
 
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_node,2,1
@@ -61,7 +61,7 @@ state_all
 
 # Node 1 should not vote for node 2!
 dispatch_one,1
-assert_isnot_primary,2
+assert_!detail,2,leadership_state,Primary
 
 # Because if they did, then node 2's AEs would break persistence!
 periodic_all,10
@@ -77,7 +77,7 @@ disconnect_node,2
 periodic_one,1,110
 dispatch_all
 state_all
-assert_is_primary,1
+assert_detail,1,leadership_state,Leader
 
 # Regardless of earlier disagreements, we can all agree now
 reconnect_node,2

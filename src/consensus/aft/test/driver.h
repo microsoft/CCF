@@ -891,102 +891,6 @@ public:
     }
   }
 
-  void assert_is_backup(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_backup())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: backup", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state backup on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_isnot_backup(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (_nodes.at(node_id).raft->is_backup())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is in unexpected state: backup", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node in unexpected state backup on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_primary(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_primary())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: primary", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state primary on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_isnot_primary(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (_nodes.at(node_id).raft->is_primary())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is in unexpected state: primary", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node in unexpected state primary on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_candidate(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_candidate())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: candidate", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state candidate on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_isnot_candidate(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (_nodes.at(node_id).raft->is_candidate())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is in unexpected state: candidate", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node in unexpected state candidate on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_retired(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_retired())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: retired", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state retired on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_active(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_active())
-    {
-      RAFT_DRIVER_PRINT(
-        "Note over {}: Node is not in expected state: active", node_id);
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state active on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
   void assert_state_sync(const size_t lineno)
   {
     auto [target_id, nd] = *_nodes.begin();
@@ -1181,6 +1085,48 @@ public:
         idx,
         std::to_string((int)lineno),
         _nodes.at(node_id).raft->get_committed_seqno()));
+    }
+  }
+
+  void assert_detail(
+    ccf::NodeId node_id,
+    const std::string& detail,
+    const std::string& expected,
+    bool equal,
+    const size_t lineno)
+  {
+    auto details = _nodes.at(node_id).raft->get_details();
+    nlohmann::json d = details;
+    if (d.find(detail) == d.end())
+    {
+      RAFT_DRIVER_PRINT(
+        "  Note over {}: Node does not have detail {}", node_id, detail);
+      throw std::runtime_error(fmt::format(
+        "Node {} does not have detail {} on line {}",
+        node_id,
+        detail,
+        std::to_string((int)lineno)));
+    }
+
+    std::string value = d[detail];
+    if (equal ? (value != expected) : (value == expected))
+    {
+      std::string cmp = equal ? "!" : "=";
+      RAFT_DRIVER_PRINT(
+        "  Note over {}: Node detail {} is not as expected: {} {}= {}",
+        node_id,
+        detail,
+        value,
+        cmp,
+        expected);
+      throw std::runtime_error(fmt::format(
+        "Node {} detail {} is not as expected: {} {}= {} on line {}",
+        node_id,
+        detail,
+        value,
+        cmp,
+        expected,
+        std::to_string((int)lineno)));
     }
   }
 };

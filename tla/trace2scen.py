@@ -44,12 +44,7 @@ def post_commit(post):
 def post_state(post):
     entries = []
     for node, state in post["state"].items():
-        if state == "Leader":
-            entries.append(["assert_is_primary", node])
-        elif state == "Follower":
-            entries.append(["assert_is_backup", node])
-        elif state == "Candidate":
-            entries.append(["assert_is_candidate", node])
+            entries.append(["assert_detail", "leadership_state", node, state])
     return entries
 
 def step_to_action(pre_state, action, post_state):

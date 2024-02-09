@@ -254,50 +254,22 @@ int main(int argc, char** argv)
         skip_invariants = true;
         driver->assert_state_sync(lineno);
         break;
-      case shash("assert_is_backup"):
+      case shash("assert_commit_safety"):
         assert(items.size() == 2);
-        skip_invariants = true;
-        driver->assert_is_backup(items[1], lineno);
-        break;
-      case shash("assert_isnot_backup"):
-        assert(items.size() == 2);
-        skip_invariants = true;
-        driver->assert_isnot_backup(items[1], lineno);
-        break;
-      case shash("assert_is_primary"):
-        assert(items.size() == 2);
-        skip_invariants = true;
-        driver->assert_is_primary(items[1], lineno);
-        break;
-      case shash("assert_isnot_primary"):
-        assert(items.size() == 2);
-        skip_invariants = true;
-        driver->assert_isnot_primary(items[1], lineno);
-        break;
-      case shash("assert_is_candidate"):
-        assert(items.size() == 2);
-        skip_invariants = true;
-        driver->assert_is_candidate(items[1], lineno);
-        break;
-      case shash("assert_isnot_candidate"):
-        assert(items.size() == 2);
-        skip_invariants = true;
-        driver->assert_isnot_candidate(items[1], lineno);
-        break;
-      case shash("assert_is_retired"):
-        assert(items.size() == 2);
-        skip_invariants = true;
-        driver->assert_is_retired(items[1], lineno);
-        break;
-      case shash("assert_is_active"):
-        assert(items.size() == 2);
-        skip_invariants = true;
-        driver->assert_is_active(items[1], lineno);
+        driver->assert_commit_safety(items[1], lineno);
         break;
       case shash("assert_commit_idx"):
         assert(items.size() == 3);
         skip_invariants = true;
         driver->assert_commit_idx(items[1], items[2], lineno);
+        break;
+      case shash("assert_detail"):
+        assert(items.size() == 4);
+        driver->assert_detail(items[1], items[2], items[3], true, lineno);
+        break;
+      case shash("assert_!detail"):
+        assert(items.size() == 4);
+        driver->assert_detail(items[1], items[2], items[3], false, lineno);
         break;
       case shash("replicate_new_configuration"):
         assert(items.size() >= 3);
