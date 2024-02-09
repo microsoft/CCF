@@ -103,6 +103,12 @@ int main(int argc, char** argv)
         driver->trust_nodes(
           items[0], {std::next(items.begin()), items.end()}, lineno);
         break;
+      case shash("cleanup_nodes"):
+        assert(items.size() >= 3);
+        items.erase(items.begin());
+        driver->cleanup_nodes(
+          items[0], {std::next(items.begin()), items.end()}, lineno);
+        break;
       case shash("swap_node"):
         assert(items.size() == 4);
         driver->swap_nodes(items[1], {items[2]}, {items[3]}, lineno);
@@ -170,6 +176,14 @@ int main(int argc, char** argv)
         assert(items.size() == 1);
         driver->state_all();
         break;
+      case shash("summarise_log"):
+        assert(items.size() == 2);
+        driver->summarise_log(items[1]);
+        break;
+      case shash("summarise_logs_all"):
+        assert(items.size() == 1);
+        driver->summarise_logs_all();
+        break;
       case shash("shuffle_one"):
         assert(items.size() == 2);
         driver->shuffle_messages_one(items[1]);
@@ -189,6 +203,10 @@ int main(int argc, char** argv)
       case shash("dispatch_all_once"):
         assert(items.size() == 1);
         driver->dispatch_all_once();
+        break;
+      case shash("dispatch_single"):
+        assert(items.size() == 3);
+        driver->dispatch_single(items[1], items[2]);
         break;
       case shash("replicate"):
         assert(items.size() == 3);

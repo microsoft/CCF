@@ -23,6 +23,7 @@ jobs:
 
       - script: |
           set -ex
+          set -o pipefail
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
           cd /CCF/build
@@ -34,6 +35,7 @@ jobs:
 
       - script: |
           set -ex
+          set -o pipefail
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
           dmesg

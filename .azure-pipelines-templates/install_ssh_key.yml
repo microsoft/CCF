@@ -1,6 +1,7 @@
 steps:
   - script: |
       set -ex
+      set -o pipefail
       mkdir -p ~/.ssh
       echo ${{ parameters.ssh_key }} | base64 -d > ~/.ssh/id_rsa
       sudo chmod 600 ~/.ssh/id_rsa
