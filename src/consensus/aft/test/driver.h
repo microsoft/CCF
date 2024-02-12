@@ -398,7 +398,8 @@ public:
       rv.last_committable_idx);
     log(node_id, tgt_node_id, s, dropped);
 #ifdef CCF_RAFT_TRACING
-    if (dropped) {
+    if (dropped)
+    {
       nlohmann::json j = {};
       j["function"] = "drop_pending_to";
       j["from_node_id"] = node_id;
@@ -424,7 +425,8 @@ public:
       (rv.vote_granted ? "Y" : "N"));
     rlog(node_id, tgt_node_id, s, dropped);
 #ifdef CCF_RAFT_TRACING
-    if (dropped) {
+    if (dropped)
+    {
       nlohmann::json j = {};
       j["function"] = "drop_pending_to";
       j["from_node_id"] = node_id;
@@ -454,7 +456,8 @@ public:
       ae.leader_commit_idx);
     log(node_id, tgt_node_id, s, dropped);
 #ifdef CCF_RAFT_TRACING
-    if (dropped) {
+    if (dropped)
+    {
       nlohmann::json j = {};
       j["function"] = "drop_pending_to";
       j["from_node_id"] = node_id;
@@ -495,7 +498,8 @@ public:
       aer.last_log_idx);
     rlog(node_id, tgt_node_id, s, dropped);
 #ifdef CCF_RAFT_TRACING
-    if (dropped) {
+    if (dropped)
+    {
       nlohmann::json j = {};
       j["function"] = "drop_pending_to";
       j["from_node_id"] = node_id;
@@ -518,7 +522,8 @@ public:
     const auto s = fmt::format("propose_request_vote for term {}", prv.term);
     log(node_id, tgt_node_id, s, dropped);
 #ifdef CCF_RAFT_TRACING
-    if (dropped) {
+    if (dropped)
+    {
       nlohmann::json j = {};
       j["function"] = "drop_pending_to";
       j["from_node_id"] = node_id;
