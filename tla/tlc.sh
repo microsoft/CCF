@@ -16,7 +16,7 @@ fi
 # Simulation, nor Model Checking seem to work well with G1GC, but Trace Validation does not for some reason, and is much slower unless -XX:+UseParallelGC is used.
 # In all cases, pauses don't matter, only throughput does.
 
-exec java -XX:+UseParallelGC -Dtlc2.tool.impl.Tool.cdot=true "${JVM_OPTIONS[@]}" -cp tla2tools.jar:CommunityModules-deps.jar tlc2.TLC "$@" -checkpoint 0 -lncheck final "${TLC_OPTIONS[@]}"
+exec java -XX:+UseParallelGC -Dtlc2.tool.impl.Tool.cdot=true -Dtlc2.tool.queue.IStateQueue=StateDeque "${JVM_OPTIONS[@]}" -cp tla2tools.jar:CommunityModules-deps.jar tlc2.TLC "$@" -checkpoint 0 -lncheck final "${TLC_OPTIONS[@]}"
 
 
 # Original License
