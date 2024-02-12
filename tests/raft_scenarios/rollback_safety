@@ -1,9 +1,9 @@
 # Set up 5 node network
 start_node,0
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 emit_signature,2
 
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_nodes,2,1,2,3,4
@@ -39,11 +39,11 @@ dispatch_one,0
 
 # Node 1 calls and wins an election
 periodic_one,1,100
-assert_is_candidate,1
+assert_detail,1,leadership_state,Candidate
 dispatch_one,1
 dispatch_one,0
 dispatch_one,2
-assert_is_primary,1
+assert_detail,1,leadership_state,Leader
 
 # Node 1 sends a late heartbeat, producing a NACK
 drop_pending_to,1,0
@@ -55,11 +55,11 @@ dispatch_one,1
 
 # Node 0 calls and wins an election
 periodic_one,0,100
-assert_is_candidate,0
+assert_detail,0,leadership_state,Candidate
 dispatch_one,0
 dispatch_one,1
 dispatch_single,2,0
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 
 # Node 0 emits a fresh signature, so that they can advance commit
 emit_signature,4
@@ -94,11 +94,11 @@ assert_commit_safety,0
 # To win, it now needs a vote from one of the previous dead nodes (we can't touch the 2->1 channel!)
 reconnect_node,3
 periodic_one,1,100
-assert_is_candidate,1
+assert_detail,1,leadership_state,Candidate
 dispatch_one,1
 dispatch_one,0
 dispatch_one,3
-assert_is_primary,1
+assert_detail,1,leadership_state,Leader
 
 # Don't need this heartbeat AE, drop it
 drop_pending_to,1,2
@@ -115,8 +115,5 @@ state_all
 assert_commit_safety,0 # Sanity check, we're fine here
 
 # This AE reaches 2
-dispatch_single,1,2
-
 # 2 had better not rollback and break commit safety!
-state_all
-# assert_commit_safety,0
+dispatch_single,1,2
