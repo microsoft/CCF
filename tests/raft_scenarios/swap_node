@@ -1,8 +1,8 @@
 start_node,0
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 emit_signature,2
 
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_node,2,1
@@ -33,10 +33,10 @@ emit_signature,3
 periodic_all,10
 dispatch_all
 assert_commit_idx,1,7
-assert_is_retired,0
-assert_is_primary,1
-assert_is_backup,0
-assert_is_backup,2
+assert_detail,0,membership_state,Retired
+assert_detail,0,leadership_state,Follower
+assert_detail,1,leadership_state,Leader
+assert_detail,2,leadership_state,Follower
 
 # Now that the retirement of 0 is committed, 1 schedules retired_committed
 cleanup_nodes,3,0
