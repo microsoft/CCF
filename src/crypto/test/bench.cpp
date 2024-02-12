@@ -97,8 +97,7 @@ template <MDType M, size_t NContents>
 static void benchmark_hmac(picobench::state& s)
 {
   const auto contents = make_contents<NContents>();
-  const auto key =
-    crypto::create_entropy()->random(crypto::GCM_DEFAULT_KEY_SIZE);
+  const auto key = crypto::get_entropy()->random(crypto::GCM_DEFAULT_KEY_SIZE);
 
   s.start_timer();
   for (auto _ : s)
@@ -474,7 +473,7 @@ namespace HMAC_bench
   PICOBENCH(openssl_hmac_sha256_64).PICO_HASH_SUFFIX();
 }
 
-std::vector<crypto::Share> shares;
+std::vector<crypto::sharing::Share> shares;
 
 PICOBENCH_SUITE("share");
 namespace SHARE_bench
@@ -488,8 +487,8 @@ namespace SHARE_bench
     for (auto _ : s)
     {
       (void)_;
-      crypto::Share secret;
-      crypto::sample_secret_and_shares(secret, shares, threshold);
+      crypto::sharing::Share secret;
+      crypto::sharing::sample_secret_and_shares(secret, shares, threshold);
       do_not_optimize(secret);
       clobber_memory();
     }
@@ -521,9 +520,10 @@ namespace SHARE_bench
     for (auto _ : s)
     {
       (void)_;
-      crypto::Share secret;
-      crypto::sample_secret_and_shares(secret, shares, threshold);
-      crypto::recover_unauthenticated_secret(secret, shares, threshold);
+      crypto::sharing::Share secret;
+      crypto::sharing::sample_secret_and_shares(secret, shares, threshold);
+      crypto::sharing::recover_unauthenticated_secret(
+        secret, shares, threshold);
       do_not_optimize(secret);
       clobber_memory();
     }
