@@ -67,15 +67,19 @@ CONSTANTS
     \* Node retirement has been committed and it is no longer part of the network
     \* If this node was a leader, it will step down. It will not run for election again.
     \* This node will continue to respond to AppendEntries and RequestVote messages
-    \* Note that this spec does not model when nodes can be safely removed
     \* RetirementCompleted is a terminal state
-    RetirementCompleted
+    RetirementCompleted,
+    \* Node's retirement is committed and all future leaders will be aware that the node's
+    \* retirement is committed. The node can stop helping the CCF service and can be safely
+    \* shut down by the operator.
+    RetiredCommitted
 
 MembershipStates == {
     Active,
     RetirementOrdered,
     RetirementSigned,
-    RetirementCompleted
+    RetirementCompleted,
+    RetiredCommitted
     }
 
 \* Message types:
@@ -92,7 +96,7 @@ CONSTANTS
     TypeEntry,
     TypeSignature,
     TypeReconfiguration,
-    TypeRetiredCommitted
+    TypeRetired
 
 \* Set of nodes for this model
 CONSTANTS Servers
@@ -166,7 +170,7 @@ EntryTypeOK(entry) ==
        \/ entry.contentType = TypeSignature
        \/ /\ entry.contentType = TypeReconfiguration
           /\ entry.configuration \subseteq Servers
-       \/ /\ entry.contentType = TypeRetiredCommitted
+       \/ /\ entry.contentType = TypeRetired
           /\ entry.retired \subseteq Servers
 
 AppendEntriesRequestTypeOK(m) ==
@@ -507,12 +511,22 @@ RetirementIndexLog(node_log, i) ==
 RetirementIndex(i) ==
     RetirementIndexLog(log[i], i)
 
+IsRetiredCommittedLog(log_i, commit_index_i, i) ==
+    \E idx \in 1..commit_index_i:
+        /\ log[i][idx].contentType = TypeRetired
+        /\ i \in log[i][idx].retired
+
+IsRetiredCommitted(i) ==
+    IsRetiredCommittedLog(log[i],commitIndex[i],i)
+
 \* Returns the membership state of a node i given its log and commit index
 CalcMembershipState(log_i, commit_index_i, i) ==
     LET retirement_index == RetirementIndexLog(log_i,i)
     IN IF retirement_index # 0
        THEN IF retirement_index <= commit_index_i 
-            THEN RetirementCompleted
+            THEN IF IsRetiredCommittedLog(log_i, commit_index_i, i)
+                  THEN RetiredCommitted
+                  ELSE RetirementCompleted
             ELSE IF retirement_index < MaxCommittableIndex(log_i)
                  THEN RetirementSigned
                  ELSE RetirementOrdered
@@ -520,7 +534,7 @@ CalcMembershipState(log_i, commit_index_i, i) ==
 
 \* Set of nodes with retired committed transactions in a given log
 AllRetiredCommittedTxns(log_i) ==
-    UNION {log_i[idx].retired: idx \in {k \in DOMAIN log_i: log_i[k].contentType = TypeRetiredCommitted}}
+    UNION {log_i[idx].retired: idx \in {k \in DOMAIN log_i: log_i[k].contentType = TypeRetired}}
 
 \* Set of retired nodes in a given log
 AllRetired(log_i) ==
@@ -599,7 +613,7 @@ Init ==
 \* Server i times out and starts a new election.
 Timeout(i) ==
     \* Only servers that haven't completed retirement can become candidates
-    /\ membershipState[i] # RetirementCompleted
+    /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned}
     \* Only servers that are followers/candidates can become candidates
     /\ leadershipState[i] \in {Follower, Candidate}
     \* Check that the reconfiguration which added this node is at least committable
@@ -777,7 +791,7 @@ ChangeConfiguration(i) ==
     \E newConfiguration \in SUBSET(Servers) \ {{}}:
         ChangeConfigurationInt(i, newConfiguration)
 
-RetiredCommitted(i) ==
+AppendRetiredCommitted(i) ==
     /\ leadershipState[i] = Leader
     /\ LET 
         \* Calculate which nodes have had their retirement committed but no retired committed txn
@@ -786,7 +800,7 @@ RetiredCommitted(i) ==
         /\ retire_committed_nodes # {}
         /\ log' = [log EXCEPT ![i] = Append(@, [
                     term  |-> currentTerm[i], 
-                    contentType |-> TypeRetiredCommitted, 
+                    contentType |-> TypeRetired, 
                     retired |-> retire_committed_nodes])]
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
 
@@ -1231,7 +1245,7 @@ NextInt(i) ==
     \/ ClientRequest(i)
     \/ SignCommittableMessages(i)
     \/ ChangeConfiguration(i)
-    \/ RetiredCommitted(i)
+    \/ AppendRetiredCommitted(i)
     \/ AdvanceCommitIndex(i)
     \/ CheckQuorum(i)
     \/ \E j \in Servers : RequestVote(i, j)
@@ -1423,15 +1437,23 @@ MembershipStateConsistentInv ==
         \* RetirementOrdered - node's retirement in its log
         \/ /\ membershipState[i] = RetirementOrdered 
            /\ RetirementIndex(i) # 0
+           /\ RetirementIndex(i) > MaxCommittableIndex(log[i])
         \* RetirementSigned - node' retirement is signed 
         \/ /\ membershipState[i] = RetirementSigned
            /\ RetirementIndex(i) # 0
            /\ RetirementIndex(i) <= MaxCommittableIndex(log[i])
-        \* RetirementCompleted - node's retired is committed
+        \* RetirementCompleted - node's retirement is committed
         \/ /\ membershipState[i] = RetirementCompleted
            /\ RetirementIndex(i) # 0
            /\ RetirementIndex(i) <= commitIndex[i]
            /\ leadershipState[i] \notin {Candidate, Leader}
+           /\ ~IsRetiredCommitted(i)
+        \/ /\ membershipState[i] = RetiredCommitted
+           /\ RetirementIndex(i) # 0
+           /\ RetirementIndex(i) <= commitIndex[i]
+           /\ leadershipState[i] \notin {Candidate, Leader}
+           /\ IsRetiredCommitted(i)
+
 
 NoLeaderBeforeInitialTerm ==
     \A i \in Servers :
@@ -1457,7 +1479,7 @@ CommitCommittableIndices ==
 RetiredCommittedInv ==
     \A i \in Servers :
         \A k \in DOMAIN log[i] : 
-            log[i][k].contentType = TypeRetiredCommitted
+            log[i][k].contentType = TypeRetired
             => \A j \in log[i][k].retired : 
                 /\ RetirementIndexLog(log[i],j) # 0 
                 /\ RetirementIndexLog(log[i],j) <= k
