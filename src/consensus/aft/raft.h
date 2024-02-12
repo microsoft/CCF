@@ -1115,17 +1115,6 @@ namespace aft
         return;
       }
 
-      // Then check if those append entries extend past our retirement
-      if (is_retired_committed())
-      {
-        assert(state->retired_committed_idx.has_value());
-        if (r.idx > state->retired_committed_idx.value())
-        {
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
-          return;
-        }
-      }
-
       // If the terms match up, it is sufficient to convince us that the sender
       // is leader in our term
       restart_election_timeout();
@@ -2129,7 +2118,7 @@ namespace aft
         // The majority must be checked separately for each active
         // configuration.
         std::vector<Index> match;
-        match.reserve(c.nodes.size() + 1);
+        match.reserve(c.nodes.size());
 
         for (auto node : c.nodes)
         {
