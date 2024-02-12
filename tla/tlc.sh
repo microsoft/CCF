@@ -10,7 +10,7 @@ if [ "${CI}" ] || [ "${SYSTEM_TEAMFOUNDATIONCOLLECTIONURI}" ]; then
     JVM_OPTIONS=("-Dtlc2.TLC.ide=Github" "-Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601")
 fi
 
-exec java -Dtlc2.tool.impl.Tool.cdot=true "${JVM_OPTIONS[@]}" -cp tla2tools.jar:CommunityModules-deps.jar tlc2.TLC "$@" -lncheck final "${TLC_OPTIONS[@]}"
+exec java -Dtlc2.tool.impl.Tool.cdot=true "${JVM_OPTIONS[@]}" -cp tla2tools.jar:CommunityModules-deps.jar tlc2.TLC "$@" -checkpoint 0 -lncheck final "${TLC_OPTIONS[@]}"
 
 
 # Original License
