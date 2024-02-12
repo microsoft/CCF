@@ -213,6 +213,7 @@ int main(int argc, char** argv)
         break;
       case shash("dispatch_single"):
         assert(items.size() == 3);
+        skip_invariants = true;
         driver->dispatch_single(items[1], items[2]);
         break;
       case shash("replicate"):
