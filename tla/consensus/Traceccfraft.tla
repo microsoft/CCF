@@ -515,7 +515,6 @@ TraceMatchesConstraints ==
     /\ LogConfigurationConsistentInv
     /\ MembershipStateConsistentInv
     /\ CommitCommittableIndices
-    /\ ReplicationInv
 
 -------------------------------------------------------------------------------------
 
