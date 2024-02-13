@@ -4,10 +4,8 @@
 # Original License below
 # Adapted from: https://github.com/pmer/tla-bin
 
-TLC_OPTIONS=()
-
 if [ "${CI}" ] || [ "${SYSTEM_TEAMFOUNDATIONCOLLECTIONURI}" ]; then
-    JVM_OPTIONS=("-Dtlc2.TLC.ide=Github" "-Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601")
+    JVM_OPTIONS+=("-Dtlc2.TLC.ide=Github" "-Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601")
 fi
 
 # See https://docs.oracle.com/en/java/javase/20/gctuning/available-collectors.html#GUID-F215A508-9E58-40B4-90A5-74E29BF3BD3C
@@ -16,7 +14,7 @@ fi
 # Simulation, nor Model Checking seem to work well with G1GC, but Trace Validation does not for some reason, and is much slower unless -XX:+UseParallelGC is used.
 # In all cases, pauses don't matter, only throughput does.
 
-exec java -XX:+UseParallelGC -Dtlc2.tool.impl.Tool.cdot=true -Dtlc2.tool.queue.IStateQueue=StateDeque "${JVM_OPTIONS[@]}" -cp tla2tools.jar:CommunityModules-deps.jar tlc2.TLC "$@" -checkpoint 0 -lncheck final "${TLC_OPTIONS[@]}"
+exec java -XX:+UseParallelGC -Dtlc2.tool.impl.Tool.cdot=true "${JVM_OPTIONS[@]}" -cp tla2tools.jar:CommunityModules-deps.jar tlc2.TLC "$@" -checkpoint 0 -lncheck final
 
 
 # Original License
