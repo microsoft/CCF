@@ -871,7 +871,7 @@ AdvanceCommitIndex(i) ==
                  ELSE UNCHANGED <<messages>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, reconfigurationVars>>
-    /\ UNCHANGED <<candidateVars, leaderVars, removedFromConfiguration, log, currentTerm, membershipState, votedFor, isNewFollower>>
+    /\ UNCHANGED <<candidateVars, leaderVars, removedFromConfiguration, log, currentTerm, votedFor, isNewFollower>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
@@ -991,10 +991,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
           /\ configurations' = [configurations EXCEPT ![i] = RestrictDomain(@, LAMBDA c : c >= newConfigurationIndex)]
           \* Check if updating the commit index completes a pending retirement
           \* Note the node is already a follower so leadershipState remains unchanged
-          /\ membershipState' = [membershipState EXCEPT ![i] = 
-                IF membershipState = RetirementSigned /\ commitIndex' > RetirementIndex(i) 
-                THEN RetirementCompleted 
-                ELSE @]
+          /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log[i], commitIndex'[i], i)]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
@@ -1009,7 +1006,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
 \* This action rolls back the log and leaves m in messages for further processing
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ Len(log[i]) >= index
-    /\ isNewFollower[i] = TRUE
+    /\ isNewFollower[i]
     /\ LET new_log == [index2 \in 1..m.prevLogIndex |-> log[i][index2]] \* Truncate log
        IN /\ log' = [log EXCEPT ![i] = new_log]
           \* Potentially also shorten the configurations if the removed txns contained reconfigurations
