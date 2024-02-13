@@ -1172,6 +1172,7 @@ namespace aft
                 i,
                 rollback_level);
               rollback(rollback_level);
+              is_new_follower = false;
               // Then continue to process this AE as normal
             }
             else
@@ -1227,8 +1228,6 @@ namespace aft
 
         append_entries.push_back(std::make_tuple(std::move(ds), i));
       }
-
-      is_new_follower = false;
 
       execute_append_entries_sync(
         std::move(append_entries), from, std::move(r));
