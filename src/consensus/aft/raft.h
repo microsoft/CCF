@@ -296,7 +296,8 @@ namespace aft
       return state->membership_state == kv::MembershipState::Retired;
     }
 
-    void set_retired_committed(ccf::SeqNo seqno) override
+    void set_retired_committed(
+      ccf::SeqNo seqno, const std::vector<kv::NodeId>& node_ids) override
     {
       state->retirement_phase = kv::RetirementPhase::RetiredCommitted;
       CCF_ASSERT_FMT(

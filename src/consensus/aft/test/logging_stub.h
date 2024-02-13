@@ -329,17 +329,19 @@ namespace aft
     }
   };
 
+  using RCHook = std::function<void(Index, const std::vector<kv::NodeId>&)>;
+
   class LoggingStubStore
   {
   protected:
     ccf::NodeId _id;
-    std::function<void(Index)> set_retired_committed_hook;
+    RCHook set_retired_committed_hook;
 
   public:
     LoggingStubStore(ccf::NodeId id) : _id(id) {}
 
     virtual void set_set_retired_committed_hook(
-      std::function<void(Index)> set_retired_committed_hook_)
+      RCHook set_retired_committed_hook_)
     {
       set_retired_committed_hook = set_retired_committed_hook_;
     }
@@ -480,16 +482,12 @@ namespace aft
       {
         if (version <= i)
         {
-          std::cout << "Retired committed configuration: "
-                    << configuration.dump() << std::endl;
-          if (configuration.find(_id) != configuration.end())
+          std::vector<kv::NodeId> retired_committed_node_ids;
+          for (auto& [node_id, _] : configuration.items())
           {
-            std::cout << "Node id: " << _id
-                      << " is in the retired committed configuration, calling "
-                         "set_retired_committed hook"
-                      << std::endl;
-            set_retired_committed_hook(i);
+            retired_committed_node_ids.push_back(node_id);
           }
+          set_retired_committed_hook(i, retired_committed_node_ids);
         }
         else
         {
