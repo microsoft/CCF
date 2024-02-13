@@ -1183,6 +1183,7 @@ namespace aft
                 i,
                 incoming_term,
                 i);
+              return;
             }
           }
           else
