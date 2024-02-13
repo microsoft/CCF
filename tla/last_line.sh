@@ -6,4 +6,6 @@
 
 if [ -e "$1" ]; then
     cat "$1" | jq '.action | last | .[2][1]._logline | "Last matched [" + .h_ts + "] " + .msg.function + " (" + .cmd + ")"'
+    exit 1
 fi
+exit 0
