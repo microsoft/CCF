@@ -847,7 +847,11 @@ AdvanceCommitIndex(i) ==
          \* only advance if necessary (this is basically a sanity)
         /\ commitIndex[i] < highestCommittableIndex
         /\ commitIndex' = [commitIndex EXCEPT ![i] = highestCommittableIndex]
-        \* If commit index surpasses the next configuration, pop configs, and retire as leader if removed
+        \* update membership/leadershipState if our retirement was just committed or retiredcommitted was committed
+        /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log[i], commitIndex'[i], i)]
+        /\ leadershipState' = [leadershipState EXCEPT ![i] = 
+            IF membershipState'[i] \in {RetirementCompleted, RetiredCommitted} THEN Follower ELSE @]
+        \* If commit index surpasses the next configuration, pop configs, and nominate successor if removed
         /\ IF /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ highestCommittableIndex >= NextConfigurationIndex(i)
            THEN
@@ -858,20 +862,16 @@ AdvanceCommitIndex(i) ==
               \* Retire if i is not in active configuration anymore
               /\ IF i \notin configurations[i][Min(DOMAIN configurations'[i])]
                  THEN \E j \in PlausibleSucessorNodes(i) :
-                    /\ membershipState' = [membershipState EXCEPT ![i] = RetirementCompleted]
-                    \* TODO: implementation steps down to None instead of Follower
-                    /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
                     /\ LET msg == [type          |-> ProposeVoteRequest,
                                     term          |-> currentTerm[i],
                                     source        |-> i,
                                     dest          |-> j ]
                         IN Send(msg)
-                    /\ UNCHANGED <<currentTerm, votedFor, isNewFollower>>
                  \* Otherwise, states remain unchanged
-                 ELSE UNCHANGED <<messages, serverVars>>
+                 ELSE UNCHANGED <<messages>>
            \* Otherwise, Configuration and states remain unchanged
-           ELSE UNCHANGED <<messages, serverVars, reconfigurationVars, leadershipState>>
-    /\ UNCHANGED <<candidateVars, leaderVars, removedFromConfiguration, log>>
+           ELSE UNCHANGED <<messages, reconfigurationVars>>
+    /\ UNCHANGED <<candidateVars, leaderVars, removedFromConfiguration, log, currentTerm, membershipState, votedFor, isNewFollower>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
