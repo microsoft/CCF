@@ -22,8 +22,8 @@ namespace ccf
   {
     crypto::Pem priv_key;
     crypto::Pem cert;
-    std::optional<IdentityType> type;
-    std::string subject_name = "";
+    std::optional<IdentityType> type = IdentityType::REPLICATED;
+    std::string subject_name = "CN=CCF Service";
 
     bool operator==(const NetworkIdentity& other) const
     {
