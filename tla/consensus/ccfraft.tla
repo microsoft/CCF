@@ -994,6 +994,10 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
 \* This action rolls back the log and leaves m in messages for further processing
 ConflictAppendEntriesRequest(i, index, m) ==
     /\ Len(log[i]) >= index
+    /\ m.entries /= << >>
+    /\ \E idx \in 1..Len(m.entries) :
+        /\ (index + (idx - 1)) \in DOMAIN log[i]
+        /\ log[i][index + (idx - 1)].term # m.entries[idx].term
     /\ isNewFollower[i] = TRUE
     /\ LET new_log == [index2 \in 1..m.prevLogIndex |-> log[i][index2]] \* Truncate log
        IN /\ log' = [log EXCEPT ![i] = new_log]
