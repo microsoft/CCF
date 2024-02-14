@@ -306,7 +306,8 @@ namespace crypto
     const std::string& valid_from,
     const std::string& valid_to,
     bool ca,
-    Signer signer) const
+    Signer signer,
+    std::optional<size_t> pathlen) const
   {
     X509* icrt = NULL;
     Unique_BIO mem(signing_request);
@@ -379,14 +380,21 @@ namespace crypto
     X509V3_set_ctx_nodb(&v3ctx);
     X509V3_set_ctx(&v3ctx, icrt ? icrt : crt, NULL, csr, NULL, 0);
 
+    std::string constraints = "critical,CA:FALSE";
+    if (ca)
+    {
+      constraints = "critical,CA:TRUE";
+      if (pathlen.has_value())
+      {
+        constraints += fmt::format(",pathlen:{}", pathlen.value());
+      }
+    }
+
     // Add basic constraints
     X509_EXTENSION* ext = NULL;
     OpenSSL::CHECKNULL(
       ext = X509V3_EXT_conf_nid(
-        NULL,
-        &v3ctx,
-        NID_basic_constraints,
-        ca ? "critical,CA:TRUE,pathlen:0" : "critical,CA:FALSE"));
+        NULL, &v3ctx, NID_basic_constraints, constraints.c_str()));
     OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
     X509_EXTENSION_free(ext);
 

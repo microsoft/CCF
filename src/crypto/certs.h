@@ -99,13 +99,20 @@ namespace crypto
     const std::string& valid_to,
     const Pem& issuer_private_key,
     const Pem& issuer_cert,
-    bool ca = false)
+    bool ca = false,
+    std::optional<size_t> pathlen = 0)
   {
     auto issuer_key_pair = make_key_pair(issuer_private_key);
     auto csr =
       issuer_key_pair->create_csr(subject_name, subject_alt_names, public_key);
     return issuer_key_pair->sign_csr(
-      issuer_cert, csr, valid_from, valid_to, ca, KeyPair::Signer::ISSUER);
+      issuer_cert,
+      csr,
+      valid_from,
+      valid_to,
+      ca,
+      KeyPair::Signer::ISSUER,
+      pathlen);
   }
 
   static Pem create_endorsed_cert(
@@ -115,7 +122,8 @@ namespace crypto
     const std::pair<std::string, std::string>& validity_period,
     const Pem& issuer_private_key,
     const Pem& issuer_cert,
-    bool ca = false)
+    bool ca = false,
+    std::optional<size_t> pathlen = 0)
   {
     return create_endorsed_cert(
       public_key,
@@ -125,6 +133,7 @@ namespace crypto
       validity_period.second,
       issuer_private_key,
       issuer_cert,
-      ca);
+      ca,
+      pathlen);
   }
 }

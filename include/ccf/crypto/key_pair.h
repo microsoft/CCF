@@ -86,7 +86,8 @@ namespace crypto
       const std::string& valid_from,
       const std::string& valid_to,
       bool ca = false,
-      Signer signer = Signer::SUBJECT) const = 0;
+      Signer signer = Signer::SUBJECT,
+      std::optional<size_t> pathlen = 0) const = 0;
 
   public:
     virtual Pem sign_csr(
@@ -95,10 +96,17 @@ namespace crypto
       const std::string& valid_from,
       const std::string& valid_to,
       bool ca = false,
-      Signer signer = Signer::SUBJECT) const
+      Signer signer = Signer::SUBJECT,
+      std::optional<size_t> pathlen = 0) const
     {
       return sign_csr_impl(
-        issuer_cert, signing_request, valid_from, valid_to, ca, signer);
+        issuer_cert,
+        signing_request,
+        valid_from,
+        valid_to,
+        ca,
+        signer,
+        pathlen);
     }
 
     Pem self_sign(

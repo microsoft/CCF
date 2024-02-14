@@ -73,7 +73,8 @@ namespace crypto
       const std::string& valid_from,
       const std::string& valid_to,
       bool ca = false,
-      Signer signer = Signer::SUBJECT) const override;
+      Signer signer = Signer::SUBJECT,
+      std::optional<size_t> pathlen = 0) const override;
 
     virtual std::vector<uint8_t> derive_shared_secret(
       const PublicKey& peer_key) override;
