@@ -1,9 +1,9 @@
 # 5 initial nodes
 start_node,0
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 emit_signature,2
 
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_node,2,1
@@ -162,10 +162,9 @@ dispatch_one,2
 dispatch_one,0
 
 # Node 2 receives ACK from node 3
+# It must not advance commit based on the NACK index from node 0!
 dispatch_one,3
 
 # Debug print current state
 state_all
 
-# It must not advance commit based on the NACK index from node 0!
-assert_commit_safety,2

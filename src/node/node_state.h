@@ -2150,23 +2150,16 @@ namespace ccf
         network.nodes.get_name(),
         network.nodes.wrap_commit_hook(
           [this](kv::Version hook_version, const Nodes::Write& w) {
+            std::vector<NodeId> retired_committed_nodes;
             for (const auto& [node_id, node_info] : w)
             {
-              if (node_id != self)
+              if (node_info.has_value() && node_info->retired_committed)
               {
-                // Only update our own state
-                continue;
-              }
-
-              if (node_info.has_value())
-              {
-                if (node_info->retired_committed)
-                {
-                  consensus->set_retired_committed(hook_version);
-                }
-                return;
+                retired_committed_nodes.push_back(node_id);
               }
             }
+            consensus->set_retired_committed(
+              hook_version, retired_committed_nodes);
           }));
 
       // Service-endorsed certificate is passed to history as early as _local_

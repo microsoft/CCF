@@ -1,8 +1,8 @@
 start_node,0
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 emit_signature,2
 
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_node,2,1
@@ -28,8 +28,8 @@ dispatch_all
 assert_commit_idx,0,6
 assert_commit_idx,1,6
 
-assert_is_primary,0
-assert_is_backup,1
+assert_detail,0,leadership_state,Leader
+assert_detail,1,leadership_state,Follower
 
 replicate,2,helloworld
 emit_signature,2

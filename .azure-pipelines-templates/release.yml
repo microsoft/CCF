@@ -14,6 +14,7 @@ jobs:
 
       - script: |
           set -ex
+          set -o pipefail
           python3.8 ./scripts/extract-release-notes.py --target-git-version --append-mcr-images --describe-path-changes "./samples/constitution" | tee $(Build.BinariesDirectory)/rel-notes.md
         displayName: Extract release notes
 

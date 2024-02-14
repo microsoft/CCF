@@ -91,7 +91,8 @@ CONSTANTS
 CONSTANTS
     TypeEntry,
     TypeSignature,
-    TypeReconfiguration
+    TypeReconfiguration,
+    TypeRetiredCommitted
 
 \* Set of nodes for this model
 CONSTANTS Servers
@@ -165,6 +166,8 @@ EntryTypeOK(entry) ==
        \/ entry.contentType = TypeSignature
        \/ /\ entry.contentType = TypeReconfiguration
           /\ entry.configuration \subseteq Servers
+       \/ /\ entry.contentType = TypeRetiredCommitted
+          /\ entry.retired \subseteq Servers
 
 AppendEntriesRequestTypeOK(m) ==
     /\ m.type = AppendEntriesRequest
@@ -515,6 +518,14 @@ CalcMembershipState(log_i, commit_index_i, i) ==
                  ELSE RetirementOrdered
        ELSE Active
 
+\* Set of nodes with retired committed transactions in a given log
+AllRetiredCommittedTxns(log_i) ==
+    UNION {log_i[idx].retired: idx \in {k \in DOMAIN log_i: log_i[k].contentType = TypeRetiredCommitted}}
+
+\* Set of retired nodes in a given log
+AllRetired(log_i) ==
+    {n \in Servers: RetirementIndexLog(log_i, n) # 0}
+
 AppendEntriesBatchsize(i, j) ==
     \* The Leader is modeled to send zero to one entries per AppendEntriesRequest.
      \* This can be redefined to send bigger batches of entries.
@@ -687,6 +698,7 @@ BecomeLeader(i) ==
     \* been rolled back as it was unsigned
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
+    \* TODO: Check if any node's retirement has been committed and add retired_committed if so
     /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex>>
 
 \* Leader i receives a client request to add 42 to the log.
@@ -765,6 +777,20 @@ ChangeConfiguration(i) ==
     \E newConfiguration \in SUBSET(Servers) \ {{}}:
         ChangeConfigurationInt(i, newConfiguration)
 
+RetiredCommitted(i) ==
+    /\ leadershipState[i] = Leader
+    /\ LET 
+        \* Calculate which nodes have had their retirement committed but no retired committed txn
+        retire_committed_nodes == AllRetired(SubSeq(log[i],1,commitIndex[i])) \ AllRetiredCommittedTxns(log[i]) 
+        IN 
+        /\ retire_committed_nodes # {}
+        /\ log' = [log EXCEPT ![i] = Append(@, [
+                    term  |-> currentTerm[i], 
+                    contentType |-> TypeRetiredCommitted, 
+                    retired |-> retire_committed_nodes])]
+    /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
+
+
 \* Leader i advances its commitIndex to the next possible Index.
 \* This is done as a separate step from handling AppendEntries responses,
 \* in part to minimize atomic regions, and in part so that leaders of
@@ -831,7 +857,7 @@ AdvanceCommitIndex(i) ==
                  ELSE UNCHANGED <<messages, serverVars>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, serverVars, reconfigurationVars, leadershipState>>
-    /\ UNCHANGED <<candidateVars, leaderVars, log, removedFromConfiguration>>
+    /\ UNCHANGED <<candidateVars, leaderVars, removedFromConfiguration, log>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
@@ -1205,6 +1231,7 @@ NextInt(i) ==
     \/ ClientRequest(i)
     \/ SignCommittableMessages(i)
     \/ ChangeConfiguration(i)
+    \/ RetiredCommitted(i)
     \/ AdvanceCommitIndex(i)
     \/ CheckQuorum(i)
     \/ \E j \in Servers : RequestVote(i, j)
@@ -1424,6 +1451,49 @@ CommitCommittableIndices ==
             /\ commitIndex[i] = 0
             /\ CommittableIndices(i) = {}
         \/ commitIndex[i] \in CommittableIndices(i)
+
+
+\* Given a committed log log_x for some node and an index idx into that log, 
+\* GetConfigurations returns all configurations which should have replicated 
+\* the transaction at idx.
+GetConfigurations(log_x, idx) ==
+    LET
+    configs_all == {k \in DOMAIN log_x : log_x[k].contentType = TypeReconfiguration}
+    configs_before ==  {k \in configs_all : k <= idx}
+    \* This if-statement should not be needed as genesis transaction should be a configuration
+    config_last == IF configs_before = {} THEN {} ELSE {Max(configs_before)}
+    configs_after == {k \in configs_all : k > idx}
+    IN
+    {log_x[i].configuration : i \in (configs_after \union config_last)}
+
+\* ReplicationInv states that all log entries that are believed to be committed must be
+\* replicated on a quorum of nodes from the preceding configuration and all subsequent
+\* committed configurations.
+ReplicationInv ==
+    \E i \in Servers : 
+        \* We just check the node with the highest commitIndex
+        \* LogInv ensures that includes all committed transactions
+        /\ \A j \in Servers: commitIndex[i] >= commitIndex[j]
+        \* Every committed transaction must be replicated to at least 
+        \* one quorum in each configuration which should have a copy
+        /\ \A idx \in DOMAIN Committed(i) :
+            \A config \in GetConfigurations(Committed(i), idx) :
+                \E quorum \in Quorums[config] :
+                    \A node \in quorum : 
+                        /\ Len(log[node]) >= idx
+                        /\ log[node][idx] = log[i][idx]
+
+
+
+\* Check that retired committed transactions are added only when retirement committed has been observed
+RetiredCommittedInv ==
+    \A i \in Servers :
+        \A k \in DOMAIN log[i] : 
+            log[i][k].contentType = TypeRetiredCommitted
+            => \A j \in log[i][k].retired : 
+                /\ RetirementIndexLog(log[i],j) # 0 
+                /\ RetirementIndexLog(log[i],j) <= k
+                /\ RetirementIndexLog(log[i],j) <= commitIndex[i]
 
 ------------------------------------------------------------------------------
 \* Properties

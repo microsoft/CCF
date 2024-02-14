@@ -123,7 +123,7 @@ namespace ccf::indexing
   public:
     EnclaveLFSAccess(const ringbuffer::WriterPtr& writer) :
       to_host(writer),
-      entropy_src(crypto::create_entropy())
+      entropy_src(crypto::get_entropy())
     {
       // Generate a fresh random key. Only this specific instance, in this
       // enclave, can read these files!
