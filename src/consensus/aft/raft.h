@@ -63,7 +63,7 @@
 #define RAFT_TRACE_JSON_OUT(json_object) \
   CCF_LOG_OUT(DEBUG, "raft_trace") << json_object
 
-#define LOG_ROLLBACK_FMT CCF_LOG_FMT(INFO, "rollback")
+#define LOG_ROLLBACK_INFO_FMT CCF_LOG_FMT(INFO, "rollback")
 
 namespace aft
 {
@@ -1186,7 +1186,7 @@ namespace aft
                 local_term,
                 i,
                 rollback_level);
-              LOG_ROLLBACK_FMT(
+              LOG_ROLLBACK_INFO_FMT(
                 "Dropping conflicting branch. Rolling back {} entries, "
                 "beginning with {}.{}.",
                 state->last_idx - rollback_level,
@@ -1198,7 +1198,7 @@ namespace aft
             }
             else
             {
-              LOG_ROLLBACK_FMT(
+              LOG_ROLLBACK_INFO_FMT(
                 "Ignoring conflicting AppendEntries. Retaining {} entries, "
                 "beginning with {}.{}.",
                 state->last_idx - (i - 1),

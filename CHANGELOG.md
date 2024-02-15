@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added 2 new log lines which may be helpful diagnostics in production deployments, both including a new `[rollback]` tag.
-  - `[rollback] ... Dropping conflicting branch` may be emitted after network partitions, and indicates that some unstable (non-committed) transactions have been lost. This is expected, but worth investigating if it occurs regularly - it is a sign of elections impacting service availability.
+  - `[rollback] ... Dropping conflicting branch` may be emitted after network partitions, and indicates that some `Pending` (non-committed) transactions have been lost. This is expected, but worth investigating if it occurs regularly - it is a sign of elections impacting service availability.
   - `[rollback] ... Ignoring conflicting AppendEntries` could also be emitted after a network partition, but **should be reported to the CCF development team**. It is a sign of an unexpected execution path, which could lead to loss of liveness (inability to advance commit).
 
 ## [5.0.0-dev12]
