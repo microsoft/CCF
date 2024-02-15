@@ -1573,20 +1573,10 @@ namespace aft
       }
       else
       {
-        // Potentially unnecessary safety check - use min with last_idx, to
-        // prevent matches past this node's local knowledge
-        const auto proposed_match = std::min(r.last_log_idx, state->last_idx);
-        if (proposed_match < node->second.match_idx)
-        {
-          RAFT_FAIL_FMT(
-            "Append entries response to {} from {} attempting to move "
-            "match_idx backwards ({} -> {})",
-            state->node_id,
-            from,
-            node->second.match_idx,
-            proposed_match);
-        }
-        node->second.match_idx = proposed_match;
+        // max(...) because why would we ever want to go backwards on a success
+        // response?!
+        node->second.match_idx =
+          std::max(node->second.match_idx, r.last_log_idx);
       }
 
       RAFT_DEBUG_FMT(

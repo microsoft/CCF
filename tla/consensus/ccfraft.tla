@@ -993,7 +993,6 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
 \* Follower i receives an AppendEntries request m where it needs to roll back first
 \* This action rolls back the log and leaves m in messages for further processing
 ConflictAppendEntriesRequest(i, index, m) ==
-    /\ Len(log[i]) >= index
     /\ m.entries /= << >>
     /\ \E idx \in 1..Len(m.entries) :
         /\ (index + (idx - 1)) \in DOMAIN log[i]
@@ -1082,8 +1081,7 @@ HandleAppendEntriesResponse(i, j, m) ==
           /\ leadershipState[i] = Leader \* Only Leaders need to tally append entries responses
           /\ m.success \* successful
           \* max(...) because why would we ever want to go backwards on a success response?!
-          \* min(...) because we don't want to calculate a match past our own log's tail
-          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, min(Len(log[i]), m.lastLogIndex))]
+          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = max(@, m.lastLogIndex)]
           \* sentIndex is unchanged on successful AE response as it was already updated when the AE was dispatched
           /\ UNCHANGED sentIndex
        \/ /\ \lnot m.success \* not successful
