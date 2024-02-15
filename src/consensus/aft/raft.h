@@ -1198,6 +1198,12 @@ namespace aft
             }
             else
             {
+              // We have a node retaining a conflicting suffix, and refusing to
+              // roll it back. It will remain divergent (not contributing to
+              // commit) this term, and can only be brought in-sync in a future
+              // term.
+              // This log is emitted as a canary, for what we hope is an
+              // unreachable branch. If it is ever seen we should revisit this.
               LOG_ROLLBACK_INFO_FMT(
                 "Ignoring conflicting AppendEntries. Retaining {} entries, "
                 "beginning with {}.{}.",
