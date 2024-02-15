@@ -402,6 +402,108 @@ public:
     }
   }
 
+<<<<<<< HEAD
+=======
+  std::string get_ledger_summary(TRaft& r)
+  {
+    std::vector<std::string> entries;
+    for (auto i = 1; i <= r.get_last_idx(); ++i)
+    {
+      const auto t = r.get_view(i);
+      auto s = fmt::format("{}.{}", t, i);
+      if (i == r.get_committed_seqno())
+      {
+        s = fmt::format("[{}]", s);
+      }
+      entries.push_back(s);
+    }
+    return fmt::format("{}", fmt::join(entries, ", "));
+  }
+
+  void summarise_log(ccf::NodeId node_id)
+  {
+    RAFT_DRIVER_PRINT(
+      "{}: {}", node_id, get_ledger_summary(*_nodes.at(node_id).raft));
+  }
+
+  void summarise_logs_all()
+  {
+    for (auto& [node_id, _] : _nodes)
+    {
+      summarise_log(node_id);
+    }
+  }
+
+  std::string get_message_summary(const std::vector<uint8_t>& contents)
+  {
+    const uint8_t* data = contents.data();
+    size_t size = contents.size();
+
+    const auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+    switch (msg_type)
+    {
+      case (aft::RaftMsgType::raft_request_vote):
+      {
+        return "RV";
+      }
+      case (aft::RaftMsgType::raft_request_vote_response):
+      {
+        return "RVR";
+      }
+      case (aft::RaftMsgType::raft_append_entries):
+      {
+        auto ae = *(aft::AppendEntries*)data;
+        return fmt::format(
+          "AE(t{}, ({}.{}, {}.{}])",
+          ae.term,
+          ae.prev_term,
+          ae.prev_idx,
+          ae.term_of_idx,
+          ae.idx);
+      }
+      case (aft::RaftMsgType::raft_append_entries_response):
+      {
+        auto aer = *(aft::AppendEntriesResponse*)data;
+        return fmt::format(
+          "AER({}, t{}, i{})",
+          aer.success == aft::AppendEntriesResponseType::OK ? "ACK" : "NACK",
+          aer.term,
+          aer.last_log_idx);
+      }
+      case (aft::RaftMsgType::raft_propose_request_vote):
+      {
+        return "PRV";
+      }
+      default:
+      {
+        throw std::runtime_error(
+          fmt::format("Unhandled RaftMsgType: {}", msg_type));
+      }
+    }
+  }
+
+  void summarise_messages(ccf::NodeId src, ccf::NodeId dst)
+  {
+    auto raft = _nodes.at(src).raft;
+    auto& messages = channel_stub_proxy(*raft)->messages;
+    std::vector<std::string> message_reps;
+    for (const auto& [target, raw_msg] : messages)
+    {
+      if (target == dst)
+      {
+        message_reps.push_back(get_message_summary(raw_msg));
+      }
+    }
+
+    RAFT_DRIVER_PRINT(
+      "Note right of {}: {} message(s) to {} = [{}]",
+      src,
+      message_reps.size(),
+      dst,
+      fmt::join(message_reps, ", "));
+  }
+
+>>>>>>> 443309e10... Raft fixes: Rollback safety despite NACKs, and only ACK up to incoming AE (#6016)
   void state_one(ccf::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;

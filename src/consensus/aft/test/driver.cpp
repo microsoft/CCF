@@ -107,6 +107,23 @@ int main(int argc, char** argv)
         assert(items.size() == 1);
         driver->state_all();
         break;
+<<<<<<< HEAD
+=======
+      case shash("summarise_log"):
+        assert(items.size() == 2);
+        skip_invariants = true;
+        driver->summarise_log(items[1]);
+        break;
+      case shash("summarise_logs_all"):
+        assert(items.size() == 1);
+        skip_invariants = true;
+        driver->summarise_logs_all();
+        break;
+      case shash("summarise_messages"):
+        assert(items.size() == 3);
+        driver->summarise_messages(items[1], items[2]);
+        break;
+>>>>>>> 443309e10... Raft fixes: Rollback safety despite NACKs, and only ACK up to incoming AE (#6016)
       case shash("shuffle_one"):
         assert(items.size() == 2);
         driver->shuffle_messages_one(items[1]);
