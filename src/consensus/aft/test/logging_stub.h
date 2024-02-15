@@ -482,20 +482,12 @@ namespace aft
       {
         if (version <= i)
         {
-          std::cout << "Retired committed configuration: "
-                    << configuration.dump() << std::endl;
-          std::vector<kv::NodeId> retired_committed_nodes;
+          std::vector<kv::NodeId> retired_committed_node_ids;
           for (auto& [node_id, _] : configuration.items())
           {
-            retired_committed_nodes.push_back(node_id);
+            retired_committed_node_ids.push_back(node_id);
           }
-
-          std::cout << fmt::format(
-                         "set_retired_committed_hook({}, {})",
-                         i,
-                         retired_committed_nodes.size())
-                    << std::endl;
-          set_retired_committed_hook(i, retired_committed_nodes);
+          set_retired_committed_hook(i, retired_committed_node_ids);
         }
         else
         {

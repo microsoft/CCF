@@ -198,9 +198,8 @@ private:
       std::make_shared<aft::State>(node_id),
       nullptr);
     kv->set_set_retired_committed_hook(
-      [raft](aft::Index idx, const std::vector<kv::NodeId>& nodes) {
-        std::cout << raft << " idx: " << idx << std::endl;
-        raft->set_retired_committed(idx, nodes);
+      [raft](aft::Index idx, const std::vector<kv::NodeId>& node_ids) {
+        raft->set_retired_committed(idx, node_ids);
       });
     raft->start_ticking();
 

@@ -315,21 +315,14 @@ namespace aft
           CCF_ASSERT(
             state->retirement_phase == kv::RetirementPhase::Completed,
             "Node is not retired, cannot become retired committed");
-          state->retirement_phase = kv::RetirementPhase::RetiredCommitted;
           CCF_ASSERT_FMT(
             state->retired_committed_idx == state->commit_idx,
             "Retired "
             "committed index {} does not match current commit index {}",
             state->retired_committed_idx.value_or(0),
             state->commit_idx);
+          state->retirement_phase = kv::RetirementPhase::RetiredCommitted;
           state->retired_committed_idx = seqno;
-        }
-        else
-        {
-          // This does not seem right, because it means a retiring backup
-          // probably never finds out that its retirement_committed has been
-          // committed.
-          all_other_nodes.erase(node_id);
         }
       }
     }
