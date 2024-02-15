@@ -7,7 +7,7 @@
 
 namespace crypto
 {
-  EntropyPtr create_entropy()
+  EntropyPtr get_entropy()
   {
     if (use_drng)
     {

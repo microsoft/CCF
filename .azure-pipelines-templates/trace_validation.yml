@@ -10,11 +10,13 @@ steps:
       set -ex
       set -o pipefail
       cd tla/
-      parallel 'JSON={} java -XX:+UseParallelGC -Dtlc2.tool.impl.Tool.cdot=true -Dtlc2.tool.queue.IStateQueue=StateDeque -cp tla2tools.jar:CommunityModules-deps.jar tlc2.TLC -lncheck final -checkpoint 0 -dump dot,constrained,colorize,actionlabels {}.dot consensus/Traceccfraft.tla' ::: $(ls ../build/*.ndjson | grep -v _deprecated)
+      mkdir traces
+      cp ../build/*.ndjson traces/
+      parallel 'set -o pipefail && echo {} && JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla | ./last_line.sh {}.trace.json' ::: $(ls traces/*.ndjson)
     displayName: "Run trace validation"
 
   - task: PublishPipelineArtifact@1
     inputs:
       artifactName: "Trace Validation Output"
-      targetPath: tla
+      targetPath: tla/traces
     condition: or(failed(), canceled())

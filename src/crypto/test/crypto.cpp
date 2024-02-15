@@ -373,7 +373,7 @@ TEST_CASE("base64url")
 TEST_CASE("Wrap, unwrap with RSAKeyPair")
 {
   size_t input_len = 64;
-  std::vector<uint8_t> input = create_entropy()->random(input_len);
+  std::vector<uint8_t> input = get_entropy()->random(input_len);
 
   INFO("Cannot make RSA key from EC key");
   {
@@ -612,7 +612,7 @@ TEST_CASE("AES Key wrap with padding")
   auto key = get_raw_key();
   std::vector<uint8_t> aad(123, 'y');
 
-  std::vector<uint8_t> key_to_wrap = create_entropy()->random(997);
+  std::vector<uint8_t> key_to_wrap = get_entropy()->random(997);
 
   auto ossl = std::make_unique<KeyAesGcm_OpenSSL>(key);
 
@@ -644,7 +644,7 @@ TEST_CASE("CKM_RSA_PKCS_OAEP")
 
 TEST_CASE("CKM_RSA_AES_KEY_WRAP")
 {
-  std::vector<uint8_t> key_to_wrap = create_entropy()->random(256);
+  std::vector<uint8_t> key_to_wrap = get_entropy()->random(256);
 
   auto rsa_kp = make_rsa_key_pair();
   auto rsa_pk = make_rsa_public_key(rsa_kp->public_key_pem());
@@ -658,7 +658,7 @@ TEST_CASE("CKM_RSA_AES_KEY_WRAP")
 
 TEST_CASE("AES-GCM convenience functions")
 {
-  EntropyPtr entropy = create_entropy();
+  EntropyPtr entropy = get_entropy();
   std::vector<uint8_t> key = entropy->random(GCM_DEFAULT_KEY_SIZE);
   auto encrypted = aes_gcm_encrypt(key, contents);
   auto decrypted = aes_gcm_decrypt(key, encrypted);
