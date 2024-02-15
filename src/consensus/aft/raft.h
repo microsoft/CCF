@@ -63,6 +63,8 @@
 #define RAFT_TRACE_JSON_OUT(json_object) \
   CCF_LOG_OUT(DEBUG, "raft_trace") << json_object
 
+#define LOG_ROLLBACK_FMT CCF_LOG_FMT(INFO, "rollback")
+
 namespace aft
 {
   using Configuration = kv::Configuration;
@@ -1184,18 +1186,23 @@ namespace aft
                 local_term,
                 i,
                 rollback_level);
+              LOG_ROLLBACK_FMT(
+                "Dropping conflicting branch. Rolling back {} entries, "
+                "beginning with {}.{}.",
+                state->last_idx - rollback_level,
+                local_term,
+                i);
               rollback(rollback_level);
               is_new_follower = false;
               // Then continue to process this AE as normal
             }
             else
             {
-              RAFT_FAIL_FMT(
-                "Found conflict at {}.{} (incoming AppendEntries contains "
-                "{}.{}). Ignoring due to is_new_follower=false.",
+              LOG_ROLLBACK_FMT(
+                "Ignoring conflicting AppendEntries. Retaining {} entries, "
+                "beginning with {}.{}.",
+                state->last_idx - (i - 1),
                 local_term,
-                i,
-                incoming_term,
                 i);
               return;
             }
