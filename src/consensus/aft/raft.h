@@ -1109,8 +1109,6 @@ namespace aft
         return;
       }
 
-<<<<<<< HEAD
-=======
       // Then check if those append entries extend past our retirement
       if (
         is_retired() &&
@@ -1124,7 +1122,6 @@ namespace aft
         }
       }
 
->>>>>>> upstream/main
       // If the terms match up, it is sufficient to convince us that the sender
       // is leader in our term
       restart_election_timeout();
