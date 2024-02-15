@@ -981,7 +981,6 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
                 IF membershipState = RetirementSigned /\ commitIndex' > RetirementIndex(i) 
                 THEN RetirementCompleted 
                 ELSE @]
-    /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -989,12 +988,15 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, log, candidateVars, leaderVars>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, isNewFollower, log, candidateVars, leaderVars>>
 
 \* Follower i receives an AppendEntries request m where it needs to roll back first
 \* This action rolls back the log and leaves m in messages for further processing
 ConflictAppendEntriesRequest(i, index, m) ==
-    /\ Len(log[i]) >= index
+    /\ m.entries /= << >>
+    /\ \E idx \in 1..Len(m.entries) :
+        /\ (index + (idx - 1)) \in DOMAIN log[i]
+        /\ log[i][index + (idx - 1)].term # m.entries[idx].term
     /\ isNewFollower[i] = TRUE
     /\ LET new_log == [index2 \in 1..m.prevLogIndex |-> log[i][index2]] \* Truncate log
        IN /\ log' = [log EXCEPT ![i] = new_log]
@@ -1038,7 +1040,6 @@ NoConflictAppendEntriesRequest(i, j, m) ==
            ELSE UNCHANGED leadershipState
           \* Recalculate membership state based on log' and commitIndex'
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex'[i], i)]
-    /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -1046,7 +1047,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, votedFor, candidateVars, leaderVars>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, votedFor, isNewFollower, candidateVars, leaderVars>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request

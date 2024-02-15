@@ -1,0 +1,122 @@
+# Set up 5 node network
+start_node,0
+assert_detail,0,leadership_state,Leader
+emit_signature,2
+
+assert_detail,0,leadership_state,Leader
+assert_commit_idx,0,2
+
+trust_nodes,2,1,2,3,4
+emit_signature,2
+
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+assert_commit_idx,0,4
+
+assert_state_sync
+# All nodes in agreement
+
+# Nodes 3 and 4 are partitioned, so the remaining 3 need unanimity for commit
+disconnect_node,3
+disconnect_node,4
+
+# Node 0 produces a suffix
+replicate,2,hello
+emit_signature,2
+replicate,2,world
+emit_signature,2
+
+# Node 0 shares this suffix with 1
+periodic_one,0,10
+drop_pending_to,0,2
+dispatch_one,0
+
+# Node 1 calls and wins an election
+periodic_one,1,100
+assert_detail,1,leadership_state,Candidate
+dispatch_one,1
+dispatch_one,0
+dispatch_one,2
+assert_detail,1,leadership_state,Leader
+
+# Node 1 sends a late heartbeat, producing a NACK
+drop_pending_to,1,0
+drop_pending_to,2,1 # Ensure nothing else is in the message queue
+dispatch_one,1
+
+# NB: The 2->1 channel now contains a NACK at 2.4.
+# We need to keep this around, and don't touch this channel for a while
+
+# Node 0 calls and wins an election
+periodic_one,0,100
+assert_detail,0,leadership_state,Candidate
+dispatch_one,0
+dispatch_one,1
+dispatch_single,2,0
+assert_detail,0,leadership_state,Leader
+
+# Node 0 emits a fresh signature, so that they can advance commit
+emit_signature,4
+
+# Node 0 sends heartbeats
+periodic_one,0,10
+dispatch_one,0
+
+# Node 0 receives responses, setting initial next_index
+dispatch_one,1
+dispatch_single,2,0 # NB: dispatch_single, to avoid touching the NACK for 1
+dispatch_single,2,0
+
+# Node 0 sends useful AEs
+periodic_one,0,10
+dispatch_one,0
+
+# Node 0 receives response, advancing commit
+dispatch_one,1
+dispatch_single,2,0
+dispatch_single,2,0
+
+assert_commit_idx,0,9
+
+# Note that the peers have not yet advanced commit
+assert_commit_idx,1,4
+assert_commit_idx,2,4
+
+assert_commit_safety,0
+
+# Node 1 calls and wins an election
+# To win, it now needs a vote from one of the previous dead nodes (we can't touch the 2->1 channel!)
+reconnect_node,3
+periodic_one,1,100
+assert_detail,1,leadership_state,Candidate
+dispatch_one,1
+dispatch_one,0
+dispatch_one,3
+assert_detail,1,leadership_state,Leader
+
+# Don't need this heartbeat AE, drop it
+drop_pending_to,1,2
+
+# Now we deliver a stale NACK
+dispatch_single,2,1
+
+# 1 may now believe 2's log is too short!
+
+# Node 1 produces AEs
+periodic_one,1,10
+
+state_all
+assert_commit_safety,0 # Sanity check, we're fine here
+
+# This AE reaches 2
+dispatch_single,1,2
+
+# 2 had better not rollback and break commit safety!
+state_all
+assert_commit_safety,0
