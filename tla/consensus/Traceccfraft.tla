@@ -112,34 +112,6 @@ TraceInit ==
 logline ==
     TraceLog[l]
 
-\* ccfraft assumes ordered point-to-point communication. In other words, we should
-\* only receive the first pending message from j at i.  However, it is possible
-\* that a prefix of the messages sent by j to i have been lost -- the network is
-\* unreliable.  Thus, we allow to receive any message but drop the prefix up to
-\* that message.
-\* We could add a Traceccfraft!DropMessage action that non-deterministically drops
-\* messages at every step of the system.  However, that would lead to massive state
-\* space explosion.  OTOH, it would have the advantage that we could assert that
-\* messages is all empty at the end of the trace.  Right now, messages will contain
-\* all messages, even those that have been lost by the real system.  Another trade
-\* off is that the length of the TLA+ trace will be longer than the system trace
-\* (due to the extra DropMessage actions).
-\* Instead, we could compose a DropMessage action with all receiver actions such
-\* as HandleAppendEntriesResponse that allows the receiver's inbox to equal any
-\* SubSeq of the receives current inbox (where inbox is messages[receiver]).  That
-\* way, we can leave the other server's inboxes unchanged (resulting in fewer work for
-\* TLC).  A trade off of this variant is that we have to non-deterministically pick
-\* the next message from the inbox instead of via Network!MessagesTo (which always
-\* picks the first message in a server's inbox).
-\* 
-\* Lastly, we can weaken Traceccfraft trace validation and simply ignore lost messages
-\* accepting that lost messages remain in messages.
-DropMessages ==
-    /\ l \in 1..Len(TraceLog)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
-    /\ UNCHANGED <<l, ts>>
-    /\ Network!DropMessages(logline.msg.state.node_id)
-
 \* Beware to only prime e.g. inbox in inbox'[rcv] and *not* also rcv, i.e.,
  \* inbox[rcv]'.  rcv is defined in terms of TLCGet("level") that correctly
  \* handles priming, which causes for rcv' to equal rcv of the next log line.
