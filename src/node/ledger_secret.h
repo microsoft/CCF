@@ -76,7 +76,7 @@ namespace ccf
   inline LedgerSecretPtr make_ledger_secret()
   {
     return std::make_shared<LedgerSecret>(
-      crypto::create_entropy()->random(crypto::GCM_DEFAULT_KEY_SIZE));
+      crypto::get_entropy()->random(crypto::GCM_DEFAULT_KEY_SIZE));
   }
 
   inline std::vector<uint8_t> decrypt_previous_ledger_secret_raw(

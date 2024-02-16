@@ -981,7 +981,6 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
                 IF membershipState = RetirementSigned /\ commitIndex' > RetirementIndex(i) 
                 THEN RetirementCompleted 
                 ELSE @]
-    /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -989,12 +988,15 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, log, candidateVars, leaderVars>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, isNewFollower, log, candidateVars, leaderVars>>
 
 \* Follower i receives an AppendEntries request m where it needs to roll back first
 \* This action rolls back the log and leaves m in messages for further processing
 ConflictAppendEntriesRequest(i, index, m) ==
-    /\ Len(log[i]) >= index
+    /\ m.entries /= << >>
+    /\ \E idx \in 1..Len(m.entries) :
+        /\ (index + (idx - 1)) \in DOMAIN log[i]
+        /\ log[i][index + (idx - 1)].term # m.entries[idx].term
     /\ isNewFollower[i] = TRUE
     /\ LET new_log == [index2 \in 1..m.prevLogIndex |-> log[i][index2]] \* Truncate log
        IN /\ log' = [log EXCEPT ![i] = new_log]
@@ -1038,7 +1040,6 @@ NoConflictAppendEntriesRequest(i, j, m) ==
            ELSE UNCHANGED leadershipState
           \* Recalculate membership state based on log' and commitIndex'
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex'[i], i)]
-    /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
@@ -1046,7 +1047,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, votedFor, candidateVars, leaderVars>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, votedFor, isNewFollower, candidateVars, leaderVars>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -1451,6 +1452,38 @@ CommitCommittableIndices ==
             /\ commitIndex[i] = 0
             /\ CommittableIndices(i) = {}
         \/ commitIndex[i] \in CommittableIndices(i)
+
+
+\* Given a committed log log_x for some node and an index idx into that log, 
+\* GetConfigurations returns all configurations which should have replicated 
+\* the transaction at idx.
+GetConfigurations(log_x, idx) ==
+    LET
+    configs_all == {k \in DOMAIN log_x : log_x[k].contentType = TypeReconfiguration}
+    configs_before ==  {k \in configs_all : k <= idx}
+    \* This if-statement should not be needed as genesis transaction should be a configuration
+    config_last == IF configs_before = {} THEN {} ELSE {Max(configs_before)}
+    configs_after == {k \in configs_all : k > idx}
+    IN
+    {log_x[i].configuration : i \in (configs_after \union config_last)}
+
+\* ReplicationInv states that all log entries that are believed to be committed must be
+\* replicated on a quorum of nodes from the preceding configuration and all subsequent
+\* committed configurations.
+ReplicationInv ==
+    \E i \in Servers : 
+        \* We just check the node with the highest commitIndex
+        \* LogInv ensures that includes all committed transactions
+        /\ \A j \in Servers: commitIndex[i] >= commitIndex[j]
+        \* Every committed transaction must be replicated to at least 
+        \* one quorum in each configuration which should have a copy
+        /\ \A idx \in DOMAIN Committed(i) :
+            \A config \in GetConfigurations(Committed(i), idx) :
+                \E quorum \in Quorums[config] :
+                    \A node \in quorum : 
+                        /\ Len(log[node]) >= idx
+                        /\ log[node][idx] = log[i][idx]
+
 
 
 \* Check that retired committed transactions are added only when retirement committed has been observed
