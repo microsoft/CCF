@@ -756,17 +756,14 @@ public:
 
       if (should_send)
       {
-        log_msg_details(src, dst, contents);
         _nodes.at(dst).raft->recv_message(
           src, contents.data(), contents.size());
         return true;
       }
     }
-    else
-    {
-      // Log that this message was dropped
-      log_msg_details(src, dst, contents, true);
-    }
+
+    // Log that this message was dropped
+    log_msg_details(src, dst, contents, true);
 
     return false;
   }
