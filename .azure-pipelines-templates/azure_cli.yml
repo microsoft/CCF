@@ -1,6 +1,7 @@
 steps:
   - script: |
       set -ex
+      set -o pipefail
       curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
       # After the extension being in public preview, we can install the latest version automatically
       # by `az extension update --name confcom`.

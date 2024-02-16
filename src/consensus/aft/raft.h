@@ -170,6 +170,11 @@ namespace aft
     std::uniform_int_distribution<int> distrib;
     std::default_random_engine rand;
 
+    // AppendEntries messages are currently constrained to only contain entries
+    // from a single term, so that the receiver can know the term of each entry
+    // pre-deserialisation, without an additional header.
+    static constexpr size_t max_terms_per_append_entries = 1;
+
   public:
     static constexpr size_t append_entries_size_limit = 20000;
     std::unique_ptr<LedgerProxy> ledger;
@@ -291,16 +296,29 @@ namespace aft
       return state->membership_state == kv::MembershipState::Retired;
     }
 
-    void set_retired_committed(ccf::SeqNo seqno) override
+    void set_retired_committed(
+      ccf::SeqNo seqno, const std::vector<kv::NodeId>& node_ids) override
     {
-      state->retirement_phase = kv::RetirementPhase::RetiredCommitted;
-      CCF_ASSERT_FMT(
-        state->retired_committed_idx == state->commit_idx,
-        "Retired "
-        "committed index {} does not match current commit index {}",
-        state->retired_committed_idx.value_or(0),
-        state->commit_idx);
-      state->retired_committed_idx = seqno;
+      for (auto& node_id : node_ids)
+      {
+        if (id() == node_id)
+        {
+          CCF_ASSERT(
+            state->membership_state == kv::MembershipState::Retired,
+            "Node is not retired, cannot become retired committed");
+          CCF_ASSERT(
+            state->retirement_phase == kv::RetirementPhase::Completed,
+            "Node is not retired, cannot become retired committed");
+          CCF_ASSERT_FMT(
+            state->retired_committed_idx == state->commit_idx,
+            "Retired "
+            "committed index {} does not match current commit index {}",
+            state->retired_committed_idx.value_or(0),
+            state->commit_idx);
+          state->retirement_phase = kv::RetirementPhase::RetiredCommitted;
+          state->retired_committed_idx = seqno;
+        }
+      }
     }
 
     Index last_committable_index() const
@@ -902,6 +920,9 @@ namespace aft
         // Cap the end index in 2 ways:
         // - Must contain no more than entries_batch_size entries
         // - Must contain entries from a single term
+        static_assert(
+          max_terms_per_append_entries == 1,
+          "AppendEntries construction logic enforces single term");
         auto max_idx = state->last_idx;
         const auto term_of_ae = state->view_history.view_at(start);
         const auto index_at_end_of_term =
@@ -941,8 +962,6 @@ namespace aft
 
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
-      const bool contains_new_view =
-        (state->new_view_idx > prev_idx) && (state->new_view_idx <= end_idx);
 
       RAFT_DEBUG_FMT(
         "Send append entries from {} to {}: ({}.{}, {}.{}] ({})",
@@ -954,14 +973,17 @@ namespace aft
         end_idx,
         state->commit_idx);
 
-      AppendEntries ae = {
-        {raft_append_entries},
-        {end_idx, prev_idx},
-        state->current_view,
-        prev_term,
-        state->commit_idx,
-        term_of_idx,
-        contains_new_view};
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc99-designator"
+      AppendEntries ae{
+        {},
+        {.idx = end_idx, .prev_idx = prev_idx},
+        .term = state->current_view,
+        .prev_term = prev_term,
+        .leader_commit_idx = state->commit_idx,
+        .term_of_idx = term_of_idx,
+      };
+#pragma clang diagnostic pop
 
       auto& node = all_other_nodes.at(to);
 
@@ -1185,7 +1207,7 @@ namespace aft
         }
 
         kv::TxID expected{r.term_of_idx, i};
-        auto ds = store->apply(entry, public_only, expected);
+        auto ds = store->deserialize(entry, public_only, expected);
         if (ds == nullptr)
         {
           RAFT_FAIL_FMT(
@@ -1287,6 +1309,10 @@ namespace aft
                 // NB: This is only safe as long as AppendEntries only contain a
                 // single term. If they cover multiple terms, then we need to
                 // know our previous signature locally.
+                static_assert(
+                  max_terms_per_append_entries == 1,
+                  "AppendEntries processing for term updates assumes single "
+                  "term");
                 state->view_history.update(r.prev_idx + 1, ds->get_term());
               }
               commit_if_possible(r.leader_commit_idx);
@@ -1367,8 +1393,11 @@ namespace aft
         response_idx,
         answer);
 
-      AppendEntriesResponse response = {
-        {raft_append_entries_response}, response_term, response_idx, answer};
+      AppendEntriesResponse response{
+        .term = response_term,
+        .last_log_idx = response_idx,
+        .success = answer,
+      };
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1521,11 +1550,11 @@ namespace aft
         last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
-      RequestVote rv = {
-        {raft_request_vote},
-        state->current_view,
-        last_committable_idx,
-        get_term_internal(last_committable_idx)};
+      RequestVote rv{
+        .term = state->current_view,
+        .last_committable_idx = last_committable_idx,
+        .term_of_last_committable_idx = get_term_internal(last_committable_idx),
+      };
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1648,8 +1677,8 @@ namespace aft
         to,
         answer);
 
-      RequestVoteResponse response = {
-        {raft_request_vote_response}, state->current_view, answer};
+      RequestVoteResponse response{
+        .term = state->current_view, .vote_granted = answer};
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -1965,55 +1994,58 @@ namespace aft
       }
       else if (phase == kv::RetirementPhase::Completed)
       {
-        leader_id.reset();
-        state->leadership_state = kv::LeadershipState::None;
-        ProposeRequestVote prv{
-          {raft_propose_request_vote}, state->current_view};
-
-        std::optional<ccf::NodeId> successor = std::nullopt;
-        Index max_match_idx = 0;
-        kv::ReconfigurationId reconf_id_of_max_match = 0;
-
-        // Pick the node that has the highest match_idx, and break
-        // ties by looking at the highest reconfiguration id they are
-        // part of. This can lead to nudging a node that is
-        // about to retire too, but that node will then nudge
-        // a successor, and that seems preferable to nudging a node that
-        // risks not being eligible if reconfiguration id is prioritised.
-        // Alternatively, we could pick the node with the higest match idx
-        // in the latest config, provided that match idx at least as high as a
-        // majority. That would make them both eligible and unlikely to retire
-        // soon.
-        for (auto& [node, node_state] : all_other_nodes)
+        if (state->leadership_state == kv::LeadershipState::Leader)
         {
-          if (node_state.match_idx >= max_match_idx)
+          ProposeRequestVote prv{.term = state->current_view};
+
+          std::optional<ccf::NodeId> successor = std::nullopt;
+          Index max_match_idx = 0;
+          kv::ReconfigurationId reconf_id_of_max_match = 0;
+
+          // Pick the node that has the highest match_idx, and break
+          // ties by looking at the highest reconfiguration id they are
+          // part of. This can lead to nudging a node that is
+          // about to retire too, but that node will then nudge
+          // a successor, and that seems preferable to nudging a node that
+          // risks not being eligible if reconfiguration id is prioritised.
+          // Alternatively, we could pick the node with the higest match idx
+          // in the latest config, provided that match idx at least as high as a
+          // majority. That would make them both eligible and unlikely to retire
+          // soon.
+          for (auto& [node, node_state] : all_other_nodes)
           {
-            kv::ReconfigurationId latest_reconf_id = 0;
-            auto conf = configurations.rbegin();
-            while (conf != configurations.rend())
+            if (node_state.match_idx >= max_match_idx)
             {
-              if (conf->nodes.find(node) != conf->nodes.end())
+              kv::ReconfigurationId latest_reconf_id = 0;
+              auto conf = configurations.rbegin();
+              while (conf != configurations.rend())
               {
-                latest_reconf_id = conf->idx;
-                break;
+                if (conf->nodes.find(node) != conf->nodes.end())
+                {
+                  latest_reconf_id = conf->idx;
+                  break;
+                }
+                conf++;
               }
-              conf++;
-            }
-            if (!(node_state.match_idx == max_match_idx &&
-                  latest_reconf_id < reconf_id_of_max_match))
-            {
-              reconf_id_of_max_match = latest_reconf_id;
-              successor = node;
-              max_match_idx = node_state.match_idx;
+              if (!(node_state.match_idx == max_match_idx &&
+                    latest_reconf_id < reconf_id_of_max_match))
+              {
+                reconf_id_of_max_match = latest_reconf_id;
+                successor = node;
+                max_match_idx = node_state.match_idx;
+              }
             }
           }
+          if (successor.has_value())
+          {
+            RAFT_INFO_FMT("Node retired, nudging {}", successor.value());
+            channels->send_authenticated(
+              successor.value(), ccf::NodeMsgType::consensus_msg, prv);
+          }
         }
-        if (successor.has_value())
-        {
-          RAFT_INFO_FMT("Node retired, nudging {}", successor.value());
-          channels->send_authenticated(
-            successor.value(), ccf::NodeMsgType::consensus_msg, prv);
-        }
+
+        leader_id.reset();
+        state->leadership_state = kv::LeadershipState::None;
       }
 
       state->membership_state = kv::MembershipState::Retired;

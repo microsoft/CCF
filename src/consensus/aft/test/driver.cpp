@@ -87,6 +87,9 @@ int main(int argc, char** argv)
                 << std::endl;
     }
 #endif
+    // Steps which don't alter state don't need to recheck invariants
+    bool skip_invariants = false;
+
     switch (shash(in))
     {
       case shash("start_node"):
@@ -101,6 +104,12 @@ int main(int argc, char** argv)
         assert(items.size() >= 3);
         items.erase(items.begin());
         driver->trust_nodes(
+          items[0], {std::next(items.begin()), items.end()}, lineno);
+        break;
+      case shash("cleanup_nodes"):
+        assert(items.size() >= 3);
+        items.erase(items.begin());
+        driver->cleanup_nodes(
           items[0], {std::next(items.begin()), items.end()}, lineno);
         break;
       case shash("swap_node"):
@@ -164,11 +173,23 @@ int main(int argc, char** argv)
         break;
       case shash("state_one"):
         assert(items.size() == 2);
+        skip_invariants = true;
         driver->state_one(items[1]);
         break;
       case shash("state_all"):
         assert(items.size() == 1);
+        skip_invariants = true;
         driver->state_all();
+        break;
+      case shash("summarise_log"):
+        assert(items.size() == 2);
+        skip_invariants = true;
+        driver->summarise_log(items[1]);
+        break;
+      case shash("summarise_logs_all"):
+        assert(items.size() == 1);
+        skip_invariants = true;
+        driver->summarise_logs_all();
         break;
       case shash("shuffle_one"):
         assert(items.size() == 2);
@@ -189,6 +210,10 @@ int main(int argc, char** argv)
       case shash("dispatch_all_once"):
         assert(items.size() == 1);
         driver->dispatch_all_once();
+        break;
+      case shash("dispatch_single"):
+        assert(items.size() == 3);
+        driver->dispatch_single(items[1], items[2]);
         break;
       case shash("replicate"):
         assert(items.size() == 3);
@@ -226,47 +251,25 @@ int main(int argc, char** argv)
         break;
       case shash("assert_state_sync"):
         assert(items.size() == 1);
+        skip_invariants = true;
         driver->assert_state_sync(lineno);
         break;
       case shash("assert_commit_safety"):
         assert(items.size() == 2);
         driver->assert_commit_safety(items[1], lineno);
         break;
-      case shash("assert_is_backup"):
-        assert(items.size() == 2);
-        driver->assert_is_backup(items[1], lineno);
-        break;
-      case shash("assert_isnot_backup"):
-        assert(items.size() == 2);
-        driver->assert_isnot_backup(items[1], lineno);
-        break;
-      case shash("assert_is_primary"):
-        assert(items.size() == 2);
-        driver->assert_is_primary(items[1], lineno);
-        break;
-      case shash("assert_isnot_primary"):
-        assert(items.size() == 2);
-        driver->assert_isnot_primary(items[1], lineno);
-        break;
-      case shash("assert_is_candidate"):
-        assert(items.size() == 2);
-        driver->assert_is_candidate(items[1], lineno);
-        break;
-      case shash("assert_isnot_candidate"):
-        assert(items.size() == 2);
-        driver->assert_isnot_candidate(items[1], lineno);
-        break;
-      case shash("assert_is_retired"):
-        assert(items.size() == 2);
-        driver->assert_is_retired(items[1], lineno);
-        break;
-      case shash("assert_is_active"):
-        assert(items.size() == 2);
-        driver->assert_is_active(items[1], lineno);
-        break;
       case shash("assert_commit_idx"):
         assert(items.size() == 3);
+        skip_invariants = true;
         driver->assert_commit_idx(items[1], items[2], lineno);
+        break;
+      case shash("assert_detail"):
+        assert(items.size() == 4);
+        driver->assert_detail(items[1], items[2], items[3], true, lineno);
+        break;
+      case shash("assert_!detail"):
+        assert(items.size() == 4);
+        driver->assert_detail(items[1], items[2], items[3], false, lineno);
         break;
       case shash("replicate_new_configuration"):
         assert(items.size() >= 3);
@@ -280,11 +283,18 @@ int main(int argc, char** argv)
         break;
       case shash(""):
         // Ignore empty lines
+        skip_invariants = true;
         break;
       default:
         throw std::runtime_error(
           fmt::format("Unknown action '{}' at line {}", items[0], lineno));
     }
+
+    if (!skip_invariants)
+    {
+      driver->assert_invariants(lineno);
+    }
+
     ++lineno;
   }
 

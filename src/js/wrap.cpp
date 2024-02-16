@@ -2169,7 +2169,7 @@ namespace ccf::js
   static JSValue js_random_impl(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    crypto::EntropyPtr entropy = crypto::create_entropy();
+    crypto::EntropyPtr entropy = crypto::get_entropy();
 
     // Generate a random 64 bit unsigned int, and transform that to a double
     // between 0 and 1. Note this is non-uniform, and not cryptographically

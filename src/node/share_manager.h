@@ -27,7 +27,7 @@ namespace ccf
     size_t num_shares;
     size_t recovery_threshold;
     std::vector<uint8_t> data; // Referred to as "kz" in TR
-    std::vector<crypto::Share> shares;
+    std::vector<crypto::sharing::Share> shares;
 
   public:
     LedgerSecretWrappingKey(size_t num_shares_, size_t recovery_threshold_) :
@@ -35,18 +35,20 @@ namespace ccf
       recovery_threshold(recovery_threshold_)
     {
       shares.resize(num_shares);
-      crypto::Share secret;
-      sample_secret_and_shares(secret, shares, recovery_threshold);
+      crypto::sharing::Share secret;
+      crypto::sharing::sample_secret_and_shares(
+        secret, shares, recovery_threshold);
       data = secret.key(KZ_KEY_SIZE);
     }
 
     LedgerSecretWrappingKey(
-      std::vector<crypto::Share>&& shares_, size_t recovery_threshold_) :
+      std::vector<crypto::sharing::Share>&& shares_,
+      size_t recovery_threshold_) :
       recovery_threshold(recovery_threshold_)
     {
       shares = shares_;
-      crypto::Share secret;
-      crypto::recover_unauthenticated_secret(
+      crypto::sharing::Share secret;
+      crypto::sharing::recover_unauthenticated_secret(
         secret, shares, recovery_threshold);
       data = secret.key(KZ_KEY_SIZE);
     }
@@ -79,7 +81,7 @@ namespace ccf
     std::vector<std::vector<uint8_t>> get_shares() const
     {
       std::vector<std::vector<uint8_t>> shares_;
-      for (const crypto::Share& share : shares)
+      for (const crypto::sharing::Share& share : shares)
       {
         shares_.emplace_back(share.serialise());
       }
@@ -314,7 +316,7 @@ namespace ccf
         Tables::ENCRYPTED_SUBMITTED_SHARES);
       auto config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
 
-      std::vector<crypto::Share> new_shares = {};
+      std::vector<crypto::sharing::Share> new_shares = {};
       std::vector<SecretSharing::Share> old_shares = {};
       // Defensively allow shares in both formats for the time being, even if we
       // get a mix, and so long as we have enough of one or the other, attempt
@@ -328,7 +330,7 @@ namespace ccf
             encrypted_share, ledger_secrets->get_latest(tx).second);
           switch (decrypted_share.size())
           {
-            case crypto::Share::serialised_size:
+            case crypto::sharing::Share::serialised_size:
             {
               new_shares.emplace_back(decrypted_share);
               break;
@@ -351,7 +353,7 @@ namespace ccf
                 "is neither a new-style share of {} bytes nor an old-style "
                 "share of {} bytes",
                 decrypted_share.size(),
-                crypto::Share::serialised_size,
+                crypto::sharing::Share::serialised_size,
                 SecretSharing::SHARE_LENGTH));
             }
           }
