@@ -1117,19 +1117,6 @@ namespace aft
         return;
       }
 
-      // Then check if those append entries extend past our retirement
-      if (
-        is_retired() &&
-        state->retirement_phase >= kv::RetirementPhase::Completed)
-      {
-        assert(state->retirement_committable_idx.has_value());
-        if (r.idx > state->retirement_committable_idx)
-        {
-          send_append_entries_response_nack(from);
-          return;
-        }
-      }
-
       // If the terms match up, it is sufficient to convince us that the sender
       // is leader in our term
       restart_election_timeout();
