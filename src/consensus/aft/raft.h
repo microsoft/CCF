@@ -1473,16 +1473,6 @@ namespace aft
       const ccf::NodeId& from, AppendEntriesResponse r)
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      // Ignore if we're not the leader.
-
-      if (state->leadership_state != kv::LeadershipState::Leader)
-      {
-        RAFT_FAIL_FMT(
-          "Recv append entries response to {} from {}: no longer leader",
-          state->node_id,
-          from);
-        return;
-      }
 
       auto node = all_other_nodes.find(from);
       if (node == all_other_nodes.end())
@@ -1505,6 +1495,16 @@ namespace aft
       j["sent_idx"] = node->second.sent_idx;
       RAFT_TRACE_JSON_OUT(j);
 #endif
+
+      // Ignore if we're not the leader.
+      if (state->leadership_state != kv::LeadershipState::Leader)
+      {
+        RAFT_FAIL_FMT(
+          "Recv append entries response to {} from {}: no longer leader",
+          state->node_id,
+          from);
+        return;
+      }
 
       using namespace std::chrono_literals;
       node->second.last_ack_timeout = 0ms;
