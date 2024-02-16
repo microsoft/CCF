@@ -762,6 +762,11 @@ public:
         return true;
       }
     }
+    else
+    {
+      // Log that this message was dropped
+      log_msg_details(src, dst, contents, true);
+    }
 
     return false;
   }
