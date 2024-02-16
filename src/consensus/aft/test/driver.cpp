@@ -109,12 +109,10 @@ int main(int argc, char** argv)
         break;
       case shash("summarise_log"):
         assert(items.size() == 2);
-        skip_invariants = true;
         driver->summarise_log(items[1]);
         break;
       case shash("summarise_logs_all"):
         assert(items.size() == 1);
-        skip_invariants = true;
         driver->summarise_logs_all();
         break;
       case shash("summarise_messages"):

@@ -420,8 +420,11 @@ public:
 
   void summarise_log(ccf::NodeId node_id)
   {
-    RAFT_DRIVER_PRINT(
-      "{}: {}", node_id, get_ledger_summary(*_nodes.at(node_id).raft));
+    RAFT_DRIVER_OUT << fmt::format(
+                         "{}: {}",
+                         node_id,
+                         get_ledger_summary(*_nodes.at(node_id).raft))
+                    << std::endl;
   }
 
   void summarise_logs_all()
@@ -468,10 +471,6 @@ public:
           aer.term,
           aer.last_log_idx);
       }
-      case (aft::RaftMsgType::raft_propose_request_vote):
-      {
-        return "PRV";
-      }
       default:
       {
         throw std::runtime_error(
@@ -493,12 +492,13 @@ public:
       }
     }
 
-    RAFT_DRIVER_PRINT(
-      "Note right of {}: {} message(s) to {} = [{}]",
-      src,
-      message_reps.size(),
-      dst,
-      fmt::join(message_reps, ", "));
+    RAFT_DRIVER_OUT << fmt::format(
+                         "Note right of {}: {} message(s) to {} = [{}]",
+                         src,
+                         message_reps.size(),
+                         dst,
+                         fmt::join(message_reps, ", "))
+                    << std::endl;
   }
 
   void state_one(ccf::NodeId node_id)
