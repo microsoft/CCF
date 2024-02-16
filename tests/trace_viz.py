@@ -14,7 +14,13 @@ LEADERSHIP_STATUS = {
 
 MEMBERSHIP_STATUS = {"Active": "A", "Retired": "R"}
 
-RETIREMENT_PHASE = {"Ordered": "o", "Signed": "s", "Completed": "c", None: " "}
+RETIREMENT_PHASE = {
+    "Ordered": "o",
+    "Signed": "s",
+    "Completed": "c",
+    "RetiredCommitted": "C",
+    None: " ",
+}
 
 FUNCTIONS = {
     "add_configuration": "Cfg",

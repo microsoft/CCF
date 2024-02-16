@@ -22,33 +22,32 @@ emit_signature,2
 assert_detail,0,membership_state,Retired
 assert_detail,0,retirement_phase,Signed
 
-# 0 replicates
+# 0 replicates, and commits the reconfiguration
 periodic_all,10
 dispatch_all
-dispatch_all
-assert_commit_idx,0,4
-# 0 sends request_propose_vote to 1
-
 periodic_all,10
 dispatch_all
-dispatch_all
-assert_detail,1,leadership_state,Leader
-assert_commit_idx,1,4
-
-emit_signature,3
-periodic_all,10
-dispatch_all
-dispatch_all
-assert_commit_idx,1,7
-assert_detail,0,membership_state,Retired
+assert_commit_idx,0,6
 assert_detail,0,retirement_phase,Completed
-# Now that the retirement of 0 is committed, 1 schedules retired_committed
-cleanup_nodes,3,0
+# 0 has now committed its retirement, but stays on as Leader
+# to produce a retired_committed
+assert_detail,0,leadership_state,Leader
+cleanup_nodes,2,0
+emit_signature,2
+
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,8
+# With retired_committed committed, 0 now steps down
+assert_detail,0,leadership_state,Follower
+assert_detail,0,retirement_phase,RetiredCommitted
+
+# 1 becomes leader
+assert_detail,1,leadership_state,Leader
 emit_signature,3
 periodic_all,10
 dispatch_all
 dispatch_all
-# retired_committed committed
 assert_commit_idx,1,9
 
 # the operator shuts down 0
