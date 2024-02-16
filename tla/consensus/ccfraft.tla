@@ -992,7 +992,6 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
           \* Check if updating the commit index completes a pending retirement
           \* Note the node is already a follower so leadershipState remains unchanged
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log[i], commitIndex'[i], i)]
-    /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
