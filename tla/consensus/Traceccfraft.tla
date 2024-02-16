@@ -463,11 +463,8 @@ TraceNext ==
 
     \/ IsDropPendingTo
 
-DropAndNext ==
-    IF ENABLED TraceNext THEN TraceNext ELSE DropMessages \cdot TraceNext
-
 TraceSpec ==
-    TraceInit /\ [][DropAndNext]_<<l, ts, vars>>
+    TraceInit /\ [][TraceNext]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
