@@ -1115,9 +1115,6 @@ namespace aft
           // single term. If they cover multiple terms, then we would need to at
           // least partially deserialise each entry to establish what term it is
           // in (or report the terms in the header)
-          static_assert(
-            max_terms_per_append_entries == 1,
-            "AppendEntries rollback logic assumes single term");
           const auto incoming_term = r.term_of_idx;
           const auto local_term = state->view_history.view_at(i);
           if (incoming_term != local_term)

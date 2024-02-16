@@ -402,8 +402,6 @@ public:
     }
   }
 
-<<<<<<< HEAD
-=======
   std::string get_ledger_summary(TRaft& r)
   {
     std::vector<std::string> entries;
@@ -503,7 +501,6 @@ public:
       fmt::join(message_reps, ", "));
   }
 
->>>>>>> 443309e10... Raft fixes: Rollback safety despite NACKs, and only ACK up to incoming AE (#6016)
   void state_one(ccf::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;
