@@ -318,13 +318,21 @@ namespace aft
             state->retirement_phase == kv::RetirementPhase::Completed,
             "Node is not retired, cannot become retired committed");
           CCF_ASSERT_FMT(
-            state->retired_committed_idx == state->commit_idx,
+            seqno == state->commit_idx,
             "Retired "
             "committed index {} does not match current commit index {}",
             state->retired_committed_idx.value_or(0),
             state->commit_idx);
-          state->retirement_phase = kv::RetirementPhase::RetiredCommitted;
           state->retired_committed_idx = seqno;
+          become_retired(seqno, kv::RetirementPhase::RetiredCommitted);
+        }
+        else
+        {
+          // Once a node's retired_committed status is itself committed, all
+          // future primaries in the network must be aware its retirement is
+          // committed, and so longer need any communication with it to
+          // advance commit. No further communication with this node is needed.
+          all_other_nodes.erase(node_id);
         }
       }
     }
@@ -2043,7 +2051,7 @@ namespace aft
         state->retirement_committable_idx = idx;
         RAFT_INFO_FMT("Node retirement committable at {}", idx);
       }
-      else if (phase == kv::RetirementPhase::Completed)
+      else if (phase == kv::RetirementPhase::RetiredCommitted)
       {
         if (state->leadership_state == kv::LeadershipState::Leader)
         {
@@ -2461,15 +2469,6 @@ namespace aft
           to_remove.push_back(node.first);
         }
       }
-
-      // This is too early: the node's removal has been committed, so although
-      // we don't need to track the configuration it belongs to anymore, we need
-      // to keep sending it append entries, until its retired_committed commits.
-      // for (auto node_id : to_remove)
-      // {
-      //   all_other_nodes.erase(node_id);
-      //   RAFT_INFO_FMT("Removed raft node {}", node_id);
-      // }
 
       // Add all active nodes that are not already present in the node state.
       for (auto node_info : active_nodes)
