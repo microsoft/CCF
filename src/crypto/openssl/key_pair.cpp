@@ -306,8 +306,7 @@ namespace crypto
     const std::string& valid_from,
     const std::string& valid_to,
     bool ca,
-    Signer signer,
-    std::optional<size_t> pathlen) const
+    Signer signer) const
   {
     X509* icrt = NULL;
     Unique_BIO mem(signing_request);
@@ -384,10 +383,6 @@ namespace crypto
     if (ca)
     {
       constraints = "critical,CA:TRUE";
-      if (pathlen.has_value())
-      {
-        constraints += fmt::format(",pathlen:{}", pathlen.value());
-      }
     }
 
     // Add basic constraints

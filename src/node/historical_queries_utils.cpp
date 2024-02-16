@@ -127,8 +127,7 @@ namespace ccf
                 ncv->validity_period(),
                 network_identity->priv_key,
                 network_identity->cert,
-                true /* CA */,
-                std::nullopt /* pathlen */);
+                true /* CA */);
               service_endorsement_cache[hpubkey] = {endorsement};
               receipt.service_endorsements = {endorsement};
             }
