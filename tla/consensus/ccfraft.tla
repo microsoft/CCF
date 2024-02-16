@@ -1051,6 +1051,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
            ELSE UNCHANGED leadershipState
           \* Recalculate membership state based on log' and commitIndex'
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex'[i], i)]
+    /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
     /\ Reply([type           |-> AppendEntriesResponse,
               term           |-> currentTerm[i],
               success        |-> TRUE,
