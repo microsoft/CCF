@@ -461,6 +461,8 @@ TraceNext ==
 
     \/ IsRcvProposeVoteRequest
 
+    \/ IsDropPendingTo
+
 DropAndNext ==
     IF ENABLED TraceNext THEN TraceNext ELSE DropMessages \cdot TraceNext
 
