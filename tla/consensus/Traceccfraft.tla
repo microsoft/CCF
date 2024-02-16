@@ -122,6 +122,12 @@ IsEvent(e) ==
     /\ l' = l + 1
     /\ ts' = logline.h_ts
 
+\* Message loss is known in controlled environments, such as raft (driver) scenarios. However, this assumption
+\* does not hold for traces collected from production workloads.  In these instances, message loss must be
+\* modeled in non-deterministically.  For example, by composing message loss to the next-state relation:
+\*   Network!DropMessages(logline.msg.state.node_id) \cdot TraceNext 
+\* and
+\*   Network!DropMessages(logline.msg.state.node_id) \cdot CCF!Next
 IsDropPendingTo ==
     /\ IsEvent("drop_pending_to")
     /\ Network!DropMessage(logline.msg.to_node_id,
