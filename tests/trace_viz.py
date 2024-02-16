@@ -93,17 +93,13 @@ def table(lines):
     max_commit = 0
     max_ts = 0
     for entry in entries:
-        try:
-            node_id = entry["msg"]["state"]["node_id"]
-            if node_id not in nodes:
-                nodes.append(node_id)
-            max_view = max(max_view, entry["msg"]["state"]["current_view"])
-            max_index = max(max_index, entry["msg"]["state"]["last_idx"])
-            max_commit = max(max_commit, entry["msg"]["state"]["commit_idx"])
-            max_ts = max(max_ts, int(entry["h_ts"]))
-        except:
-            print(f"Boom on: {entry}")
-            raise
+        node_id = entry["msg"]["state"]["node_id"]
+        if node_id not in nodes:
+            nodes.append(node_id)
+        max_view = max(max_view, entry["msg"]["state"]["current_view"])
+        max_index = max(max_index, entry["msg"]["state"]["last_idx"])
+        max_commit = max(max_commit, entry["msg"]["state"]["commit_idx"])
+        max_ts = max(max_ts, int(entry["h_ts"]))
     dcfg = DigitsCfg()
     dcfg.nodes = len(max(nodes, key=len))
     dcfg.view = digits(max_view)
