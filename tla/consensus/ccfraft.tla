@@ -1059,7 +1059,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, votedFor, isNewFollower, candidateVars, leaderVars>>
+    /\ UNCHANGED <<removedFromConfiguration, currentTerm, votedFor, candidateVars, leaderVars>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
