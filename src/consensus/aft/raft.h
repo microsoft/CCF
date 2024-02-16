@@ -2432,6 +2432,11 @@ namespace aft
       }
     }
 
+    nlohmann::json get_state_representation() const
+    {
+      return *state;
+    }
+
   private:
     void create_and_remove_node_state()
     {

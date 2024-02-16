@@ -535,8 +535,8 @@ public:
       // state is used by raft_scenarios_runner.py to identify indicate which
       // node a log occurred on. Here we assign all dropped messages to the
       // sender.
-      j["state"] = nlohmann::json::object();
-      j["state"]["node_id"] = node_id;
+      // Populate additional fields for trace_viz.py
+      j["state"] = _nodes.at(node_id).raft->get_state_representation();
       j["packet"] = packet;
       RAFT_TRACE_JSON_OUT(j);
     }
