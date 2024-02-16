@@ -629,6 +629,6 @@ ComposedNext ==
 
 CCF == INSTANCE ccfraft
 
-CCFSpec == CCF!Init /\ [][DropMessages \cdot (CCF!Next \/ ComposedNext)]_CCF!vars
+CCFSpec == CCF!Init /\ [][CCF!Next \/ ComposedNext \/ IsDropPendingTo]_CCF!vars
 
 ==================================================================================
