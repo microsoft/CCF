@@ -382,7 +382,7 @@ namespace ccf::gov::endpoints
                 snp_endorsements[did] = feed_info;
                 return true;
               });
-            snp_policy["UVMEndorsements"] = snp_endorsements;
+            snp_policy["uvmEndorsements"] = snp_endorsements;
 
             response_body["snp"] = snp_policy;
           }
