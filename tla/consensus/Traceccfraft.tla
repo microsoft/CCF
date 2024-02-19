@@ -135,6 +135,7 @@ IsDropPendingTo ==
             /\ msg.type = RaftMsgType[logline.msg.packet.msg]
             /\ msg.dest = logline.msg.to_node_id
             /\ msg.source = logline.msg.from_node_id
+            /\ msg.term = logline.msg.packet.term
         )
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
