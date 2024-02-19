@@ -197,8 +197,14 @@ namespace ccf::gov::endpoints
 
           if (service_info->previous_service_identity_version.has_value())
           {
-            response_body["previousServiceCreationTransactionId"] =
+            ccf::SeqNo seqno =
               service_info->previous_service_identity_version.value();
+            ccf::View view;
+            // Note: deliberately ignoring errors. Prefer to return single
+            // invalid field than convert entire response to error.
+            registry.get_view_for_seqno_v1(seqno, view);
+            response_body["previousServiceCreationTransactionId"] =
+              ccf::TxID{.view = view, .seqno = seqno};
           }
 
           response_body["serviceData"] = service_info->service_data;
