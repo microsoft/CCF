@@ -32,7 +32,7 @@ jobs:
             clang_version: "11"
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Get image tag from git tag (release) or latest (branch)
         run: |
