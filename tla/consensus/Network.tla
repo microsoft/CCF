@@ -112,6 +112,10 @@ LOCAL OrderDropConsecutiveMessages(server) ==
     \E s \in SubSeqs(messages[server]):
         messages' = [ messages EXCEPT ![server] = s ]
 
+LOCAL OrderDropMessage(server, Test(_)) ==
+    \E i \in { idx \in 1..Len(messages[server]) : Test(messages[server][idx]) }:
+        messages' = [ messages EXCEPT ![server] = RemoveAt(messages[server], i) ]
+
 ----------------------------------------------------------------------------------
 \* Point-to-Point Ordering and no duplication of messages:
 
@@ -190,5 +194,11 @@ DropMessages(server) ==
       [] Guarantee = Ordered        -> OrderDropMessages(server)
       [] Guarantee = ReorderedNoDup -> ReorderNoDupDropMessages
       [] Guarantee = Reordered      -> ReorderDupDropMessages
+
+DropMessage(sender, Test(_)) ==
+    CASE Guarantee = OrderedNoDup   -> FALSE
+      [] Guarantee = Ordered        -> OrderDropMessage(sender, Test)
+      [] Guarantee = ReorderedNoDup -> FALSE
+      [] Guarantee = Reordered      -> FALSE
 
 ==================================================================================
