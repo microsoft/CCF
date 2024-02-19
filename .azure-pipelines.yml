@@ -3,7 +3,6 @@ trigger:
   branches:
     include:
       - main
-      - "refs/tags/ccf-*"
 
 pr:
   autoCancel: true
@@ -11,6 +10,8 @@ pr:
     include:
       - main
       - "release/*"
+    exclude:
+      - "release/[0-3].x"
   paths:
     include:
       - "*"
@@ -23,38 +24,34 @@ schedules:
         - main
         - "release/*"
       exclude:
-        - "release/[0-2].x"
+        - "release/[0-3].x"
     always: true
 
 resources:
   containers:
     - container: virtual
-      image: ccfmsrc.azurecr.io/ccf/ci:07-12-2023-virtual-clang15
+      image: ccfmsrc.azurecr.io/ccf/ci:12-02-2024-virtual-clang15
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
     - container: snp
-      image: ccfmsrc.azurecr.io/ccf/ci:07-12-2023-snp-clang15
+      image: ccfmsrc.azurecr.io/ccf/ci:12-02-2024-snp-clang15
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
     - container: sgx
-      image: ccfmsrc.azurecr.io/ccf/ci:07-12-2023-sgx
+      image: ccfmsrc.azurecr.io/ccf/ci:12-02-2024-sgx
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
 
 variables:
-  ${{ if startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-') }}:
-    perf_or_release: release
-    perf_tests: no_run
-  ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/tags/ccf-')) }}:
-    perf_or_release: perf
-    perf_tests: run
+  perf_or_release: perf
+  perf_tests: run
 
 jobs:
   - template: .azure-pipelines-templates/configure.yml
 
   - template: .azure-pipelines-templates/matrix.yml
     parameters:
-      perf_or_release: ${{ variables['perf_or_release'] }}
-      perf_tests: ${{ variables['perf_tests'] }}
+      perf_or_release: perf
+      perf_tests: run
 
   - job: CredScan
     variables:

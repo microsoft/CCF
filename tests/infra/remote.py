@@ -652,9 +652,9 @@ class CCFRemote(object):
                     else None
                 )
                 if snp_uvm_security_context_dir is not None:
-                    env[
-                        snp_security_context_directory_envvar
-                    ] = snp_uvm_security_context_dir
+                    env[snp_security_context_directory_envvar] = (
+                        snp_uvm_security_context_dir
+                    )
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
         if oe_log_level:
@@ -778,9 +778,11 @@ class CCFRemote(object):
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
                 enclave_type=enclave_type.title(),
-                enclave_platform=enclave_platform.title()
-                if enclave_platform == "virtual"
-                else enclave_platform.upper(),
+                enclave_platform=(
+                    enclave_platform.title()
+                    if enclave_platform == "virtual"
+                    else enclave_platform.upper()
+                ),
                 rpc_interfaces=infra.interfaces.HostSpec.to_json(
                     remote_class.make_host(host)
                 ),

@@ -63,6 +63,8 @@
 #define RAFT_TRACE_JSON_OUT(json_object) \
   CCF_LOG_OUT(DEBUG, "raft_trace") << json_object
 
+#define LOG_ROLLBACK_INFO_FMT CCF_LOG_FMT(INFO, "rollback")
+
 namespace aft
 {
   using Configuration = kv::Configuration;
@@ -112,7 +114,6 @@ namespace aft
     };
     std::map<Index, Votes> votes_for_me;
 
-    std::optional<kv::RetirementPhase> retirement_phase = std::nullopt;
     std::chrono::milliseconds timeout_elapsed;
 
     // When this node receives append entries from a new primary, it may need to
@@ -157,11 +158,6 @@ namespace aft
     // Used to remove retired nodes from store
     std::unique_ptr<ccf::RetiredNodeCleanup> retired_node_cleanup;
 
-    // Index at which this node observes its retirement
-    std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
-    // Earliest index at which this node's retirement can be committed
-    std::optional<ccf::SeqNo> retirement_committable_idx = std::nullopt;
-
     size_t entry_size_not_limited = 0;
     size_t entry_count = 0;
     Index entries_batch_size = 20;
@@ -175,6 +171,11 @@ namespace aft
     // Randomness
     std::uniform_int_distribution<int> distrib;
     std::default_random_engine rand;
+
+    // AppendEntries messages are currently constrained to only contain entries
+    // from a single term, so that the receiver can know the term of each entry
+    // pre-deserialisation, without an additional header.
+    static constexpr size_t max_terms_per_append_entries = 1;
 
   public:
     static constexpr size_t append_entries_size_limit = 20000;
@@ -295,6 +296,31 @@ namespace aft
     bool is_retired() const
     {
       return state->membership_state == kv::MembershipState::Retired;
+    }
+
+    void set_retired_committed(
+      ccf::SeqNo seqno, const std::vector<kv::NodeId>& node_ids) override
+    {
+      for (auto& node_id : node_ids)
+      {
+        if (id() == node_id)
+        {
+          CCF_ASSERT(
+            state->membership_state == kv::MembershipState::Retired,
+            "Node is not retired, cannot become retired committed");
+          CCF_ASSERT(
+            state->retirement_phase == kv::RetirementPhase::Completed,
+            "Node is not retired, cannot become retired committed");
+          CCF_ASSERT_FMT(
+            state->retired_committed_idx == state->commit_idx,
+            "Retired "
+            "committed index {} does not match current commit index {}",
+            state->retired_committed_idx.value_or(0),
+            state->commit_idx);
+          state->retirement_phase = kv::RetirementPhase::RetiredCommitted;
+          state->retired_committed_idx = seqno;
+        }
+      }
     }
 
     Index last_committable_index() const
@@ -457,7 +483,8 @@ namespace aft
       j["function"] = "add_configuration";
       j["state"] = *state;
       j["configurations"] = configurations;
-      j["new_configuration"] = Configuration{idx, conf, idx};
+      j["args"] = nlohmann::json::object();
+      j["args"]["configuration"] = Configuration{idx, conf, idx};
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
@@ -527,7 +554,7 @@ namespace aft
       details.membership_state = state->membership_state;
       if (is_retired())
       {
-        details.retirement_phase = retirement_phase;
+        details.retirement_phase = state->retirement_phase;
       }
       for (auto const& conf : configurations)
       {
@@ -573,13 +600,13 @@ namespace aft
         if (index != state->last_idx + 1)
           return false;
 
-        if (retirement_committable_idx.has_value())
+        if (state->retirement_committable_idx.has_value())
         {
           CCF_ASSERT_FMT(
-            index > retirement_committable_idx.value(),
+            index > state->retirement_committable_idx.value(),
             "Index {} unexpectedly lower than retirement_committable_idx {}",
             index,
-            retirement_committable_idx.value());
+            state->retirement_committable_idx.value());
           return false;
         }
 
@@ -613,7 +640,7 @@ namespace aft
             state->leadership_state);
           if (
             state->membership_state == kv::MembershipState::Retired &&
-            retirement_phase == kv::RetirementPhase::Ordered)
+            state->retirement_phase == kv::RetirementPhase::Ordered)
           {
             become_retired(index, kv::RetirementPhase::Signed);
           }
@@ -873,7 +900,7 @@ namespace aft
     bool can_replicate_unsafe()
     {
       return state->leadership_state == kv::LeadershipState::Leader &&
-        !retirement_committable_idx.has_value();
+        !state->retirement_committable_idx.has_value();
     }
 
     Index get_commit_idx_unsafe()
@@ -895,6 +922,9 @@ namespace aft
         // Cap the end index in 2 ways:
         // - Must contain no more than entries_batch_size entries
         // - Must contain entries from a single term
+        static_assert(
+          max_terms_per_append_entries == 1,
+          "AppendEntries construction logic enforces single term");
         auto max_idx = state->last_idx;
         const auto term_of_ae = state->view_history.view_at(start);
         const auto index_at_end_of_term =
@@ -925,7 +955,7 @@ namespace aft
       const auto prev_idx = start_idx - 1;
 
       if (
-        is_retired() && retirement_phase > kv::RetirementPhase::Signed &&
+        is_retired() && state->retirement_phase > kv::RetirementPhase::Signed &&
         start_idx >= end_idx)
       {
         // Continue to replicate, but do not send heartbeats if we are retired
@@ -934,8 +964,6 @@ namespace aft
 
       const auto prev_term = get_term_internal(prev_idx);
       const auto term_of_idx = get_term_internal(end_idx);
-      const bool contains_new_view =
-        (state->new_view_idx > prev_idx) && (state->new_view_idx <= end_idx);
 
       RAFT_DEBUG_FMT(
         "Send append entries from {} to {}: ({}.{}, {}.{}] ({})",
@@ -947,14 +975,17 @@ namespace aft
         end_idx,
         state->commit_idx);
 
-      AppendEntries ae = {
-        {raft_append_entries},
-        {end_idx, prev_idx},
-        state->current_view,
-        prev_term,
-        state->commit_idx,
-        term_of_idx,
-        contains_new_view};
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc99-designator"
+      AppendEntries ae{
+        {},
+        {.idx = end_idx, .prev_idx = prev_idx},
+        .term = state->current_view,
+        .prev_term = prev_term,
+        .leader_commit_idx = state->commit_idx,
+        .term_of_idx = term_of_idx,
+      };
+#pragma clang diagnostic pop
 
       auto& node = all_other_nodes.at(to);
 
@@ -1032,7 +1063,7 @@ namespace aft
           from,
           state->current_view,
           r.term);
-        send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+        send_append_entries_response_nack(from);
         return;
       }
 
@@ -1053,7 +1084,7 @@ namespace aft
             state->node_id,
             from,
             r.prev_idx);
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+          send_append_entries_response_nack(from);
         }
         else
         {
@@ -1066,19 +1097,20 @@ namespace aft
             prev_term,
             r.prev_term);
           const ccf::TxID rejected_tx{r.prev_term, r.prev_idx};
-          send_append_entries_response(
-            from, AppendEntriesResponseType::FAIL, rejected_tx);
+          send_append_entries_response_nack(from, rejected_tx);
         }
         return;
       }
 
       // Then check if those append entries extend past our retirement
-      if (is_retired() && retirement_phase >= kv::RetirementPhase::Completed)
+      if (
+        is_retired() &&
+        state->retirement_phase >= kv::RetirementPhase::Completed)
       {
-        assert(retirement_committable_idx.has_value());
-        if (r.idx > retirement_committable_idx)
+        assert(state->retirement_committable_idx.has_value());
+        if (r.idx > state->retirement_committable_idx)
         {
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+          send_append_entries_response_nack(from);
           return;
         }
       }
@@ -1124,26 +1156,6 @@ namespace aft
         r.idx,
         r.prev_idx);
 
-      if (is_new_follower)
-      {
-        if (state->last_idx > r.prev_idx)
-        {
-          RAFT_DEBUG_FMT(
-            "New follower received first append entries with mismatch - "
-            "rolling back from {} to {}",
-            state->last_idx,
-            r.prev_idx);
-          auto rollback_level = r.prev_idx;
-          rollback(rollback_level);
-        }
-        else
-        {
-          RAFT_DEBUG_FMT(
-            "New follower has no conflict with prev_idx {}", r.prev_idx);
-        }
-        is_new_follower = false;
-      }
-
       std::vector<
         std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
         append_entries;
@@ -1152,10 +1164,62 @@ namespace aft
       {
         if (i <= state->last_idx)
         {
-          // If the current entry has already been deserialised, skip the
-          // payload for that entry
-          ledger->skip_entry(data, size);
-          continue;
+          // NB: This is only safe as long as AppendEntries only contain a
+          // single term. If they cover multiple terms, then we would need to at
+          // least partially deserialise each entry to establish what term it is
+          // in (or report the terms in the header)
+          static_assert(
+            max_terms_per_append_entries == 1,
+            "AppendEntries rollback logic assumes single term");
+          const auto incoming_term = r.term_of_idx;
+          const auto local_term = state->view_history.view_at(i);
+          if (incoming_term != local_term)
+          {
+            if (is_new_follower)
+            {
+              auto rollback_level = i - 1;
+              RAFT_DEBUG_FMT(
+                "New follower received AppendEntries with conflict. Incoming "
+                "entry {}.{} conflicts with local {}.{}. Rolling back to {}.",
+                incoming_term,
+                i,
+                local_term,
+                i,
+                rollback_level);
+              LOG_ROLLBACK_INFO_FMT(
+                "Dropping conflicting branch. Rolling back {} entries, "
+                "beginning with {}.{}.",
+                state->last_idx - rollback_level,
+                local_term,
+                i);
+              rollback(rollback_level);
+              is_new_follower = false;
+              // Then continue to process this AE as normal
+            }
+            else
+            {
+              // We have a node retaining a conflicting suffix, and refusing to
+              // roll it back. It will remain divergent (not contributing to
+              // commit) this term, and can only be brought in-sync in a future
+              // term.
+              // This log is emitted as a canary, for what we hope is an
+              // unreachable branch. If it is ever seen we should revisit this.
+              LOG_ROLLBACK_INFO_FMT(
+                "Ignoring conflicting AppendEntries. Retaining {} entries, "
+                "beginning with {}.{}.",
+                state->last_idx - (i - 1),
+                local_term,
+                i);
+              return;
+            }
+          }
+          else
+          {
+            // If the current entry has already been deserialised, skip the
+            // payload for that entry
+            ledger->skip_entry(data, size);
+            continue;
+          }
         }
 
         std::vector<uint8_t> entry;
@@ -1171,12 +1235,12 @@ namespace aft
             state->node_id,
             from,
             e.what());
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+          send_append_entries_response_nack(from);
           return;
         }
 
         kv::TxID expected{r.term_of_idx, i};
-        auto ds = store->apply(entry, public_only, expected);
+        auto ds = store->deserialize(entry, public_only, expected);
         if (ds == nullptr)
         {
           RAFT_FAIL_FMT(
@@ -1184,9 +1248,10 @@ namespace aft
             "deserialised",
             state->node_id,
             from);
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+          send_append_entries_response_nack(from);
           return;
         }
+
         append_entries.push_back(std::make_tuple(std::move(ds), i));
       }
 
@@ -1220,7 +1285,7 @@ namespace aft
         if (apply_success == kv::ApplyResult::FAIL)
         {
           ledger->truncate(i - 1);
-          send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+          send_append_entries_response_nack(from);
           return;
         }
         state->last_idx = i;
@@ -1249,7 +1314,7 @@ namespace aft
             RAFT_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
             ledger->truncate(state->last_idx);
-            send_append_entries_response(from, AppendEntriesResponseType::FAIL);
+            send_append_entries_response_nack(from);
             break;
           }
 
@@ -1258,7 +1323,7 @@ namespace aft
             RAFT_DEBUG_FMT("Deserialising signature at {}", i);
             if (
               state->membership_state == kv::MembershipState::Retired &&
-              retirement_phase == kv::RetirementPhase::Ordered)
+              state->retirement_phase == kv::RetirementPhase::Ordered)
             {
               become_retired(i, kv::RetirementPhase::Signed);
             }
@@ -1278,8 +1343,13 @@ namespace aft
                 // NB: This is only safe as long as AppendEntries only contain a
                 // single term. If they cover multiple terms, then we need to
                 // know our previous signature locally.
+                static_assert(
+                  max_terms_per_append_entries == 1,
+                  "AppendEntries processing for term updates assumes single "
+                  "term");
                 state->view_history.update(r.prev_idx + 1, ds->get_term());
               }
+
               commit_if_possible(r.leader_commit_idx);
             }
             break;
@@ -1334,32 +1404,57 @@ namespace aft
         }
       }
 
-      send_append_entries_response(from, AppendEntriesResponseType::OK);
+      send_append_entries_response_ack(from, r);
+    }
+
+    void send_append_entries_response_ack(
+      ccf::NodeId to, const AppendEntries& ae)
+    {
+      // If we get to here, we have applied up to r.idx in this AppendEntries.
+      // We must only ACK this far, as we know nothing about the agreement of a
+      // suffix we may still hold _after_ r.idx with the leader's log
+      const auto response_idx = ae.idx;
+      send_append_entries_response(
+        to, AppendEntriesResponseType::OK, state->current_view, response_idx);
+    }
+
+    void send_append_entries_response_nack(
+      ccf::NodeId to, const ccf::TxID& rejected)
+    {
+      const auto response_idx = find_highest_possible_match(rejected);
+      const auto response_term = get_term_internal(response_idx);
+
+      send_append_entries_response(
+        to, AppendEntriesResponseType::FAIL, response_term, response_idx);
+    }
+
+    void send_append_entries_response_nack(ccf::NodeId to)
+    {
+      send_append_entries_response(
+        to,
+        AppendEntriesResponseType::FAIL,
+        state->current_view,
+        state->last_idx);
     }
 
     void send_append_entries_response(
       ccf::NodeId to,
       AppendEntriesResponseType answer,
-      const std::optional<ccf::TxID>& rejected = std::nullopt)
+      aft::Term response_term,
+      aft::Index response_idx)
     {
-      aft::Index response_idx = state->last_idx;
-      aft::Term response_term = state->current_view;
-
-      if (answer == AppendEntriesResponseType::FAIL && rejected.has_value())
-      {
-        response_idx = find_highest_possible_match(rejected.value());
-        response_term = get_term_internal(response_idx);
-      }
-
       RAFT_DEBUG_FMT(
         "Send append entries response from {} to {} for index {}: {}",
         state->node_id,
         to,
         response_idx,
-        answer);
+        (answer == AppendEntriesResponseType::OK ? "ACK" : "NACK"));
 
-      AppendEntriesResponse response = {
-        {raft_append_entries_response}, response_term, response_idx, answer};
+      AppendEntriesResponse response{
+        .term = response_term,
+        .last_log_idx = response_idx,
+        .success = answer,
+      };
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1378,16 +1473,6 @@ namespace aft
       const ccf::NodeId& from, AppendEntriesResponse r)
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
-      // Ignore if we're not the leader.
-
-      if (state->leadership_state != kv::LeadershipState::Leader)
-      {
-        RAFT_FAIL_FMT(
-          "Recv append entries response to {} from {}: no longer leader",
-          state->node_id,
-          from);
-        return;
-      }
 
       auto node = all_other_nodes.find(from);
       if (node == all_other_nodes.end())
@@ -1410,6 +1495,16 @@ namespace aft
       j["sent_idx"] = node->second.sent_idx;
       RAFT_TRACE_JSON_OUT(j);
 #endif
+
+      // Ignore if we're not the leader.
+      if (state->leadership_state != kv::LeadershipState::Leader)
+      {
+        RAFT_FAIL_FMT(
+          "Recv append entries response to {} from {}: no longer leader",
+          state->node_id,
+          from);
+        return;
+      }
 
       using namespace std::chrono_literals;
       node->second.last_ack_timeout = 0ms;
@@ -1478,20 +1573,10 @@ namespace aft
       }
       else
       {
-        // Potentially unnecessary safety check - use min with last_idx, to
-        // prevent matches past this node's local knowledge
-        const auto proposed_match = std::min(r.last_log_idx, state->last_idx);
-        if (proposed_match < node->second.match_idx)
-        {
-          RAFT_FAIL_FMT(
-            "Append entries response to {} from {} attempting to move "
-            "match_idx backwards ({} -> {})",
-            state->node_id,
-            from,
-            node->second.match_idx,
-            proposed_match);
-        }
-        node->second.match_idx = proposed_match;
+        // max(...) because why would we ever want to go backwards on a success
+        // response?!
+        node->second.match_idx =
+          std::max(node->second.match_idx, r.last_log_idx);
       }
 
       RAFT_DEBUG_FMT(
@@ -1512,11 +1597,11 @@ namespace aft
         last_committable_idx);
       CCF_ASSERT(last_committable_idx >= state->commit_idx, "lci < ci");
 
-      RequestVote rv = {
-        {raft_request_vote},
-        state->current_view,
-        last_committable_idx,
-        get_term_internal(last_committable_idx)};
+      RequestVote rv{
+        .term = state->current_view,
+        .last_committable_idx = last_committable_idx,
+        .term_of_last_committable_idx = get_term_internal(last_committable_idx),
+      };
 
 #ifdef CCF_RAFT_TRACING
       nlohmann::json j = {};
@@ -1639,8 +1724,8 @@ namespace aft
         to,
         answer);
 
-      RequestVoteResponse response = {
-        {raft_request_vote_response}, state->current_view, answer};
+      RequestVoteResponse response{
+        .term = state->current_view, .vote_granted = answer};
 
       channels->send_authenticated(
         to, ccf::NodeMsgType::consensus_msg, response);
@@ -1934,85 +2019,84 @@ namespace aft
         state->current_view,
         idx);
 
-      if (phase == kv::RetirementPhase::Committed)
-      {
-        assert(retirement_phase == std::nullopt);
-      }
-      else if (phase == kv::RetirementPhase::Ordered)
+      if (phase == kv::RetirementPhase::Ordered)
       {
         CCF_ASSERT_FMT(
-          !retirement_idx.has_value(),
+          !state->retirement_idx.has_value(),
           "retirement_idx already set to {}",
-          retirement_idx.value());
-        retirement_idx = idx;
+          state->retirement_idx.value());
+        state->retirement_idx = idx;
         RAFT_INFO_FMT("Node retiring at {}", idx);
       }
       else if (phase == kv::RetirementPhase::Signed)
       {
-        assert(retirement_idx.has_value());
+        assert(state->retirement_idx.has_value());
         CCF_ASSERT_FMT(
-          idx >= retirement_idx.value(),
+          idx >= state->retirement_idx.value(),
           "Index {} unexpectedly lower than retirement_idx {}",
           idx,
-          retirement_idx.value());
-        retirement_committable_idx = idx;
+          state->retirement_idx.value());
+        state->retirement_committable_idx = idx;
         RAFT_INFO_FMT("Node retirement committable at {}", idx);
       }
       else if (phase == kv::RetirementPhase::Completed)
       {
-        leader_id.reset();
-        state->leadership_state = kv::LeadershipState::None;
-        ProposeRequestVote prv{
-          {raft_propose_request_vote}, state->current_view};
-
-        std::optional<ccf::NodeId> successor = std::nullopt;
-        Index max_match_idx = 0;
-        kv::ReconfigurationId reconf_id_of_max_match = 0;
-
-        // Pick the node that has the highest match_idx, and break
-        // ties by looking at the highest reconfiguration id they are
-        // part of. This can lead to nudging a node that is
-        // about to retire too, but that node will then nudge
-        // a successor, and that seems preferable to nudging a node that
-        // risks not being eligible if reconfiguration id is prioritised.
-        // Alternatively, we could pick the node with the higest match idx
-        // in the latest config, provided that match idx at least as high as a
-        // majority. That would make them both eligible and unlikely to retire
-        // soon.
-        for (auto& [node, node_state] : all_other_nodes)
+        if (state->leadership_state == kv::LeadershipState::Leader)
         {
-          if (node_state.match_idx >= max_match_idx)
+          ProposeRequestVote prv{.term = state->current_view};
+
+          std::optional<ccf::NodeId> successor = std::nullopt;
+          Index max_match_idx = 0;
+          kv::ReconfigurationId reconf_id_of_max_match = 0;
+
+          // Pick the node that has the highest match_idx, and break
+          // ties by looking at the highest reconfiguration id they are
+          // part of. This can lead to nudging a node that is
+          // about to retire too, but that node will then nudge
+          // a successor, and that seems preferable to nudging a node that
+          // risks not being eligible if reconfiguration id is prioritised.
+          // Alternatively, we could pick the node with the higest match idx
+          // in the latest config, provided that match idx at least as high as a
+          // majority. That would make them both eligible and unlikely to retire
+          // soon.
+          for (auto& [node, node_state] : all_other_nodes)
           {
-            kv::ReconfigurationId latest_reconf_id = 0;
-            auto conf = configurations.rbegin();
-            while (conf != configurations.rend())
+            if (node_state.match_idx >= max_match_idx)
             {
-              if (conf->nodes.find(node) != conf->nodes.end())
+              kv::ReconfigurationId latest_reconf_id = 0;
+              auto conf = configurations.rbegin();
+              while (conf != configurations.rend())
               {
-                latest_reconf_id = conf->idx;
-                break;
+                if (conf->nodes.find(node) != conf->nodes.end())
+                {
+                  latest_reconf_id = conf->idx;
+                  break;
+                }
+                conf++;
               }
-              conf++;
-            }
-            if (!(node_state.match_idx == max_match_idx &&
-                  latest_reconf_id < reconf_id_of_max_match))
-            {
-              reconf_id_of_max_match = latest_reconf_id;
-              successor = node;
-              max_match_idx = node_state.match_idx;
+              if (!(node_state.match_idx == max_match_idx &&
+                    latest_reconf_id < reconf_id_of_max_match))
+              {
+                reconf_id_of_max_match = latest_reconf_id;
+                successor = node;
+                max_match_idx = node_state.match_idx;
+              }
             }
           }
+          if (successor.has_value())
+          {
+            RAFT_INFO_FMT("Node retired, nudging {}", successor.value());
+            channels->send_authenticated(
+              successor.value(), ccf::NodeMsgType::consensus_msg, prv);
+          }
         }
-        if (successor.has_value())
-        {
-          RAFT_INFO_FMT("Node retired, nudging {}", successor.value());
-          channels->send_authenticated(
-            successor.value(), ccf::NodeMsgType::consensus_msg, prv);
-        }
+
+        leader_id.reset();
+        state->leadership_state = kv::LeadershipState::None;
       }
 
       state->membership_state = kv::MembershipState::Retired;
-      retirement_phase = phase;
+      state->retirement_phase = phase;
     }
 
     void add_vote_for_me(const ccf::NodeId& from)
@@ -2189,13 +2273,24 @@ namespace aft
       if (idx <= state->commit_idx)
         return;
 
+#ifdef CCF_RAFT_TRACING
+      nlohmann::json j = {};
+      j["function"] = "commit";
+      j["args"] = nlohmann::json::object();
+      j["args"]["idx"] = idx;
+      j["state"] = *state;
+      j["configurations"] = configurations;
+      RAFT_TRACE_JSON_OUT(j);
+#endif
+
       compact_committable_indices(idx);
 
       state->commit_idx = idx;
       if (
-        is_retired() && retirement_phase == kv::RetirementPhase::Signed &&
-        retirement_committable_idx.has_value() &&
-        idx >= retirement_committable_idx.value())
+        is_retired() &&
+        state->retirement_phase == kv::RetirementPhase::Signed &&
+        state->retirement_committable_idx.has_value() &&
+        idx >= state->retirement_committable_idx.value())
       {
         become_retired(idx, kv::RetirementPhase::Completed);
       }
@@ -2205,14 +2300,6 @@ namespace aft
       ledger->commit(idx);
 
       RAFT_DEBUG_FMT("Commit on {}: {}", state->node_id, idx);
-
-#ifdef CCF_RAFT_TRACING
-      nlohmann::json j = {};
-      j["function"] = "commit";
-      j["state"] = *state;
-      j["configurations"] = configurations;
-      RAFT_TRACE_JSON_OUT(j);
-#endif
 
       // Examine each configuration that is followed by a globally committed
       // configuration.
@@ -2303,25 +2390,25 @@ namespace aft
 
       if (
         state->membership_state == kv::MembershipState::Retired &&
-        retirement_phase == kv::RetirementPhase::Signed)
+        state->retirement_phase == kv::RetirementPhase::Signed)
       {
-        assert(retirement_committable_idx.has_value());
-        if (retirement_committable_idx.value() > idx)
+        assert(state->retirement_committable_idx.has_value());
+        if (state->retirement_committable_idx.value() > idx)
         {
-          retirement_committable_idx = std::nullopt;
-          retirement_phase = kv::RetirementPhase::Ordered;
+          state->retirement_committable_idx = std::nullopt;
+          state->retirement_phase = kv::RetirementPhase::Ordered;
         }
       }
 
       if (
         state->membership_state == kv::MembershipState::Retired &&
-        retirement_phase == kv::RetirementPhase::Ordered)
+        state->retirement_phase == kv::RetirementPhase::Ordered)
       {
-        assert(retirement_idx.has_value());
-        if (retirement_idx.value() > idx)
+        assert(state->retirement_idx.has_value());
+        if (state->retirement_idx.value() > idx)
         {
-          retirement_idx = std::nullopt;
-          retirement_phase = std::nullopt;
+          state->retirement_idx = std::nullopt;
+          state->retirement_phase = std::nullopt;
           state->membership_state = kv::MembershipState::Active;
           RAFT_DEBUG_FMT("Becoming Active after rollback");
         }
@@ -2343,6 +2430,11 @@ namespace aft
       {
         create_and_remove_node_state();
       }
+    }
+
+    nlohmann::json get_state_representation() const
+    {
+      return *state;
     }
 
   private:

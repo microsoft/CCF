@@ -1,6 +1,6 @@
 {
   "name": "CCF Development Environment",
-  "image": "ccfmsrc.azurecr.io/ccf/ci:07-12-2023-virtual-clang15",
+  "image": "ccfmsrc.azurecr.io/ccf/ci:12-02-2024-virtual-clang15",
   "runArgs": [],
   "extensions": [
     "eamodio.gitlens",
@@ -9,23 +9,23 @@
     "ms-azure-devops.azure-pipelines",
     "ms-python.black-formatter",
     "ms-python.python",
-    "ms-vscode.cpptools",
+    "ms-vscode.cpptools"
   ],
   "settings": {
     "python.defaultInterpreterPath": "python3",
     "[python]": {
-      "editor.defaultFormatter": "ms-python.black-formatter",
+      "editor.defaultFormatter": "ms-python.black-formatter"
     },
     "python.formatting.provider": "none",
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
-      "source.fixAll": true,
-    },
+      "source.fixAll": true
+    }
   },
   "features": {
     "ghcr.io/devcontainers/features/docker-from-docker:1": {
-      "version": "latest",
-    },
-  },
+      "version": "latest"
+    }
+  }
 }

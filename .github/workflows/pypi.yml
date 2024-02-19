@@ -4,6 +4,8 @@ on:
   release:
     types: [published]
 
+permissions: read-all
+
 jobs:
   build_and_publish:
     name: "Publish ccf package to PyPi"

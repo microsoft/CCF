@@ -133,7 +133,7 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
         "--aci-image",
         help="The name of the image to deploy in the ACI",
         type=str,
-        default="ccfmsrc.azurecr.io/ccf/ci:07-12-2023-snp",
+        default="ccfmsrc.azurecr.io/ccf/ci:12-02-2024-snp",
     )
     parser.add_argument(
         "--aci-type",
@@ -352,9 +352,11 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 with open(output_policy_path, "r") as f:
                     lines = f.readlines()
                     lines = [
-                        'exec_in_container := {"allowed": true}\n'
-                        if l.startswith("exec_in_container")
-                        else l
+                        (
+                            'exec_in_container := {"allowed": true}\n'
+                            if l.startswith("exec_in_container")
+                            else l
+                        )
                         for l in lines
                     ]
 

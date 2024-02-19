@@ -48,9 +48,15 @@ def preprocess_for_trace_validation(log):
         return log
     log_by_node = defaultdict(list)
     initial_node = None
+    last_cmd = ""
     for line in log:
         entry = json.loads(line)
+        if "cmd" in entry:
+            last_cmd = entry["cmd"]
+            continue
         node = entry["msg"]["state"]["node_id"]
+        entry["cmd"] = last_cmd
+        last_cmd = ""
         if initial_node is None:
             initial_node = node
         if entry["msg"]["function"] == "add_configuration":
@@ -59,6 +65,7 @@ def preprocess_for_trace_validation(log):
                 "replicate",
                 "execute_append_entries_sync",
             ), removed
+            entry["cmd"] = entry["cmd"] or removed["cmd"]
         log_by_node[node].append(entry)
 
     def head():
@@ -71,7 +78,7 @@ def preprocess_for_trace_validation(log):
     assert signature["msg"]["globally_committable"], signature
     commit = head()
     assert commit["msg"]["function"] == "commit", commit
-    assert commit["msg"]["state"]["commit_idx"] == 2, commit
+    assert commit["msg"]["args"]["idx"] == 2, commit
     # Commit becomes bootstrap, the entry point into the trace validation
     commit["msg"]["function"] = "bootstrap"
     log_by_node[initial_node].insert(0, commit)

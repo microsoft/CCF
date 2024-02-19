@@ -3,11 +3,15 @@ trigger:
   branches:
     include:
       - main
+    exclude:
+      - "release/[0-3].x"
 
 pr:
   branches:
     include:
       - main
+    exclude:
+      - "release/[0-3].x"
   paths:
     include:
       - .multi-thread.yml
@@ -16,7 +20,7 @@ pr:
 resources:
   containers:
     - container: virtual
-      image: ccfmsrc.azurecr.io/ccf/ci:07-12-2023-virtual-clang15
+      image: ccfmsrc.azurecr.io/ccf/ci:12-02-2024-virtual-clang15
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
 jobs:

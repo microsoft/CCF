@@ -4,13 +4,17 @@
 # Original License below
 # Adapted from: https://github.com/pmer/tla-bin
 
-TLC_OPTIONS=()
-
 if [ "${CI}" ] || [ "${SYSTEM_TEAMFOUNDATIONCOLLECTIONURI}" ]; then
-    JVM_OPTIONS=("-Dtlc2.TLC.ide=Github" "-Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601")
+    JVM_OPTIONS+=("-Dtlc2.TLC.ide=Github" "-Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601")
 fi
 
-exec java -XX:+UseParallelGC -Dtlc2.tool.impl.Tool.cdot=true "${JVM_OPTIONS[@]}" -cp tla2tools.jar:CommunityModules-deps.jar tlc2.TLC "$@" -lncheck final "${TLC_OPTIONS[@]}"
+# See https://docs.oracle.com/en/java/javase/20/gctuning/available-collectors.html#GUID-F215A508-9E58-40B4-90A5-74E29BF3BD3C
+# > If (a) peak application performance is the first priority and (b) there are no pause-time requirements or pauses of one second or longer are acceptable,
+# > then let the VM select the collector or select the parallel collector with -XX:+UseParallelGC.
+# Simulation, nor Model Checking seem to work well with G1GC, but Trace Validation does not for some reason, and is much slower unless -XX:+UseParallelGC is used.
+# In all cases, pauses don't matter, only throughput does.
+
+exec java -XX:+UseParallelGC -Dtlc2.tool.impl.Tool.cdot=true "${JVM_OPTIONS[@]}" -cp tla2tools.jar:CommunityModules-deps.jar tlc2.TLC "$@" -checkpoint 0 -lncheck final
 
 
 # Original License

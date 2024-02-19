@@ -8,6 +8,15 @@ steps:
 
   - script: |
       set -ex
+      set -o pipefail
       cd tla/
-      parallel 'JSON={} ./tlc.sh consensus/Traceccfraft.tla' ::: $(ls ../build/*.ndjson | grep -v _deprecated)
+      mkdir traces
+      cp ../build/*.ndjson traces/
+      parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls traces/*.ndjson)
     displayName: "Run trace validation"
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      artifactName: "Trace Validation Output"
+      targetPath: tla/traces
+    condition: or(failed(), canceled())

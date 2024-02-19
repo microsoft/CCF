@@ -9,6 +9,8 @@ env:
   ACR_TOKEN_NAME: app-push-token
   DOCKER_BUILDKIT: 1 # https://docs.docker.com/develop/develop-images/build_enhancements/
 
+permissions: read-all
+
 jobs:
   build_and_publish:
     name: "Build & push"
