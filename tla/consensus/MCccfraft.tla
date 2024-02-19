@@ -17,9 +17,6 @@ ASSUME Configurations \in Seq(SUBSET Servers)
 CONSTANT MaxTermLimit
 ASSUME MaxTermLimit \in Nat
 
-CONSTANT MaxCommitsNotified
-ASSUME MaxCommitsNotified \in Nat
-
 \* Limit on client requests
 CONSTANT RequestLimit
 ASSUME RequestLimit \in Nat
@@ -90,10 +87,6 @@ MCSend(msg) ==
         /\ n.term = msg.term
         /\ n.type = AppendEntriesResponse
     /\ CCF!Send(msg)
-
-\* Limit max number of simultaneous candidates
-MCInMaxSimultaneousCandidates(i) ==
-    Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : leadershipState[s] = Candidate}) < 1
 
 MCInit ==
     /\ InitMessagesVars
