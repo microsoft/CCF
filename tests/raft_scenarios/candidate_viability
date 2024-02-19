@@ -26,15 +26,6 @@ assert_state_sync
 periodic_one,0,100
 assert_detail,0,leadership_state,Follower
 
-## TODO: Investigate why we need to drop these messages for trace validation
-## If we don't, the dispatch_all produces a large number (~70) of messages,
-## and somewhere in there we fail trace validation
-drop_pending,0
-drop_pending,1
-drop_pending,2
-drop_pending,3
-drop_pending,4
-
 periodic_one,0,100
 assert_detail,0,leadership_state,Candidate
 dispatch_all
