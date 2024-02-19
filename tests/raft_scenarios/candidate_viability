@@ -1,6 +1,6 @@
 # Node 0 is the start node
 start_node,0
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 emit_signature,2
 
 # Single reconfiguration adds nodes 1, 2, 3, and 4
@@ -24,7 +24,7 @@ assert_state_sync
 
 # Node 0 advances to term 3, becomes primary again
 periodic_one,0,100
-assert_is_backup,0
+assert_detail,0,leadership_state,Follower
 
 ## TODO: Investigate why we need to drop these messages for trace validation
 ## If we don't, the dispatch_all produces a large number (~70) of messages,
@@ -36,9 +36,9 @@ drop_pending,3
 drop_pending,4
 
 periodic_one,0,100
-assert_is_candidate,0
+assert_detail,0,leadership_state,Candidate
 dispatch_all
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 
 # Node 0 produces a slightly longer suffix in term 2
 emit_signature,3
@@ -62,9 +62,9 @@ disconnect_node,4
 
 # Node 1 calls an wins an election, and wins with 2 and 3
 periodic_one,1,100
-assert_is_candidate,1
+assert_detail,1,leadership_state,Candidate
 dispatch_all
-assert_is_primary,1
+assert_detail,1,leadership_state,Leader
 
 # Node 1 produces an alternative branch
 emit_signature,4
@@ -84,9 +84,9 @@ dispatch_all
 
 # Node 0 calls a fresh election
 periodic_one,0,100
-assert_is_candidate,0
+assert_detail,0,leadership_state,Candidate
 dispatch_all
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 
 # Node 0 further extends their branch, in term 5
 emit_signature,5
@@ -114,9 +114,9 @@ dispatch_all
 
 # Node 1 calls a fresh election
 periodic_one,1,100
-assert_is_candidate,1
+assert_detail,1,leadership_state,Candidate
 dispatch_all
-assert_is_primary,1
+assert_detail,1,leadership_state,Leader
 
 # Node 1 further extends their branch, in term 6
 emit_signature,6
@@ -176,7 +176,7 @@ dispatch_all
 periodic_one,4,100
 dispatch_all
 periodic_one,4,100
-assert_is_candidate,4
+assert_detail,4,leadership_state,Candidate
 dispatch_all
 periodic_all,10
 dispatch_all
@@ -184,7 +184,7 @@ periodic_all,10
 dispatch_all
 
 state_all
-assert_is_primary,4
+assert_detail,4,leadership_state,Leader
 assert_commit_idx,4,9
 assert_state_sync
 
