@@ -941,7 +941,7 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
                              dest           |-> j],
                              m)
                    \/ /\ prevTerm # 0
-                      /\ LET lli == FindHighestPossibleMatch(log[i], m.prevLogIndex, m.term)
+                      /\ LET lli == FindHighestPossibleMatch(log[i], m.prevLogIndex, m.prevLogTerm)
                          IN Reply([type        |-> AppendEntriesResponse,
                                 success        |-> FALSE,
                                 term           |-> IF lli = 0 THEN StartTerm ELSE log[i][lli].term,

@@ -114,7 +114,7 @@ LOCAL OrderDropConsecutiveMessages(server) ==
 
 LOCAL OrderDropMessage(server, Test(_)) ==
     \E i \in { idx \in 1..Len(messages[server]) : Test(messages[server][idx]) }:
-        messages' = [ messages EXCEPT ![server] = RemoveAt(messages[server], i) ]
+        messages' = [ messages EXCEPT ![server] = RemoveAt(@, i) ]
 
 ----------------------------------------------------------------------------------
 \* Point-to-Point Ordering and no duplication of messages:
