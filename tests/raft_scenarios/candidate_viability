@@ -1,0 +1,182 @@
+# Node 0 is the start node
+start_node,0
+assert_detail,0,leadership_state,Leader
+emit_signature,2
+
+# Single reconfiguration adds nodes 1, 2, 3, and 4
+trust_nodes,2,1,2,3,4
+emit_signature,2
+
+# Few roundtrips advance the commit on node 0
+periodic_all,10
+dispatch_all
+
+periodic_all,10
+dispatch_all
+
+assert_commit_idx,0,4
+
+# And then a further roundtrip makes this commit known everywhere
+# NB: Important that they all agree the initial config is committed!
+periodic_all,10
+dispatch_all
+assert_state_sync
+
+# Node 0 advances to term 3, becomes primary again
+periodic_one,0,100
+assert_detail,0,leadership_state,Follower
+
+periodic_one,0,100
+assert_detail,0,leadership_state,Candidate
+dispatch_all
+assert_detail,0,leadership_state,Leader
+
+# Node 0 produces a slightly longer suffix in term 2
+emit_signature,3
+emit_signature,3
+
+# Roundtrip advances the commit on node 0
+periodic_all,10
+dispatch_all
+
+assert_commit_idx,0,6
+
+# Node 0 produces a further uncommitted suffix
+emit_signature,3
+emit_signature,3
+
+# But they're partitioned, so no-one hears this final suffix or the latest commit point
+disconnect_node,0
+
+# Meanwhile, node 4 is fully partitioned
+disconnect_node,4
+
+# Node 1 calls an wins an election, and wins with 2 and 3
+periodic_one,1,100
+assert_detail,1,leadership_state,Candidate
+dispatch_all
+assert_detail,1,leadership_state,Leader
+
+# Node 1 produces an alternative branch
+emit_signature,4
+emit_signature,4
+
+# But before _that_ is shared, the partition flips:
+# - Node 0 reconnects
+reconnect_node,0
+# - Node 1 is isolated
+disconnect_node,1
+# - Node 4 is still isolated
+disconnect_node,4
+
+# Node 0 catches up on term
+periodic_one,0,10
+dispatch_all
+
+# Node 0 calls a fresh election
+periodic_one,0,100
+assert_detail,0,leadership_state,Candidate
+dispatch_all
+assert_detail,0,leadership_state,Leader
+
+# Node 0 further extends their branch, in term 5
+emit_signature,5
+emit_signature,5
+emit_signature,5
+
+# But before _that_ is shared, the partition flips again:
+# - Node 1 reconnects
+reconnect_node,1
+# - Node 0 is isolated
+disconnect_node,0
+# - Node 4 is still isolated
+disconnect_node,4
+
+# And this bit is really important - while 0 is partitioned, they advance their term even higher
+periodic_one,0,100
+periodic_one,0,100
+periodic_one,0,100
+periodic_one,0,100
+periodic_one,0,100
+
+# Node 1 catches up on term
+periodic_one,1,10
+dispatch_all
+
+# Node 1 calls a fresh election
+periodic_one,1,100
+assert_detail,1,leadership_state,Candidate
+dispatch_all
+assert_detail,1,leadership_state,Leader
+
+# Node 1 further extends their branch, in term 6
+emit_signature,6
+
+# TODO: No they don't
+# Node 1 finally shares their branch with 2 and 3, advancing commit
+# periodic_one,1,10
+# dispatch_all
+
+# Now we only connect nodes 1 with 3 and 4, to minimise unnecessary traffic
+assert_commit_idx,3,4 # 3 hasn't heard anything for a long time
+assert_commit_idx,4,4 # 4 hasn't heard anything for a long time
+reconnect_node,3
+reconnect_node,4
+disconnect_node,0
+disconnect_node,2
+
+# Node 1 brings 3 and 4 up-to-date slowly, with many missed messages
+periodic_one,1,10
+dispatch_single,1,3
+dispatch_single,1,4
+dispatch_one,3
+dispatch_one,4
+
+drop_pending_to,1,3
+drop_pending_to,1,4
+
+periodic_one,1,10
+dispatch_single,1,3
+dispatch_single,1,4
+dispatch_one,3
+dispatch_one,4
+
+# NB: At this point we have an entry (4.8) that is present on a majority of nodes,
+# but cannot be committed. This is sound - node 0 could still win an election and
+# commit their own branch. Node 1 must wait for an entry in current term (6.9) to
+# advance commit
+state_all
+summarise_logs_all
+assert_commit_idx,1,4
+
+# But if we keep delivering messages, then we _do_ safely advance commit
+periodic_one,1,10
+dispatch_all
+state_all
+summarise_logs_all
+assert_commit_idx,1,9
+
+# And just as a sanity check, we can bring all nodes in-sync on this
+reconnect_node,0
+reconnect_node,2
+
+periodic_all,10
+dispatch_all
+
+# Could be any of the up-to-date nodes, we nominate 4
+periodic_one,4,100
+dispatch_all
+periodic_one,4,100
+assert_detail,4,leadership_state,Candidate
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+
+state_all
+assert_detail,4,leadership_state,Leader
+assert_commit_idx,4,9
+assert_state_sync
+
+summarise_logs_all

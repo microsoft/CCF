@@ -18,6 +18,13 @@ ToMembershipState ==
     "Active" :> {Active} @@
     "Retired" :> {RetirementOrdered, RetirementSigned, RetirementCompleted}
 
+IsHeader(msg, dst, src, logline, type) ==
+    /\ msg.type = type
+    /\ msg.type = RaftMsgType[logline.msg.packet.msg]
+    /\ msg.dest   = dst
+    /\ msg.source = src
+    /\ msg.term = logline.msg.packet.term
+
 IsAppendEntriesRequest(msg, dst, src, logline) ==
     (*
     | ccfraft.tla   | json               | raft.h             |
@@ -31,11 +38,7 @@ IsAppendEntriesRequest(msg, dst, src, logline) ==
     |               | .term_of_idx       | term_of_idx        |
     |               | .contains_new_view | contains_new_view  |
     *)
-    /\ msg.type = AppendEntriesRequest
-    /\ msg.type = RaftMsgType[logline.msg.packet.msg]
-    /\ msg.dest   = dst
-    /\ msg.source = src
-    /\ msg.term = logline.msg.packet.term
+    /\ IsHeader(msg, dst, src, logline, AppendEntriesRequest)
     /\ msg.commitIndex = logline.msg.packet.leader_commit_idx
     /\ msg.prevLogTerm = logline.msg.packet.prev_term
     /\ Len(msg.entries) = logline.msg.packet.idx - logline.msg.packet.prev_idx
@@ -43,14 +46,29 @@ IsAppendEntriesRequest(msg, dst, src, logline) ==
     /\ msg.prevLogIndex = logline.msg.packet.prev_idx
 
 IsAppendEntriesResponse(msg, dst, src, logline) ==
-    /\ msg.type = AppendEntriesResponse
-    /\ msg.type = RaftMsgType[logline.msg.packet.msg]
-    /\ msg.dest   = dst
-    /\ msg.source = src
-    /\ msg.term = logline.msg.packet.term
+    /\ IsHeader(msg, dst, src, logline, AppendEntriesResponse)
     \* raft_types.h enum AppendEntriesResponseType
     /\ msg.success = (logline.msg.packet.success = "OK")
     /\ msg.lastLogIndex = logline.msg.packet.last_log_idx
+
+IsRequestVoteRequest(msg, dst, src, logline) ==
+    /\ IsHeader(msg, dst, src, logline, RequestVoteRequest)
+    /\ msg.lastCommittableIndex = logline.msg.packet.last_committable_idx
+    /\ msg.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
+
+IsRequestVoteResponse(msg, dst, src, logline) ==
+    /\ IsHeader(msg, dst, src, logline, RequestVoteResponse)
+    /\ msg.voteGranted = logline.msg.packet.vote_granted
+
+IsProposeVoteRequest(msg, dst, src, logline) ==
+    /\ IsHeader(msg, dst, src, logline, ProposeVoteRequest)
+    
+IsMessage(msg, dst, src, logline) ==
+    CASE msg.type = AppendEntriesResponse -> IsAppendEntriesResponse(msg, dst, src, logline)
+      [] msg.type = AppendEntriesRequest  -> IsAppendEntriesRequest(msg, dst, src, logline)
+      [] msg.type = RequestVoteRequest    -> IsRequestVoteRequest(msg, dst, src, logline)
+      [] msg.type = RequestVoteResponse   -> IsRequestVoteResponse(msg, dst, src, logline)
+      [] msg.type = ProposeVoteRequest    -> IsProposeVoteRequest(msg, dst, src, logline)
 
 -------------------------------------------------------------------------------------
 
@@ -59,7 +77,7 @@ IsAppendEntriesResponse(msg, dst, src, logline) ==
 ASSUME TLCGet("config").mode = "bfs"
 
 JsonFile ==
-    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../../build/startup.ndjson"
+    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../../tests/raft_scenarios/bad_network.ndjson"
 
 JsonLog ==
     \* Deserialize the System log as a sequence of records from the log file.
@@ -72,8 +90,8 @@ TraceLog ==
     SelectSeq(JsonLog, LAMBDA l: l.tag = "raft_trace")
 
 JsonServers ==
-    LET Card == Cardinality({ TraceLog[i].msg.state.node_id: i \in DOMAIN TraceLog })
-    IN Print(<< "Trace:", JsonFile, "Length:", IF Card = 0 THEN "EMPTY" ELSE Len(TraceLog)>>, Card)
+    TLCEval(LET Card == Cardinality({ TraceLog[i].msg.state.node_id: i \in DOMAIN TraceLog })
+            IN Print(<< "Trace:", JsonFile, "Length:", IF Card = 0 THEN "EMPTY" ELSE Len(TraceLog)>>, Card))
     
 ASSUME JsonServers \in Nat \ {0}
 
@@ -131,11 +149,7 @@ IsEvent(e) ==
 IsDropPendingTo ==
     /\ IsEvent("drop_pending_to")
     /\ Network!DropMessage(logline.msg.to_node_id,
-        LAMBDA msg:
-            /\ msg.type = RaftMsgType[logline.msg.packet.msg]
-            /\ msg.dest = logline.msg.to_node_id
-            /\ msg.source = logline.msg.from_node_id
-        )
+                LAMBDA msg: IsMessage(msg, logline.msg.to_node_id, logline.msg.from_node_id, logline))
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 IsTimeout ==
