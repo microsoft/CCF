@@ -197,8 +197,14 @@ namespace ccf::gov::endpoints
 
           if (service_info->previous_service_identity_version.has_value())
           {
-            response_body["previousServiceCreationTransactionId"] =
+            ccf::SeqNo seqno =
               service_info->previous_service_identity_version.value();
+            ccf::View view;
+            // Note: deliberately ignoring errors. Prefer to return single
+            // invalid field than convert entire response to error.
+            registry.get_view_for_seqno_v1(seqno, view);
+            response_body["previousServiceCreationTransactionId"] =
+              ccf::TxID{.view = view, .seqno = seqno};
           }
 
           response_body["serviceData"] = service_info->service_data;
@@ -376,7 +382,7 @@ namespace ccf::gov::endpoints
                 snp_endorsements[did] = feed_info;
                 return true;
               });
-            snp_policy["UVMEndorsements"] = snp_endorsements;
+            snp_policy["uvmEndorsements"] = snp_endorsements;
 
             response_body["snp"] = snp_policy;
           }
