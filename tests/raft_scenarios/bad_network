@@ -111,6 +111,7 @@ dispatch_all_once
 
 # Node 1 is now primary, though it still doesn't know that 2 is committed
 state_all
+emit_signature,7
 
 # Now we allow the network to heal and return to normal
 periodic_all,10
