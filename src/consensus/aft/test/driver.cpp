@@ -78,7 +78,7 @@ int main(int argc, char** argv)
     if (in.starts_with("===="))
     {
       // Terminate early if four or more '=' appear on a line.
-      return 0;
+      break;
     }
 #ifdef CCF_RAFT_TRACING
     if (!line.empty())
@@ -285,6 +285,10 @@ int main(int argc, char** argv)
         assert(items.size() == 2);
         driver->create_new_node(items[1]);
         break;
+      case shash("loop_until_sync"):
+        assert(items.size() == 1);
+        driver->loop_until_sync(lineno);
+        break;
       case shash(""):
         // Ignore empty lines
         skip_invariants = true;
@@ -301,6 +305,9 @@ int main(int argc, char** argv)
 
     ++lineno;
   }
+
+  // Confirm path to liveness from final state
+  driver->loop_until_sync(lineno);
 
   return 0;
 }

@@ -855,8 +855,7 @@ public:
     }
   }
 
-  std::optional<std::pair<aft::Term, ccf::NodeId>> find_primary_in_term(
-    const std::string& term_s, const size_t lineno)
+  std::vector<std::pair<aft::Term, ccf::NodeId>> find_primaries()
   {
     std::vector<std::pair<aft::Term, ccf::NodeId>> primaries;
     for (const auto& [node_id, node_driver] : _nodes)
@@ -866,6 +865,13 @@ public:
         primaries.emplace_back(node_driver.raft->get_view(), node_id);
       }
     }
+    return primaries;
+  }
+
+  std::optional<std::pair<aft::Term, ccf::NodeId>> find_primary_in_term(
+    const std::string& term_s, const size_t lineno)
+  {
+    auto primaries = find_primaries();
 
     if (term_s == "latest")
     {
@@ -989,41 +995,44 @@ public:
     }
   }
 
-  void assert_state_sync(const size_t lineno)
+  using Discrepancies = std::map<ccf::NodeId, std::vector<std::string>>;
+
+  Discrepancies check_state_sync(const std::map<ccf::NodeId, NodeDriver> nodes)
   {
-    auto [target_id, nd] = *_nodes.begin();
+    Discrepancies discrepancies;
+
+    if (nodes.empty())
+    {
+      return discrepancies;
+    }
+
+    auto [target_id, nd] = *nodes.begin();
     auto& target_raft = nd.raft;
     const auto target_term = target_raft->get_view();
     const auto target_last_idx = target_raft->get_last_idx();
     const auto target_commit_idx = target_raft->get_committed_seqno();
 
-    bool all_match = true;
-    for (auto it = std::next(_nodes.begin()); it != _nodes.end(); ++it)
+    for (auto it = std::next(nodes.begin()); it != nodes.end(); ++it)
     {
       const auto& node_id = it->first;
       auto& raft = it->second.raft;
 
       if (raft->get_view() != target_term)
       {
-        RAFT_DRIVER_PRINT(
-          "Note over {}: Term {} doesn't match term {} on {}",
-          node_id,
+        discrepancies[node_id].push_back(fmt::format(
+          "Term {} doesn't match term {} on {}",
           raft->get_view(),
           target_term,
-          target_id);
-        all_match = false;
+          target_id));
       }
 
       if (raft->get_last_idx() != target_last_idx)
       {
-        RAFT_DRIVER_PRINT(
-          "Note over {}: Last index {} doesn't match "
-          "last index {} on {}",
-          node_id,
+        discrepancies[node_id].push_back(fmt::format(
+          "Last index {} doesn't match last index {} on {}",
           raft->get_last_idx(),
           target_last_idx,
-          target_id);
-        all_match = false;
+          target_id));
       }
       else
       {
@@ -1033,9 +1042,8 @@ public:
           const auto target_entry = target_raft->ledger->get_entry_by_idx(idx);
           if (!target_entry.has_value())
           {
-            RAFT_DRIVER_PRINT(
-              "Note over {}: Missing ledger entry at {}", target_id, idx);
-            all_match = false;
+            discrepancies[node_id].push_back(
+              fmt::format("Missing ledger entry at {}", idx));
             break;
           }
           else
@@ -1043,22 +1051,18 @@ public:
             const auto entry = raft->ledger->get_entry_by_idx(idx);
             if (!entry.has_value())
             {
-              RAFT_DRIVER_PRINT(
-                "Note over {}: Missing ledger entry at {}", node_id, idx);
-              all_match = false;
+              discrepancies[node_id].push_back(
+                fmt::format("Missing ledger entry at {}", idx));
               break;
             }
             else if (entry != target_entry)
             {
-              RAFT_DRIVER_PRINT(
-                "Note over {}: Entry at index {} "
-                "doesn't match entry on {}: {} != {}",
-                node_id,
+              discrepancies[node_id].push_back(fmt::format(
+                "Entry at index {} doesn't match entry on {}: {} != {}",
                 idx,
                 target_id,
                 stringify(entry.value()),
-                stringify(target_entry.value()));
-              all_match = false;
+                stringify(target_entry.value())));
               break;
             }
           }
@@ -1067,21 +1071,109 @@ public:
 
       if (raft->get_committed_seqno() != target_commit_idx)
       {
-        RAFT_DRIVER_PRINT(
-          "Note over {}: Commit index {} doesn't "
-          "match commit index {} on {}",
-          node_id,
+        discrepancies[node_id].push_back(fmt::format(
+          "Commit index {} doesn't match commit index {} on {}",
           raft->get_committed_seqno(),
           target_commit_idx,
-          target_id);
-        all_match = false;
+          target_id));
       }
     }
 
-    if (!all_match)
+    return discrepancies;
+  }
+
+  void print_discrepancies(const Discrepancies& discrepancies)
+  {
+    for (const auto& [node_id, reasons] : discrepancies)
     {
+      for (const auto& reason : reasons)
+      {
+        RAFT_DRIVER_PRINT("Note over {}: {}", node_id, reason);
+      }
+    }
+  }
+
+  void assert_state_sync(const size_t lineno)
+  {
+    const auto discrepancies = check_state_sync(_nodes);
+
+    if (!discrepancies.empty())
+    {
+      print_discrepancies(discrepancies);
+
       throw std::runtime_error(fmt::format(
         "States not in sync on line {}", std::to_string((int)lineno)));
+    }
+  }
+
+  void loop_until_sync(const size_t lineno)
+  {
+    std::pair<aft::Term, ccf::NodeId> term_primary;
+    {
+      // Find primary in highest term
+      auto primaries = find_primaries();
+
+      if (primaries.size() > 0)
+      {
+        std::sort(primaries.begin(), primaries.end());
+        term_primary = primaries.back();
+      }
+      else
+      {
+        // If no primary exists, try to create one? No such scenario, so far
+        throw std::runtime_error(
+          fmt::format("Can't currently loop until sync, no primary"));
+      }
+    }
+
+    const auto& [term, primary] = term_primary;
+
+    // Don't try to confirm sync with retired nodes
+    decltype(_nodes) nodes;
+    for (auto& [node_id, node_driver] : _nodes)
+    {
+      if (node_driver.raft->is_active())
+      {
+        nodes[node_id] = node_driver;
+      }
+      else
+      {
+        RAFT_DRIVER_PRINT(
+          "Note over {}: Ignoring from sync check, due to retirement", node_id);
+      }
+    }
+
+    // Emit a fresh signature on that primary (so that they can advance commit)
+    emit_signature(std::to_string(term), lineno);
+
+    // Reconnect all nodes
+    for (const auto& [node_id, _] : nodes)
+    {
+      reconnect_node(node_id);
+    }
+
+    // Loop, doing periodic and dispatch, until sync.
+    // Can make iterations higher if any scenario actually needs more
+    auto iterations = 0;
+    static constexpr auto max_iterations = 20;
+    while (true)
+    {
+      periodic_one(primary, ms(10));
+      dispatch_all();
+
+      auto discrepancies = check_state_sync(nodes);
+      if (discrepancies.empty())
+      {
+        break;
+      }
+
+      if (++iterations >= max_iterations)
+      {
+        print_discrepancies(discrepancies);
+
+        throw std::logic_error(fmt::format(
+          "Failed to reach state sync after {} loop iterations", iterations));
+      }
     }
   }
 
