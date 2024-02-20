@@ -27,14 +27,14 @@ SIMChangeConfigurationInt(i, newConfiguration) ==
 SIMTimeout(i) ==
     /\ \/ 1 = RandomElement(1..100)
        \* Always allow Timeout if no messages are in the network
-       \* and no node is a candidate or leader.  Otherise, the system
+       \* and no node is a candidate or leader.  Otherwise, the system
        \* will deadlock if 1 # RandomElement(...).
        \/ /\ \A s \in Servers: leadershipState[s] \notin {Leader, Candidate}
           /\ Network!Messages = {}
     /\ CCF!Timeout(i)
 
 \* The state constraint  StopAfter  stops TLC after the alloted
-\* time budget is up, unless TLC encounteres an error first.
+\* time budget is up, unless TLC encounters an error first.
 StopAfter ==
     LET timeout == IF ("SIM_TIMEOUT" \in DOMAIN IOEnv) /\ IOEnv.SIM_TIMEOUT # "" THEN atoi(IOEnv.SIM_TIMEOUT) ELSE 1200
     (* The smoke test has a time budget of 20 minutes. *)
@@ -64,7 +64,7 @@ SIMPostCondition ==
 
 =============================================================================
 
-## Repeatedly run TLC in simulation mode to shorten a counterexample (the depth parameter will consequtively be reduced based on the length of the previous counterexample).
+## Repeatedly run TLC in simulation mode to shorten a counterexample (the depth parameter will successively be reduced based on the length of the previous counterexample).
 $ echo 500 > depth.txt
 ## Loop while the depth.txt file exists and is not empty.
 $ while [ -s depth.txt ];
