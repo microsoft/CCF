@@ -92,7 +92,7 @@ def test_snp_measurements_tables(network, args):
         with node.api_versioned_client(api_version=args.gov_api_version) as client:
             r = client.get("/gov/service/join-policy")
             assert r.status_code == http.HTTPStatus.OK, r
-            return r.body.json()["snp"]["UVMEndorsements"]
+            return r.body.json()["snp"]["uvmEndorsements"]
 
     uvm_endorsements = get_trusted_uvm_endorsements(primary)
     assert (
