@@ -39,6 +39,7 @@ FUNCTIONS = {
     "become_follower": "BFol",
     "commit": "Cmt",
     "bootstrap": "Boot",
+    "drop_pending_to": "Drop",
     None: "",
 }
 
