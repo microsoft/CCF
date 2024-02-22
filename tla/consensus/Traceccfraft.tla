@@ -18,6 +18,13 @@ ToMembershipState ==
     "Active" :> {Active} @@
     "Retired" :> {RetirementOrdered, RetirementSigned, RetirementCompleted, RetiredCommitted}
 
+IsHeader(msg, dst, src, logline, type) ==
+    /\ msg.type = type
+    /\ msg.type = RaftMsgType[logline.msg.packet.msg]
+    /\ msg.dest   = dst
+    /\ msg.source = src
+    /\ msg.term = logline.msg.packet.term
+
 IsAppendEntriesRequest(msg, dst, src, logline) ==
     (*
     | ccfraft.tla   | json               | raft.h             |
@@ -31,11 +38,7 @@ IsAppendEntriesRequest(msg, dst, src, logline) ==
     |               | .term_of_idx       | term_of_idx        |
     |               | .contains_new_view | contains_new_view  |
     *)
-    /\ msg.type = AppendEntriesRequest
-    /\ msg.type = RaftMsgType[logline.msg.packet.msg]
-    /\ msg.dest   = dst
-    /\ msg.source = src
-    /\ msg.term = logline.msg.packet.term
+    /\ IsHeader(msg, dst, src, logline, AppendEntriesRequest)
     /\ msg.commitIndex = logline.msg.packet.leader_commit_idx
     /\ msg.prevLogTerm = logline.msg.packet.prev_term
     /\ Len(msg.entries) = logline.msg.packet.idx - logline.msg.packet.prev_idx
@@ -43,14 +46,29 @@ IsAppendEntriesRequest(msg, dst, src, logline) ==
     /\ msg.prevLogIndex = logline.msg.packet.prev_idx
 
 IsAppendEntriesResponse(msg, dst, src, logline) ==
-    /\ msg.type = AppendEntriesResponse
-    /\ msg.type = RaftMsgType[logline.msg.packet.msg]
-    /\ msg.dest   = dst
-    /\ msg.source = src
-    /\ msg.term = logline.msg.packet.term
+    /\ IsHeader(msg, dst, src, logline, AppendEntriesResponse)
     \* raft_types.h enum AppendEntriesResponseType
     /\ msg.success = (logline.msg.packet.success = "OK")
     /\ msg.lastLogIndex = logline.msg.packet.last_log_idx
+
+IsRequestVoteRequest(msg, dst, src, logline) ==
+    /\ IsHeader(msg, dst, src, logline, RequestVoteRequest)
+    /\ msg.lastCommittableIndex = logline.msg.packet.last_committable_idx
+    /\ msg.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
+
+IsRequestVoteResponse(msg, dst, src, logline) ==
+    /\ IsHeader(msg, dst, src, logline, RequestVoteResponse)
+    /\ msg.voteGranted = logline.msg.packet.vote_granted
+
+IsProposeVoteRequest(msg, dst, src, logline) ==
+    /\ IsHeader(msg, dst, src, logline, ProposeVoteRequest)
+    
+IsMessage(msg, dst, src, logline) ==
+    CASE msg.type = AppendEntriesResponse -> IsAppendEntriesResponse(msg, dst, src, logline)
+      [] msg.type = AppendEntriesRequest  -> IsAppendEntriesRequest(msg, dst, src, logline)
+      [] msg.type = RequestVoteRequest    -> IsRequestVoteRequest(msg, dst, src, logline)
+      [] msg.type = RequestVoteResponse   -> IsRequestVoteResponse(msg, dst, src, logline)
+      [] msg.type = ProposeVoteRequest    -> IsProposeVoteRequest(msg, dst, src, logline)
 
 -------------------------------------------------------------------------------------
 
@@ -59,7 +77,7 @@ IsAppendEntriesResponse(msg, dst, src, logline) ==
 ASSUME TLCGet("config").mode = "bfs"
 
 JsonFile ==
-    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../../build/startup.ndjson"
+    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../../tests/raft_scenarios/bad_network.ndjson"
 
 JsonLog ==
     \* Deserialize the System log as a sequence of records from the log file.
@@ -72,8 +90,8 @@ TraceLog ==
     SelectSeq(JsonLog, LAMBDA l: l.tag = "raft_trace")
 
 JsonServers ==
-    LET Card == Cardinality({ TraceLog[i].msg.state.node_id: i \in DOMAIN TraceLog })
-    IN Print(<< "Trace:", JsonFile, "Length:", IF Card = 0 THEN "EMPTY" ELSE Len(TraceLog)>>, Card)
+    TLCEval(LET Card == Cardinality({ TraceLog[i].msg.state.node_id: i \in DOMAIN TraceLog })
+            IN Print(<< "Trace:", JsonFile, "Length:", IF Card = 0 THEN "EMPTY" ELSE Len(TraceLog)>>, Card))
     
 ASSUME JsonServers \in Nat \ {0}
 
@@ -112,34 +130,6 @@ TraceInit ==
 logline ==
     TraceLog[l]
 
-\* ccfraft assumes ordered point-to-point communication. In other words, we should
-\* only receive the first pending message from j at i.  However, it is possible
-\* that a prefix of the messages sent by j to i have been lost -- the network is
-\* unreliable.  Thus, we allow to receive any message but drop the prefix up to
-\* that message.
-\* We could add a Traceccfraft!DropMessage action that non-deterministically drops
-\* messages at every step of the system.  However, that would lead to massive state
-\* space explosion.  OTOH, it would have the advantage that we could assert that
-\* messages is all empty at the end of the trace.  Right now, messages will contain
-\* all messages, even those that have been lost by the real system.  Another trade
-\* off is that the length of the TLA+ trace will be longer than the system trace
-\* (due to the extra DropMessage actions).
-\* Instead, we could compose a DropMessage action with all receiver actions such
-\* as HandleAppendEntriesResponse that allows the receiver's inbox to equal any
-\* SubSeq of the receives current inbox (where inbox is messages[receiver]).  That
-\* way, we can leave the other server's inboxes unchanged (resulting in fewer work for
-\* TLC).  A trade off of this variant is that we have to non-deterministically pick
-\* the next message from the inbox instead of via Network!MessagesTo (which always
-\* picks the first message in a server's inbox).
-\* 
-\* Lastly, we can weaken Traceccfraft trace validation and simply ignore lost messages
-\* accepting that lost messages remain in messages.
-DropMessages ==
-    /\ l \in 1..Len(TraceLog)
-    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
-    /\ UNCHANGED <<l, ts>>
-    /\ Network!DropMessages(logline.msg.state.node_id)
-
 \* Beware to only prime e.g. inbox in inbox'[rcv] and *not* also rcv, i.e.,
  \* inbox[rcv]'.  rcv is defined in terms of TLCGet("level") that correctly
  \* handles priming, which causes for rcv' to equal rcv of the next log line.
@@ -149,6 +139,18 @@ IsEvent(e) ==
     /\ logline.msg.function = e
     /\ l' = l + 1
     /\ ts' = logline.h_ts
+
+\* Message loss is known in controlled environments, such as raft (driver) scenarios. However, this assumption
+\* does not hold for traces collected from production workloads.  In these instances, message loss must be
+\* modeled in non-deterministically.  For example, by composing message loss to the next-state relation:
+\*   Network!DropMessages(logline.msg.state.node_id) \cdot TraceNext 
+\* and
+\*   Network!DropMessages(logline.msg.state.node_id) \cdot CCF!Next
+IsDropPendingTo ==
+    /\ IsEvent("drop_pending_to")
+    /\ Network!DropMessage(logline.msg.to_node_id,
+                LAMBDA msg: IsMessage(msg, logline.msg.to_node_id, logline.msg.from_node_id, logline))
+    /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
 
 IsTimeout ==
     /\ IsEvent("become_candidate")
@@ -451,11 +453,10 @@ TraceNext ==
 
     \/ IsRcvProposeVoteRequest
 
-DropAndNext ==
-    IF ENABLED TraceNext THEN TraceNext ELSE DropMessages \cdot TraceNext
+    \/ IsDropPendingTo
 
 TraceSpec ==
-    TraceInit /\ [][DropAndNext]_<<l, ts, vars>>
+    TraceInit /\ [][TraceNext]_<<l, ts, vars>>
 
 -------------------------------------------------------------------------------------
 
@@ -620,6 +621,6 @@ ComposedNext ==
 
 CCF == INSTANCE ccfraft
 
-CCFSpec == CCF!Init /\ [][DropMessages \cdot (CCF!Next \/ ComposedNext)]_CCF!vars
+CCFSpec == CCF!Init /\ [][CCF!Next \/ ComposedNext \/ IsDropPendingTo]_CCF!vars
 
 ==================================================================================
