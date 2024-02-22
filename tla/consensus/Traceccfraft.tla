@@ -16,7 +16,7 @@ ToLeadershipState ==
 ToMembershipState ==
     \* https://github.com/microsoft/CCF/blob/61bc8ef25ba636b6f5915dfc69647e2ae9cf47c7/tla/consensus/ccfraft.tla#L54
     "Active" :> {Active} @@
-    "Retired" :> {RetirementOrdered, RetirementSigned, RetirementCompleted}
+    "Retired" :> {RetirementOrdered, RetirementSigned, RetirementCompleted, RetiredCommitted}
 
 IsHeader(msg, dst, src, logline, type) ==
     /\ msg.type = type
