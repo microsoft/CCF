@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `[rollback] ... Dropping conflicting branch` may be emitted after network partitions, and indicates that some `Pending` (non-committed) transactions have been lost. This is expected, but worth investigating if it occurs regularly - it is a sign of elections impacting service availability.
   - `[rollback] ... Ignoring conflicting AppendEntries` could also be emitted after a network partition, but **should be reported to the CCF development team**. It is a sign of an unexpected execution path, which could lead to loss of liveness (inability to advance commit).
 
+### Dependencies
+
+- The CCF Python package now requires cryptography 42.*
+
 ## [4.0.14]
 
 [4.0.14]: https://github.com/microsoft/CCF/releases/tag/ccf-4.0.14
