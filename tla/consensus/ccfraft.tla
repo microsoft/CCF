@@ -847,7 +847,7 @@ AdvanceCommitIndex(i) ==
         \* update membership/leadershipState if our retirement was just committed or retiredcommitted was committed
         /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log[i], commitIndex'[i], i)]
         /\ leadershipState' = [leadershipState EXCEPT ![i] = 
-            IF membershipState'[i] \in {RetirementCompleted, RetiredCommitted} THEN Follower ELSE @]
+            IF membershipState'[i] = RetiredCommitted THEN Follower ELSE @]
         \* If commit index surpasses the next configuration, pop configs, and nominate successor if removed
         /\ IF /\ Cardinality(DOMAIN configurations[i]) > 1
               /\ highestCommittableIndex >= NextConfigurationIndex(i)
@@ -1441,7 +1441,6 @@ MembershipStateConsistentInv ==
         \/ /\ membershipState[i] = RetirementCompleted
            /\ RetirementIndex(i) # 0
            /\ RetirementIndex(i) <= commitIndex[i]
-           /\ leadershipState[i] \notin {Candidate, Leader}
            /\ ~IsRetiredCommitted(i)
         \/ /\ membershipState[i] = RetiredCommitted
            /\ RetirementIndex(i) # 0

@@ -56,6 +56,7 @@ def preprocess_for_trace_validation(log):
             continue
         node = entry["msg"]["state"]["node_id"]
         entry["cmd"] = last_cmd
+        entry["cmd_prefix"] = entry["cmd"].split(",")[0]
         last_cmd = ""
         if initial_node is None:
             initial_node = node

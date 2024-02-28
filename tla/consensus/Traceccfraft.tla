@@ -176,8 +176,20 @@ IsClientRequest ==
     /\ IsEvent("replicate")
     /\ ClientRequest(logline.msg.state.node_id)
     /\ ~logline.msg.globally_committable
+    /\ logline.cmd_prefix # "cleanup_nodes"
     \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.
     \* TODO Alternatively, extract the written values from the system trace and redefine clientRequests at startup.
+    /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
+    /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
+    /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+
+IsCleanupNodes ==
+    /\ IsEvent("replicate")
+    /\ AppendRetiredCommitted(logline.msg.state.node_id)
+    /\ ~logline.msg.globally_committable
+    /\ logline.cmd_prefix = "cleanup_nodes"
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
@@ -434,6 +446,7 @@ TraceNext ==
     \/ IsCheckQuorum
 
     \/ IsClientRequest
+    \/ IsCleanupNodes
 
     \/ IsSignCommittableMessages
     \/ IsAdvanceCommitIndex
