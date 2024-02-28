@@ -198,6 +198,7 @@ class Network:
         "max_msg_size_bytes",
         "snp_security_policy_file",
         "snp_uvm_endorsements_file",
+        "subject_name",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
