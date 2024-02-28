@@ -654,8 +654,7 @@ AppendEntries(i, j) ==
     /\ leadershipState[i] = Leader
     \* No messages to itself 
     /\ i /= j
-    /\ j \in Servers
-    \* /\ j \in GetServerSet(i)
+    /\ j \in GetServerSet(i)
     \* AppendEntries must be sent for historical entries, unless
     \* snapshots are used. Whether the node is in configuration at
     \* that index makes no difference.
@@ -681,9 +680,6 @@ AppendEntries(i, j) ==
        IN
        /\ \E b \in AppendEntriesBatchsize(i, j):
             LET m == msg(b) IN
-            \* TODO: Pending https://github.com/microsoft/CCF/pull/5978
-            \* This condition is too strict compared to the implementation in the current change:
-            \* AEs should be produced until the node observed RetirementCommitted committed 
             /\ \/ membershipState[i] # RetirementCompleted
                \/ m.entries # <<>>
             /\ Send(m)
