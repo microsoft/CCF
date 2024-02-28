@@ -4,7 +4,7 @@ Consensus Protocol
 The consensus protocol for CCF is Crash Fault Tolerance (:term:`CFT`) and is based on `Raft <https://raft.github.io/>`_. The key differences between the original Raft protocol (as described in the `Raft paper <https://raft.github.io/raft.pdf>`_), and CCF Raft are as follows:
 
 * Transactions in CCF Raft are not considered to be committed until a subsequent signed transaction has been committed. More information can be found :doc:`here </architecture/merkle_tree>`. Transactions in the ledger before the last signed transactions are discarded during leader election.
-* By default, CCF supports one-phase reconfiguration and you can find more information :doc:`here <1tx-reconfig>`. Note that CCF Raft does not support node restart as the unique identity of each node is tied to the node process launch. If a node fails and is replaced, it must rejoin Raft via reconfiguration.
+* CCF Raft does not support node restart as the unique identity of each node is tied to the node process launch. If a node fails and is replaced, it must rejoin Raft via reconfiguration.
 * In CCF Raft, clients receive an early response with a :term:`Transaction ID` (view and sequence number) before the transaction has been replicated to Raft's ledger. The client can later use this transaction ID to verify that the transaction has been committed by Raft.
 * CCF Raft uses an additional mechanism so a newly elected leader can more efficiently determine the current state of a follower's ledger when the two ledgers have diverged. This enables the leader to bring the follower up to date more quickly. CCF Raft also batches appendEntries messages.
 
@@ -31,7 +31,7 @@ Replica State Machine
 Membership
 ~~~~~~~~~~
 
-Any node of the network is always in one of four membership states. The dotted arrows in the
+Any node of the network is always in one of two membership states. The dotted arrows in the
 state diagram indicate a transition on rollback:
 
 .. mermaid::
@@ -67,7 +67,7 @@ Reconfiguration of the network is controlled via updates to the :ref:`audit/buil
 Reconfiguration
 ~~~~~~~~~~~~~~~
 
-This discusses changes to the original Raft implementation that are not trivial. For more information on Raft please see the original `Raft paper <https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf>`_.
+This discusses changes to the original Raft implementation that are not trivial. For more information on Raft please see the original `paper <https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf>`_.
 
 From a ledger and KV store perspective, reconfiguration is materialised in two separate transactions:
 
@@ -161,14 +161,13 @@ The following sample illustrates replacing the node in a one-node network:
 
         Note over Node 0: Step down as leader
 
-In the single node example above, the old leader Node 0 could remove itself from the network without consequences upon realizing that its retirement has been committed.
-For larger networks however, the leader could not do that as it would lead to situations where other nodes would not know of the commit of the reconfiguration as the leader immediately left the network upon observing this change.
-In that case, followers of the old configuration may trigger timeouts that are unnecessary and potentially dangerous for the liveness of the system if they each leave the network upon noticing that the new configuration is committed.
+In the single node example above, it may be tempting to think that Node 0 can remove itself from the network upon realizing that its retirement has been committed.
+However, this will lead to a situation where other nodes would not know the reconfiguration has been committed, and would be trying to establish commit on the reconfiguration transaction that necessitates a quorum of the old nodes.
+Until every future primary is aware of the commit of the reconfiguration transaction, shutting down a quorum of the old configuration puts liveness at risk.
 
-Instead, upon retiring from a network, retired leaders continue to advance the commit index and will also vote in next elections to help one of the nodes in the new configuration become elected.
-The leader in the old configuration will not however accept any new entries into the log. 
+To avoid this problem, upon retiring from a network, retired nodes will continue to vote in elections, and retired leaders will continue to advance commit. They will not however accept any new entries into the log. 
 
-The old leader can leave the network or be taken offline from the network once any node in the new configuration is elected and makes progress. As a convenience to the operator, the :http:GET:`/node/network/removable_nodes` exposes a list of nodes who are no longer useful to consensus, and whose KV entry can be deleted.
+Retired nodes can leave the network or be taken offline from the network once any node in the new configuration is elected and makes progress. As a convenience to the operator, the :http:GET:`/node/network/removable_nodes` exposes a list of nodes who are no longer useful to consensus, and whose KV entry can be deleted.
 
 For crash fault tolerance, this means the following: Before the reconfiguration the network could suffer f_C0 failures. After the reconfiguration, the network can suffer f_C1 failures. During the reconfiguration, the network can only suffer a maximum of f_C0 failures in the old **and** f_C1 failures in the new configuration as a failure in either configuration is unacceptable. This transitive period where the system relies on both configurations ends once the new configuration's leader's commit index surpasses the commit that included the reconfiguration as described above.
 
