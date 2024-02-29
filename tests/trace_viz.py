@@ -14,7 +14,13 @@ LEADERSHIP_STATUS = {
 
 MEMBERSHIP_STATUS = {"Active": "A", "Retired": "R"}
 
-RETIREMENT_PHASE = {"Ordered": "o", "Signed": "s", "Completed": "c", None: " "}
+RETIREMENT_PHASE = {
+    "Ordered": "o",
+    "Signed": "s",
+    "Completed": "c",
+    "RetiredCommitted": "C",
+    None: " ",
+}
 
 FUNCTIONS = {
     "add_configuration": "Cfg",
@@ -120,9 +126,10 @@ def table(lines):
                 tag = "Y" if entry["msg"]["packet"]["vote_granted"] else "N"
         if entry["msg"].get("globally_committable"):
             tag = "S"
-        # Display commit index changes on the Cmt line itself
-        if "args" in entry["msg"] and "commit_idx" in entry["msg"]["args"]:
-            entry["msg"]["state"]["commit_idx"] = entry["msg"]["args"]["commit_idx"]
+        # Display commit index changes on the Cmt line itself by updating the
+        # state with the argument passed to commit
+        if "args" in entry["msg"] and "idx" in entry["msg"]["args"]:
+            entry["msg"]["state"]["commit_idx"] = entry["msg"]["args"]["idx"]
         states = [
             (
                 node_to_state.get(node),
