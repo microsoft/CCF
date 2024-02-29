@@ -513,8 +513,8 @@ RetirementIndex(i) ==
 
 IsRetiredCommittedLog(log_i, commit_index_i, i) ==
     \E idx \in 1..commit_index_i:
-        /\ log[i][idx].contentType = TypeRetired
-        /\ i \in log[i][idx].retired
+        /\ log_i[idx].contentType = TypeRetired
+        /\ i \in log_i[idx].retired
 
 IsRetiredCommitted(i) ==
     IsRetiredCommittedLog(log[i],commitIndex[i],i)
