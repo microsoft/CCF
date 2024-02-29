@@ -432,7 +432,8 @@ IsRcvProposeVoteRequest ==
        IN \E m \in Network!MessagesTo(i, j):
             /\ m.type = ProposeVoteRequest
             /\ m.term = logline.msg.packet.term
-            /\ UNCHANGED vars
+            /\ Discard(m)
+            /\ UNCHANGED <<commitIndex, configurations, currentTerm, isNewFollower, leadershipState, log, matchIndex, membershipState, removedFromConfiguration, sentIndex, votedFor, votesGranted>>
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]

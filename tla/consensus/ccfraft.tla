@@ -644,7 +644,8 @@ RequestVote(i,j) ==
     \* Only requests vote if we are already a candidate (and therefore have not completed retirement)
     /\ leadershipState[i] = Candidate
     \* Reconfiguration: Make sure j is in a configuration of i
-    /\ IsInServerSet(j, i)
+    /\ \/ IsInServerSet(j, i)
+       \/ j \in removedFromConfiguration \* TODO: narrow this down to removed nodes that aren't yet retired committed
     /\ Send(msg)
     /\ UNCHANGED <<reconfigurationVars, serverVars, votesGranted, leaderVars, logVars>>
 
@@ -654,7 +655,8 @@ AppendEntries(i, j) ==
     /\ leadershipState[i] = Leader
     \* No messages to itself 
     /\ i /= j
-    /\ j \in GetServerSet(i)
+    /\ \/ j \in GetServerSet(i)
+       \/ j \in removedFromConfiguration \* TODO: narrow this down to removed nodes that aren't yet retired committed
     \* AppendEntries must be sent for historical entries, unless
     \* snapshots are used. Whether the node is in configuration at
     \* that index makes no difference.
