@@ -612,8 +612,8 @@ Init ==
 
 \* Server i times out and starts a new election.
 Timeout(i) ==
-    \* Only servers that haven't completed retirement can become candidates
-    /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned}
+    \* Only servers that haven't committed knowledge of their retirement can become candidates
+    /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
     \* Only servers that are followers/candidates can become candidates
     /\ leadershipState[i] \in {Follower, Candidate}
     \* Check that the reconfiguration which added this node is at least committable
@@ -856,18 +856,15 @@ AdvanceCommitIndex(i) ==
                                             LAMBDA c : c >= LastConfigurationToIndex(i, highestCommittableIndex))
               IN
               /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
-              \* Retire if i is not in active configuration anymore
-              /\ IF i \notin configurations[i][Min(DOMAIN configurations'[i])]
-                 THEN \E j \in PlausibleSucessorNodes(i) :
-                    /\ LET msg == [type          |-> ProposeVoteRequest,
-                                    term          |-> currentTerm[i],
-                                    source        |-> i,
-                                    dest          |-> j ]
+            ELSE UNCHANGED <<reconfigurationVars>>
+        /\ IF membershipState'[i] = RetiredCommitted
+            THEN \E j \in PlausibleSucessorNodes(i) :
+                    /\ LET msg == [type        |-> ProposeVoteRequest,
+                                   term        |-> currentTerm[i],
+                                   source      |-> i,
+                                   dest        |-> j ]
                         IN Send(msg)
-                 \* Otherwise, states remain unchanged
-                 ELSE UNCHANGED <<messages>>
-           \* Otherwise, Configuration and states remain unchanged
-           ELSE UNCHANGED <<messages, reconfigurationVars>>
+            ELSE UNCHANGED <<messages>>
     /\ UNCHANGED <<candidateVars, leaderVars, removedFromConfiguration, log, currentTerm, votedFor, isNewFollower>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
