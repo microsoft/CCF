@@ -645,7 +645,9 @@ RequestVote(i,j) ==
     /\ leadershipState[i] = Candidate
     \* Reconfiguration: Make sure j is in a configuration of i
     /\ \/ IsInServerSet(j, i)
-       \/ j \in removedFromConfiguration \* TODO: narrow this down to removed nodes that aren't yet retired committed
+    \* Or that it is a freshly, but not terminally retired node
+       \/ /\ j \in removedFromConfiguration
+          /\ CalcMembershipState(log[i], commitIndex[i], j) # RetiredCommitted
     /\ Send(msg)
     /\ UNCHANGED <<reconfigurationVars, serverVars, votesGranted, leaderVars, logVars>>
 
@@ -656,7 +658,8 @@ AppendEntries(i, j) ==
     \* No messages to itself 
     /\ i /= j
     /\ \/ j \in GetServerSet(i)
-       \/ j \in removedFromConfiguration \* TODO: narrow this down to removed nodes that aren't yet retired committed
+       \/ /\ j \in removedFromConfiguration
+          /\ CalcMembershipState(log[i], commitIndex[i], j) # RetiredCommitted
     \* AppendEntries must be sent for historical entries, unless
     \* snapshots are used. Whether the node is in configuration at
     \* that index makes no difference.
@@ -1154,9 +1157,7 @@ DropIgnoredMessage(i,j,m) ==
        \*  OR if recipient has completed retirement and this is not a request to vote or append entries request
        \* This spec requires that a retired node still helps with voting and appending entries to ensure 
        \* the next configurations learns that its retirement has been committed.
-       \* TODO: the spec diverges from implementation here, in the implementation is seems that a 
-       \* node stops helping with append entries (sends NACKs) if they pass its retirement_committable_idx
-       \/ /\ membershipState[i] = RetirementCompleted
+       \/ /\ membershipState[i] = RetiredCommitted
           /\ m.type \notin {RequestVoteRequest, AppendEntriesRequest}
     /\ Discard(m)
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, leaderVars, logVars>>
