@@ -862,7 +862,8 @@ AdvanceCommitIndex(i) ==
               IN
               /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
             ELSE UNCHANGED <<reconfigurationVars>>
-        /\ IF membershipState'[i] = RetiredCommitted
+        /\ IF /\ membershipState[i] = RetirementCompleted
+              /\ membershipState'[i] = RetiredCommitted
             THEN \E j \in PlausibleSucessorNodes(i) :
                     /\ LET msg == [type        |-> ProposeVoteRequest,
                                    term        |-> currentTerm[i],
