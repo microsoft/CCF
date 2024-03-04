@@ -1251,7 +1251,8 @@ NextInt(i) ==
     \/ ChangeConfiguration(i)
     \/ AppendRetiredCommitted(i)
     \/ AdvanceCommitIndex(i)
-    \/ CheckQuorum(i)
+\* Experimenting with turning off CheckQuorum to confirm performance impact
+\*    \/ CheckQuorum(i)
     \/ \E j \in Servers : RequestVote(i, j)
     \/ \E j \in Servers : AppendEntries(i, j)
     \/ \E j \in Servers : Receive(i, j)
