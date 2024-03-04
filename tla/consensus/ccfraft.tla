@@ -608,10 +608,8 @@ Init ==
     /\ InitLeaderVars
 
 ------------------------------------------------------------------------------
-\* Define state transitions
 
-\* Server i times out and starts a new election.
-Timeout(i) ==
+BecomeCandidate(i) ==
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned}
     \* Only servers that are followers/candidates can become candidates
@@ -625,7 +623,15 @@ Timeout(i) ==
     \* Candidate votes for itself
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
-    /\ UNCHANGED <<reconfigurationVars, messageVars, leaderVars, logVars, membershipState, isNewFollower>>
+    /\ UNCHANGED <<reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
+
+\* Define state transitions
+
+\* Server i times out (becomes candidate) and votes for itself in the election of the next term
+\* At some point later (non-deterministically), the candidate will request votes from the other nodes.
+Timeout(i) ==
+    /\ BecomeCandidate(i)
+    /\ UNCHANGED messageVars
 
 \* Candidate i sends j a RequestVote request.
 RequestVote(i,j) ==
@@ -1216,7 +1222,7 @@ RcvProposeVoteRequest(i, j) ==
         /\ j = m.source
         /\ m.type = ProposeVoteRequest
         /\ m.term = currentTerm[i]
-        /\ Timeout(m.dest)
+        /\ BecomeCandidate(m.dest)
         /\ Discard(m)
 
 \* Node i receives a message from node j.
