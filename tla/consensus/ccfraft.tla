@@ -67,11 +67,11 @@ CONSTANTS
     \* Node retirement has been committed and it is no longer part of the network
     \* If this node was a leader, it will step down. It will not run for election again.
     \* This node will continue to respond to AppendEntries and RequestVote messages
-    \* RetirementCompleted is a terminal state
     RetirementCompleted,
     \* Node's retirement is committed and all future leaders will be aware that the node's
     \* retirement is committed. The node can stop helping the CCF service and can be safely
     \* shut down by the operator.
+    \* Terminal state, see MembershipStateTransitionsProp
     RetiredCommitted
 
 MembershipStates == {
