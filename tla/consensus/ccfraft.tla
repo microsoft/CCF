@@ -766,10 +766,10 @@ ChangeConfigurationInt(i, newConfiguration) ==
     /\ leadershipState[i] = Leader
     \* Configuration is not equal to the previous configuration.
     /\ newConfiguration /= MaxConfiguration(i)
-    \* CCF's integrity demands that a previously removed server cannot rejoin the network,
-    \* i.e., be re-added to a new configuration.  Instead, the node has to rejoin with a
-    \* "fresh" identity (compare sec 6.2, page 8, https://arxiv.org/abs/2310.11559).
-    /\ \A s \in newConfiguration: s \notin removedFromConfiguration
+    \* Nodes can only join a network once in CCF. This is enforced through the pre-consensus
+    \* join protocol that verifies the attestation of the joining node. The state machine of
+    \* the joining node never allows joining more than once.
+    /\ \A s \in (newConfiguration \ CurrentConfiguration(i)): leadershipState[s] = None
     \* See raft.h:2401, nodes are only sent future entries initially, they will NACK if necessary.
     \* This is because they are expected to start from a fairly recent snapshot, not from scratch.
     \* Note that the sentIndex is set to the log entry *before* the reconfiguration was added
