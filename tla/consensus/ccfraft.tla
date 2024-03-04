@@ -769,13 +769,13 @@ ChangeConfigurationInt(i, newConfiguration) ==
     \* Nodes can only join a network once in CCF. This is enforced through the pre-consensus
     \* join protocol that verifies the attestation of the joining node. The state machine of
     \* the joining node never allows joining more than once.
-    /\ \A s \in (newConfiguration \ CurrentConfiguration(i)): leadershipState[s] = None
+    /\ \A s \in (newConfiguration \ MaxConfiguration(i)): leadershipState[s] = None
     \* See raft.h:2401, nodes are only sent future entries initially, they will NACK if necessary.
     \* This is because they are expected to start from a fairly recent snapshot, not from scratch.
     \* Note that the sentIndex is set to the log entry *before* the reconfiguration was added
     \* This is to allow the send AE action to send an initial heartbeat which matches the implementation
     /\ LET
-        addedNodes == newConfiguration \ CurrentConfiguration(i)
+        addedNodes == newConfiguration \ MaxConfiguration(i)
         newSentIndex == [ k \in Servers |-> IF k \in addedNodes THEN Len(log[i]) ELSE sentIndex[i][k]]
        IN sentIndex' = [sentIndex EXCEPT ![i] = newSentIndex]
     /\ removedFromConfiguration' = removedFromConfiguration \cup (MaxConfiguration(i) \ newConfiguration)
