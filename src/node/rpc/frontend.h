@@ -213,7 +213,7 @@ namespace ccf
             role_it == resolver.target.end() || role_it.value() == "primary";
           if (!primary)
           {
-            // TODO: Error?
+            return std::nullopt;
           }
 
           const auto interface_it = resolver.target.find("interface");
@@ -225,7 +225,7 @@ namespace ccf
           const auto primary_id = consensus->primary();
           if (!primary_id.has_value())
           {
-            // TODO: Error!
+            return std::nullopt;
           }
 
           const auto nodes = InternalTablesAccess::get_trusted_nodes(tx);
@@ -242,7 +242,7 @@ namespace ccf
           }
           else
           {
-            // TODO: Bad internal error!?
+            return std::nullopt;
           }
           break;
         }
