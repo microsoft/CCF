@@ -80,6 +80,7 @@ MCSend(msg) ==
         /\ n.dest = msg.dest
         /\ n.source = msg.source
         /\ n.term = msg.term
+        /\ n.type = AppendEntriesRequest
     \* b) No (corresponding) AppendEntries response from j to i.
     /\ ~ \E n \in Network!Messages:
         /\ n.dest = msg.source
@@ -112,7 +113,7 @@ mc_spec ==
 Symmetry == Permutations(Servers)
 
 \* Include all variables in the view, which is similar to defining no view.
-View == << reconfigurationVars, <<messages>>, serverVars, candidateVars, leaderVars, logVars >>
+View == << reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, logVars >>
 
 ----
 
