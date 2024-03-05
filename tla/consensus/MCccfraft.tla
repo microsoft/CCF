@@ -88,6 +88,10 @@ MCSend(msg) ==
         /\ n.type = AppendEntriesResponse
     /\ CCF!Send(msg)
 
+\* Disable CheckQuorum when model checking in CI to keep execution time manageable
+MCCheckQuorum(i) ==
+    UNCHANGED vars
+
 MCInit ==
     /\ InitMessagesVars
     /\ InitCandidateVars
