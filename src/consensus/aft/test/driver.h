@@ -14,7 +14,14 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#define RAFT_DRIVER_OUT std::cout << "<RaftDriver>"
+#ifdef CCF_RAFT_TRACING
+#  define RAFT_DRIVER_PRINT(...) \
+    std::cout << "<RaftDriver>  " << fmt::format(__VA_ARGS__) \
+              << fmt::format(" (ts={})", logger::logical_clock) << std::endl;
+#else
+#  define RAFT_DRIVER_PRINT(...) \
+    std::cout << "<RaftDriver>  " << fmt::format(__VA_ARGS__) << std::endl;
+#endif
 
 std::string stringify(const std::vector<uint8_t>& v, size_t max_size = 15ul)
 {
@@ -43,22 +50,19 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
     kv::Term term,
     kv::Version index) override
   {
-    RAFT_DRIVER_OUT << fmt::format(
-                         "  {}->>{}: [ledger] appending: {}.{}={}",
-                         _id,
-                         _id,
-                         term,
-                         index,
-                         stringify(data))
-                    << std::endl;
+    RAFT_DRIVER_PRINT(
+      "{}->>{}: [ledger] appending: {}.{}={}",
+      _id,
+      _id,
+      term,
+      index,
+      stringify(data));
     aft::LedgerStubProxy::put_entry(data, globally_committable, term, index);
   }
 
   void truncate(aft::Index idx) override
   {
-    RAFT_DRIVER_OUT << fmt::format(
-                         "  {}->>{}: [ledger] truncating to {}", _id, _id, idx)
-                    << std::endl;
+    RAFT_DRIVER_PRINT("{}->>{}: [ledger] truncating to {}", _id, _id, idx);
     aft::LedgerStubProxy::truncate(idx);
   }
 };
@@ -69,30 +73,25 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
 
   void compact(aft::Index idx) override
   {
-    RAFT_DRIVER_OUT << fmt::format(
-                         "  {}->>{}: [KV] compacting to {}", _id, _id, idx)
-                    << std::endl;
+    RAFT_DRIVER_PRINT("{}->>{}: [KV] compacting to {}", _id, _id, idx);
     aft::LoggingStubStoreConfig::compact(idx);
   }
 
   void rollback(const kv::TxID& tx_id, aft::Term t) override
   {
-    RAFT_DRIVER_OUT << fmt::format(
-                         "  {}->>{}: [KV] rolling back to {}.{}, in term {}",
-                         _id,
-                         _id,
-                         tx_id.term,
-                         tx_id.version,
-                         t)
-                    << std::endl;
+    RAFT_DRIVER_PRINT(
+      "{}->>{}: [KV] rolling back to {}.{}, in term {}",
+      _id,
+      _id,
+      tx_id.term,
+      tx_id.version,
+      t);
     aft::LoggingStubStoreConfig::rollback(tx_id, t);
   }
 
   void initialise_term(aft::Term t) override
   {
-    RAFT_DRIVER_OUT << fmt::format(
-                         "  {}->>{}: [KV] initialising in term {}", _id, _id, t)
-                    << std::endl;
+    RAFT_DRIVER_PRINT("{}->>{}: [KV] initialising in term {}", _id, _id, t);
     aft::LoggingStubStoreConfig::initialise_term(t);
   }
 };
@@ -124,33 +123,39 @@ private:
     std::vector<uint8_t> data,
     const size_t lineno,
     bool committable = false,
-    const std::optional<kv::Configuration::Nodes>& configuration = std::nullopt)
+    const std::optional<kv::Configuration::Nodes>& configuration = std::nullopt,
+    const std::optional<kv::Configuration::Nodes>& retired_committed =
+      std::nullopt)
   {
     const auto opt = find_primary_in_term(term_s, lineno);
     if (!opt.has_value())
     {
-      RAFT_DRIVER_OUT << fmt::format(
-                           "  Note left of {}: No primary to replicate {}",
-                           _nodes.begin()->first,
-                           stringify(data))
-                      << std::endl;
+      RAFT_DRIVER_PRINT(
+        "Note left of {}: No primary to replicate {}",
+        _nodes.begin()->first,
+        stringify(data));
       return;
     }
     const auto& [term, node_id] = *opt;
     auto& raft = _nodes.at(node_id).raft;
     const auto idx = raft->get_last_idx() + 1;
-    RAFT_DRIVER_OUT << fmt::format(
-                         "  {}->>{}: replicate {}.{} = {} [{}]",
-                         node_id,
-                         node_id,
-                         term_s,
-                         idx,
-                         stringify(data),
-                         configuration.has_value() ? "reconfiguration" : "raw")
-                    << std::endl;
+    RAFT_DRIVER_PRINT(
+      "{}->>{}: replicate {}.{} = {} [{}]",
+      node_id,
+      node_id,
+      term_s,
+      idx,
+      stringify(data),
+      configuration.has_value() ? "reconfiguration" : "raw");
 
     aft::ReplicatedDataType type = aft::ReplicatedDataType::raw;
     auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    if (configuration.has_value() && retired_committed.has_value())
+    {
+      throw std::logic_error(
+        "Cannot replicate both configuration and retired_committed in the same "
+        "entry");
+    }
     if (configuration.has_value())
     {
       auto hook = std::make_unique<aft::ConfigurationChangeHook>(
@@ -160,7 +165,19 @@ private:
       auto c = nlohmann::json(configuration).dump();
 
       // If the entry is a reconfiguration, the replicated data is overwritten
-      // with the serialised configuration
+      // with the serialised configuration.
+      data = std::vector<uint8_t>(c.begin(), c.end());
+    }
+    if (retired_committed.has_value())
+    {
+      // Update the node's own retired committed entries collection when
+      // replicating There is no direct equivalent in a real node, but this is
+      // necessary to emulate the global commit hook effectively.
+      _nodes.at(node_id).kv->retired_committed_entries.emplace_back(
+        idx, retired_committed.value());
+
+      type = aft::ReplicatedDataType::retired_committed;
+      auto c = nlohmann::json(retired_committed).dump();
       data = std::vector<uint8_t>(c.begin(), c.end());
     }
 
@@ -180,6 +197,10 @@ private:
       std::make_shared<aft::ChannelStubProxy>(),
       std::make_shared<aft::State>(node_id),
       nullptr);
+    kv->set_set_retired_committed_hook(
+      [raft](aft::Index idx, const std::vector<kv::NodeId>& node_ids) {
+        raft->set_retired_committed(idx, node_ids);
+      });
     raft->start_ticking();
 
     if (_nodes.find(node_id) != _nodes.end())
@@ -193,9 +214,10 @@ private:
 public:
   RaftDriver() = default;
 
+  // Note: deprecated, to be removed when the last scenario using it is removed
   void create_new_nodes(std::vector<std::string> node_ids)
   {
-    // Opinionated way to create network. Initial configuration is automatically
+    // Unrealistic way to create network. Initial configuration is automatically
     // added to all nodes.
     kv::Configuration::Nodes configuration;
     for (auto const& n : node_ids)
@@ -210,15 +232,15 @@ public:
     }
   }
 
+  // Note: deprecated, to be removed when the last scenario using it is removed
   void create_new_node(std::string node_id_s)
   {
     ccf::NodeId node_id(node_id_s);
     add_node(node_id);
-    RAFT_DRIVER_OUT << fmt::format(
-                         "  Note over {}: Node {} created", node_id, node_id)
-                    << std::endl;
+    RAFT_DRIVER_PRINT("Note over {}: Node {} created", node_id, node_id);
   }
 
+  // Note: deprecated, to be removed when the last scenario using it is removed
   void create_start_node(const std::string& start_node_id, const size_t lineno)
   {
     if (!_nodes.empty())
@@ -230,11 +252,28 @@ public:
     configuration.try_emplace(start_node_id);
     _nodes[start_node_id].raft->force_become_primary();
     _replicate("2", {}, lineno, false, configuration);
-    RAFT_DRIVER_OUT << fmt::format(
-                         "  Note over {}: Node {} created",
-                         start_node_id,
-                         start_node_id)
-                    << std::endl;
+    RAFT_DRIVER_PRINT(
+      "Note over {}: Node {} created",
+      ccf::NodeId(start_node_id),
+      start_node_id);
+  }
+
+  void cleanup_nodes(
+    const std::string& term,
+    const std::vector<std::string>& node_ids,
+    const size_t lineno)
+  {
+    kv::Configuration::Nodes retired_committed;
+    for (const auto& id : node_ids)
+    {
+      if (_nodes.find(id) == _nodes.end())
+      {
+        throw std::runtime_error(fmt::format(
+          "Attempted to clean up unknown node {} on line {}", id, lineno));
+      }
+      retired_committed.try_emplace(id);
+    }
+    _replicate(term, {}, lineno, false, std::nullopt, retired_committed);
   }
 
   void trust_nodes(
@@ -245,9 +284,8 @@ public:
     for (const auto& node_id : node_ids)
     {
       add_node(node_id);
-      RAFT_DRIVER_OUT << fmt::format(
-                           "  Note over {}: Node {} created", node_id, node_id)
-                      << std::endl;
+      RAFT_DRIVER_PRINT(
+        "Note over {}: Node {} trusted", ccf::NodeId(node_id), node_id);
     }
     kv::Configuration::Nodes configuration;
     for (const auto& [id, node] : _nodes)
@@ -267,6 +305,47 @@ public:
     _replicate(term, {}, lineno, false, configuration);
   }
 
+  void swap_nodes(
+    const std::string& term,
+    const std::vector<std::string>& nodes_out,
+    const std::vector<std::string>& nodes_in,
+    const size_t lineno)
+  {
+    for (auto node_in : nodes_in)
+    {
+      add_node(node_in);
+      RAFT_DRIVER_PRINT(
+        "Note over {}: Node {} trusted", ccf::NodeId(node_in), node_in);
+    }
+    for (auto node_out : nodes_out)
+    {
+      RAFT_DRIVER_PRINT(
+        "Note over {}: Node {} retired", ccf::NodeId(node_out), node_out);
+    }
+    std::set<std::string> out(nodes_out.begin(), nodes_out.end());
+
+    kv::Configuration::Nodes configuration;
+    for (const auto& [id, node] : _nodes)
+    {
+      if (out.find(id) == out.end())
+      {
+        configuration.try_emplace(id);
+      }
+    }
+    for (const auto& [id, node] : _nodes)
+    {
+      for (auto& node_in : nodes_in)
+      {
+        if (id != node_in)
+        {
+          connect(id, node_in);
+        }
+      }
+    }
+    _replicate(term, {}, lineno, false, configuration);
+  }
+
+  // Note: deprecated, to be removed when the last scenario using it is removed
   void replicate_new_configuration(
     const std::string& term_s,
     std::vector<std::string> node_ids,
@@ -294,8 +373,8 @@ public:
     const std::string& message,
     bool dropped = false)
   {
-    RAFT_DRIVER_OUT << "  " << first << "-" << (dropped ? "X" : ">>") << second
-                    << ": " << message << std::endl;
+    RAFT_DRIVER_PRINT(
+      "{}-{}{}: {}", first, (dropped ? "X" : ">>"), second, message);
   }
 
   void rlog(
@@ -304,8 +383,8 @@ public:
     const std::string& message,
     bool dropped = false)
   {
-    RAFT_DRIVER_OUT << "  " << first << "--" << (dropped ? "X" : ">>") << second
-                    << ": " << message << std::endl;
+    RAFT_DRIVER_PRINT(
+      "{}--{}{}: {}", first, (dropped ? "X" : ">>"), second, message);
   }
 
   void log_msg_details(
@@ -399,36 +478,43 @@ public:
     const uint8_t* data = contents.data();
     size_t size = contents.size();
 
+    nlohmann::json packet;
+
     const auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
     switch (msg_type)
     {
       case (aft::RaftMsgType::raft_request_vote):
       {
         auto rv = *(aft::RequestVote*)data;
+        packet = rv;
         log_msg_details(node_id, tgt_node_id, rv, dropped);
         break;
       }
       case (aft::RaftMsgType::raft_request_vote_response):
       {
         auto rvr = *(aft::RequestVoteResponse*)data;
+        packet = rvr;
         log_msg_details(node_id, tgt_node_id, rvr, dropped);
         break;
       }
       case (aft::RaftMsgType::raft_append_entries):
       {
         auto ae = *(aft::AppendEntries*)data;
+        packet = ae;
         log_msg_details(node_id, tgt_node_id, ae, dropped);
         break;
       }
       case (aft::RaftMsgType::raft_append_entries_response):
       {
         auto aer = *(aft::AppendEntriesResponse*)data;
+        packet = aer;
         log_msg_details(node_id, tgt_node_id, aer, dropped);
         break;
       }
       case (aft::RaftMsgType::raft_propose_request_vote):
       {
         auto prv = *(aft::ProposeRequestVote*)data;
+        packet = prv;
         log_msg_details(node_id, tgt_node_id, prv, dropped);
         break;
       }
@@ -438,12 +524,28 @@ public:
           fmt::format("Unhandled RaftMsgType: {}", msg_type));
       }
     }
+
+#ifdef CCF_RAFT_TRACING
+    if (dropped)
+    {
+      nlohmann::json j = {};
+      j["function"] = "drop_pending_to";
+      j["from_node_id"] = node_id;
+      j["to_node_id"] = tgt_node_id;
+      // state is used by raft_scenarios_runner.py to identify indicate which
+      // node a log occurred on. Here we assign all dropped messages to the
+      // sender.
+      // Populate additional fields for trace_viz.py
+      j["state"] = _nodes.at(node_id).raft->get_state_representation();
+      j["packet"] = packet;
+      RAFT_TRACE_JSON_OUT(j);
+    }
+#endif
   }
 
   void connect(ccf::NodeId first, ccf::NodeId second)
   {
-    RAFT_DRIVER_OUT << "  " << first << "-->" << second << ": connect"
-                    << std::endl;
+    RAFT_DRIVER_PRINT("{}-->{}: connect", first, second);
     _connections.insert(std::make_pair(first, second));
     _connections.insert(std::make_pair(second, first));
   }
@@ -464,22 +566,119 @@ public:
     }
   }
 
+  std::string get_ledger_summary(TRaft& r)
+  {
+    std::vector<std::string> entries;
+    for (auto i = 1; i <= r.get_last_idx(); ++i)
+    {
+      const auto t = r.get_view(i);
+      auto s = fmt::format("{}.{}", t, i);
+      if (i == r.get_committed_seqno())
+      {
+        s = fmt::format("[{}]", s);
+      }
+      entries.push_back(s);
+    }
+    return fmt::format("{}", fmt::join(entries, ", "));
+  }
+
+  void summarise_log(ccf::NodeId node_id)
+  {
+    RAFT_DRIVER_PRINT(
+      "{}: {}", node_id, get_ledger_summary(*_nodes.at(node_id).raft));
+  }
+
+  void summarise_logs_all()
+  {
+    for (auto& [node_id, _] : _nodes)
+    {
+      summarise_log(node_id);
+    }
+  }
+
+  std::string get_message_summary(const std::vector<uint8_t>& contents)
+  {
+    const uint8_t* data = contents.data();
+    size_t size = contents.size();
+
+    const auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+    switch (msg_type)
+    {
+      case (aft::RaftMsgType::raft_request_vote):
+      {
+        return "RV";
+      }
+      case (aft::RaftMsgType::raft_request_vote_response):
+      {
+        return "RVR";
+      }
+      case (aft::RaftMsgType::raft_append_entries):
+      {
+        auto ae = *(aft::AppendEntries*)data;
+        return fmt::format(
+          "AE(t{}, ({}.{}, {}.{}])",
+          ae.term,
+          ae.prev_term,
+          ae.prev_idx,
+          ae.term_of_idx,
+          ae.idx);
+      }
+      case (aft::RaftMsgType::raft_append_entries_response):
+      {
+        auto aer = *(aft::AppendEntriesResponse*)data;
+        return fmt::format(
+          "AER({}, t{}, i{})",
+          aer.success == aft::AppendEntriesResponseType::OK ? "ACK" : "NACK",
+          aer.term,
+          aer.last_log_idx);
+      }
+      case (aft::RaftMsgType::raft_propose_request_vote):
+      {
+        return "PRV";
+      }
+      default:
+      {
+        throw std::runtime_error(
+          fmt::format("Unhandled RaftMsgType: {}", msg_type));
+      }
+    }
+  }
+
+  void summarise_messages(ccf::NodeId src, ccf::NodeId dst)
+  {
+    auto raft = _nodes.at(src).raft;
+    auto& messages = channel_stub_proxy(*raft)->messages;
+    std::vector<std::string> message_reps;
+    for (const auto& [target, raw_msg] : messages)
+    {
+      if (target == dst)
+      {
+        message_reps.push_back(get_message_summary(raw_msg));
+      }
+    }
+
+    RAFT_DRIVER_PRINT(
+      "Note right of {}: {} message(s) to {} = [{}]",
+      src,
+      message_reps.size(),
+      dst,
+      fmt::join(message_reps, ", "));
+  }
+
   void state_one(ccf::NodeId node_id)
   {
     auto raft = _nodes.at(node_id).raft;
-    RAFT_DRIVER_OUT
-      << fmt::format(
-           "  Note right of {}: leadership {} membership {} @{}.{} (committed "
-           "{})",
-           node_id,
-           raft->is_backup() ?
-             "F" :
-             (raft->is_candidate() ? "C" : (raft->is_primary() ? "P" : "?")),
-           raft->is_retired() ? "R" : "A",
-           raft->get_view(),
-           raft->get_last_idx(),
-           raft->get_committed_seqno())
-      << std::endl;
+    RAFT_DRIVER_PRINT(
+      "Note right of {}: leadership {} membership {} @{}.{} (committed "
+      "{})",
+      node_id,
+      raft->is_backup() ?
+        "F" :
+        (raft->is_candidate() ? "C" : (raft->is_primary() ? "P" : "?")),
+      raft->is_retired() ? "R" : "A",
+      raft->get_view(),
+      raft->get_last_idx(),
+      raft->get_committed_seqno());
   }
 
   void state_all()
@@ -508,6 +707,68 @@ public:
     }
   }
 
+  // Returns true if actually sent
+  bool dispatch_single_message(
+    ccf::NodeId src, ccf::NodeId dst, std::vector<uint8_t> contents)
+  {
+    if (_connections.find(std::make_pair(src, dst)) != _connections.end())
+    {
+      // If this is an AppendEntries, then append the corresponding entry from
+      // the sender's ledger
+      const uint8_t* data = contents.data();
+      auto size = contents.size();
+      auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
+      bool should_send = true;
+      if (msg_type == aft::raft_append_entries)
+      {
+        // Parse the indices to be sent to the recipient.
+        auto ae = *(aft::AppendEntries*)data;
+
+        auto& sender_raft = _nodes.at(src).raft;
+        const auto payload_opt =
+          sender_raft->ledger->get_append_entries_payload(ae);
+
+        if (!payload_opt.has_value())
+        {
+          // While trying to construct an AppendEntries, we asked for an
+          // entry that doesn't exist. This is a valid situation - we queued
+          // the AppendEntries, but rolled back before it was dispatched!
+          // We abandon this operation here.
+          // We could log this in Mermaid with the line below, but since
+          // this does not occur in a real node it is silently ignored. In a
+          // real node, the AppendEntries and truncate messages are ordered
+          // and processed by the host in that order. All AppendEntries
+          // referencing a specific index will be processed before any
+          // truncation that removes that index.
+          // RAFT_DRIVER_PRINT(
+          //        "Note right of {}: Abandoning AppendEntries"
+          //        "containing {} - no longer in ledger",
+          //        node_id,
+          //        idx);
+          should_send = false;
+        }
+        else
+        {
+          contents.insert(
+            contents.end(), payload_opt->begin(), payload_opt->end());
+        }
+      }
+
+      if (should_send)
+      {
+        log_msg_details(src, dst, contents);
+        _nodes.at(dst).raft->recv_message(
+          src, contents.data(), contents.size());
+        return true;
+      }
+    }
+
+    // Log that this message was dropped
+    log_msg_details(src, dst, contents, true);
+
+    return false;
+  }
+
   template <class Messages>
   size_t dispatch_one_queue(
     ccf::NodeId node_id,
@@ -521,60 +782,9 @@ public:
       auto [tgt_node_id, contents] = messages.front();
       messages.pop_front();
 
-      if (
-        _connections.find(std::make_pair(node_id, tgt_node_id)) !=
-        _connections.end())
+      if (dispatch_single_message(node_id, tgt_node_id, contents))
       {
-        // If this is an AppendEntries, then append the corresponding entry from
-        // the sender's ledger
-        const uint8_t* data = contents.data();
-        auto size = contents.size();
-        auto msg_type = serialized::peek<aft::RaftMsgType>(data, size);
-        bool should_send = true;
-        if (msg_type == aft::raft_append_entries)
-        {
-          // Parse the indices to be sent to the recipient.
-          auto ae = *(aft::AppendEntries*)data;
-
-          auto& sender_raft = _nodes.at(node_id).raft;
-          const auto payload_opt =
-            sender_raft->ledger->get_append_entries_payload(ae);
-
-          if (!payload_opt.has_value())
-          {
-            // While trying to construct an AppendEntries, we asked for an
-            // entry that doesn't exist. This is a valid situation - we queued
-            // the AppendEntries, but rolled back before it was dispatched!
-            // We abandon this operation here.
-            // We could log this in Mermaid with the line below, but since
-            // this does not occur in a real node it is silently ignored. In a
-            // real node, the AppendEntries and truncate messages are ordered
-            // and processed by the host in that order. All AppendEntries
-            // referencing a specific index will be processed before any
-            // truncation that removes that index.
-            // RAFT_DRIVER_OUT
-            //   << fmt::format(
-            //        "  Note right of {}: Abandoning AppendEntries"
-            //        "containing {} - no longer in ledger",
-            //        node_id,
-            //        idx)
-            //   << std::endl;
-            should_send = false;
-          }
-          else
-          {
-            contents.insert(
-              contents.end(), payload_opt->begin(), payload_opt->end());
-          }
-        }
-
-        if (should_send)
-        {
-          log_msg_details(node_id, tgt_node_id, contents);
-          _nodes.at(tgt_node_id)
-            .raft->recv_message(node_id, contents.data(), contents.size());
-          count++;
-        }
+        ++count;
       }
     }
 
@@ -625,8 +835,27 @@ public:
     }
   }
 
-  std::optional<std::pair<aft::Term, ccf::NodeId>> find_primary_in_term(
-    const std::string& term_s, const size_t lineno)
+  void dispatch_single(ccf::NodeId src, ccf::NodeId dst)
+  {
+    auto& messages = channel_stub_proxy(*_nodes.at(src).raft)->messages;
+    auto it = messages.begin();
+    while (it != messages.end())
+    {
+      auto [target, contents] = *it;
+      if (target == dst)
+      {
+        dispatch_single_message(src, dst, contents);
+        it = messages.erase(it);
+        break;
+      }
+      else
+      {
+        ++it;
+      }
+    }
+  }
+
+  std::vector<std::pair<aft::Term, ccf::NodeId>> find_primaries()
   {
     std::vector<std::pair<aft::Term, ccf::NodeId>> primaries;
     for (const auto& [node_id, node_driver] : _nodes)
@@ -636,6 +865,13 @@ public:
         primaries.emplace_back(node_driver.raft->get_view(), node_id);
       }
     }
+    return primaries;
+  }
+
+  std::optional<std::pair<aft::Term, ccf::NodeId>> find_primary_in_term(
+    const std::string& term_s, const size_t lineno)
+  {
+    auto primaries = find_primaries();
 
     if (term_s == "latest")
     {
@@ -663,10 +899,8 @@ public:
       }
     }
 
-    throw std::runtime_error(fmt::format(
-      "Found no primary in term {} on line {}",
-      term_s,
-      std::to_string((int)lineno)));
+    throw std::runtime_error(
+      fmt::format("Found no primary in term {} on line {}", term_s, lineno));
   }
 
   void replicate(
@@ -701,8 +935,7 @@ public:
     }
     if (!noop)
     {
-      RAFT_DRIVER_OUT << "  " << left << "-->" << right << ": disconnect"
-                      << std::endl;
+      RAFT_DRIVER_PRINT("{}-->{}: disconnect", left, right);
     }
   }
 
@@ -719,8 +952,7 @@ public:
 
   void reconnect(ccf::NodeId left, ccf::NodeId right)
   {
-    RAFT_DRIVER_OUT << "  " << left << "-->" << right << ": reconnect"
-                    << std::endl;
+    RAFT_DRIVER_PRINT("{}-->{}: reconnect", left, right);
     _connections.insert(std::make_pair(left, right));
     _connections.insert(std::make_pair(right, left));
   }
@@ -763,157 +995,44 @@ public:
     }
   }
 
-  void assert_is_backup(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_backup())
-    {
-      RAFT_DRIVER_OUT
-        << fmt::format(
-             "  Note over {}: Node is not in expected state: backup", node_id)
-        << std::endl;
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state backup on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
+  using Discrepancies = std::map<ccf::NodeId, std::vector<std::string>>;
 
-  void assert_isnot_backup(ccf::NodeId node_id, const size_t lineno)
+  Discrepancies check_state_sync(const std::map<ccf::NodeId, NodeDriver> nodes)
   {
-    if (_nodes.at(node_id).raft->is_backup())
-    {
-      RAFT_DRIVER_OUT
-        << fmt::format(
-             "  Note over {}: Node is in unexpected state: backup", node_id)
-        << std::endl;
-      throw std::runtime_error(fmt::format(
-        "Node in unexpected state backup on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
+    Discrepancies discrepancies;
 
-  void assert_is_primary(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_primary())
+    if (nodes.empty())
     {
-      RAFT_DRIVER_OUT
-        << fmt::format(
-             "  Note over {}: Node is not in expected state: primary", node_id)
-        << std::endl;
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state primary on line {}",
-        std::to_string((int)lineno)));
+      return discrepancies;
     }
-  }
 
-  void assert_isnot_primary(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (_nodes.at(node_id).raft->is_primary())
-    {
-      RAFT_DRIVER_OUT
-        << fmt::format(
-             "  Note over {}: Node is in unexpected state: primary", node_id)
-        << std::endl;
-      throw std::runtime_error(fmt::format(
-        "Node in unexpected state primary on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_candidate(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_candidate())
-    {
-      RAFT_DRIVER_OUT
-        << fmt::format(
-             "  Note over {}: Node is not in expected state: candidate",
-             node_id)
-        << std::endl;
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state candidate on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_isnot_candidate(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (_nodes.at(node_id).raft->is_candidate())
-    {
-      RAFT_DRIVER_OUT
-        << fmt::format(
-             "  Note over {}: Node is in unexpected state: candidate", node_id)
-        << std::endl;
-      throw std::runtime_error(fmt::format(
-        "Node in unexpected state candidate on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_retired(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_retired())
-    {
-      RAFT_DRIVER_OUT
-        << fmt::format(
-             "  Note over {}: Node is not in expected state: retired", node_id)
-        << std::endl;
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state retired on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_is_active(ccf::NodeId node_id, const size_t lineno)
-  {
-    if (!_nodes.at(node_id).raft->is_active())
-    {
-      RAFT_DRIVER_OUT
-        << fmt::format(
-             "  Note over {}: Node is not in expected state: active", node_id)
-        << std::endl;
-      throw std::runtime_error(fmt::format(
-        "Node not in expected state active on line {}",
-        std::to_string((int)lineno)));
-    }
-  }
-
-  void assert_state_sync(const size_t lineno)
-  {
-    auto [target_id, nd] = *_nodes.begin();
+    auto [target_id, nd] = *nodes.begin();
     auto& target_raft = nd.raft;
     const auto target_term = target_raft->get_view();
     const auto target_last_idx = target_raft->get_last_idx();
     const auto target_commit_idx = target_raft->get_committed_seqno();
 
-    bool all_match = true;
-    for (auto it = std::next(_nodes.begin()); it != _nodes.end(); ++it)
+    for (auto it = std::next(nodes.begin()); it != nodes.end(); ++it)
     {
       const auto& node_id = it->first;
       auto& raft = it->second.raft;
 
       if (raft->get_view() != target_term)
       {
-        RAFT_DRIVER_OUT
-          << fmt::format(
-               "  Note over {}: Term {} doesn't match term {} on {}",
-               node_id,
-               raft->get_view(),
-               target_term,
-               target_id)
-          << std::endl;
-        all_match = false;
+        discrepancies[node_id].push_back(fmt::format(
+          "Term {} doesn't match term {} on {}",
+          raft->get_view(),
+          target_term,
+          target_id));
       }
 
       if (raft->get_last_idx() != target_last_idx)
       {
-        RAFT_DRIVER_OUT << fmt::format(
-                             "  Note over {}: Last index {} doesn't match "
-                             "last index {} on {}",
-                             node_id,
-                             raft->get_last_idx(),
-                             target_last_idx,
-                             target_id)
-                        << std::endl;
-        all_match = false;
+        discrepancies[node_id].push_back(fmt::format(
+          "Last index {} doesn't match last index {} on {}",
+          raft->get_last_idx(),
+          target_last_idx,
+          target_id));
       }
       else
       {
@@ -923,11 +1042,8 @@ public:
           const auto target_entry = target_raft->ledger->get_entry_by_idx(idx);
           if (!target_entry.has_value())
           {
-            RAFT_DRIVER_OUT
-              << fmt::format(
-                   "  Note over {}: Missing ledger entry at {}", target_id, idx)
-              << std::endl;
-            all_match = false;
+            discrepancies[node_id].push_back(
+              fmt::format("Missing ledger entry at {}", idx));
             break;
           }
           else
@@ -935,25 +1051,18 @@ public:
             const auto entry = raft->ledger->get_entry_by_idx(idx);
             if (!entry.has_value())
             {
-              RAFT_DRIVER_OUT
-                << fmt::format(
-                     "  Note over {}: Missing ledger entry at {}", node_id, idx)
-                << std::endl;
-              all_match = false;
+              discrepancies[node_id].push_back(
+                fmt::format("Missing ledger entry at {}", idx));
               break;
             }
             else if (entry != target_entry)
             {
-              RAFT_DRIVER_OUT << fmt::format(
-                                   "  Note over {}: Entry at index {} "
-                                   "doesn't match entry on {}: {} != {}",
-                                   node_id,
-                                   idx,
-                                   target_id,
-                                   stringify(entry.value()),
-                                   stringify(target_entry.value()))
-                              << std::endl;
-              all_match = false;
+              discrepancies[node_id].push_back(fmt::format(
+                "Entry at index {} doesn't match entry on {}: {} != {}",
+                idx,
+                target_id,
+                stringify(entry.value()),
+                stringify(target_entry.value())));
               break;
             }
           }
@@ -962,22 +1071,109 @@ public:
 
       if (raft->get_committed_seqno() != target_commit_idx)
       {
-        RAFT_DRIVER_OUT << fmt::format(
-                             "  Note over {}: Commit index {} doesn't "
-                             "match commit index {} on {}",
-                             node_id,
-                             raft->get_committed_seqno(),
-                             target_commit_idx,
-                             target_id)
-                        << std::endl;
-        all_match = false;
+        discrepancies[node_id].push_back(fmt::format(
+          "Commit index {} doesn't match commit index {} on {}",
+          raft->get_committed_seqno(),
+          target_commit_idx,
+          target_id));
       }
     }
 
-    if (!all_match)
+    return discrepancies;
+  }
+
+  void print_discrepancies(const Discrepancies& discrepancies)
+  {
+    for (const auto& [node_id, reasons] : discrepancies)
     {
+      for (const auto& reason : reasons)
+      {
+        RAFT_DRIVER_PRINT("Note over {}: {}", node_id, reason);
+      }
+    }
+  }
+
+  void assert_state_sync(const size_t lineno)
+  {
+    const auto discrepancies = check_state_sync(_nodes);
+
+    if (!discrepancies.empty())
+    {
+      print_discrepancies(discrepancies);
+
       throw std::runtime_error(fmt::format(
         "States not in sync on line {}", std::to_string((int)lineno)));
+    }
+  }
+
+  void loop_until_sync(const size_t lineno)
+  {
+    std::pair<aft::Term, ccf::NodeId> term_primary;
+    {
+      // Find primary in highest term
+      auto primaries = find_primaries();
+
+      if (primaries.size() > 0)
+      {
+        std::sort(primaries.begin(), primaries.end());
+        term_primary = primaries.back();
+      }
+      else
+      {
+        // If no primary exists, try to create one? No such scenario, so far
+        throw std::runtime_error(
+          fmt::format("Can't currently loop until sync, no primary"));
+      }
+    }
+
+    const auto& [term, primary] = term_primary;
+
+    // Don't try to confirm sync with retired nodes
+    decltype(_nodes) nodes;
+    for (auto& [node_id, node_driver] : _nodes)
+    {
+      if (node_driver.raft->is_active())
+      {
+        nodes[node_id] = node_driver;
+      }
+      else
+      {
+        RAFT_DRIVER_PRINT(
+          "Note over {}: Ignoring from sync check, due to retirement", node_id);
+      }
+    }
+
+    // Emit a fresh signature on that primary (so that they can advance commit)
+    emit_signature(std::to_string(term), lineno);
+
+    // Reconnect all nodes
+    for (const auto& [node_id, _] : nodes)
+    {
+      reconnect_node(node_id);
+    }
+
+    // Loop, doing periodic and dispatch, until sync.
+    // Can make iterations higher if any scenario actually needs more
+    auto iterations = 0;
+    static constexpr auto max_iterations = 20;
+    while (true)
+    {
+      periodic_one(primary, ms(10));
+      dispatch_all();
+
+      auto discrepancies = check_state_sync(nodes);
+      if (discrepancies.empty())
+      {
+        break;
+      }
+
+      if (++iterations >= max_iterations)
+      {
+        print_discrepancies(discrepancies);
+
+        throw std::logic_error(fmt::format(
+          "Failed to reach state sync after {} loop iterations", iterations));
+      }
     }
   }
 
@@ -987,8 +1183,6 @@ public:
     // majority of nodes (ledger matches exactly up to and including this
     // seqno).
     // Similar to the QuorumLogInv invariant from the TLA spec.
-    // NB: This currently assumes a single configuration, as it checks a quorum
-    // of all nodes rather than within each configuration
     const auto& raft = _nodes.at(node_id).raft;
     const auto committed_seqno = raft->get_committed_seqno();
 
@@ -1009,33 +1203,62 @@ public:
     };
     const auto committed_prefix = get_ledger_prefix(node_id, committed_seqno);
 
-    auto is_present = [&](const auto& it) {
-      const auto& [id, _] = it;
-      return get_ledger_prefix(id, committed_seqno) == committed_prefix;
-    };
-
-    const auto present_count =
-      std::count_if(_nodes.begin(), _nodes.end(), is_present);
-
-    const auto quorum = (_nodes.size() / 2) + 1;
-    if (present_count < quorum)
+    std::map<ccf::NodeId, bool> present_on;
+    for (const auto& [node_id, _] : _nodes)
     {
-      RAFT_DRIVER_OUT << fmt::format(
-                           "  Note over {}: Node has advanced commit to {}, "
-                           "yet this entry is only present on {}/{} nodes "
-                           "(need at least {} for safety)",
-                           node_id,
-                           committed_seqno,
-                           present_count,
-                           _nodes.size(),
-                           quorum)
-                      << std::endl;
-      throw std::runtime_error(fmt::format(
-        "Node ({}) at unsafe commit idx ({}) on line {}",
-        node_id,
-        committed_seqno,
-        lineno));
+      present_on[node_id] =
+        get_ledger_prefix(node_id, committed_seqno) == committed_prefix;
     }
+
+    const auto details = raft->get_details();
+    for (const auto& configuration : details.configs)
+    {
+      if (configuration.idx <= committed_seqno)
+      {
+        const auto nodes = configuration.nodes;
+        const auto present_count = std::count_if(
+          nodes.begin(), nodes.end(), [&present_on](const auto& it) {
+            const auto& [id, _] = it;
+            return present_on[id];
+          });
+
+        const auto quorum = (nodes.size() / 2) + 1;
+        if (present_count < quorum)
+        {
+          RAFT_DRIVER_PRINT(
+            "Note over {}: Node has advanced commit to {},  yet this entry is "
+            "only present on {}/{} nodes (need at least {} for safety in "
+            "configuration {}, beginning at {})",
+            node_id,
+            committed_seqno,
+            present_count,
+            _nodes.size(),
+            quorum,
+            configuration.rid,
+            configuration.idx);
+          throw std::runtime_error(fmt::format(
+            "Node ({}) at unsafe commit idx ({}) on line {}",
+            node_id,
+            committed_seqno,
+            lineno));
+        }
+      }
+    }
+  }
+
+  void assert_commit_safety_all(const size_t lineno)
+  {
+    for (const auto& [node_id, _] : _nodes)
+    {
+      assert_commit_safety(node_id, lineno);
+    }
+  }
+
+  void assert_invariants(const size_t lineno)
+  {
+    // Check invariants:
+    // Assert commit_index on all nodes is safe
+    assert_commit_safety_all(lineno);
   }
 
   void assert_commit_idx(
@@ -1044,18 +1267,56 @@ public:
     auto idx = std::stol(idx_s);
     if (_nodes.at(node_id).raft->get_committed_seqno() != idx)
     {
-      RAFT_DRIVER_OUT
-        << fmt::format(
-             "  Note over {}: Node is not at expected commit idx {}",
-             node_id,
-             idx)
-        << std::endl;
+      RAFT_DRIVER_PRINT(
+        "Note over {}: Node is not at expected commit idx {}", node_id, idx);
       throw std::runtime_error(fmt::format(
         "Node {} not at expected commit idx ({}) on line {} : {}",
         node_id,
         idx,
         std::to_string((int)lineno),
         _nodes.at(node_id).raft->get_committed_seqno()));
+    }
+  }
+
+  void assert_detail(
+    ccf::NodeId node_id,
+    const std::string& detail,
+    const std::string& expected,
+    bool equal,
+    const size_t lineno)
+  {
+    auto details = _nodes.at(node_id).raft->get_details();
+    nlohmann::json d = details;
+    if (d.find(detail) == d.end())
+    {
+      RAFT_DRIVER_PRINT(
+        "  Note over {}: Node does not have detail {}", node_id, detail);
+      throw std::runtime_error(fmt::format(
+        "Node {} does not have detail {} on line {}",
+        node_id,
+        detail,
+        std::to_string((int)lineno)));
+    }
+
+    std::string value = d[detail];
+    if (equal ? (value != expected) : (value == expected))
+    {
+      std::string cmp = equal ? "!" : "=";
+      RAFT_DRIVER_PRINT(
+        "  Note over {}: Node detail {} is not as expected: {} {}= {}",
+        node_id,
+        detail,
+        value,
+        cmp,
+        expected);
+      throw std::runtime_error(fmt::format(
+        "Node {} detail {} is not as expected: {} {}= {} on line {}",
+        node_id,
+        detail,
+        value,
+        cmp,
+        expected,
+        std::to_string((int)lineno)));
     }
   }
 };

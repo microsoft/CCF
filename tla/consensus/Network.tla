@@ -98,8 +98,23 @@ LOCAL OrderOneMoreMessage(m) ==
     \/ Len(SelectSeq(messages[m.dest], LAMBDA e: m = e)) < Len(SelectSeq(messages'[m.dest], LAMBDA e: m = e))
 
 LOCAL OrderDropMessages(server) ==
-    \E s \in Suffixes(messages[server]):  \* TODO - Change to SubSeqs if more sophisticated message loss is needed.
+    \E s \in AllSubSeqs(messages[server]):
         messages' = [ messages EXCEPT ![server] = s ]
+
+\* These alternatives of OrderDropMessages may be useful for debugging
+LOCAL OrderDropOlderMessages(server) ==
+   (* Always drop older messages first, i.e., an old message has to be handled or dropped before a new message can be handled or dropped. *)
+    \E s \in Suffixes(messages[server]):
+        messages' = [ messages EXCEPT ![server] = s ]
+
+LOCAL OrderDropConsecutiveMessages(server) ==
+   (* Drop messages regardless of "time", but only ever drop consecutive messages. *)
+    \E s \in SubSeqs(messages[server]):
+        messages' = [ messages EXCEPT ![server] = s ]
+
+LOCAL OrderDropMessage(server, Test(_)) ==
+    \E i \in { idx \in 1..Len(messages[server]) : Test(messages[server][idx]) }:
+        messages' = [ messages EXCEPT ![server] = RemoveAt(@, i) ]
 
 ----------------------------------------------------------------------------------
 \* Point-to-Point Ordering and no duplication of messages:
@@ -179,5 +194,11 @@ DropMessages(server) ==
       [] Guarantee = Ordered        -> OrderDropMessages(server)
       [] Guarantee = ReorderedNoDup -> ReorderNoDupDropMessages
       [] Guarantee = Reordered      -> ReorderDupDropMessages
+
+DropMessage(sender, Test(_)) ==
+    CASE Guarantee = OrderedNoDup   -> FALSE
+      [] Guarantee = Ordered        -> OrderDropMessage(sender, Test)
+      [] Guarantee = ReorderedNoDup -> FALSE
+      [] Guarantee = Reordered      -> FALSE
 
 ==================================================================================

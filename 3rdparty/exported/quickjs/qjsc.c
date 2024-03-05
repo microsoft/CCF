@@ -76,9 +76,7 @@ static const FeatureEntry feature_list[] = {
     { "promise", "Promise" },
 #define FE_MODULE_LOADER 9
     { "module-loader", NULL },
-#ifdef CONFIG_BIGNUM
     { "bigint", "BigInt" },
-#endif
 };
 
 void namelist_add(namelist_t *lp, const char *name, const char *short_name,
@@ -332,6 +330,7 @@ static const char main_c_template1[] =
 
 static const char main_c_template2[] =
     "  js_std_loop(ctx);\n"
+    "  js_std_free_handlers(rt);\n"
     "  JS_FreeContext(ctx);\n"
     "  JS_FreeRuntime(rt);\n"
     "  return 0;\n"
@@ -345,8 +344,8 @@ void help(void)
            "usage: " PROG_NAME " [options] [files]\n"
            "\n"
            "options are:\n"
-           "-c          only output bytecode in a C file\n"
-           "-e          output main() and bytecode in a C file (default = executable output)\n"
+           "-c          only output bytecode to a C file\n"
+           "-e          output main() and bytecode to a C file (default = executable output)\n"
            "-o output   set the output filename\n"
            "-N cname    set the C name of the generated data\n"
            "-m          compile as Javascript module (default=autodetect)\n"

@@ -1,0 +1,42 @@
+# Test what happens when a node is re-elected, and receives messages from previous terms
+start_node,0
+emit_signature,2
+
+assert_detail,0,leadership_state,Leader
+assert_commit_idx,0,2
+
+trust_nodes,2,1,2
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
+assert_detail,0,leadership_state,Leader
+assert_detail,1,leadership_state,Follower
+assert_detail,2,leadership_state,Follower
+
+# Start from a steady state
+periodic_all,10
+dispatch_all
+assert_state_sync
+
+# Produce more entries
+emit_signature,2
+emit_signature,2
+
+# Send AEs, but don't get responses yet
+periodic_one,0,10
+dispatch_one,0
+
+# Time out, call a new election
+periodic_one,0,100
+assert_detail,0,leadership_state,Follower
+periodic_one,0,100
+assert_detail,0,leadership_state,Candidate
+
+# Receive vote responses and AEs
+dispatch_all
+
+state_all
+assert_detail,0,leadership_state,Leader

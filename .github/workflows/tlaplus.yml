@@ -16,10 +16,10 @@ jobs:
     name: Model Checking - Consistency
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ccfmsrc.azurecr.io/ccf/ci:07-12-2023-virtual-clang15
+      image: ccfmsrc.azurecr.io/ccf/ci:12-02-2024-virtual-clang15
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: |
           sudo apt update
           sudo apt install -y default-jre
@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: python3 ./tla/install_deps.py
 
       - name: consistency/MCSingleNodeCommitReachability.cfg
@@ -92,7 +92,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: python3 ./tla/install_deps.py
 
       - name: consistency/MultiNodeReads.cfg

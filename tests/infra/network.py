@@ -198,6 +198,7 @@ class Network:
         "max_msg_size_bytes",
         "snp_security_policy_file",
         "snp_uvm_endorsements_file",
+        "subject_name",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -1029,9 +1030,9 @@ class Network:
                 # the commit of the trust_node proposal may rely on the new node
                 # catching up (e.g. adding 1 node to a 1-node network).
                 if statistics is not None:
-                    statistics[
-                        "node_replacement_governance_start"
-                    ] = datetime.now().isoformat()
+                    statistics["node_replacement_governance_start"] = (
+                        datetime.now().isoformat()
+                    )
                 self.consortium.replace_node(
                     primary,
                     node_to_retire,
@@ -1041,12 +1042,12 @@ class Network:
                     timeout=args.ledger_recovery_timeout,
                 )
                 if statistics is not None:
-                    statistics[
-                        "node_replacement_governance_committed"
-                    ] = datetime.now().isoformat()
+                    statistics["node_replacement_governance_committed"] = (
+                        datetime.now().isoformat()
+                    )
         except (ValueError, TimeoutError):
             LOG.error(
-                f"NFailed to replace {node_to_retire.node_id} with {node_to_add.node_id}"
+                f"Failed to replace {node_to_retire.node_id} with {node_to_add.node_id}"
             )
             node_to_add.stop()
             raise

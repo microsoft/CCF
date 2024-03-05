@@ -1,22 +1,50 @@
 # This scenario re-creates figure 8 from the Raft paper
 
-nodes,0,1,2,3,4
+start_node,0
+assert_detail,0,leadership_state,Leader
+emit_signature,2
 
-connect,0,1
-connect,0,2
-connect,0,3
-connect,0,4
+assert_detail,0,leadership_state,Leader
+assert_commit_idx,0,2
 
-# Node 0 starts first, becomes primary
-periodic_one,0,110
+trust_node,2,1
+emit_signature,2
+
 dispatch_all
-
 periodic_all,10
 dispatch_all
+assert_commit_idx,0,4
+
+trust_node,2,2
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,6
+
+trust_node,2,3
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,8
+
+trust_node,2,4
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,10
+assert_state_sync
 
 # Node 0 appends a single entry, replicates it to all nodes
-replicate,1,entry_1
-emit_signature,1
+replicate,2,entry_1
+emit_signature,2
 
 periodic_all,10
 dispatch_all
@@ -24,8 +52,8 @@ dispatch_all
 # Node 0 appends a second entry, which only reaches Node 1
 disconnect_node,0
 connect,0,1
-replicate,1,entry_2
-emit_signature,1
+replicate,2,entry_2
+emit_signature,2
 
 periodic_all,10
 dispatch_all
@@ -38,8 +66,8 @@ connect,4,2
 periodic_one,4,110
 dispatch_all
 
-replicate,2,entry_3
-emit_signature,2
+replicate,3,entry_3
+emit_signature,3
 
 state_all
 
@@ -91,8 +119,8 @@ dispatch_all
 state_all
 
 # Not yet! We need node 4 to produce a new entry in its current term
-replicate,4,entry_4
-emit_signature,4
+replicate,5,entry_4
+emit_signature,5
 
 periodic_all,10
 dispatch_all

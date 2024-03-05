@@ -303,6 +303,5 @@ namespace crypto
   using EntropyPtr = std::shared_ptr<Entropy>;
   static EntropyPtr intel_drng_ptr;
 
-  /** Create a default Entropy object */
-  EntropyPtr create_entropy();
+  EntropyPtr get_entropy();
 }

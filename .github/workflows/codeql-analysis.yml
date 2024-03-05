@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -63,12 +63,12 @@ jobs:
           cd getting_started/setup_vm
           sudo apt update
           sudo apt install -y ansible software-properties-common bsdmainutils dnsutils
-          sudo ansible-playbook ccf-dev.yml --extra-vars "platform=virtual"
+          sudo ansible-playbook ccf-dev.yml --extra-vars "platform=virtual" --extra-vars "require_open_enclave=false"
 
       - run: |
           mkdir build
           cd build
-          cmake -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DLVI_MITIGATIONS=OFF -DCMAKE_C_COMPILER=`which clang-11` -DCMAKE_CXX_COMPILER=`which clang++-11` ..
+          cmake -DCOMPILE_TARGET=virtual -DREQUIRE_OPENENCLAVE=OFF -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DLVI_MITIGATIONS=OFF -DCMAKE_C_COMPILER=`which clang-11` -DCMAKE_CXX_COMPILER=`which clang++-11` ..
 
       - run: |
           cd build

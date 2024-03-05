@@ -19,15 +19,15 @@ jobs:
           python3 ./tla/install_deps.py
         displayName: Setup
 
-      - script: ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
+      - script: ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json -coverage 10
         workingDirectory: tla
         displayName: MCccfraft.cfg
 
-      - script: ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json
+      - script: ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json -coverage 10
         workingDirectory: tla
         displayName: MCccfraftAtomicReconfig.cfg
 
-      - script: ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
+      - script: ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json -coverage 10
         workingDirectory: tla
         displayName: MCccfraftWithReconfig.cfg
 

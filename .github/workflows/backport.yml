@@ -25,7 +25,7 @@ jobs:
       )
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -44,6 +44,6 @@ jobs:
 
       # Update backport action (https://github.com/sqren/backport/issues/391#issuecomment-1156355381)
       - name: Backport Action
-        uses: sqren/backport-github-action@main
+        uses: sorenlouv/backport-github-action@main
         with:
           github_token: ${{ secrets.BACKPORT_ACTION }}

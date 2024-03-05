@@ -35,7 +35,7 @@ namespace ccf::js
 
     try
     {
-      std::vector<uint8_t> key = crypto::create_entropy()->random(key_size / 8);
+      std::vector<uint8_t> key = crypto::get_entropy()->random(key_size / 8);
       return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
     }
     catch (const std::exception& exc)

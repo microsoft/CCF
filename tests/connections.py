@@ -273,6 +273,7 @@ def node_tcp_socket(node):
     s.close()
 
 
+# NB: This does rudimentary smoke testing. See fuzzing.py for more thorough test
 def run_node_socket_robustness_tests(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb

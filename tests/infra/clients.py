@@ -103,9 +103,9 @@ class HttpSig(httpx.Auth):
             signature_algorithm=ec.ECDSA(algorithm=digest_algo), data=string_to_sign
         )
         b64signature = base64.b64encode(signature).decode("ascii")
-        headers[
-            "authorization"
-        ] = f'Signature keyId="{key_id}",algorithm="hs2019",headers="(request-target) digest content-length",signature="{b64signature}"'
+        headers["authorization"] = (
+            f'Signature keyId="{key_id}",algorithm="hs2019",headers="(request-target) digest content-length",signature="{b64signature}"'
+        )
 
     def auth_flow(self, request):
         HttpSig.add_signature_headers(
@@ -1009,9 +1009,7 @@ class CCFClient:
     default_impl_type = (
         CurlClient
         if os.getenv("CURL_CLIENT")
-        else RawSocketClient
-        if os.getenv("SOCKET_CLIENT")
-        else HttpxClient
+        else RawSocketClient if os.getenv("SOCKET_CLIENT") else HttpxClient
     )
 
     def set_created_at_override(self, value):

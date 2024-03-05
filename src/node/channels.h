@@ -832,7 +832,7 @@ namespace ccf
       peer_cert = {};
       peer_cv.reset();
 
-      auto e = crypto::create_entropy();
+      auto e = crypto::get_entropy();
       hkdf_salt = e->random(salt_len);
 
       // As a future simplification, we would like this to always be true
@@ -855,7 +855,7 @@ namespace ccf
       peer_cert = {};
       peer_cv.reset();
 
-      auto e = crypto::create_entropy();
+      auto e = crypto::get_entropy();
       hkdf_salt = e->random(salt_len);
     }
 
@@ -973,7 +973,7 @@ namespace ccf
       status(fmt::format("Channel to {}", peer_id_), INACTIVE),
       message_limit(message_limit_)
     {
-      auto e = crypto::create_entropy();
+      auto e = crypto::get_entropy();
       hkdf_salt = e->random(salt_len);
     }
 

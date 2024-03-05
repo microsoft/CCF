@@ -36,7 +36,7 @@ namespace aft
     virtual void compact(Index v) = 0;
     virtual void rollback(const kv::TxID& tx_id, Term term_of_next_version) = 0;
     virtual void initialise_term(Term t) = 0;
-    virtual std::unique_ptr<kv::AbstractExecutionWrapper> apply(
+    virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t> data,
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt) = 0;
@@ -78,7 +78,7 @@ namespace aft
       }
     }
 
-    std::unique_ptr<kv::AbstractExecutionWrapper> apply(
+    std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t> data,
       bool public_only = false,
       const std::optional<kv::TxID>& expected_txid = std::nullopt) override
@@ -115,14 +115,16 @@ namespace aft
     });
 
 #pragma pack(push, 1)
+  template <RaftMsgType M>
   struct RaftHeader
   {
-    RaftMsgType msg;
+    RaftMsgType msg = M;
   };
-  DECLARE_JSON_TYPE(RaftHeader);
-  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader, msg);
 
-  struct AppendEntries : RaftHeader, consensus::AppendEntriesIndex
+  DECLARE_JSON_TYPE(RaftHeader<raft_append_entries>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_append_entries>, msg)
+  struct AppendEntries : RaftHeader<raft_append_entries>,
+                         consensus::AppendEntriesIndex
   {
     Term term;
     Term prev_term;
@@ -134,10 +136,12 @@ namespace aft
     Term term_of_idx;
     // This is unused by the current implementation, but is kept to preserve
     // wire compatibility with previous versions of the code.
-    bool contains_new_view;
+    bool contains_new_view = false;
   };
   DECLARE_JSON_TYPE_WITH_2BASES(
-    AppendEntries, RaftHeader, consensus::AppendEntriesIndex);
+    AppendEntries,
+    RaftHeader<raft_append_entries>,
+    consensus::AppendEntriesIndex);
   DECLARE_JSON_REQUIRED_FIELDS(
     AppendEntries,
     term,
@@ -156,7 +160,9 @@ namespace aft
     {{AppendEntriesResponseType::OK, "OK"},
      {AppendEntriesResponseType::FAIL, "FAIL"}});
 
-  struct AppendEntriesResponse : RaftHeader
+  DECLARE_JSON_TYPE(RaftHeader<raft_append_entries_response>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_append_entries_response>, msg)
+  struct AppendEntriesResponse : RaftHeader<raft_append_entries_response>
   {
     // This term and idx usually refer to the tail of the sender's log. The
     // exception is in a rejection because of a mismatching suffix, in which
@@ -170,35 +176,44 @@ namespace aft
     Index last_log_idx;
     AppendEntriesResponseType success;
   };
-  DECLARE_JSON_TYPE_WITH_BASE(AppendEntriesResponse, RaftHeader);
+  DECLARE_JSON_TYPE_WITH_BASE(
+    AppendEntriesResponse, RaftHeader<raft_append_entries_response>);
   DECLARE_JSON_REQUIRED_FIELDS(
     AppendEntriesResponse, term, last_log_idx, success);
 
-  struct RequestVote : RaftHeader
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote>, msg)
+  struct RequestVote : RaftHeader<raft_request_vote>
   {
     Term term;
     Index last_committable_idx;
     Term term_of_last_committable_idx;
   };
-  DECLARE_JSON_TYPE_WITH_BASE(RequestVote, RaftHeader);
+  DECLARE_JSON_TYPE_WITH_BASE(RequestVote, RaftHeader<raft_request_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(
     RequestVote, term, last_committable_idx, term_of_last_committable_idx);
 
-  struct RequestVoteResponse : RaftHeader
+  DECLARE_JSON_TYPE(RaftHeader<raft_request_vote_response>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_request_vote_response>, msg)
+  struct RequestVoteResponse : RaftHeader<raft_request_vote_response>
   {
     Term term;
     bool vote_granted;
   };
-  DECLARE_JSON_TYPE_WITH_BASE(RequestVoteResponse, RaftHeader);
+  DECLARE_JSON_TYPE_WITH_BASE(
+    RequestVoteResponse, RaftHeader<raft_request_vote_response>);
   DECLARE_JSON_REQUIRED_FIELDS(RequestVoteResponse, term, vote_granted);
 
-  struct ProposeRequestVote : RaftHeader
+  DECLARE_JSON_TYPE(RaftHeader<raft_propose_request_vote>)
+  DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_propose_request_vote>, msg)
+  struct ProposeRequestVote : RaftHeader<raft_propose_request_vote>
   {
     // A node sends this to nudge another node to begin an election, for
     // instance because the sender is a retiring primary
     Term term;
   };
-  DECLARE_JSON_TYPE_WITH_BASE(ProposeRequestVote, RaftHeader);
+  DECLARE_JSON_TYPE_WITH_BASE(
+    ProposeRequestVote, RaftHeader<raft_propose_request_vote>);
   DECLARE_JSON_REQUIRED_FIELDS(ProposeRequestVote, term);
 
 #pragma pack(pop)

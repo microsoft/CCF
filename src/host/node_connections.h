@@ -101,8 +101,17 @@ namespace asynchost
           }
 
           const auto size_post_headers = size;
-          const size_t payload_size =
-            msg_size.value() - (size_pre_headers - size_post_headers);
+          const auto header_size = size_pre_headers - size_post_headers;
+          if (header_size > msg_size.value())
+          {
+            LOG_DEBUG_FMT(
+              "Received invalid node-to-node traffic. Total msg size {} "
+              "doesn't even contain headers (of size {})",
+              msg_size.value(),
+              header_size);
+            return false;
+          }
+          const size_t payload_size = msg_size.value() - header_size;
 
           if (!node.has_value())
           {

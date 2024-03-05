@@ -217,8 +217,9 @@ def cli_args(
         default=True,
     )
     parser.add_argument(
-        "--sn",
+        "--subject-name",
         help="Subject Name in node certificate, eg. CN=CCF Node",
+        default="CN=CCF Node",
     )
     parser.add_argument(
         "--subject-alt-names",

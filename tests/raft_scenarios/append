@@ -1,10 +1,10 @@
 # Create a Start Node, commit initial transaction and signature
 # Append transaction to the node's log, observe that they are committed
 start_node,0
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 emit_signature,2
 
-assert_is_primary,0
+assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 replicate,2,first transaction
