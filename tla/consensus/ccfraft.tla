@@ -145,7 +145,8 @@ RemovedFromConfigurationTypeInv ==
 VARIABLE hasJoined
 
 HasJoinedTypeInv ==
-    hasJoined \in BOOLEAN
+    \A i \in Servers :
+        hasJoined[i] \in BOOLEAN
 
 reconfigurationVars == <<
     removedFromConfiguration, 
@@ -156,6 +157,7 @@ reconfigurationVars == <<
 ReconfigurationVarsTypeInv ==
     /\ ConfigurationsTypeInv
     /\ RemovedFromConfigurationTypeInv
+    /\ HasJoinedTypeInv
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
