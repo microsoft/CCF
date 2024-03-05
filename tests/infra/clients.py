@@ -263,7 +263,11 @@ class Response:
 
     def __str__(self):
         versioned = (self.view, self.seqno) != (None, None)
-        status_color = "red" if self.status_code // 100 in (4, 5) else "green"
+        status_category = self.status_code // 100
+        redirect = status_category == 3
+        status_color = (
+            "red" if status_category in (4, 5) else "yellow" if redirect else "green"
+        )
         body_s = escape_loguru_tags(truncate(str(self.body)))
         # Body can't end with a \, or it will escape the loguru closing tag
         if len(body_s) > 0 and body_s[-1] == "\\":
@@ -271,6 +275,7 @@ class Response:
 
         return (
             f"<{status_color}>{self.status_code}</> "
+            + (f"<yellow>[Location: {self.headers['location']}]</> " if redirect else "")
             + (f"@<magenta>{self.view}.{self.seqno}</> " if versioned else "")
             + f"<yellow>{body_s}</>"
         )

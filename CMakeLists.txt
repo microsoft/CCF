@@ -120,7 +120,9 @@ option(USE_SNMALLOC "Link virtual build against snmalloc" ON)
 
 # This option determines whether non-processable requests are sent to another
 # node by forwarding (OFF) or redirects (ON)
-option(USE_REDIRECTS "Redirect (rather than forward) requests to other nodes" ON)
+option(USE_REDIRECTS "Redirect (rather than forward) requests to other nodes"
+       ON
+)
 if(USE_REDIRECTS)
   add_compile_definitions(CCF_USE_REDIRECTS)
 endif()
@@ -1394,6 +1396,12 @@ if(BUILD_TESTS)
     if(NOT SAN AND NOT USE_REDIRECTS)
       add_e2e_test(
         NAME e2e_limits PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/limits.py
+      )
+    endif()
+
+    if(USE_REDIRECTS)
+      add_e2e_test(
+        NAME e2e_redirects PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
       )
     endif()
 
