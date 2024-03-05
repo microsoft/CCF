@@ -780,7 +780,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         \* Nodes can only join a network once in CCF. This is enforced through the pre-consensus
         \* join protocol that verifies the attestation of the joining node. The state machine of
         \* the joining node never allows joining more than once.
-        /\ \A n \in addedNodes : hasJoined[i] = FALSE
+        /\ \A n \in addedNodes : hasJoined[n] = FALSE
         /\ hasJoined' = [n \in Servers |-> IF n \in addedNodes THEN TRUE ELSE hasJoined[n]]
         \* See raft.h:2401, nodes are only sent future entries initially, they will NACK if necessary.
         \* This is because they are expected to start from a fairly recent snapshot, not from scratch.
