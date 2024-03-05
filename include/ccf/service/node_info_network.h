@@ -71,13 +71,14 @@ namespace ccf
 
   struct RedirectionResolverConfig
   {
-    RedirectionResolutionKind kind;
+    RedirectionResolutionKind kind = RedirectionResolutionKind::NodeByRole;
     nlohmann::json target;
 
     bool operator==(const RedirectionResolverConfig&) const = default;
   };
-  DECLARE_JSON_TYPE(RedirectionResolverConfig);
-  DECLARE_JSON_REQUIRED_FIELDS(RedirectionResolverConfig, kind, target);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RedirectionResolverConfig);
+  DECLARE_JSON_REQUIRED_FIELDS(RedirectionResolverConfig, kind);
+  DECLARE_JSON_OPTIONAL_FIELDS(RedirectionResolverConfig, target);
 
   /// Node network information
   struct NodeInfoNetwork_v2
@@ -114,10 +115,12 @@ namespace ccf
       /// Timeout for forwarded RPC calls (in milliseconds)
       std::optional<size_t> forwarding_timeout_ms = std::nullopt;
 
-      /// TODO
-      // Keyed by RedirectionStrategy, but softly validated for easier
-      // extensions
-      std::map<std::string, RedirectionResolverConfig> redirections = {};
+      struct Redirections
+      {
+        RedirectionResolverConfig to_primary;
+
+        bool operator==(const Redirections& other) const = default;
+      } redirections = {};
 
       bool operator==(const NetInterface& other) const
       {
@@ -156,6 +159,11 @@ namespace ccf
     std::optional<ACME> acme = std::nullopt;
   };
 
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
+    NodeInfoNetwork_v2::NetInterface::Redirections);
+  DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface::Redirections);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    NodeInfoNetwork_v2::NetInterface::Redirections, to_primary);
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::NetInterface);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface, bind_address);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -238,7 +246,17 @@ namespace ccf
     catch (const JsonParseError& jpe)
     {
       NodeInfoNetwork_v1 v1;
-      from_json(j, v1);
+      try
+      {
+        from_json(j, v1);
+      }
+      catch (const JsonParseError& _)
+      {
+        // If this also fails to parse as a v1, then rethrow the earlier error.
+        // Configs should now be using v2, and this v1 parsing is just a
+        // backwards-compatibility shim, which does not get to return errors.
+        throw jpe;
+      }
 
       nin.node_to_node_interface.bind_address =
         make_net_address(v1.nodehost, v1.nodeport);

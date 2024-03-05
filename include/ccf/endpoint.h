@@ -61,7 +61,8 @@ namespace ccf::endpoints
   enum class RedirectionStrategy
   {
     /** This operation does not need to be redirected, and can be executed on
-       the receiving node. */
+       the receiving node. Most read-only operations can be executed on any
+       node, so should be marked as None.  */
     None,
 
     /** This operation must be executed on a primary. If the current node is not
@@ -93,7 +94,7 @@ namespace ccf::endpoints
   DECLARE_JSON_ENUM(
     RedirectionStrategy,
     {{RedirectionStrategy::None, "none"},
-     {RedirectionStrategy::ToPrimary, "toprimary"}});
+     {RedirectionStrategy::ToPrimary, "to_primary"}});
 
   DECLARE_JSON_ENUM(
     Mode,
