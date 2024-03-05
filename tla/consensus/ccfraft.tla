@@ -795,8 +795,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
                                              contentType |-> TypeReconfiguration])]
         /\ configurations' = [configurations EXCEPT ![i] = configurations[i] @@ Len(log'[i]) :> newConfiguration]
         \* Check if node is starting its own retirement
-        /\ IF /\ membershipState[i] = Active
-            /\ i \notin newConfiguration
+        /\ IF membershipState[i] = Active /\ i \notin newConfiguration
             THEN membershipState' = [membershipState EXCEPT ![i] = RetirementOrdered]
             ELSE UNCHANGED membershipState
         /\ UNCHANGED <<messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, matchIndex, commitIndex>>
