@@ -66,9 +66,9 @@ MCClientRequest(i) ==
 MCSignCommittableMessages(i) ==
     \* The implementation periodically emits a signature for the current log, potentially causing consecutive
     \* signatures.  However, modeling consecutive sigs would result in a state space explosion, i.e., an infinite
-    \* number of states.  Thus, we prevent a leader from creating consecutive sigs.  We assume that consecutive
-    \* sigs will not violate safety or liveness.
-    /\ log[i] # <<>> => Last(log[i]).contentType # TypeSignature
+    \* number of states.  Thus, we prevent a leader from creating consecutive sigs in the same term.  We assume
+    \* that consecutive sigs will not violate safety or liveness.
+    /\ log[i] # <<>> => \lnot (Last(log[i]).contentType = TypeSignature /\ Last(log[i]).term = currentTerm[i])
     /\ CCF!SignCommittableMessages(i)
 
 \* CCF: Limit how many identical append entries messages each node can send to another
@@ -88,6 +88,10 @@ MCSend(msg) ==
         /\ n.term = msg.term
         /\ n.type = AppendEntriesResponse
     /\ CCF!Send(msg)
+
+\* Disable CheckQuorum when model checking in CI to keep execution time manageable
+MCCheckQuorum(i) ==
+    UNCHANGED vars
 
 MCInit ==
     /\ InitMessagesVars
