@@ -1537,6 +1537,20 @@ RetiredCommittedInv ==
                 /\ RetirementIndexLog(log[i],j) <= k
                 /\ RetirementIndexLog(log[i],j) <= commitIndex[i]
 
+
+\* Nodes that are RetiredCompleted but not committed should not be in any configuration
+RetiredCompletedButNotCommittedNotInConfigsInv ==
+    \A i \in Servers:
+        \A rc \in retiredCompletedButNotCommitted[i] :
+            rc \notin UNION Range(configurations[i])
+
+\* All nodes in retiredCompletedButNotCommitted should be RetirementCompleted from the
+\* perspective of the node maintaining retiredCompletedButNotCommitted
+RetiredCompletedButNotCommittedAreRetirementCompletedInv ==
+    \A i \in Servers:
+        \A rc \in retiredCompletedButNotCommitted[i] :
+            CalcMembershipState(log[i], commitIndex[i], rc) = RetirementCompleted
+
 ------------------------------------------------------------------------------
 \* Properties
 
