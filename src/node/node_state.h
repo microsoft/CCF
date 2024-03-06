@@ -1938,8 +1938,6 @@ namespace ccf
         InvalidSessionId, self_signed_node_cert.raw());
       auto ctx = make_rpc_context(node_session, packed);
 
-      // TODO: Hate this, remove it, surely just don't
-      // redirect-and-don't-forward?
       ctx->is_create_request = true;
       std::shared_ptr<ccf::RpcHandler> search =
         http::fetch_rpc_handler(ctx, this->rpc_map);
