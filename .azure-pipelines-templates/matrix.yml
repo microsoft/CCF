@@ -69,19 +69,20 @@ parameters:
       ctest_args: '-L "raft_scenario"'
 
 jobs:
-  # Debug
-  - ${{ each target in parameters.target }}:
-      - template: common.yml
-        parameters:
-          target: ${{ target }}
-          env: ${{ parameters.env[target] }}
-          cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}"
-          cmake_env: "${{ parameters.build[target].cmake_env }}"
-          suffix: "Debug"
-          artifact_name: "${{ target }}_Debug"
-          ctest_filter: "${{ parameters.test[target].ctest_args }}"
-          depends_on: configure
-          installExtendedTestingTools: false
+  # TODO: Temporarily removed while iterating
+  # # Debug
+  # - ${{ each target in parameters.target }}:
+  #     - template: common.yml
+  #       parameters:
+  #         target: ${{ target }}
+  #         env: ${{ parameters.env[target] }}
+  #         cmake_args: "${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build[target].cmake_args }}"
+  #         cmake_env: "${{ parameters.build[target].cmake_env }}"
+  #         suffix: "Debug"
+  #         artifact_name: "${{ target }}_Debug"
+  #         ctest_filter: "${{ parameters.test[target].ctest_args }}"
+  #         depends_on: configure
+  #         installExtendedTestingTools: false
 
   # Redirects. This is a temporary job, while redirections are in-progress
     - template: common.yml

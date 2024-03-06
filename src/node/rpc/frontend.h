@@ -325,7 +325,7 @@ namespace ccf
           const bool is_primary =
             (consensus != nullptr) && consensus->can_replicate();
 
-          // TODO: This check is included for parity with forwarding. If we
+          // Note: This check is included for parity with forwarding. If we
           // should redirect, but can't for fundamental early-node-lifecycle
           // reasons, should we try to execute it locally?
           const bool redirectable = (consensus != nullptr);
