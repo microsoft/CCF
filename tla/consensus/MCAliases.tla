@@ -71,6 +71,7 @@ DebugAliasVars ==
         leadershipState |-> leadershipState,
         membershipState |-> membershipState,
         votedFor |-> votedFor,
+        hasJoined |-> hasJoined,
         \* More compact visualization of the log.  
 \*        lg |-> [ s \in Servers |-> StringifyLog(s) ],
         log |-> log,
