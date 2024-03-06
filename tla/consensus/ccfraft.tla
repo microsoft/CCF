@@ -548,6 +548,16 @@ AllRetiredCommittedTxns(log_i) ==
 AllRetired(log_i) ==
     {n \in Servers: RetirementIndexLog(log_i, n) # 0}
 
+NextRetiredCompletedButNotCommitted(current_retired_completed_but_not_committed_i, current_configurations_i, next_log_i, next_commit_index_i, i) ==
+    \* Nodes that have reached RetiredCommitted from the point of view of i need to be dropped from retiredCompletedButNotCommitted
+    LET retiredCommittedNodes == {rc \in current_retired_completed_but_not_committed_i : CalcMembershipState(next_log_i, next_commit_index_i, rc) = RetiredCommitted}
+        nextCurrentConfigIndex == LastConfigurationToIndex(i, next_commit_index_i)
+        \* The guards for nextCurrentConfigIndex > 0 are useful on Followers, where commit can advance before we have current configurations
+        nodesInCommittedOutConfigs == IF nextCurrentConfigIndex > 0 THEN (UNION Range(RestrictDomain(current_configurations_i, LAMBDA c : c < nextCurrentConfigIndex))) ELSE {}
+        \* Nodes that are only in configurations that dropped by commit must be addded to retiredCompletedButNotCommitted
+        nodesOnlyInCommittedOutConfigs == IF nextCurrentConfigIndex > 0 THEN nodesInCommittedOutConfigs \ current_configurations_i[nextCurrentConfigIndex] ELSE {}
+    IN (current_retired_completed_but_not_committed_i \cup nodesOnlyInCommittedOutConfigs) \ retiredCommittedNodes
+
 AppendEntriesBatchsize(i, j) ==
     \* The Leader is modeled to send zero to one entries per AppendEntriesRequest.
      \* This can be redefined to send bigger batches of entries.
@@ -888,12 +898,7 @@ AdvanceCommitIndex(i) ==
                  ELSE UNCHANGED <<messages>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, reconfigurationVars>>
-        \* Nodes that have reached RetiredCommitted from the point of view of i need to be dropped from retiredCompletedButNotCommitted
-        /\ LET retiredCommittedNodes == {rc \in retiredCompletedButNotCommitted[i] : CalcMembershipState(log[i], commitIndex'[i], rc) = RetiredCommitted}
-               nodesInCommittedOutConfigs == (UNION Range(RestrictDomain(configurations[i], LAMBDA c : c < LastConfigurationToIndex(i, highestCommittableIndex))))
-               \* Nodes that are only in configurations that dropped by commit must be addded to retiredCompletedButNotCommitted
-               nodesOnlyInCommittedOutConfigs == nodesInCommittedOutConfigs \ configurations[i][LastConfigurationToIndex(i, highestCommittableIndex)]
-            IN retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = (retiredCompletedButNotCommitted[i] \cup nodesOnlyInCommittedOutConfigs) \ retiredCommittedNodes]
+        /\ retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = NextRetiredCompletedButNotCommitted(retiredCompletedButNotCommitted[i], configurations[i], log[i], commitIndex'[i], i)]
     /\ UNCHANGED <<candidateVars, leaderVars, log, currentTerm, votedFor, isNewFollower, hasJoined>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
@@ -1013,11 +1018,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
           \* Pop any newly committed reconfigurations, except the most recent
           /\ configurations' = [configurations EXCEPT ![i] = RestrictDomain(@, LAMBDA c : c >= newConfigurationIndex)]
           \* Update retiredCompletedButNotCommitted
-          /\ LET retiredCommittedNodes == {rc \in retiredCompletedButNotCommitted[i] : CalcMembershipState(log[i], commitIndex'[i], rc) = RetiredCommitted}
-                 nodesInCommittedOutConfigs == IF LastConfigurationToIndex(i, newCommitIndex) > 0 THEN (UNION Range(RestrictDomain(configurations[i], LAMBDA c : c < LastConfigurationToIndex(i, newCommitIndex)))) ELSE {}
-                 \* Nodes that are only in configurations that dropped by commit must be addded to retiredCompletedButNotCommitted
-                 nodesOnlyInCommittedOutConfigs == IF LastConfigurationToIndex(i, newCommitIndex) > 0 THEN nodesInCommittedOutConfigs \ configurations[i][LastConfigurationToIndex(i, newCommitIndex)] ELSE {}
-             IN retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = (retiredCompletedButNotCommitted[i] \cup nodesOnlyInCommittedOutConfigs) \ retiredCommittedNodes]
+          /\ retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = NextRetiredCompletedButNotCommitted(retiredCompletedButNotCommitted[i], configurations[i], log[i], commitIndex'[i], i)]
           \* Check if updating the commit index completes a pending retirement
           \* Note the node is already a follower so leadershipState remains unchanged
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log[i], commitIndex'[i], i)]
@@ -1073,11 +1074,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         /\ configurations' = 
                 [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
-        /\ LET retiredCommittedNodes == {rc \in retiredCompletedButNotCommitted[i] : CalcMembershipState(log'[i], new_commit_index, rc) = RetiredCommitted}
-               nodesInCommittedOutConfigs == IF LastConfigurationToIndex(i, new_commit_index) > 0 THEN (UNION Range(RestrictDomain(configurations[i], LAMBDA c : c < LastConfigurationToIndex(i, new_commit_index)))) ELSE {}
-               \* Nodes that are only in configurations that dropped by commit must be addded to retiredCompletedButNotCommitted
-               nodesOnlyInCommittedOutConfigs == IF LastConfigurationToIndex(i, new_commit_index) > 0 THEN nodesInCommittedOutConfigs \ configurations[i][LastConfigurationToIndex(i, new_commit_index)] ELSE {}
-            IN retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = (retiredCompletedButNotCommitted[i] \cup nodesOnlyInCommittedOutConfigs) \ retiredCommittedNodes]
+        /\ retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = NextRetiredCompletedButNotCommitted(retiredCompletedButNotCommitted[i], configurations[i], log'[i], commitIndex'[i], i)]
         \* If we added a new configuration that we are in and were pending, we are now follower
         /\ IF /\ leadershipState[i] = None
               /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
