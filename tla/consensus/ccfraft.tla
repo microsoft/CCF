@@ -548,9 +548,12 @@ AppendEntriesBatchsize(i, j) ==
 
 PlausibleSucessorNodes(i) ==
     \* Find plausible successor nodes for i
+    \* See raft.h::become_retired:2062
+    \* The node looks across nodes in all known configurations and finds the subset with the highest match index.
+    \* That set is further filtered to the nodes in the highest configuration.
     LET
-        activeServers == Servers \ removedFromConfiguration
-        highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
+        all_other_nodes == GetServerSet(i) \ {i}
+        highestMatchServers == {n \in all_other_nodes : \A m \in all_other_nodes : matchIndex[i][n] >= matchIndex[i][m]}
     IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)} \ {i}
 
 StartLog(startNode, _ignored) ==
