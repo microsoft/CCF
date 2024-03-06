@@ -1,7 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#define PICOBENCH_IMPLEMENT_WITH_MAIN
+#define PICOBENCH_IMPLEMENT
 
+#include "crypto/openssl/hash.h"
 #include "kv/store.h"
 #include "kv/test/stub_consensus.h"
 #include "node/encryptor.h"
@@ -280,3 +281,12 @@ PICOBENCH(des_snap<100>)
   .samples(snapshot_sample_size)
   .baseline();
 PICOBENCH(des_snap<1000>).iterations(map_count).samples(snapshot_sample_size);
+
+int main(int argc, char** argv)
+{
+  crypto::openssl_sha256_init();
+
+  picobench::runner runner;
+  runner.parse_cmd_line(argc, argv);
+  return runner.run();
+}
