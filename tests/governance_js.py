@@ -69,9 +69,24 @@ def set_service_recent_cose_proposals_window_size(proposal_count):
     )
 
 
+def choose_node(network):
+    # Ideally, this would use find_random_node - you should be able to use any
+    # node for governance.
+    # However, many of these tests include a pattern of
+    #   POST /proposal
+    #   GET /proposal
+    # If the former request is redirected, then the latter may fail (essentially
+    # reading stale state, assuming session consistency that doesn't exist).
+    # return network.find_random_node()
+
+    # Instead we ensure that all requests go to the primary
+    primary, _ = network.find_primary()
+    return primary
+
+
 @reqs.description("Test COSE msg type validation")
 def test_cose_msg_type_validation(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
 
     with node.api_versioned_client(
         None, None, "member0", api_version=args.gov_api_version
@@ -127,7 +142,7 @@ def test_cose_msg_type_validation(network, args):
 
 @reqs.description("Test proposal validation")
 def test_proposal_validation(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
 
     def assert_invalid_proposal(proposal_body):
         try:
@@ -213,7 +228,7 @@ def test_proposal_validation(network, args):
 
 @reqs.description("Test proposal storage")
 def test_proposal_storage(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
 
     plausible = os.urandom(32).hex()
 
@@ -253,7 +268,7 @@ def test_proposal_storage(network, args):
 
 @reqs.description("Test proposal withdrawal")
 def test_proposal_withdrawal(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
     infra.clients.get_clock().advance()
 
     plausible = os.urandom(32).hex()
@@ -308,7 +323,7 @@ def test_proposal_withdrawal(network, args):
 
 @reqs.description("Test ballot storage and validation")
 def test_ballot_storage(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
 
     infra.clients.get_clock().advance()
 
@@ -371,7 +386,7 @@ def test_ballot_storage(network, args):
 
 @reqs.description("Test pure proposals")
 def test_pure_proposals(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
 
     with node.api_versioned_client(
         None, None, "member0", api_version=args.gov_api_version
@@ -402,7 +417,7 @@ def test_pure_proposals(network, args):
 
 @reqs.description("Test proposal replay protection")
 def test_proposal_replay_protection(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
 
     with node.api_versioned_client(
         None, None, "member0", api_version=args.gov_api_version
@@ -479,7 +494,7 @@ def test_proposal_replay_protection(network, args):
 
 @reqs.description("Test open proposals")
 def test_all_open_proposals(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
     with node.api_versioned_client(
         None, None, "member0", api_version=args.gov_api_version
     ) as c:
@@ -526,7 +541,7 @@ def opposite(js_bool):
 
 @reqs.description("Test vote proposals")
 def test_proposals_with_votes(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
     with node.api_versioned_client(
         None, None, "member0", api_version=args.gov_api_version
     ) as c:
@@ -600,7 +615,7 @@ def test_proposals_with_votes(network, args):
 
 @reqs.description("Test vote failure reporting")
 def test_vote_failure_reporting(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
 
     error_body = f"Sample error ({uuid.uuid4()})"
 
@@ -643,7 +658,7 @@ def test_vote_failure_reporting(network, args):
 
 @reqs.description("Test operator proposals and votes")
 def test_operator_proposals_and_votes(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
     with node.api_versioned_client(
         None, None, "member0", api_version=args.gov_api_version
     ) as c:
@@ -671,7 +686,7 @@ def test_operator_proposals_and_votes(network, args):
 
 @reqs.description("Test operator provisioner proposals")
 def test_operator_provisioner_proposals_and_votes(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
 
     def propose_and_assert_accepted(signer_id, proposal):
         with node.api_versioned_client(
@@ -751,7 +766,7 @@ def test_operator_provisioner_proposals_and_votes(network, args):
 
 @reqs.description("Test actions")
 def test_actions(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
 
     # Rekey ledger
     network.consortium.trigger_ledger_rekey(node)
@@ -857,7 +872,7 @@ def test_actions(network, args):
 
 @reqs.description("Test resolve and apply failures")
 def test_apply(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
 
     with node.api_versioned_client(
         None, None, "member0", api_version=args.gov_api_version
@@ -921,7 +936,7 @@ def test_apply(network, args):
 
 @reqs.description("Test set_constitution")
 def test_set_constitution(network, args):
-    node = network.find_random_node()
+    node = choose_node(network)
 
     infra.clients.get_clock().advance()
     # Create some open proposals
