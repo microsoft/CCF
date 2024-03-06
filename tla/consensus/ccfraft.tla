@@ -1012,6 +1012,12 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
        IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
           \* Pop any newly committed reconfigurations, except the most recent
           /\ configurations' = [configurations EXCEPT ![i] = RestrictDomain(@, LAMBDA c : c >= newConfigurationIndex)]
+          \* Update retiredCompletedButNotCommitted
+          /\ LET retiredCommittedNodes == {rc \in retiredCompletedButNotCommitted[i] : CalcMembershipState(log[i], commitIndex'[i], rc) = RetiredCommitted}
+                 nodesInCommittedOutConfigs == IF LastConfigurationToIndex(i, newCommitIndex) > 0 THEN (UNION Range(RestrictDomain(configurations[i], LAMBDA c : c < LastConfigurationToIndex(i, newCommitIndex)))) ELSE {}
+                 \* Nodes that are only in configurations that dropped by commit must be addded to retiredCompletedButNotCommitted
+                 nodesOnlyInCommittedOutConfigs == IF LastConfigurationToIndex(i, newCommitIndex) > 0 THEN nodesInCommittedOutConfigs \ configurations[i][LastConfigurationToIndex(i, newCommitIndex)] ELSE {}
+             IN retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = (retiredCompletedButNotCommitted[i] \cup nodesOnlyInCommittedOutConfigs) \ retiredCommittedNodes]
           \* Check if updating the commit index completes a pending retirement
           \* Note the node is already a follower so leadershipState remains unchanged
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log[i], commitIndex'[i], i)]
@@ -1022,7 +1028,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<currentTerm, leadershipState, votedFor, isNewFollower, log, candidateVars, leaderVars, hasJoined, retiredCompletedButNotCommitted>>
+    /\ UNCHANGED <<currentTerm, leadershipState, votedFor, isNewFollower, log, candidateVars, leaderVars, hasJoined>>
 
 \* Follower i receives an AppendEntries request m where it needs to roll back first
 \* This action rolls back the log and leaves m in messages for further processing
@@ -1067,6 +1073,11 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         /\ configurations' = 
                 [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
+        /\ LET retiredCommittedNodes == {rc \in retiredCompletedButNotCommitted[i] : CalcMembershipState(log'[i], new_commit_index, rc) = RetiredCommitted}
+               nodesInCommittedOutConfigs == IF LastConfigurationToIndex(i, new_commit_index) > 0 THEN (UNION Range(RestrictDomain(configurations[i], LAMBDA c : c < LastConfigurationToIndex(i, new_commit_index)))) ELSE {}
+               \* Nodes that are only in configurations that dropped by commit must be addded to retiredCompletedButNotCommitted
+               nodesOnlyInCommittedOutConfigs == IF LastConfigurationToIndex(i, new_commit_index) > 0 THEN nodesInCommittedOutConfigs \ configurations[i][LastConfigurationToIndex(i, new_commit_index)] ELSE {}
+            IN retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = (retiredCompletedButNotCommitted[i] \cup nodesOnlyInCommittedOutConfigs) \ retiredCommittedNodes]
         \* If we added a new configuration that we are in and were pending, we are now follower
         /\ IF /\ leadershipState[i] = None
               /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
@@ -1081,7 +1092,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<currentTerm, votedFor, isNewFollower, candidateVars, leaderVars, hasJoined, retiredCompletedButNotCommitted>>
+    /\ UNCHANGED <<currentTerm, votedFor, isNewFollower, candidateVars, leaderVars, hasJoined>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
