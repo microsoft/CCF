@@ -64,7 +64,6 @@ DebugAliasAggregates ==
 
 DebugAliasVars ==
     [
-        removedFromConfiguration |-> removedFromConfiguration,
         configurations |-> configurations,
         messages |-> messages,
         currentTerm |-> currentTerm,
@@ -97,7 +96,6 @@ DebugActingServerAlias ==
         \* Comment this format in VSCode because it breaks its parser. :-()
         _format |-> B[srv] \o "/\\[0m %1$s = %2$s\n",
         srv |-> srv,
-        removedFromConfiguration |-> removedFromConfiguration,
         configurations |-> configurations[srv],
         currentTerm |-> currentTerm[srv],
         votedFor |-> votedFor[srv],

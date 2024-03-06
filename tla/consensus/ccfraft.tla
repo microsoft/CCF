@@ -128,15 +128,6 @@ ConfigurationsTypeInv ==
         /\ \A c \in DOMAIN configurations[i] :
             configurations[i][c] \subseteq Servers
 
-\* removedFromConfiguration is a global variable keeping track of servers that have
-\* been removed from configurations. It was previously used for to model the fact that
-\* nodes in CCF can only join once, but is being replaced by node specific state for that
-\* purpose (hasJoined). We aim to remove it from the specification soon.
-VARIABLE removedFromConfiguration
-
-RemovedFromConfigurationTypeInv ==
-    removedFromConfiguration \subseteq Servers
-
 \* hasJoined keeps track of whether a node has joined the network. It is used to ensure
 \* a node does not join a network more than once, which is take care by the node state
 \* machine in the implementation.
@@ -146,15 +137,13 @@ HasJoinedTypeInv ==
     \A i \in Servers :
         hasJoined[i] \in BOOLEAN
 
-reconfigurationVars == <<
-    removedFromConfiguration, 
+reconfigurationVars == << 
     configurations,
     hasJoined
 >>
 
 ReconfigurationVarsTypeInv ==
     /\ ConfigurationsTypeInv
-    /\ RemovedFromConfigurationTypeInv
     /\ HasJoinedTypeInv
 
 \* A set representing requests and responses sent from one server
@@ -572,7 +561,6 @@ JoinedLog(startNode, nextNodes) ==
            [term |-> StartTerm, contentType |-> TypeSignature] >>
 
 InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
-    /\ removedFromConfiguration = {}
     /\ votedFor    = [i \in Servers |-> Nil]
     /\ isNewFollower = [i \in Servers |-> TRUE]
     /\ currentTerm = [i \in Servers |-> IF i \in startNodes THEN StartTerm ELSE 0]
@@ -729,7 +717,7 @@ BecomeLeader(i) ==
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
     \* TODO: Check if any node's retirement has been committed and add retired_committed if so
-    /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex, hasJoined>>
+    /\ UNCHANGED <<messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex, hasJoined>>
 
 \* Leader i receives a client request to add 42 to the log.
 ClientRequest(i) ==
@@ -789,7 +777,6 @@ ChangeConfigurationInt(i, newConfiguration) ==
         \* This is to allow the send AE action to send an initial heartbeat which matches the implementation
         /\ LET newSentIndex == [ k \in Servers |-> IF k \in addedNodes THEN Len(log[i]) ELSE sentIndex[i][k]]
             IN sentIndex' = [sentIndex EXCEPT ![i] = newSentIndex]
-        /\ removedFromConfiguration' = removedFromConfiguration \cup (MaxConfiguration(i) \ newConfiguration)
         /\ log' = [log EXCEPT ![i] = Append(log[i],
                                             [term |-> currentTerm[i],
                                              configuration |-> newConfiguration,
@@ -887,7 +874,7 @@ AdvanceCommitIndex(i) ==
                  ELSE UNCHANGED <<messages>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, reconfigurationVars>>
-    /\ UNCHANGED <<candidateVars, leaderVars, removedFromConfiguration, log, currentTerm, votedFor, isNewFollower, hasJoined>>
+    /\ UNCHANGED <<candidateVars, leaderVars, log, currentTerm, votedFor, isNewFollower, hasJoined>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
@@ -1015,7 +1002,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, isNewFollower, log, candidateVars, leaderVars, hasJoined>>
+    /\ UNCHANGED <<currentTerm, leadershipState, votedFor, isNewFollower, log, candidateVars, leaderVars, hasJoined>>
 
 \* Follower i receives an AppendEntries request m where it needs to roll back first
 \* This action rolls back the log and leaves m in messages for further processing
@@ -1031,7 +1018,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex[i], i)]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars, hasJoined>>
+    /\ UNCHANGED <<currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars, hasJoined>>
 
 \* Follower i receives an AppendEntries request m from leader j for log entries which directly follow its log
 NoConflictAppendEntriesRequest(i, j, m) ==
@@ -1074,7 +1061,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, votedFor, isNewFollower, candidateVars, leaderVars, hasJoined>>
+    /\ UNCHANGED <<currentTerm, votedFor, isNewFollower, candidateVars, leaderVars, hasJoined>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -1141,8 +1128,7 @@ UpdateTerm(i, j, m) ==
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
     \* messages is unchanged so m can be processed further.
-    /\ UNCHANGED <<removedFromConfiguration, messageVars, 
-        candidateVars, leaderVars, commitIndex, hasJoined>>
+    /\ UNCHANGED <<messageVars, candidateVars, leaderVars, commitIndex, hasJoined>>
 
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
