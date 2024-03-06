@@ -137,14 +137,27 @@ HasJoinedTypeInv ==
     \A i \in Servers :
         hasJoined[i] \in BOOLEAN
 
+\* retiredCompletedButNotCommitted keeps track of nodes that have been retired completed,
+\* i.e., their reconfiguration transaction has been committed, and all the configs to which
+\* they belonged removed from configurations, but the TypeRetired transaction that marks them
+\* as retired has not been committed yet. This is unused for now, but will be needed for the
+\* liveness fix in #5973.
+VARIABLE retiredCompletedButNotCommitted
+
+RetiredCompletedButNotCommittedTypeInv ==
+    \A i \in Servers :
+        retiredCompletedButNotCommitted[i] \subseteq Servers
+
 reconfigurationVars == << 
     configurations,
-    hasJoined
+    hasJoined,
+    retiredCompletedButNotCommitted
 >>
 
 ReconfigurationVarsTypeInv ==
     /\ ConfigurationsTypeInv
     /\ HasJoinedTypeInv
+    /\ RetiredCompletedButNotCommittedTypeInv
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
@@ -579,6 +592,7 @@ InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
             THEN [j \in Servers |-> Len(logPrefix({sn}, startNodes))] 
             ELSE [j \in Servers |-> 0]]
     /\ configurations = [i \in Servers |-> IF i \in startNodes  THEN (Len(log[i])-1 :> startNodes) ELSE << >>]
+    /\ retiredCompletedButNotCommitted = [i \in Servers |-> {}]
     
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
@@ -717,7 +731,7 @@ BecomeLeader(i) ==
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
     \* TODO: Check if any node's retirement has been committed and add retired_committed if so
-    /\ UNCHANGED <<messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex, hasJoined>>
+    /\ UNCHANGED <<messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex, hasJoined, retiredCompletedButNotCommitted>>
 
 \* Leader i receives a client request to add 42 to the log.
 ClientRequest(i) ==
@@ -786,7 +800,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         /\ IF membershipState[i] = Active /\ i \notin newConfiguration
             THEN membershipState' = [membershipState EXCEPT ![i] = RetirementOrdered]
             ELSE UNCHANGED membershipState
-        /\ UNCHANGED <<messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, matchIndex, commitIndex>>
+        /\ UNCHANGED <<messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, matchIndex, commitIndex, retiredCompletedButNotCommitted>>
 
 ChangeConfiguration(i) ==
     \* Reconfigure to any *non-empty* subset of servers.  ChangeConfigurationInt checks that the new
@@ -860,6 +874,8 @@ AdvanceCommitIndex(i) ==
            THEN
               LET new_configurations == RestrictDomain(configurations[i], 
                                             LAMBDA c : c >= LastConfigurationToIndex(i, highestCommittableIndex))
+                  dropped_nodes == (UNION Range(RestrictDomain(configurations[i],
+                                                LAMBDA c : c < LastConfigurationToIndex(i, highestCommittableIndex))))
               IN
               /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
               \* Retire if i is not in active configuration anymore
@@ -874,6 +890,9 @@ AdvanceCommitIndex(i) ==
                  ELSE UNCHANGED <<messages>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, reconfigurationVars>>
+    \* If some nodes in retiredCompletedButNotCommitted have been RetiredCommitted, remove them
+    /\ LET retiredCommittedNodes == {rc \in retiredCompletedButNotCommitted[i] : CalcMembershipState(log[i], commitIndex[i], rc) = RetiredCommitted}
+       IN retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = retiredCompletedButNotCommitted[i] \ retiredCommittedNodes]
     /\ UNCHANGED <<candidateVars, leaderVars, log, currentTerm, votedFor, isNewFollower, hasJoined>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
@@ -1002,7 +1021,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<currentTerm, leadershipState, votedFor, isNewFollower, log, candidateVars, leaderVars, hasJoined>>
+    /\ UNCHANGED <<currentTerm, leadershipState, votedFor, isNewFollower, log, candidateVars, leaderVars, hasJoined, retiredCompletedButNotCommitted>>
 
 \* Follower i receives an AppendEntries request m where it needs to roll back first
 \* This action rolls back the log and leaves m in messages for further processing
@@ -1018,7 +1037,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex[i], i)]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
-    /\ UNCHANGED <<currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars, hasJoined>>
+    /\ UNCHANGED <<currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars, hasJoined, retiredCompletedButNotCommitted>>
 
 \* Follower i receives an AppendEntries request m from leader j for log entries which directly follow its log
 NoConflictAppendEntriesRequest(i, j, m) ==
@@ -1061,7 +1080,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<currentTerm, votedFor, isNewFollower, candidateVars, leaderVars, hasJoined>>
+    /\ UNCHANGED <<currentTerm, votedFor, isNewFollower, candidateVars, leaderVars, hasJoined, retiredCompletedButNotCommitted>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -1128,7 +1147,7 @@ UpdateTerm(i, j, m) ==
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
     \* messages is unchanged so m can be processed further.
-    /\ UNCHANGED <<messageVars, candidateVars, leaderVars, commitIndex, hasJoined>>
+    /\ UNCHANGED <<messageVars, candidateVars, leaderVars, commitIndex, hasJoined, retiredCompletedButNotCommitted>>
 
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
