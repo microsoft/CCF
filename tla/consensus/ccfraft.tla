@@ -874,8 +874,6 @@ AdvanceCommitIndex(i) ==
            THEN
               LET new_configurations == RestrictDomain(configurations[i], 
                                             LAMBDA c : c >= LastConfigurationToIndex(i, highestCommittableIndex))
-                  dropped_nodes == (UNION Range(RestrictDomain(configurations[i],
-                                                LAMBDA c : c < LastConfigurationToIndex(i, highestCommittableIndex))))
               IN
               /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
               \* Retire if i is not in active configuration anymore
@@ -890,9 +888,12 @@ AdvanceCommitIndex(i) ==
                  ELSE UNCHANGED <<messages>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, reconfigurationVars>>
-    \* If some nodes in retiredCompletedButNotCommitted have been RetiredCommitted, remove them
-    /\ LET retiredCommittedNodes == {rc \in retiredCompletedButNotCommitted[i] : CalcMembershipState(log[i], commitIndex[i], rc) = RetiredCommitted}
-       IN retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = retiredCompletedButNotCommitted[i] \ retiredCommittedNodes]
+        \* Nodes that have reached RetiredCommitted from the point of view of i need to be dropped from retiredCompletedButNotCommitted
+        /\ LET retiredCommittedNodes == {rc \in retiredCompletedButNotCommitted[i] : CalcMembershipState(log[i], commitIndex'[i], rc) = RetiredCommitted}
+               nodesInCommittedOutConfigs == (UNION Range(RestrictDomain(configurations[i], LAMBDA c : c < LastConfigurationToIndex(i, highestCommittableIndex))))
+               \* Nodes that are only in configurations that dropped by commit must be addded to retiredCompletedButNotCommitted
+               nodesOnlyInCommittedOutConfigs == nodesInCommittedOutConfigs \ configurations[i][LastConfigurationToIndex(i, highestCommittableIndex)]
+            IN retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = (retiredCompletedButNotCommitted[i] \cup nodesOnlyInCommittedOutConfigs) \ retiredCommittedNodes]
     /\ UNCHANGED <<candidateVars, leaderVars, log, currentTerm, votedFor, isNewFollower, hasJoined>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
