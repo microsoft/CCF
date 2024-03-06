@@ -3,10 +3,10 @@
 import infra.network
 import infra.e2e_args
 import infra.interfaces
+import infra.net
 from infra.runner import ConcurrentRunner
 import http
 import time
-
 
 from loguru import logger as LOG
 
@@ -69,7 +69,36 @@ def test_redirects_with_default_config(network, args):
             assert r.body.json()["error"]["code"] == "PrimaryNotFound"
 
 
-def run_redirect_tests(args):
+def test_redirects_with_static_name_config(network, args):
+    hostname = "primary.my.ccf.service.example.test"
+
+    paths = ("/app/log/private", "/app/log/public")
+    msg = "Redirect test"
+
+    new_node = network.create_node(
+        infra.interfaces.HostSpec(
+            rpc_interfaces={
+                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                    host=infra.net.expand_localhost(),
+                    redirections=infra.interfaces.RedirectionConfig(
+                        to_primary=infra.interfaces.StaticAddressResolver(hostname)
+                    ),
+                )
+            }
+        )
+    )
+    network.join_node(new_node, args.package, args)
+    network.trust_node(new_node, args)
+
+    with new_node.client("user0") as c:
+        for path in paths:
+            r = c.post(path, {"id": 42, "msg": msg}, allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT.value
+            assert "location" in r.headers
+            assert r.headers["location"] == f"https://{hostname}{path}", r.headers
+
+
+def run_redirect_tests_default(args):
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -80,16 +109,37 @@ def run_redirect_tests(args):
         network.start_and_open(args)
 
         test_redirects_with_default_config(network, args)
+        # ^ This test kills nodes, so be careful if you follow it!
+
+
+def run_redirect_tests_static(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
+
+        test_redirects_with_static_name_config(network, args)
 
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
     cr.add(
-        "redirects",
-        run_redirect_tests,
+        "redirects_default",
+        run_redirect_tests_default,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    )
+
+    cr.add(
+        "redirects_static",
+        run_redirect_tests_static,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
     )
 
     cr.run()
