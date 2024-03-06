@@ -776,7 +776,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
     \* Note that the sentIndex is set to the log entry *before* the reconfiguration was added
     \* This is to allow the send AE action to send an initial heartbeat which matches the implementation
     /\ LET
-        addedNodes == newConfiguration \ CurrentConfiguration(i)
+        addedNodes == newConfiguration \ MaxConfiguration(i)
         newSentIndex == [ k \in Servers |-> IF k \in addedNodes THEN Len(log[i]) ELSE sentIndex[i][k]]
        IN sentIndex' = [sentIndex EXCEPT ![i] = newSentIndex]
     /\ removedFromConfiguration' = removedFromConfiguration \cup (MaxConfiguration(i) \ newConfiguration)
