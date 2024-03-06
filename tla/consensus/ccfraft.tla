@@ -128,20 +128,18 @@ ConfigurationsTypeInv ==
         /\ \A c \in DOMAIN configurations[i] :
             configurations[i][c] \subseteq Servers
 
-\* The set of servers that have been removed from configurations.  The implementation
-\* assumes that a server refrains from rejoining a configuration if it has been removed
-\* from an earlier configuration (relying on the TEE and absent Byzantine fault). Here,
-\* we model removedFromConfiguration as a global variable. In the implementation, this
-\* state has to be maintained by each node separately.
-\* Note that we cannot determine the removed servers from configurations because a prefix
-\* of configurations is removed from the configuration on a change of configuration.
-\* TODO: How does the implementation keep track of removed servers?  Can we remove and
-\* TODO: re-add a server in a raft_scenario test?
+\* removedFromConfiguration is a global variable keeping track of servers that have
+\* been removed from configurations. It was previously used for to model the fact that
+\* nodes in CCF can only join once, but is being replaced by node specific state for that
+\* purpose (hasJoined). We aim to remove it from the specification soon.
 VARIABLE removedFromConfiguration
 
 RemovedFromConfigurationTypeInv ==
     removedFromConfiguration \subseteq Servers
 
+\* hasJoined keeps track of whether a node has joined the network. It is used to ensure
+\* a node does not join a network more than once, which is take care by the node state
+\* machine in the implementation.
 VARIABLE hasJoined
 
 HasJoinedTypeInv ==
