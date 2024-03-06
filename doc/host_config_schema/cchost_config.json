@@ -703,9 +703,7 @@
         },
         "target": {}
       },
-      "required": [
-        "kind"
-      ],
+      "required": ["kind"],
       "if": {
         "properties": {
           "kind": {

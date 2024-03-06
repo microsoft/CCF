@@ -275,7 +275,11 @@ class Response:
 
         return (
             f"<{status_color}>{self.status_code}</> "
-            + (f"<yellow>[Location: {self.headers['location']}]</> " if redirect else "")
+            + (
+                f"<yellow>[Location: {self.headers['location']}]</> "
+                if redirect
+                else ""
+            )
             + (f"@<magenta>{self.view}.{self.seqno}</> " if versioned else "")
             + f"<yellow>{body_s}</>"
         )
