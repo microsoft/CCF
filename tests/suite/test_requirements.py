@@ -147,6 +147,14 @@ def no_http2():
     return ensure_reqs(check)
 
 
+def no_redirects():
+    def check(network, args, *nargs, **kwargs):
+        if args.redirects_enabled:
+            raise TestRequirementsNotMet("Test not run with redirects enabled")
+
+    return ensure_reqs(check)
+
+
 def snp_only():
     def check(*args, **kwargs):
         if not IS_SNP:

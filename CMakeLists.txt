@@ -454,6 +454,11 @@ set(CCF_NETWORK_TEST_ARGS
     --host-log-level ${TEST_LOGGING_LEVEL} --enclave-log-level
     ${TEST_LOGGING_LEVEL} --worker-threads ${WORKER_THREADS}
 )
+if(USE_REDIRECTS)
+  set(CCF_NETWORK_TEST_ARGS
+    ${CCF_NETWORK_TEST_ARGS} --redirects-enabled
+  )
+endif()
 
 if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp)

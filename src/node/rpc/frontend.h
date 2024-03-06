@@ -362,7 +362,7 @@ namespace ccf
 
             // Should have redirected, but don't know how to. Return an error
             ctx->set_error(
-              HTTP_STATUS_BAD_GATEWAY,
+              HTTP_STATUS_SERVICE_UNAVAILABLE,
               ccf::errors::PrimaryNotFound,
               "Request should be redirected to primary, but receiving node "
               "does not know current primary address");

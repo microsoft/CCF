@@ -415,6 +415,11 @@ def cli_args(
         type=str,
         default=infra.clients.API_VERSION_PREVIEW_01,
     )
+    parser.add_argument(
+        "--redirects-enabled",
+        help="Tell the test infrastructure that nodes are using redirects rather than forwarding. This will disable tests of the forwarding behaviour.",
+        action="store_true",
+    )
 
     add(parser)
 
