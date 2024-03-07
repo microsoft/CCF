@@ -144,7 +144,7 @@ HasJoinedTypeInv ==
 \* liveness fix in #5973.
 VARIABLE retirementCompleted
 
-RetiredCompletedButNotCommittedTypeInv ==
+RetirementCompletedTypeInv ==
     \A i \in Servers :
         retirementCompleted[i] \subseteq Servers
 
@@ -157,7 +157,7 @@ reconfigurationVars == <<
 ReconfigurationVarsTypeInv ==
     /\ ConfigurationsTypeInv
     /\ HasJoinedTypeInv
-    /\ RetiredCompletedButNotCommittedTypeInv
+    /\ RetirementCompletedTypeInv
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
@@ -1540,14 +1540,14 @@ RetiredCommittedInv ==
 
 
 \* Nodes that are RetiredCompleted but not committed should not be in any configuration
-RetiredCompletedButNotCommittedNotInConfigsInv ==
+RetirementCompletedNotInConfigsInv ==
     \A i \in Servers:
         \A rc \in retirementCompleted[i] :
             rc \notin UNION Range(configurations[i])
 
 \* All nodes in retirementCompleted should be RetirementCompleted from the
 \* perspective of the node maintaining retirementCompleted
-RetiredCompletedButNotCommittedAreRetirementCompletedInv ==
+RetirementCompletedAreRetirementCompletedInv ==
     \A i \in Servers:
         \A rc \in retirementCompleted[i] :
             CalcMembershipState(log[i], commitIndex[i], rc) = RetirementCompleted
