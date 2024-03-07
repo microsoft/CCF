@@ -137,21 +137,21 @@ HasJoinedTypeInv ==
     \A i \in Servers :
         hasJoined[i] \in BOOLEAN
 
-\* retiredCompletedButNotCommitted keeps track of nodes that have been retired completed,
+\* retirementCompleted keeps track of nodes that have been retired completed,
 \* i.e., their reconfiguration transaction has been committed, and all the configs to which
 \* they belonged removed from configurations, but the TypeRetired transaction that marks them
 \* as retired has not been committed yet. This is unused for now, but will be needed for the
 \* liveness fix in #5973.
-VARIABLE retiredCompletedButNotCommitted
+VARIABLE retirementCompleted
 
 RetiredCompletedButNotCommittedTypeInv ==
     \A i \in Servers :
-        retiredCompletedButNotCommitted[i] \subseteq Servers
+        retirementCompleted[i] \subseteq Servers
 
 reconfigurationVars == << 
     configurations,
     hasJoined,
-    retiredCompletedButNotCommitted
+    retirementCompleted
 >>
 
 ReconfigurationVarsTypeInv ==
@@ -548,21 +548,20 @@ AllRetiredCommittedTxns(log_i) ==
 AllRetired(log_i) ==
     {n \in Servers: RetirementIndexLog(log_i, n) # 0}
 
-NextRetiredCompletedButNotCommitted(current_retired_completed_but_not_committed_i, current_configurations_i, next_log_i, next_commit_index_i, i) ==
-    \* Nodes that have reached RetiredCommitted from the point of view of i need to be dropped from retiredCompletedButNotCommitted
-    LET retiredCommittedNodes == {rc \in current_retired_completed_but_not_committed_i : CalcMembershipState(next_log_i, next_commit_index_i, rc) = RetiredCommitted}
+NextRetirementCompleted(current_retired_completed_i, current_configurations_i, next_log_i, next_commit_index_i, i) ==
+    \* Nodes that have reached RetiredCommitted from the point of view of i need to be dropped from retirementCompleted
+    LET retiredCommittedNodes == {rc \in current_retired_completed_i : CalcMembershipState(next_log_i, next_commit_index_i, rc) = RetiredCommitted}
         nextCurrentConfigIndex == LastConfigurationToIndex(i, next_commit_index_i)
         \* The guards for nextCurrentConfigIndex > 0 are useful on Followers, where commit can advance before we have current configurations
         nodesInCommittedOutConfigs == IF nextCurrentConfigIndex > 0 THEN (UNION Range(RestrictDomain(current_configurations_i, LAMBDA c : c < nextCurrentConfigIndex))) ELSE {}
-        \* Nodes that are only in configurations that dropped by commit must be addded to retiredCompletedButNotCommitted
+        \* Nodes that are only in configurations that dropped by commit must be addded to retirementCompleted
         nodesOnlyInCommittedOutConfigs == IF nextCurrentConfigIndex > 0 THEN nodesInCommittedOutConfigs \ current_configurations_i[nextCurrentConfigIndex] ELSE {}
-    IN (current_retired_completed_but_not_committed_i \cup nodesOnlyInCommittedOutConfigs) \ retiredCommittedNodes
+    IN (current_retired_completed_i \cup nodesOnlyInCommittedOutConfigs) \ retiredCommittedNodes
 
 AppendEntriesBatchsize(i, j) ==
     \* The Leader is modeled to send zero to one entries per AppendEntriesRequest.
      \* This can be redefined to send bigger batches of entries.
     {sentIndex[i][j] + 1}
-
 
 PlausibleSucessorNodes(i) ==
     \* Find plausible successor nodes for i
@@ -602,7 +601,7 @@ InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
             THEN [j \in Servers |-> Len(logPrefix({sn}, startNodes))] 
             ELSE [j \in Servers |-> 0]]
     /\ configurations = [i \in Servers |-> IF i \in startNodes  THEN (Len(log[i])-1 :> startNodes) ELSE << >>]
-    /\ retiredCompletedButNotCommitted = [i \in Servers |-> {}]
+    /\ retirementCompleted = [i \in Servers |-> {}]
     
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
@@ -741,7 +740,7 @@ BecomeLeader(i) ==
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
     \* TODO: Check if any node's retirement has been committed and add retired_committed if so
-    /\ UNCHANGED <<messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex, hasJoined, retiredCompletedButNotCommitted>>
+    /\ UNCHANGED <<messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex, hasJoined, retirementCompleted>>
 
 \* Leader i receives a client request to add 42 to the log.
 ClientRequest(i) ==
@@ -810,7 +809,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         /\ IF membershipState[i] = Active /\ i \notin newConfiguration
             THEN membershipState' = [membershipState EXCEPT ![i] = RetirementOrdered]
             ELSE UNCHANGED membershipState
-        /\ UNCHANGED <<messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, matchIndex, commitIndex, retiredCompletedButNotCommitted>>
+        /\ UNCHANGED <<messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, matchIndex, commitIndex, retirementCompleted>>
 
 ChangeConfiguration(i) ==
     \* Reconfigure to any *non-empty* subset of servers.  ChangeConfigurationInt checks that the new
@@ -898,7 +897,7 @@ AdvanceCommitIndex(i) ==
                  ELSE UNCHANGED <<messages>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, reconfigurationVars>>
-        /\ retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = NextRetiredCompletedButNotCommitted(retiredCompletedButNotCommitted[i], configurations[i], log[i], commitIndex'[i], i)]
+        /\ retirementCompleted' = [retirementCompleted EXCEPT ![i] = NextRetirementCompleted(retirementCompleted[i], configurations[i], log[i], commitIndex'[i], i)]
     /\ UNCHANGED <<candidateVars, leaderVars, log, currentTerm, votedFor, isNewFollower, hasJoined>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
@@ -1017,8 +1016,8 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
        IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
           \* Pop any newly committed reconfigurations, except the most recent
           /\ configurations' = [configurations EXCEPT ![i] = RestrictDomain(@, LAMBDA c : c >= newConfigurationIndex)]
-          \* Update retiredCompletedButNotCommitted
-          /\ retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = NextRetiredCompletedButNotCommitted(retiredCompletedButNotCommitted[i], configurations[i], log[i], commitIndex'[i], i)]
+          \* Update retirementCompleted
+          /\ retirementCompleted' = [retirementCompleted EXCEPT ![i] = NextRetirementCompleted(retirementCompleted[i], configurations[i], log[i], commitIndex'[i], i)]
           \* Check if updating the commit index completes a pending retirement
           \* Note the node is already a follower so leadershipState remains unchanged
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log[i], commitIndex'[i], i)]
@@ -1045,7 +1044,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex[i], i)]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
-    /\ UNCHANGED <<currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars, hasJoined, retiredCompletedButNotCommitted>>
+    /\ UNCHANGED <<currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars, hasJoined, retirementCompleted>>
 
 \* Follower i receives an AppendEntries request m from leader j for log entries which directly follow its log
 NoConflictAppendEntriesRequest(i, j, m) ==
@@ -1074,7 +1073,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         /\ configurations' = 
                 [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
-        /\ retiredCompletedButNotCommitted' = [retiredCompletedButNotCommitted EXCEPT ![i] = NextRetiredCompletedButNotCommitted(retiredCompletedButNotCommitted[i], configurations[i], log'[i], commitIndex'[i], i)]
+        /\ retirementCompleted' = [retirementCompleted EXCEPT ![i] = NextRetirementCompleted(retirementCompleted[i], configurations[i], log'[i], commitIndex'[i], i)]
         \* If we added a new configuration that we are in and were pending, we are now follower
         /\ IF /\ leadershipState[i] = None
               /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
@@ -1156,7 +1155,7 @@ UpdateTerm(i, j, m) ==
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
     \* messages is unchanged so m can be processed further.
-    /\ UNCHANGED <<messageVars, candidateVars, leaderVars, commitIndex, hasJoined, retiredCompletedButNotCommitted>>
+    /\ UNCHANGED <<messageVars, candidateVars, leaderVars, commitIndex, hasJoined, retirementCompleted>>
 
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
@@ -1549,14 +1548,14 @@ RetiredCommittedInv ==
 \* Nodes that are RetiredCompleted but not committed should not be in any configuration
 RetiredCompletedButNotCommittedNotInConfigsInv ==
     \A i \in Servers:
-        \A rc \in retiredCompletedButNotCommitted[i] :
+        \A rc \in retirementCompleted[i] :
             rc \notin UNION Range(configurations[i])
 
-\* All nodes in retiredCompletedButNotCommitted should be RetirementCompleted from the
-\* perspective of the node maintaining retiredCompletedButNotCommitted
+\* All nodes in retirementCompleted should be RetirementCompleted from the
+\* perspective of the node maintaining retirementCompleted
 RetiredCompletedButNotCommittedAreRetirementCompletedInv ==
     \A i \in Servers:
-        \A rc \in retiredCompletedButNotCommitted[i] :
+        \A rc \in retirementCompleted[i] :
             CalcMembershipState(log[i], commitIndex[i], rc) = RetirementCompleted
 
 ------------------------------------------------------------------------------
