@@ -635,6 +635,7 @@ BecomeCandidate(i) ==
     \* Only servers that are followers/candidates can become candidates
     /\ leadershipState[i] \in {Follower, Candidate}
     \* Check that the reconfiguration which added this node is at least committable
+    \* TODO: this is too strong and checks that ALL configurations with i are committable
     /\ \E c \in DOMAIN configurations[i] :
         /\ i \in configurations[i][c]
         /\ MaxCommittableIndex(log[i]) >= c
