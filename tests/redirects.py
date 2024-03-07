@@ -65,7 +65,7 @@ def test_redirects_with_default_config(network, args):
     with backup.client("user0") as c:
         for path in paths:
             r = c.post(path, {"id": 42, "msg": msg}, allow_redirects=False)
-            assert r.status_code == http.HTTPStatus.BAD_GATEWAY.value
+            assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value
             assert r.body.json()["error"]["code"] == "PrimaryNotFound"
 
 
