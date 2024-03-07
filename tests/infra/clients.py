@@ -1054,7 +1054,7 @@ class CCFClient:
         flush_info([str(response)], log_capture, 3)
 
         # NB: We follow redirects at this level, because we do not trust the underlying
-        # client implementation to do so without modifying the request (eg - removing 
+        # client implementation to do so without modifying the request (eg - removing
         # the Authorization header)
         redirect_count = 0
         while (
@@ -1074,6 +1074,8 @@ class CCFClient:
 
             # Construct a temporary client to follow this redirect
             temp_client = type(self.client_impl)(hostname=hostname, **self.client_args)
+            # Handle extreme edge case
+            temp_client._corrupt_signature = self.client_impl._corrupt_signature
             r = Request(redirect_path, body, http_verb, headers)
 
             response = temp_client.request(r, timeout, cose_header_parameters_override)

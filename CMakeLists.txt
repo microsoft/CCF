@@ -455,9 +455,7 @@ set(CCF_NETWORK_TEST_ARGS
     ${TEST_LOGGING_LEVEL} --worker-threads ${WORKER_THREADS}
 )
 if(USE_REDIRECTS)
-  set(CCF_NETWORK_TEST_ARGS
-    ${CCF_NETWORK_TEST_ARGS} --redirects-enabled
-  )
+  set(CCF_NETWORK_TEST_ARGS ${CCF_NETWORK_TEST_ARGS} --redirects-enabled)
 endif()
 
 if(COMPILE_TARGET STREQUAL "sgx")
