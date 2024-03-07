@@ -884,7 +884,7 @@ AdvanceCommitIndex(i) ==
                                             LAMBDA c : c >= LastConfigurationToIndex(i, highestCommittableIndex))
               IN
               /\ configurations' = [configurations EXCEPT ![i] = new_configurations]
-            ELSE UNCHANGED <<reconfigurationVars>>
+            ELSE UNCHANGED <<configurations>>
         /\ IF /\ membershipState[i] = RetirementCompleted
               /\ membershipState'[i] = RetiredCommitted
             THEN \E j \in PlausibleSucessorNodes(i) :
