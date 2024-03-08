@@ -821,6 +821,7 @@ ChangeConfiguration(i) ==
 
 AppendRetiredCommitted(i) ==
     /\ leadershipState[i] = Leader
+    /\ membershipState[i] # RetiredCommitted
     /\ LET 
         \* Calculate which nodes have had their retirement committed but no retired committed txn
         retire_committed_nodes == AllRetired(SubSeq(log[i],1,commitIndex[i])) \ AllRetiredCommittedTxns(log[i]) 
