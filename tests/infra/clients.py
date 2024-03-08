@@ -1078,7 +1078,7 @@ class CCFClient:
             # Copy any test-specific decorators from the main client to the temporary client
             temp_client._corrupt_signature = self.client_impl._corrupt_signature
             temp_client.cose_header_builder = self.client_impl.cose_header_builder
-    
+
             r = Request(redirect_path, body, http_verb, headers)
 
             response = temp_client.request(r, timeout, cose_header_parameters_override)
