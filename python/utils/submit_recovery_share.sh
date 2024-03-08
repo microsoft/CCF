@@ -87,7 +87,7 @@ else
 fi
 
 # First, retrieve the encrypted recovery share
-encrypted_share=$(curl -sSL --fail -X GET "${node_rpc_address}/${get_share_path}" "${@}" | jq -r ".${share_field}")
+encrypted_share=$(curl -sS --fail -X GET "${node_rpc_address}/${get_share_path}" "${@}" | jq -r ".${share_field}")
 
 # Then, decrypt encrypted share with member private key submit decrypted recovery share
 # Note: all in one line so that the decrypted recovery share is not exposed
@@ -96,4 +96,4 @@ echo "${encrypted_share}" \
     | openssl pkeyutl -inkey "${member_enc_privk}" -decrypt -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 \
     | openssl base64 -A | jq -c -R '{share: (.)}' \
     | ccf_cose_sign1 --ccf-gov-msg-type recovery_share --ccf-gov-msg-created_at "$(date -uIs)" --signing-key "${member_id_privk}" --signing-cert "${member_id_cert}" --content "-" \
-    | curl -i -sSL --fail -H "Content-Type: application/cose" -X POST "${node_rpc_address}/${submit_share_path}" "${@}" --data-binary @-
+    | curl -i -sS --fail -H "Content-Type: application/cose" -X POST "${node_rpc_address}/${submit_share_path}" "${@}" --data-binary @-
