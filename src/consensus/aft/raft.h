@@ -1964,7 +1964,7 @@ namespace aft
       // Immediately commit if there are no other nodes.
       if (other_nodes_in_active_configs().size() == 0)
       {
-        commit(state->last_idx);
+        update_commit();
         return;
       }
 
