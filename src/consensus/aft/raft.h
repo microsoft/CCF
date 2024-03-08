@@ -483,6 +483,24 @@ namespace aft
       return state->view_history.get_history_since(idx);
     }
 
+    std::set<ccf::NodeId> other_nodes_in_active_configs() const
+    {
+      std::set<ccf::NodeId> nodes;
+
+      for (auto const& conf : configurations)
+      {
+        for (auto const& [node_id, _] : conf.nodes)
+        {
+          if (node_id != state->node_id)
+          {
+            nodes.insert(node_id);
+          }
+        }
+      }
+
+      return nodes;
+    }
+
   public:
     void add_configuration(
       Index idx,
@@ -1890,21 +1908,9 @@ namespace aft
 
       add_vote_for_me(state->node_id);
 
-      // Request votes only go to nodes in configurations, since only they
-      // will be tallied
-      std::set<ccf::NodeId> nodes_in_active_configs;
-      for (auto const& conf : configurations)
-      {
-        for (auto const& [node_id, _] : conf.nodes)
-        {
-          if (node_id != state->node_id)
-          {
-            nodes_in_active_configs.insert(node_id);
-          }
-        }
-      }
-
-      for (auto const& node_id : nodes_in_active_configs)
+      // Request votes only go to nodes in configurations, since only
+      // their votes can be tallied towards an election quorum.
+      for (auto const& node_id : other_nodes_in_active_configs())
       {
         // ccfraft!RequestVote
         send_request_vote(node_id);
@@ -1956,7 +1962,7 @@ namespace aft
 #endif
 
       // Immediately commit if there are no other nodes.
-      if (all_other_nodes.size() == 0)
+      if (other_nodes_in_active_configs().size() == 0)
       {
         commit(state->last_idx);
         return;
