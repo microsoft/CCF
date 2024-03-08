@@ -1501,38 +1501,25 @@ CommitCommittableIndices ==
             /\ CommittableIndices(i) = {}
         \/ commitIndex[i] \in CommittableIndices(i)
 
-
-\* Given a committed log log_x for some node and an index idx into that log, 
-\* GetConfigurations returns all configurations which should have replicated 
-\* the transaction at idx.
-GetConfigurations(log_x, idx) ==
-    LET
-    configs_all == {k \in DOMAIN log_x : log_x[k].contentType = TypeReconfiguration}
-    configs_before ==  {k \in configs_all : k <= idx}
-    \* This if-statement should not be needed as genesis transaction should be a configuration
-    config_last == IF configs_before = {} THEN {} ELSE {Max(configs_before)}
-    configs_after == {k \in configs_all : k > idx}
-    IN
-    {log_x[i].configuration : i \in (configs_after \union config_last)}
-
-\* ReplicationInv states that all log entries that are believed to be committed must be
-\* replicated on a quorum of nodes from the preceding configuration and all subsequent
-\* committed configurations.
+\* ReplicationInv states that all log entries that are believed to be committed on the node N
+\* with the highest commitIndex, must be replicated on a quorum of nodes of the latest configuration
+\* up to and including N's commitIndex.
 ReplicationInv ==
     \E i \in Servers : 
         \* We just check the node with the highest commitIndex
         \* LogInv ensures that includes all committed transactions
         /\ \A j \in Servers: commitIndex[i] >= commitIndex[j]
-        \* Every committed transaction must be replicated to at least 
-        \* one quorum in each configuration which should have a copy
-        /\ \A idx \in DOMAIN Committed(i) :
-            \A config \in GetConfigurations(Committed(i), idx) :
+        \* CommittedLogAppendOnlyProp asserts that the committed log is append-only, and LogInv asserts
+        \* that the committed log of all servers is the same.  Given that and the fact that TLC checks
+        \* ReplicationInv for every state, it implies that TLC will have already checked ReplicationInv 
+        \* for all lower commit indices.
+        /\ \E config \in FoldLeftDomain(LAMBDA acc, idx: IF /\ log[i][idx].contentType = TypeReconfiguration
+                                                            /\ idx <= commitIndex[i] 
+                                                         THEN {log[i][idx].configuration}
+                                                         ELSE acc, {}, log[i]) :
                 \E quorum \in Quorums[config] :
-                    \A node \in quorum : 
-                        /\ Len(log[node]) >= idx
-                        /\ log[node][idx] = log[i][idx]
-
-
+                    \A node \in quorum :
+                        IsPrefix(Committed(i), log[node])
 
 \* Check that retired committed transactions are added only when retirement committed has been observed
 RetiredCommittedInv ==
