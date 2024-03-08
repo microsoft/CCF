@@ -39,7 +39,7 @@ periodic_all,10
 dispatch_all
 assert_commit_idx,0,8
 # With retired_committed committed, 0 now steps down
-assert_detail,0,leadership_state,Follower
+assert_detail,0,leadership_state,None
 assert_detail,0,retirement_phase,RetiredCommitted
 
 # 1 becomes leader

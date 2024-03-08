@@ -671,9 +671,7 @@ RequestVote(i,j) ==
     \* Only requests vote if we are already a candidate (and therefore have not completed retirement)
     /\ leadershipState[i] = Candidate
     \* Reconfiguration: Make sure j is in a configuration of i
-    /\ \/ IsInServerSet(j, i)
-    \* Or that it is a freshly, but not terminally retired node
-       \/ j \in retirementCompleted[i]
+    /\ IsInServerSet(j, i)
     /\ Send(msg)
     /\ UNCHANGED <<reconfigurationVars, serverVars, votesGranted, leaderVars, logVars>>
 

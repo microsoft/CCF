@@ -77,7 +77,7 @@ IsMessage(msg, dst, src, logline) ==
 ASSUME TLCGet("config").mode = "bfs"
 
 JsonFile ==
-    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../../tests/raft_scenarios/bad_network.ndjson"
+    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../traces/swap_node_all.ndjson"
 
 JsonLog ==
     \* Deserialize the System log as a sequence of records from the log file.

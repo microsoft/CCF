@@ -145,7 +145,10 @@ namespace aft
     // Configurations
     std::list<Configuration> configurations;
     // Union of other nodes (i.e. all nodes but us) in each active
-    // configuration. This should be used for diagnostic or broadcasting
+    // configuration, plus those that are retired, but for which
+    // the persistence of retirement knowledge is not yet established,
+    // i.e. Completed but not RetiredCommitted
+    // This should be used for diagnostic or broadcasting
     // messages but _not_ for counting quorums, which should be done for each
     // active configuration.
     std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
@@ -1887,10 +1890,24 @@ namespace aft
 
       add_vote_for_me(state->node_id);
 
-      for (auto const& node : all_other_nodes)
+      // Request votes only go to nodes in configurations, since only they
+      // will be tallied
+      std::set<ccf::NodeId> nodes_in_active_configs;
+      for (auto const& conf : configurations)
+      {
+        for (auto const& [node_id, _] : conf.nodes)
+        {
+          if (node_id != state->node_id)
+          {
+            nodes_in_active_configs.insert(node_id);
+          }
+        }
+      }
+
+      for (auto const& node_id : nodes_in_active_configs)
       {
         // ccfraft!RequestVote
-        send_request_vote(node.first);
+        send_request_vote(node_id);
       }
     }
 
