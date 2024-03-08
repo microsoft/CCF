@@ -128,15 +128,6 @@ ConfigurationsTypeInv ==
         /\ \A c \in DOMAIN configurations[i] :
             configurations[i][c] \subseteq Servers
 
-\* removedFromConfiguration is a global variable keeping track of servers that have
-\* been removed from configurations. It was previously used for to model the fact that
-\* nodes in CCF can only join once, but is being replaced by node specific state for that
-\* purpose (hasJoined). We aim to remove it from the specification soon.
-VARIABLE removedFromConfiguration
-
-RemovedFromConfigurationTypeInv ==
-    removedFromConfiguration \subseteq Servers
-
 \* hasJoined keeps track of whether a node has joined the network. It is used to ensure
 \* a node does not join a network more than once, which is take care by the node state
 \* machine in the implementation.
@@ -146,16 +137,27 @@ HasJoinedTypeInv ==
     \A i \in Servers :
         hasJoined[i] \in BOOLEAN
 
-reconfigurationVars == <<
-    removedFromConfiguration, 
+\* retirementCompleted keeps track of nodes that have been retired completed,
+\* i.e., their reconfiguration transaction has been committed, and all the configs to which
+\* they belonged removed from configurations, but the TypeRetired transaction that marks them
+\* as retired has not been committed yet. This is unused for now, but will be needed for the
+\* liveness fix in #5973.
+VARIABLE retirementCompleted
+
+RetirementCompletedTypeInv ==
+    \A i \in Servers :
+        retirementCompleted[i] \subseteq Servers
+
+reconfigurationVars == << 
     configurations,
-    hasJoined
+    hasJoined,
+    retirementCompleted
 >>
 
 ReconfigurationVarsTypeInv ==
     /\ ConfigurationsTypeInv
-    /\ RemovedFromConfigurationTypeInv
     /\ HasJoinedTypeInv
+    /\ RetirementCompletedTypeInv
 
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
@@ -546,17 +548,29 @@ AllRetiredCommittedTxns(log_i) ==
 AllRetired(log_i) ==
     {n \in Servers: RetirementIndexLog(log_i, n) # 0}
 
+NextRetirementCompleted(current_retired_completed_i, current_configurations_i, next_log_i, next_commit_index_i, i) ==
+    \* Nodes that have reached RetiredCommitted from the point of view of i need to be dropped from retirementCompleted
+    LET retiredCommittedNodes == {rc \in current_retired_completed_i : CalcMembershipState(next_log_i, next_commit_index_i, rc) = RetiredCommitted}
+        nextCurrentConfigIndex == LastConfigurationToIndex(i, next_commit_index_i)
+        \* The guards for nextCurrentConfigIndex > 0 are useful on Followers, where commit can advance before we have current configurations
+        nodesInCommittedOutConfigs == IF nextCurrentConfigIndex > 0 THEN (UNION Range(RestrictDomain(current_configurations_i, LAMBDA c : c < nextCurrentConfigIndex))) ELSE {}
+        \* Nodes that are only in configurations that dropped by commit must be addded to retirementCompleted
+        nodesOnlyInCommittedOutConfigs == IF nextCurrentConfigIndex > 0 THEN nodesInCommittedOutConfigs \ current_configurations_i[nextCurrentConfigIndex] ELSE {}
+    IN (current_retired_completed_i \cup nodesOnlyInCommittedOutConfigs) \ retiredCommittedNodes
+
 AppendEntriesBatchsize(i, j) ==
     \* The Leader is modeled to send zero to one entries per AppendEntriesRequest.
      \* This can be redefined to send bigger batches of entries.
     {sentIndex[i][j] + 1}
 
-
 PlausibleSucessorNodes(i) ==
     \* Find plausible successor nodes for i
+    \* See raft.h::become_retired:2062
+    \* The node looks across nodes in all known configurations and finds the subset with the highest match index.
+    \* That set is further filtered to the nodes in the highest configuration.
     LET
-        activeServers == Servers \ removedFromConfiguration
-        highestMatchServers == {n \in activeServers : \A m \in activeServers : matchIndex[i][n] >= matchIndex[i][m]}
+        all_other_nodes == GetServerSet(i) \ {i}
+        highestMatchServers == {n \in all_other_nodes : \A m \in all_other_nodes : matchIndex[i][n] >= matchIndex[i][m]}
     IN {n \in highestMatchServers : \A m \in highestMatchServers: HighestConfigurationWithNode(i, n) >= HighestConfigurationWithNode(i, m)} \ {i}
 
 StartLog(startNode, _ignored) ==
@@ -569,7 +583,6 @@ JoinedLog(startNode, nextNodes) ==
            [term |-> StartTerm, contentType |-> TypeSignature] >>
 
 InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
-    /\ removedFromConfiguration = {}
     /\ votedFor    = [i \in Servers |-> Nil]
     /\ isNewFollower = [i \in Servers |-> TRUE]
     /\ currentTerm = [i \in Servers |-> IF i \in startNodes THEN StartTerm ELSE 0]
@@ -588,6 +601,7 @@ InitLogConfigServerVars(startNodes, logPrefix(_,_)) ==
             THEN [j \in Servers |-> Len(logPrefix({sn}, startNodes))] 
             ELSE [j \in Servers |-> 0]]
     /\ configurations = [i \in Servers |-> IF i \in startNodes  THEN (Len(log[i])-1 :> startNodes) ELSE << >>]
+    /\ retirementCompleted = [i \in Servers |-> {}]
     
 ------------------------------------------------------------------------------
 \* Define initial values for all variables
@@ -726,7 +740,7 @@ BecomeLeader(i) ==
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
     \* TODO: Check if any node's retirement has been committed and add retired_committed if so
-    /\ UNCHANGED <<removedFromConfiguration, messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex, hasJoined>>
+    /\ UNCHANGED <<messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex, hasJoined, retirementCompleted>>
 
 \* Leader i receives a client request to add 42 to the log.
 ClientRequest(i) ==
@@ -786,7 +800,6 @@ ChangeConfigurationInt(i, newConfiguration) ==
         \* This is to allow the send AE action to send an initial heartbeat which matches the implementation
         /\ LET newSentIndex == [ k \in Servers |-> IF k \in addedNodes THEN Len(log[i]) ELSE sentIndex[i][k]]
             IN sentIndex' = [sentIndex EXCEPT ![i] = newSentIndex]
-        /\ removedFromConfiguration' = removedFromConfiguration \cup (MaxConfiguration(i) \ newConfiguration)
         /\ log' = [log EXCEPT ![i] = Append(log[i],
                                             [term |-> currentTerm[i],
                                              configuration |-> newConfiguration,
@@ -796,7 +809,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         /\ IF membershipState[i] = Active /\ i \notin newConfiguration
             THEN membershipState' = [membershipState EXCEPT ![i] = RetirementOrdered]
             ELSE UNCHANGED membershipState
-        /\ UNCHANGED <<messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, matchIndex, commitIndex>>
+        /\ UNCHANGED <<messageVars, currentTerm, leadershipState, votedFor, isNewFollower, candidateVars, matchIndex, commitIndex, retirementCompleted>>
 
 ChangeConfiguration(i) ==
     \* Reconfigure to any *non-empty* subset of servers.  ChangeConfigurationInt checks that the new
@@ -884,7 +897,8 @@ AdvanceCommitIndex(i) ==
                  ELSE UNCHANGED <<messages>>
            \* Otherwise, Configuration and states remain unchanged
            ELSE UNCHANGED <<messages, reconfigurationVars>>
-    /\ UNCHANGED <<candidateVars, leaderVars, removedFromConfiguration, log, currentTerm, votedFor, isNewFollower, hasJoined>>
+        /\ retirementCompleted' = [retirementCompleted EXCEPT ![i] = NextRetirementCompleted(retirementCompleted[i], configurations[i], log[i], commitIndex'[i], i)]
+    /\ UNCHANGED <<candidateVars, leaderVars, log, currentTerm, votedFor, isNewFollower, hasJoined>>
 
 \* CCF supports checkQuorum which enables a leader to choose to abdicate leadership.
 CheckQuorum(i) ==
@@ -1002,6 +1016,8 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
        IN /\ commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
           \* Pop any newly committed reconfigurations, except the most recent
           /\ configurations' = [configurations EXCEPT ![i] = RestrictDomain(@, LAMBDA c : c >= newConfigurationIndex)]
+          \* Update retirementCompleted
+          /\ retirementCompleted' = [retirementCompleted EXCEPT ![i] = NextRetirementCompleted(retirementCompleted[i], configurations[i], log[i], commitIndex'[i], i)]
           \* Check if updating the commit index completes a pending retirement
           \* Note the node is already a follower so leadershipState remains unchanged
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log[i], commitIndex'[i], i)]
@@ -1012,7 +1028,7 @@ AppendEntriesAlreadyDone(i, j, index, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, isNewFollower, log, candidateVars, leaderVars, hasJoined>>
+    /\ UNCHANGED <<currentTerm, leadershipState, votedFor, isNewFollower, log, candidateVars, leaderVars, hasJoined>>
 
 \* Follower i receives an AppendEntries request m where it needs to roll back first
 \* This action rolls back the log and leaves m in messages for further processing
@@ -1028,7 +1044,7 @@ ConflictAppendEntriesRequest(i, index, m) ==
           /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(new_log))]
           /\ membershipState' = [membershipState EXCEPT ![i] = CalcMembershipState(log'[i], commitIndex[i], i)]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = FALSE]
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars, hasJoined>>
+    /\ UNCHANGED <<currentTerm, leadershipState, votedFor, commitIndex, messages, candidateVars, leaderVars, hasJoined, retirementCompleted>>
 
 \* Follower i receives an AppendEntries request m from leader j for log entries which directly follow its log
 NoConflictAppendEntriesRequest(i, j, m) ==
@@ -1057,6 +1073,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
         /\ configurations' = 
                 [configurations EXCEPT ![i] = RestrictDomain(new_configs, LAMBDA c : c >= new_conf_index)]
+        /\ retirementCompleted' = [retirementCompleted EXCEPT ![i] = NextRetirementCompleted(retirementCompleted[i], configurations[i], log'[i], commitIndex'[i], i)]
         \* If we added a new configuration that we are in and were pending, we are now follower
         /\ IF /\ leadershipState[i] = None
               /\ \E conf_index \in DOMAIN(new_configs) : i \in new_configs[conf_index]
@@ -1071,7 +1088,7 @@ NoConflictAppendEntriesRequest(i, j, m) ==
               source         |-> i,
               dest           |-> j],
               m)
-    /\ UNCHANGED <<removedFromConfiguration, currentTerm, votedFor, isNewFollower, candidateVars, leaderVars, hasJoined>>
+    /\ UNCHANGED <<currentTerm, votedFor, isNewFollower, candidateVars, leaderVars, hasJoined>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
     \* accept request
@@ -1138,8 +1155,7 @@ UpdateTerm(i, j, m) ==
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
     \* messages is unchanged so m can be processed further.
-    /\ UNCHANGED <<removedFromConfiguration, messageVars, 
-        candidateVars, leaderVars, commitIndex, hasJoined>>
+    /\ UNCHANGED <<messageVars, candidateVars, leaderVars, commitIndex, hasJoined, retirementCompleted>>
 
 \* Responses with stale terms are ignored.
 DropStaleResponse(i, j, m) ==
@@ -1527,6 +1543,20 @@ RetiredCommittedInv ==
                 /\ RetirementIndexLog(log[i],j) # 0 
                 /\ RetirementIndexLog(log[i],j) <= k
                 /\ RetirementIndexLog(log[i],j) <= commitIndex[i]
+
+
+\* Nodes that are RetiredCompleted but not committed should not be in any configuration
+RetirementCompletedNotInConfigsInv ==
+    \A i \in Servers:
+        \A rc \in retirementCompleted[i] :
+            rc \notin UNION Range(configurations[i])
+
+\* All nodes in retirementCompleted should be RetirementCompleted from the
+\* perspective of the node maintaining retirementCompleted
+RetirementCompletedAreRetirementCompletedInv ==
+    \A i \in Servers:
+        \A rc \in retirementCompleted[i] :
+            CalcMembershipState(log[i], commitIndex[i], rc) = RetirementCompleted
 
 ------------------------------------------------------------------------------
 \* Properties
