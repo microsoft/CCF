@@ -1211,7 +1211,9 @@ class Network:
 
     def find_node_by_role(self, role=NodeRole.ANY, log_capture=None):
         role_ = (
-            random.choice([NodeRole.PRIMARY, NodeRole.BACKUP]) if NodeRole.ANY else role
+            random.choice([NodeRole.PRIMARY, NodeRole.BACKUP])
+            if NodeRole.ANY == role
+            else role
         )
         if role_ == NodeRole.PRIMARY:
             return self.find_primary(log_capture=log_capture)[0]
