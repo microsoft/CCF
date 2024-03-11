@@ -34,9 +34,6 @@ assert_commit_idx,0,6
 assert_detail,0,membership_state,Retired
 assert_detail,0,retirement_phase,RetiredCommitted
 
-dispatch_all
-periodic_all,10
-
 # 1 steps up as leader
 assert_detail,1,leadership_state,Leader
 
