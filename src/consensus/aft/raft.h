@@ -307,6 +307,12 @@ namespace aft
         state->retirement_phase == kv::RetirementPhase::RetiredCommitted;
     }
 
+    bool is_retired_completed() const
+    {
+      return state->membership_state == kv::MembershipState::Retired &&
+        state->retirement_phase == kv::RetirementPhase::Completed;
+    }
+
     void set_retired_committed(
       ccf::SeqNo seqno, const std::vector<kv::NodeId>& node_ids) override
     {
@@ -990,11 +996,10 @@ namespace aft
     {
       const auto prev_idx = start_idx - 1;
 
-      if (
-        is_retired() && state->retirement_phase > kv::RetirementPhase::Signed &&
-        start_idx >= end_idx)
+      if (is_retired_completed() && start_idx >= end_idx)
       {
-        // Continue to replicate, but do not send heartbeats if we are retired
+        // Continue to replicate, but do not send heartbeats if we know our
+        // retirement is committed
         return;
       }
 
