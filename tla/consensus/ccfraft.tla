@@ -634,11 +634,13 @@ BecomeCandidate(i) ==
     /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
     \* Only servers that are followers/candidates can become candidates
     /\ leadershipState[i] \in {Follower, Candidate}
-    \* Check that the reconfiguration which added this node is at least committable
-    \* TODO: this is too strong and checks that ALL configurations with i are committable
-    /\ \E c \in DOMAIN configurations[i] :
-        /\ i \in configurations[i][c]
-        /\ MaxCommittableIndex(log[i]) >= c
+    /\
+        \* Check that the reconfiguration which added this node is at least committable
+        \/ \E c \in DOMAIN configurations[i] :
+            /\ i \in configurations[i][c]
+            /\ MaxCommittableIndex(log[i]) >= c
+        \* Or if the node isn't in a configuration, that it is retiring
+        \/ i \in retirementCompleted[i]
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Candidate]
     /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i] + 1]
     \* Candidate votes for itself
