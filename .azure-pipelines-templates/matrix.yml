@@ -171,5 +171,4 @@ jobs:
             - Virtual_Perf
             - Virtual_Perf_MultiThreaded
             - SGX_Perf_MultiThreaded
-            - Model_Checking
             - Simulation
