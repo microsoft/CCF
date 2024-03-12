@@ -53,7 +53,7 @@ assert_detail,0,leadership_state,Leader
 emit_signature,4
 periodic_all,10
 dispatch_all
-assert_commit_idx,0,6
+assert_commit_idx,0,9
 assert_detail,0,membership_state,Retired
 assert_detail,0,leadership_state,Leader
 assert_detail,1,leadership_state,Follower

@@ -326,12 +326,6 @@ namespace aft
           CCF_ASSERT(
             state->retirement_phase == kv::RetirementPhase::Completed,
             "Node is not retired, cannot become retired committed");
-          CCF_ASSERT_FMT(
-            seqno == state->commit_idx,
-            "Retired "
-            "committed index {} does not match current commit index {}",
-            state->retired_committed_idx.value_or(0),
-            state->commit_idx);
           state->retired_committed_idx = seqno;
           become_retired(seqno, kv::RetirementPhase::RetiredCommitted);
         }
@@ -996,7 +990,7 @@ namespace aft
     {
       const auto prev_idx = start_idx - 1;
 
-      if (is_retired_completed() && start_idx >= end_idx)
+      if (is_retired_committed() && start_idx >= end_idx)
       {
         // Continue to replicate, but do not send heartbeats if we know our
         // retirement is committed
@@ -1970,7 +1964,6 @@ namespace aft
       if (other_nodes_in_active_configs().size() == 0)
       {
         update_commit();
-        return;
       }
 
       // Reset next, match, and sent indices for all nodes.
@@ -2254,6 +2247,11 @@ namespace aft
               term_of_new,
               state->current_view);
           }
+
+          if (retired_node_cleanup)
+          {
+            retired_node_cleanup->cleanup();
+          }
         }
       }
     }
@@ -2355,16 +2353,15 @@ namespace aft
           "Configurations: discard committed configuration at {}", conf->idx);
         configurations.pop_front();
         changed = true;
-
-        if (retired_node_cleanup && is_primary())
-        {
-          retired_node_cleanup->cleanup();
-        }
       }
 
       if (changed)
       {
         create_and_remove_node_state();
+        if (retired_node_cleanup && is_primary())
+        {
+          retired_node_cleanup->cleanup();
+        }
       }
     }
 
