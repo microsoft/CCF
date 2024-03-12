@@ -149,15 +149,6 @@ jobs:
           installExtendedTestingTools: false
 
   - ${{ if eq(parameters.perf_tests, 'run') }}:
-      - template: model_checking.yml
-        parameters:
-          target: Virtual
-          env: ${{ parameters.env.Virtual }}
-          installExtendedTestingTools: false
-          depends_on:
-            - configure
-
-  - ${{ if eq(parameters.perf_tests, 'run') }}:
       - template: simulation.yml
         parameters:
           target: Virtual

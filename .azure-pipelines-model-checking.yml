@@ -1,0 +1,31 @@
+pr:
+  branches:
+    include:
+      - main
+      - "release/*"
+    exclude:
+      - "release/[0-3].x"
+  paths:
+    include:
+      - .model_checking_canary
+
+trigger: none
+
+resources:
+  containers:
+    - container: virtual
+      image: ccfmsrc.azurecr.io/ccf/ci:12-02-2024-virtual-clang15
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+
+jobs:
+  - template: .azure-pipelines-templates/configure.yml
+
+  - template: .azure-pipelines-templates/model_checking.yml
+    parameters:
+      target: Virtual
+      env:
+        container: virtual
+        pool: ado-model-checking
+      installExtendedTestingTools: false
+      depends_on:
+        - configure
