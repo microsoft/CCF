@@ -339,7 +339,7 @@ namespace aft
         {
           // Once a node's retired_committed status is itself committed, all
           // future primaries in the network must be aware its retirement is
-          // committed, and so longer need any communication with it to
+          // committed, and so no longer need any communication with it to
           // advance commit. No further communication with this node is needed.
           all_other_nodes.erase(node_id);
         }
@@ -1966,7 +1966,7 @@ namespace aft
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      // Immediately commit if there are no other nodes.
+      // Try to advance commit at once if there are no other nodes.
       if (other_nodes_in_active_configs().size() == 0)
       {
         update_commit();

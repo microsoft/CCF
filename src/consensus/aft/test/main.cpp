@@ -525,6 +525,7 @@ DOCTEST_TEST_CASE("Multiple nodes late join" * doctest::test_suite("multiple"))
         DOCTEST_REQUIRE(msg.leader_commit_idx == 1);
       }));
 }
+
 DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
 {
   ccf::NodeId node_id0 = kv::test::PrimaryNodeId;

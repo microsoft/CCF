@@ -1,8 +1,6 @@
+# Reconfigures from [0, 1] to [1, 2], with 0 staying leader while the reconfiguration is in-progress
 start_node,0
-assert_detail,0,leadership_state,Leader
 emit_signature,2
-
-assert_detail,0,leadership_state,Leader
 assert_commit_idx,0,2
 
 trust_node,2,1
@@ -11,9 +9,11 @@ emit_signature,2
 dispatch_all
 periodic_all,10
 dispatch_all
+periodic_all,10
+dispatch_all
 assert_commit_idx,0,4
-assert_commit_idx,1,2
-# Initial network state: [0, 1]
+assert_commit_idx,1,4
+# Initial network state [0, 1], all nodes in sync
 
 # Reconfig [0, 1] -> [1, 2]
 swap_nodes,2,out,0,in,2
