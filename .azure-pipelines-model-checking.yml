@@ -25,7 +25,10 @@ jobs:
       target: Virtual
       env:
         container: virtual
-        pool: ado-model-checking
+        pool:
+          name: ado-model-checking
+            demands:
+              - WorkFolder -equals /mnt/
       installExtendedTestingTools: false
       depends_on:
         - configure
