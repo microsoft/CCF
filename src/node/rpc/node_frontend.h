@@ -19,6 +19,7 @@
 #include "js/wrap.h"
 #include "node/network_state.h"
 #include "node/rpc/jwt_management.h"
+#include "node/rpc/no_create_tx_claims_digest.cpp"
 #include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
@@ -1584,6 +1585,14 @@ namespace ccf
             ctx.tx, host_data, in.snp_security_policy);
           InternalTablesAccess::trust_node_uvm_endorsements(
             ctx.tx, in.snp_uvm_endorsements);
+        }
+
+        std::optional<ccf::ClaimsDigest::Digest> digest =
+          ccfapp::get_create_tx_claims_digest(ctx.tx);
+        if (digest.has_value())
+        {
+          auto digest_value = digest.value();
+          ctx.rpc_ctx->set_claims_digest(std::move(digest_value));
         }
 
         LOG_INFO_FMT("Created service");
