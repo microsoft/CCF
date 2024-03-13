@@ -27,8 +27,8 @@ jobs:
         container: virtual
         pool:
           name: ado-model-checking
-            demands:
-              - WorkFolder -equals /mnt/storage
+          demands:
+            - WorkFolder -equals /mnt/storage
       installExtendedTestingTools: false
       depends_on:
         - configure
