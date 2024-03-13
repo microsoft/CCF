@@ -2255,11 +2255,6 @@ namespace aft
               term_of_new,
               state->current_view);
           }
-
-          if (retired_node_cleanup)
-          {
-            retired_node_cleanup->cleanup();
-          }
         }
       }
     }
