@@ -19,27 +19,17 @@ jobs:
           python3 ./tla/install_deps.py
         displayName: Setup
 
-      - script: ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json -coverage 10
+      - script: ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
         workingDirectory: tla
         displayName: MCccfraft.cfg
 
-      - script: ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json -coverage 10
+      - script: ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json
         workingDirectory: tla
         displayName: MCccfraftAtomicReconfig.cfg
 
-      - script: ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json -coverage 10
+      - script: ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
         workingDirectory: tla
         displayName: MCccfraftWithReconfig.cfg
-
-      - script: |
-          set -ex
-          ./cimetrics_env.sh python upload_tlc_stats.py 3node_fixed ../tla/MCccfraft_stats.json
-          ./cimetrics_env.sh python upload_tlc_stats.py atomic_reconfig ../tla/MCccfraftAtomicReconfig_stats.json
-          ./cimetrics_env.sh python upload_tlc_stats.py reconfig ../tla/MCccfraftWithReconfig_stats.json
-        env:
-          METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
-        workingDirectory: tests
-        displayName: Uploading TLC stats to cimetrics
 
       - task: PublishPipelineArtifact@1
         inputs:

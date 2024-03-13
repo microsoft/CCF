@@ -162,15 +162,6 @@ jobs:
           installExtendedTestingTools: false
 
   - ${{ if eq(parameters.perf_tests, 'run') }}:
-      - template: model_checking.yml
-        parameters:
-          target: Virtual
-          env: ${{ parameters.env.Virtual }}
-          installExtendedTestingTools: false
-          depends_on:
-            - configure
-
-  - ${{ if eq(parameters.perf_tests, 'run') }}:
       - template: simulation.yml
         parameters:
           target: Virtual
@@ -193,5 +184,4 @@ jobs:
             - Virtual_Perf
             - Virtual_Perf_MultiThreaded
             - SGX_Perf_MultiThreaded
-            - Model_Checking
             - Simulation
