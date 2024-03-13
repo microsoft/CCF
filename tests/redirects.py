@@ -69,6 +69,37 @@ def test_redirects_with_default_config(network, args):
             assert r.body.json()["error"]["code"] == "PrimaryNotFound"
 
 
+def test_redirects_with_node_role_config(network, args):
+    paths = ("/app/log/private", "/app/log/public")
+    msg = "Redirect test"
+
+    new_node = network.create_node(
+        infra.interfaces.HostSpec(
+            rpc_interfaces={
+                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
+                    host=infra.net.expand_localhost(),
+                    redirections=infra.interfaces.RedirectionConfig(
+                        to_primary=infra.interfaces.NodeByRoleResolver()
+                    ),
+                )
+            }
+        )
+    )
+    network.join_node(new_node, args.package, args)
+    network.trust_node(new_node, args)
+
+    primary, _ = network.find_nodes()
+    interface = primary.host.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
+    loc = f"https://{interface.public_host}:{interface.public_port}"
+
+    with new_node.client("user0") as c:
+        for path in paths:
+            r = c.post(path, {"id": 42, "msg": msg}, allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT.value
+            assert "location" in r.headers
+            assert r.headers["location"] == f"{loc}{path}", r.headers
+
+
 def test_redirects_with_static_name_config(network, args):
     hostname = "primary.my.ccf.service.example.test"
 
@@ -112,6 +143,19 @@ def run_redirect_tests_default(args):
         # ^ This test kills nodes, so be careful if you follow it!
 
 
+def run_redirect_tests_role(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        network.start_and_open(args)
+
+        test_redirects_with_node_role_config(network, args)
+
+
 def run_redirect_tests_static(args):
     with infra.network.network(
         args.nodes,
@@ -133,6 +177,13 @@ if __name__ == "__main__":
         run_redirect_tests_default,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    )
+
+    cr.add(
+        "redirects_role",
+        run_redirect_tests_role,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
     )
 
     cr.add(
