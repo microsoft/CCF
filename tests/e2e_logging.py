@@ -909,7 +909,10 @@ def test_genesis_receipt(network, args):
         # Only the logging app sets a claim on the genesis
         assert claims_digest == sha256(constitution.encode()).hexdigest()
     else:
-        assert claims_digest == "0000000000000000000000000000000000000000000000000000000000000000"
+        assert (
+            claims_digest
+            == "0000000000000000000000000000000000000000000000000000000000000000"
+        )
 
     return network
 
