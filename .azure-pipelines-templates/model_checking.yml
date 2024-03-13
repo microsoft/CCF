@@ -4,6 +4,7 @@ jobs:
     variables:
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
+    timeoutInMinutes: 360
 
     ${{ insert }}: ${{ parameters.env }}
 
