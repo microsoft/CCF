@@ -425,9 +425,11 @@ IsInServerSetForIndex(candidate, server, index) ==
         candidate \in configurations[server][i]
 
 \* Pick the union of all servers across all configurations
+\* See raft.h::other_nodes_in_active_configs
 GetServerSet(server) ==
     UNION (Range(configurations[server]))
 
+\* See raft.h::other_nodes_in_active_configs
 IsInServerSet(candidate, server) ==
     \E i \in DOMAIN (configurations[server]) :
         candidate \in configurations[server][i]
