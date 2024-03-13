@@ -892,6 +892,28 @@ def test_historical_receipts_with_claims(network, args):
     return network
 
 
+@reqs.description("Read genesis receipt")
+def test_genesis_receipt(network, args):
+    primary, _ = network.find_nodes()
+
+    genesis_receipt = primary.get_receipt(2, 1)
+    verify_receipt(genesis_receipt.json(), network.cert, generic=True)
+    claims_digest = genesis_receipt.json()["leaf_components"]["claims_digest"]
+
+    with primary.client() as client:
+        constitution = client.get(
+            "/gov/service/constitution?api-version=2023-06-01-preview"
+        ).body.text()
+
+    if args.package == "samples/apps/logging/liblogging":
+        # Only the logging app sets a claim on the genesis
+        assert claims_digest == sha256(constitution.encode()).hexdigest()
+    else:
+        assert claims_digest == "0000000000000000000000000000000000000000000000000000000000000000"
+
+    return network
+
+
 @reqs.description("Read range of historical state")
 @reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
 def test_historical_query_range(network, args):
@@ -1832,6 +1854,7 @@ def run(args):
             test_historical_query_sparse(network, args)
         test_historical_receipts(network, args)
         test_historical_receipts_with_claims(network, args)
+        test_genesis_receipt(network, args)
 
 
 def run_parsing_errors(args):
