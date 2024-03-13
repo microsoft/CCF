@@ -28,7 +28,7 @@ jobs:
         pool:
           name: ado-model-checking
             demands:
-              - WorkFolder -equals /mnt/
+              - WorkFolder -equals /mnt/storage
       installExtendedTestingTools: false
       depends_on:
         - configure
