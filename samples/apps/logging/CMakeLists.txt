@@ -16,7 +16,7 @@ if(NOT TARGET "ccf")
   find_package(${CCF_PROJECT} REQUIRED)
 endif()
 
-add_ccf_app(logging SRCS logging.cpp)
+add_ccf_app(logging SRCS logging.cpp create_tx_claims_digest.cpp)
 
 # Generate an ephemeral signing key
 add_custom_command(
