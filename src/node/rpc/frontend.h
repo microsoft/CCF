@@ -257,43 +257,19 @@ namespace ccf
       return std::nullopt;
     }
 
-    std::optional<RedirectionResolverConfig> get_redirect_resolver_config(
+    RedirectionResolverConfig get_redirect_resolver_config(
       endpoints::RedirectionStrategy strategy,
-      const ccf::ListenInterfaceID& incoming_interface)
+      const ccf::NodeInfoNetwork_v2::NetInterface::Redirections& redirections)
     {
       switch (strategy)
       {
         case (ccf::endpoints::RedirectionStrategy::None):
         {
-          return std::nullopt;
+          return {};
         }
 
         case (ccf::endpoints::RedirectionStrategy::ToPrimary):
         {
-          if (!node_configuration_subsystem)
-          {
-            node_configuration_subsystem =
-              node_context.get_subsystem<NodeConfigurationSubsystem>();
-            if (!node_configuration_subsystem)
-            {
-              LOG_FAIL_FMT("Unable to access NodeConfigurationSubsystem");
-              return std::nullopt;
-            }
-          }
-
-          const auto& node_config_state = node_configuration_subsystem->get();
-          const auto& interfaces =
-            node_config_state.node_config.network.rpc_interfaces;
-          const auto interface_it = interfaces.find(incoming_interface);
-          if (interface_it == interfaces.end())
-          {
-            LOG_FAIL_FMT(
-              "Could not find startup config for interface {}",
-              incoming_interface);
-            return std::nullopt;
-          }
-
-          const auto& redirections = interface_it->second.redirections;
           return redirections.to_primary;
         }
       }
@@ -302,16 +278,18 @@ namespace ccf
     bool check_redirect(
       kv::ReadOnlyTx& tx,
       std::shared_ptr<ccf::RpcContextImpl> ctx,
-      const endpoints::EndpointDefinitionPtr& endpoint)
+      const endpoints::EndpointDefinitionPtr& endpoint,
+      const ccf::NodeInfoNetwork_v2::NetInterface::Redirections& redirections)
     {
       auto rs = endpoint->properties.redirection_strategy;
 
-      if (
-        endpoint->properties.forwarding_required ==
-        endpoints::ForwardingRequired::Always)
-      {
-        rs = ccf::endpoints::RedirectionStrategy::ToPrimary;
-      }
+      // TODO: Think this is no longer needed, because we populate the strategy
+      // elsewhere? if (
+      //   endpoint->properties.forwarding_required ==
+      //   endpoints::ForwardingRequired::Always)
+      // {
+      //   rs = ccf::endpoints::RedirectionStrategy::ToPrimary;
+      // }
 
       switch (rs)
       {
@@ -332,24 +310,13 @@ namespace ccf
 
           if (redirectable && !is_primary)
           {
+            auto resolver = get_redirect_resolver_config(rs, redirections);
+
             const auto listen_interface =
               ctx->get_session_context()->interface_id.value_or(
                 PRIMARY_RPC_INTERFACE);
-
-            auto resolver = get_redirect_resolver_config(rs, listen_interface);
-
-            if (!resolver.has_value())
-            {
-              ctx->set_error(
-                HTTP_STATUS_BAD_GATEWAY,
-                ccf::errors::PrimaryNotFound,
-                "Request should be redirected to primary, but receiving node "
-                "is not configured to find primary address");
-              return true;
-            }
-
             const auto location =
-              resolve_redirect_location(resolver.value(), tx, listen_interface);
+              resolve_redirect_location(resolver, tx, listen_interface);
             if (location.has_value())
             {
               ctx->set_response_header(
@@ -377,6 +344,34 @@ namespace ccf
           return false;
         }
       }
+    }
+
+    std::optional<ccf::NodeInfoNetwork_v2::NetInterface::Redirections>
+    get_redirections_config(const ccf::ListenInterfaceID& incoming_interface)
+    {
+      if (!node_configuration_subsystem)
+      {
+        node_configuration_subsystem =
+          node_context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!node_configuration_subsystem)
+        {
+          LOG_FAIL_FMT("Unable to access NodeConfigurationSubsystem");
+          return std::nullopt;
+        }
+      }
+
+      const auto& node_config_state = node_configuration_subsystem->get();
+      const auto& interfaces =
+        node_config_state.node_config.network.rpc_interfaces;
+      const auto interface_it = interfaces.find(incoming_interface);
+      if (interface_it == interfaces.end())
+      {
+        LOG_FAIL_FMT(
+          "Could not find startup config for interface {}", incoming_interface);
+        return std::nullopt;
+      }
+
+      return interface_it->second.redirections;
     }
 
     bool check_session_consistency(std::shared_ptr<ccf::RpcContextImpl> ctx)
@@ -639,43 +634,53 @@ namespace ccf
             return;
           }
 
-#ifdef CCF_USE_REDIRECTS
-          if (check_redirect(*tx_p, ctx, endpoint))
-          {
-            return;
-          }
-#else
-          bool is_primary = (consensus == nullptr) ||
-            consensus->can_replicate() || ctx->is_create_request;
-          const bool forwardable = (consensus != nullptr);
+          const auto listen_interface =
+            ctx->get_session_context()->interface_id.value_or(
+              PRIMARY_RPC_INTERFACE);
+          const auto redirections = get_redirections_config(listen_interface);
 
-          if (!is_primary && forwardable)
+          // If a redirections config was specified, then redirections are used
+          // and no forwarding is done
+          if (redirections.has_value())
           {
-            switch (endpoint->properties.forwarding_required)
+            if (check_redirect(*tx_p, ctx, endpoint, redirections.value()))
             {
-              case endpoints::ForwardingRequired::Never:
-              {
-                break;
-              }
+              return;
+            }
+          }
+          else
+          {
+            bool is_primary = (consensus == nullptr) ||
+              consensus->can_replicate() || ctx->is_create_request;
+            const bool forwardable = (consensus != nullptr);
 
-              case endpoints::ForwardingRequired::Sometimes:
+            if (!is_primary && forwardable)
+            {
+              switch (endpoint->properties.forwarding_required)
               {
-                if (ctx->get_session_context()->is_forwarding)
+                case endpoints::ForwardingRequired::Never:
+                {
+                  break;
+                }
+
+                case endpoints::ForwardingRequired::Sometimes:
+                {
+                  if (ctx->get_session_context()->is_forwarding)
+                  {
+                    forward(ctx, *tx_p, endpoint);
+                    return;
+                  }
+                  break;
+                }
+
+                case endpoints::ForwardingRequired::Always:
                 {
                   forward(ctx, *tx_p, endpoint);
                   return;
                 }
-                break;
-              }
-
-              case endpoints::ForwardingRequired::Always:
-              {
-                forward(ctx, *tx_p, endpoint);
-                return;
               }
             }
           }
-#endif
 
           std::unique_ptr<AuthnIdentity> identity =
             get_authenticated_identity(ctx, *tx_p, endpoint);

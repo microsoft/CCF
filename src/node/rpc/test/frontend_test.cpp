@@ -1043,7 +1043,6 @@ TEST_CASE("Decoded Templated paths")
   }
 }
 
-#ifndef CCF_USE_REDIRECTS
 TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
 {
   NetworkState network_primary;
@@ -1325,7 +1324,6 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   CHECK(member_frontend_primary.last_caller_cert == member_cert);
   CHECK(member_frontend_primary.last_caller_id.value() == member_id.value());
 }
-#endif
 
 class TestConflictFrontend : public BaseTestFrontend
 {

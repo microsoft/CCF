@@ -118,15 +118,6 @@ endif()
 # openenclave::oesnmalloc
 option(USE_SNMALLOC "Link virtual build against snmalloc" ON)
 
-# This option determines whether non-processable requests are sent to another
-# node by forwarding (OFF) or redirects (ON)
-option(USE_REDIRECTS "Redirect (rather than forward) requests to other nodes"
-       ON
-)
-if(USE_REDIRECTS)
-  add_compile_definitions(CCF_USE_REDIRECTS)
-endif()
-
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -454,9 +445,6 @@ set(CCF_NETWORK_TEST_ARGS
     --host-log-level ${TEST_LOGGING_LEVEL} --enclave-log-level
     ${TEST_LOGGING_LEVEL} --worker-threads ${WORKER_THREADS}
 )
-if(USE_REDIRECTS)
-  set(CCF_NETWORK_TEST_ARGS ${CCF_NETWORK_TEST_ARGS} --redirects-enabled)
-endif()
 
 if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp)
@@ -1392,19 +1380,16 @@ if(BUILD_TESTS)
                       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
 
-    # This test uses large requests (so too slow for SAN), and tests the
-    # forwarding behaviour (so not worth running with redirects)
-    if(NOT SAN AND NOT USE_REDIRECTS)
+    # This test uses large requests (so too slow for SAN)
+    if(NOT SAN)
       add_e2e_test(
         NAME e2e_limits PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/limits.py
       )
     endif()
 
-    if(USE_REDIRECTS)
-      add_e2e_test(
-        NAME e2e_redirects PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
-      )
-    endif()
+    add_e2e_test(
+      NAME e2e_redirects PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
+    )
 
     add_e2e_test(
       NAME e2e_logging_http2

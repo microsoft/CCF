@@ -120,7 +120,9 @@ namespace ccf
         RedirectionResolverConfig to_primary;
 
         bool operator==(const Redirections& other) const = default;
-      } redirections = {};
+      };
+
+      std::optional<Redirections> redirections = std::nullopt;
 
       bool operator==(const NetInterface& other) const
       {

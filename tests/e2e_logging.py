@@ -1133,7 +1133,6 @@ def escaped_query_tests(c, endpoint):
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
 @reqs.no_http2()
-@reqs.no_redirects()
 @app.scoped_txs()
 def test_forwarding_frontends(network, args):
     backup = network.find_any_backup()
@@ -1186,7 +1185,6 @@ def test_forwarding_frontends(network, args):
 @reqs.description("Testing forwarding on user frontends without actor app prefix")
 @reqs.at_least_n_nodes(2)
 @reqs.no_http2()
-@reqs.no_redirects()
 def test_forwarding_frontends_without_app_prefix(network, args):
     msg = "forwarded_msg"
     log_id = 7
@@ -1207,7 +1205,6 @@ def test_forwarding_frontends_without_app_prefix(network, args):
 @reqs.supports_methods("/app/log/private")
 @reqs.at_least_n_nodes(2)
 @reqs.no_http2()
-@reqs.no_redirects()
 def test_long_lived_forwarding(network, args):
     primary, _ = network.find_primary()
 
@@ -1805,7 +1802,7 @@ def run(args):
         test_clear(network, args)
         test_record_count(network, args)
         # HTTP2 doesn't support forwarding
-        if not args.http2 and not args.redirects_enabled:
+        if not args.http2:
             test_forwarding_frontends(network, args)
             test_forwarding_frontends_without_app_prefix(network, args)
             test_long_lived_forwarding(network, args)

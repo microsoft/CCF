@@ -448,7 +448,6 @@ def test_election_reconfiguration(network, args):
 
 @reqs.description("Forwarding across a partition may trigger a timeout")
 @reqs.at_least_n_nodes(3)
-@reqs.no_redirects()
 def test_forwarding_timeout(network, args):
     primary, backups = network.find_nodes()
     backup = backups[0]
@@ -524,7 +523,6 @@ def test_forwarding_timeout(network, args):
 )
 @reqs.supports_methods("/app/log/public")
 @reqs.no_http2()
-@reqs.no_redirects()
 def test_session_consistency(network, args):
     # Ensure we have 5 nodes
     original_size = network.resize(5, args)
@@ -735,11 +733,10 @@ def run(args):
         for n in range(5):
             test_isolate_and_reconnect_primary(network, args, iteration=n)
         test_election_reconfiguration(network, args)
-        if not args.redirects_enabled:
-            test_forwarding_timeout(network, args)
-            # HTTP2 doesn't support forwarding
-            if not args.http2:
-                test_session_consistency(network, args)
+        test_forwarding_timeout(network, args)
+        # HTTP2 doesn't support forwarding
+        if not args.http2:
+            test_session_consistency(network, args)
         test_ledger_invariants(network, args)
 
 

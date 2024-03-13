@@ -11,7 +11,7 @@ import time
 from loguru import logger as LOG
 
 
-def test_redirects_with_default_config(network, args):
+def test_redirects_with_node_role_config(network, args):
     paths = ("/app/log/private", "/app/log/public")
     msg = "Redirect test"
 
@@ -129,21 +129,13 @@ def test_redirects_with_static_name_config(network, args):
             assert r.headers["location"] == f"https://{hostname}{path}", r.headers
 
 
-def run_redirect_tests_default(args):
-    with infra.network.network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        pdb=args.pdb,
-    ) as network:
-        network.start_and_open(args)
-
-        test_redirects_with_default_config(network, args)
-        # ^ This test kills nodes, so be careful if you follow it!
-
-
 def run_redirect_tests_role(args):
+    for node in args.nodes:
+        primary_interface = node.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
+        primary_interface.redirections = infra.interfaces.RedirectionConfig(
+            to_primary=infra.interfaces.NodeByRoleResolver()
+        )
+
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -154,6 +146,7 @@ def run_redirect_tests_role(args):
         network.start_and_open(args)
 
         test_redirects_with_node_role_config(network, args)
+        # ^ This test kills nodes, so be careful if you follow it!
 
 
 def run_redirect_tests_static(args):
@@ -173,17 +166,10 @@ if __name__ == "__main__":
     cr = ConcurrentRunner()
 
     cr.add(
-        "redirects_default",
-        run_redirect_tests_default,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    )
-
-    cr.add(
         "redirects_role",
         run_redirect_tests_role,
         package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
     )
 
     cr.add(
