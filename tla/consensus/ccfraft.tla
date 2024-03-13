@@ -710,7 +710,7 @@ AppendEntries(i, j) ==
        IN
        /\ \E b \in AppendEntriesBatchsize(i, j):
             LET m == msg(b) IN
-            /\ \/ membershipState[i] # RetirementCompleted
+            /\ \/ membershipState[i] # RetiredCommitted
                \/ m.entries # <<>>
             /\ Send(m)
             \* Record the most recent index we have sent to this node.
