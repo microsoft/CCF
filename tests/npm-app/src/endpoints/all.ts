@@ -7,3 +7,4 @@ export * from "./proto";
 export * from "./log";
 export * from "./rpc";
 export * from "./auth";
+export * from "./converters"

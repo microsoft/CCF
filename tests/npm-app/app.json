@@ -1534,6 +1534,17 @@
           }
         }
       }
+    },
+    "/converters/set": {
+      "post": {
+        "js_module": "endpoints/converters.js",
+        "js_function": "testConvertersSet",
+        "forwarding_required": "never",
+        "authn_policies": [],
+        "mode": "readwrite",
+        "openapi": {
+        }
+      }
     }
   }
 }
