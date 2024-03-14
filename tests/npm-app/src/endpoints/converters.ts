@@ -74,6 +74,11 @@ const to_map = ccfapp.typedKv(
   ccfapp.string,
   ccfapp.json<MapStruct>()
 );
+const to_map_checked = ccfapp.typedKv(
+  "to_map",
+  ccfapp.string,
+  ccfapp.checkedJson<MapStruct>()
+);
 
 function expectError(fn, errType) {
   var threw = false;
@@ -199,10 +204,16 @@ export function testConvertersSet() {
     expectError(() => to_struct.set(v_bigint, vals[v_bigint]), TypeError);
   }
 
-  // MapStructConverter
+  // MapConverter
   {
-    // No error, but wrote empty object!
+    // Bad behaviour. No error, but wrote empty object!
     to_map.set(v_map, vals[v_map]);
+  }
+
+  // CheckedMapConverter
+  {
+    // This variant (by using checkedJson) produces a runtime error
+    expectError(() => to_map_checked.set(v_map, vals[v_map]), TypeError);
   }
 
   return { body: "Passed\n" };
@@ -256,8 +267,14 @@ export function testConvertersGet() {
 
   // MapConverter
   {
-    // This should work, but doesn't
+    // Bad write results in mismatch on read
     expectError(() => expectReadable(to_map, v_map), Error);
+  }
+
+  // CheckedMapConverter
+  {
+    // Failed write means nothing to read
+    expectError(() => expectReadable(to_map_checked, v_map), Error);
   }
 
   return { body: "Passed\n" };
