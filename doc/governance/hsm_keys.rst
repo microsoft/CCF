@@ -80,6 +80,8 @@ The member's identity key is now ready to be used for signing governance request
 COSE Signing
 ~~~~~~~~~~~~
 
+.. note:: The `ccf_cose_sign1*` scripts are distributed in the `ccf` Python package, available on PyPI. It can be installed with `pip install ccf`.
+
 As an alternative to the ``ccf_cose_sign1`` script when signing offline, CCF provides the ``ccf_cose_sign1_prepare`` and ``ccf_cose_sign1_finish`` scripts.
 
 ``ccf_cose_sign1_prepare`` takes the same arguments as ``ccf_cose_sign1``, minus the signing key, to produce a payload that can be sent to AKV:

@@ -7,6 +7,8 @@ This section assumes that a set of nodes has already been started by :term:`Oper
 Adding Users
 ------------
 
+.. note:: The `ccf_cose_sign1` script is distributed in the `ccf` Python package, available on PyPI. It can be installed with `pip install ccf`.
+
 Once a CCF network is successfully started and an acceptable number of nodes have joined, members should vote to open the network to :term:`Users`. First, the identities of trusted users should be generated, see :ref:`governance/adding_member:Generating Member Keys and Certificates`.
 
 Then, the certificates of trusted users should be registered in CCF via the member governance interface. For example, the first member may decide to make a proposal to add a new user (here, ``cert`` is the PEM certificate of the user -- see :ref:`architecture/cryptography:Cryptography` for a list of supported algorithms):

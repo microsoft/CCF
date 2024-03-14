@@ -251,6 +251,8 @@ These proposals and votes should be sent as the body of HTTP requests as describ
 Submitting a New Proposal
 -------------------------
 
+.. note:: The `ccf_cose_sign1` script is distributed in the `ccf` Python package, available on PyPI. It can be installed with `pip install ccf`.
+
 Assuming that 3 members (``member1``, ``member2`` and ``member3``) are already registered in the CCF network and that the sample constitution is used, a member can submit a new proposal using :http:POST:`/gov/members/proposals:create` and vote using :http:POST:`/gov/members/proposals/{proposalId}/ballots/{memberId}:submit`.
 
 For example, ``member1`` may submit a proposal to add a new member (``member4``) to the consortium:
