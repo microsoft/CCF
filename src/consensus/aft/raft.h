@@ -485,7 +485,7 @@ namespace aft
 
     // Same as ccfraft.tla GetServerSet/IsInServerSet
     // Not to be confused with all_other_nodes, which includes retired completed
-    // nodes Used to restrict sending vote requests, and when becoming a leader,
+    // nodes. Used to restrict sending vote requests, and when becoming a leader,
     // to decide whether to advance commit.
     std::set<ccf::NodeId> other_nodes_in_active_configs() const
     {
