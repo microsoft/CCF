@@ -45,6 +45,11 @@ const vals = {
 const to_u32 = ccfapp.typedKv("to_u32", ccfapp.string, ccfapp.uint32);
 const to_i32 = ccfapp.typedKv("to_i32", ccfapp.string, ccfapp.int32);
 const to_string = ccfapp.typedKv("to_string", ccfapp.string, ccfapp.string);
+const to_json = ccfapp.typedKv(
+  "to_json",
+  ccfapp.string,
+  ccfapp.json<any>()
+);
 const to_struct = ccfapp.typedKv(
   "to_struct",
   ccfapp.string,
@@ -143,6 +148,23 @@ export function testConvertersSet() {
   // JsonConverter
   {
     // Fine
+    to_json.set(v_bool, vals[v_bool]);
+    to_json.set(v_uint32, vals[v_uint32]);
+    to_json.set(v_uint64, vals[v_uint64]);
+    to_json.set(v_int32, vals[v_int32]);
+    to_json.set(v_int64, vals[v_int64]);
+    to_json.set(v_string, vals[v_string]);
+    to_json.set(v_string_empty, vals[v_string_empty]);
+    to_json.set(v_float, vals[v_float]);
+    to_json.set(v_struct, vals[v_struct]);
+
+    // Some values are runtime errors only:
+    expectError(() => to_json.set(v_bigint, vals[v_bigint]), TypeError);
+  }
+
+  // StructConverter
+  {
+    // Fine
     to_struct.set(v_struct, vals[v_struct]);
 
     // Other values produce compile errors _but mostly not runtime errors_:
@@ -190,6 +212,19 @@ export function testConvertersGet() {
   }
 
   // JsonConverter
+  {
+    expectReadable(to_json, v_bool);
+    expectReadable(to_json, v_uint32);
+    expectReadable(to_json, v_uint64);
+    expectReadable(to_json, v_int32);
+    expectReadable(to_json, v_int64);
+    expectReadable(to_json, v_string);
+    expectReadable(to_json, v_string_empty);
+    expectReadable(to_json, v_float);
+    expectReadable(to_json, v_struct);
+  }
+
+  // StructConverter
   {
     expectReadable(to_struct, v_struct);
   }
