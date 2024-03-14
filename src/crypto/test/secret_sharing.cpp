@@ -8,6 +8,7 @@
 #define FMT_HEADER_ONLY
 #include "crypto/sharing.h"
 
+#include <charconv>
 #include <fmt/format.h>
 
 using namespace crypto::sharing;
@@ -15,15 +16,35 @@ using namespace crypto::sharing;
 void check_share_is_not_trivially_wrong(const Share& share)
 {
   REQUIRE(share.x != 0);
+  bool all_limbs_are_zero = true;
+  bool all_limbs_are_max = true;
   for (size_t i = 0; i < LIMBS; ++i)
   {
-    REQUIRE(share.y[i] != 0);
-    REQUIRE(share.y[i] != 0xFFFFFFFF);
+    if (share.y[i] != 0)
+    {
+      all_limbs_are_zero = false;
+    }
+    if (share.y[i] != 0xFFFFFFFF)
+    {
+      all_limbs_are_max = false;
+    }
+    if (!all_limbs_are_zero && !all_limbs_are_max)
+    {
+      break;
+    }
   }
+  REQUIRE(!all_limbs_are_zero);
+  REQUIRE(!all_limbs_are_max);
 }
 
-void share_and_recover(size_t num_shares, size_t threshold, size_t recoveries)
+void share_and_recover(
+  std::mt19937& rng, size_t num_shares, size_t threshold, size_t recoveries)
 {
+  fmt::println(
+    "Testing {} shares with threshold {} for {} recoveries",
+    num_shares,
+    threshold,
+    recoveries);
   std::vector<Share> shares(num_shares);
 
   Share secret;
@@ -33,8 +54,6 @@ void share_and_recover(size_t num_shares, size_t threshold, size_t recoveries)
   {
     check_share_is_not_trivially_wrong(share);
   }
-
-  std::mt19937 rng{std::random_device{}()};
 
   for (size_t i = 0; i < recoveries; ++i)
   {
@@ -115,13 +134,28 @@ TEST_CASE("Simple sharing and recovery with duplicate shares")
 
 TEST_CASE("Cover a range of share and recover combinations")
 {
+  uint32_t seed = 0;
+  if (std::getenv("RNG_SEED") != nullptr)
+  {
+    std::string rng_seed(std::getenv("RNG_SEED"));
+    std::from_chars(rng_seed.data(), rng_seed.data() + rng_seed.size(), seed);
+  }
+  if (seed == 0)
+  {
+    seed = std::random_device{}();
+  }
+  fmt::println("RNG Seed: {}", seed);
+
+  std::mt19937 rng;
+  rng.seed(seed);
+
   // Shares, Degree, Recoveries
-  share_and_recover(1, 1, 1);
-  share_and_recover(5, 1, 8);
-  share_and_recover(10, 3, 8);
-  share_and_recover(99, 6, 8);
-  share_and_recover(30000, 100, 8);
-  share_and_recover(200000, 400, 8);
+  share_and_recover(rng, 1, 1, 1);
+  share_and_recover(rng, 5, 1, 8);
+  share_and_recover(rng, 10, 3, 8);
+  share_and_recover(rng, 99, 6, 8);
+  share_and_recover(rng, 30000, 100, 8);
+  share_and_recover(rng, 200000, 400, 8);
 }
 
 TEST_CASE("Serialisation")
