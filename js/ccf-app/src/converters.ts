@@ -39,8 +39,16 @@ function checkBoolean(val: any) {
 }
 
 function checkNumber(val: any) {
+  console.log(`Checking number: ${val}`)
   if (typeof val !== "number") {
     throw new TypeError(`Value ${val} is not a number`);
+  }
+}
+
+function checkInt(val: any) {
+  console.log(`Checking int: ${val}`)
+  if (!Number.isInteger(val)) {
+    throw new TypeError(`Value ${val} is not an integer`);
   }
 }
 
@@ -69,7 +77,7 @@ class BoolConverter implements DataConverter<boolean> {
 }
 class Int8Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
-    checkNumber(val);
+    checkInt(val);
     if (val < -128 || val > 127) {
       throw new RangeError("value is not within int8 range");
     }
@@ -83,7 +91,7 @@ class Int8Converter implements DataConverter<number> {
 }
 class Uint8Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
-    checkNumber(val);
+    checkInt(val);
     if (val < 0 || val > 255) {
       throw new RangeError("value is not within uint8 range");
     }
@@ -97,7 +105,7 @@ class Uint8Converter implements DataConverter<number> {
 }
 class Int16Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
-    checkNumber(val);
+    checkInt(val);
     if (val < -32768 || val > 32767) {
       throw new RangeError("value is not within int16 range");
     }
@@ -111,7 +119,7 @@ class Int16Converter implements DataConverter<number> {
 }
 class Uint16Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
-    checkNumber(val);
+    checkInt(val);
     if (val < 0 || val > 65535) {
       throw new RangeError("value is not within uint16 range");
     }
@@ -125,7 +133,7 @@ class Uint16Converter implements DataConverter<number> {
 }
 class Int32Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
-    checkNumber(val);
+    checkInt(val);
     if (val < -2147483648 || val > 2147483647) {
       throw new RangeError("value is not within int32 range");
     }
@@ -139,7 +147,7 @@ class Int32Converter implements DataConverter<number> {
 }
 class Uint32Converter implements DataConverter<number> {
   encode(val: number): ArrayBuffer {
-    checkNumber(val);
+    checkInt(val);
     if (val < 0 || val > 4294967295) {
       throw new RangeError("value is not within uint32 range");
     }
