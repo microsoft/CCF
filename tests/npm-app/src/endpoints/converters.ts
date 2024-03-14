@@ -1,6 +1,16 @@
 import * as ccfapp from "@microsoft/ccf-app";
 
-// TODO: Hook this up to call, assert that the expected runtime errors are runtime errors
+import { isEqual } from "lodash-es";
+
+class MyStruct {
+  x: number;
+  y: string;
+  z: {
+    za: boolean;
+    zb: Array<string>;
+  };
+}
+
 const v_bool = "v_bool";
 const v_uint32 = "v_uint32";
 const v_uint64 = "v_uint64";
@@ -10,6 +20,7 @@ const v_string = "v_string";
 const v_string_empty = "v_string_empty";
 const v_bigint = "v_bigint";
 const v_float = "v_float";
+const v_struct = "v_struct";
 
 const vals = {
   v_bool: true,
@@ -21,11 +32,24 @@ const vals = {
   v_string_empty: "",
   v_bigint: 2n ** 53n + 1n,
   v_float: 0.5,
+  v_struct: {
+    x: 42,
+    y: "goodbye",
+    z: {
+      za: false,
+      zb: ["saluton", "mondo"],
+    },
+  },
 };
 
 const to_u32 = ccfapp.typedKv("to_u32", ccfapp.string, ccfapp.uint32);
 const to_i32 = ccfapp.typedKv("to_i32", ccfapp.string, ccfapp.int32);
-const to_str = ccfapp.typedKv("to_str", ccfapp.string, ccfapp.string);
+const to_string = ccfapp.typedKv("to_string", ccfapp.string, ccfapp.string);
+const to_struct = ccfapp.typedKv(
+  "to_struct",
+  ccfapp.string,
+  ccfapp.json<MyStruct>()
+);
 
 function expectError(fn, errType) {
   var threw = false;
@@ -96,65 +120,53 @@ export function testConvertersSet() {
   // StringConverter
   {
     // Fine
-    to_str.set(v_string, vals[v_string]);
-    to_str.set(v_string_empty, vals[v_string_empty]);
+    to_string.set(v_string, vals[v_string]);
+    to_string.set(v_string_empty, vals[v_string_empty]);
 
-    // Other values produce compile errors:
+    // Other values produce compile errors (_and_ later runtime errors):
     // @ts-ignore
-    expectError(() => to_str.set(v_bool, vals[v_bool]), TypeError);
+    expectError(() => to_string.set(v_bool, vals[v_bool]), TypeError);
     // @ts-ignore
-    expectError(() => to_str.set(v_uint32, vals[v_uint32]), TypeError);
+    expectError(() => to_string.set(v_uint32, vals[v_uint32]), TypeError);
     // @ts-ignore
-    expectError(() => to_str.set(v_int32, vals[v_int32]), TypeError);
+    expectError(() => to_string.set(v_int32, vals[v_int32]), TypeError);
     // @ts-ignore
-    expectError(() => to_str.set(v_uint64, vals[v_uint64]), TypeError);
+    expectError(() => to_string.set(v_uint64, vals[v_uint64]), TypeError);
     // @ts-ignore
-    expectError(() => to_str.set(v_int64, vals[v_int64]), TypeError);
+    expectError(() => to_string.set(v_int64, vals[v_int64]), TypeError);
     // @ts-ignore
-    expectError(() => to_str.set(v_float, vals[v_float]), TypeError);
+    expectError(() => to_string.set(v_float, vals[v_float]), TypeError);
     // @ts-ignore
-    expectError(() => to_str.set(v_bigint, vals[v_bigint]), TypeError);
+    expectError(() => to_string.set(v_bigint, vals[v_bigint]), TypeError);
   }
 
-  // {
-  //   class POD extends ccfapp.JsonCompatible {
-  //     x: number;
-  //     y: string;
-  //     z: {
-  //       za: boolean;
-  //       zb: List<string>;
-  //     };
-  //   }
+  // JsonConverter
+  {
+    // Fine
+    to_struct.set(v_struct, vals[v_struct]);
 
-  //   const str_to_pod = ccfapp.typedKv(
-  //     "str_to_pod",
-  //     ccfapp.string,
-  //     ccfapp.json<POD>()
-  //   );
-  // }
+    // Other values produce compile errors _but mostly not runtime errors_:
+    // @ts-ignore
+    to_struct.set(v_bool, vals[v_bool]);
+    // @ts-ignore
+    to_struct.set(v_uint32, vals[v_uint32]);
+    // @ts-ignore
+    to_struct.set(v_int64, vals[v_int64]);
 
-  // {
-  //   type M = Map<number, string>;
-  //   const str_to_m = ccfapp.typedKv(
-  //     "str_to_m",
-  //     ccfapp.string,
-  //     ccfapp.json<M>()
-  //   );
-
-  //   str_to_m.set(v_string, new Map<number, string>());
-
-  //   // class Foo extends ccfapp.JsonCompatible<Foo> {
-
-  //   // }
-  // }
+    // Some are runtime errors too:
+    // @ts-ignore
+    expectError(() => to_struct.set(v_bigint, vals[v_bigint]), TypeError);
+  }
 
   return { body: "Passed\n" };
 }
 
 function expectReadable(map, key) {
   const v = map.get(key);
-  if (v !== vals[key]) {
-    throw Error(`Failed roundtrip. Expected ${vals[key]}, read ${v}`);
+  if (!isEqual(v, vals[key])) {
+    throw Error(
+      `Failed roundtrip. Expected ${JSON.stringify(vals[key])}}, read ${JSON.stringify(v)}`
+    );
   }
 }
 
@@ -173,8 +185,13 @@ export function testConvertersGet() {
 
   // StringConverter
   {
-    expectReadable(to_str, v_string);
-    expectReadable(to_str, v_string_empty);
+    expectReadable(to_string, v_string);
+    expectReadable(to_string, v_string_empty);
+  }
+
+  // JsonConverter
+  {
+    expectReadable(to_struct, v_struct);
   }
 
   return { body: "Passed\n" };
