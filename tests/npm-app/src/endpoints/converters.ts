@@ -11,6 +11,14 @@ class MyStruct {
   };
 }
 
+class MapStruct {
+  a: {
+    b: {
+      m: Map<string, number>;
+    };
+  };
+}
+
 const v_bool = "v_bool";
 const v_uint32 = "v_uint32";
 const v_uint64 = "v_uint64";
@@ -21,6 +29,11 @@ const v_string_empty = "v_string_empty";
 const v_bigint = "v_bigint";
 const v_float = "v_float";
 const v_struct = "v_struct";
+const v_map = "v_map";
+
+let map = new Map<string, number>();
+map.set("aaa", 1);
+map.set("bcd", 123);
 
 const vals = {
   v_bool: true,
@@ -40,20 +53,26 @@ const vals = {
       zb: ["saluton", "mondo"],
     },
   },
+  v_map: {
+    a: {
+      b: { m: map },
+    },
+  },
 };
 
 const to_u32 = ccfapp.typedKv("to_u32", ccfapp.string, ccfapp.uint32);
 const to_i32 = ccfapp.typedKv("to_i32", ccfapp.string, ccfapp.int32);
 const to_string = ccfapp.typedKv("to_string", ccfapp.string, ccfapp.string);
-const to_json = ccfapp.typedKv(
-  "to_json",
-  ccfapp.string,
-  ccfapp.json<any>()
-);
+const to_json = ccfapp.typedKv("to_json", ccfapp.string, ccfapp.json<any>());
 const to_struct = ccfapp.typedKv(
   "to_struct",
   ccfapp.string,
   ccfapp.json<MyStruct>()
+);
+const to_map = ccfapp.typedKv(
+  "to_map",
+  ccfapp.string,
+  ccfapp.json<MapStruct>()
 );
 
 function expectError(fn, errType) {
@@ -180,6 +199,12 @@ export function testConvertersSet() {
     expectError(() => to_struct.set(v_bigint, vals[v_bigint]), TypeError);
   }
 
+  // MapStructConverter
+  {
+    // No error, but wrote empty object!
+    to_map.set(v_map, vals[v_map]);
+  }
+
   return { body: "Passed\n" };
 }
 
@@ -227,6 +252,12 @@ export function testConvertersGet() {
   // StructConverter
   {
     expectReadable(to_struct, v_struct);
+  }
+
+  // MapConverter
+  {
+    // This should work, but doesn't
+    expectError(() => expectReadable(to_map, v_map), Error);
   }
 
   return { body: "Passed\n" };
