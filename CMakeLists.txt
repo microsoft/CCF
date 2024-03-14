@@ -165,9 +165,7 @@ add_custom_command(
 )
 
 # Copy and install CCF utilities
-set(CCF_UTILITIES keygenerator.sh scurl.sh submit_recovery_share.sh
-                  verify_quote.sh
-)
+set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh verify_quote.sh)
 foreach(UTILITY ${CCF_UTILITIES})
   configure_file(
     ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
