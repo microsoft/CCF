@@ -11,6 +11,7 @@ Generating Member Keys and Certificates
 First, the identity and encryption public and private key pairs of the new member should be created.
 
 The ``keygenerator.sh`` script can be used to generate the member’s certificate and associated private key as well as their encryption public and private keys.
+It is included in the `ccf` Python package, and the `.deb` package will install it under `/opt/ccf_*/bin/`.
 
 .. code-block:: bash
 
@@ -47,6 +48,8 @@ The :ref:`governance/proposals:Submitting a New Proposal` section describes the 
 
 Activating a New Member
 -----------------------
+
+.. note:: The `ccf_cose_sign1` script is distributed in the `ccf` Python package, available on PyPI. It can be installed with `pip install ccf`.
 
 A new member who gets registered in CCF is not yet able to participate in governance operations. To do so, the new member should first acknowledge that they are satisfied with the state of the service (for example, after auditing the current constitution and the nodes currently trusted).
 
