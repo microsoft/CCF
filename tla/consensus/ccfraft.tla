@@ -748,7 +748,7 @@ BecomeLeader(i) ==
 ClientRequest(i) ==
     \* Only leaders receive client requests (and therefore they have not yet completed retirement)
     /\ leadershipState[i] = Leader
-    \* See raft.h::can_replicate_unsafe():911
+    \* See raft.h::can_replicate_unsafe()
     /\ membershipState[i] # RetiredCommitted
     \* Add new request to leader's log
     /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
@@ -765,7 +765,7 @@ ClientRequest(i) ==
 SignCommittableMessages(i) ==
     \* Only applicable to Leaders with a log that contains at least one entry.
     /\ leadershipState[i] = Leader
-    \* See raft.h::can_sign_unsafe():918
+    \* See raft.h::can_sign_unsafe()
     /\ membershipState[i] # RetiredCommitted
     \* The first log entry cannot be a signature.
     /\ log[i] # << >>

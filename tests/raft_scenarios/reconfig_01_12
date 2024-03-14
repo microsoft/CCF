@@ -50,9 +50,15 @@ dispatch_all
 dispatch_all
 assert_commit_idx,1,9
 
-# the operator shuts down 0
-disconnect,0,1
-disconnect,0,2
+# 0 becomes a follower again, because it receives messages
+# from 1 before 1 realises 0 is retired committed.
+# But 0 does not attempt to run for election
+# because it knows it is retired committed
+assert_detail,0,retirement_phase,RetiredCommitted
+assert_detail,0,leadership_state,Follower
+periodic_one,0,150
+assert_detail,0,retirement_phase,RetiredCommitted
+assert_detail,0,leadership_state,Follower
 
 # the network continues
 replicate,3,some_tx

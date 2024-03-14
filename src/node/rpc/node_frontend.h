@@ -617,6 +617,7 @@ namespace ccf
         nodes->foreach([this, &nodes](const auto& node_id, auto node_info) {
           auto gc_node = nodes->get_globally_committed(node_id);
           if (
+            gc_node.has_value() &&
             gc_node->status == ccf::NodeStatus::RETIRED &&
             !node_info.retired_committed)
           {

@@ -336,6 +336,7 @@ namespace aft
           // committed, and so no longer need any communication with it to
           // advance commit. No further communication with this node is needed.
           all_other_nodes.erase(node_id);
+          RAFT_INFO_FMT("Removed {} from nodes known to consensus", node_id);
         }
       }
     }
@@ -485,8 +486,8 @@ namespace aft
 
     // Same as ccfraft.tla GetServerSet/IsInServerSet
     // Not to be confused with all_other_nodes, which includes retired completed
-    // nodes. Used to restrict sending vote requests, and when becoming a leader,
-    // to decide whether to advance commit.
+    // nodes. Used to restrict sending vote requests, and when becoming a
+    // leader, to decide whether to advance commit.
     std::set<ccf::NodeId> other_nodes_in_active_configs() const
     {
       std::set<ccf::NodeId> nodes;
@@ -938,7 +939,7 @@ namespace aft
     bool can_replicate_unsafe()
     {
       return state->leadership_state == kv::LeadershipState::Leader &&
-        state->retirement_phase < kv::RetirementPhase::RetiredCommitted;
+        !is_retired_committed();
     }
 
     bool can_sign_unsafe()
