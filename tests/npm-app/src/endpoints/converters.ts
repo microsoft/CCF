@@ -7,6 +7,7 @@ const v_uint64 = "v_uint64";
 const v_int32 = "v_int32";
 const v_int64 = "v_int64";
 const v_string = "v_string";
+const v_string_empty = "v_string_empty";
 const v_bigint = "v_bigint";
 const v_float = "v_float";
 
@@ -17,9 +18,14 @@ const vals = {
   v_int32: -1,
   v_int64: -(2 ** 32) - 1,
   v_string: "hello world",
+  v_string_empty: "",
   v_bigint: 2n ** 53n + 1n,
   v_float: 0.5,
 };
+
+const to_u32 = ccfapp.typedKv("to_u32", ccfapp.string, ccfapp.uint32);
+const to_i32 = ccfapp.typedKv("to_i32", ccfapp.string, ccfapp.int32);
+const to_str = ccfapp.typedKv("to_str", ccfapp.string, ccfapp.string);
 
 function expectError(fn, errType) {
   var threw = false;
@@ -37,12 +43,11 @@ function expectError(fn, errType) {
   }
 }
 
-// NB: Not hooked up to a callable path, just testing compile-time converter type restrictions.
+// Confirm that expected values can be written to KV tables, while others are prevented with errors.
 // All of the lines decorated with ts-ignore are compilation errors.
 export function testConvertersSet() {
+  // Uint32Converter
   {
-    const to_u32 = ccfapp.typedKv("to_u32", ccfapp.string, ccfapp.uint32);
-
     // Fine
     to_u32.set(v_uint32, vals[v_uint32]);
 
@@ -64,9 +69,8 @@ export function testConvertersSet() {
     expectError(() => to_u32.set(v_string, vals[v_string]), TypeError);
   }
 
+  // Int32Converter
   {
-    const to_i32 = ccfapp.typedKv("to_i32", ccfapp.string, ccfapp.int32);
-
     // Fine
     to_i32.set(v_uint32, vals[v_uint32]);
     to_i32.set(v_int32, vals[v_int32]);
@@ -89,12 +93,11 @@ export function testConvertersSet() {
     expectError(() => to_i32.set(v_string, vals[v_string]), TypeError);
   }
 
+  // StringConverter
   {
-    const to_str = ccfapp.typedKv("to_str", ccfapp.string, ccfapp.string);
-
     // Fine
     to_str.set(v_string, vals[v_string]);
-    to_str.set("", "");
+    to_str.set(v_string_empty, vals[v_string_empty]);
 
     // Other values produce compile errors:
     // @ts-ignore
@@ -144,4 +147,35 @@ export function testConvertersSet() {
 
   //   // }
   // }
+
+  return { body: "Passed\n" };
+}
+
+function expectReadable(map, key) {
+  const v = map.get(key);
+  if (v !== vals[key]) {
+    throw Error(`Failed roundtrip. Expected ${vals[key]}, read ${v}`);
+  }
+}
+
+// Confirm that previously written values can be successfully roundtripped by reading from KV
+export function testConvertersGet() {
+  // Uint32Converter
+  {
+    expectReadable(to_u32, v_uint32);
+  }
+
+  // Int32Converter
+  {
+    expectReadable(to_i32, v_uint32);
+    expectReadable(to_i32, v_int32);
+  }
+
+  // StringConverter
+  {
+    expectReadable(to_str, v_string);
+    expectReadable(to_str, v_string_empty);
+  }
+
+  return { body: "Passed\n" };
 }

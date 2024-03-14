@@ -1545,6 +1545,17 @@
         "openapi": {
         }
       }
+    },
+    "/converters/get": {
+      "get": {
+        "js_module": "endpoints/converters.js",
+        "js_function": "testConvertersGet",
+        "forwarding_required": "never",
+        "authn_policies": [],
+        "mode": "readonly",
+        "openapi": {
+        }
+      }
     }
   }
 }
