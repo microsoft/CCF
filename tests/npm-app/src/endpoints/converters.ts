@@ -55,15 +55,11 @@ export function testConvertersSet() {
     // - non-ints
     expectError(() => to_u32.set(v_float, vals[v_float]), TypeError);
 
-    // Correctly blocks bools at compile time
+    // Some values will produce compile errors (_and_ later runtime errors):
     // @ts-ignore
     expectError(() => to_u32.set(v_bool, vals[v_bool]), TypeError);
-
-    // Correctly blocks bignums at compile time
     // @ts-ignore
     expectError(() => to_u32.set(v_bigint, vals[v_bigint]), TypeError);
-
-    // Correctly blocks strings at compile time
     // @ts-ignore
     expectError(() => to_u32.set(v_string, vals[v_string]), TypeError);
   }
@@ -78,23 +74,19 @@ export function testConvertersSet() {
     // NB: Accepts all values of type `number` at compilation!
     // Some numbers will become runtime errors:
     // - too-large values
-    to_i32.set(v_uint64, vals[v_uint64]);
+    expectError(() => to_i32.set(v_uint64, vals[v_uint64]), RangeError);
     // - too-low values
-    to_i32.set(v_int64, vals[v_int64]);
+    expectError(() => to_i32.set(v_int64, vals[v_int64]), RangeError);
     // - non-ints
-    to_i32.set(v_float, vals[v_float]);
+    expectError(() => to_i32.set(v_float, vals[v_float]), TypeError);
 
-    // Correctly blocks bools at compile time
+    // Some values will produce compile errors (_and_ later runtime errors):
     // @ts-ignore
-    to_i32.set(v_bool, vals[v_bool]);
-
-    // Correctly blocks bignums at compile time
+    expectError(() => to_i32.set(v_bool, vals[v_bool]), TypeError);
     // @ts-ignore
-    to_i32.set(v_bigint, vals[v_bigint]);
-
-    // Correctly blocks strings at compile time
+    expectError(() => to_i32.set(v_bigint, vals[v_bigint]), TypeError);
     // @ts-ignore
-    to_i32.set(v_string, vals[v_string]);
+    expectError(() => to_i32.set(v_string, vals[v_string]), TypeError);
   }
 
   {
@@ -104,21 +96,21 @@ export function testConvertersSet() {
     to_str.set(v_string, vals[v_string]);
     to_str.set("", "");
 
-    // Correctly blocks other types at compile time
+    // Other values produce compile errors:
     // @ts-ignore
-    to_str.set(v_bool, vals[v_bool]);
+    expectError(() => to_str.set(v_bool, vals[v_bool]), TypeError);
     // @ts-ignore
-    to_str.set(v_uint32, vals[v_uint32]);
+    expectError(() => to_str.set(v_uint32, vals[v_uint32]), TypeError);
     // @ts-ignore
-    to_str.set(v_int32, vals[v_int32]);
+    expectError(() => to_str.set(v_int32, vals[v_int32]), TypeError);
     // @ts-ignore
-    to_str.set(v_uint64, vals[v_uint64]);
+    expectError(() => to_str.set(v_uint64, vals[v_uint64]), TypeError);
     // @ts-ignore
-    to_str.set(v_int64, vals[v_int64]);
+    expectError(() => to_str.set(v_int64, vals[v_int64]), TypeError);
     // @ts-ignore
-    to_str.set(v_float, vals[v_float]);
+    expectError(() => to_str.set(v_float, vals[v_float]), TypeError);
     // @ts-ignore
-    to_str.set(v_bigint, vals[v_bigint]);
+    expectError(() => to_str.set(v_bigint, vals[v_bigint]), TypeError);
   }
 
   // {

@@ -39,14 +39,12 @@ function checkBoolean(val: any) {
 }
 
 function checkNumber(val: any) {
-  console.log(`Checking number: ${val}`)
   if (typeof val !== "number") {
     throw new TypeError(`Value ${val} is not a number`);
   }
 }
 
 function checkInt(val: any) {
-  console.log(`Checking int: ${val}`)
   if (!Number.isInteger(val)) {
     throw new TypeError(`Value ${val} is not an integer`);
   }
