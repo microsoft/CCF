@@ -23,7 +23,7 @@ LedgerTypeOK ==
 
 \* In this abstract version of CCF's consensus layer, each ledger is append-only
 LedgersMonoProp ==
-    [][\A view \in DOMAIN ledgerBranches: IsPrefix(ledgerBranches[view], ledgerBranches[view]')]_ledgerBranches
+    [][\A view \in DOMAIN ledgerBranches: IsPrefix(ledgerBranches[view], ledgerBranches'[view])]_ledgerBranches
 
 vars == << history, ledgerBranches >>
 
