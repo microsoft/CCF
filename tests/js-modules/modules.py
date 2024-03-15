@@ -503,6 +503,15 @@ def test_npm_app(network, args):
         # involved to make it happen (code generation with protoc) we'll leave it at that.
         assert len(r.body) == 14, len(r.body)
 
+        # Test KV converter APIs
+        r = c.post("/app/converters/set")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert "Passed" in r.body.text(), r.body
+
+        r = c.get("/app/converters/get")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        assert "Passed" in r.body.text(), r.body
+
         r = c.get("/app/crypto")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
         assert r.body.json()["available"], r.body

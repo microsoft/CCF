@@ -1534,6 +1534,58 @@
           }
         }
       }
+    },
+    "/converters/set": {
+      "post": {
+        "js_module": "endpoints/converters.js",
+        "js_function": "testConvertersSet",
+        "forwarding_required": "never",
+        "authn_policies": [],
+        "mode": "readwrite",
+        "openapi": {
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Success",
+              "content": {
+                "application/json": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/converters/get": {
+      "get": {
+        "js_module": "endpoints/converters.js",
+        "js_function": "testConvertersGet",
+        "forwarding_required": "never",
+        "authn_policies": [],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Success",
+              "content": {
+                "application/json": {}
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
