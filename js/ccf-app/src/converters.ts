@@ -45,6 +45,7 @@ function checkNumber(val: any) {
 }
 
 function checkInt(val: any) {
+  checkNumber(val);
   if (!Number.isInteger(val)) {
     throw new TypeError(`Value ${val} is not an integer`);
   }

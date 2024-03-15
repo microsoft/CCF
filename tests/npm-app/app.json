@@ -1543,6 +1543,21 @@
         "authn_policies": [],
         "mode": "readwrite",
         "openapi": {
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Success",
+              "content": {
+                "application/json": {}
+              }
+            }
+          }
         }
       }
     },
@@ -1554,6 +1569,21 @@
         "authn_policies": [],
         "mode": "readonly",
         "openapi": {
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Success",
+              "content": {
+                "application/json": {}
+              }
+            }
+          }
         }
       }
     }
