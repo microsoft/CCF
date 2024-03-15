@@ -70,7 +70,7 @@ function checkJsonSafe(val: any) {
   }
   if (val instanceof Date) {
     throw TypeError(
-      `Value contains a Date, which cannot be converted back from JSON`
+      `Value contains a Date, which cannot be converted back from JSON`,
     );
   }
   if (typeof val === "object") {
@@ -433,16 +433,14 @@ export const string: DataConverter<string> = new StringConverter();
  * const person2 = conv.decode(buffer); // Person
  * ```
  */
-export const json: <
-  T extends JsonCompatible<T>,
->() => DataConverter<T> = <
+export const json: <T extends JsonCompatible<T>>() => DataConverter<T> = <
   T extends JsonCompatible<T>,
 >() => new JSONConverter<T>();
 
 /**
  * Returns a converter for JSON-compatible objects or values, with errors for
  * known-incompatible types.
- * 
+ *
  * Based on {@linkcode json}, but additionally runs a check during every encode
  * call, throwing an error if the object contains fields which cannot be round-tripped
  * to JSON (Date, Map). This incurs some cost in checking each instance, but gives
@@ -455,20 +453,19 @@ export const json: <
  * }
  * const d: Data = { m: new Map<string, string>() };
  * d.m.set("hello", "John");
- * 
+ *
  * const conv = ccfapp.json<Data>();
  * const buffer = conv.encode(d); // ArrayBuffer, but contents of map silently lost!
  * const d2 = conv.decode(buffer); // Data, but doesn't match d!
- * 
+ *
  * const convChecked = ccfapp.checkedJson<Data>();
  * const buffer2 = convChecked.encode(d); // Throws TypeError
  * ```
  */
 export const checkedJson: <
   T extends JsonCompatible<T>,
->() => DataConverter<T> = <
-  T extends JsonCompatible<T>,
->() => new CheckedJSONConverter<T>();
+>() => DataConverter<T> = <T extends JsonCompatible<T>>() =>
+  new CheckedJSONConverter<T>();
 
 /**
  * Returns a converter for [TypedArray](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray) objects.
@@ -490,9 +487,9 @@ export const checkedJson: <
  * @param clazz The TypedArray class, for example `Uint8Array`.
  */
 export const typedArray: <T extends TypedArray>(
-  clazz: TypedArrayConstructor<T>
+  clazz: TypedArrayConstructor<T>,
 ) => DataConverter<T> = <T extends TypedArray>(
-  clazz: TypedArrayConstructor<T>
+  clazz: TypedArrayConstructor<T>,
 ) => new TypedArrayConverter(clazz);
 
 /**

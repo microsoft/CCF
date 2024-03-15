@@ -67,17 +67,17 @@ const to_json = ccfapp.typedKv("to_json", ccfapp.string, ccfapp.json<any>());
 const to_struct = ccfapp.typedKv(
   "to_struct",
   ccfapp.string,
-  ccfapp.json<MyStruct>()
+  ccfapp.json<MyStruct>(),
 );
 const to_map = ccfapp.typedKv(
   "to_map",
   ccfapp.string,
-  ccfapp.json<MapStruct>()
+  ccfapp.json<MapStruct>(),
 );
 const to_map_checked = ccfapp.typedKv(
   "to_map",
   ccfapp.string,
-  ccfapp.checkedJson<MapStruct>()
+  ccfapp.checkedJson<MapStruct>(),
 );
 
 function expectError(fn, errType) {
@@ -223,7 +223,7 @@ function expectReadable(map, key) {
   const v = map.get(key);
   if (!isEqual(v, vals[key])) {
     throw Error(
-      `Failed roundtrip. Expected ${JSON.stringify(vals[key])}}, read ${JSON.stringify(v)}`
+      `Failed roundtrip. Expected ${JSON.stringify(vals[key])}}, read ${JSON.stringify(v)}`,
     );
   }
 }
