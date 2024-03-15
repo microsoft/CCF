@@ -1561,11 +1561,11 @@ THEOREM Spec => CommittedLogAppendOnlyProp
 \* This is weaker form of CommittedLogAppendOnlyProp so it is not checked by default
 MonotonicCommitIndexProp ==
     [][\A i \in Servers :
-        commitIndex[i]' >= commitIndex[i]]_vars
+        commitIndex'[i] >= commitIndex[i]]_vars
 
 MonotonicTermProp ==
     [][\A i \in Servers :
-        currentTerm[i]' >= currentTerm[i]]_vars
+        currentTerm'[i] >= currentTerm[i]]_vars
 
 MonotonicMatchIndexProp ==
     \* Figure 2, page 4 in the raft paper:
@@ -1574,35 +1574,35 @@ MonotonicMatchIndexProp ==
      \*  to 0, increases monotonically".  In other words, matchIndex never decrements
      \* unless the current action is a node becoming leader.
     [][(~ \E i \in Servers: <<BecomeLeader(i)>>_vars) => 
-            (\A i,j \in Servers : matchIndex[i][j]' >= matchIndex[i][j])]_vars
+            (\A i,j \in Servers : matchIndex'[i][j] >= matchIndex[i][j])]_vars
 
 PermittedLogChangesProp ==
     [][\A i \in Servers :
-        log[i] # log[i]' =>
-            \/ leadershipState[i]' = None
-            \/ leadershipState[i]' = Follower
+        log[i] # log'[i] =>
+            \/ leadershipState'[i] = None
+            \/ leadershipState'[i] = Follower
             \* Established leader adding new entries
             \/ /\ leadershipState[i] = Leader
-               /\ leadershipState[i]' = Leader
-               /\ IsPrefix(log[i], log[i]')
+               /\ leadershipState'[i] = Leader
+               /\ IsPrefix(log[i], log'[i])
             \* Newly elected leader is truncating its log
             \/ /\ leadershipState[i] = Candidate
-               /\ leadershipState[i]' = Leader
-               /\ log[i]' = Committable(i)
+               /\ leadershipState'[i] = Leader
+               /\ log'[i] = Committable(i)
         ]_vars
 
 StateTransitionsProp ==
     [][\A i \in Servers :
-        /\ leadershipState[i] = None => leadershipState[i]' \in {None, Follower}
-        /\ leadershipState[i] = Follower => leadershipState[i]' \in {Follower, Candidate}
-        /\ leadershipState[i] = Candidate => leadershipState[i]' \in {Follower, Candidate, Leader}
-        /\ leadershipState[i] = Leader => leadershipState[i]' \in {Follower, Leader}
+        /\ leadershipState[i] = None => leadershipState'[i] \in {None, Follower}
+        /\ leadershipState[i] = Follower => leadershipState'[i] \in {Follower, Candidate}
+        /\ leadershipState[i] = Candidate => leadershipState'[i] \in {Follower, Candidate, Leader}
+        /\ leadershipState[i] = Leader => leadershipState'[i] \in {Follower, Leader}
         ]_vars
 
 MembershipStateTransitionsProp ==
     [][\A i \in Servers :
         membershipState[i] = RetiredCommitted
-        => membershipState[i]' = RetiredCommitted]_vars \* Terminal state
+        => membershipState'[i] = RetiredCommitted]_vars \* Terminal state
         \* Note that all other transitions between retirement phases are permitted
         \* For instance, a node could go from Active to RetirementCompleted in one step if it 
         \* receives an append entries with its retirement signed and committed
@@ -1611,8 +1611,7 @@ MembershipStateTransitionsProp ==
 PendingBecomesFollowerProp ==
     \* A pending node that becomes aware it is part of a configuration immediately transitions to Follower.
     [][\A s \in { s \in Servers : leadershipState[s] = None } : 
-            s \in GetServerSet(s)' => 
-                leadershipState[s]' = Follower]_vars
+            s \in GetServerSet(s)' => leadershipState'[s] = Follower]_vars
 
 \* Raft Paper section 5.4.2: "[A leader] never commits log entries from previous terms...".
 NeverCommitEntryPrevTermsProp ==
