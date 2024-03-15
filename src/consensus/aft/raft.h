@@ -145,7 +145,10 @@ namespace aft
     // Configurations
     std::list<Configuration> configurations;
     // Union of other nodes (i.e. all nodes but us) in each active
-    // configuration. This should be used for diagnostic or broadcasting
+    // configuration, plus those that are retired, but for which
+    // the persistence of retirement knowledge is not yet established,
+    // i.e. Completed but not RetiredCommitted
+    // This should be used for diagnostic or broadcasting
     // messages but _not_ for counting quorums, which should be done for each
     // active configuration.
     std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
@@ -266,7 +269,7 @@ namespace aft
     Consensus::SignatureDisposition get_signature_disposition() override
     {
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);
-      if (can_replicate_unsafe())
+      if (can_sign_unsafe())
       {
         if (should_sign)
         {
@@ -298,6 +301,18 @@ namespace aft
       return state->membership_state == kv::MembershipState::Retired;
     }
 
+    bool is_retired_committed() const
+    {
+      return state->membership_state == kv::MembershipState::Retired &&
+        state->retirement_phase == kv::RetirementPhase::RetiredCommitted;
+    }
+
+    bool is_retired_completed() const
+    {
+      return state->membership_state == kv::MembershipState::Retired &&
+        state->retirement_phase == kv::RetirementPhase::Completed;
+    }
+
     void set_retired_committed(
       ccf::SeqNo seqno, const std::vector<kv::NodeId>& node_ids) override
     {
@@ -311,14 +326,17 @@ namespace aft
           CCF_ASSERT(
             state->retirement_phase == kv::RetirementPhase::Completed,
             "Node is not retired, cannot become retired committed");
-          CCF_ASSERT_FMT(
-            state->retired_committed_idx == state->commit_idx,
-            "Retired "
-            "committed index {} does not match current commit index {}",
-            state->retired_committed_idx.value_or(0),
-            state->commit_idx);
-          state->retirement_phase = kv::RetirementPhase::RetiredCommitted;
           state->retired_committed_idx = seqno;
+          become_retired(seqno, kv::RetirementPhase::RetiredCommitted);
+        }
+        else
+        {
+          // Once a node's retired_committed status is itself committed, all
+          // future primaries in the network must be aware its retirement is
+          // committed, and so no longer need any communication with it to
+          // advance commit. No further communication with this node is needed.
+          all_other_nodes.erase(node_id);
+          RAFT_INFO_FMT("Removed {} from nodes known to consensus", node_id);
         }
       }
     }
@@ -466,6 +484,28 @@ namespace aft
       return state->view_history.get_history_since(idx);
     }
 
+    // Same as ccfraft.tla GetServerSet/IsInServerSet
+    // Not to be confused with all_other_nodes, which includes retired completed
+    // nodes. Used to restrict sending vote requests, and when becoming a
+    // leader, to decide whether to advance commit.
+    std::set<ccf::NodeId> other_nodes_in_active_configs() const
+    {
+      std::set<ccf::NodeId> nodes;
+
+      for (auto const& conf : configurations)
+      {
+        for (auto const& [node_id, _] : conf.nodes)
+        {
+          if (node_id != state->node_id)
+          {
+            nodes.insert(node_id);
+          }
+        }
+      }
+
+      return nodes;
+    }
+
   public:
     void add_configuration(
       Index idx,
@@ -591,6 +631,15 @@ namespace aft
         return false;
       }
 
+      if (is_retired_committed())
+      {
+        RAFT_DEBUG_FMT(
+          "Failed to replicate {} items: node retirement is complete",
+          entries.size());
+        rollback(state->last_idx);
+        return false;
+      }
+
       RAFT_DEBUG_FMT("Replicating {} entries", entries.size());
 
       for (auto& [index, data, is_globally_committable, hooks] : entries)
@@ -599,16 +648,6 @@ namespace aft
 
         if (index != state->last_idx + 1)
           return false;
-
-        if (state->retirement_committable_idx.has_value())
-        {
-          CCF_ASSERT_FMT(
-            index > state->retirement_committable_idx.value(),
-            "Index {} unexpectedly lower than retirement_committable_idx {}",
-            index,
-            state->retirement_committable_idx.value());
-          return false;
-        }
 
         RAFT_DEBUG_FMT(
           "Replicated on leader {}: {}{} ({} hooks)",
@@ -672,8 +711,8 @@ namespace aft
         }
       }
 
-      // If we are the only node, attempt to commit immediately.
-      if (all_other_nodes.size() == 0)
+      // Try to advance commit at once if there are no other nodes.
+      if (other_nodes_in_active_configs().size() == 0)
       {
         update_commit();
       }
@@ -830,7 +869,7 @@ namespace aft
       else
       {
         if (
-          can_endorse_primary() && ticking &&
+          !is_retired_committed() && ticking &&
           timeout_elapsed >= election_timeout)
         {
           // Start an election.
@@ -900,7 +939,13 @@ namespace aft
     bool can_replicate_unsafe()
     {
       return state->leadership_state == kv::LeadershipState::Leader &&
-        !state->retirement_committable_idx.has_value();
+        !is_retired_committed();
+    }
+
+    bool can_sign_unsafe()
+    {
+      return state->leadership_state == kv::LeadershipState::Leader &&
+        !is_retired_committed();
     }
 
     Index get_commit_idx_unsafe()
@@ -954,11 +999,10 @@ namespace aft
     {
       const auto prev_idx = start_idx - 1;
 
-      if (
-        is_retired() && state->retirement_phase > kv::RetirementPhase::Signed &&
-        start_idx >= end_idx)
+      if (is_retired_committed() && start_idx >= end_idx)
       {
-        // Continue to replicate, but do not send heartbeats if we are retired
+        // Continue to replicate, but do not send heartbeats if we know our
+        // retirement is committed
         return;
       }
 
@@ -1100,19 +1144,6 @@ namespace aft
           send_append_entries_response_nack(from, rejected_tx);
         }
         return;
-      }
-
-      // Then check if those append entries extend past our retirement
-      if (
-        is_retired() &&
-        state->retirement_phase >= kv::RetirementPhase::Completed)
-      {
-        assert(state->retirement_committable_idx.has_value());
-        if (r.idx > state->retirement_committable_idx)
-        {
-          send_append_entries_response_nack(from);
-          return;
-        }
       }
 
       // If the terms match up, it is sufficient to convince us that the sender
@@ -1819,7 +1850,7 @@ namespace aft
       j["from_node_id"] = from;
       RAFT_TRACE_JSON_OUT(j);
 #endif
-      if (can_endorse_primary() && ticking && r.term == state->current_view)
+      if (!is_retired_committed() && ticking && r.term == state->current_view)
       {
         RAFT_INFO_FMT(
           "Becoming candidate early due to propose request vote from {}", from);
@@ -1885,16 +1916,18 @@ namespace aft
 
       add_vote_for_me(state->node_id);
 
-      for (auto const& node : all_other_nodes)
+      // Request votes only go to nodes in configurations, since only
+      // their votes can be tallied towards an election quorum.
+      for (auto const& node_id : other_nodes_in_active_configs())
       {
         // ccfraft!RequestVote
-        send_request_vote(node.first);
+        send_request_vote(node_id);
       }
     }
 
     void become_leader(bool force_become_leader = false)
     {
-      if (is_retired())
+      if (is_retired_committed())
       {
         return;
       }
@@ -1936,11 +1969,10 @@ namespace aft
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      // Immediately commit if there are no other nodes.
-      if (all_other_nodes.size() == 0)
+      // Try to advance commit at once if there are no other nodes.
+      if (other_nodes_in_active_configs().size() == 0)
       {
-        commit(state->last_idx);
-        return;
+        update_commit();
       }
 
       // Reset next, match, and sent indices for all nodes.
@@ -1954,11 +1986,11 @@ namespace aft
         // Send an empty append_entries to all nodes.
         send_append_entries(node.first, next);
       }
-    }
 
-    bool can_endorse_primary()
-    {
-      return state->membership_state != kv::MembershipState::Retired;
+      if (retired_node_cleanup)
+      {
+        retired_node_cleanup->cleanup();
+      }
     }
 
   public:
@@ -1975,23 +2007,20 @@ namespace aft
       // receiving a conflicting AppendEntries
       rollback(last_committable_index());
 
-      if (can_endorse_primary())
-      {
-        state->leadership_state = kv::LeadershipState::Follower;
-        RAFT_INFO_FMT(
-          "Becoming follower {}: {}.{}",
-          state->node_id,
-          state->current_view,
-          state->commit_idx);
+      state->leadership_state = kv::LeadershipState::Follower;
+      RAFT_INFO_FMT(
+        "Becoming follower {}: {}.{}",
+        state->node_id,
+        state->current_view,
+        state->commit_idx);
 
 #ifdef CCF_RAFT_TRACING
-        nlohmann::json j = {};
-        j["function"] = "become_follower";
-        j["state"] = *state;
-        j["configurations"] = configurations;
-        RAFT_TRACE_JSON_OUT(j);
+      nlohmann::json j = {};
+      j["function"] = "become_follower";
+      j["state"] = *state;
+      j["configurations"] = configurations;
+      RAFT_TRACE_JSON_OUT(j);
 #endif
-      }
     }
 
     // Called when a replica becomes aware of the existence of a new term
@@ -2039,7 +2068,7 @@ namespace aft
         state->retirement_committable_idx = idx;
         RAFT_INFO_FMT("Node retirement committable at {}", idx);
       }
-      else if (phase == kv::RetirementPhase::Completed)
+      else if (phase == kv::RetirementPhase::RetiredCommitted)
       {
         if (state->leadership_state == kv::LeadershipState::Leader)
         {
@@ -2167,7 +2196,7 @@ namespace aft
         // The majority must be checked separately for each active
         // configuration.
         std::vector<Index> match;
-        match.reserve(c.nodes.size() + 1);
+        match.reserve(c.nodes.size());
 
         for (auto node : c.nodes)
         {
@@ -2328,16 +2357,15 @@ namespace aft
           "Configurations: discard committed configuration at {}", conf->idx);
         configurations.pop_front();
         changed = true;
-
-        if (retired_node_cleanup && is_primary())
-        {
-          retired_node_cleanup->cleanup();
-        }
       }
 
       if (changed)
       {
         create_and_remove_node_state();
+        if (retired_node_cleanup && is_primary())
+        {
+          retired_node_cleanup->cleanup();
+        }
       }
     }
 
@@ -2461,12 +2489,6 @@ namespace aft
         {
           to_remove.push_back(node.first);
         }
-      }
-
-      for (auto node_id : to_remove)
-      {
-        all_other_nodes.erase(node_id);
-        RAFT_INFO_FMT("Removed raft node {}", node_id);
       }
 
       // Add all active nodes that are not already present in the node state.

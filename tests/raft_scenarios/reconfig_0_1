@@ -1,0 +1,43 @@
+start_node,0
+assert_detail,0,leadership_state,Leader
+emit_signature,2
+
+assert_detail,0,leadership_state,Leader
+assert_commit_idx,0,2
+
+# Reconfig [0] -> [1]
+swap_nodes,2,out,0,in,1
+assert_detail,0,membership_state,Retired
+assert_detail,0,retirement_phase,Ordered
+
+# Sign reconfig
+emit_signature,2
+assert_detail,0,membership_state,Retired
+assert_detail,0,retirement_phase,Signed
+
+# Commit signature
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
+
+# RTX of 0 is now committed, 0 emits a retired_committed transaction
+# followed by a signature
+cleanup_nodes,2,0
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,6
+
+assert_detail,0,membership_state,Retired
+assert_detail,0,retirement_phase,RetiredCommitted
+
+# 1 steps up as leader
+assert_detail,1,leadership_state,Leader
+
+# 1 commits a transaction
+replicate,3,some_tx
+emit_signature,3
+assert_commit_idx,1,8

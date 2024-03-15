@@ -613,18 +613,16 @@ namespace ccf
         .install();
 
       auto set_retired_committed = [this](auto& ctx, nlohmann::json&&) {
-        // This endpoint should only be called internally once it is certain
-        // that all nodes recorded as Retired will no longer issue transactions.
         auto nodes = ctx.tx.rw(network.nodes);
         nodes->foreach([this, &nodes](const auto& node_id, auto node_info) {
+          auto gc_node = nodes->get_globally_committed(node_id);
           if (
-            node_info.status == ccf::NodeStatus::RETIRED &&
-            node_id != this->context.get_node_id() &&
+            gc_node.has_value() &&
+            gc_node->status == ccf::NodeStatus::RETIRED &&
             !node_info.retired_committed)
           {
             // Set retired_committed on nodes for which RETIRED status
-            // has been committed. This endpoint is only triggered for a
-            // a given node once their retirement has been committed.
+            // has been committed.
             node_info.retired_committed = true;
             nodes->put(node_id, node_info);
 

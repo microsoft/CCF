@@ -39,7 +39,6 @@ setup(
     install_requires=requirements,
     scripts=[
         path.join(UTILITIES_PATH, "keygenerator.sh"),
-        path.join(UTILITIES_PATH, "scurl.sh"),
         path.join(UTILITIES_PATH, "submit_recovery_share.sh"),
         path.join(UTILITIES_PATH, "verify_quote.sh"),
     ],

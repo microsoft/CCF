@@ -4,7 +4,7 @@
 #include "test_common.h"
 
 #define DOCTEST_CONFIG_NO_SHORT_MACRO_NAMES
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
 std::unique_ptr<threading::ThreadMessaging>
@@ -997,4 +997,15 @@ DOCTEST_TEST_CASE(
   r1.periodic(election_timeout * 2);
   DOCTEST_REQUIRE(
     r1c->count_messages_with_type(aft::RaftMsgType::raft_request_vote) == 1);
+}
+
+int main(int argc, char** argv)
+{
+  threading::ThreadMessaging::init(1);
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  int res = context.run();
+  if (context.shouldExit())
+    return res;
+  return res;
 }

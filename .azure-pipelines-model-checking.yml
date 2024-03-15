@@ -18,14 +18,13 @@ resources:
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
 jobs:
-  - template: .azure-pipelines-templates/configure.yml
-
   - template: .azure-pipelines-templates/model_checking.yml
     parameters:
       target: Virtual
       env:
         container: virtual
-        pool: ado-model-checking
+        pool:
+          name: ado-model-checking
+          demands:
+            - WorkFolder -equals /mnt/storage
       installExtendedTestingTools: false
-      depends_on:
-        - configure

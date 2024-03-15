@@ -9,6 +9,12 @@ parameters:
     SNPCC:
       container: snp
       pool: ado-virtual-ccf-sub
+    MC:
+      container: virtual
+      pool:
+        name: ado-model-checking
+        demands:
+          - WorkFolder -equals /mnt/storage
 
   build:
     common:
@@ -136,8 +142,8 @@ jobs:
   - template: simulation.yml
     parameters:
       target: Virtual
-      timeout: 3000
-      env: ${{ parameters.env.Virtual }}
+      timeout: 6000
+      env: ${{ parameters.env.MC }}
       installExtendedTestingTools: false
       depends_on:
         - configure
