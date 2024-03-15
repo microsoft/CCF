@@ -283,14 +283,6 @@ namespace ccf
     {
       auto rs = endpoint->properties.redirection_strategy;
 
-      // TODO: Think this is no longer needed, because we populate the strategy
-      // elsewhere? if (
-      //   endpoint->properties.forwarding_required ==
-      //   endpoints::ForwardingRequired::Always)
-      // {
-      //   rs = ccf::endpoints::RedirectionStrategy::ToPrimary;
-      // }
-
       switch (rs)
       {
         case (ccf::endpoints::RedirectionStrategy::None):

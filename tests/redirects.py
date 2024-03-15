@@ -69,37 +69,6 @@ def test_redirects_with_node_role_config(network, args):
             assert r.body.json()["error"]["code"] == "PrimaryNotFound"
 
 
-def test_redirects_with_node_role_config(network, args):
-    paths = ("/app/log/private", "/app/log/public")
-    msg = "Redirect test"
-
-    new_node = network.create_node(
-        infra.interfaces.HostSpec(
-            rpc_interfaces={
-                infra.interfaces.PRIMARY_RPC_INTERFACE: infra.interfaces.RPCInterface(
-                    host=infra.net.expand_localhost(),
-                    redirections=infra.interfaces.RedirectionConfig(
-                        to_primary=infra.interfaces.NodeByRoleResolver()
-                    ),
-                )
-            }
-        )
-    )
-    network.join_node(new_node, args.package, args)
-    network.trust_node(new_node, args)
-
-    primary, _ = network.find_nodes()
-    interface = primary.host.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
-    loc = f"https://{interface.public_host}:{interface.public_port}"
-
-    with new_node.client("user0") as c:
-        for path in paths:
-            r = c.post(path, {"id": 42, "msg": msg}, allow_redirects=False)
-            assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT.value
-            assert "location" in r.headers
-            assert r.headers["location"] == f"{loc}{path}", r.headers
-
-
 def test_redirects_with_static_name_config(network, args):
     hostname = "primary.my.ccf.service.example.test"
 
