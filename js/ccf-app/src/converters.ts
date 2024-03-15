@@ -457,7 +457,7 @@ export const json: <
  * d.m.set("hello", "John");
  * 
  * const conv = ccfapp.json<Data>();
- * const buffer = conv.encode(d); // ArrayBuffer, but contents of map silently list!
+ * const buffer = conv.encode(d); // ArrayBuffer, but contents of map silently lost!
  * const d2 = conv.decode(buffer); // Data, but doesn't match d!
  * 
  * const convChecked = ccfapp.checkedJson<Data>();
