@@ -37,7 +37,7 @@
 "banner_reverseproxy","","INFO","--","","CWE-200"
 "banner_server","","INFO","No Server banner line in header, interesting!","",""
 "cert","","INFO","----------","",""
-"cert_caIssuers","","INFO","CCF Network","",""
+"cert_caIssuers","","INFO","CCF Test Service","",""
 "cert_certificatePolicies_EV","","INFO","no","",""
 "cert_chain_of_trust","","CRITICAL","failed (chain incomplete).","",""
 "cert_commonName","","OK","CCF Node","",""
