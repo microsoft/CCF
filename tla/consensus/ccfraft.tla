@@ -114,57 +114,12 @@ Nil ==
 ------------------------------------------------------------------------------
 \* Global variables
 
-\* Each server keeps track of the active configurations.
-\* This includes the current configuration plus any pending configurations.
-\* The current configuration is the initial configuration or the last committed reconfiguration.
-\* The pending configurations are reconfiguration transactions that are not yet committed.
-\* Each server's configurations is indexed by the reconfiguration transaction index,
-\* except for the initial configuration which has index 0 (note that the log in 1-indexed).
-\* Refer to LogConfigurationConsistentInv for more on configurations
-VARIABLE configurations
-
-ConfigurationsTypeInv ==
-    \A i \in Servers : 
-        /\ \A c \in DOMAIN configurations[i] :
-            configurations[i][c] \subseteq Servers
-
-\* hasJoined keeps track of whether a node has joined the network. It is used to ensure
-\* a node does not join a network more than once, which is take care by the node state
-\* machine in the implementation.
-VARIABLE hasJoined
-
-HasJoinedTypeInv ==
-    \A i \in Servers :
-        hasJoined[i] \in BOOLEAN
-
-\* retirementCompleted keeps track of nodes that have been retired completed,
-\* i.e., their reconfiguration transaction has been committed, and all the configs to which
-\* they belonged removed from configurations, but the TypeRetired transaction that marks them
-\* as retired has not been committed yet. This is unused for now, but will be needed for the
-\* liveness fix in #5973.
-VARIABLE retirementCompleted
-
-RetirementCompletedTypeInv ==
-    \A i \in Servers :
-        retirementCompleted[i] \subseteq Servers
-
-reconfigurationVars == << 
-    configurations,
-    hasJoined,
-    retirementCompleted
->>
-
-ReconfigurationVarsTypeInv ==
-    /\ ConfigurationsTypeInv
-    /\ HasJoinedTypeInv
-    /\ RetirementCompletedTypeInv
-
 \* A set representing requests and responses sent from one server
 \* to another. With CCF, we have message integrity and can ensure unique messages.
 \* Messages only records messages that are currently in-flight, actions should
 \* remove messages once received.
-\* We model messages as a single (unsorted) set and do not assume ordered message delivery between nodes.
-\* Node-to-node channels use TCP but out-of-order delivery could be observed due to reconnection or a malicious host.
+\* Multiple messaging implementations are available under Network.tla, and the
+\* configuration ultimately sets the guarantee, which is currently OrderedNoDup.
 VARIABLE messages
 
 \* Network semantics:
@@ -228,6 +183,49 @@ MessageVarsTypeInv ==
 ------------------------------------------------------------------------------
 \* The following variables are all per server (functions with domain Servers).
 
+\* Each server keeps track of the active configurations.
+\* This includes the current configuration plus any pending configurations.
+\* The current configuration is the initial configuration or the last committed reconfiguration.
+\* The pending configurations are reconfiguration transactions that are not yet committed.
+\* Each server's configurations is indexed by the reconfiguration transaction index.
+\* Refer to LogConfigurationConsistentInv for more on configurations
+VARIABLE configurations
+
+ConfigurationsTypeInv ==
+    \A i \in Servers : 
+        /\ \A c \in DOMAIN configurations[i] :
+            configurations[i][c] \subseteq Servers
+
+\* hasJoined keeps track of whether a node has joined the network. It is used to ensure
+\* a node does not join a network more than once, which is taken care of by the node state
+\* machine in the implementation.
+VARIABLE hasJoined
+
+HasJoinedTypeInv ==
+    \A i \in Servers :
+        hasJoined[i] \in BOOLEAN
+
+\* retirementCompleted keeps track of nodes that have been retired completed,
+\* i.e., their reconfiguration transaction has been committed, and all the configs to which
+\* they belonged removed from configurations, but the TypeRetired transaction that marks them
+\* as retired has not been committed yet.
+VARIABLE retirementCompleted
+
+RetirementCompletedTypeInv ==
+    \A i \in Servers :
+        retirementCompleted[i] \subseteq Servers
+
+reconfigurationVars == << 
+    configurations,
+    hasJoined,
+    retirementCompleted
+>>
+
+ReconfigurationVarsTypeInv ==
+    /\ ConfigurationsTypeInv
+    /\ HasJoinedTypeInv
+    /\ RetirementCompletedTypeInv
+
 \* The server's term number.
 VARIABLE currentTerm
 
@@ -285,7 +283,7 @@ LogTypeInv ==
     \A i \in Servers : 
         \A k \in DOMAIN log[i]: EntryTypeOK(log[i][k])
 
-\* The index of the latest entry in the log the state machine may apply.
+\* The index of the latest entry in the log persisted by consensus
 VARIABLE commitIndex
 
 CommitIndexTypeInv ==
@@ -413,7 +411,6 @@ FindHighestPossibleMatch(xlog, index, term) ==
 Quorums ==
     \* Helper function to calculate the Quorum. Needed on each reconfiguration
     [ s \in SUBSET Servers |-> {i \in SUBSET(s) : Cardinality(i) * 2 > Cardinality(s)} ]
-    
 
 GetServerSetForIndex(server, index) ==
     \* Pick the sets of servers (aka configs) up to that index
@@ -631,6 +628,8 @@ Init ==
     /\ InitLeaderVars
 
 ------------------------------------------------------------------------------
+\* Define state transitions
+
 BecomeCandidate(i) ==
     \* Only servers that haven't completed retirement can become candidates
     /\ membershipState[i] \in {Active, RetirementOrdered, RetirementSigned, RetirementCompleted}
@@ -649,8 +648,6 @@ BecomeCandidate(i) ==
     /\ votedFor' = [votedFor EXCEPT ![i] = i]
     /\ votesGranted'   = [votesGranted EXCEPT ![i] = {i}]
     /\ UNCHANGED <<reconfigurationVars, leaderVars, logVars, membershipState, isNewFollower>>
-
-\* Define state transitions
 
 \* Server i times out (becomes candidate) and votes for itself in the election of the next term
 \* At some point later (non-deterministically), the candidate will request votes from the other nodes.
@@ -687,15 +684,14 @@ AppendEntries(i, j) ==
     /\ i /= j
     /\ \/ IsInServerSet(j, i)
        \/ j \in retirementCompleted[i]
-    \* AppendEntries must be sent for historical entries, unless
-    \* snapshots are used. Whether the node is in configuration at
-    \* that index makes no difference.
-    \* /\ IsInServerSetForIndex(j, i, sentIndex[i][j])
+    \* AppendEntries must be sent for historical entries, since
+    \* snapshots are not used. They are sent to nodes in active configurations
+    \* or nodes that are being retired, but whose retirement is not final yet.
     /\ LET prevLogIndex == sentIndex[i][j]
            prevLogTerm == IF prevLogIndex \in DOMAIN log[i] THEN
                               log[i][prevLogIndex].term
                           ELSE
-                              \* state.h::view_at (:64) indices before the version of the first view are unknown
+                              \* state.h::view_at indices before the version of the first view are unknown
                               0
            \* Send a number of entries (constrained by the end of the log).
            lastEntry(idx) == min(Len(log[i]), idx)
@@ -716,7 +712,7 @@ AppendEntries(i, j) ==
                \/ m.entries # <<>>
             /\ Send(m)
             \* Record the most recent index we have sent to this node.
-            \* (see https://github.com/microsoft/CCF/blob/9fbde45bf5ab856ca7bcf655e8811dc7baf1e8a3/src/consensus/aft/raft.h#L935-L936)
+            \* raft.h::send_append_entries
             /\ sentIndex' = [sentIndex EXCEPT ![i][j] = @ + Len(m.entries)]
     /\ UNCHANGED <<reconfigurationVars, serverVars, candidateVars, matchIndex, logVars, membershipState>>
 
@@ -741,7 +737,6 @@ BecomeLeader(i) ==
     \* been rolled back as it was unsigned
     /\ membershipState' = [membershipState EXCEPT ![i] = 
         IF @ = RetirementOrdered THEN Active ELSE @]
-    \* TODO: Check if any node's retirement has been committed and add retired_committed if so
     /\ UNCHANGED <<messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex, hasJoined, retirementCompleted>>
 
 \* Leader i receives a client request to add 42 to the log.
@@ -779,8 +774,8 @@ SignCommittableMessages(i) ==
 
 \* CCF: Reconfiguration of servers
 \* In the TLA+ model, a reconfiguration is initiated by the Leader which appends an arbitrary new configuration to its own log.
-\* This also triggers a change in the Configurations variable which keeps track of all running configurations.
-\* In the following, this Configurations variable is then checked to calculate a quorum and to check which nodes should be contacted or received messages from.
+\* This also triggers a change in the configurations variable which keeps track of all running configurations.
+\* In the following, this configurations variable is then checked to calculate a quorum and to check which nodes should be contacted or received messages from.
 
 \* Leader can propose a change in the current configuration.
 \* This will switch the current set of servers to the proposed set, ONCE BOTH
@@ -798,7 +793,7 @@ ChangeConfigurationInt(i, newConfiguration) ==
         \* the joining node never allows joining more than once.
         /\ \A n \in addedNodes : hasJoined[n] = FALSE
         /\ hasJoined' = [n \in Servers |-> IF n \in addedNodes THEN TRUE ELSE hasJoined[n]]
-        \* See raft.h:2401, nodes are only sent future entries initially, they will NACK if necessary.
+        \* See raft.h:create_and_remove_node_state, nodes are only sent future entries initially, they will NACK if necessary.
         \* This is because they are expected to start from a fairly recent snapshot, not from scratch.
         \* Note that the sentIndex is set to the log entry *before* the reconfiguration was added
         \* This is to allow the send AE action to send an initial heartbeat which matches the implementation
@@ -849,7 +844,7 @@ AdvanceCommitIndex(i) ==
     /\ leadershipState[i] = Leader
     /\ LET
             \* Select those configs that need to have a quorum to agree on this leader.
-            \* Compare https://github.com/microsoft/CCF/blob/75670480c53519fcec1a09d36aefc11b23a597f9/src/consensus/aft/raft.h#L2081
+            \* Compare raft.h::update_commit
             HasConsensusWatermark(idx) ==
                 \A config \in {c \in DOMAIN(configurations[i]) : idx >= c } :
                     \* In all of these configs, we now need a quorum in the servers that have the correct matchIndex
@@ -971,7 +966,7 @@ RejectAppendEntriesRequest(i, j, m, logOk) ==
        \/ /\ m.term >= currentTerm[i]
           /\ leadershipState[i] = Follower
           /\ ~logOk
-          \* raft.h::send_append_entries_response:1348 AppendEntriesResponse messages with answer == FAIL set their term to the term of index
+          \* raft.h::send_append_entries_response AppendEntriesResponse messages with answer == FAIL set their term to the term of index
           \* for the last entry in the backup's log, not the term of the current leader
           /\ LET prevTerm == IF m.prevLogIndex = 0 THEN 0
                              ELSE IF m.prevLogIndex > Len(log[i]) THEN 0 ELSE log[i][Len(log[i])].term
@@ -1002,7 +997,7 @@ ReturnToFollowerState(i, m) ==
     /\ leadershipState[i] = Candidate
     /\ leadershipState' = [leadershipState EXCEPT ![i] = Follower]
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
-    \* Note that the set of message is unchanged as m is discarded
+    \* Note that the set of messages is unchanged as m is discarded
     /\ UNCHANGED <<reconfigurationVars, currentTerm, votedFor, logVars, 
         messages, membershipState, candidateVars, leaderVars>>
 
@@ -1094,7 +1089,6 @@ NoConflictAppendEntriesRequest(i, j, m) ==
     /\ UNCHANGED <<currentTerm, votedFor, isNewFollower, candidateVars, leaderVars, hasJoined>>
 
 AcceptAppendEntriesRequest(i, j, logOk, m) ==
-    \* accept request
     /\ m.term = currentTerm[i]
     /\ leadershipState[i] \in {Follower, None}
     /\ logOk
