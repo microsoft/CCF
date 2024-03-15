@@ -37,6 +37,8 @@ The specifics of how to manage code updates depends on the :doc:`platform <../op
 Rekeying Ledger
 ---------------
 
+.. note:: The `ccf_cose_sign1` script is distributed in the `ccf` Python package, available on PyPI. It can be installed with `pip install ccf`.
+
 To limit the scope of key compromise, members of the consortium can refresh the key used to encrypt the ledger. For example, rekeying can be triggered by members when existing nodes are removed from the service.
 
 .. code-block:: bash
