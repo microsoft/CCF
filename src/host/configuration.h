@@ -160,7 +160,6 @@ namespace host
       struct Recover
       {
         size_t initial_service_certificate_validity_days = 1;
-        std::string service_subject_name = "CN=CCF Service";
         std::string previous_service_identity_file;
         bool operator==(const Recover&) const = default;
       };
@@ -220,7 +219,6 @@ namespace host
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig::Command::Recover,
     initial_service_certificate_validity_days,
-    service_subject_name,
     previous_service_identity_file);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);

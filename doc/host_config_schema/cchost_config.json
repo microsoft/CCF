@@ -279,7 +279,7 @@
                   "service_subject_name": {
                     "type": "string",
                     "default": "CN=CCF Service",
-                    "description": "Subject name to include in service certificate"
+                    "description": "Subject name to include in service certificate. Can only be set once on service start."
                   },
                   "members": {
                     "type": "array",
@@ -395,11 +395,6 @@
                     "default": 1,
                     "description": "Initial validity period (days) for service certificate",
                     "minimum": 1
-                  },
-                  "service_subject_name": {
-                    "type": "string",
-                    "default": "CN=CCF Service",
-                    "description": "Subject name to include in service certificate"
                   },
                   "previous_service_identity_file": {
                     "type": "string",

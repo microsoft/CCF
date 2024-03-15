@@ -382,7 +382,7 @@ namespace crypto
     std::string constraints = "critical,CA:FALSE";
     if (ca)
     {
-      constraints = "critical,CA:TRUE";
+      constraints = "critical,CA:TRUE,pathlen:0";
     }
 
     // Add basic constraints
