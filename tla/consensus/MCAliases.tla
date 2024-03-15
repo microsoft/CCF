@@ -64,13 +64,13 @@ DebugAliasAggregates ==
 
 DebugAliasVars ==
     [
-        removedFromConfiguration |-> removedFromConfiguration,
         configurations |-> configurations,
         messages |-> messages,
         currentTerm |-> currentTerm,
         leadershipState |-> leadershipState,
         membershipState |-> membershipState,
         votedFor |-> votedFor,
+        hasJoined |-> hasJoined,
         \* More compact visualization of the log.  
 \*        lg |-> [ s \in Servers |-> StringifyLog(s) ],
         log |-> log,
@@ -78,6 +78,7 @@ DebugAliasVars ==
         votesGranted |-> votesGranted,
         sentIndex |-> sentIndex,
         matchIndex |-> matchIndex,
+        retirementCompleted |-> retirementCompleted,
         _MessagesTo |-> [ s, t \in Servers |-> Network!MessagesTo(s, t) ]
     ]
 
@@ -96,7 +97,6 @@ DebugActingServerAlias ==
         \* Comment this format in VSCode because it breaks its parser. :-()
         _format |-> B[srv] \o "/\\[0m %1$s = %2$s\n",
         srv |-> srv,
-        removedFromConfiguration |-> removedFromConfiguration,
         configurations |-> configurations[srv],
         currentTerm |-> currentTerm[srv],
         votedFor |-> votedFor[srv],

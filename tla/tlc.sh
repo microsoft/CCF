@@ -8,6 +8,12 @@ if [ "${CI}" ] || [ "${SYSTEM_TEAMFOUNDATIONCOLLECTIONURI}" ]; then
     JVM_OPTIONS+=("-Dtlc2.TLC.ide=Github" "-Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601")
 fi
 
+# Run with JMX enabled, allows monitoring the current state by running
+# echo 'get -b tlc2.tool:type=ModelChecker CurrentState' | jmxterm -l localhost:55449 -i
+if [ "${JMX}" ]; then
+    JVM_OPTIONS+=("-Dcom.sun.management.jmxremote" "-Dcom.sun.management.jmxremote.port=55449" "-Dcom.sun.management.jmxremote.ssl=false" "-Dcom.sun.management.jmxremote.authenticate=false")
+fi
+
 # See https://docs.oracle.com/en/java/javase/20/gctuning/available-collectors.html#GUID-F215A508-9E58-40B4-90A5-74E29BF3BD3C
 # > If (a) peak application performance is the first priority and (b) there are no pause-time requirements or pauses of one second or longer are acceptable,
 # > then let the VM select the collector or select the parallel collector with -XX:+UseParallelGC.

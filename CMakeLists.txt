@@ -165,9 +165,7 @@ add_custom_command(
 )
 
 # Copy and install CCF utilities
-set(CCF_UTILITIES keygenerator.sh scurl.sh submit_recovery_share.sh
-                  verify_quote.sh
-)
+set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh verify_quote.sh)
 foreach(UTILITY ${CCF_UTILITIES})
   configure_file(
     ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
@@ -1197,15 +1195,13 @@ if(BUILD_TESTS)
       LINK_LIBS ccf_kv.host
     )
 
-    if(LONG_TESTS)
-      add_picobench(
-        kv_bench
-        SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
-        LINK_LIBS ccf_kv.host
-      )
-      add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
-      add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
-    endif()
+    add_picobench(
+      kv_bench
+      SRCS src/kv/test/kv_bench.cpp src/enclave/thread_local.cpp
+      LINK_LIBS ccf_kv.host
+    )
+    add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
+    add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
 
     set(CONSTITUTION_ARGS
         --constitution

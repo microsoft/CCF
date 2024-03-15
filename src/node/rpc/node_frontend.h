@@ -19,6 +19,7 @@
 #include "js/wrap.h"
 #include "node/network_state.h"
 #include "node/rpc/jwt_management.h"
+#include "node/rpc/no_create_tx_claims_digest.cpp"
 #include "node/rpc/serialization.h"
 #include "node/session_metrics.h"
 #include "node_interface.h"
@@ -612,18 +613,16 @@ namespace ccf
         .install();
 
       auto set_retired_committed = [this](auto& ctx, nlohmann::json&&) {
-        // This endpoint should only be called internally once it is certain
-        // that all nodes recorded as Retired will no longer issue transactions.
         auto nodes = ctx.tx.rw(network.nodes);
         nodes->foreach([this, &nodes](const auto& node_id, auto node_info) {
+          auto gc_node = nodes->get_globally_committed(node_id);
           if (
-            node_info.status == ccf::NodeStatus::RETIRED &&
-            node_id != this->context.get_node_id() &&
+            gc_node.has_value() &&
+            gc_node->status == ccf::NodeStatus::RETIRED &&
             !node_info.retired_committed)
           {
             // Set retired_committed on nodes for which RETIRED status
-            // has been committed. This endpoint is only triggered for a
-            // a given node once their retirement has been committed.
+            // has been committed.
             node_info.retired_committed = true;
             nodes->put(node_id, node_info);
 
@@ -1587,6 +1586,14 @@ namespace ccf
             ctx.tx, host_data, in.snp_security_policy);
           InternalTablesAccess::trust_node_uvm_endorsements(
             ctx.tx, in.snp_uvm_endorsements);
+        }
+
+        std::optional<ccf::ClaimsDigest::Digest> digest =
+          ccfapp::get_create_tx_claims_digest(ctx.tx);
+        if (digest.has_value())
+        {
+          auto digest_value = digest.value();
+          ctx.rpc_ctx->set_claims_digest(std::move(digest_value));
         }
 
         LOG_INFO_FMT("Created service");

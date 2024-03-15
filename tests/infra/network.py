@@ -198,6 +198,7 @@ class Network:
         "max_msg_size_bytes",
         "snp_security_policy_file",
         "snp_uvm_endorsements_file",
+        "subject_name",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -1210,7 +1211,9 @@ class Network:
 
     def find_node_by_role(self, role=NodeRole.ANY, log_capture=None):
         role_ = (
-            random.choice([NodeRole.PRIMARY, NodeRole.BACKUP]) if NodeRole.ANY else role
+            random.choice([NodeRole.PRIMARY, NodeRole.BACKUP])
+            if NodeRole.ANY == role
+            else role
         )
         if role_ == NodeRole.PRIMARY:
             return self.find_primary(log_capture=log_capture)[0]
