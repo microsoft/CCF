@@ -77,7 +77,7 @@ IsMessage(msg, dst, src, logline) ==
 ASSUME TLCGet("config").mode = "bfs"
 
 JsonFile ==
-    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../../tests/raft_scenarios/bad_network.ndjson"
+    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../traces/reconfig_01_el0_12.ndjson"
 
 JsonLog ==
     \* Deserialize the System log as a sequence of records from the log file.
@@ -175,8 +175,20 @@ IsClientRequest ==
     /\ IsEvent("replicate")
     /\ ClientRequest(logline.msg.state.node_id)
     /\ ~logline.msg.globally_committable
+    /\ logline.cmd_prefix # "cleanup_nodes"
     \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.
     \* TODO Alternatively, extract the written values from the system trace and redefine clientRequests at startup.
+    /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
+    /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
+    /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
+    /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
+    /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
+
+IsCleanupNodes ==
+    /\ IsEvent("replicate")
+    /\ AppendRetiredCommitted(logline.msg.state.node_id)
+    /\ ~logline.msg.globally_committable
+    /\ logline.cmd_prefix = "cleanup_nodes"
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
@@ -417,9 +429,10 @@ IsRcvProposeVoteRequest ==
     /\ LET i == logline.msg.state.node_id
            j == logline.msg.from_node_id
        IN \E m \in Network!MessagesTo(i, j):
-                /\ m.type = ProposeVoteRequest
-                /\ m.term = logline.msg.packet.term
-                /\ UNCHANGED vars
+            /\ m.type = ProposeVoteRequest
+            /\ m.term = logline.msg.packet.term
+            /\ Discard(m)
+            /\ UNCHANGED <<commitIndex, reconfigurationVars, currentTerm, isNewFollower, leadershipState, log, matchIndex, membershipState, sentIndex, votedFor, votesGranted>>
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
@@ -433,6 +446,7 @@ TraceNext ==
     \/ IsCheckQuorum
 
     \/ IsClientRequest
+    \/ IsCleanupNodes
 
     \/ IsSignCommittableMessages
     \/ IsAdvanceCommitIndex
