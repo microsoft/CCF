@@ -1,0 +1,69 @@
+# Reconfigures from [0, 1] to [2, 3], with 0 staying leader while the reconfiguration is in-progress
+start_node,0
+emit_signature,2
+assert_commit_idx,0,2
+
+trust_node,2,1
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
+assert_commit_idx,1,4
+# Initial network state [0, 1], all nodes in sync
+
+# Reconfig [0, 1] -> [2, 3]
+swap_nodes,2,out,0,1,in,2,3
+emit_signature,2
+# 0 knows its retirement is signed
+assert_detail,0,membership_state,Retired
+assert_detail,0,retirement_phase,Signed
+
+# 0 replicates, and commits the reconfiguration
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,6
+assert_detail,0,retirement_phase,Completed
+# 0 has now committed its retirement, but stays on as Leader
+# to produce a retired_committed
+assert_detail,0,leadership_state,Leader
+cleanup_nodes,2,0,1
+emit_signature,2
+
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,8
+# With retired_committed committed, 0 now steps down
+assert_detail,0,leadership_state,None
+assert_detail,0,retirement_phase,RetiredCommitted
+
+# 2 becomes leader
+assert_detail,2,leadership_state,Leader
+emit_signature,3
+periodic_all,10
+dispatch_all
+dispatch_all
+assert_commit_idx,2,9
+
+# 0 becomes a follower again, because it receives messages
+# from 2 before 2 realises 0 is retired committed.
+# But 0 does not attempt to run for election
+# because it knows it is retired committed
+assert_detail,0,retirement_phase,RetiredCommitted
+assert_detail,0,leadership_state,Follower
+periodic_one,0,150
+assert_detail,0,retirement_phase,RetiredCommitted
+assert_detail,0,leadership_state,Follower
+
+# the network continues
+replicate,3,some_tx
+emit_signature,3
+periodic_all,10
+dispatch_all
+dispatch_all
+assert_commit_idx,2,11
