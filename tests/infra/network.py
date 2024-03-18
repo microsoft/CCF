@@ -1247,6 +1247,7 @@ class Network:
         while node_count > target_count:
             primary, backup = self.find_primary_and_any_backup()
             self.retire_node(primary, backup)
+            backup.stop()
             node_count -= 1
         primary, _ = self.find_primary()
         self.wait_for_all_nodes_to_commit(primary)

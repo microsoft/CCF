@@ -22,16 +22,20 @@ namespace ccf
   {
     crypto::Pem priv_key;
     crypto::Pem cert;
-    std::optional<IdentityType> type;
+    std::optional<IdentityType> type = IdentityType::REPLICATED;
+    std::string subject_name = "CN=CCF Service";
 
     bool operator==(const NetworkIdentity& other) const
     {
       return cert == other.cert && priv_key == other.priv_key &&
-        type == other.type;
+        type == other.type && subject_name == other.subject_name;
     }
 
-    NetworkIdentity() : type(IdentityType::REPLICATED) {}
-    NetworkIdentity(IdentityType type) : type(type) {}
+    NetworkIdentity(const std::string& subject_name_) :
+      type(IdentityType::REPLICATED),
+      subject_name(subject_name_)
+    {}
+    NetworkIdentity() = default;
 
     virtual crypto::Pem issue_certificate(
       const std::string& valid_from, size_t validity_period_days)
@@ -47,15 +51,14 @@ namespace ccf
   class ReplicatedNetworkIdentity : public NetworkIdentity
   {
   public:
-    static constexpr auto subject_name = "CN=CCF Network";
-
-    ReplicatedNetworkIdentity() : NetworkIdentity(IdentityType::REPLICATED) {}
+    ReplicatedNetworkIdentity() = default;
 
     ReplicatedNetworkIdentity(
+      const std::string& subject_name_,
       crypto::CurveID curve_id,
       const std::string& valid_from,
       size_t validity_period_days) :
-      NetworkIdentity(IdentityType::REPLICATED)
+      NetworkIdentity(subject_name_)
     {
       auto identity_key_pair =
         std::make_shared<crypto::KeyPair_OpenSSL>(curve_id);
@@ -70,7 +73,7 @@ namespace ccf
     }
 
     ReplicatedNetworkIdentity(const NetworkIdentity& other) :
-      NetworkIdentity(IdentityType::REPLICATED)
+      NetworkIdentity(other.subject_name)
     {
       if (type != other.type)
       {
@@ -102,23 +105,6 @@ namespace ccf
     ~ReplicatedNetworkIdentity() override
     {
       OPENSSL_cleanse(priv_key.data(), priv_key.size());
-    }
-  };
-
-  class SplitNetworkIdentity : public NetworkIdentity
-  {
-  public:
-    SplitNetworkIdentity() : NetworkIdentity(IdentityType::SPLIT) {}
-
-    SplitNetworkIdentity(const NetworkIdentity& other) :
-      NetworkIdentity(IdentityType::SPLIT)
-    {
-      if (type != other.type)
-      {
-        throw std::runtime_error("invalid identity type conversion");
-      }
-      priv_key = {};
-      cert = other.cert;
     }
   };
 }

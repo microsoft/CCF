@@ -38,7 +38,8 @@
         "maximum_node_certificate_validity_days": {{ maximum_node_certificate_validity_days }},
         "maximum_service_certificate_validity_days": {{ maximum_service_certificate_validity_days }}
       },
-      "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }}
+      "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
+      "service_subject_name": {{ service_subject_name|tojson }}
     },
     "join":
     {

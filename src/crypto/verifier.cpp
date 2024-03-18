@@ -49,4 +49,9 @@ namespace crypto
   {
     return make_unique_verifier(der)->public_key_pem();
   }
+
+  std::string get_subject_name(const Pem& cert)
+  {
+    return make_verifier(cert)->subject();
+  }
 }
