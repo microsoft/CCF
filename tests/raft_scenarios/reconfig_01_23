@@ -29,7 +29,7 @@ periodic_all,10
 dispatch_all
 assert_commit_idx,0,6
 assert_detail,0,retirement_phase,Completed
-# 0 has now committed its retirement, but stays on as Leader
+# 0 has now committed its retirement and that of 1, but stays on as Leader
 # to produce a retired_committed
 assert_detail,0,leadership_state,Leader
 cleanup_nodes,2,0,1
