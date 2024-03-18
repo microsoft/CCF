@@ -78,6 +78,7 @@ DebugAliasVars ==
         votesGranted |-> votesGranted,
         sentIndex |-> sentIndex,
         matchIndex |-> matchIndex,
+        retirementCompleted |-> retirementCompleted,
         _MessagesTo |-> [ s, t \in Servers |-> Network!MessagesTo(s, t) ]
     ]
 

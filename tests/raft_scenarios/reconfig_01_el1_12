@@ -1,0 +1,63 @@
+# Reconfigures from [0, 1] to [1, 2], with 1 becoming leader while the reconfiguration is in-progress
+start_node,0
+emit_signature,2
+assert_commit_idx,0,2
+
+trust_node,2,1
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
+assert_commit_idx,1,4
+# Initial network state [0, 1], all nodes in sync
+
+# Reconfig [0, 1] -> [1, 2]
+swap_nodes,2,out,0,in,2
+emit_signature,2
+
+# Leader (0) replicates
+periodic_one,0,10
+dispatch_one,0
+
+# But node 1 runs for election before ack/cmt
+periodic_one,1,150
+dispatch_all
+dispatch_all
+# 1 wins the election, but has not committed the reconfiguration
+assert_detail,1,leadership_state,Leader
+assert_commit_idx,1,4
+
+# 1 signs to extend, observes retirement committed
+emit_signature,3
+periodic_all,10
+dispatch_all
+assert_commit_idx,1,7
+assert_detail,0,membership_state,Retired
+assert_detail,0,leadership_state,Follower
+assert_detail,1,leadership_state,Leader
+assert_detail,2,leadership_state,Follower
+
+# Now that the retirement of 0 is committed, 1 schedules retired_committed for 0
+cleanup_nodes,3,0
+emit_signature,3
+periodic_all,10
+dispatch_all
+dispatch_all
+# retired_committed committed
+assert_commit_idx,1,9
+
+# the operator shuts down 0
+disconnect,0,1
+disconnect,0,2
+
+# the network continues
+replicate,3,some_tx
+emit_signature,3
+periodic_all,10
+dispatch_all
+dispatch_all
+assert_commit_idx,1,11

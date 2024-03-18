@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [5.0.0-dev14]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev14
 
+### Added
+
+- Added a `ccfapp.checkedJson` converter to the CCF TypeScript package, which will raise errors when given objects which cannot be roundtrip-converted through JSON (currently `Map` and `Date`). There is a slight cost to checking this on each instance during `encode`, so the behaviour is opt-in (not directly replacing `ccfapp.json`), but it is recommended that most tables update to use this converter.
+
 ### Removed
 
 - The `scurl.sh` script has been removed. With #5137 removing support for HTTP signed requests, it is no longer needed.

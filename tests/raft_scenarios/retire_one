@@ -34,7 +34,7 @@ assert_state_sync
 assert_commit_idx,0,11
 assert_commit_idx,1,11
 
-## the leader 0 reconfigures to remove 1
+## the leader 0 reconfigures to remove 1 at index 12
 swap_nodes,2,out,1
 
 periodic_all,30
@@ -61,6 +61,33 @@ assert_detail,1,leadership_state,Follower
 assert_detail,1,membership_state,Retired
 assert_detail,1,retirement_phase,Signed
 
-## leader 0 continues to commit to 15, but 1 is stopped at 11
+## leader 0 commits 15
 assert_commit_idx,0,15
 assert_commit_idx,1,11
+
+# Since the retirement of 1 is now committed, 0 emits a retired_committed transaction
+# followed by a signature
+cleanup_nodes,2,1
+emit_signature,2
+# 0 commits immediately, now that 1 is out of configuration
+assert_commit_idx,0,17
+
+periodic_all,30
+dispatch_all
+# 1 does not get notified, because its RC is committed
+assert_commit_idx,1,11
+# 1 does not know its retirement is committed, let alone retired_committed
+assert_detail,1,membership_state,Retired
+assert_detail,1,retirement_phase,Signed
+
+# and so it would attempt to become candidate
+# periodic_all,100
+# assert_is_candidate,1
+
+# but the operator shuts it down
+disconnect,0,1
+
+# and so 1 can continue
+replicate,2,some_tx
+emit_signature,2
+assert_commit_idx,0,19
