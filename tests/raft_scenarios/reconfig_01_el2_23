@@ -1,0 +1,75 @@
+# Reconfigures from [0, 1] to [2, 3], with 2 becoming leader while the reconfiguration is in-progress
+start_node,0
+emit_signature,2
+assert_commit_idx,0,2
+
+trust_node,2,1
+emit_signature,2
+
+dispatch_all
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+assert_commit_idx,0,4
+assert_commit_idx,1,4
+# Initial network state [0, 1], all nodes in sync
+
+# Reconfig [0, 1] -> [2, 3]
+swap_nodes,2,out,0,1,in,2,3
+emit_signature,2
+# 0 knows its retirement is signed
+assert_detail,0,membership_state,Retired
+assert_detail,0,retirement_phase,Signed
+
+# Leader (0) replicates
+periodic_one,0,10
+dispatch_one,0
+# Need to "catch up" 2 to give it a configuration
+# otherwise it will not be able to run for election
+periodic_one,2,10
+dispatch_one,2
+periodic_one,0,10
+dispatch_one,0
+
+# But node 2 runs for election before ack/cmt
+periodic_one,2,150
+assert_detail,2,leadership_state,Candidate
+dispatch_all
+dispatch_all
+# which it wins, since it is sufficiently up to date
+assert_detail,2,leadership_state,Leader
+
+# 2 signs to extend, observes retirement committed
+emit_signature,3
+periodic_all,10
+dispatch_all
+assert_commit_idx,2,7
+assert_detail,0,membership_state,Retired
+assert_detail,0,leadership_state,Follower
+assert_detail,1,leadership_state,Follower
+assert_detail,2,leadership_state,Leader
+
+# Now that the retirement of 0 and 1 is committed, 2 schedules retired_committed
+cleanup_nodes,3,0,1
+emit_signature,3
+periodic_all,10
+dispatch_all
+periodic_all,10
+dispatch_all
+# retired_committed committed
+assert_commit_idx,2,9
+
+# the operator shuts down 0 and 1
+disconnect,0,2
+disconnect,0,3
+disconnect,1,2
+disconnect,1,3
+
+# the network continues
+replicate,3,some_tx
+emit_signature,3
+periodic_all,10
+dispatch_all
+dispatch_all
+assert_commit_idx,2,11
