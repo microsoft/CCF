@@ -83,19 +83,6 @@ jobs:
           depends_on: configure
           installExtendedTestingTools: false
 
-  # Redirects. This is a temporary job, while redirections are in-progress
-  - template: common.yml
-    parameters:
-      target: Virtual
-      env: ${{ parameters.env.Virtual }}
-      cmake_args: "-DUSE_REDIRECTS=ON ${{ parameters.build.common.cmake_args }} ${{ parameters.build.debug.cmake_args }} ${{ parameters.build.Virtual.cmake_args }}"
-      cmake_env: "${{ parameters.build.Virtual.cmake_env }}"
-      suffix: "Redirects"
-      artifact_name: "Virtual_Redirects"
-      ctest_filter: "${{ parameters.test.Virtual.ctest_args }}"
-      depends_on: configure
-      installExtendedTestingTools: false
-
   # Tracing
   - template: common.yml
     parameters:
