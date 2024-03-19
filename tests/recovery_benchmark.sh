@@ -81,6 +81,9 @@ if [ -n "$PYTHON_PACKAGE_PATH" ]; then
     PYTHON_PACKAGE_PATH=$(realpath -s "${PYTHON_PACKAGE_PATH}")
 fi
 
+echo "** Setting up venv"
+"${ccf_install_path}"/bin/sandbox.sh -h
+
 echo "** Start original service"
 "${ccf_install_path}"/bin/sandbox.sh --sig-tx-interval "${signature_tx_interval}" & 
 sandbox_pid=$!
