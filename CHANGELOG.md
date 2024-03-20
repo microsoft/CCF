@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- CCF now supports a mode where HTTP redirect responses are returned, rather than relying on internal forwarding. This can be used to ensure that write requests are executed on a primary, even if they are initially sent to a backup. This behaviour is enabled by setting the `redirections` field in an `rpc_interface` within cchost's launch config. This can be configured to redirect either directly to a node (if each node has a distinct, accessible name), or to a static load balancer address, depending on the current deployment.
+- CCF now supports a mode where HTTP redirect responses are returned, rather than relying on internal forwarding. This can be used to ensure that write requests are executed on a primary, even if they are initially sent to a backup. This behaviour is enabled by setting the `redirections` field in an `rpc_interface` within cchost's launch config. This can be configured to redirect either directly to a node (if each node has a distinct, accessible name), or to a static load balancer address, depending on the current deployment. See docs for description of [redirection behaviour](https://microsoft.github.io/CCF/main/architecture/request_flow.html#redirection-flow) and [configuration](https://microsoft.github.io/CCF/main/operations/configuration.html#redirections).
 
 ## [5.0.0-dev14]
 
