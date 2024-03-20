@@ -1144,9 +1144,9 @@ UpdateTerm(i, j, m) ==
     /\ isNewFollower' = [isNewFollower EXCEPT ![i] = TRUE]
     /\ votedFor'       = [votedFor    EXCEPT ![i] = Nil]
     \* See rollback(last_committable_index()) in raft::become_follower
-    /\ log'            = [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(i))]
+    /\ log'            = IF currentTerm' # currentTerm THEN [log         EXCEPT ![i] = SubSeq(@, 1, LastCommittableIndex(i))] ELSE log
     \* Potentially also shorten the configurations if the removed txns contained reconfigurations
-    /\ configurations' = [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))]
+    /\ configurations' = IF currentTerm' # currentTerm THEN [configurations EXCEPT ![i] = ConfigurationsToIndex(i,Len(log'[i]))] ELSE configurations
     \* If the leader was in the RetirementOrdered state, then its retirement has
     \* been rolled back as it was unsigned
     /\ membershipState' = [membershipState EXCEPT ![i] = 
