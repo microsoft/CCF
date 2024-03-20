@@ -21,9 +21,6 @@ ASSUME MaxTermLimit \in Nat
 CONSTANT RequestLimit
 ASSUME RequestLimit \in Nat
 
-CONSTANT CoverageFilenamePrefix
-ASSUME CoverageFilenamePrefix \in STRING
-
 ToServers ==
     UNION Range(Configurations)
 
@@ -128,9 +125,5 @@ DebugAllReconfigurationsReachableInv ==
 DebugNotTooManySigsInv ==
     \A i \in Servers:
         FoldSeq(LAMBDA e, count: IF e.contentType = TypeSignature THEN count + 1 ELSE count, 0, log[i]) < 8
-
-SerialiseCoverageConstraint ==
-    LET interval == 500000
-    IN IF TLCGet("distinct") % interval = 0 THEN ndJsonSerialize(CoverageFilenamePrefix \o "_coverage_" \o ToString(TLCGet("distinct") \div interval) \o ".json", <<TLCGet("spec")>>) ELSE TRUE
 
 ===================================

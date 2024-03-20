@@ -47,4 +47,3 @@ jobs:
         inputs:
           artifactName: "Model Checking Traces"
           targetPath: tla
-        condition: or(failed(), canceled())
