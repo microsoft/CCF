@@ -12,7 +12,7 @@ import json
 A little script to plot TLC action count
 
 Run TLC with -coverage 1 (or higher), and pip the input in, e.g.:
-cat <spec>_coverage_*.json | python3 actions.py
+ls -tr <spec>_coverage_*.json | xargs cat | python3 actions.py
 
 The spec needs to have constraint like:
 
