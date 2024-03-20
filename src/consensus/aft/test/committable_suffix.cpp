@@ -731,8 +731,11 @@ DOCTEST_TEST_CASE_TEMPLATE("Multi-term divergence", T, WorstCase, RandomCase)
       const auto history_on_B = rB.get_view_history(common_last_idx);
       DOCTEST_REQUIRE(history_on_A != history_on_B);
 
-      // In fact they diverge almost immediately
-      DOCTEST_REQUIRE(history_on_A[1] != history_on_B[1]);
+      // In fact they diverge almost immediately (if they are long enough)
+      if (history_on_A.size() > 1 && history_on_B.size() > 1)
+      {
+        DOCTEST_REQUIRE(history_on_A[1] != history_on_B[1]);
+      }
     }
   }
 
