@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0-dev15]
+
+[5.0.0-dev15]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev15
+
+### Added
+
+- CCF now supports a mode where HTTP redirect responses are returned, rather than relying on internal forwarding. This can be used to ensure that write requests are executed on a primary, even if they are initially sent to a backup. This behaviour is enabled by setting the `redirections` field in an `rpc_interface` within cchost's launch config. This can be configured to redirect either directly to a node (if each node has a distinct, accessible name), or to a static load balancer address, depending on the current deployment.
+
 ## [5.0.0-dev14]
 
 [5.0.0-dev14]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev14

@@ -164,11 +164,11 @@
               },
               "redirections": {
                 "type": "object",
-                "description": "Configure how Redirect responses should be produced on this interface.",
+                "description": "Configure how redirect responses should be produced on this interface. If this is omitted, then forwarding will be used instead",
                 "properties": {
                   "to_primary": {
                     "$ref": "#/$defs/RedirectionResolver",
-                    "description": "Configures how the Location header should be populated, when requests arrive on this interface that must be served by a primary while the receiving node is not a primary."
+                    "description": "Configures how the Location header should be populated, when requests arrive on this interface that must be served by a primary while the receiving node is not a primary"
                   }
                 },
                 "additionalProperties": false

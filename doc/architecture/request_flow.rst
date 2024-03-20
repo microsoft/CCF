@@ -130,6 +130,65 @@ When follower A receives the forwarded response, it writes this to the TLS sessi
 
       NetStackA-->>User: 200 OK "Copied {a} from {A} to {B}"
 
+Redirection flow
+----------------
+
+CCF supports HTTP redirections as an alternative to forwarding. When a request arrives that cannot be executed locally, rather than forwarding it to an appropriate node over the node-to-node channels, the node can return a HTTP redirect response advising the caller to resubmit the request directly to that node. This uses standard HTTP semantics, reporting the redirect target in a ``Location`` header. Most HTTP clients will have an option to follow this redirect automatically, and all should have an option to enable this behaviour if desired. Alternatively, client applications may choose to intercept this redirect response and manually interpret it, perhaps to alter the resubmitted request or to update the target node for future requests.
+
+.. warning:: Many HTTP clients will strip out ``Authorization`` headers when following Cross-Origin redirects. This means that if your client is automatically following redirects, and you submit a request with a JWT token as authorization, if you are redirected you may see a surprising authorization failure. In this scenario we recommend intercepting the redirect responses manually, so that the request can be resubmitted without stripping headers.
+
+Similar to forwarding, the redirect behaviour is partly controlled by per-endpoint metadata, so the initially receiving node must parse the request and go through endpoint dispatch before making a forwarding decision.
+
+There are currently 2 supported modes for redirections. In the first, the response sends the user directly to the suggested node. This will only work if that node has an accessible name, which can be included in the ``Location`` header and accessed by the user.
+
+.. mermaid::
+
+  sequenceDiagram
+      autonumber
+      participant U as User
+      participant B as Backup (nodeA.ccf.com)
+      participant P as Primary (nodeB.ccf.com)
+
+      U->>B: POST /copy/A/B
+      B->>B: Lookup endpoint
+      B->>B: Decide request should be redirected
+      B->>B: Build redirect response
+      B-->>U: 307 REDIRECT Location: nodeB.ccf.com/copy/A/B
+
+      U->>P: POST /copy/A/B
+      P->>P: Lookup endpoint
+      P->>P: Decide request can be executed
+      P->>P: Execute request
+      P-->>U: 200 OK "Copied {a} from {A} to {B}"
+
+For deployments where nodes are not directly accessible, redirections can still be supported via multiple load balancers. All that is required is `a` public name for each redirect purpose, with up-to-date balancing to the correct nodes. More simply, that currently means maintaining a `write` load balancer which can direct external traffic to a primary.
+
+.. mermaid::
+
+  sequenceDiagram
+      autonumber
+      participant U as User
+      participant LB as General LB (service.ccf.com)
+      participant B as Backup
+      participant WLB as Write LB (write.service.ccf.com)
+      participant P as Primary
+
+      U->>LB: POST /copy/A/B
+      LB->>B: POST /copy/A/B
+      B->>B: Lookup endpoint
+      B->>B: Decide request should be redirected
+      B->>B: Build redirect response
+      B-->>U: 307 REDIRECT Location: write.service.ccf.com/copy/A/B
+
+      U->>WLB: POST /copy/A/B
+      WLB->>P: POST /copy/A/B
+      P->>P: Lookup endpoint
+      P->>P: Decide request can be executed
+      P->>P: Execute request
+      P-->>U: 200 OK "Copied {a} from {A} to {B}"
+
+To use redirection behaviour, and choose whether to redirect to a node or a load balancer, set the ``redirections`` field in the :doc:`cchost launch configuration </operations/configuration>`.
+
 External executor flow
 ----------------------
 
