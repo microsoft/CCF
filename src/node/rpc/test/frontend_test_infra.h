@@ -123,7 +123,10 @@ std::unique_ptr<ccf::NetworkIdentity> make_test_network_ident()
   const auto valid_from =
     ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
   return std::make_unique<ReplicatedNetworkIdentity>(
-    crypto::service_identity_curve_choice, valid_from, 2);
+    "CN=CCF test network",
+    crypto::service_identity_curve_choice,
+    valid_from,
+    2);
 }
 
 void init_network(NetworkState& network)

@@ -493,6 +493,7 @@ namespace ccf
         case StartType::Start:
         {
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+            config.service_subject_name,
             curve_id,
             config.startup_host_time,
             config.initial_service_certificate_validity_days);
@@ -525,7 +526,11 @@ namespace ccf
               "identity");
           }
 
+          crypto::Pem previous_service_identity_cert(
+            config.recover.previous_service_identity.value());
+
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+            crypto::get_subject_name(previous_service_identity_cert),
             curve_id,
             config.startup_host_time,
             config.initial_service_certificate_validity_days);

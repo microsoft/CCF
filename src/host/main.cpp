@@ -633,6 +633,8 @@ int main(int argc, char** argv)
         recovery_threshold;
       startup_config.initial_service_certificate_validity_days =
         config.command.start.initial_service_certificate_validity_days;
+      startup_config.service_subject_name =
+        config.command.start.service_subject_name;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",
