@@ -3,7 +3,7 @@ pr:
     include:
       - main
     exclude:
-      - "release/[0-3].x"
+      - "release/[0-4].x"
   paths:
     include:
       - scripts/azure_deployment/*
@@ -19,7 +19,7 @@ trigger:
       - main
       - "release/*"
     exclude:
-      - "release/[0-3].x"
+      - "release/[0-4].x"
 
 schedules:
   - cron: "0 9-18/3 * * Mon-Fri"
