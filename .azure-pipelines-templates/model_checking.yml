@@ -62,4 +62,4 @@ jobs:
         inputs:
           artifactName: "Model Checking Traces"
           targetPath: tla
-          condition: or(or(failed(), canceled()), eq(variables['Build.CronSchedule.DisplayName'], 'Daily build'))
+        condition: or(or(failed(), canceled()), eq(variables['Build.CronSchedule.DisplayName'], 'Daily build'))
