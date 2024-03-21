@@ -49,6 +49,9 @@ jobs:
           set -o pipefail
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
           scp -r agent@${IP_ADDR_LIST[0]}:/ccfci/workspace_$(Build.BuildNumber) .
+          # Remove binaries from workspace before uploading
+          find workspace_$(Build.BuildNumber) -type f -name cchost -delete
+          find workspace_$(Build.BuildNumber) -type f -name '*.so' -delete
         name: fetch_workspace
         displayName: "Fetch Workspace"
         condition: always()
