@@ -381,27 +381,31 @@ def config_property_role(
     except ValueError:
         prefix, val = None, text
 
-    ret_nodes = []
-
-    if prefix:
-        ret_nodes.append(
-            nodes.emphasis(prefix, prefix, classes=["configpropertyprefix"])
-        )
-
-    ret_nodes.append(
+    children = [
         nodes.strong(
             val,
             val,
-            classes=["configpropertyval"],
             ids=[text],
+        ),
+        nodes.reference("#", "#", refid=text, classes=["headerlink"]),
+    ]
+    if prefix:
+        children.insert(
+            0,
+            nodes.emphasis(
+                prefix,
+                prefix,
+            ),
         )
+
+    line = nodes.line(
+        "",
+        "",
+        *children,
+        classes=["configproperty"],
     )
 
-    ret_nodes.append(
-        nodes.reference("\t¶", "\t¶", refid=text, classes=["configpropertyanchor"])
-    )
-
-    return ret_nodes, []
+    return [line], []
 
 
 def config_inited(app, config):

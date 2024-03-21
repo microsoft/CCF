@@ -30,22 +30,21 @@ body[data-theme="dark"] .mermaid
   }
 }
 
-.configpropertyprefix {
-  font-style: italic;
+.configproperty > em {
   font-family: monospace,monospace;
   font-size: small;
 }
 
-.configpropertyval {
-  font-weight: bold;
+.configproperty > strong {
   font-family: monospace,monospace;
   font-size: larger
 }
 
-.configpropertyanchor {
+.configproperty > .headerlink {
+  margin-left: .3rem;
   visibility: hidden;
 }
 
-div:hover > a.configpropertyanchor {
+.configproperty:hover > .headerlink {
     visibility: visible;
 }
