@@ -258,9 +258,8 @@ def test_add_node_endorsements_endpoints(network, args):
         (["Azure:global.acccache.azure.net:443"], True),
         (["AMD:kdsintf.amd.com"], True),
         (["AMD:invalid.amd.com"], False),
+        (["THIM:$Fabric_NodeIPOrFQDN:2377"], True),
         (["Azure:invalid.azure.com", "AMD:kdsintf.amd.com"], True),  # Fallback server
-        # Won't work yet, see #5852
-        # (["THIM:$Fabric_NodeIPOrFQDN:2377"], True),
     ]
 
     for servers, expected_result in test_vectors:

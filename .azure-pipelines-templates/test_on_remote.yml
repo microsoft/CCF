@@ -21,6 +21,10 @@ jobs:
         parameters:
           ssh_key: $(sshKey)
 
+      - script: env
+        name: print_env
+        display_name: "Print Environment Variables"
+
       - script: |
           set -ex
           set -o pipefail
