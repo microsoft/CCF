@@ -389,7 +389,8 @@ def cli_args(
         "--snp-endorsements-servers",
         help="Servers used to retrieve attestation report endorsement certificates (AMD SEV-SNP only)",
         action="append",
-        default=[],
+        # ACI default
+        default=["THIM:$Fabric_NodeIPOrFQDN:2377"] if os.getenv("DEFAULT_ENCLAVE_PLATFORM") == "snp" else [],
     )
     parser.add_argument(
         "--forwarding-timeout-ms",
