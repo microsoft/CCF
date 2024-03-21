@@ -41,7 +41,7 @@ body[data-theme="dark"] .mermaid
 }
 
 .configproperty > .headerlink {
-  margin-left: .3rem;
+  margin-left: 0.5em;
   visibility: hidden;
 }
 

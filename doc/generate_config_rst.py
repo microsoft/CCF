@@ -7,11 +7,6 @@ import json
 import tempfile
 import filecmp
 
-# Generated document is included in existing page, so
-# start at heading of depth 1 (equivalent to markdown h2.)
-START_DEPTH = 1
-
-
 class SchemaRstGenerator:
     def __init__(self):
         self._depth = 0
@@ -36,42 +31,6 @@ class SchemaRstGenerator:
 
     def render(self):
         return "\n".join(self._prefix) + "\n".join(self._lines)
-
-
-def print_attributes(entry):
-    def stringify_output(s):
-        return f"``{json.dumps(s)}``"
-
-    desc = ""
-    if "description" in entry:
-        desc += entry["description"]
-    if "enum" in entry:
-        desc += f'. (values: {", ".join(stringify_output(s) for s in entry["enum"])})'
-    if "default" in entry:
-        desc += f'. Default: {stringify_output(entry["default"])}'
-    if "minimum" in entry:
-        desc += f'. Minimum: {stringify_output(entry["minimum"])}'
-    return desc
-
-
-def print_entry(output, entry, name, required=False, depth=0):
-    desc = ""
-    if depth == START_DEPTH:
-        output.add_heading(f"``{name}``", START_DEPTH)
-    else:
-        desc += f"- ``{name}``: "
-    desc += print_attributes(entry)
-    if required:
-        desc += ". Required"
-    output.add_line(f"{desc}.")
-
-
-def has_subobjs(obj):
-    if not isinstance(obj, dict):
-        return False
-    return any(
-        k in ["properties", "additionalProperties", "items"] for k in obj.keys()
-    ) and ("items" not in obj or obj["items"]["type"] == "object")
 
 
 def dump_object(output: SchemaRstGenerator, obj: dict, path: list = []):
@@ -136,8 +95,9 @@ def dump(output: SchemaRstGenerator, obj: dict, path=[], required=False):
     if t == "object":
         dump_object(output, obj, path)
     else:
+        if isinstance(t, list):
+            t = " | ".join(t)
         output.add_kv_line("Type", t)
-        # raise ValueError(f"Unhandled type: {t}")
 
 
 def generate_configuration_docs(input_file_path, output_file_path):
