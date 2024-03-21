@@ -12,24 +12,30 @@ import filecmp
 START_DEPTH = 1
 
 
-class MinimalRstGenerator:
+class SchemaRstGenerator:
     def __init__(self):
-        self._lines = [".."]
-        self._lines.append("  This is an auto-generated file. DO NOT EDIT.\n")
+        self._depth = 0
+        self._prefix = []
+        self._lines = []
 
-    def _add_lines(self, lines):
-        self._lines.extend(lines)
-        self._lines.append("\n")
+    def add_line(self, line, depth=None):
+        self._lines.append("| " + "   " * (depth or self._depth) + line)
 
-    def add_heading(self, text, depth):
-        depth_to_char = {0: "=", 1: "-", 2: "~", 3: "+"}
-        self._add_lines([text, depth_to_char[depth] * len(text)])
+    def add_kv_line(self, k, v):
+        self.add_line(f"*{k}*: {v}", self._depth + 1)
 
-    def add_line(self, text):
-        self._add_lines([text])
+    def start_property(self, header):
+        if self._lines and self._lines[-1] != "|":
+            self._lines.append("|")
+        self.add_line(header)
+        self._depth += 1
+
+    def end_property(self):
+        assert self._depth > 0
+        self._depth -= 1
 
     def render(self):
-        return "\n".join(self._lines)
+        return "\n".join(self._prefix) + "\n".join(self._lines)
 
 
 def print_attributes(entry):
@@ -68,75 +74,87 @@ def has_subobjs(obj):
     ) and ("items" not in obj or obj["items"]["type"] == "object")
 
 
-def print_object(output, obj, depth=0, required_entries=None, additional_desc=None):
-    required_entries = required_entries or []
-    for k, v in obj.items():
-        if has_subobjs(v):
-            output.add_heading(f"``{k}``", depth)
-            if "description" in v:
-                output.add_line(
-                    f'{"**Required.** " if k in required_entries else ""}{v["description"]}.'
-                )
-            if additional_desc is not None:
-                output.add_line(f"Note: {additional_desc}.")
+def dump_object(output: SchemaRstGenerator, obj: dict, path: list = []):
+    required = obj.get("required", [])
+    properties = obj.get("properties", {})
 
-            reqs = v.get("required", [])
+    def prefix():
+        _prefix = "".join(f"{e}" for e in path)
+        return _prefix
 
-            if "properties" in v:
-                print_object(
-                    output, v["properties"], depth=depth + 1, required_entries=reqs
-                )
-                # Strict schema with no extra fields allowed https://github.com/microsoft/CCF/issues/3813
-                assert (
-                    "allOf" in v or v.get("additionalProperties") == False
-                ), f"AdditionalProperties not set to false in {k}:{v}"
-            if "additionalProperties" in v:
-                if isinstance(v["additionalProperties"], dict):
-                    print_object(
-                        output,
-                        v["additionalProperties"]["properties"],
-                        depth=depth + 1,
-                        required_entries=v["additionalProperties"].get("required", []),
-                    )
-            if "items" in v and v["items"]["type"] == "object":
-                print_object(
-                    output,
-                    v["items"]["properties"],
-                    depth=depth + 1,
-                    required_entries=reqs,
-                )
-            if "allOf" in v:
-                for e in v["allOf"]:
-                    ((k_, cond_),) = e["if"]["properties"].items()
-                    print_object(
-                        output,
-                        e["then"]["properties"],
-                        depth=depth + 1,
-                        required_entries=reqs,
-                        additional_desc=f'Only if ``{k_}`` is ``"{cond_["const"]}"``',
-                    )
-        elif k == "additionalProperties" and isinstance(v, bool):
-            # Skip display of additionalProperties if bool as it is used
-            # to make the schema stricter
-            pass
-        else:
-            print_entry(output, v, name=k, required=k in required_entries, depth=depth)
+    for k, v in properties.items():
+        output.start_property(f":configproperty:`{prefix()}{k}`")
+
+        dump(output, v, path + [f"{k}."], required=k in required)
+
+        output.end_property()
+
+    additional = obj.get("additionalProperties", None)
+    if additional:
+        assert isinstance(additional, dict)
+
+        k = "[name]"
+        if path and path[-1].endswith("."):
+            path[-1] = path[-1][:-1]
+        output.start_property(f":configproperty:`{prefix()}{k}`")
+        dump(output, additional, path + [f"{k}."])
+        output.end_property()
+
+
+def monospace_literal(v):
+    return f"``{json.dumps(v)}``"
+
+
+def dump(output: SchemaRstGenerator, obj: dict, path=[], required=False):
+    desc = obj.get("description", None)
+    if desc:
+        if desc[-1] != ".":
+            desc = desc + "."
+        output.add_line(desc)
+
+    if required:
+        output.add_line("*Required*")
+
+    if "enum" in obj:
+        output.add_kv_line(
+            "Values", ", ".join(monospace_literal(v) for v in obj["enum"])
+        )
+
+    default = obj.get("default", None)
+    if default:
+        output.add_kv_line("Default", monospace_literal(default))
+
+    minimum = obj.get("minimum", None)
+    if minimum:
+        output.add_kv_line("Minimum", monospace_literal(minimum))
+
+    maximum = obj.get("maximum", None)
+    if maximum:
+        output.add_kv_line("Maximum", monospace_literal(maximum))
+
+    t = obj.get("type")
+    if t == "object":
+        dump_object(output, obj, path)
+    else:
+        output.add_kv_line("Type", t)
+        # raise ValueError(f"Unhandled type: {t}")
 
 
 def generate_configuration_docs(input_file_path, output_file_path):
     with open(input_file_path, "r") as in_:
         j = json.load(in_)
 
-    output = MinimalRstGenerator()
-    output.add_heading("Configuration Options", START_DEPTH)
-    print_object(
-        output, j["properties"], required_entries=j["required"], depth=START_DEPTH
-    )
-    assert (
-        j.get("additionalProperties") == False
-    ), f"AdditionalProperties not set to false in top level schema"
+    lines = [
+        ".. This is an auto-generated file. DO NOT EDIT.",
+        "",
+        "Configuration Options",
+        "---------------------",
+        "",
+    ]
+    output = SchemaRstGenerator()
+    dump_object(output, j)
+    out = "\n".join(lines) + output.render()
 
-    out = output.render()
     # Only update output file if the file will be modified
     with tempfile.NamedTemporaryFile("w") as temp:
         temp.write(out)
@@ -145,7 +163,7 @@ def generate_configuration_docs(input_file_path, output_file_path):
             temp.name, output_file_path
         ):
             with open(output_file_path, "w") as out_:
-                out_.write(output.render())
+                out_.write(out)
             print(f"Configuration file successfully generated at {output_file_path}")
 
 

@@ -372,6 +372,38 @@ def typedoc_role(
     return [ref_node], []
 
 
+def config_property_role(
+    name: str, rawtext: str, text: str, lineno, inliner, options={}, content=[]
+):
+    try:
+        prefix, val = text.rsplit(".", 1)
+        prefix = prefix + "."
+    except ValueError:
+        prefix, val = None, text
+
+    ret_nodes = []
+
+    if prefix:
+        ret_nodes.append(
+            nodes.emphasis(prefix, prefix, classes=["configpropertyprefix"])
+        )
+
+    ret_nodes.append(
+        nodes.strong(
+            val,
+            val,
+            classes=["configpropertyval"],
+            ids=[text],
+        )
+    )
+
+    ret_nodes.append(
+        nodes.reference("\t¶", "\t¶", refid=text, classes=["configpropertyanchor"])
+    )
+
+    return ret_nodes, []
+
+
 def config_inited(app, config):
     # anything that needs to access app.config goes here
 
@@ -427,6 +459,7 @@ def setup(app):
     if not os.environ.get("SKIP_JS"):
         app.connect("config-inited", config_inited)
 
+    app.add_role("configproperty", config_property_role)
     doc_dir = pathlib.Path(app.srcdir)  # CCF/doc/
     root_dir = pathlib.Path(os.path.abspath(doc_dir / ".."))  # CCF/
     out_dir = pathlib.Path(app.outdir)  # CCF/build/html
