@@ -55,6 +55,6 @@ jobs:
 
       - task: PublishPipelineArtifact@1
         inputs:
-          artifactName: "Worspace"
+          artifactName: "ACI Workspace"
           targetPath: workspace_$(Build.BuildNumber)
         condition: always()
