@@ -23,7 +23,7 @@ jobs:
 
       - script: env
         name: print_env
-        display_name: "Print Environment Variables"
+        displayName: "Print Environment Variables"
 
       - script: |
           set -ex
