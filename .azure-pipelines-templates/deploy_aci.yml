@@ -25,7 +25,11 @@ jobs:
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
       sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
-    pool: ado-virtual-ccf-sub # To build CCF quickly
+    pool:
+      name: ado-virtual-ccf-sub # To build CCF quickly
+      demands:
+        - WorkFolder -equals /mnt/storage
+
     steps:
       - checkout: self
         clean: true
