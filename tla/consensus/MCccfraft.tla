@@ -21,7 +21,6 @@ ASSUME MaxTermLimit \in Nat
 CONSTANT RequestLimit
 ASSUME RequestLimit \in Nat
 
-
 ToServers ==
     UNION Range(Configurations)
 
@@ -126,6 +125,5 @@ DebugAllReconfigurationsReachableInv ==
 DebugNotTooManySigsInv ==
     \A i \in Servers:
         FoldSeq(LAMBDA e, count: IF e.contentType = TypeSignature THEN count + 1 ELSE count, 0, log[i]) < 8
-
 
 ===================================
