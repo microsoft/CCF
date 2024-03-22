@@ -19,6 +19,9 @@ class SchemaRstGenerator:
     def add_line(self, line, depth=None):
         self._lines.append("| " + "   " * (depth or self._depth) + line)
 
+    def add_note(self, note_content):
+        self._lines.append(f".. note:: {note_content}")
+
     def add_kv_line(self, k, v):
         self.add_line(f"*{k}*: {v}", self._depth + 1)
 
@@ -35,7 +38,9 @@ class SchemaRstGenerator:
     def start_section(self, header, prefix=""):
         if self._depth <= HEADER_DEPTH:
             self._lines.append("")
-            self._start_header_section(prefix + header)
+            if prefix:
+                prefix = f"`{prefix}`"
+            self._start_header_section(f"{prefix}\ {header}")
         else:
             header = f":configproperty:`{prefix}{header}`"
             self._start_definition_section(header)
@@ -56,15 +61,15 @@ def dump_property(
     property_name: str,
     obj: dict,
     required: bool = False,
-    path_to_property: list = [],
+    path: list = [],
     conditions=[],
 ):
-    prefix = "".join(path_to_property)
+    prefix = "".join(path)
 
     output.start_section(property_name, prefix=prefix)
 
     for condition in conditions:
-        output.add_line(f"`{condition}`")
+        output.add_note(condition)
 
     t = obj.get("type")
     if isinstance(t, list):
@@ -99,7 +104,7 @@ def dump_property(
         output.add_line(desc)
 
     if t == "object":
-        dump_object(output, obj, path_to_property)
+        dump_object(output, obj, path + [f"{property_name}."])
 
     output.end_section()
 
@@ -113,7 +118,7 @@ def dump_object(output: SchemaRstGenerator, obj: dict, path: list = [], conditio
                 "property_name": name,
                 "obj": obj,
                 "required": required,
-                "path_to_property": kwargs.pop("path_to_property", path),
+                "path": path,
                 "conditions": kwargs.pop("conditions", conditions),
             }
         )
@@ -123,7 +128,12 @@ def dump_object(output: SchemaRstGenerator, obj: dict, path: list = [], conditio
         properties = obj.get("properties", {})
 
         for k, v in properties.items():
-            add_prop(k, v, k in required, **kwargs)
+            add_prop(
+                k,
+                v,
+                k in required,
+                **kwargs,
+            )
 
         additional = obj.get("additionalProperties", None)
         if additional:
@@ -138,12 +148,14 @@ def dump_object(output: SchemaRstGenerator, obj: dict, path: list = [], conditio
         if_el = obj.get("if", None)
         if if_el:
             assert "then" in obj, "Missing 'then' clause from JSON schema"
-            assert not "else" in obj, "'else' clause from JSON schema currently unsupported"
+            assert (
+                not "else" in obj
+            ), "'else' clause from JSON schema currently unsupported"
 
             extra_conditions = []
             for k, cond in if_el["properties"].items():
                 assert "const" in cond, "Only 'const' conditions supported"
-                extra_conditions.append(f"(Only if {k} is {cond['const']})")
+                extra_conditions.append(f"(Only used if {''.join(path)}{k} is {monospace_literal(cond['const'])})")
 
             gather_properties(obj["then"], conditions=conditions + extra_conditions)
 
