@@ -214,8 +214,10 @@ namespace ccf::endpoints
     endpoint.locally_committed_func = default_locally_committed_func;
 
     endpoint.authn_policies = ap;
-    // By default, all write transactions are forwarded
+    // By default, all transactions are assumed to be writing, and so
+    // forwarded/redirected
     endpoint.properties.forwarding_required = ForwardingRequired::Always;
+    endpoint.properties.redirection_strategy = RedirectionStrategy::ToPrimary;
     endpoint.installer = this;
     return endpoint;
   }
@@ -235,7 +237,8 @@ namespace ccf::endpoints
                f(ro_ctx);
              },
              ap)
-      .set_forwarding_required(ForwardingRequired::Sometimes);
+      .set_forwarding_required(ForwardingRequired::Sometimes)
+      .set_redirection_strategy(RedirectionStrategy::None);
   }
 
   Endpoint EndpointRegistry::make_endpoint_with_local_commit_handler(
@@ -270,7 +273,8 @@ namespace ccf::endpoints
   {
     return make_endpoint(
              method, verb, [f](EndpointContext& ctx) { f(ctx); }, ap)
-      .set_forwarding_required(ForwardingRequired::Sometimes);
+      .set_forwarding_required(ForwardingRequired::Sometimes)
+      .set_redirection_strategy(RedirectionStrategy::None);
   }
 
   void EndpointRegistry::install(Endpoint& endpoint)

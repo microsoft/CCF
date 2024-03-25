@@ -155,8 +155,6 @@ class Request:
     http_verb: str
     #: HTTP headers
     headers: dict
-    #: Whether redirect headers should be transparently followed
-    allow_redirects: bool
 
     def __str__(self):
         string = f"<cyan>{self.http_verb}</> <green>{self.path}</>"
@@ -263,7 +261,11 @@ class Response:
 
     def __str__(self):
         versioned = (self.view, self.seqno) != (None, None)
-        status_color = "red" if self.status_code // 100 in (4, 5) else "green"
+        status_category = self.status_code // 100
+        redirect = status_category == 3
+        status_color = (
+            "red" if status_category in (4, 5) else "yellow" if redirect else "green"
+        )
         body_s = escape_loguru_tags(truncate(str(self.body)))
         # Body can't end with a \, or it will escape the loguru closing tag
         if len(body_s) > 0 and body_s[-1] == "\\":
@@ -271,6 +273,11 @@ class Response:
 
         return (
             f"<{status_color}>{self.status_code}</> "
+            + (
+                f"<yellow>[Redirect to -> {self.headers['location']}]</> "
+                if redirect
+                else ""
+            )
             + (f"@<magenta>{self.view}.{self.seqno}</> " if versioned else "")
             + f"<yellow>{body_s}</>"
         )
@@ -485,9 +492,6 @@ class CurlClient:
 
             cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
 
-            if request.allow_redirects:
-                cmd.append("-L")
-
             headers = {}
             if self.common_headers is not None:
                 headers.update(self.common_headers)
@@ -545,9 +549,6 @@ class CurlClient:
             url = f"{self.protocol}://{self.hostname}{request.path}"
 
             cmd += [url, "-X", request.http_verb, "-i", f"-m {timeout}"]
-
-            if request.allow_redirects:
-                cmd.append("-L")
 
             if self.cose_signing_auth:
                 cmd.extend(["--data-binary", "@-"])
@@ -755,7 +756,6 @@ class HttpxClient:
                 url=f"{self.protocol}://{self.hostname}{request.path}",
                 auth=auth,
                 headers=extra_headers,
-                follow_redirects=request.allow_redirects,
                 timeout=timeout,
                 content=request_body,
             )
@@ -803,7 +803,7 @@ class RawSocketClient:
 
     def __init__(
         self,
-        netloc: str,
+        hostname: str,
         ca: str,
         session_auth: Optional[Identity] = None,
         signing_auth: Optional[Identity] = None,
@@ -833,7 +833,7 @@ class RawSocketClient:
         else:
             self.signing_details = None
 
-        hostname, port = infra.interfaces.split_netloc(netloc)
+        hostname, port = infra.interfaces.split_netloc(hostname)
 
         self.socket = RawSocketClient._create_socket(
             hostname,
@@ -948,31 +948,6 @@ class RawSocketClient:
         )
 
         response = Response.from_socket(self.socket)
-        while response.status_code == 308 and request.allow_redirects:
-            assert (
-                self.signing_details is None
-            ), f"Received redirect response from {request.path}, but submitted signed request. Combination of signed requests and forwarding is currently unsupported"
-
-            # Create a temporary socket to follow this redirect
-            redirect_url = response.headers["location"]
-            LOG.trace(f"Following redirect to: {redirect_url}")
-            parsed = urllib.parse.urlparse(redirect_url)
-            with RawSocketClient._create_socket(
-                parsed.hostname,
-                parsed.port,
-                self.ca,
-                self.session_auth,
-            ) as redirect_socket:
-                redirect_socket.settimeout(timeout)
-                RawSocketClient._send_request(
-                    ssl_socket=redirect_socket,
-                    verb=request.http_verb,
-                    path=parsed.path,
-                    headers=extra_headers,
-                    content=request_body,
-                )
-                response = Response.from_socket(redirect_socket)
-
         return response
 
     def close(self):
@@ -1044,15 +1019,15 @@ class CCFClient:
         self.sign = bool(signing_auth)
         self.cose = bool(cose_signing_auth)
 
-        self.client_impl = impl_type(
-            self.hostname,
-            ca,
-            session_auth,
-            signing_auth,
-            cose_signing_auth,
-            common_headers,
+        self.client_args = {
+            "ca": ca,
+            "session_auth": session_auth,
+            "signing_auth": signing_auth,
+            "cose_signing_auth": cose_signing_auth,
+            "common_headers": common_headers,
             **kwargs,
-        )
+        }
+        self.client_impl = impl_type(hostname=self.hostname, **self.client_args)
 
     def _response(self, response: Response) -> Response:
         LOG.info(response)
@@ -1071,10 +1046,44 @@ class CCFClient:
     ) -> Response:
         if headers is None:
             headers = {}
-        r = Request(path, body, http_verb, headers, allow_redirects)
+
+        r = Request(path, body, http_verb, headers)
         flush_info([f"{self.description} {r}"], log_capture, 3)
+
         response = self.client_impl.request(r, timeout, cose_header_parameters_override)
         flush_info([str(response)], log_capture, 3)
+
+        # NB: We follow redirects at this level, because we do not trust the underlying
+        # client implementation to do so without modifying the request (eg - removing
+        # the Authorization header)
+        redirect_count = 0
+        while (
+            allow_redirects
+            and redirect_count < 20
+            and (response.status_code == 308 or response.status_code == 307)
+        ):
+            redirect_count += 1
+            assert (
+                "location" in response.headers
+            ), f"Received redirect response without location header: {response}"
+
+            redirect_url = response.headers["location"]
+            split = urllib.parse.urlsplit(redirect_url)
+            hostname = split.netloc or self.hostname
+            redirect_path = urllib.parse.urlunsplit(("", "", *split[2:]))
+
+            # Construct a temporary client to follow this redirect
+            temp_client = type(self.client_impl)(hostname=hostname, **self.client_args)
+
+            # Copy any test-specific decorators from the main client to the temporary client
+            temp_client._corrupt_signature = self.client_impl._corrupt_signature
+            temp_client.cose_header_builder = self.client_impl.cose_header_builder
+
+            r = Request(redirect_path, body, http_verb, headers)
+
+            response = temp_client.request(r, timeout, cose_header_parameters_override)
+            flush_info([str(response)], log_capture, 3)
+
         return response
 
     def call(

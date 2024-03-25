@@ -420,7 +420,6 @@ def cli_args(
         type=str,
         default=infra.clients.API_VERSION_PREVIEW_01,
     )
-
     add(parser)
 
     if accept_unknown:
