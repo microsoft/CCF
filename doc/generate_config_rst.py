@@ -62,19 +62,25 @@ class SchemaRstGenerator:
     def render(self):
         return "\n".join(self._prefix) + "\n".join(self._lines)
 
+
 def lookup_ref(document_root: dict, json_ref: str):
     keys = json_ref.split("/")
     if keys[0] != "#":
-        raise ValueError(f"Can only resolve fragment-bound refs (ie - absolute within the current document). Cannot handle '{json_ref}'")
+        raise ValueError(
+            f"Can only resolve fragment-bound refs (ie - absolute within the current document). Cannot handle '{json_ref}'"
+        )
 
     obj = document_root
     for key in keys[1:]:
         if key in obj:
             obj = obj[key]
         else:
-            raise ValueError(f"Unable to resolve '{json_ref}' - couldn't find '{key}' in {json.dumps(obj)}")
-    
+            raise ValueError(
+                f"Unable to resolve '{json_ref}' - couldn't find '{key}' in {json.dumps(obj)}"
+            )
+
     return obj
+
 
 def dump_property(
     output: SchemaRstGenerator,
@@ -183,7 +189,9 @@ def dump_object(output: SchemaRstGenerator, obj: dict, path: list = [], conditio
             extra_conditions = []
             for k, cond in if_el["properties"].items():
                 assert "const" in cond, "Only 'const' conditions supported"
-                extra_conditions.append(f"(Only applies if {''.join(path)}{k} is {monospace_literal(cond['const'])})")
+                extra_conditions.append(
+                    f"(Only applies if {''.join(path)}{k} is {monospace_literal(cond['const'])})"
+                )
 
             gather_properties(obj["then"], conditions=conditions + extra_conditions)
 
