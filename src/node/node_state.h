@@ -398,52 +398,57 @@ namespace ccf
 
     void initiate_quote_generation()
     {
-      auto fetch_endorsements =
-        [this](
-          const QuoteInfo& qi,
-          const pal::snp::EndorsementEndpointsConfiguration& endpoint_config) {
-          // Note: Node lock is already taken here as this is called back
-          // synchronously with the call to pal::generate_quote
+      auto fetch_endorsements = [this](
+                                  const QuoteInfo& qi,
+                                  const pal::snp::
+                                    EndorsementEndpointsConfiguration&
+                                      endpoint_config) {
+        // Note: Node lock is already taken here as this is called back
+        // synchronously with the call to pal::generate_quote
 
-          if (qi.format == QuoteFormat::amd_sev_snp_v1)
+        if (qi.format == QuoteFormat::amd_sev_snp_v1)
+        {
+          if (!config.attestation.snp_endorsements_servers.empty())
           {
-            CCF_ASSERT_FMT(
-              !config.attestation.snp_endorsements_servers.empty(),
+            throw std::runtime_error(
               "One or more SNP endorsements servers must be specified to fetch "
               "the collateral for the attestation");
-            // On SEV-SNP, fetch endorsements from servers if specified
-            quote_endorsements_client =
-              std::make_shared<QuoteEndorsementsClient>(
-                rpcsessions,
-                endpoint_config,
-                [this, qi](std::vector<uint8_t>&& endorsements) {
-                  std::lock_guard<pal::Mutex> guard(lock);
-                  quote_info = qi;
-                  quote_info.endorsements = std::move(endorsements);
-                  try
-                  {
-                    launch_node();
-                  }
-                  catch (const std::exception& e)
-                  {
-                    LOG_FAIL_FMT("{}", e.what());
-                    throw;
-                  }
-                  quote_endorsements_client.reset();
-                });
-
-            quote_endorsements_client->fetch_endorsements();
-            return;
           }
+          // On SEV-SNP, fetch endorsements from servers if specified
+          quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
+            rpcsessions,
+            endpoint_config,
+            [this, qi](std::vector<uint8_t>&& endorsements) {
+              std::lock_guard<pal::Mutex> guard(lock);
+              quote_info = qi;
+              quote_info.endorsements = std::move(endorsements);
+              try
+              {
+                launch_node();
+              }
+              catch (const std::exception& e)
+              {
+                LOG_FAIL_FMT("{}", e.what());
+                throw;
+              }
+              quote_endorsements_client.reset();
+            });
 
-          CCF_ASSERT_FMT(
-            (qi.format == QuoteFormat::oe_sgx_v1 && !qi.endorsements.empty()) ||
-              (qi.format != QuoteFormat::oe_sgx_v1 && qi.endorsements.empty()),
+          quote_endorsements_client->fetch_endorsements();
+          return;
+        }
+
+        if (!((qi.format == QuoteFormat::oe_sgx_v1 &&
+               !qi.endorsements.empty()) ||
+              (qi.format != QuoteFormat::oe_sgx_v1 && qi.endorsements.empty())))
+        {
+          throw std::runtime_error(
             "SGX quote generation should have already fetched endorsements");
+        }
 
-          quote_info = qi;
-          launch_node();
-        };
+        quote_info = qi;
+        launch_node();
+      };
 
       pal::PlatformAttestationReportData report_data =
         crypto::Sha256Hash((node_sign_kp->public_key_der()));
@@ -591,7 +596,8 @@ namespace ccf
             const auto& location = headers.find(http::headers::LOCATION);
             if (
               config.join.follow_redirect &&
-              status == HTTP_STATUS_PERMANENT_REDIRECT &&
+              (status == HTTP_STATUS_PERMANENT_REDIRECT ||
+               status == HTTP_STATUS_TEMPORARY_REDIRECT) &&
               location != headers.end())
             {
               const auto& url = http::parse_url_full(location->second);

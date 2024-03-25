@@ -1,0 +1,39 @@
+{
+  "enclave": {
+    "file": "libjs_generic.enclave.so.signed",
+    "platform": "SGX",
+    "type": "Release"
+  },
+  "network": {
+    "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
+    "rpc_interfaces": {
+      "interface_name": {
+        "bind_address": "127.0.0.1:8080",
+        "published_address": "ccf.dummy.com:12345",
+        "redirections": {
+          "to_primary": {
+            "kind": "NodeByRole"
+          }
+        }
+      }
+    }
+  },
+  "command": {
+    "type": "Start",
+    "service_certificate_file": "service_cert.pem",
+    "start": {
+      "constitution_files": [
+        "validate.js",
+        "apply.js",
+        "resolve.js",
+        "actions.js"
+      ],
+      "members": [
+        {
+          "certificate_file": "member0_cert.pem",
+          "encryption_public_key_file": "member0_enc_pubk.pem"
+        }
+      ]
+    }
+  }
+}
