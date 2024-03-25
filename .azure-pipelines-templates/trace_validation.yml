@@ -1,6 +1,9 @@
 steps:
   - script: |
       set -ex
+      # Temporary removal because repository is offline at the moment
+      # and causing apt update to fail
+      sudo rm /etc/apt/sources.list.d/apache-arrow.sources
       sudo apt update
       sudo apt install -y default-jre parallel
       python3 ./tla/install_deps.py
