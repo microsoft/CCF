@@ -709,42 +709,55 @@
         "target": {}
       },
       "required": ["kind"],
-      "if": {
-        "properties": {
-          "kind": {
-            "const": "NodeByRole"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "target": {
-            "type": "object",
+      "allOf": [
+        {
+          "if": {
             "properties": {
-              "role": {
-                "enum": ["primary"],
-                "default": "primary"
+              "kind": {
+                "const": "NodeByRole"
               }
-            },
-            "additionalProperties": false
-          }
-        }
-      },
-      "else": {
-        "properties": {
-          "target": {
-            "type": "object",
+            }
+          },
+          "then": {
             "properties": {
-              "address": {
-                "type": "string"
+              "target": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "enum": ["primary"],
+                    "default": "primary"
+                  }
+                },
+                "additionalProperties": false
               }
-            },
-            "required": ["address"],
-            "additionalProperties": false
+            }
           }
         },
-        "required": ["target"]
-      },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "NodeByRole"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "target": {
+                "type": "object",
+                "properties": {
+                  "address": {
+                    "type": "string"
+                  }
+                },
+                "required": ["address"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["target"]
+        }
+      ],
       "additionalProperties": false
     }
   }

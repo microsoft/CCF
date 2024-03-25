@@ -11,10 +11,11 @@ HEADER_DEPTH = 1
 
 
 class SchemaRstGenerator:
-    def __init__(self):
+    def __init__(self, document_root):
         self._depth = 0
         self._prefix = []
         self._lines = []
+        self.document_root = document_root
 
     def add_line(self, line, depth=None):
         self._lines.append("| " + "   " * (depth or self._depth) + line)
@@ -55,6 +56,19 @@ class SchemaRstGenerator:
     def render(self):
         return "\n".join(self._prefix) + "\n".join(self._lines)
 
+def lookup_ref(document_root: dict, json_ref: str):
+    keys = json_ref.split("/")
+    if keys[0] != "#":
+        raise ValueError(f"Can only resolve fragment-bound refs (ie - absolute within the current document). Cannot handle '{json_ref}'")
+
+    obj = document_root
+    for key in keys[1:]:
+        if key in obj:
+            obj = obj[key]
+        else:
+            raise ValueError(f"Unable to resolve '{json_ref}' - couldn't find '{key}' in {json.dumps(obj)}")
+    
+    return obj
 
 def dump_property(
     output: SchemaRstGenerator,
@@ -66,10 +80,18 @@ def dump_property(
 ):
     prefix = "".join(path)
 
+    # Don't document empty ("any") schema
+    if len(obj) == 0:
+        return
+
+    ref = obj.pop("$ref", None)
+    if ref:
+        obj = lookup_ref(output.document_root, ref)
+
     output.start_section(property_name, prefix=prefix)
 
     for condition in conditions:
-        output.add_note(condition)
+        output.add_line(condition)
 
     t = obj.get("type")
     if isinstance(t, list):
@@ -155,7 +177,7 @@ def dump_object(output: SchemaRstGenerator, obj: dict, path: list = [], conditio
             extra_conditions = []
             for k, cond in if_el["properties"].items():
                 assert "const" in cond, "Only 'const' conditions supported"
-                extra_conditions.append(f"(Only used if {''.join(path)}{k} is {monospace_literal(cond['const'])})")
+                extra_conditions.append(f"(Only applies if {''.join(path)}{k} is {monospace_literal(cond['const'])})")
 
             gather_properties(obj["then"], conditions=conditions + extra_conditions)
 
@@ -183,7 +205,7 @@ def generate_configuration_docs(input_file_path, output_file_path):
         "^^^^^^^^^^^^^^^^^^^^^",
         "",
     ]
-    output = SchemaRstGenerator()
+    output = SchemaRstGenerator(j)
     dump_object(output, j)
     out = "\n".join(lines) + output.render()
 
