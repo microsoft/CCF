@@ -8,7 +8,9 @@ jobs:
     dependsOn: ${{ parameters.depends_on }}
     condition: ${{ parameters.condition }}
     pool:
-      vmImage: ubuntu-20.04
+      name: ado-virtual-ccf-sub
+      demands:
+        - WorkFolder -equals /mnt/storage
     timeoutInMinutes: 120
     variables:
       runOn: ${{ parameters.run_on }}
