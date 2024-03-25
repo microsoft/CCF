@@ -438,7 +438,9 @@ namespace ccf
           return;
         }
 
-        if (qi.format == QuoteFormat::oe_sgx_v1 && qi.endorsements.empty())
+        if (
+          !(qi.format == QuoteFormat::oe_sgx_v1 && !qi.endorsements.empty()) ||
+          (qi.format != QuoteFormat::oe_sgx_v1 && qi.endorsements.empty()))
         {
           throw std::runtime_error(
             "SGX quote generation should have already fetched endorsements");
