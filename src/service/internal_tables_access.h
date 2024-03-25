@@ -5,12 +5,15 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/service/tables/code_id.h"
+#include "ccf/service/tables/constitution.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/snp_measurements.h"
+#include "ccf/service/tables/users.h"
 #include "ccf/tx.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
+#include "service/tables/governance_history.h"
 #include "service/tables/previous_service_identity.h"
 
 #include <algorithm>

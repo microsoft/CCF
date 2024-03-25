@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Optional, Dict
 from enum import Enum, auto
 import urllib.parse
@@ -75,6 +75,63 @@ class Interface:
     port: int = 0
 
 
+class RedirectionResolver:
+    pass
+
+
+@dataclass
+class NodeByRoleResolver(RedirectionResolver):
+    kind: str = "NodeByRole"
+    target = {"role": "primary"}
+
+    @staticmethod
+    def to_json(nbrr):
+        return asdict(nbrr)
+
+    @staticmethod
+    def from_json(json):
+        nbrr = NodeByRoleResolver()
+        nbrr.target = json["target"]
+        return nbrr
+
+
+class StaticAddressResolver(RedirectionResolver):
+    kind: str = "StaticAddress"
+    target_address: str
+
+    def __init__(self, address):
+        self.target_address = address
+
+    @staticmethod
+    def to_json(sar):
+        return {
+            "kind": sar.kind,
+            "target": {"address": sar.target_address},
+        }
+
+    @staticmethod
+    def from_json(json):
+        sar = StaticAddressResolver()
+        sar.target_address = json["target"]["address"]
+        return sar
+
+
+@dataclass
+class RedirectionConfig:
+    to_primary: RedirectionResolver = NodeByRoleResolver()
+
+    @staticmethod
+    def to_json(rc):
+        return {"to_primary": rc.to_primary.to_json(rc.to_primary)}
+
+    @staticmethod
+    def from_json(json):
+        if json["kind"] == "NodeByRole":
+            return NodeByRoleResolver.from_json(json)
+        elif json["kind"] == "StaticAddress":
+            return StaticAddressResolver.from_json(json)
+
+
 @dataclass
 class RPCInterface(Interface):
     # How nodes are created (local, ssh, ...)
@@ -97,6 +154,7 @@ class RPCInterface(Interface):
     acme_configuration: Optional[str] = None
     accepted_endpoints: Optional[str] = None
     forwarding_timeout_ms: Optional[int] = None
+    redirections: Optional[RedirectionConfig] = None
     app_protocol: str = "HTTP1"
 
     @staticmethod
@@ -154,6 +212,8 @@ class RPCInterface(Interface):
             r["accepted_endpoints"] = interface.accepted_endpoints
         if interface.forwarding_timeout_ms:
             r["forwarding_timeout_ms"] = interface.forwarding_timeout_ms
+        if interface.redirections:
+            r["redirections"] = RedirectionConfig.to_json(interface.redirections)
         return r
 
     @staticmethod
@@ -178,6 +238,8 @@ class RPCInterface(Interface):
         interface.forwarding_timeout_ms = json.get(
             "forwarding_timeout_ms", DEFAULT_FORWARDING_TIMEOUT_MS
         )
+        if "redirections" in json:
+            interface.redirections = RedirectionConfig.from_json(json["redirections"])
         if "endorsement" in json:
             interface.endorsement = Endorsement.from_json(json["endorsement"])
         interface.accepted_endpoints = json.get("accepted_endpoints")

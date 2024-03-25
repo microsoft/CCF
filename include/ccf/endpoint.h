@@ -58,6 +58,20 @@ namespace ccf::endpoints
     Never
   };
 
+  enum class RedirectionStrategy
+  {
+    /** This operation does not need to be redirected, and can be executed on
+       the receiving node. Most read-only operations can be executed on any
+       node, so should be marked as None.  */
+    None,
+
+    /** This operation must be executed on a primary. If the current node is not
+       a primary, it should attempt to redirect to the primary, or else return
+       an error. Any write operations must be executed on a primary, so should
+       be marked as ToPrimary. */
+    ToPrimary
+  };
+
   enum class Mode
   {
     ReadWrite,
@@ -76,6 +90,11 @@ namespace ccf::endpoints
     {{ForwardingRequired::Sometimes, "sometimes"},
      {ForwardingRequired::Always, "always"},
      {ForwardingRequired::Never, "never"}});
+
+  DECLARE_JSON_ENUM(
+    RedirectionStrategy,
+    {{RedirectionStrategy::None, "none"},
+     {RedirectionStrategy::ToPrimary, "to_primary"}});
 
   DECLARE_JSON_ENUM(
     Mode,
@@ -106,6 +125,8 @@ namespace ccf::endpoints
     Mode mode = Mode::ReadWrite;
     /// Endpoint forwarding policy
     ForwardingRequired forwarding_required = ForwardingRequired::Always;
+    /// Endpoint redirection policy
+    RedirectionStrategy redirection_strategy = RedirectionStrategy::None;
     /// Authentication policies
     std::vector<std::string> authn_policies = {};
     /// OpenAPI schema for endpoint
@@ -396,6 +417,8 @@ namespace ccf::endpoints
      * @return This Endpoint for further modification
      */
     Endpoint& set_forwarding_required(ForwardingRequired fr);
+
+    Endpoint& set_redirection_strategy(RedirectionStrategy rs);
 
     void install();
   };

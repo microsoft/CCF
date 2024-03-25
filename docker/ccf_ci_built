@@ -4,12 +4,15 @@
 
 # Latest image as of this change
 ARG platform=sgx
-ARG base=ccfmsrc.azurecr.io/ccf/ci:15-03-2024-snp-clang-15
+ARG base=ccfmsrc.azurecr.io/ccf/ci:2024-03-21-snp-clang-15
 FROM ${base}
 
 # SSH. Note that this could (should) be done in the base ccf_ci image instead
 # if we wanted to build this image faster
-RUN apt update \
+# Temporary removal of arrow because repository is offline at the moment
+# and causing apt update to fail
+RUN rm /etc/apt/sources.list.d/apache-arrow.sources \
+    && apt update \
     && apt install -y openssh-server \
     && sed -i "s/.*PubkeyAuthentication.*/PubkeyAuthentication yes/g" /etc/ssh/sshd_config \
     && sed -i "s/.*PasswordAuthentication.*/PasswordAuthentication no/g" /etc/ssh/sshd_config \
