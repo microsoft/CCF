@@ -11,10 +11,17 @@ pr:
 
 trigger: none
 
+schedules:
+  - cron: "0 3 * * Mon-Fri"
+    displayName: Daily build
+    branches:
+      include:
+        - main
+
 resources:
   containers:
     - container: virtual
-      image: ccfmsrc.azurecr.io/ccf/ci:15-03-2024-virtual-clang15
+      image: ccfmsrc.azurecr.io/ccf/ci:2024-03-21-virtual-clang15
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
 jobs:
