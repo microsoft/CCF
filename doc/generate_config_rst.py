@@ -7,7 +7,13 @@ import json
 import tempfile
 import filecmp
 
-HEADER_DEPTH = 1
+# We can document each sub schema as either a header-led
+# section, or a nested definition list.
+# The latter is more readable thanks to indentation, but
+# the former adds automatic links and in-page navigation.
+# This is a compromise between both approaches - add headers
+# down to a certain depth.
+HEADER_DEPTH = 2
 
 
 class SchemaRstGenerator:
