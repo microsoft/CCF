@@ -16,7 +16,7 @@ from loguru import logger as LOG
 
 @reqs.description("Send an unsigned request where signature is required")
 def test_missing_signature_header(network, args):
-    node = network.find_node_by_role()
+    node = network.find_node_by_role(role=infra.network.NodeRole.PRIMARY)
     member = network.consortium.get_any_active_member()
     # NB: This client uses member cert auth, so no signature is inserted later
     with node.client(member.local_id) as mc:
@@ -81,7 +81,7 @@ def modified_signature(request):
 
 @reqs.description("Send a corrupted signature where signed request is required")
 def test_corrupted_signature(network, args):
-    node = network.find_node_by_role()
+    node = network.find_node_by_role(role=infra.network.NodeRole.PRIMARY)
 
     # Test each supported curve
     for curve in infra.network.EllipticCurve:
@@ -112,8 +112,7 @@ def test_corrupted_signature(network, args):
 
 @reqs.description("Test various governance operations")
 def test_governance(network, args):
-    node = network.find_node_by_role()
-    primary, _ = network.find_primary()
+    node = network.find_node_by_role(role=infra.network.NodeRole.PRIMARY)
 
     LOG.info("Original members can ACK")
     network.consortium.get_any_active_member().ack(node)
@@ -127,7 +126,7 @@ def test_governance(network, args):
 
     try:
         proposal = network.consortium.get_any_active_member().propose(
-            primary, unkwown_proposal
+            node, unkwown_proposal
         )
         assert False, "Unknown proposal should fail on validation"
     except infra.proposal.ProposalNotCreated:
@@ -144,7 +143,7 @@ def test_governance(network, args):
     )
 
     LOG.info("Check proposal has been recorded in open state")
-    proposal = network.consortium.get_proposal(primary, new_member_proposal.proposal_id)
+    proposal = network.consortium.get_proposal(node, new_member_proposal.proposal_id)
     assert proposal.state == infra.proposal.ProposalState.OPEN
 
     LOG.info("Rest of consortium accept the proposal")
@@ -217,7 +216,7 @@ def test_governance(network, args):
     assert response.status_code == http.HTTPStatus.OK.value
     assert proposal.state == infra.proposal.ProposalState.WITHDRAWN
 
-    proposal = network.consortium.get_proposal(primary, proposal.proposal_id)
+    proposal = network.consortium.get_proposal(node, proposal.proposal_id)
     assert proposal.state == infra.proposal.ProposalState.WITHDRAWN
 
     if new_member.gov_api_impl.API_VERSION == infra.clients.API_VERSION_CLASSIC:

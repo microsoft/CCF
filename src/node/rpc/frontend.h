@@ -21,6 +21,7 @@
 #include "node/endpoint_context_impl.h"
 #include "node/node_configuration_subsystem.h"
 #include "rpc_exception.h"
+#include "service/internal_tables_access.h"
 
 #define FMT_HEADER_ONLY
 
@@ -196,6 +197,173 @@ namespace ccf
       }
 
       return true;
+    }
+
+    std::optional<std::string> resolve_redirect_location(
+      const RedirectionResolverConfig& resolver,
+      kv::ReadOnlyTx& tx,
+      const ccf::ListenInterfaceID& incoming_interface)
+    {
+      switch (resolver.kind)
+      {
+        case (RedirectionResolutionKind::NodeByRole):
+        {
+          const auto role_it = resolver.target.find("role");
+          const bool primary =
+            role_it == resolver.target.end() || role_it.value() == "primary";
+          if (!primary)
+          {
+            return std::nullopt;
+          }
+
+          const auto interface_it = resolver.target.find("interface");
+          const auto target_interface =
+            (interface_it == resolver.target.end()) ?
+            incoming_interface :
+            interface_it.value().get<std::string>();
+
+          const auto primary_id = consensus->primary();
+          if (!primary_id.has_value())
+          {
+            return std::nullopt;
+          }
+
+          const auto nodes = InternalTablesAccess::get_trusted_nodes(tx);
+          const auto node_it = nodes.find(primary_id.value());
+          if (node_it != nodes.end())
+          {
+            const auto& interfaces = node_it->second.rpc_interfaces;
+
+            const auto target_interface_it = interfaces.find(target_interface);
+            if (target_interface_it != interfaces.end())
+            {
+              return target_interface_it->second.published_address;
+            }
+          }
+          else
+          {
+            return std::nullopt;
+          }
+          break;
+        }
+
+        case (RedirectionResolutionKind::StaticAddress):
+        {
+          return resolver.target["address"].get<std::string>();
+          break;
+        }
+      }
+
+      return std::nullopt;
+    }
+
+    RedirectionResolverConfig get_redirect_resolver_config(
+      endpoints::RedirectionStrategy strategy,
+      const ccf::NodeInfoNetwork_v2::NetInterface::Redirections& redirections)
+    {
+      switch (strategy)
+      {
+        case (ccf::endpoints::RedirectionStrategy::None):
+        {
+          return {};
+        }
+
+        case (ccf::endpoints::RedirectionStrategy::ToPrimary):
+        {
+          return redirections.to_primary;
+        }
+      }
+    }
+
+    bool check_redirect(
+      kv::ReadOnlyTx& tx,
+      std::shared_ptr<ccf::RpcContextImpl> ctx,
+      const endpoints::EndpointDefinitionPtr& endpoint,
+      const ccf::NodeInfoNetwork_v2::NetInterface::Redirections& redirections)
+    {
+      auto rs = endpoint->properties.redirection_strategy;
+
+      switch (rs)
+      {
+        case (ccf::endpoints::RedirectionStrategy::None):
+        {
+          return false;
+        }
+
+        case (ccf::endpoints::RedirectionStrategy::ToPrimary):
+        {
+          const bool is_primary =
+            (consensus != nullptr) && consensus->can_replicate();
+
+          // Note: This check is included for parity with forwarding. If we
+          // should redirect, but can't for fundamental early-node-lifecycle
+          // reasons, should we try to execute it locally?
+          const bool redirectable = (consensus != nullptr);
+
+          if (redirectable && !is_primary)
+          {
+            auto resolver = get_redirect_resolver_config(rs, redirections);
+
+            const auto listen_interface =
+              ctx->get_session_context()->interface_id.value_or(
+                PRIMARY_RPC_INTERFACE);
+            const auto location =
+              resolve_redirect_location(resolver, tx, listen_interface);
+            if (location.has_value())
+            {
+              ctx->set_response_header(
+                http::headers::LOCATION,
+                fmt::format(
+                  "https://{}{}", location.value(), ctx->get_request_url()));
+              ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
+              return true;
+            }
+
+            // Should have redirected, but don't know how to. Return an error
+            ctx->set_error(
+              HTTP_STATUS_SERVICE_UNAVAILABLE,
+              ccf::errors::PrimaryNotFound,
+              "Request should be redirected to primary, but receiving node "
+              "does not know current primary address");
+            return true;
+          }
+          return false;
+        }
+
+        default:
+        {
+          LOG_FAIL_FMT("Unhandled redirection strategy: {}", rs);
+          return false;
+        }
+      }
+    }
+
+    std::optional<ccf::NodeInfoNetwork_v2::NetInterface::Redirections>
+    get_redirections_config(const ccf::ListenInterfaceID& incoming_interface)
+    {
+      if (!node_configuration_subsystem)
+      {
+        node_configuration_subsystem =
+          node_context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!node_configuration_subsystem)
+        {
+          LOG_FAIL_FMT("Unable to access NodeConfigurationSubsystem");
+          return std::nullopt;
+        }
+      }
+
+      const auto& node_config_state = node_configuration_subsystem->get();
+      const auto& interfaces =
+        node_config_state.node_config.network.rpc_interfaces;
+      const auto interface_it = interfaces.find(incoming_interface);
+      if (interface_it == interfaces.end())
+      {
+        LOG_FAIL_FMT(
+          "Could not find startup config for interface {}", incoming_interface);
+        return std::nullopt;
+      }
+
+      return interface_it->second.redirections;
     }
 
     bool check_session_consistency(std::shared_ptr<ccf::RpcContextImpl> ctx)
@@ -458,33 +626,50 @@ namespace ccf
             return;
           }
 
-          const bool is_primary = (consensus == nullptr) ||
-            consensus->can_replicate() || ctx->is_create_request;
-          const bool forwardable = (consensus != nullptr);
+          const auto listen_interface =
+            ctx->get_session_context()->interface_id.value_or(
+              PRIMARY_RPC_INTERFACE);
+          const auto redirections = get_redirections_config(listen_interface);
 
-          if (!is_primary && forwardable)
+          // If a redirections config was specified, then redirections are used
+          // and no forwarding is done
+          if (redirections.has_value())
           {
-            switch (endpoint->properties.forwarding_required)
+            if (check_redirect(*tx_p, ctx, endpoint, redirections.value()))
             {
-              case endpoints::ForwardingRequired::Never:
-              {
-                break;
-              }
+              return;
+            }
+          }
+          else
+          {
+            bool is_primary = (consensus == nullptr) ||
+              consensus->can_replicate() || ctx->is_create_request;
+            const bool forwardable = (consensus != nullptr);
 
-              case endpoints::ForwardingRequired::Sometimes:
+            if (!is_primary && forwardable)
+            {
+              switch (endpoint->properties.forwarding_required)
               {
-                if (ctx->get_session_context()->is_forwarding)
+                case endpoints::ForwardingRequired::Never:
+                {
+                  break;
+                }
+
+                case endpoints::ForwardingRequired::Sometimes:
+                {
+                  if (ctx->get_session_context()->is_forwarding)
+                  {
+                    forward(ctx, *tx_p, endpoint);
+                    return;
+                  }
+                  break;
+                }
+
+                case endpoints::ForwardingRequired::Always:
                 {
                   forward(ctx, *tx_p, endpoint);
                   return;
                 }
-                break;
-              }
-
-              case endpoints::ForwardingRequired::Always:
-              {
-                forward(ctx, *tx_p, endpoint);
-                return;
               }
             }
           }

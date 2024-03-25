@@ -402,6 +402,9 @@ class Member:
             "--cacert",
             os.path.join(self.common_dir, "service_cert.pem"),
         ]
+
+        cmd += ["-L"]
+
         res = infra.proc.ccall(
             *cmd,
             log_output=True,

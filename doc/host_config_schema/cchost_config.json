@@ -161,6 +161,17 @@
                 "type": "integer",
                 "default": 3000,
                 "description": "Timeout for forwarded RPC calls (in milliseconds)"
+              },
+              "redirections": {
+                "type": "object",
+                "description": "Configure how redirect responses should be produced on this interface. If this is omitted, then forwarding will be used instead",
+                "properties": {
+                  "to_primary": {
+                    "$ref": "#/$defs/RedirectionResolver",
+                    "description": "Configures how the Location header should be populated, when requests arrive on this interface that must be served by a primary while the receiving node is not a primary"
+                  }
+                },
+                "additionalProperties": false
               }
             },
             "required": ["bind_address"]
@@ -687,5 +698,54 @@
     }
   },
   "required": ["enclave", "network", "command"],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "RedirectionResolver": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": ["NodeByRole", "StaticAddress"]
+        },
+        "target": {}
+      },
+      "required": ["kind"],
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "NodeByRole"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "enum": ["primary"],
+                "default": "primary"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "target": {
+            "type": "object",
+            "properties": {
+              "address": {
+                "type": "string"
+              }
+            },
+            "required": ["address"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["target"]
+      },
+      "additionalProperties": false
+    }
+  }
 }

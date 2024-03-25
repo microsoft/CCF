@@ -584,11 +584,22 @@
           },
           "published_address": {
             "$ref": "#/components/schemas/string"
+          },
+          "redirections": {
+            "$ref": "#/components/schemas/NodeInfoNetwork_v2__NetInterface__Redirections"
           }
         },
         "required": [
           "bind_address"
         ],
+        "type": "object"
+      },
+      "NodeInfoNetwork_v2__NetInterface__Redirections": {
+        "properties": {
+          "to_primary": {
+            "$ref": "#/components/schemas/RedirectionResolverConfig"
+          }
+        },
         "type": "object"
       },
       "NodeMetrics": {
@@ -685,6 +696,27 @@
           "TwoTransaction"
         ],
         "type": "string"
+      },
+      "RedirectionResolutionKind": {
+        "enum": [
+          "NodeByRole",
+          "StaticAddress"
+        ],
+        "type": "string"
+      },
+      "RedirectionResolverConfig": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/RedirectionResolutionKind"
+          },
+          "target": {
+            "$ref": "#/components/schemas/json"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
       },
       "RetirementPhase": {
         "enum": [
@@ -905,7 +937,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "4.9.0"
+    "version": "4.9.1"
   },
   "openapi": "3.0.0",
   "paths": {
