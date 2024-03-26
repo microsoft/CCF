@@ -20,7 +20,8 @@ WriteStatsFile ==
 SerialiseCoverageConstraint ==
     LET interval == 500000
     IN IF TLCGet("distinct") % interval = 0 
-       THEN Serialize(<<TLCGet("spec")>>, CoverageFilename, [format |-> "NDJSON", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "APPEND">>])
+       THEN /\ Serialize(<<TLCGet("spec")>>, CoverageFilename, [format |-> "NDJSON", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "APPEND">>])
+            /\ PrintT("Writing coverage to file: " \o CoverageFilename)
        ELSE TRUE
 
 ====
