@@ -1,13 +1,13 @@
 ---- MODULE StatsFile----
-EXTENDS TLC, Json, Sequences, Naturals
+EXTENDS TLC, Json, Sequences, Naturals, IOUtils
 
 \* Filename to write TLC stats to
 CONSTANT StatsFilename
 ASSUME StatsFilename \in STRING
 
 \* Filename to write TLC coverage to
-CONSTANT CoverageFilenamePrefix
-ASSUME CoverageFilenamePrefix \in STRING
+CONSTANT CoverageFilename
+ASSUME CoverageFilename \in STRING
 
 
 \* Writes TLC stats (such as number of states and duration) to StatsFilename in ndJson format
@@ -16,9 +16,11 @@ WriteStatsFile ==
     /\ PrintT("Writing stats to file: " \o StatsFilename)
     /\ ndJsonSerialize(StatsFilename, <<TLCGet("stats")>>)
 
-\* Writes TLC coverage to CoverageFilenamePrefix_coverage_*.json in ndJson format
+\* Append TLC coverage in ndJson format to file identified by CoverageFilename.  Create CoverageFilename if it does not exist.
 SerialiseCoverageConstraint ==
     LET interval == 500000
-    IN IF TLCGet("distinct") % interval = 0 THEN ndJsonSerialize(CoverageFilenamePrefix \o "_coverage_" \o ToString(TLCGet("distinct") \div interval) \o ".json", <<TLCGet("spec")>>) ELSE TRUE
+    IN IF TLCGet("distinct") % interval = 0 
+       THEN Serialize(<<TLCGet("spec")>>, CoverageFilename, [format |-> "NDJSON", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "APPEND">>])
+       ELSE TRUE
 
 ====
