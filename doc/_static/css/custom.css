@@ -29,3 +29,22 @@ body[data-theme="dark"] .mermaid
     background-color: #ffffff
   }
 }
+
+.configproperty > em {
+  font-family: monospace,monospace;
+  font-size: small;
+}
+
+.configproperty > strong {
+  font-family: monospace,monospace;
+  font-size: larger
+}
+
+.configproperty > .headerlink {
+  margin-left: 0.5em;
+  visibility: hidden;
+}
+
+.configproperty:hover > .headerlink {
+    visibility: visible;
+}
