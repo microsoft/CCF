@@ -642,8 +642,8 @@ namespace ccf
           }
           else
           {
-            bool is_primary = (consensus == nullptr) ||
-              consensus->can_replicate() || ctx->is_create_request;
+            bool is_primary =
+              (consensus == nullptr) || consensus->can_replicate();
             const bool forwardable = (consensus != nullptr);
 
             if (!is_primary && forwardable)
