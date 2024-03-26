@@ -9,7 +9,10 @@ on:
       - "tla/**"
   workflow_dispatch:
 
-permissions: read-all
+permissions:
+  actions: read
+  contents: read
+  security-events: write
 
 jobs:
   model-checking-consistency:
