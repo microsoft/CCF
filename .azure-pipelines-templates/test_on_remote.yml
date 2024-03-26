@@ -47,6 +47,8 @@ jobs:
           # Remove irrelevant and bulky data from workspace before uploading
           find /ccfci/workspace_$(Build.BuildNumber) -type f -name cchost -delete
           find /ccfci/workspace_$(Build.BuildNumber) -type f -name '*.so' -delete
+          find /ccfci/workspace_$(Build.BuildNumber) -type l -name '*.so' -delete
+          rm -rf workspace_$(Build.BuildNumber)/.npm
           '
         name: run_ctest
         displayName: "Run CTest"
@@ -67,7 +69,6 @@ jobs:
           set -o pipefail
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
           scp -r agent@${IP_ADDR_LIST[0]}:/ccfci/workspace_$(Build.BuildNumber) .
-          rm -rf workspace_$(Build.BuildNumber)/.npm
         name: fetch_workspace
         displayName: "Fetch Workspace"
         condition: always()
