@@ -408,7 +408,7 @@ namespace ccf
 
         if (qi.format == QuoteFormat::amd_sev_snp_v1)
         {
-          if (!config.attestation.snp_endorsements_servers.empty())
+          if (config.attestation.snp_endorsements_servers.empty())
           {
             throw std::runtime_error(
               "One or more SNP endorsements servers must be specified to fetch "
