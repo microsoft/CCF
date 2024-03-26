@@ -12,7 +12,8 @@
         "published_address": "ccf.dummy.com:12345",
         "redirections": {
           "to_primary": {
-            "kind": "NodeByRole"
+            "kind": "NodeByRole",
+            "target": { "role": "primary" }
           }
         }
       }
