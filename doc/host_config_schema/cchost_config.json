@@ -44,7 +44,7 @@
               "description": "The published node address advertised to other nodes. This must be different on each node"
             }
           },
-          "description": "Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages)",
+          "description": "Addresses (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages)",
           "required": ["bind_address"],
           "additionalProperties": false
         },
@@ -709,42 +709,55 @@
         "target": {}
       },
       "required": ["kind"],
-      "if": {
-        "properties": {
-          "kind": {
-            "const": "NodeByRole"
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "target": {
-            "type": "object",
+      "allOf": [
+        {
+          "if": {
             "properties": {
-              "role": {
-                "enum": ["primary"],
-                "default": "primary"
+              "kind": {
+                "const": "NodeByRole"
               }
-            },
-            "additionalProperties": false
-          }
-        }
-      },
-      "else": {
-        "properties": {
-          "target": {
-            "type": "object",
+            }
+          },
+          "then": {
             "properties": {
-              "address": {
-                "type": "string"
+              "target": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "enum": ["primary"],
+                    "default": "primary"
+                  }
+                },
+                "additionalProperties": false
               }
-            },
-            "required": ["address"],
-            "additionalProperties": false
+            }
           }
         },
-        "required": ["target"]
-      },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "StaticAddress"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "target": {
+                "type": "object",
+                "properties": {
+                  "address": {
+                    "type": "string"
+                  }
+                },
+                "required": ["address"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["target"]
+          }
+        }
+      ],
       "additionalProperties": false
     }
   }
