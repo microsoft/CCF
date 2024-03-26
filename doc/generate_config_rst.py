@@ -16,48 +16,53 @@ import filecmp
 HEADER_DEPTH = 2
 
 
-class SchemaRstGenerator:
+class MinimalRstGenerator:
     def __init__(self, document_root):
         self._depth = 0
         self._prefix = []
         self._lines = []
         self.document_root = document_root
 
-    def add_line(self, line, depth=None):
-        self._lines.append("| " + "   " * (depth or self._depth) + line)
-
-    def add_note(self, note_content):
-        self._lines.append(f".. note:: {note_content}")
-
-    def add_kv_line(self, k, v):
-        self.add_line(f"*{k}*: {v}", self._depth + 1)
+    def add_line(self, line=""):
+        self._lines.append(line)
 
     def _start_header_section(self, text):
-        depth_to_char = {0: "#", 1: "-", 2: "~", 3: "+"}
-        self._lines.append(text)
-        self._lines.append(depth_to_char[self._depth] * len(text))
-
-    def _start_definition_section(self, header):
-        if self._lines and self._lines[-1] != "|":
-            self._lines.append("|")
-        self.add_line(header)
+        depth_to_char = {
+            0: "#",
+            1: "-",
+            2: "~",
+            3: "+",
+            4: '"',
+            5: "_",
+        }
+        self.add_line()
+        self.add_line(text)
+        self.add_line(depth_to_char[self._depth] * len(text))
+        self.add_line()
 
     def start_section(self, header, prefix=""):
-        if self._depth <= HEADER_DEPTH:
-            self._lines.append("")
-            if prefix:
-                prefix = f"`{prefix}`"
-            self._start_header_section(f"{prefix}\ {header}")
-        else:
-            header = f":configproperty:`{prefix}{header}`"
-            self._start_definition_section(header)
+        if prefix:
+            prefix = f"`{prefix}`"
+        self._start_header_section(f"{prefix}\ {header}")
         self._depth += 1
 
     def end_section(self):
+        self.add_line()
         assert self._depth > 0
         self._depth -= 1
-        if self._depth <= HEADER_DEPTH:
-            self._lines.append("")
+
+    def start_definition(self, term):
+        self.add_line()
+        self.add_line(term)
+
+    def add_definition_line(self, line):
+        self.add_line(f"   |   {line}")
+
+    def add_definition_kv_line(self, k, v):
+        self.add_definition_line(f"**{k}**: {v}")
+
+    def end_definition(self):
+        self.add_line()
 
     def render(self):
         return "\n".join(self._prefix) + "\n".join(self._lines)
@@ -82,8 +87,12 @@ def lookup_ref(document_root: dict, json_ref: str):
     return obj
 
 
+def has_subobjs(obj):
+    return any(k in obj.keys() for k in ["properties", "additionalProperties", "items"])
+
+
 def dump_property(
-    output: SchemaRstGenerator,
+    output: MinimalRstGenerator,
     property_name: str,
     obj: dict,
     required: bool = False,
@@ -100,50 +109,64 @@ def dump_property(
     if ref:
         obj = lookup_ref(output.document_root, ref)
 
-    output.start_section(property_name, prefix=prefix)
-
-    for condition in conditions:
-        output.add_line(condition)
-
     t = obj.get("type")
-    if isinstance(t, list):
-        t = " | ".join(t)
-    output.add_kv_line("Type", t)
 
-    if required:
-        output.add_kv_line("Required", "true")
+    if has_subobjs(obj):
+        output.start_section(f"``{prefix}{property_name}``")
+        for condition in conditions:
+            output.add_line(condition)
 
-    if "enum" in obj:
-        output.add_kv_line(
-            "Values", ", ".join(monospace_literal(v) for v in obj["enum"])
-        )
+        desc = obj.get("description", None)
+        if desc:
+            # Insert a trailing full-stop, but only if not present in original string
+            if desc[-1] != ".":
+                desc = desc + "."
+            output.add_line(desc)
 
-    default = obj.get("default", None)
-    if default:
-        output.add_kv_line("Default", monospace_literal(default))
+        if t == "object":
+            dump_object(output, obj, path + [f"{property_name}."])
 
-    minimum = obj.get("minimum", None)
-    if minimum:
-        output.add_kv_line("Minimum", monospace_literal(minimum))
+        output.end_section()
 
-    maximum = obj.get("maximum", None)
-    if maximum:
-        output.add_kv_line("Maximum", monospace_literal(maximum))
+    else:
+        output.start_definition(f"``{property_name}``")
 
-    desc = obj.get("description", None)
-    if desc:
-        # Insert a trailing full-stop, but only if not present in original string
-        if desc[-1] != ".":
-            desc = desc + "."
-        output.add_line(desc)
+        desc = ""
+        desc = obj.get("description", "")
+        if desc:
+            # Insert a trailing full-stop, but only if not present in original string
+            if desc[-1] != ".":
+                desc = desc + "."
+        output.add_definition_line(desc)
 
-    if t == "object":
-        dump_object(output, obj, path + [f"{property_name}."])
+        if required:
+            output.add_definition_line("**Required**")
 
-    output.end_section()
+        if isinstance(t, list):
+            t = " | ".join(t)
+        output.add_definition_kv_line("Type", t)
+
+        if "enum" in obj:
+            output.add_definition_kv_line(
+                "Values", ", ".join(monospace_literal(v) for v in obj["enum"])
+            )
+
+        default = obj.get("default", None)
+        if default:
+            output.add_definition_kv_line("Default", monospace_literal(default))
+
+        minimum = obj.get("minimum", None)
+        if minimum:
+            output.add_definition_kv_line("Minimum", monospace_literal(minimum))
+
+        maximum = obj.get("maximum", None)
+        if maximum:
+            output.add_definition_kv_line("Maximum", monospace_literal(maximum))
+
+        output.end_definition()
 
 
-def dump_object(output: SchemaRstGenerator, obj: dict, path: list = [], conditions=[]):
+def dump_object(output: MinimalRstGenerator, obj: dict, path: list = [], conditions=[]):
     props = []
 
     def add_prop(name, obj, required=False, **kwargs):
@@ -219,7 +242,7 @@ def generate_configuration_docs(input_file_path, output_file_path):
         "^^^^^^^^^^^^^^^^^^^^^",
         "",
     ]
-    output = SchemaRstGenerator(j)
+    output = MinimalRstGenerator(j)
     dump_object(output, j)
     out = "\n".join(lines) + output.render()
 
