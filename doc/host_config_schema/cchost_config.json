@@ -737,7 +737,7 @@
           "if": {
             "properties": {
               "kind": {
-                "const": "NodeByRole"
+                "const": "StaticAddress"
               }
             }
           },
@@ -753,9 +753,9 @@
                 "required": ["address"],
                 "additionalProperties": false
               }
-            }
-          },
-          "required": ["target"]
+            },
+            "required": ["target"]
+          }
         }
       ],
       "additionalProperties": false
