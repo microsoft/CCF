@@ -44,7 +44,7 @@
               "description": "The published node address advertised to other nodes. This must be different on each node"
             }
           },
-          "description": "Address (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages)",
+          "description": "Addresses (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages)",
           "required": ["bind_address"],
           "additionalProperties": false
         },
