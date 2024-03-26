@@ -18,7 +18,7 @@ WriteStatsFile ==
 
 \* Append TLC coverage in ndJson format to file identified by CoverageFilename.  Create CoverageFilename if it does not exist.
 SerialiseCoverage ==
-    /\ PrintT("Writing coverage to file: " \o StatsFilename)
+    /\ PrintT("Writing coverage to file: " \o CoverageFilename)
     /\ Serialize(<<TLCGet("spec")>>, CoverageFilename, [format |-> "NDJSON", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "APPEND">>])
 
 ====
