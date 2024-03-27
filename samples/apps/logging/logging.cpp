@@ -370,6 +370,17 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_body(nlohmann::json(*out).dump());
       };
 
+      auto add_etag_to_response = [](auto& ctx, const auto& tx_id) {
+        ctx.rpc_ctx->set_response_header(
+          http::headers::CCF_TX_ID, tx_id.to_str());
+
+        auto etag = static_cast<std::string*>(ctx.rpc_ctx->get_user_data());
+        if (etag != nullptr)
+        {
+          ctx.rpc_ctx->set_response_header("ETag", etag->c_str());
+        }
+      };
+
       auto record_v2 = [this](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
 
@@ -648,13 +659,19 @@ namespace loggingapp
         }
         // SNIPPET_END: set_claims_digest
         CCF_APP_INFO("Storing {} = {}", id, in.msg);
+
+        crypto::Sha256Hash value_digest(in.msg);
+        auto user_data = std::make_shared<std::string>(value_digest.hex_str());
+        ctx.rpc_ctx->set_user_data(user_data);
+
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
-      make_endpoint(
+      make_endpoint_with_local_commit_handler(
         "/log/public",
         HTTP_POST,
         ccf::json_adapter(record_public),
+        add_etag_to_response,
         auth_policies)
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
@@ -681,6 +698,11 @@ namespace loggingapp
 
         if (record.has_value())
         {
+          crypto::Sha256Hash value_digest(record.value());
+          auto user_data =
+            std::make_shared<std::string>(value_digest.hex_str());
+          ctx.rpc_ctx->set_user_data(user_data);
+
           CCF_APP_INFO("Fetching {} = {}", id, record.value());
           return ccf::make_success(LoggingGet::Out{record.value()});
         }
@@ -692,10 +714,11 @@ namespace loggingapp
           fmt::format("No such record: {}.", id));
       };
       // SNIPPET_END: get_public
-      make_read_only_endpoint(
+      make_read_only_endpoint_with_local_commit_handler(
         "/log/public",
         HTTP_GET,
         ccf::json_read_only_adapter(get_public),
+        add_etag_to_response,
         auth_policies)
         .set_auto_schema<void, LoggingGet::Out>()
         .add_query_parameter<size_t>("id")

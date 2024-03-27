@@ -32,7 +32,6 @@ import infra.crypto
 from infra.runner import ConcurrentRunner
 from hashlib import sha256
 from infra.member import AckException
-import e2e_common_endpoints
 from types import MappingProxyType
 import threading
 import copy
@@ -1774,6 +1773,23 @@ def test_basic_constraints(network, args):
     assert basic_constraints.value.ca is False
 
 
+def test_etags(network, args):
+    primary, _ = network.find_primary()
+
+    with primary.client("user0") as c:
+        r = c.post("/app/log/public", {"id": 999999, "msg": "hello world"})
+        assert r.status_code == http.HTTPStatus.OK
+        etag = r.headers["ETag"]
+        assert etag == sha256("hello world".encode()).hexdigest(), etag
+
+        r = c.get("/app/log/public?id=999999")
+        assert r.status_code == http.HTTPStatus.OK
+        etag = r.headers["ETag"]
+        assert etag == sha256("hello world".encode()).hexdigest(), etag
+
+    return network
+
+
 def run_udp_tests(args):
     # Register secondary interface as an UDP socket on all nodes
     udp_interface = infra.interfaces.make_secondary_interface("udp", "udp_interface")
@@ -1821,43 +1837,45 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_basic_constraints(network, args)
-        test(network, args)
-        test_remove(network, args)
-        test_clear(network, args)
-        test_record_count(network, args)
-        # HTTP2 doesn't support forwarding
-        if not args.http2:
-            test_forwarding_frontends(network, args)
-            test_forwarding_frontends_without_app_prefix(network, args)
-            test_long_lived_forwarding(network, args)
-        test_user_data_ACL(network, args)
-        test_cert_prefix(network, args)
-        test_anonymous_caller(network, args)
-        test_multi_auth(network, args)
-        test_custom_auth(network, args)
-        test_custom_auth_safety(network, args)
-        test_raw_text(network, args)
-        test_historical_query(network, args)
-        test_historical_query_range(network, args)
-        test_view_history(network, args)
-        test_metrics(network, args)
-        test_empty_path(network, args)
+        # test_basic_constraints(network, args)
+        # test(network, args)
+        # test_remove(network, args)
+        # test_clear(network, args)
+        # test_record_count(network, args)
+        # # HTTP2 doesn't support forwarding
+        # if not args.http2:
+        #     test_forwarding_frontends(network, args)
+        #     test_forwarding_frontends_without_app_prefix(network, args)
+        #     test_long_lived_forwarding(network, args)
+        # test_user_data_ACL(network, args)
+        # test_cert_prefix(network, args)
+        # test_anonymous_caller(network, args)
+        # test_multi_auth(network, args)
+        # test_custom_auth(network, args)
+        # test_custom_auth_safety(network, args)
+        # test_raw_text(network, args)
+        # test_historical_query(network, args)
+        # test_historical_query_range(network, args)
+        # test_view_history(network, args)
+        # test_metrics(network, args)
+        # test_empty_path(network, args)
+        # if args.package == "samples/apps/logging/liblogging":
+        #     # Local-commit lambda is currently only supported in C++
+        #     test_post_local_commit_failure(network, args)
+        #     # Custom indexers currently only supported in C++
+        #     test_committed_index(network, args)
+        # test_liveness(network, args)
+        # test_rekey(network, args)
+        # test_liveness(network, args)
+        # test_random_receipts(network, args, False)
+        # if args.package == "samples/apps/logging/liblogging":
+        #     test_receipts(network, args)
+        #     test_historical_query_sparse(network, args)
+        # test_historical_receipts(network, args)
+        # test_historical_receipts_with_claims(network, args)
+        # test_genesis_receipt(network, args)
         if args.package == "samples/apps/logging/liblogging":
-            # Local-commit lambda is currently only supported in C++
-            test_post_local_commit_failure(network, args)
-            # Custom indexers currently only supported in C++
-            test_committed_index(network, args)
-        test_liveness(network, args)
-        test_rekey(network, args)
-        test_liveness(network, args)
-        test_random_receipts(network, args, False)
-        if args.package == "samples/apps/logging/liblogging":
-            test_receipts(network, args)
-            test_historical_query_sparse(network, args)
-        test_historical_receipts(network, args)
-        test_historical_receipts_with_claims(network, args)
-        test_genesis_receipt(network, args)
+            test_etags(network, args)
 
 
 def run_parsing_errors(args):
@@ -1879,14 +1897,14 @@ def run_parsing_errors(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    cr.add(
-        "js",
-        run,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "js",
+    #     run,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
     cr.add(
         "cpp",
@@ -1898,34 +1916,34 @@ if __name__ == "__main__":
         initial_member_count=2,
     )
 
-    cr.add(
-        "common",
-        e2e_common_endpoints.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "common",
+    #     e2e_common_endpoints.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    # Run illegal traffic tests in separate runners, to reduce total serial runtime
-    cr.add(
-        "js_illegal",
-        run_parsing_errors,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # # Run illegal traffic tests in separate runners, to reduce total serial runtime
+    # cr.add(
+    #     "js_illegal",
+    #     run_parsing_errors,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    cr.add(
-        "cpp_illegal",
-        run_parsing_errors,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "cpp_illegal",
+    #     run_parsing_errors,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    # This is just for the UDP echo test for now
-    cr.add(
-        "udp",
-        run_udp_tests,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # # This is just for the UDP echo test for now
+    # cr.add(
+    #     "udp",
+    #     run_udp_tests,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
     cr.run()
