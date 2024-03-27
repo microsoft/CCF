@@ -1,9 +1,6 @@
 steps:
   - script: |
       set -ex
-      # Temporary removal because repository is offline at the moment
-      # and causing apt update to fail
-      sudo rm /etc/apt/sources.list.d/apache-arrow.sources
       sudo apt-get -y update
       sudo apt install ansible -y
       cd getting_started/setup_vm
