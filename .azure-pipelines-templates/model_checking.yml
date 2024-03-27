@@ -27,22 +27,10 @@ jobs:
       - script: JVM_OPTIONS=-Dtlc2.TLCGlobals.coverage=1 ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json
         workingDirectory: tla
         displayName: MCccfraftAtomicReconfig.cfg
-        condition: ne(variables['Build.CronSchedule.DisplayName'], 'Daily build')
 
       - script: JVM_OPTIONS=-Dtlc2.TLCGlobals.coverage=1 ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
         workingDirectory: tla
         displayName: MCccfraftWithReconfig.cfg
-        condition: ne(variables['Build.CronSchedule.DisplayName'], 'Daily build')
-
-      - script: JVM_OPTIONS=-Dtlc2.TLCGlobals.coverage=1 ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json -nowarning
-        workingDirectory: tla
-        displayName: MCccfraftAtomicReconfig.cfg
-        condition: eq(variables['Build.CronSchedule.DisplayName'], 'Daily build')
-
-      - script: JVM_OPTIONS=-Dtlc2.TLCGlobals.coverage=1 ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json -nowarning
-        workingDirectory: tla
-        displayName: MCccfraftWithReconfig.cfg
-        condition: eq(variables['Build.CronSchedule.DisplayName'], 'Daily build')
 
       - script: |
           set -ex
@@ -56,10 +44,8 @@ jobs:
           deactivate
           rm -rf env
         workingDirectory: tla
-        condition: eq(variables['Build.CronSchedule.DisplayName'], 'Daily build')
 
       - task: PublishPipelineArtifact@1
         inputs:
           artifactName: "Model Checking Traces"
           targetPath: tla
-        condition: or(or(failed(), canceled()), eq(variables['Build.CronSchedule.DisplayName'], 'Daily build'))
