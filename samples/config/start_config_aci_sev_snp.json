@@ -36,8 +36,8 @@
   "attestation": {
     "snp_endorsements_servers": [
       {
-        "type": "Azure",
-        "url": "global.acccache.azure.net"
+        "type": "THIM",
+        "url": "$Fabric_NodeIPOrFQDN:2377"
       }
     ],
     "snp_security_policy_file": "$UVM_SECURITY_CONTEXT_DIR/security-policy-base64",
