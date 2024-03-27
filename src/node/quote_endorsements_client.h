@@ -120,9 +120,6 @@ namespace ccf
           }
           if (msg->data.request_id >= msg->data.self->last_received_request_id)
           {
-            LOG_FAIL_FMT(
-              "Timed out reaching endorsement server {}", msg->data.endpoint);
-
             auto& servers = msg->data.self->config.servers;
             msg->data.self->server_retries_count++;
             if (

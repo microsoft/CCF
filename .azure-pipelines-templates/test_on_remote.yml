@@ -8,7 +8,9 @@ jobs:
     dependsOn: ${{ parameters.depends_on }}
     condition: ${{ parameters.condition }}
     pool:
-      vmImage: ubuntu-20.04
+      name: ado-virtual-ccf-sub
+      demands:
+        - WorkFolder -equals /mnt/storage
     timeoutInMinutes: 120
     variables:
       runOn: ${{ parameters.run_on }}
@@ -26,9 +28,27 @@ jobs:
           set -o pipefail
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
+          echo ENV
+          env
+          echo ACI_ENV
+          cat /aci_env
+          '
+        name: print_env
+        displayName: "Print Environment Variables"
+
+      - script: |
+          set -ex
+          set -o pipefail
+          mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
+          ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
           cd /CCF/build
           npm config set cache /ccfci/workspace_$(Build.BuildNumber)/.npm
           WORKSPACE=/ccfci/workspace_$(Build.BuildNumber) ELECTION_TIMEOUT_MS=10000 ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite" -E "lts_compatibility"
+          # Remove irrelevant and bulky data from workspace before uploading
+          find /ccfci/workspace_$(Build.BuildNumber) -type f -name cchost -delete
+          find /ccfci/workspace_$(Build.BuildNumber) -type f -name "*.so" -delete
+          find /ccfci/workspace_$(Build.BuildNumber) -type l -name "*.so" -delete
+          rm -rf /ccfci/workspace_$(Build.BuildNumber)/.npm
           '
         name: run_ctest
         displayName: "Run CTest"
@@ -49,9 +69,6 @@ jobs:
           set -o pipefail
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
           scp -r agent@${IP_ADDR_LIST[0]}:/ccfci/workspace_$(Build.BuildNumber) .
-          # Remove binaries from workspace before uploading
-          find workspace_$(Build.BuildNumber) -type f -name cchost -delete
-          find workspace_$(Build.BuildNumber) -type f -name '*.so' -delete
         name: fetch_workspace
         displayName: "Fetch Workspace"
         condition: always()
@@ -60,4 +77,9 @@ jobs:
         inputs:
           artifactName: "ACI Workspace"
           targetPath: workspace_$(Build.BuildNumber)
+        condition: always()
+
+      - script: rm -rf workspace_$(Build.BuildNumber)
+        name: cleanup_workspace
+        displayName: "Clean up Workspace"
         condition: always()
