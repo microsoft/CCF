@@ -14,6 +14,8 @@ namespace ccf
   struct AndAuthnIdentity : public AuthnIdentity
   {
     std::map<std::string, std::unique_ptr<AuthnIdentity>> identities;
+
+    std::string get_conjoined_name() const;
   };
 
   class AndAuthnPolicy : public AuthnPolicy

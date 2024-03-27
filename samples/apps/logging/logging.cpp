@@ -306,22 +306,16 @@ namespace loggingapp
         auto and_ident =
           dynamic_cast<const ccf::AndAuthnIdentity*>(caller.get()))
       {
-        std::string policy_name;
-        std::string response;
+        auto response = fmt::format(
+          "Conjoined auth policy: {}", and_ident->get_conjoined_name());
 
         for (const auto& [name, sub_ident] : and_ident->identities)
         {
           response += fmt::format("\n\n{}:\n", name);
           response += describe_identity(ctx, sub_ident);
-
-          if (!policy_name.empty())
-          {
-            policy_name += "+";
-          }
-          policy_name += name;
         }
 
-        return fmt::format("Conjoined auth policy: {}", policy_name) + response;
+        return response;
       }
       else
       {

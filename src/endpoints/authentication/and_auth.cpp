@@ -7,6 +7,21 @@
 
 namespace ccf
 {
+  std::string AndAuthnIdentity::get_conjoined_name() const
+  {
+    std::string scheme_name;
+    for (const auto& [ident_name, _] : identities)
+    {
+      if (!scheme_name.empty())
+      {
+        scheme_name += "+";
+      }
+
+      scheme_name += ident_name;
+    }
+    return scheme_name;
+  }
+
   std::string get_combined_schema_name(const AndAuthnPolicy::Policies& policies)
   {
     std::string scheme_name;

@@ -3,6 +3,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
+#include "ccf/endpoints/authentication/and_auth.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/node/host_processes_interface.h"
 #include "ccf/version.h"
@@ -33,17 +34,21 @@ namespace ccfapp
     std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache =
       nullptr;
 
-    js::JSWrappedValue create_caller_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx, js::Context& ctx)
+    js::JSWrappedValue create_caller_ident_obj(
+      ccf::endpoints::EndpointContext& endpoint_ctx,
+      const std::unique_ptr<ccf::AuthnIdentity>& ident,
+      js::Context& ctx)
     {
-      if (endpoint_ctx.caller == nullptr)
+      if (ident == nullptr)
       {
         return ctx.null();
       }
 
       auto caller = ctx.new_obj();
 
-      if (auto jwt_ident = endpoint_ctx.try_get_caller<ccf::JwtAuthnIdentity>())
+      if (
+        auto jwt_ident =
+          dynamic_cast<const ccf::JwtAuthnIdentity*>(ident.get()))
       {
         caller.set(
           "policy", ctx.new_string(get_policy_name_from_ident(jwt_ident)));
@@ -59,12 +64,24 @@ namespace ccfapp
 
         return caller;
       }
-      else if (
+      if (
         auto empty_ident =
-          endpoint_ctx.try_get_caller<ccf::EmptyAuthnIdentity>())
+          dynamic_cast<const ccf::EmptyAuthnIdentity*>(ident.get()))
       {
         caller.set(
           "policy", ctx.new_string(get_policy_name_from_ident(empty_ident)));
+        return caller;
+      }
+      if (
+        auto and_ident =
+          dynamic_cast<const ccf::AndAuthnIdentity*>(ident.get()))
+      {
+        caller.set("policy", ctx.new_string(and_ident->get_conjoined_name()));
+        for (const auto& [name, sub_ident] : and_ident->identities)
+        {
+          caller.set(
+            name, create_caller_ident_obj(endpoint_ctx, sub_ident, ctx));
+        }
         return caller;
       }
 
@@ -74,7 +91,7 @@ namespace ccfapp
 
       if (
         auto user_cert_ident =
-          endpoint_ctx.try_get_caller<ccf::UserCertAuthnIdentity>())
+          dynamic_cast<const ccf::UserCertAuthnIdentity*>(ident.get()))
       {
         policy_name = get_policy_name_from_ident(user_cert_ident);
         id = user_cert_ident->user_id;
@@ -82,7 +99,7 @@ namespace ccfapp
       }
       else if (
         auto member_cert_ident =
-          endpoint_ctx.try_get_caller<ccf::MemberCertAuthnIdentity>())
+          dynamic_cast<const ccf::MemberCertAuthnIdentity*>(ident.get()))
       {
         policy_name = get_policy_name_from_ident(member_cert_ident);
         id = member_cert_ident->member_id;
@@ -90,7 +107,7 @@ namespace ccfapp
       }
       else if (
         auto user_cose_ident =
-          endpoint_ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
+          dynamic_cast<const ccf::UserCOSESign1AuthnIdentity*>(ident.get()))
       {
         policy_name = get_policy_name_from_ident(user_cose_ident);
         id = user_cose_ident->user_id;
@@ -150,6 +167,12 @@ namespace ccfapp
       caller.set("cert", ctx.new_string_len(cert.str().data(), cert.size()));
 
       return caller;
+    }
+
+    js::JSWrappedValue create_caller_obj(
+      ccf::endpoints::EndpointContext& endpoint_ctx, js::Context& ctx)
+    {
+      return create_caller_ident_obj(endpoint_ctx, endpoint_ctx.caller, ctx);
     }
 
     js::JSWrappedValue create_request_obj(
@@ -640,15 +663,66 @@ namespace ccfapp
 
     void instantiate_authn_policies(ccf::js::JSDynamicEndpoint& endpoint)
     {
-      for (const auto& policy_name : endpoint.properties.authn_policies)
+      for (const auto& policy_desc : endpoint.properties.authn_policies)
       {
-        auto policy = get_policy_by_name(policy_name);
-        if (policy == nullptr)
+        if (policy_desc.is_string())
         {
-          throw std::logic_error(
-            fmt::format("Unknown auth policy: {}", policy_name));
+          const auto policy_name = policy_desc.get<std::string>();
+          auto policy = get_policy_by_name(policy_name);
+          if (policy == nullptr)
+          {
+            throw std::logic_error(
+              fmt::format("Unknown auth policy: {}", policy_name));
+          }
+          endpoint.authn_policies.push_back(std::move(policy));
         }
-        endpoint.authn_policies.push_back(std::move(policy));
+        else
+        {
+          if (policy_desc.is_object())
+          {
+            const auto it = policy_desc.find("and");
+            if (it != policy_desc.end())
+            {
+              if (it.value().is_array())
+              {
+                std::vector<std::shared_ptr<ccf::AuthnPolicy>>
+                  constituent_policies;
+                for (const auto& val : it.value())
+                {
+                  if (!val.is_string())
+                  {
+                    constituent_policies.clear();
+                    break;
+                  }
+
+                  const auto policy_name = val.get<std::string>();
+                  auto policy = get_policy_by_name(policy_name);
+                  if (policy == nullptr)
+                  {
+                    throw std::logic_error(
+                      fmt::format("Unknown auth policy: {}", policy_name));
+                  }
+                  constituent_policies.push_back(std::move(policy));
+                }
+
+                if (!constituent_policies.empty())
+                {
+                  endpoint.authn_policies.push_back(
+                    std::make_shared<ccf::AndAuthnPolicy>(
+                      constituent_policies));
+                  continue;
+                }
+              }
+            }
+          }
+
+          // Any failure in above checks falls through to this detailed error.
+          throw std::logic_error(fmt::format(
+            "Unsupported auth policy. Policies must be either a string, or an "
+            "object containing an \"and\" key with list-of-strings value. "
+            "Unsupported value: {}",
+            policy_desc.dump()));
+        }
       }
     }
 

@@ -407,45 +407,67 @@ export function custom_auth(request) {
   }
 }
 
+function describe_user_cert_ident(lines, obj) {
+  lines.push("User TLS cert");
+  lines.push(`The caller is a user with ID: ${obj.id}`);
+  lines.push(`The caller's user data is: ${JSON.stringify(obj.data, null, 2)}`);
+  lines.push(`The caller's cert is:\n${obj.cert}`);
+}
+
+function describe_member_cert_ident(lines, obj) {
+  lines.push("Member TLS cert");
+  lines.push(`The caller is a member with ID: ${obj.id}`);
+  lines.push(`The caller's user data is: ${JSON.stringify(obj.data, null, 2)}`);
+  lines.push(`The caller's cert is:\n${obj.cert}`);
+}
+
+function describe_jwt_ident(lines, obj) {
+  lines.push("JWT");
+  lines.push(
+    `The caller is identified by a JWT issued by: ${obj.jwt.keyIssuer}`,
+  );
+  lines.push(`The JWT header is:\n${JSON.stringify(obj.jwt.header, null, 2)}`);
+  lines.push(
+    `The JWT payload is:\n${JSON.stringify(obj.jwt.payload, null, 2)}`,
+  );
+}
+
+function describe_cose_ident(lines, obj) {
+  lines.push("User COSE Sign1");
+  lines.push(
+    `The caller is identified by a COSE Sign1 signed by kid:\n${obj.cose.user_id}`,
+  );
+  lines.push(
+    `The caller is identified by a COSE Sign1 with content of size:\n${obj.cose.content.byteLength}`,
+  );
+}
+
+function describe_noauth_ident(lines, obj) {
+  lines.push("Unauthenticated");
+  lines.push("The caller did not provide any authenticated identity");
+}
+
 export function multi_auth(request) {
   var lines = [];
 
   if (request.caller.policy === "user_cert") {
-    lines.push("User TLS cert");
-    lines.push(`The caller is a user with ID: ${request.caller.id}`);
-    lines.push(
-      `The caller's user data is: ${JSON.stringify(request.caller.data)}`,
-    );
-    lines.push(`The caller's cert is:\n${request.caller.cert}`);
+    describe_user_cert_ident(lines, request.caller);
   } else if (request.caller.policy === "member_cert") {
-    lines.push("Member TLS cert");
-    lines.push(`The caller is a member with ID: ${request.caller.id}`);
-    lines.push(
-      `The caller's user data is: ${JSON.stringify(request.caller.data)}`,
-    );
-    lines.push(`The caller's cert is:\n${request.caller.cert}`);
+    describe_member_cert_ident(lines, request.caller);
   } else if (request.caller.policy === "jwt") {
-    lines.push("JWT");
-    lines.push(
-      `The caller is identified by a JWT issued by: ${request.caller.jwt.keyIssuer}`,
-    );
-    lines.push(
-      `The JWT header is:\n${JSON.stringify(request.caller.jwt.header)}`,
-    );
-    lines.push(
-      `The JWT payload is:\n${JSON.stringify(request.caller.jwt.payload)}`,
-    );
+    describe_jwt_ident(lines, request.caller);
   } else if (request.caller.policy === "user_cose_sign1") {
-    lines.push("User COSE Sign1");
-    lines.push(
-      `The caller is identified by a COSE Sign1 signed by kid:\n${request.caller.cose.user_id}`,
-    );
-    lines.push(
-      `The caller is identified by a COSE Sign1 with content of size:\n${request.caller.cose.content.byteLength}`,
-    );
+    describe_cose_ident(lines, request.caller);
   } else if (request.caller.policy === "no_auth") {
-    lines.push("Unauthenticated");
-    lines.push("The caller did not provide any authenticated identity");
+    describe_noauth_ident(lines, request.caller);
+  } else if (request.caller.policy === "jwt+user_cert+user_cose_sign1") {
+    lines.push(`Conjoined auth policy: ${request.caller.policy}`);
+    lines.push("");
+    describe_jwt_ident(lines, request.caller.jwt);
+    lines.push("");
+    describe_user_cert_ident(lines, request.caller.user_cert);
+    lines.push("");
+    describe_cose_ident(lines, request.caller.user_cose_sign1);
   }
 
   let s = lines.join("\n");
