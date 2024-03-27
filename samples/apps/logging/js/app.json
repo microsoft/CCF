@@ -20,7 +20,7 @@
         "forwarding_required": "always",
         "authn_policies": [
           {
-            "and": ["user_cert", "jwt", "user_cose_sign1"]
+            "all_of": ["user_cert", "jwt", "user_cose_sign1"]
           },
           "user_cert",
           "member_cert",

@@ -700,17 +700,17 @@ const actions = new Map([
                 // May still be an unrecognised value. That will only throw later
                 continue;
               } else if (typeof policy === "object") {
-                const constituents = policy["and"];
+                const constituents = policy["all_of"];
                 checkType(
                   constituents,
                   "array",
-                  `${prefix2}.authn_policies[${i}].and`,
+                  `${prefix2}.authn_policies[${i}].all_of`,
                 );
                 for (const [j, sub_policy] of constituents.entries()) {
                   checkType(
                     sub_policy,
                     "string",
-                    `${prefix2}.authn_policies[${i}].and[${j}]`,
+                    `${prefix2}.authn_policies[${i}].all_of[${j}]`,
                   );
                 }
               } else {

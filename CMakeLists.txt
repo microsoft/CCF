@@ -235,7 +235,7 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
-    ${CCF_DIR}/src/endpoints/authentication/and_auth.cpp
+    ${CCF_DIR}/src/endpoints/authentication/all_of_auth.cpp
     ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
     ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp

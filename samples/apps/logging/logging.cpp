@@ -9,7 +9,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hash.h"
-#include "ccf/endpoints/authentication/and_auth.h"
+#include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
@@ -304,7 +304,7 @@ namespace loggingapp
       }
       else if (
         auto and_ident =
-          dynamic_cast<const ccf::AndAuthnIdentity*>(caller.get()))
+          dynamic_cast<const ccf::AllOfAuthnIdentity*>(caller.get()))
       {
         auto response = fmt::format(
           "Conjoined auth policy: {}", and_ident->get_conjoined_name());
@@ -942,7 +942,7 @@ namespace loggingapp
         .install();
 
       auto user_cert_jwt_and_sig_auth_policy =
-        std::make_shared<ccf::AndAuthnPolicy>(
+        std::make_shared<ccf::AllOfAuthnPolicy>(
           std::vector<std::shared_ptr<ccf::AuthnPolicy>>{
             ccf::user_cert_auth_policy,
             ccf::jwt_auth_policy,

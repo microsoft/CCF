@@ -11,14 +11,14 @@ namespace ccf
   // To require _multiple_ authentication types, a conjoined policy can be
   // formed. It will pass if and only if all of its member policies pass, and
   // return all of their extracted identities.
-  struct AndAuthnIdentity : public AuthnIdentity
+  struct AllOfAuthnIdentity : public AuthnIdentity
   {
     std::map<std::string, std::unique_ptr<AuthnIdentity>> identities;
 
     std::string get_conjoined_name() const;
   };
 
-  class AndAuthnPolicy : public AuthnPolicy
+  class AllOfAuthnPolicy : public AuthnPolicy
   {
   public:
     using Policies = std::map<std::string, std::shared_ptr<AuthnPolicy>>;
@@ -28,10 +28,10 @@ namespace ccf
     std::string scheme_name;
 
   public:
-    AndAuthnPolicy(const Policies& _policies);
+    AllOfAuthnPolicy(const Policies& _policies);
 
     // Try using schema_name as key
-    AndAuthnPolicy(const std::vector<std::shared_ptr<AuthnPolicy>>& _policies);
+    AllOfAuthnPolicy(const std::vector<std::shared_ptr<AuthnPolicy>>& _policies);
 
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx&,

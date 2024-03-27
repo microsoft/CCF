@@ -103,6 +103,7 @@ export interface Request<T extends JsonCompatible<T> = any> {
   caller?: AuthnIdentity;
 }
 
+// TODO: Describe AllOfAuthnIdentity
 export interface AuthnIdentityCommon {
   /**
    * A string indicating which policy accepted this request,

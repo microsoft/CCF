@@ -3,7 +3,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
-#include "ccf/endpoints/authentication/and_auth.h"
+#include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/node/host_processes_interface.h"
 #include "ccf/version.h"
@@ -74,7 +74,7 @@ namespace ccfapp
       }
       if (
         auto and_ident =
-          dynamic_cast<const ccf::AndAuthnIdentity*>(ident.get()))
+          dynamic_cast<const ccf::AllOfAuthnIdentity*>(ident.get()))
       {
         caller.set("policy", ctx.new_string(and_ident->get_conjoined_name()));
         for (const auto& [name, sub_ident] : and_ident->identities)
@@ -680,7 +680,7 @@ namespace ccfapp
         {
           if (policy_desc.is_object())
           {
-            const auto it = policy_desc.find("and");
+            const auto it = policy_desc.find("all_of");
             if (it != policy_desc.end())
             {
               if (it.value().is_array())
@@ -708,7 +708,7 @@ namespace ccfapp
                 if (!constituent_policies.empty())
                 {
                   endpoint.authn_policies.push_back(
-                    std::make_shared<ccf::AndAuthnPolicy>(
+                    std::make_shared<ccf::AllOfAuthnPolicy>(
                       constituent_policies));
                   continue;
                 }
@@ -719,7 +719,7 @@ namespace ccfapp
           // Any failure in above checks falls through to this detailed error.
           throw std::logic_error(fmt::format(
             "Unsupported auth policy. Policies must be either a string, or an "
-            "object containing an \"and\" key with list-of-strings value. "
+            "object containing an \"all_of\" key with list-of-strings value. "
             "Unsupported value: {}",
             policy_desc.dump()));
         }
