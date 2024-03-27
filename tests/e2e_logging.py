@@ -1809,6 +1809,16 @@ def test_etags(network, args):
         assert r.status_code == http.HTTPStatus.OK
         assert r.body.json() == {"msg": doc["msg"]}
 
+        doc = {"id": 999999, "msg": "saluton mondo"}
+
+        r = c.post("/app/log/public", doc, headers={"If-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
+
+        r = c.post("/app/log/public", doc, headers={"If-Match": f'"{etag}"'})
+        assert r.status_code == http.HTTPStatus.OK
+        etag = sha256(doc["msg"].encode()).hexdigest()
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
     return network
 
 

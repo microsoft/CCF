@@ -653,6 +653,32 @@ namespace loggingapp
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
         // SNIPPET_END: public_table_access
         const auto id = params["id"].get<size_t>();
+
+        http::IfMatch if_match(ctx.rpc_ctx->get_request_header("if-match"));
+        std::optional<std::string> etag = std::nullopt;
+        if (!if_match.is_noop())
+        {
+          // If there is an actual If-Match header, we need to read the current
+          // value and make sure it matches the provided ETags
+          // This could be done every time, but the read dependency comes with
+          // performance implications, so we only want to do if it necessary.
+          auto current_value = records_handle->get(id);
+          if (current_value.has_value())
+          {
+            crypto::Sha256Hash value_digest(current_value.value());
+            etag = value_digest.hex_str();
+            if (!if_match.matches(etag))
+            {
+              // TODO: should we send the updated ETag here, or must the user
+              // GET it?
+              return ccf::make_error(
+                HTTP_STATUS_PRECONDITION_FAILED,
+                ccf::errors::PreconditionFailed,
+                "Resource has changed.");
+            }
+          }
+        }
+
         records_handle->put(id, in.msg);
         // SNIPPET_START: set_claims_digest
         if (in.record_claim)

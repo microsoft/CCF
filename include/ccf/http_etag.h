@@ -69,5 +69,10 @@ namespace http
 
       return matches(val.value());
     }
+
+    bool is_noop() const
+    {
+      return noop;
+    }
   };
 }
