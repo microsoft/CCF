@@ -47,6 +47,11 @@ namespace ccf
     {
       return get_cert_based_security_schema();
     }
+
+    virtual std::string get_security_scheme_name() override
+    {
+      return SECURITY_SCHEME_NAME;
+    };
   };
 
   struct MemberCertAuthnIdentity : public AuthnIdentity
@@ -76,6 +81,11 @@ namespace ccf
     {
       return get_cert_based_security_schema();
     }
+
+    virtual std::string get_security_scheme_name() override
+    {
+      return SECURITY_SCHEME_NAME;
+    };
   };
 
   struct NodeCertAuthnIdentity : public AuthnIdentity
@@ -86,6 +96,8 @@ namespace ccf
   class NodeCertAuthnPolicy : public AuthnPolicy
   {
   public:
+    static constexpr auto SECURITY_SCHEME_NAME = "node_cert";
+
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx& tx,
       const std::shared_ptr<ccf::RpcContext>& ctx,
@@ -96,5 +108,10 @@ namespace ccf
     {
       return get_cert_based_security_schema();
     }
+
+    virtual std::string get_security_scheme_name() override
+    {
+      return SECURITY_SCHEME_NAME;
+    };
   };
 }
