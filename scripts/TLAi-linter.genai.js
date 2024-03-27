@@ -31,4 +31,7 @@ Explain any consistencies and inconsistencies you may find.  Report inconsistent
 
 ## Formal and informal math Hints
 - Take into account that humans may write informal math that is syntactically different from the formal math, yet semantically equivalent.  For example, humans may write \`N > 3T\` instead of \`N > 3 * T\`.
+
+## Natural language Hints
+- Unless a built-in TLA+ declaration or definition like an operator in the TLA+ standard library dictates otherwise, the prose comments should follow British English spelling conventions.
 `;
