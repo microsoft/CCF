@@ -14,6 +14,7 @@ def(
 
 // use $ to output formatted text to the prompt
 $`You are an expert at TLA+/TLAPLUS. Your task is to check if the prose comments and their TLA+ declarations and definitions are syntactically and semantically consistent!!!
+However, you may assume that that a parser has already checked the syntax of the TLA+ code.
 Explain any consistencies and inconsistencies you may find.  Report inconsistent and consistent pairs in a single ANNOTATION section.
 
 ## TLA+ Syntax Hints
