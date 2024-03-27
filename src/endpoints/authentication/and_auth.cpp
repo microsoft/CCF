@@ -77,6 +77,7 @@ namespace ccf
         // Bury the failing policy's name in the error reason, so we can ask it
         // to populate the unauthenticated error later
         error_reason = fmt::format("{}:{}", policy_name, error_reason);
+        return nullptr;
       }
     }
 

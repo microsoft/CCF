@@ -9,6 +9,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hash.h"
+#include "ccf/endpoints/authentication/and_auth.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
@@ -821,7 +822,14 @@ namespace loggingapp
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
 
-      auto multi_auth = [this](auto& ctx) {
+      auto user_cert_jwt_and_sig_auth_policy =
+        std::make_shared<ccf::AndAuthnPolicy>(
+          std::vector<std::shared_ptr<ccf::AuthnPolicy>>{
+            ccf::user_cert_auth_policy,
+            ccf::jwt_auth_policy,
+            ccf::user_cose_sign1_auth_policy});
+
+      auto multi_auth = [this, user_cert_jwt_and_sig_auth_policy](auto& ctx) {
         if (
           auto user_cert_ident =
             ctx.template try_get_caller<ccf::UserCertAuthnIdentity>())
@@ -925,6 +933,16 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_body("Unauthenticated");
           return;
         }
+        else if (
+          auto and_ident = ctx.template try_get_caller<ccf::AndAuthnIdentity>())
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          auto response = fmt::format(
+            "AND auth: {}",
+            user_cert_jwt_and_sig_auth_policy->get_security_scheme_name());
+          ctx.rpc_ctx->set_response_body(std::move(response));
+          return;
+        }
         else
         {
           ctx.rpc_ctx->set_error(
@@ -938,7 +956,10 @@ namespace loggingapp
         "/multi_auth",
         HTTP_POST,
         multi_auth,
-        {ccf::user_cert_auth_policy,
+        {// Needs to come first, otherwise a less-restrictive policy will be
+         // accepted first
+         user_cert_jwt_and_sig_auth_policy,
+         ccf::user_cert_auth_policy,
          ccf::member_cert_auth_policy,
          ccf::jwt_auth_policy,
          ccf::user_cose_sign1_auth_policy,
