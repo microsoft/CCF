@@ -9,18 +9,14 @@ ASSUME StatsFilename \in STRING
 CONSTANT CoverageFilename
 ASSUME CoverageFilename \in STRING
 
-
 \* Writes TLC stats (such as number of states and duration) to StatsFilename in ndJson format
 \* Specify WriteStatsFile as a postcondition to write the stats file at the end of model checking
 WriteStatsFile == 
     /\ PrintT("Writing stats to file: " \o StatsFilename)
-    /\ ndJsonSerialize(StatsFilename, <<TLCGet("stats")>>)
+    /\ Serialize(<<TLCGet("stats")>>, StatsFilename, [format |-> "NDJSON", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "APPEND">>])
 
 \* Append TLC coverage in ndJson format to file identified by CoverageFilename.  Create CoverageFilename if it does not exist.
-SerialiseCoverageConstraint ==
-    LET interval == 500000
-    IN IF TLCGet("distinct") % interval = 0 
-       THEN Serialize(<<TLCGet("spec")>>, CoverageFilename, [format |-> "NDJSON", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "APPEND">>])
-       ELSE TRUE
+SerialiseCoverage ==
+    Serialize(<<TLCGet("spec")>>, CoverageFilename, [format |-> "NDJSON", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "APPEND">>])
 
 ====
