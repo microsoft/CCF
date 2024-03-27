@@ -8,9 +8,7 @@
         "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/multi_auth": {
@@ -30,9 +28,7 @@
         ],
         "mode": "readwrite",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private": {
@@ -43,9 +39,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       },
       "post": {
         "js_module": "logging.js",
@@ -54,9 +48,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       },
       "delete": {
         "js_module": "logging.js",
@@ -65,9 +57,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/admin_only": {
@@ -78,9 +68,7 @@
         "authn_policies": ["user_cert"],
         "mode": "readwrite",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/anonymous": {
@@ -91,9 +79,7 @@
         "authn_policies": ["no_auth"],
         "mode": "readwrite",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/all": {
@@ -104,9 +90,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/count": {
@@ -117,9 +101,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/historical": {
@@ -130,9 +112,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "historical",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/historical_receipt": {
@@ -143,9 +123,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "historical",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/historical/range": {
@@ -156,9 +134,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/prefix_cert": {
@@ -169,9 +145,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/public": {
@@ -182,9 +156,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       },
       "post": {
         "js_module": "logging.js",
@@ -193,9 +165,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       },
       "delete": {
         "js_module": "logging.js",
@@ -204,9 +174,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/public/all": {
@@ -217,9 +185,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/public/count": {
@@ -230,9 +196,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/public/historical": {
@@ -243,9 +207,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "historical",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/public/historical_receipt": {
@@ -256,9 +218,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "historical",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/public/historical/range": {
@@ -269,9 +229,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
     "/log/private/raw_text/{id}": {
@@ -282,9 +240,7 @@
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {},
-        "interpreter_reuse": {
-          "key": "singleton_interpreter"
-        }
+        "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     }
   }
