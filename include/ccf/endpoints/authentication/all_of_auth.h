@@ -28,9 +28,11 @@ namespace ccf
     std::string scheme_name;
 
   public:
+    // Provide policies with explicit names
     AllOfAuthnPolicy(const Policies& _policies);
 
-    // Try using schema_name as key
+    // Try to auto-select names, by calling get_security_scheme_name() on each
+    // policy. Will throw if it finds duplicate names.
     AllOfAuthnPolicy(
       const std::vector<std::shared_ptr<AuthnPolicy>>& _policies);
 
