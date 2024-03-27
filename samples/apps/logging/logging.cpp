@@ -204,6 +204,131 @@ namespace loggingapp
     std::shared_ptr<RecordsIndexingStrategy> index_per_public_key = nullptr;
     std::shared_ptr<CommittedRecords> committed_records = nullptr;
 
+    std::string describe_identity(
+      ccf::endpoints::EndpointContext& ctx,
+      const std::unique_ptr<ccf::AuthnIdentity>& caller)
+    {
+      if (
+        auto user_cert_ident =
+          dynamic_cast<const ccf::UserCertAuthnIdentity*>(caller.get()))
+      {
+        auto response = std::string("User TLS cert");
+        response += fmt::format(
+          "\nThe caller is a user with ID: {}", user_cert_ident->user_id);
+
+        crypto::Pem user_cert;
+        if (
+          get_user_cert_v1(ctx.tx, user_cert_ident->user_id, user_cert) ==
+          ccf::ApiResult::OK)
+        {
+          response +=
+            fmt::format("\nThe caller's cert is:\n{}", user_cert.str());
+        }
+
+        nlohmann::json user_data = nullptr;
+        if (
+          get_user_data_v1(ctx.tx, user_cert_ident->user_id, user_data) ==
+          ccf::ApiResult::OK)
+        {
+          response +=
+            fmt::format("\nThe caller's user data is: {}", user_data.dump());
+        }
+
+        return response;
+      }
+      else if (
+        auto member_cert_ident =
+          dynamic_cast<const ccf::MemberCertAuthnIdentity*>(caller.get()))
+      {
+        auto response = std::string("Member TLS cert");
+        response += fmt::format(
+          "\nThe caller is a member with ID: {}", member_cert_ident->member_id);
+
+        crypto::Pem member_cert;
+        if (
+          get_member_cert_v1(
+            ctx.tx, member_cert_ident->member_id, member_cert) ==
+          ccf::ApiResult::OK)
+        {
+          response +=
+            fmt::format("\nThe caller's cert is:\n{}", member_cert.str());
+        }
+
+        nlohmann::json member_data = nullptr;
+        if (
+          get_member_data_v1(
+            ctx.tx, member_cert_ident->member_id, member_data) ==
+          ccf::ApiResult::OK)
+        {
+          response += fmt::format(
+            "\nThe caller's member data is: {}", member_data.dump());
+        }
+
+        return response;
+      }
+      else if (
+        auto jwt_ident =
+          dynamic_cast<const ccf::JwtAuthnIdentity*>(caller.get()))
+      {
+        auto response = std::string("JWT");
+        response += fmt::format(
+          "\nThe caller is identified by a JWT issued by: {}",
+          jwt_ident->key_issuer);
+        response +=
+          fmt::format("\nThe JWT header is:\n{}", jwt_ident->header.dump(2));
+        response +=
+          fmt::format("\nThe JWT payload is:\n{}", jwt_ident->payload.dump(2));
+
+        return response;
+      }
+      else if (
+        auto cose_ident =
+          dynamic_cast<const ccf::UserCOSESign1AuthnIdentity*>(caller.get()))
+      {
+        auto response = std::string("User COSE Sign1");
+        response += fmt::format(
+          "\nThe caller is identified by a COSE Sign1 signed by kid: {}",
+          cose_ident->user_id);
+        response += fmt::format(
+          "\nThe caller is identified by a COSE Sign1 with content of size: "
+          "{}",
+          cose_ident->content.size());
+
+        return response;
+      }
+      else if (
+        auto no_ident =
+          dynamic_cast<const ccf::EmptyAuthnIdentity*>(caller.get()))
+      {
+        return "Unauthenticated";
+      }
+      else if (
+        auto and_ident =
+          dynamic_cast<const ccf::AndAuthnIdentity*>(caller.get()))
+      {
+        std::string policy_name;
+        std::string response;
+
+        for (const auto& [name, sub_ident] : and_ident->identities)
+        {
+          response += fmt::format("\n\n{}:\n", name);
+          response += describe_identity(ctx, sub_ident);
+
+          if (!policy_name.empty())
+          {
+            policy_name += "+";
+          }
+          policy_name += name;
+        }
+
+        return fmt::format("Conjoined auth policy: {}", policy_name) + response;
+      }
+      else
+      {
+        return "";
+      }
+    }
+
     std::optional<ccf::TxStatus> get_tx_status(ccf::SeqNo seqno)
     {
       ccf::ApiResult result;
@@ -830,116 +955,10 @@ namespace loggingapp
             ccf::user_cose_sign1_auth_policy});
 
       auto multi_auth = [this, user_cert_jwt_and_sig_auth_policy](auto& ctx) {
-        if (
-          auto user_cert_ident =
-            ctx.template try_get_caller<ccf::UserCertAuthnIdentity>())
-        {
-          auto response = std::string("User TLS cert");
-          response += fmt::format(
-            "\nThe caller is a user with ID: {}", user_cert_ident->user_id);
-
-          crypto::Pem user_cert;
-          if (
-            get_user_cert_v1(ctx.tx, user_cert_ident->user_id, user_cert) ==
-            ccf::ApiResult::OK)
-          {
-            response +=
-              fmt::format("\nThe caller's cert is:\n{}", user_cert.str());
-          }
-
-          nlohmann::json user_data = nullptr;
-          if (
-            get_user_data_v1(ctx.tx, user_cert_ident->user_id, user_data) ==
-            ccf::ApiResult::OK)
-          {
-            response +=
-              fmt::format("\nThe caller's user data is: {}", user_data.dump());
-          }
-
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          ctx.rpc_ctx->set_response_body(std::move(response));
-          return;
-        }
-        else if (
-          auto member_cert_ident =
-            ctx.template try_get_caller<ccf::MemberCertAuthnIdentity>())
-        {
-          auto response = std::string("Member TLS cert");
-          response += fmt::format(
-            "\nThe caller is a member with ID: {}",
-            member_cert_ident->member_id);
-
-          crypto::Pem member_cert;
-          if (
-            get_member_cert_v1(
-              ctx.tx, member_cert_ident->member_id, member_cert) ==
-            ccf::ApiResult::OK)
-          {
-            response +=
-              fmt::format("\nThe caller's cert is:\n{}", member_cert.str());
-          }
-
-          nlohmann::json member_data = nullptr;
-          if (
-            get_member_data_v1(
-              ctx.tx, member_cert_ident->member_id, member_data) ==
-            ccf::ApiResult::OK)
-          {
-            response += fmt::format(
-              "\nThe caller's member data is: {}", member_data.dump());
-          }
-
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          ctx.rpc_ctx->set_response_body(std::move(response));
-          return;
-        }
-        else if (
-          auto jwt_ident = ctx.template try_get_caller<ccf::JwtAuthnIdentity>())
-        {
-          auto response = std::string("JWT");
-          response += fmt::format(
-            "\nThe caller is identified by a JWT issued by: {}",
-            jwt_ident->key_issuer);
-          response +=
-            fmt::format("\nThe JWT header is:\n{}", jwt_ident->header.dump(2));
-          response += fmt::format(
-            "\nThe JWT payload is:\n{}", jwt_ident->payload.dump(2));
-
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          ctx.rpc_ctx->set_response_body(std::move(response));
-          return;
-        }
-        else if (
-          auto cose_ident =
-            ctx.template try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
-        {
-          auto response = std::string("User COSE Sign1");
-          response += fmt::format(
-            "\nThe caller is identified by a COSE Sign1 signed by kid: {}",
-            cose_ident->user_id);
-          response += fmt::format(
-            "\nThe caller is identified by a COSE Sign1 with content of size: "
-            "{}",
-            cose_ident->content.size());
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          ctx.rpc_ctx->set_response_body(std::move(response));
-          return;
-        }
-        else if (
-          auto no_ident =
-            ctx.template try_get_caller<ccf::EmptyAuthnIdentity>())
+        auto response = describe_identity(ctx, ctx.caller);
+        if (!response.empty())
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          ctx.rpc_ctx->set_response_body("Unauthenticated");
-          return;
-        }
-        else if (
-          auto and_ident = ctx.template try_get_caller<ccf::AndAuthnIdentity>())
-        {
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          auto response = fmt::format(
-            "AND auth: {}",
-            user_cert_jwt_and_sig_auth_policy->get_security_scheme_name());
           ctx.rpc_ctx->set_response_body(std::move(response));
           return;
         }

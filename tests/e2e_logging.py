@@ -663,7 +663,7 @@ def test_multi_auth(network, args):
         ) as c:
             r = c.post("/app/multi_auth", body={"some": "content"})
             require_new_response(r)
-            assert r.body.text().startswith("AND auth")
+            assert r.body.text().startswith("Conjoined auth policy")
 
     return network
 
