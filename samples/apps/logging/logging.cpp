@@ -17,6 +17,7 @@
 #include "ccf/version.h"
 
 #include <charconv>
+#include <regex>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
@@ -695,6 +696,18 @@ namespace loggingapp
         auto public_records_handle =
           ctx.tx.template ro<RecordsMap>(public_records(ctx));
         auto record = public_records_handle->get(id);
+
+        if (ctx.rpc_ctx->get_request_header("if-match").has_value())
+        {
+          auto if_match = ctx.rpc_ctx->get_request_header("if-match").value();
+          if (if_match == "*" && !record.has_value())
+          {
+            return ccf::make_error(
+              HTTP_STATUS_PRECONDITION_FAILED,
+              ccf::errors::PreconditionFailed,
+              "Resource does not exist.");
+          }
+        }
 
         if (record.has_value())
         {

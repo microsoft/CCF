@@ -1787,6 +1787,13 @@ def test_etags(network, args):
         etag = r.headers["ETag"]
         assert etag == sha256("hello world".encode()).hexdigest(), etag
 
+        r = c.get("/app/log/public?id=999998", headers={"If-Match": "*"})
+        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
+
+        r = c.get("/app/log/public?id=999999", headers={"If-Match": "*"})
+        assert r.status_code == http.HTTPStatus.OK
+        assert r.headers["ETag"] == sha256("hello world".encode()).hexdigest()
+
     return network
 
 

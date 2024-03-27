@@ -82,6 +82,7 @@ namespace ccf
     ERROR(UnsupportedContentType)
     ERROR(RequestBodyTooLarge)
     ERROR(RequestHeaderTooLarge)
+    ERROR(PreconditionFailed)
 
     // CCF-specific errors
     // client-facing:
