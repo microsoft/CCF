@@ -1789,7 +1789,7 @@ def test_etags(network, args):
         assert r.headers["ETag"] == etag, r.headers["ETag"]
 
         r = c.get("/app/log/public?id=999998", headers={"If-Match": "*"})
-        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
+        assert r.status_code == http.HTTPStatus.NOT_FOUND
 
         r = c.get(f"/app/log/public?id={doc['id']}", headers={"If-Match": "*"})
         assert r.status_code == http.HTTPStatus.OK
