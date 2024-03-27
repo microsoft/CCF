@@ -13,7 +13,7 @@ ASSUME CoverageFilename \in STRING
 \* Specify WriteStatsFile as a postcondition to write the stats file at the end of model checking
 WriteStatsFile == 
     /\ PrintT("Writing stats to file: " \o StatsFilename)
-    /\ Serialize(<<TLCGet("spec")>>, StatsFilename, [format |-> "NDJSON", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "APPEND">>])
+    /\ Serialize(<<TLCGet("stats")>>, StatsFilename, [format |-> "NDJSON", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "APPEND">>])
 
 \* Append TLC coverage in ndJson format to file identified by CoverageFilename.  Create CoverageFilename if it does not exist.
 SerialiseCoverage ==
