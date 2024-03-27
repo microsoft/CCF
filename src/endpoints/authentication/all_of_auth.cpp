@@ -22,7 +22,8 @@ namespace ccf
     return scheme_name;
   }
 
-  std::string get_combined_schema_name(const AllOfAuthnPolicy::Policies& policies)
+  std::string get_combined_schema_name(
+    const AllOfAuthnPolicy::Policies& policies)
   {
     std::string scheme_name;
     for (const auto& [policy_name, _] : policies)

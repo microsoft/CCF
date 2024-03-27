@@ -31,7 +31,8 @@ namespace ccf
     AllOfAuthnPolicy(const Policies& _policies);
 
     // Try using schema_name as key
-    AllOfAuthnPolicy(const std::vector<std::shared_ptr<AuthnPolicy>>& _policies);
+    AllOfAuthnPolicy(
+      const std::vector<std::shared_ptr<AuthnPolicy>>& _policies);
 
     std::unique_ptr<AuthnIdentity> authenticate(
       kv::ReadOnlyTx&,
