@@ -697,8 +697,10 @@ namespace loggingapp
           ctx.tx.template ro<RecordsMap>(public_records(ctx));
         auto record = public_records_handle->get(id);
 
+        std::set<std::string> if_etags;
         if (ctx.rpc_ctx->get_request_header("if-match").has_value())
         {
+          // https://www.rfc-editor.org/rfc/rfc9110#field.if-match
           auto if_match = ctx.rpc_ctx->get_request_header("if-match").value();
           if (if_match == "*" && !record.has_value())
           {
@@ -706,6 +708,16 @@ namespace loggingapp
               HTTP_STATUS_PRECONDITION_FAILED,
               ccf::errors::PreconditionFailed,
               "Resource does not exist.");
+          }
+
+          std::regex etag_rx("\\\"([0-9a-f]+)\\\",?\\s*");
+          auto etags_begin =
+            std::sregex_iterator(if_match.begin(), if_match.end(), etag_rx);
+          auto etags_end = std::sregex_iterator();
+          for (std::sregex_iterator i = etags_begin; i != etags_end; ++i)
+          {
+            std::smatch match = *i;
+            if_etags.insert(match[1].str());
           }
         }
 
@@ -715,6 +727,14 @@ namespace loggingapp
           auto user_data =
             std::make_shared<std::string>(value_digest.hex_str());
           ctx.rpc_ctx->set_user_data(user_data);
+
+          if (!(if_etags.empty() || if_etags.contains(value_digest.hex_str())))
+          {
+            return ccf::make_error(
+              HTTP_STATUS_PRECONDITION_FAILED,
+              ccf::errors::PreconditionFailed,
+              "Resource has changed.");
+          }
 
           CCF_APP_INFO("Fetching {} = {}", id, record.value());
           return ccf::make_success(LoggingGet::Out{record.value()});

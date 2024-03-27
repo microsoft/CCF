@@ -1777,22 +1777,37 @@ def test_etags(network, args):
     primary, _ = network.find_primary()
 
     with primary.client("user0") as c:
-        r = c.post("/app/log/public", {"id": 999999, "msg": "hello world"})
-        assert r.status_code == http.HTTPStatus.OK
-        etag = r.headers["ETag"]
-        assert etag == sha256("hello world".encode()).hexdigest(), etag
+        doc = {"id": 999999, "msg": "hello world"}
+        etag = sha256(doc["msg"].encode()).hexdigest()
 
-        r = c.get("/app/log/public?id=999999")
+        r = c.post("/app/log/public", doc)
         assert r.status_code == http.HTTPStatus.OK
-        etag = r.headers["ETag"]
-        assert etag == sha256("hello world".encode()).hexdigest(), etag
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        r = c.get(f"/app/log/public?id={doc['id']}")
+        assert r.status_code == http.HTTPStatus.OK
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
 
         r = c.get("/app/log/public?id=999998", headers={"If-Match": "*"})
         assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
 
-        r = c.get("/app/log/public?id=999999", headers={"If-Match": "*"})
+        r = c.get(f"/app/log/public?id={doc['id']}", headers={"If-Match": "*"})
         assert r.status_code == http.HTTPStatus.OK
-        assert r.headers["ETag"] == sha256("hello world".encode()).hexdigest()
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        r = c.get(f"/app/log/public?id={doc['id']}", headers={"If-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
+        assert r.body.json()["error"]["code"] == "PreconditionFailed"
+
+        r = c.get(f"/app/log/public?id={doc['id']}", headers={"If-Match": f'"{etag}"'})
+        assert r.status_code == http.HTTPStatus.OK
+        assert r.body.json() == {"msg": doc["msg"]}
+
+        r = c.get(
+            f"/app/log/public?id={doc['id']}", headers={"If-Match": f'"{etag}", "abc"'}
+        )
+        assert r.status_code == http.HTTPStatus.OK
+        assert r.body.json() == {"msg": doc["msg"]}
 
     return network
 
