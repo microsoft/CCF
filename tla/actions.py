@@ -11,16 +11,14 @@ import json
 """
 A little script to plot TLC action count
 
-Run TLC with -Dtlc2.TLCGlobals.coverage=3, and pip the input in, e.g.:
-ls -tr <spec>_coverage_*.json | xargs cat | python3 actions.py
+Run TLC with -Dtlc2.TLCGlobals.coverage=1, and pip the input in, e.g.:
+ls -tr <spec>_coverage.json | xargs cat | python3 actions.py
 
 The spec needs to have constraint like:
 
-SerialiseCoverageConstraint ==
-    LET interval == 100000
-    IN IF TLCGet("distinct") % interval = 0 
-       THEN Serialize(<<TLCGet("spec")>>, CoverageFilename, [format |-> "NDJSON", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "APPEND">>])
-       ELSE TRUE
+SerialiseCoverage ==
+    Serialize(<<TLCGet("spec")>>, CoverageFilename, [format |-> "NDJSON", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "APPEND">>])
+
 """
 
 TOP=5
