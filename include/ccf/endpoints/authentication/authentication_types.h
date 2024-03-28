@@ -41,10 +41,7 @@ namespace ccf
     virtual std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
       const = 0;
 
-    virtual std::string get_security_scheme_name()
-    {
-      return "BaseAuthPolicy";
-    }
+    virtual std::string get_security_scheme_name() = 0;
   };
 
   using AuthnPolicies = std::vector<std::shared_ptr<AuthnPolicy>>;

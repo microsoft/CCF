@@ -130,9 +130,17 @@ This produces validation error messages with a low performance overhead, and ens
 Authentication
 ~~~~~~~~~~~~~~
 
-Each endpoint must provide a list of associated authentication policies in the call to ``make_endpoint``. Inside the handler, the caller identity that was constructed by the accepting policy check can be retrieved with ``get_caller`` or ``try_get_caller`` - the latter should be used when multiple policies are present, to detect which policy accepted the request.
+Each endpoint must provide a list of associated authentication policies in the call to ``make_endpoint``.
+Inside the handler, the caller identity that was constructed by the accepting policy check can be retrieved with ``get_caller`` or ``try_get_caller``.
+The latter should be used when multiple policies are present, to detect which policy accepted the request.
+When multiple policies are listed, they are tested in-order, essentially saying that `any` of policy A `or` policy B `or` ... is acceptable.
+To instead form a `conjunction` of policies, such that `all` policies must pass, you may combine them with the ``ccf::AllOfAuthnPolicy`` built-in policy.
 
-For example in the ``/log/private`` endpoint above there is a single policy stating that requests must come from a known user cert, over mutually authenticated TLS. This is one of several built-in policies provided by CCF. These built-in policies will check that the caller's TLS cert is a known user or member identity, or that the request is HTTP signed by a known user or member identity, or that the request contains a JWT signed by a known issuer. Additionally, there is an empty policy which accepts all requests, which should be used as the final policy to declare that the endpoint is optionally authenticated (either an earlier-listed policy passes providing a real caller identity, or the empty policy passes and the endpoint is invoked with no caller identity). To declare that an endpoint has no authentication requirements and should be accessible by any caller, use the special value ``no_auth_required``.
+For example in the ``/log/private`` endpoint above there is a single policy stating that requests must come from a known user cert, over mutually authenticated TLS.
+This is one of several built-in policies provided by CCF.
+These built-in policies will check that the caller's TLS cert is a known user or member identity, or that the request is HTTP signed by a known user or member identity, or that the request contains a JWT signed by a known issuer.
+Additionally, there is an empty policy which accepts all requests, which should be used as the final policy to declare that the endpoint is optionally authenticated (either an earlier-listed policy passes providing a real caller identity, or the empty policy passes and the endpoint is invoked with no caller identity). 
+To declare that an endpoint has no authentication requirements and should be accessible by any caller, use the special value ``no_auth_required``.
 
 Applications can extend this system by writing their own authentication policies. There is an example of this in the C++ logging app. First it defines a type describing the identity details it aims to find in an acceptable request:
 

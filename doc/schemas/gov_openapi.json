@@ -160,7 +160,7 @@
       "EndpointProperties": {
         "properties": {
           "authn_policies": {
-            "$ref": "#/components/schemas/string_array"
+            "$ref": "#/components/schemas/json_array"
           },
           "forwarding_required": {
             "$ref": "#/components/schemas/ForwardingRequired"
@@ -1237,14 +1237,14 @@
         "type": "boolean"
       },
       "json": {},
-      "string": {
-        "type": "string"
-      },
-      "string_array": {
+      "json_array": {
         "items": {
-          "$ref": "#/components/schemas/string"
+          "$ref": "#/components/schemas/json"
         },
         "type": "array"
+      },
+      "string": {
+        "type": "string"
       },
       "string_to_JwtIssuerMetadata": {
         "additionalProperties": {
@@ -1325,7 +1325,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.1.4"
+    "version": "4.1.5"
   },
   "openapi": "3.0.0",
   "paths": {

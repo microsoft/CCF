@@ -579,17 +579,22 @@ def test_multi_auth(network, args):
         def require_new_response(r):
             assert r.status_code == http.HTTPStatus.OK.value, r.status_code
             r_body = r.body.text()
+            assert (
+                "undefined" not in r_body
+            ), f"Looks like you misnamed a field?\n{r_body}"
             assert r_body not in response_bodies, r_body
             response_bodies.add(r_body)
 
         LOG.info("Anonymous, no auth")
         with primary.client() as c:
             r = c.post("/app/multi_auth")
+            assert r.body.text().startswith("Unauthenticated"), r.body.text()
             require_new_response(r)
 
         LOG.info("Authenticate as a user, via TLS cert")
         with primary.client(user.local_id) as c:
             r = c.post("/app/multi_auth")
+            assert r.body.text().startswith("User TLS cert"), r.body.text()
             require_new_response(r)
 
         LOG.info("Authenticate as same user, now with user data")
@@ -598,16 +603,19 @@ def test_multi_auth(network, args):
         )
         with primary.client(user.local_id) as c:
             r = c.post("/app/multi_auth")
+            assert r.body.text().startswith("User TLS cert"), r.body.text()
             require_new_response(r)
 
         LOG.info("Authenticate as a different user, via TLS cert")
         with primary.client("user1") as c:
             r = c.post("/app/multi_auth")
+            assert r.body.text().startswith("User TLS cert"), r.body.text()
             require_new_response(r)
 
         LOG.info("Authenticate as a member, via TLS cert")
         with primary.client(member.local_id) as c:
             r = c.post("/app/multi_auth")
+            assert r.body.text().startswith("Member TLS cert"), r.body.text()
             require_new_response(r)
 
         LOG.info("Authenticate as same member, now with user data")
@@ -616,11 +624,13 @@ def test_multi_auth(network, args):
         )
         with primary.client(member.local_id) as c:
             r = c.post("/app/multi_auth")
+            assert r.body.text().startswith("Member TLS cert"), r.body.text()
             require_new_response(r)
 
         LOG.info("Authenticate as a different member, via TLS cert")
         with primary.client("member1") as c:
             r = c.post("/app/multi_auth")
+            assert r.body.text().startswith("Member TLS cert"), r.body.text()
             require_new_response(r)
 
         LOG.info("Authenticate via JWT token")
@@ -630,6 +640,7 @@ def test_multi_auth(network, args):
 
         with primary.client() as c:
             r = c.post("/app/multi_auth", headers={"authorization": "Bearer " + jwt})
+            assert r.body.text().startswith("JWT"), r.body.text()
             require_new_response(r)
 
         LOG.info("Authenticate via second JWT token")
@@ -637,11 +648,24 @@ def test_multi_auth(network, args):
 
         with primary.client(common_headers={"authorization": "Bearer " + jwt2}) as c:
             r = c.post("/app/multi_auth")
+            assert r.body.text().startswith("JWT"), r.body.text()
             require_new_response(r)
 
         LOG.info("Authenticate via COSE Sign1 payload")
         with primary.client(None, None, "user1") as c:
             r = c.post("/app/multi_auth", body={"some": "content"})
+            assert r.body.text().startswith("User COSE Sign1"), r.body.text()
+            require_new_response(r)
+
+        LOG.info("Authenticate via user cert AND JWT token AND COSE Sign1 payload")
+        with primary.client(
+            user.local_id,
+            None,
+            "user1",
+            common_headers={"authorization": "Bearer " + jwt2},
+        ) as c:
+            r = c.post("/app/multi_auth", body={"some": "content"})
+            assert r.body.text().startswith("Conjoined auth policy"), r.body.text()
             require_new_response(r)
 
     return network

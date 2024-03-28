@@ -696,7 +696,28 @@ const actions = new Map([
               `${prefix2}.authn_policies`,
             );
             for (const [i, policy] of info.authn_policies.entries()) {
-              checkType(policy, "string", `${prefix2}.authn_policies[${i}]`);
+              if (typeof policy === "string") {
+                // May still be an unrecognised value. That will only throw later
+                continue;
+              } else if (typeof policy === "object") {
+                const constituents = policy["all_of"];
+                checkType(
+                  constituents,
+                  "array",
+                  `${prefix2}.authn_policies[${i}].all_of`,
+                );
+                for (const [j, sub_policy] of constituents.entries()) {
+                  checkType(
+                    sub_policy,
+                    "string",
+                    `${prefix2}.authn_policies[${i}].all_of[${j}]`,
+                  );
+                }
+              } else {
+                throw new Error(
+                  `${prefix2}.authn_policies[${i}] must be of type string or object but is ${typeof policy}`,
+                );
+              }
             }
             if (!bundle.modules.some((m) => m.name === info.js_module)) {
               throw new Error(`module '${info.js_module}' not found in bundle`);

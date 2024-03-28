@@ -1535,6 +1535,47 @@
         }
       }
     },
+    "/multi_auth": {
+      "post": {
+        "js_module": "endpoints/auth.js",
+        "js_function": "checkMultiAuth",
+        "forwarding_required": "never",
+        "authn_policies": [
+          {
+            "all_of": ["user_cert", "jwt", "user_cose_sign1"]
+          },
+          "user_cert",
+          "member_cert",
+          "jwt",
+          "user_cose_sign1",
+          "no_auth"
+        ],
+        "mode": "readwrite",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/cose": {
+                "schema": {}
+              },
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "",
+              "content": {
+                "application/json": {
+                  "schema": {}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/converters/set": {
       "post": {
         "js_module": "endpoints/converters.js",
