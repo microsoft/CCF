@@ -155,7 +155,7 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
     handle,
     range_begin,
     range_end,
-    expiry_seconds
+    expiry_seconds,
   );
   if (states === null) {
     return {
@@ -195,17 +195,17 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
     const next_page_start = range_end + 1;
     const next_page_end = Math.min(
       to_seqno,
-      next_page_start + max_seqno_per_page
+      next_page_start + max_seqno_per_page,
     );
     const next_page_handle = makeHandle(
       next_page_start,
       next_page_end,
-      parsedQuery.id
+      parsedQuery.id,
     );
     ccf.historical.getStateRange(
       next_page_handle,
       next_page_start,
-      next_page_end
+      next_page_end,
     );
 
     // NB: This path tells the caller to continue to ask until the end of
@@ -230,7 +230,7 @@ export function get_historical_range(request) {
   return get_historical_range_impl(
     request,
     true,
-    "/app/log/private/historical/range"
+    "/app/log/private/historical/range",
   );
 }
 
@@ -238,7 +238,7 @@ export function get_historical_range_public(request) {
   return get_historical_range_impl(
     request,
     false,
-    "/app/log/public/historical/range"
+    "/app/log/public/historical/range",
   );
 }
 
@@ -305,7 +305,7 @@ export function post_public(request) {
   if (params.record_claim) {
     const claims_digest = ccf.crypto.digest(
       "SHA-256",
-      ccf.strToBuf(params.msg)
+      ccf.strToBuf(params.msg),
     );
     ccf.rpc.setClaimsDigest(claims_digest);
   }
@@ -424,11 +424,11 @@ function describe_member_cert_ident(lines, obj) {
 function describe_jwt_ident(lines, obj) {
   lines.push("JWT");
   lines.push(
-    `The caller is identified by a JWT issued by: ${obj.jwt.keyIssuer}`
+    `The caller is identified by a JWT issued by: ${obj.jwt.keyIssuer}`,
   );
   lines.push(`The JWT header is:\n${JSON.stringify(obj.jwt.header, null, 2)}`);
   lines.push(
-    `The JWT payload is:\n${JSON.stringify(obj.jwt.payload, null, 2)}`
+    `The JWT payload is:\n${JSON.stringify(obj.jwt.payload, null, 2)}`,
   );
 }
 
@@ -451,11 +451,11 @@ export function multi_auth(request) {
   var lines = [];
 
   const describers = {
-    "user_cert": describe_user_cert_ident,
-    "member_cert": describe_member_cert_ident,
-    "jwt": describe_jwt_ident,
-    "user_cose_sign1": describe_cose_ident,
-    "no_auth": describe_noauth_ident,
+    user_cert: describe_user_cert_ident,
+    member_cert: describe_member_cert_ident,
+    jwt: describe_jwt_ident,
+    user_cose_sign1: describe_cose_ident,
+    no_auth: describe_noauth_ident,
   };
 
   const describe = (name, obj) => {
@@ -471,12 +471,12 @@ export function multi_auth(request) {
   } else if (Array.isArray(request.caller.policy)) {
     lines.push(`Conjoined auth policy: ${request.caller.policy}`);
     for (const [i, name] of request.caller.policy.entries()) {
-      lines.push("")
-      lines.push(`${name}:`)
+      lines.push("");
+      lines.push(`${name}:`);
       describe(name, request.caller[name]);
     }
   } else {
-    throw new Error(`Unhandled auth policy: ${request.caller.policy}`)
+    throw new Error(`Unhandled auth policy: ${request.caller.policy}`);
   }
 
   let s = lines.join("\n");

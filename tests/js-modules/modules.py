@@ -15,7 +15,6 @@ import infra.net
 import infra.e2e_args
 import infra.crypto
 import suite.test_requirements as reqs
-from e2e_logging import test_multi_auth
 import openapi_spec_validator
 from jwcrypto import jwk
 from cryptography.hazmat.primitives.asymmetric import ec
