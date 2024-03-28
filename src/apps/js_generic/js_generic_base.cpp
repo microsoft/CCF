@@ -76,12 +76,15 @@ namespace ccfapp
         auto all_of_ident =
           dynamic_cast<const ccf::AllOfAuthnIdentity*>(ident.get()))
       {
-        caller.set("policy", ctx.new_string(all_of_ident->get_conjoined_name()));
+        auto policy = ctx.new_array();
+        uint32_t i = 0;
         for (const auto& [name, sub_ident] : all_of_ident->identities)
         {
+          policy.set_at_index(i++, ctx.new_string(name));
           caller.set(
             name, create_caller_ident_obj(endpoint_ctx, sub_ident, ctx));
         }
+        caller.set("policy", std::move(policy));
         return caller;
       }
 

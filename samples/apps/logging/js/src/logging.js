@@ -450,24 +450,33 @@ function describe_noauth_ident(lines, obj) {
 export function multi_auth(request) {
   var lines = [];
 
-  if (request.caller.policy === "user_cert") {
-    describe_user_cert_ident(lines, request.caller);
-  } else if (request.caller.policy === "member_cert") {
-    describe_member_cert_ident(lines, request.caller);
-  } else if (request.caller.policy === "jwt") {
-    describe_jwt_ident(lines, request.caller);
-  } else if (request.caller.policy === "user_cose_sign1") {
-    describe_cose_ident(lines, request.caller);
-  } else if (request.caller.policy === "no_auth") {
-    describe_noauth_ident(lines, request.caller);
-  } else if (request.caller.policy === "jwt+user_cert+user_cose_sign1") {
+  const describers = {
+    "user_cert": describe_user_cert_ident,
+    "member_cert": describe_member_cert_ident,
+    "jwt": describe_jwt_ident,
+    "user_cose_sign1": describe_cose_ident,
+    "no_auth": describe_noauth_ident,
+  };
+
+  const describe = (name, obj) => {
+    const describer = describers[name];
+    if (describer === undefined) {
+      throw new Error(`Unhandled auth policy: ${name}`);
+    }
+    describer(lines, obj);
+  };
+
+  if (typeof request.caller.policy === "string") {
+    describe(request.caller.policy, request.caller);
+  } else if (Array.isArray(request.caller.policy)) {
     lines.push(`Conjoined auth policy: ${request.caller.policy}`);
-    lines.push("");
-    describe_jwt_ident(lines, request.caller.jwt);
-    lines.push("");
-    describe_user_cert_ident(lines, request.caller.user_cert);
-    lines.push("");
-    describe_cose_ident(lines, request.caller.user_cose_sign1);
+    for (const [i, name] of request.caller.policy.entries()) {
+      lines.push("")
+      lines.push(`${name}:`)
+      describe(name, request.caller[name]);
+    }
+  } else {
+    throw new Error(`Unhandled auth policy: ${request.caller.policy}`)
   }
 
   let s = lines.join("\n");
