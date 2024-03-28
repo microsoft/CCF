@@ -65,7 +65,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `ccf::historical::adapter_v2` is removed, replaced by `ccf::historical::adapter_v3` first introduced in 2.0.0.
 - `ccf::EnclaveAttestationProvider` has been removed. It is replaced by `ccf::AttestationProvider`
-- The `attestation.environment.security_context_directory` configuration entry and `--snp-security-context-dir-var` CLI option have been removed. SNP collateral must now be provided through the `snp_security_policy_file`, `snp_uvm_endorsements_file` and `snp_endorsement_servers` configuration values. See [documentation](https://microsoft.github.io/CCF/main/operations/platforms/snp.html) for details and platform-specific configuration samples.
+- The `attestation.environment.security_context_directory` configuration entry and `--snp-security-context-dir-var` CLI option have been removed. SNP collateral must now be provided through the `snp_security_policy_file`, `snp_uvm_endorsements_file` and `snp_endorsements_servers` configuration values. See [documentation](https://microsoft.github.io/CCF/main/operations/platforms/snp.html) for details and platform-specific configuration samples.
 
 ## [5.0.0-dev10]
 

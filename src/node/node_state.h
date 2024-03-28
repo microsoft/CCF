@@ -408,7 +408,7 @@ namespace ccf
 
         if (qi.format == QuoteFormat::amd_sev_snp_v1)
         {
-          if (!config.attestation.snp_endorsements_servers.empty())
+          if (config.attestation.snp_endorsements_servers.empty())
           {
             throw std::runtime_error(
               "One or more SNP endorsements servers must be specified to fetch "
@@ -1948,7 +1948,6 @@ namespace ccf
         InvalidSessionId, self_signed_node_cert.raw());
       auto ctx = make_rpc_context(node_session, packed);
 
-      ctx->is_create_request = true;
       std::shared_ptr<ccf::RpcHandler> search =
         http::fetch_rpc_handler(ctx, this->rpc_map);
 
