@@ -73,11 +73,11 @@ namespace ccfapp
         return caller;
       }
       if (
-        auto and_ident =
+        auto all_of_ident =
           dynamic_cast<const ccf::AllOfAuthnIdentity*>(ident.get()))
       {
-        caller.set("policy", ctx.new_string(and_ident->get_conjoined_name()));
-        for (const auto& [name, sub_ident] : and_ident->identities)
+        caller.set("policy", ctx.new_string(all_of_ident->get_conjoined_name()));
+        for (const auto& [name, sub_ident] : all_of_ident->identities)
         {
           caller.set(
             name, create_caller_ident_obj(endpoint_ctx, sub_ident, ctx));

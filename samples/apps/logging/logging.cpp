@@ -303,13 +303,13 @@ namespace loggingapp
         return "Unauthenticated";
       }
       else if (
-        auto and_ident =
+        auto all_of_ident =
           dynamic_cast<const ccf::AllOfAuthnIdentity*>(caller.get()))
       {
         auto response = fmt::format(
-          "Conjoined auth policy: {}", and_ident->get_conjoined_name());
+          "Conjoined auth policy: {}", all_of_ident->get_conjoined_name());
 
-        for (const auto& [name, sub_ident] : and_ident->identities)
+        for (const auto& [name, sub_ident] : all_of_ident->identities)
         {
           response += fmt::format("\n\n{}:\n", name);
           response += describe_identity(ctx, sub_ident);
