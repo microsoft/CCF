@@ -15,6 +15,7 @@ import infra.net
 import infra.e2e_args
 import infra.crypto
 import suite.test_requirements as reqs
+from e2e_logging import test_multi_auth
 import openapi_spec_validator
 from jwcrypto import jwk
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -1440,10 +1441,12 @@ def run(args):
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)
         network = test_set_js_runtime(network, args)
+        network = build_and_deploy_npm_app(network, args)
         network = test_npm_app(network, args)
         network = test_js_execution_time(network, args)
         network = test_js_exception_output(network, args)
         network = test_user_cose_authentication(network, args)
+        network = test_multi_auth(network, args)
 
 
 if __name__ == "__main__":
