@@ -16,7 +16,7 @@ ls -tr <spec>_coverage.json | xargs cat | python3 actions.py
 
 The spec needs to have constraint like:
 
-SerialiseCoverage ==
+SerializeCoverage ==
     Serialize(<<TLCGet("spec")>>, CoverageFilename, [format |-> "NDJSON", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "APPEND">>])
 
 """
