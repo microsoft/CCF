@@ -124,7 +124,7 @@ namespace ccf
   std::optional<OpenAPISecuritySchema> AllOfAuthnPolicy::
     get_openapi_security_schema() const
   {
-    return unauthenticated_schema;
+    return std::nullopt;
   }
 
   std::string AllOfAuthnPolicy::get_security_scheme_name()
