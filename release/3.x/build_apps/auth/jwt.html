@@ -1,0 +1,635 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../../genindex.html" /><link rel="search" title="Search" href="../../search.html" /><link rel="next" title="Certificate Authentication" href="cert.html" /><link rel="prev" title="User Authentication" href="index.html" />
+
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/><!-- Generated with Sphinx 7.1.2 and Furo 2024.01.29 -->
+        <title>JWT Authentication - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo.css?v=135e06be" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/tabs.css?v=4c969af8" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css?v=2a6c4383" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css?v=45cf7dbc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css?v=d290406d" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo-extensions.css?v=36a5483c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=ffbb6935" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #3f3f3f;
+  --color-code-foreground: #dcdccc;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #3f3f3f;
+  --color-code-foreground: #dcdccc;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="../../_static/ccf.svg" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="../../_static/ccf.svg" alt="Dark Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded", function(){
+      let selectedVersion = "main";
+      const thisURL = window.location.toString();
+      const splitUrl = thisURL.split("/");
+      const indexOfRelease = splitUrl.indexOf("release");
+      if (indexOfRelease > 0) {
+        selectedVersion = splitUrl[indexOfRelease + 1];
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<label for="versions">
+  <div class="visually-hidden">Select Version:</div>
+</label>
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="../../../../main/build_apps/auth/jwt.html">
+      
+        main
+      
+    </option>
+    <option value="jwt.html">
+      
+        3.x
+      
+    </option>
+    <option value="../../../4.x/build_apps/auth/jwt.html">
+      
+        4.x
+      
+    </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of Overview</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/what_is_ccf.html">What is CCF?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/governance.html">Governance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/faq.html">Frequently Asked Questions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="../index.html">Build Apps</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Build Apps</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../install_bin.html">Install CCF</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of C++ Application</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../example_cpp.html">Example app (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../example_rpc_api.html">Example app RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../js_app_bundle.html">JavaScript Application Bundle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../logging.html">Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2 current has-children"><a class="reference internal" href="index.html">User Authentication</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle navigation of User Authentication</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l3 current current-page"><a class="current reference internal" href="#">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="cert.html">Certificate Authentication</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle navigation of Key-Value Store</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../crypto.html">Cryptography API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../release_policy.html">Release and compatibility policy</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle navigation of Use Apps</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/verify_tx.html">Verifying Transactions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../operations/index.html">Operations</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle navigation of Operations</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/configuration.html">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/code_upgrade.html">Code Upgrade</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/certificates.html">Certificates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/data_persistence.html">Data Persistence</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/network.html">Networking</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../operations/platforms/index.html">Platforms</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle navigation of Platforms</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../operations/platforms/sgx.html">Intel SGX</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../operations/platforms/snp.html">AMD SEV-SNP</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../operations/platforms/virtual.html">Insecure Virtual</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/troubleshooting.html">Troubleshooting CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../governance/index.html">Governance</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle navigation of Governance</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/constitution.html">Constitution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/js_runtime.html">JavaScript Runtime Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/member_rpc_api.html">Member RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../audit/index.html">Audit</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle navigation of Audit</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../audit/receipts.html">Receipts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../audit/builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../audit/python_library.html">Python Library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../audit/read_write_restrictions.html">Read-Write Permissions On KV Maps</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle navigation of Contribute</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/onboarding.html">Onboarding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/build_ccf.html">Build CCF from Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/release_ccf.html">Release or patch a CCF release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/build_images.html">CCF Build Images</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../architecture/index.html">Architecture</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of Architecture</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../architecture/consensus/index.html">Consensus Protocols</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Consensus Protocols</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../architecture/consensus/1tx-reconfig.html">One-transaction Reconfiguration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../architecture/consensus/2tx-reconfig.html">Two-transaction Reconfiguration</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/request_flow.html">Request Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/threading.html">Threading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/ledger.html">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/raft_tla.html">TLA+ Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/node_to_node.html">Node-to-Node Channels</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/indexing.html">Indexing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/receipts.html">Receipts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/tls_internals.html">TLS Internals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/tcp_internals.html">TCP Internals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/quic_internals.html">QUIC Internals</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../research/index.html">Research</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="jwt-authentication">
+<h1>JWT Authentication<a class="headerlink" href="#jwt-authentication" title="Permalink to this heading">#</a></h1>
+<p>JWT (<a class="reference external" href="https://tools.ietf.org/html/rfc7519">JSON Web Token</a>) bearer authentication allows to use an external identity provider (IdP) such as the <a class="reference external" href="https://aka.ms/IdentityPlatform">Microsoft Identity Platform</a> for user authentication in CCF.</p>
+<p>Once the user has acquired a token from an IdP supported by the app, they can include it in HTTP requests in the <code class="docutils literal notranslate"><span class="pre">Authorization</span></code> header as <a class="reference external" href="https://tools.ietf.org/html/rfc6750">bearer token</a>.
+The CCF app validates the token and can then use the user identity and other claims embedded in the token.</p>
+<p>CCF provides support for managing public token signing keys and using those to validate tokens.</p>
+<section id="setting-up-a-token-issuer-with-manual-key-refresh">
+<h2>Setting up a token issuer with manual key refresh<a class="headerlink" href="#setting-up-a-token-issuer-with-manual-key-refresh" title="Permalink to this heading">#</a></h2>
+<p>Before adding public token signing keys to a running CCF network, the IdP has to be stored as token issuer with a <code class="docutils literal notranslate"><span class="pre">set_jwt_issuer</span></code> proposal:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;actions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;set_jwt_issuer&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;issuer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;my_issuer&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;key_filter&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;all&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;auto_refresh&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">issuer</span></code> field is an arbitrary identifier and should be used during token validation to differentiate between multiple issuers.</p>
+<p>Note that this action takes some additional optional args for more advanced scenarios.
+See <a class="reference internal" href="#advanced-issuer-configuration"><span class="std std-ref">Advanced issuer configuration</span></a> for details.</p>
+<p>After this proposal is accepted, signing keys for an issuer can be updated with a <code class="docutils literal notranslate"><span class="pre">set_jwt_public_signing_keys</span></code> proposal:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">{</span>
+<span class="w">  </span><span class="s2">&quot;actions&quot;</span>:<span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="o">{</span>
+<span class="w">      </span><span class="s2">&quot;name&quot;</span>:<span class="w"> </span><span class="s2">&quot;set_jwt_public_signing_keys&quot;</span>,
+<span class="w">      </span><span class="s2">&quot;args&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">        </span><span class="s2">&quot;issuer&quot;</span>:<span class="w"> </span><span class="s2">&quot;my_issuer&quot;</span>,
+<span class="w">        </span><span class="s2">&quot;jwks&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">          </span><span class="s2">&quot;keys&quot;</span>:<span class="w"> </span><span class="o">[</span>
+<span class="w">            </span><span class="o">{</span>
+<span class="w">              </span><span class="s2">&quot;kty&quot;</span>:<span class="w"> </span><span class="s2">&quot;RSA&quot;</span>,
+<span class="w">              </span><span class="s2">&quot;kid&quot;</span>:<span class="w"> </span><span class="s2">&quot;my_kid&quot;</span>,
+<span class="w">              </span><span class="s2">&quot;x5c&quot;</span>:<span class="w"> </span><span class="o">[</span>
+<span class="w">                </span><span class="s2">&quot;MIICrDCCAZSgAwIBAgIUcj2cyqhj1U8XzZ0gvV1sF4e4vtowDQYJKoZIhvcNAQELBQAwEDEOMAwGA1UEAwwFZHVtbXkwHhcNMjIwMTEyMTM0MzMzWhcNMjIwMTIyMTM0MzMzWjAQMQ4wDAYDVQQDDAVkdW1teTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAK/RrDSau3y4uI0AMKRfeC/aflZ7LfqFeaWOrj3WrDd1lWIJNJfXw4yrjyLq/NxDPF/3Rk4JBA4FPxUuQ2gwiLaZr9/OJjG2e+1sT9Sj243IC4tKvm8ilUtbgx9f9GvyoP5UhnZHa3GQ2MnRpTtzOq2u+XhjrQBfadGEVjUCpbwRaV7vTUr2WZQ/e1HbLFg0vdApP/U2Z/p5LUyRooLIu12mgMFZAd8zYWXsHGx+D4F8DeRpuPDrF5CKOeA2HvhIeYy+kKMhSuE2wBn3lHtTstZfoJoJJuDPwr5F58jlBHBdRL7BtfB2O8jK5iPNb3bZnyAgQ4xJVr/4wUcbeI7SA28CAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAXlso7E6vqH0W9w3jMrtIWJiZWZi1O+JQ3TkcVX0qTHHQRSjFyY+wjjL11ERZqz2XnrfQZDQdlpB4g7EXh24lN7QE5XuxN6gfRVDPVrY8+mg5qXBW6yz70Kgt7iuy5QjTOMU3GjqYBjObcXBqp+/p6mU0cTFHSt7xQjK2XI1AdOuxeAtUsko6+pvMwZus2RARzJurSAuWh4mU2ozALmUlAD+looOsvqui4s6CNUUakfSUlDj5drnYOHqqrRXDVonzDCDJgN/ZJubwFkTmZ1Urr5OTR5/WdC9G69RU27eqyRFuWlCafy8+hwyo6sZykDJpa6FBbeXWfm7s8Sj77y0Gdg==&quot;</span>
+<span class="w">              </span><span class="o">]</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">          </span><span class="o">]</span>
+<span class="w">        </span><span class="o">}</span>
+<span class="w">      </span><span class="o">}</span>
+<span class="w">    </span><span class="o">}</span>
+<span class="w">  </span><span class="o">]</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">&quot;jwks&quot;</span></code> field contains the signing keys as a JWKS (<a class="reference external" href="https://tools.ietf.org/html/rfc7517">JSON Web Key Set</a>) document.</p>
+</section>
+<section id="setting-up-a-token-issuer-with-automatic-key-refresh">
+<h2>Setting up a token issuer with automatic key refresh<a class="headerlink" href="#setting-up-a-token-issuer-with-automatic-key-refresh" title="Permalink to this heading">#</a></h2>
+<p>Most IdPs follow the OpenID Connect Discovery specification and publish their public token signing keys at a well-known location.
+In such cases, token issuers in CCF can be configured to automatically refresh their keys.</p>
+<p>The following extra conditions must be true compared to setting up an issuer with manual key refresh:</p>
+<ul class="simple">
+<li><p>The <code class="docutils literal notranslate"><span class="pre">issuer</span></code> must be an OpenID Connect issuer URL, for example <code class="docutils literal notranslate"><span class="pre">https://login.microsoftonline.com/common/v2.0</span></code>. During auto-refresh, the keys are fetched from that URL by appending <code class="docutils literal notranslate"><span class="pre">/.well-known/openid-configuration</span></code>.</p></li>
+<li><p>A CA certificate for the issuer URL must be stored so that the TLS connection to the IdP can be validated during key refresh.</p></li>
+</ul>
+<p>The CA certificate is stored with a <code class="docutils literal notranslate"><span class="pre">set_ca_cert_bundle</span></code> proposal:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;actions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;set_ca_cert_bundle&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;jwt_ms&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;cert_bundle&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;-----BEGIN CERTIFICATE-----\nMIICtDCCAZygAwIBAgIUD7xmXLQWbN/q+tuH97Aq2krO0GAwDQYJKoZIhvcNAQEL\nBQAwFDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTIyMDExMjEzNDMzNloXDTIyMDEy\nMjEzNDMzNlowFDESMBAGA1UEAwwJbG9jYWxob3N0MIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEAoWXwixcQ0CrZQAD9Ojo0kxKtrsJB0dmxwKGx/JH2VQYh\nYQ9+8zSuXKW7L0dJL3Qf9R7eJvj1w4i/gPHSggsgrp+MbYLos3DK1M3wdATpsn/r\nhVFCuVpq9nVOZQh9Uiq1fbsYBpoJZ+aSpRJrqK8VaQDr/zPVnU72zYSxgEvwll+e\nvw1+erna3nZevf02hGvD1HU2DBEIkyj50yRzfKufGbw70ySxDAxCpkM+Qsw+WD5/\ncI2D8mhMFA7NdPIbB0OWwCOqrFxtwkA2N11nqJlodzFmcdCDE/fyZc2/Fer+C4ol\nhnYBXVqEodlbytmYHIWB3+XbymDrbqPeCvr2I6nK2QIDAQABMA0GCSqGSIb3DQEB\nCwUAA4IBAQBrHD9cUy5mfkelWzJRknaK3BszUWSwOjjXYh0vFTW8ixZUjKfQDpbe\nPEL3aV3IgnBEwFnormhGCLcOatAGLCgZ//FREts8KaNgyrObKyuMLPQi5vf5/ucG\n/68mGwq2hdh0+ysVqcjjLQCTfbPJPUQ5V2hOh79jOy29JdavcBGR4SeRdOgzdcwA\nd9/T8VuoC6tjt2OF7IJ59JOSBWMcxCbr7KyyJjuxykzyjDa/XQs2Egt4WE+ZVUgc\nav1tQB2leiJGbjhswhLMe7NbuOtwcELsILpPo3pbdKEMlRFngj7H80IFurxtdu/M\nN2D/+LkySi6UDM8q6ADSdjG+cnNzSjEo\n-----END CERTIFICATE-----\n&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Now the issuer can be created with auto-refresh enabled:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;actions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;set_jwt_issuer&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;issuer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://login.microsoftonline.com/common/v2.0&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;key_filter&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;all&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;ca_cert_bundle_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;jwt_ms&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;auto_refresh&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The key refresh interval is set via the <code class="docutils literal notranslate"><span class="pre">jwt.key_refresh_interval_s</span></code> configuration entry, where the default is 30 min (1800 seconds).</p>
+</div>
+</section>
+<section id="removing-a-token-issuer">
+<h2>Removing a token issuer<a class="headerlink" href="#removing-a-token-issuer" title="Permalink to this heading">#</a></h2>
+<p>If an issuer should not be used anymore, then a <code class="docutils literal notranslate"><span class="pre">remove_jwt_issuer</span></code> proposal can be used to remove both the issuer and its signing keys:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">{</span>
+<span class="w">  </span><span class="s2">&quot;actions&quot;</span>:<span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="o">{</span>
+<span class="w">      </span><span class="s2">&quot;name&quot;</span>:<span class="w"> </span><span class="s2">&quot;remove_jwt_issuer&quot;</span>,
+<span class="w">      </span><span class="s2">&quot;args&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">        </span><span class="s2">&quot;issuer&quot;</span>:<span class="w"> </span><span class="s2">&quot;https://login.microsoftonline.com/common/v2.0&quot;</span>
+<span class="w">      </span><span class="o">}</span>
+<span class="w">    </span><span class="o">}</span>
+<span class="w">  </span><span class="o">]</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+</section>
+<section id="validating-tokens">
+<h2>Validating tokens<a class="headerlink" href="#validating-tokens" title="Permalink to this heading">#</a></h2>
+<p>Validating a token means checking its format, signature, and IdP- and app-specific claims. See <a class="reference external" href="https://github.com/microsoft/CCF/tree/release/3.x/tests/js-authentication/src/endpoints.js">tests/js-authentication/src/endpoints.js</a> for an example on how to do this in TypeScript.</p>
+<p>Token signing keys are stored in the <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.jwt.public_signing_keys</span></code> kv map where the key is the key ID and the value the DER-encoded X.509 certificate. The key ID matches the <code class="docutils literal notranslate"><span class="pre">kid</span></code> field in the token header and can be used to retrieve the matching certificate for validation.</p>
+<p>If an application uses multiple token issuers, then the <code class="docutils literal notranslate"><span class="pre">public:ccf.gov.jwt.public_signing_key_issuer</span></code> kv map which maps key IDs to issuers can be used to determine the issuer that a key belongs to.</p>
+</section>
+<section id="advanced-issuer-configuration">
+<h2>Advanced issuer configuration<a class="headerlink" href="#advanced-issuer-configuration" title="Permalink to this heading">#</a></h2>
+<p>CCF has special support for IdPs that issue tokens within SGX enclaves, for example MAA (<a class="reference external" href="https://docs.microsoft.com/en-us/azure/attestation/">Microsoft Azure Attestation</a>).
+The goal is to validate that a token has indeed been issued from an SGX enclave that has certain properties.
+CCF supports the approach taken by MAA where the token signing key and certificate are generated inside the enclave and the certificate embeds evidence from the enclave platform in an X.509 extension (see Open Enclave’s  <a class="reference external" href="https://openenclave.io/apidocs/v0.12/attester_8h_a2d7a05a906935c74a089d3b1240fad64.html#a2d7a05a906935c74a089d3b1240fad64">oe_get_attestation_certificate_with_evidence()</a> for details).
+In this model it is sufficient to validate the evidence of the signing certificates when storing them in CCF.
+After the signing certificates have been stored, token validation follows the same methods as described in earlier sections.</p>
+<p>CCF validates embedded SGX evidence if a key policy is given in the issuer metadata:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;actions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;set_jwt_issuer&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;issuer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://shareduks.uks.attest.azure.net&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;key_filter&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sgx&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;key_policy&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">&quot;sgx_claims&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;signer_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;5e5410aaf99a32e32df2a97d579e65f8310f274816ec4f34cedeeb1be410a526&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;attributes&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0300000000000000&quot;</span>
+<span class="w">          </span><span class="p">}</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;auto_refresh&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>All claims contained in <code class="docutils literal notranslate"><span class="pre">key_policy.sgx_claims</span></code> must be identical to the ones embedded in the certificate.
+Any attempt to add a certificate with mismatching claims in a <code class="docutils literal notranslate"><span class="pre">set_jwt_public_signing_keys</span></code> proposal for that issuer would result in failure.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>See Open Enclave’s <a class="reference external" href="https://openenclave.io/apidocs/v0.12/verifier_8h_a5ad1a6314d2fe5b3470cb3a25c4c39df.html#a5ad1a6314d2fe5b3470cb3a25c4c39df">oe_verify_evidence()</a> for a list of available claim names and their meaning. Note that all claim values must be given hex-encoded.</p>
+</div>
+<p>Some IdPs, like MAA, advertise a mix of SGX and non-SGX signing certificates.
+In this case, <code class="docutils literal notranslate"><span class="pre">key_filter</span></code> must be set to <code class="docutils literal notranslate"><span class="pre">sgx</span></code> such that only those certificates are stored which contain SGX evidence.</p>
+</section>
+<section id="extracting-jwt-metrics">
+<h2>Extracting JWT metrics<a class="headerlink" href="#extracting-jwt-metrics" title="Permalink to this heading">#</a></h2>
+<p>CCF tracks JWT key auto-refresh attempts and successes.
+This can be used to identify errors, for example when the number of attempts doesn’t match the number of successes.
+For each issuer that has auto-refresh enabled, CCF tracks an attempt for each try, and eventually a success, if the update completes.</p>
+<p>Operators can query those numbers via the <a class="reference internal" href="../../operations/operator_rpc_api.html#get--node-jwt_metrics" title="GET /node/jwt_metrics"><code class="xref http http-get docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/node/jwt_metrics</span></code></a> endpoint.</p>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+  
+        <div class="related-pages">
+          <a class="next-page" href="cert.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Certificate Authentication</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="index.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">User Authentication</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2018, Microsoft Research
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+  <script>
+    // Edit this page, on GitHub
+    var contentIconContainer = document.querySelector(".content-icon-container");
+    const editContent = `
+    <div class="edit-this-page">
+      <a class="muted-link" href="https://github.com/Microsoft/CCF/edit/main/doc/build_apps/auth/jwt.rst">
+        <svg viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+          <path d="M4 20h4l10.5 -10.5a1.5 1.5 0 0 0 -4 -4l-10.5 10.5v4" />
+          <line x1="13.5" y1="6.5" x2="17.5" y2="10.5" />
+        </svg>
+      </a>
+    </div>`;
+    contentIconContainer.insertAdjacentHTML("afterbegin", editContent);
+
+    // Show GitHub repository home
+    var icons = document.querySelector(".icons")
+    const repoLinkContent = `
+    <a class="muted-link" href="https://github.com/Microsoft/CCF" aria-label="On GitHub">
+      <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+        <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+      </svg>
+    </a>`;
+    icons.insertAdjacentHTML("beforeend", repoLinkContent);
+  </script>
+
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">JWT Authentication</a><ul>
+<li><a class="reference internal" href="#setting-up-a-token-issuer-with-manual-key-refresh">Setting up a token issuer with manual key refresh</a></li>
+<li><a class="reference internal" href="#setting-up-a-token-issuer-with-automatic-key-refresh">Setting up a token issuer with automatic key refresh</a></li>
+<li><a class="reference internal" href="#removing-a-token-issuer">Removing a token issuer</a></li>
+<li><a class="reference internal" href="#validating-tokens">Validating tokens</a></li>
+<li><a class="reference internal" href="#advanced-issuer-configuration">Advanced issuer configuration</a></li>
+<li><a class="reference internal" href="#extracting-jwt-metrics">Extracting JWT metrics</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../_static/scripts/furo.js?v=32e29ea5"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/tabs.js?v=3ee01567"></script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>

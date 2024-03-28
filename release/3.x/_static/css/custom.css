@@ -1,0 +1,50 @@
+.fa {
+  margin-right: 0.25em;
+}
+
+/* Modify margins of images used as tile icons, to align with text */
+img.ccf-tile-icon {
+  margin: 0 !important;
+  margin-right: 0.3rem !important;
+  width: 22px;
+}
+
+/* Match the font-size growth on wide layouts specified in Furo's _admonitions.sass */
+@media (min-width: 97em) {
+  img.ccf-tile-icon {
+    width: 24px;
+  }
+}
+
+/* Insert white background rectangle for mermaid divs, so they are visible in dark theme */
+body[data-theme="dark"] .mermaid
+{
+  background-color: #ffffff
+}
+
+@media (prefers-color-scheme: dark)
+{
+  body[data-theme="auto"] .mermaid
+  {
+    background-color: #ffffff
+  }
+}
+
+.configproperty > em {
+  font-family: monospace,monospace;
+  font-size: small;
+}
+
+.configproperty > strong {
+  font-family: monospace,monospace;
+  font-size: larger
+}
+
+.configproperty > .headerlink {
+  margin-left: 0.5em;
+  visibility: hidden;
+}
+
+.configproperty:hover > .headerlink {
+    visibility: visible;
+}

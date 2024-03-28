@@ -1,0 +1,1511 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../genindex.html" /><link rel="search" title="Search" href="../../search.html" />
+
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/><!-- Generated with Sphinx 7.1.2 and Furo 2024.01.29 -->
+        <title>ccf.ledger - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo.css?v=135e06be" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/tabs.css?v=4c969af8" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css?v=2a6c4383" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css?v=45cf7dbc" />
+    <link rel="stylesheet" type="text/css" href="../../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css?v=d290406d" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo-extensions.css?v=36a5483c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=ffbb6935" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #3f3f3f;
+  --color-code-foreground: #dcdccc;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #3f3f3f;
+  --color-code-foreground: #dcdccc;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="../../_static/ccf.svg" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="../../_static/ccf.svg" alt="Dark Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded", function(){
+      let selectedVersion = "main";
+      const thisURL = window.location.toString();
+      const splitUrl = thisURL.split("/");
+      const indexOfRelease = splitUrl.indexOf("release");
+      if (indexOfRelease > 0) {
+        selectedVersion = splitUrl[indexOfRelease + 1];
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<label for="versions">
+  <div class="visually-hidden">Select Version:</div>
+</label>
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="../../../../main/index.html">
+      
+        main
+      
+    </option>
+    <option value="ledger.html">
+      
+        3.x
+      
+    </option>
+    <option value="../../../4.x/index.html">
+      
+        4.x
+      
+    </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of Overview</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/what_is_ccf.html">What is CCF?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/governance.html">Governance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/faq.html">Frequently Asked Questions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../overview/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../build_apps/index.html">Build Apps</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Build Apps</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/install_bin.html">Install CCF</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../build_apps/example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of C++ Application</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/example_cpp.html">Example app (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/example_rpc_api.html">Example app RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/js_app_bundle.html">JavaScript Application Bundle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/logging.html">Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../build_apps/auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle navigation of User Authentication</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/auth/cert.html">Certificate Authentication</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../build_apps/kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle navigation of Key-Value Store</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../build_apps/kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/api.html">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/crypto.html">Cryptography API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../build_apps/release_policy.html">Release and compatibility policy</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle navigation of Use Apps</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/verify_tx.html">Verifying Transactions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../operations/index.html">Operations</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle navigation of Operations</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/configuration.html">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/code_upgrade.html">Code Upgrade</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/certificates.html">Certificates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/data_persistence.html">Data Persistence</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/network.html">Networking</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../operations/platforms/index.html">Platforms</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle navigation of Platforms</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../operations/platforms/sgx.html">Intel SGX</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../operations/platforms/snp.html">AMD SEV-SNP</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../operations/platforms/virtual.html">Insecure Virtual</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/troubleshooting.html">Troubleshooting CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../operations/operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../governance/index.html">Governance</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle navigation of Governance</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/constitution.html">Constitution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/js_runtime.html">JavaScript Runtime Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../governance/member_rpc_api.html">Member RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../audit/index.html">Audit</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle navigation of Audit</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../audit/receipts.html">Receipts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../audit/builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../audit/python_library.html">Python Library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../audit/read_write_restrictions.html">Read-Write Permissions On KV Maps</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle navigation of Contribute</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/onboarding.html">Onboarding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/build_ccf.html">Build CCF from Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/release_ccf.html">Release or patch a CCF release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../contribute/build_images.html">CCF Build Images</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../architecture/index.html">Architecture</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of Architecture</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../architecture/consensus/index.html">Consensus Protocols</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Consensus Protocols</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../architecture/consensus/1tx-reconfig.html">One-transaction Reconfiguration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../architecture/consensus/2tx-reconfig.html">Two-transaction Reconfiguration</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/request_flow.html">Request Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/threading.html">Threading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/ledger.html">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/raft_tla.html">TLA+ Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/node_to_node.html">Node-to-Node Channels</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/indexing.html">Indexing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/receipts.html">Receipts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/tls_internals.html">TLS Internals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/tcp_internals.html">TCP Internals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../architecture/quic_internals.html">QUIC Internals</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../research/index.html">Research</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <h1>Source code for ccf.ledger</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) Microsoft Corporation. All rights reserved.</span>
+<span class="c1"># Licensed under the Apache 2.0 License.</span>
+
+<span class="kn">import</span> <span class="nn">io</span>
+<span class="kn">import</span> <span class="nn">struct</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">enum</span> <span class="kn">import</span> <span class="n">Enum</span>
+
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">BinaryIO</span><span class="p">,</span> <span class="n">NamedTuple</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span>
+
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">base64</span>
+<span class="kn">from</span> <span class="nn">dataclasses</span> <span class="kn">import</span> <span class="n">dataclass</span>
+
+<span class="kn">from</span> <span class="nn">cryptography.x509</span> <span class="kn">import</span> <span class="n">load_pem_x509_certificate</span>
+<span class="kn">from</span> <span class="nn">cryptography.hazmat.backends</span> <span class="kn">import</span> <span class="n">default_backend</span>
+<span class="kn">from</span> <span class="nn">cryptography.hazmat.primitives</span> <span class="kn">import</span> <span class="n">hashes</span>
+<span class="kn">from</span> <span class="nn">cryptography.exceptions</span> <span class="kn">import</span> <span class="n">InvalidSignature</span>
+<span class="kn">from</span> <span class="nn">cryptography.hazmat.primitives.asymmetric</span> <span class="kn">import</span> <span class="n">utils</span><span class="p">,</span> <span class="n">ec</span>
+
+<span class="kn">from</span> <span class="nn">ccf.merkletree</span> <span class="kn">import</span> <span class="n">MerkleTree</span>
+<span class="kn">from</span> <span class="nn">ccf.tx_id</span> <span class="kn">import</span> <span class="n">TxID</span>
+<span class="kn">import</span> <span class="nn">ccf.receipt</span>
+<span class="kn">from</span> <span class="nn">hashlib</span> <span class="kn">import</span> <span class="n">sha256</span>
+<span class="kn">import</span> <span class="nn">functools</span>
+
+<span class="n">GCM_SIZE_TAG</span> <span class="o">=</span> <span class="mi">16</span>
+<span class="n">GCM_SIZE_IV</span> <span class="o">=</span> <span class="mi">12</span>
+<span class="n">LEDGER_DOMAIN_SIZE</span> <span class="o">=</span> <span class="mi">8</span>
+<span class="n">LEDGER_HEADER_SIZE</span> <span class="o">=</span> <span class="mi">8</span>
+
+<span class="c1"># Public table names as defined in CCF</span>
+<span class="n">SIGNATURE_TX_TABLE_NAME</span> <span class="o">=</span> <span class="s2">&quot;public:ccf.internal.signatures&quot;</span>
+<span class="n">NODES_TABLE_NAME</span> <span class="o">=</span> <span class="s2">&quot;public:ccf.gov.nodes.info&quot;</span>
+<span class="n">ENDORSED_NODE_CERTIFICATES_TABLE_NAME</span> <span class="o">=</span> <span class="s2">&quot;public:ccf.gov.nodes.endorsed_certificates&quot;</span>
+<span class="n">SERVICE_INFO_TABLE_NAME</span> <span class="o">=</span> <span class="s2">&quot;public:ccf.gov.service.info&quot;</span>
+
+<span class="n">COMMITTED_FILE_SUFFIX</span> <span class="o">=</span> <span class="s2">&quot;.committed&quot;</span>
+<span class="n">RECOVERY_FILE_SUFFIX</span> <span class="o">=</span> <span class="s2">&quot;.recovery&quot;</span>
+<span class="n">IGNORED_FILE_SUFFIX</span> <span class="o">=</span> <span class="s2">&quot;.ignored&quot;</span>
+
+<span class="c1"># Key used by CCF to record single-key tables</span>
+<span class="n">WELL_KNOWN_SINGLETON_TABLE_KEY</span> <span class="o">=</span> <span class="nb">bytes</span><span class="p">(</span><span class="nb">bytearray</span><span class="p">(</span><span class="mi">8</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">NodeStatus</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="n">PENDING</span> <span class="o">=</span> <span class="s2">&quot;Pending&quot;</span>
+    <span class="n">TRUSTED</span> <span class="o">=</span> <span class="s2">&quot;Trusted&quot;</span>
+    <span class="n">RETIRED</span> <span class="o">=</span> <span class="s2">&quot;Retired&quot;</span>
+    <span class="n">LEARNER</span> <span class="o">=</span> <span class="s2">&quot;Learner&quot;</span>
+    <span class="n">RETIRING</span> <span class="o">=</span> <span class="s2">&quot;Retiring&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">EntryType</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+    <span class="n">WRITE_SET</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">SNAPSHOT</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">WRITE_SET_WITH_CLAIMS</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">WRITE_SET_WITH_COMMIT_EVIDENCE</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="n">WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS</span> <span class="o">=</span> <span class="mi">4</span>
+
+    <span class="k">def</span> <span class="nf">has_claims</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="n">EntryType</span><span class="o">.</span><span class="n">WRITE_SET_WITH_CLAIMS</span><span class="p">,</span>
+            <span class="n">EntryType</span><span class="o">.</span><span class="n">WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">has_commit_evidence</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="n">EntryType</span><span class="o">.</span><span class="n">WRITE_SET_WITH_COMMIT_EVIDENCE</span><span class="p">,</span>
+            <span class="n">EntryType</span><span class="o">.</span><span class="n">WRITE_SET_WITH_COMMIT_EVIDENCE_AND_CLAIMS</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">is_deprecated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="n">EntryType</span><span class="o">.</span><span class="n">WRITE_SET</span><span class="p">,</span>
+            <span class="n">EntryType</span><span class="o">.</span><span class="n">WRITE_SET_WITH_CLAIMS</span><span class="p">,</span>
+            <span class="n">EntryType</span><span class="o">.</span><span class="n">WRITE_SET_WITH_COMMIT_EVIDENCE</span><span class="p">,</span>
+        <span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">to_uint_64</span><span class="p">(</span><span class="n">buffer</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s2">&quot;@Q&quot;</span><span class="p">,</span> <span class="n">buffer</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">is_ledger_chunk_committed</span><span class="p">(</span><span class="n">file_name</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">file_name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">COMMITTED_FILE_SUFFIX</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">digest</span><span class="p">(</span><span class="n">algo</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">hashes</span><span class="o">.</span><span class="n">Hash</span><span class="p">(</span><span class="n">algo</span><span class="p">)</span>
+    <span class="n">h</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">h</span><span class="o">.</span><span class="n">finalize</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">unpack</span><span class="p">(</span><span class="n">stream</span><span class="p">,</span> <span class="n">fmt</span><span class="p">):</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">calcsize</span><span class="p">(</span><span class="n">fmt</span><span class="p">)</span>
+    <span class="n">buf</span> <span class="o">=</span> <span class="n">stream</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">size</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">buf</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">EOFError</span>  <span class="c1"># Reached end of stream</span>
+    <span class="k">return</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">buf</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">unpack_array</span><span class="p">(</span><span class="n">stream</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">length</span><span class="p">):</span>
+    <span class="n">buf</span> <span class="o">=</span> <span class="n">stream</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">length</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">buf</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">EOFError</span>  <span class="c1"># Reached end of stream</span>
+    <span class="n">unpack_iter</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">iter_unpack</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">buf</span><span class="p">)</span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="n">unpack_iter</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+            <span class="k">break</span>
+    <span class="k">return</span> <span class="n">ret</span>
+
+
+<span class="k">def</span> <span class="nf">range_from_filename</span><span class="p">(</span><span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]]:</span>
+    <span class="n">elements</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">COMMITTED_FILE_SUFFIX</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">RECOVERY_FILE_SUFFIX</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;ledger_&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">elements</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">elements</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">elements</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">elements</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">elements</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Could not read seqno range from ledger file </span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">GcmHeader</span><span class="p">:</span>
+    <span class="n">_gcm_tag</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;</span><span class="se">\0</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">GCM_SIZE_TAG</span>
+    <span class="n">_gcm_iv</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;</span><span class="se">\0</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">*</span> <span class="n">GCM_SIZE_IV</span>
+
+    <span class="n">view</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">seqno</span><span class="p">:</span> <span class="nb">int</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">buffer</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">GcmHeader</span><span class="o">.</span><span class="n">size</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Corrupt GCM header&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_gcm_tag</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;@</span><span class="si">{</span><span class="n">GCM_SIZE_TAG</span><span class="si">}</span><span class="s2">B&quot;</span><span class="p">,</span> <span class="n">buffer</span><span class="p">[:</span><span class="n">GCM_SIZE_TAG</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_gcm_iv</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;@</span><span class="si">{</span><span class="n">GCM_SIZE_IV</span><span class="si">}</span><span class="s2">B&quot;</span><span class="p">,</span> <span class="n">buffer</span><span class="p">[</span><span class="n">GCM_SIZE_TAG</span><span class="p">:])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">seqno</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s2">&quot;@Q&quot;</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_gcm_iv</span><span class="p">[:</span><span class="mi">8</span><span class="p">]))[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">view</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s2">&quot;@I&quot;</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_gcm_iv</span><span class="p">[</span><span class="mi">8</span><span class="p">:]))[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&amp;</span> <span class="mh">0x7FFFFFFF</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">size</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">GCM_SIZE_TAG</span> <span class="o">+</span> <span class="n">GCM_SIZE_IV</span>
+
+
+<div class="viewcode-block" id="PublicDomain"><a class="viewcode-back" href="../../audit/python_library.html#ccf.ledger.PublicDomain">[docs]</a><span class="k">class</span> <span class="nc">PublicDomain</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    All public tables within a :py:class:`ccf.ledger.Transaction`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_buffer</span><span class="p">:</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span>
+    <span class="n">_buffer_size</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">_entry_type</span><span class="p">:</span> <span class="n">EntryType</span>
+    <span class="n">_claims_digest</span><span class="p">:</span> <span class="nb">bytes</span>
+    <span class="n">_version</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">_max_conflict_version</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">_tables</span><span class="p">:</span> <span class="nb">dict</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">buffer</span><span class="p">:</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span> <span class="o">=</span> <span class="n">buffer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_buffer_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="o">.</span><span class="n">getbuffer</span><span class="p">()</span><span class="o">.</span><span class="n">nbytes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_entry_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_entry_type</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_version</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_version</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entry_type</span><span class="o">.</span><span class="n">has_claims</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_claims_digest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_claims_digest</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entry_type</span><span class="o">.</span><span class="n">has_commit_evidence</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_commit_evidence_digest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_commit_evidence_digest</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_max_conflict_version</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_version</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entry_type</span> <span class="o">==</span> <span class="n">EntryType</span><span class="o">.</span><span class="n">SNAPSHOT</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_read_snapshot_header</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tables</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_read</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">is_deprecated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entry_type</span><span class="o">.</span><span class="n">is_deprecated</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_read_entry_type</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="n">unpack</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">,</span> <span class="s2">&quot;&lt;B&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">EntryType</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_read_claims_digest</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">hashes</span><span class="o">.</span><span class="n">SHA256</span><span class="o">.</span><span class="n">digest_size</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_read_commit_evidence_digest</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">hashes</span><span class="o">.</span><span class="n">SHA256</span><span class="o">.</span><span class="n">digest_size</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_read_version</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">unpack</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">,</span> <span class="s2">&quot;&lt;q&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_version_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">struct</span><span class="o">.</span><span class="n">calcsize</span><span class="p">(</span><span class="s2">&quot;&lt;q&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_read_versioned_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_read_version</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">size</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_version_size</span><span class="p">()))</span>
+
+    <span class="k">def</span> <span class="nf">_read_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">unpack</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">,</span> <span class="s2">&quot;&lt;Q&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_read_string</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_size</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">size</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_read_next_entry</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_size</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">size</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_read_snapshot_header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># read hash of entry at snapshot</span>
+        <span class="n">hash_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_size</span><span class="p">()</span>
+        <span class="n">buffer</span> <span class="o">=</span> <span class="n">unpack</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;&lt;</span><span class="si">{</span><span class="n">hash_size</span><span class="si">}</span><span class="s2">s&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_hash_at_snapshot</span> <span class="o">=</span> <span class="n">buffer</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span>
+
+        <span class="c1"># read view history</span>
+        <span class="n">view_history_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_size</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_view_history</span> <span class="o">=</span> <span class="n">unpack_array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">,</span> <span class="s2">&quot;&lt;Q&quot;</span><span class="p">,</span> <span class="n">view_history_size</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_read_snapshot_entry_padding</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">size</span><span class="p">):</span>
+        <span class="n">padding</span> <span class="o">=</span> <span class="o">-</span><span class="n">size</span> <span class="o">%</span> <span class="mi">8</span>  <span class="c1"># Padded to 8 bytes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">padding</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_read_snapshot_key</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_size</span><span class="p">()</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">size</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_read_snapshot_entry_padding</span><span class="p">(</span><span class="n">size</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">key</span>
+
+    <span class="k">def</span> <span class="nf">_read_snapshot_versioned_value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_size</span><span class="p">()</span>
+        <span class="n">ver</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_versioned_value</span><span class="p">(</span><span class="n">size</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ver</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="p">(</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+            <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;Expected empty value for tombstone deletion at </span><span class="si">{</span><span class="n">ver</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_read_snapshot_entry_padding</span><span class="p">(</span><span class="n">size</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">_read</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">map_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_string</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">EOFError</span><span class="p">:</span>
+                <span class="k">break</span>
+
+            <span class="n">records</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_tables</span><span class="p">[</span><span class="n">map_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">records</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entry_type</span> <span class="o">==</span> <span class="n">EntryType</span><span class="o">.</span><span class="n">SNAPSHOT</span><span class="p">:</span>
+                <span class="c1"># map snapshot version</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_read_version</span><span class="p">()</span>
+
+                <span class="c1"># size of map entry</span>
+                <span class="n">map_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_size</span><span class="p">()</span>
+                <span class="n">start_map_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+
+                <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span> <span class="o">-</span> <span class="n">start_map_pos</span> <span class="o">&lt;</span> <span class="n">map_size</span><span class="p">:</span>
+                    <span class="n">k</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_snapshot_key</span><span class="p">()</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_snapshot_versioned_value</span><span class="p">()</span>
+                    <span class="n">records</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># read_version</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_read_version</span><span class="p">()</span>
+
+                <span class="c1"># read_count</span>
+                <span class="c1"># Note: Read keys are not currently included in ledger transactions</span>
+                <span class="n">read_count</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_size</span><span class="p">()</span>
+                <span class="k">assert</span> <span class="n">read_count</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Unexpected read count: </span><span class="si">{</span><span class="n">read_count</span><span class="si">}</span><span class="s2">&quot;</span>
+
+                <span class="n">write_count</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_size</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">write_count</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">write_count</span><span class="p">):</span>
+                        <span class="n">k</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_next_entry</span><span class="p">()</span>
+                        <span class="n">val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_next_entry</span><span class="p">()</span>
+                        <span class="n">records</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+
+                <span class="n">remove_count</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_size</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">remove_count</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">remove_count</span><span class="p">):</span>
+                        <span class="n">k</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_next_entry</span><span class="p">()</span>
+                        <span class="n">records</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="PublicDomain.get_tables"><a class="viewcode-back" href="../../audit/python_library.html#ccf.ledger.PublicDomain.get_tables">[docs]</a>    <span class="k">def</span> <span class="nf">get_tables</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a dictionary of all public tables (with their content) in a :py:class:`ccf.ledger.Transaction`.</span>
+
+<span class="sd">        :return: Dictionary of public tables with their content.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tables</span></div>
+
+<div class="viewcode-block" id="PublicDomain.get_seqno"><a class="viewcode-back" href="../../audit/python_library.html#ccf.ledger.PublicDomain.get_seqno">[docs]</a>    <span class="k">def</span> <span class="nf">get_seqno</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the sequence number at which the transaction was recorded in the ledger.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_version</span></div>
+
+<div class="viewcode-block" id="PublicDomain.get_claims_digest"><a class="viewcode-back" href="../../audit/python_library.html#ccf.ledger.PublicDomain.get_claims_digest">[docs]</a>    <span class="k">def</span> <span class="nf">get_claims_digest</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bytes</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the claims digest when there is one</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_claims_digest</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entry_type</span><span class="o">.</span><span class="n">has_claims</span><span class="p">()</span> <span class="k">else</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="PublicDomain.get_commit_evidence_digest"><a class="viewcode-back" href="../../audit/python_library.html#ccf.ledger.PublicDomain.get_commit_evidence_digest">[docs]</a>    <span class="k">def</span> <span class="nf">get_commit_evidence_digest</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bytes</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the commit evidence digest when there is one</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_commit_evidence_digest</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entry_type</span><span class="o">.</span><span class="n">has_commit_evidence</span><span class="p">()</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span></div></div>
+
+
+<span class="k">def</span> <span class="nf">_byte_read_safe</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">num_of_bytes</span><span class="p">):</span>
+    <span class="n">offset</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+    <span class="n">ret</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">num_of_bytes</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span> <span class="o">!=</span> <span class="n">num_of_bytes</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Failed to read precise number of bytes in </span><span class="si">{</span><span class="n">file</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> at offset </span><span class="si">{</span><span class="n">offset</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">num_of_bytes</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">ret</span>
+
+
+<span class="k">def</span> <span class="nf">_peek</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">num_bytes</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">save_pos</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">pos</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">file</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+    <span class="n">buffer</span> <span class="o">=</span> <span class="n">_byte_read_safe</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">num_bytes</span><span class="p">)</span>
+    <span class="n">file</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">save_pos</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">buffer</span>
+
+
+<span class="k">def</span> <span class="nf">_peek_all</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">save_pos</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">pos</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">file</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+    <span class="n">buffer</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+    <span class="n">file</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">save_pos</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">buffer</span>
+
+
+<span class="k">class</span> <span class="nc">TxBundleInfo</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Bundle for transaction information required for validation&quot;&quot;&quot;</span>
+
+    <span class="n">merkle_tree</span><span class="p">:</span> <span class="n">MerkleTree</span>
+    <span class="n">existing_root</span><span class="p">:</span> <span class="nb">bytes</span>
+    <span class="n">node_cert</span><span class="p">:</span> <span class="nb">bytes</span>
+    <span class="n">signature</span><span class="p">:</span> <span class="nb">bytes</span>
+    <span class="n">node_activity</span><span class="p">:</span> <span class="nb">dict</span>
+    <span class="n">signing_node</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="k">class</span> <span class="nc">LedgerValidator</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Ledger Validator contains the logic to verify that the ledger hasn&#39;t been tampered with.</span>
+<span class="sd">    It has the ability to take transactions and it maintains a MerkleTree data structure similar to CCF.</span>
+
+<span class="sd">    Ledger is valid and hasn&#39;t been tampered with if following conditions are met:</span>
+<span class="sd">        1) The merkle proof is signed by a Trusted node in the given network</span>
+<span class="sd">        2) The merkle root and signature are verified with the node cert</span>
+<span class="sd">        3) The merkle proof is correct for each set of transactions</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">accept_deprecated_entry_types</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">node_certificates</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">node_activity_status</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">signature_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">accept_deprecated_entry_types</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">accept_deprecated_entry_types</span> <span class="o">=</span> <span class="n">accept_deprecated_entry_types</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chosen_hash</span> <span class="o">=</span> <span class="n">ec</span><span class="o">.</span><span class="n">ECDSA</span><span class="p">(</span><span class="n">utils</span><span class="o">.</span><span class="n">Prehashed</span><span class="p">(</span><span class="n">hashes</span><span class="o">.</span><span class="n">SHA256</span><span class="p">()))</span>
+
+        <span class="c1"># Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of its merkle tree.</span>
+        <span class="c1"># Don&#39;t hash empty bytes array.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">merkle</span> <span class="o">=</span> <span class="n">MerkleTree</span><span class="p">()</span>
+        <span class="n">empty_bytes_array</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">(</span><span class="n">hashes</span><span class="o">.</span><span class="n">SHA256</span><span class="o">.</span><span class="n">digest_size</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">merkle</span><span class="o">.</span><span class="n">add_leaf</span><span class="p">(</span><span class="n">empty_bytes_array</span><span class="p">,</span> <span class="n">do_hash</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_verified_seqno</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_verified_view</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">service_status</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">last_verified_txid</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TxID</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">TxID</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">last_verified_view</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_verified_seqno</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">add_transaction</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transaction</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        To validate the ledger, ledger transactions need to be added via this method.</span>
+<span class="sd">        Depending on the tables that were part of the transaction, it does different things.</span>
+<span class="sd">        When transaction contains signature table, it starts the verification process and verifies that the root of merkle tree was signed by a node which was part of the network.</span>
+<span class="sd">        It also matches the root of the merkle tree that this class maintains with the one extracted from the ledger.</span>
+<span class="sd">        Further, it validates all service status transitions.</span>
+<span class="sd">        If any of the above checks fail, this method throws.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">transaction_public_domain</span> <span class="o">=</span> <span class="n">transaction</span><span class="o">.</span><span class="n">get_public_domain</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">accept_deprecated_entry_types</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="ow">not</span> <span class="n">transaction_public_domain</span><span class="o">.</span><span class="n">is_deprecated</span><span class="p">()</span>
+        <span class="n">tables</span> <span class="o">=</span> <span class="n">transaction_public_domain</span><span class="o">.</span><span class="n">get_tables</span><span class="p">()</span>
+
+        <span class="c1"># Add contributing nodes certs and update nodes network trust status for verification</span>
+        <span class="n">node_certs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">NODES_TABLE_NAME</span> <span class="ow">in</span> <span class="n">tables</span><span class="p">:</span>
+            <span class="n">node_table</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="n">NODES_TABLE_NAME</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">node_id</span><span class="p">,</span> <span class="n">node_info</span> <span class="ow">in</span> <span class="n">node_table</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">node_id</span> <span class="o">=</span> <span class="n">node_id</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">node_info</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="c1"># Node has been removed from the store</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">node_activity_status</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">node_id</span><span class="p">)</span>
+                    <span class="k">continue</span>
+
+                <span class="n">node_info</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">node_info</span><span class="p">)</span>
+                <span class="c1"># Add the self-signed node certificate (only available in 1.x,</span>
+                <span class="c1"># refer to node endorsed certificates table otherwise)</span>
+                <span class="k">if</span> <span class="s2">&quot;cert&quot;</span> <span class="ow">in</span> <span class="n">node_info</span><span class="p">:</span>
+                    <span class="n">node_certs</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">node_info</span><span class="p">[</span><span class="s2">&quot;cert&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">node_certificates</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">node_certs</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span>
+                <span class="c1"># Update node trust status</span>
+                <span class="c1"># Also record the seqno at which the node status changed to</span>
+                <span class="c1"># track when a primary node should stop issuing signatures</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">node_activity_status</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">node_info</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">],</span>
+                    <span class="n">transaction_public_domain</span><span class="o">.</span><span class="n">get_seqno</span><span class="p">(),</span>
+                    <span class="n">node_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;retired_committed&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
+                <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">ENDORSED_NODE_CERTIFICATES_TABLE_NAME</span> <span class="ow">in</span> <span class="n">tables</span><span class="p">:</span>
+            <span class="n">node_endorsed_certificates_tables</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span>
+                <span class="n">ENDORSED_NODE_CERTIFICATES_TABLE_NAME</span>
+            <span class="p">]</span>
+            <span class="k">for</span> <span class="p">(</span>
+                <span class="n">node_id</span><span class="p">,</span>
+                <span class="n">endorsed_node_cert</span><span class="p">,</span>
+            <span class="p">)</span> <span class="ow">in</span> <span class="n">node_endorsed_certificates_tables</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">node_id</span> <span class="o">=</span> <span class="n">node_id</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+                <span class="k">assert</span> <span class="p">(</span>
+                    <span class="n">node_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">node_certs</span>
+                <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;Only one of node self-signed certificate and endorsed certificate should be recorded for node </span><span class="si">{</span><span class="n">node_id</span><span class="si">}</span><span class="s2">&quot;</span>
+
+                <span class="k">if</span> <span class="n">endorsed_node_cert</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="c1"># Node has been removed from the store</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">node_certificates</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">node_id</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">node_certificates</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">endorsed_node_cert</span>
+
+        <span class="c1"># This is a merkle root/signature tx if the table exists</span>
+        <span class="k">if</span> <span class="n">SIGNATURE_TX_TABLE_NAME</span> <span class="ow">in</span> <span class="n">tables</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">signature_count</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">signature_table</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="n">SIGNATURE_TX_TABLE_NAME</span><span class="p">]</span>
+
+            <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">signature</span> <span class="ow">in</span> <span class="n">signature_table</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">signature</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">signature</span><span class="p">)</span>
+                <span class="n">current_seqno</span> <span class="o">=</span> <span class="n">signature</span><span class="p">[</span><span class="s2">&quot;seqno&quot;</span><span class="p">]</span>
+                <span class="n">current_view</span> <span class="o">=</span> <span class="n">signature</span><span class="p">[</span><span class="s2">&quot;view&quot;</span><span class="p">]</span>
+                <span class="n">signing_node</span> <span class="o">=</span> <span class="n">signature</span><span class="p">[</span><span class="s2">&quot;node&quot;</span><span class="p">]</span>
+
+                <span class="c1"># Get binary representations for the cert, existing root, and signature</span>
+                <span class="n">cert</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">node_certificates</span><span class="p">[</span><span class="n">signing_node</span><span class="p">]</span>
+                <span class="n">existing_root</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">fromhex</span><span class="p">(</span><span class="n">signature</span><span class="p">[</span><span class="s2">&quot;root&quot;</span><span class="p">])</span>
+                <span class="n">sig</span> <span class="o">=</span> <span class="n">base64</span><span class="o">.</span><span class="n">b64decode</span><span class="p">(</span><span class="n">signature</span><span class="p">[</span><span class="s2">&quot;sig&quot;</span><span class="p">])</span>
+
+                <span class="n">tx_info</span> <span class="o">=</span> <span class="n">TxBundleInfo</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">merkle</span><span class="p">,</span>
+                    <span class="n">existing_root</span><span class="p">,</span>
+                    <span class="n">cert</span><span class="p">,</span>
+                    <span class="n">sig</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">node_activity_status</span><span class="p">,</span>
+                    <span class="n">signing_node</span><span class="p">,</span>
+                <span class="p">)</span>
+
+                <span class="c1"># validations for 1, 2 and 3</span>
+                <span class="c1"># throws if ledger validation failed.</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_verify_tx_set</span><span class="p">(</span><span class="n">tx_info</span><span class="p">)</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">last_verified_seqno</span> <span class="o">=</span> <span class="n">current_seqno</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">last_verified_view</span> <span class="o">=</span> <span class="n">current_view</span>
+
+        <span class="c1"># Check service status transitions</span>
+        <span class="k">if</span> <span class="n">SERVICE_INFO_TABLE_NAME</span> <span class="ow">in</span> <span class="n">tables</span><span class="p">:</span>
+            <span class="n">service_table</span> <span class="o">=</span> <span class="n">tables</span><span class="p">[</span><span class="n">SERVICE_INFO_TABLE_NAME</span><span class="p">]</span>
+            <span class="n">updated_service</span> <span class="o">=</span> <span class="n">service_table</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">WELL_KNOWN_SINGLETON_TABLE_KEY</span><span class="p">)</span>
+            <span class="n">updated_service_json</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">updated_service</span><span class="p">)</span>
+            <span class="n">updated_status</span> <span class="o">=</span> <span class="n">updated_service_json</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">updated_status</span> <span class="o">==</span> <span class="s2">&quot;Opening&quot;</span><span class="p">:</span>
+                <span class="c1"># DR can happen at any point, so a transition to &quot;Opening&quot; is always valid</span>
+                <span class="k">pass</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">service_status</span> <span class="o">==</span> <span class="n">updated_status</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">service_status</span> <span class="o">==</span> <span class="s2">&quot;Opening&quot;</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">updated_status</span> <span class="ow">in</span> <span class="p">[</span>
+                    <span class="s2">&quot;Open&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;WaitingForRecoveryShares&quot;</span><span class="p">,</span>
+                <span class="p">],</span> <span class="n">updated_status</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">service_status</span> <span class="o">==</span> <span class="s2">&quot;Recovering&quot;</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">updated_status</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;WaitingForRecoveryShares&quot;</span><span class="p">],</span> <span class="n">updated_status</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">service_status</span> <span class="o">==</span> <span class="s2">&quot;WaitingForRecoveryShares&quot;</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">updated_status</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;Open&quot;</span><span class="p">],</span> <span class="n">updated_status</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">service_status</span> <span class="o">==</span> <span class="s2">&quot;Open&quot;</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">updated_status</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;Recovering&quot;</span><span class="p">],</span> <span class="n">updated_status</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">service_status</span> <span class="o">==</span> <span class="kc">None</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">service_status</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">service_status</span> <span class="o">=</span> <span class="n">updated_status</span>
+
+        <span class="c1"># Checks complete, add this transaction to tree</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">merkle</span><span class="o">.</span><span class="n">add_leaf</span><span class="p">(</span><span class="n">transaction</span><span class="o">.</span><span class="n">get_tx_digest</span><span class="p">(),</span> <span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_verify_tx_set</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tx_info</span><span class="p">:</span> <span class="n">TxBundleInfo</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Verify items 1, 2, and 3 for all the transactions up until a signature.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># 1) The merkle root is signed by a Trusted node in the given network, else throws</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_verify_node_status</span><span class="p">(</span><span class="n">tx_info</span><span class="p">)</span>
+        <span class="c1"># 2) The merkle root and signature are verified with the node cert, else throws</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_verify_root_signature</span><span class="p">(</span><span class="n">tx_info</span><span class="p">)</span>
+        <span class="c1"># 3) The merkle root is correct for the set of transactions and matches with the one extracted from the ledger, else throws</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_verify_merkle_root</span><span class="p">(</span><span class="n">tx_info</span><span class="o">.</span><span class="n">merkle_tree</span><span class="p">,</span> <span class="n">tx_info</span><span class="o">.</span><span class="n">existing_root</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_verify_node_status</span><span class="p">(</span><span class="n">tx_info</span><span class="p">:</span> <span class="n">TxBundleInfo</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Verify item 1, The merkle root is signed by a valid node in the given network&quot;&quot;&quot;</span>
+        <span class="c1"># Note: A retired primary will still issue signature transactions until</span>
+        <span class="c1"># its retirement is committed</span>
+        <span class="n">node_info</span> <span class="o">=</span> <span class="n">tx_info</span><span class="o">.</span><span class="n">node_activity</span><span class="p">[</span><span class="n">tx_info</span><span class="o">.</span><span class="n">signing_node</span><span class="p">]</span>
+        <span class="n">node_status</span> <span class="o">=</span> <span class="n">NodeStatus</span><span class="p">(</span><span class="n">node_info</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">node_status</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="n">NodeStatus</span><span class="o">.</span><span class="n">TRUSTED</span><span class="p">,</span>
+            <span class="n">NodeStatus</span><span class="o">.</span><span class="n">RETIRING</span><span class="p">,</span>
+            <span class="n">NodeStatus</span><span class="o">.</span><span class="n">RETIRED</span><span class="p">,</span>
+        <span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">node_status</span> <span class="o">==</span> <span class="n">NodeStatus</span><span class="o">.</span><span class="n">RETIRED</span> <span class="ow">and</span> <span class="n">node_info</span><span class="p">[</span><span class="mi">2</span><span class="p">]):</span>
+            <span class="k">raise</span> <span class="n">UntrustedNodeException</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;The signing node </span><span class="si">{</span><span class="n">tx_info</span><span class="o">.</span><span class="n">signing_node</span><span class="si">}</span><span class="s2"> has unexpected status </span><span class="si">{</span><span class="n">node_status</span><span class="o">.</span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_verify_root_signature</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tx_info</span><span class="p">:</span> <span class="n">TxBundleInfo</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Verify item 2, that the Merkle root signature validates against the node certificate&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cert</span> <span class="o">=</span> <span class="n">load_pem_x509_certificate</span><span class="p">(</span><span class="n">tx_info</span><span class="o">.</span><span class="n">node_cert</span><span class="p">,</span> <span class="n">default_backend</span><span class="p">())</span>
+            <span class="n">pub_key</span> <span class="o">=</span> <span class="n">cert</span><span class="o">.</span><span class="n">public_key</span><span class="p">()</span>
+
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">pub_key</span><span class="p">,</span> <span class="n">ec</span><span class="o">.</span><span class="n">EllipticCurvePublicKey</span><span class="p">)</span>
+            <span class="n">pub_key</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span>
+                <span class="n">tx_info</span><span class="o">.</span><span class="n">signature</span><span class="p">,</span> <span class="n">tx_info</span><span class="o">.</span><span class="n">existing_root</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">chosen_hash</span>
+            <span class="p">)</span>  <span class="c1"># type: ignore[override]</span>
+        <span class="c1"># This exception is thrown from x509, catch for logging and raise our own</span>
+        <span class="k">except</span> <span class="n">InvalidSignature</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidRootSignatureException</span><span class="p">(</span>
+                <span class="s2">&quot;Signature verification failed:&quot;</span>
+                <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Certificate: </span><span class="si">{</span><span class="n">tx_info</span><span class="o">.</span><span class="n">node_cert</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Signature: </span><span class="si">{</span><span class="n">base64</span><span class="o">.</span><span class="n">b64encode</span><span class="p">(</span><span class="n">tx_info</span><span class="o">.</span><span class="n">signature</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="o">+</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Root: </span><span class="si">{</span><span class="n">tx_info</span><span class="o">.</span><span class="n">existing_root</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span> <span class="kn">from</span> <span class="nn">InvalidSignature</span>
+
+    <span class="k">def</span> <span class="nf">_verify_merkle_root</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">merkletree</span><span class="p">:</span> <span class="n">MerkleTree</span><span class="p">,</span> <span class="n">existing_root</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Verify item 3, by comparing the roots from the merkle tree that&#39;s maintained by this class and from the one extracted from the ledger&quot;&quot;&quot;</span>
+        <span class="n">root</span> <span class="o">=</span> <span class="n">merkletree</span><span class="o">.</span><span class="n">get_merkle_root</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">root</span> <span class="o">!=</span> <span class="n">existing_root</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidRootException</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Computed root: </span><span class="si">{</span><span class="n">root</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2"> </span><span class="se">\n</span><span class="s2">Existing root from ledger: </span><span class="si">{</span><span class="n">existing_root</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">TransactionHeader</span><span class="p">:</span>
+    <span class="n">VERSION_LENGTH</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">FLAGS_LENGTH</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">SIZE_LENGTH</span> <span class="o">=</span> <span class="mi">6</span>
+
+    <span class="c1"># 1-byte entry version</span>
+    <span class="n">version</span><span class="p">:</span> <span class="nb">int</span>
+
+    <span class="c1"># 1-byte flags</span>
+    <span class="n">flags</span><span class="p">:</span> <span class="nb">int</span>
+
+    <span class="c1"># 6-byte transaction size</span>
+    <span class="n">size</span><span class="p">:</span> <span class="nb">int</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">buffer</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">TransactionHeader</span><span class="o">.</span><span class="n">get_size</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Incomplete transaction header&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">version</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span>
+            <span class="n">buffer</span><span class="p">[:</span> <span class="n">TransactionHeader</span><span class="o">.</span><span class="n">VERSION_LENGTH</span><span class="p">],</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;little&quot;</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">flags</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span>
+            <span class="n">buffer</span><span class="p">[</span>
+                <span class="n">TransactionHeader</span><span class="o">.</span><span class="n">VERSION_LENGTH</span> <span class="p">:</span> <span class="n">TransactionHeader</span><span class="o">.</span><span class="n">VERSION_LENGTH</span>
+                <span class="o">+</span> <span class="n">TransactionHeader</span><span class="o">.</span><span class="n">FLAGS_LENGTH</span>
+            <span class="p">],</span>
+            <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;little&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span>
+            <span class="n">buffer</span><span class="p">[</span><span class="o">-</span><span class="n">TransactionHeader</span><span class="o">.</span><span class="n">SIZE_LENGTH</span> <span class="p">:],</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;little&quot;</span>
+        <span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">get_size</span><span class="p">():</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">TransactionHeader</span><span class="o">.</span><span class="n">VERSION_LENGTH</span>
+            <span class="o">+</span> <span class="n">TransactionHeader</span><span class="o">.</span><span class="n">FLAGS_LENGTH</span>
+            <span class="o">+</span> <span class="n">TransactionHeader</span><span class="o">.</span><span class="n">SIZE_LENGTH</span>
+        <span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">Entry</span><span class="p">:</span>
+    <span class="n">_file</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">BinaryIO</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_header</span><span class="p">:</span> <span class="n">TransactionHeader</span>
+    <span class="n">_public_domain_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">_public_domain</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PublicDomain</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_file_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">gcm_header</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">GcmHeader</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">==</span> <span class="n">Entry</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Entry is not instantiable&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_file</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;rb&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;File </span><span class="si">{</span><span class="n">filename</span><span class="si">}</span><span class="s2"> could not be opened&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="fm">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_value</span><span class="p">,</span> <span class="n">traceback</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_read_header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># read the transaction header</span>
+        <span class="n">buffer</span> <span class="o">=</span> <span class="n">_byte_read_safe</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_file</span><span class="p">,</span> <span class="n">TransactionHeader</span><span class="o">.</span><span class="n">get_size</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_header</span> <span class="o">=</span> <span class="n">TransactionHeader</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
+        <span class="n">entry_start_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+
+        <span class="c1"># read the AES GCM header</span>
+        <span class="n">buffer</span> <span class="o">=</span> <span class="n">_byte_read_safe</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_file</span><span class="p">,</span> <span class="n">GcmHeader</span><span class="o">.</span><span class="n">size</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gcm_header</span> <span class="o">=</span> <span class="n">GcmHeader</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
+
+        <span class="c1"># read the size of the public domain</span>
+        <span class="n">buffer</span> <span class="o">=</span> <span class="n">_byte_read_safe</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_file</span><span class="p">,</span> <span class="n">LEDGER_DOMAIN_SIZE</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_public_domain_size</span> <span class="o">=</span> <span class="n">to_uint_64</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">entry_start_pos</span>
+
+    <span class="k">def</span> <span class="nf">get_public_domain</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PublicDomain</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieve the public (i.e. non-encrypted) domain for that entry.</span>
+
+<span class="sd">        Note: Even if the entry is private-only, an empty :py:class:`ccf.ledger.PublicDomain` object is returned.</span>
+
+<span class="sd">        :return: :py:class:`ccf.ledger.PublicDomain`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_public_domain</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">buffer</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">BytesIO</span><span class="p">(</span><span class="n">_byte_read_safe</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_file</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_public_domain_size</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_public_domain</span> <span class="o">=</span> <span class="n">PublicDomain</span><span class="p">(</span><span class="n">buffer</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_public_domain</span>
+
+    <span class="k">def</span> <span class="nf">get_private_domain_size</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieve the size of the private (i.e. encrypted) domain for that transaction.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">size</span> <span class="o">-</span> <span class="p">(</span>
+            <span class="n">GcmHeader</span><span class="o">.</span><span class="n">size</span><span class="p">()</span> <span class="o">+</span> <span class="n">LEDGER_DOMAIN_SIZE</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_public_domain_size</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_transaction_header</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TransactionHeader</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span>
+
+
+<div class="viewcode-block" id="Transaction"><a class="viewcode-back" href="../../audit/python_library.html#ccf.ledger.Transaction">[docs]</a><span class="k">class</span> <span class="nc">Transaction</span><span class="p">(</span><span class="n">Entry</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A transaction represents one entry in the CCF ledger.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_next_offset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">LEDGER_HEADER_SIZE</span>
+    <span class="n">_tx_offset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">_ledger_validator</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">LedgerValidator</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_dgst</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">digest</span><span class="p">,</span> <span class="n">hashes</span><span class="o">.</span><span class="n">SHA256</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">ledger_validator</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">LedgerValidator</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ledger_validator</span> <span class="o">=</span> <span class="n">ledger_validator</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pos_offset</span> <span class="o">=</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span>
+            <span class="n">_byte_read_safe</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_file</span><span class="p">,</span> <span class="n">LEDGER_HEADER_SIZE</span><span class="p">),</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;little&quot;</span>
+        <span class="p">)</span>
+        <span class="c1"># If the ledger chunk is not yet committed, the ledger header will be empty.</span>
+        <span class="c1"># Default to reading the file size instead.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_file_size</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_pos_offset</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pos_offset</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getsize</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_read_header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tx_offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_read_header</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_next_offset</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_next_offset</span> <span class="o">+=</span> <span class="n">TransactionHeader</span><span class="o">.</span><span class="n">get_size</span><span class="p">()</span>
+
+<div class="viewcode-block" id="Transaction.get_raw_tx"><a class="viewcode-back" href="../../audit/python_library.html#ccf.ledger.Transaction.get_raw_tx">[docs]</a>    <span class="k">def</span> <span class="nf">get_raw_tx</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return raw transaction bytes.</span>
+
+<span class="sd">        :return: Raw transaction bytes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+        <span class="k">return</span> <span class="n">_peek</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_file</span><span class="p">,</span>
+            <span class="n">TransactionHeader</span><span class="o">.</span><span class="n">get_size</span><span class="p">()</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">size</span><span class="p">,</span>
+            <span class="n">pos</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_tx_offset</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">get_len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_raw_tx</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="nf">get_offsets</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_tx_offset</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_next_offset</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_write_set_digest</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_dgst</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">digest</span><span class="p">,</span> <span class="n">hashes</span><span class="o">.</span><span class="n">SHA256</span><span class="p">())</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dgst</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_raw_tx</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="nf">get_tx_digest</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+        <span class="n">claims_digest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_public_domain</span><span class="p">()</span><span class="o">.</span><span class="n">get_claims_digest</span><span class="p">()</span>
+        <span class="n">commit_evidence_digest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_public_domain</span><span class="p">()</span><span class="o">.</span><span class="n">get_commit_evidence_digest</span><span class="p">()</span>
+        <span class="n">write_set_digest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_write_set_digest</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">claims_digest</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">commit_evidence_digest</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">write_set_digest</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dgst</span><span class="p">(</span><span class="n">write_set_digest</span> <span class="o">+</span> <span class="n">commit_evidence_digest</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="p">(</span>
+                <span class="n">commit_evidence_digest</span>
+            <span class="p">),</span> <span class="s2">&quot;Invalid transaction: commit_evidence_digest not set&quot;</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dgst</span><span class="p">(</span><span class="n">write_set_digest</span> <span class="o">+</span> <span class="n">commit_evidence_digest</span> <span class="o">+</span> <span class="n">claims_digest</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_complete_read</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_file</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_next_offset</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_public_domain</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="fm">__next__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_next_offset</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file_size</span><span class="p">:</span>
+            <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">raise</span> <span class="ne">StopIteration</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_complete_read</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_read_header</span><span class="p">()</span>
+
+        <span class="c1"># Adds every transaction to the ledger validator</span>
+        <span class="c1"># LedgerValidator does verification for every added transaction</span>
+        <span class="c1"># and throws when it finds any anomaly.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ledger_validator</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ledger_validator</span><span class="o">.</span><span class="n">add_transaction</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="Snapshot"><a class="viewcode-back" href="../../audit/python_library.html#ccf.ledger.Snapshot">[docs]</a><span class="k">class</span> <span class="nc">Snapshot</span><span class="p">(</span><span class="n">Entry</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Utility used to parse the content of a snapshot file.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_filename</span><span class="p">:</span> <span class="nb">str</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_filename</span> <span class="o">=</span> <span class="n">filename</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_file_size</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getsize</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+
+        <span class="n">entry_start_pos</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_read_header</span><span class="p">()</span>
+
+        <span class="c1"># 1.x snapshots do not include evidence</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_committed</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_snapshot_file_1_x</span><span class="p">():</span>
+            <span class="n">receipt_pos</span> <span class="o">=</span> <span class="n">entry_start_pos</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">size</span>
+            <span class="n">receipt_bytes</span> <span class="o">=</span> <span class="n">_peek_all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_file</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="n">receipt_pos</span><span class="p">)</span>
+
+            <span class="n">receipt</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">receipt_bytes</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">))</span>
+            <span class="c1"># Receipts included in snapshots always contain leaf components,</span>
+            <span class="c1"># including a claims digest and commit evidence, from 2.0.0-rc0 onwards.</span>
+            <span class="c1"># This verification code deliberately does not support snapshots</span>
+            <span class="c1"># produced by 2.0.0-dev* releases.</span>
+            <span class="k">assert</span> <span class="s2">&quot;leaf_components&quot;</span> <span class="ow">in</span> <span class="n">receipt</span>
+            <span class="n">write_set_digest</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">fromhex</span><span class="p">(</span>
+                <span class="n">receipt</span><span class="p">[</span><span class="s2">&quot;leaf_components&quot;</span><span class="p">][</span><span class="s2">&quot;write_set_digest&quot;</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">claims_digest</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">fromhex</span><span class="p">(</span><span class="n">receipt</span><span class="p">[</span><span class="s2">&quot;leaf_components&quot;</span><span class="p">][</span><span class="s2">&quot;claims_digest&quot;</span><span class="p">])</span>
+            <span class="n">commit_evidence_digest</span> <span class="o">=</span> <span class="n">sha256</span><span class="p">(</span>
+                <span class="n">receipt</span><span class="p">[</span><span class="s2">&quot;leaf_components&quot;</span><span class="p">][</span><span class="s2">&quot;commit_evidence&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">digest</span><span class="p">()</span>
+            <span class="n">leaf</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">sha256</span><span class="p">(</span><span class="n">write_set_digest</span> <span class="o">+</span> <span class="n">commit_evidence_digest</span> <span class="o">+</span> <span class="n">claims_digest</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">digest</span><span class="p">()</span>
+                <span class="o">.</span><span class="n">hex</span><span class="p">()</span>
+            <span class="p">)</span>
+            <span class="n">root</span> <span class="o">=</span> <span class="n">ccf</span><span class="o">.</span><span class="n">receipt</span><span class="o">.</span><span class="n">root</span><span class="p">(</span><span class="n">leaf</span><span class="p">,</span> <span class="n">receipt</span><span class="p">[</span><span class="s2">&quot;proof&quot;</span><span class="p">])</span>
+            <span class="n">node_cert</span> <span class="o">=</span> <span class="n">load_pem_x509_certificate</span><span class="p">(</span>
+                <span class="n">receipt</span><span class="p">[</span><span class="s2">&quot;cert&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">encode</span><span class="p">(),</span> <span class="n">default_backend</span><span class="p">()</span>
+            <span class="p">)</span>
+            <span class="n">ccf</span><span class="o">.</span><span class="n">receipt</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">receipt</span><span class="p">[</span><span class="s2">&quot;signature&quot;</span><span class="p">],</span> <span class="n">node_cert</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">is_committed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">COMMITTED_FILE_SUFFIX</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_filename</span>
+
+    <span class="k">def</span> <span class="nf">is_snapshot_file_1_x</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Kept here for compatibility</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_committed</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Snapshot file </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_filename</span><span class="si">}</span><span class="s2"> is not yet committed&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_filename</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">COMMITTED_FILE_SUFFIX</span><span class="p">)[</span><span class="mi">1</span><span class="p">])</span> <span class="o">!=</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">get_len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file_size</span></div>
+
+
+<div class="viewcode-block" id="LedgerChunk"><a class="viewcode-back" href="../../audit/python_library.html#ccf.ledger.LedgerChunk">[docs]</a><span class="k">class</span> <span class="nc">LedgerChunk</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class used to parse and iterate over :py:class:`ccf.ledger.Transaction` in a CCF ledger chunk.</span>
+
+<span class="sd">    :param str name: Name for a single ledger chunk.</span>
+<span class="sd">    :param LedgerValidator ledger_validator: :py:class:`LedgerValidator` instance used to verify ledger integrity.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_current_tx</span><span class="p">:</span> <span class="n">Transaction</span>
+    <span class="n">_filename</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">_ledger_validator</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">LedgerValidator</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">ledger_validator</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">LedgerValidator</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ledger_validator</span> <span class="o">=</span> <span class="n">ledger_validator</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_current_tx</span> <span class="o">=</span> <span class="n">Transaction</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">ledger_validator</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pos_offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_current_tx</span><span class="o">.</span><span class="n">_pos_offset</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_filename</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">start_seqno</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_seqno</span> <span class="o">=</span> <span class="n">range_from_filename</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__next__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Transaction</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_current_tx</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">filename</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_filename</span>
+
+    <span class="k">def</span> <span class="nf">is_committed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">is_ledger_chunk_committed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_filename</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">is_complete</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pos_offset</span> <span class="o">&gt;</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">get_seqnos</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_seqno</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_seqno</span></div>
+
+
+<span class="k">class</span> <span class="nc">LedgerIterator</span><span class="p">:</span>
+    <span class="n">_filenames</span><span class="p">:</span> <span class="nb">list</span>
+    <span class="n">_fileindex</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="n">_current_chunk</span><span class="p">:</span> <span class="n">LedgerChunk</span>
+    <span class="n">_validator</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">LedgerValidator</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filenames</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="n">validator</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">LedgerValidator</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_filenames</span> <span class="o">=</span> <span class="n">filenames</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span> <span class="o">=</span> <span class="n">validator</span>
+
+    <span class="k">def</span> <span class="fm">__next__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">LedgerChunk</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fileindex</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_filenames</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fileindex</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_current_chunk</span> <span class="o">=</span> <span class="n">LedgerChunk</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_filenames</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_fileindex</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_current_chunk</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">StopIteration</span>
+
+    <span class="k">def</span> <span class="nf">signature_count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span><span class="o">.</span><span class="n">signature_count</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span> <span class="k">else</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">last_verified_txid</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TxID</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span><span class="o">.</span><span class="n">last_verified_txid</span><span class="p">()</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span> <span class="k">else</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="Ledger"><a class="viewcode-back" href="../../audit/python_library.html#ccf.ledger.Ledger">[docs]</a><span class="k">class</span> <span class="nc">Ledger</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class used to iterate over all :py:class:`ccf.ledger.LedgerChunk` stored in a CCF ledger folder.</span>
+
+<span class="sd">    :param str name: Ledger directory for a single CCF node.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_filenames</span><span class="p">:</span> <span class="nb">list</span>
+    <span class="n">_validator</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">LedgerValidator</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">paths</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+        <span class="n">committed_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">read_recovery_files</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">validator</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">LedgerValidator</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_filenames</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">ledger_files</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">def</span> <span class="nf">try_add_chunk</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+            <span class="n">sanitised_path</span> <span class="o">=</span> <span class="n">path</span>
+            <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">RECOVERY_FILE_SUFFIX</span><span class="p">):</span>
+                <span class="n">sanitised_path</span> <span class="o">=</span> <span class="n">path</span><span class="p">[:</span> <span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">RECOVERY_FILE_SUFFIX</span><span class="p">)]</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">read_recovery_files</span><span class="p">:</span>
+                    <span class="k">return</span>
+
+            <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">IGNORED_FILE_SUFFIX</span><span class="p">):</span>
+                <span class="k">return</span>
+
+            <span class="k">if</span> <span class="n">committed_only</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">sanitised_path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">COMMITTED_FILE_SUFFIX</span><span class="p">):</span>
+                <span class="k">return</span>
+
+            <span class="c1"># The same ledger file may appear multiple times in different directories</span>
+            <span class="c1"># so ignore duplicates</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="ow">in</span> <span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">ledger_files</span>
+            <span class="p">):</span>
+                <span class="n">ledger_files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+                    <span class="n">chunk</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+                    <span class="n">try_add_chunk</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+                <span class="n">try_add_chunk</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">p</span><span class="si">}</span><span class="s2"> is not a ledger directory or ledger chunk&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Sorts the list based off the first number after ledger_ so that</span>
+        <span class="c1"># the ledger is verified in sequence</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_filenames</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+            <span class="n">ledger_files</span><span class="p">,</span>
+            <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">range_from_filename</span><span class="p">(</span><span class="n">x</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span>
+        <span class="p">)</span>
+
+        <span class="c1"># If we do not have a single contiguous range, report an error</span>
+        <span class="k">for</span> <span class="n">file_a</span><span class="p">,</span> <span class="n">file_b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_filenames</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_filenames</span><span class="p">[</span><span class="mi">1</span><span class="p">:]):</span>
+            <span class="n">range_a</span> <span class="o">=</span> <span class="n">range_from_filename</span><span class="p">(</span><span class="n">file_a</span><span class="p">)</span>
+            <span class="n">range_b</span> <span class="o">=</span> <span class="n">range_from_filename</span><span class="p">(</span><span class="n">file_b</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">range_a</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">range_b</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Ledger cannot parse committed chunk </span><span class="si">{</span><span class="n">file_b</span><span class="si">}</span><span class="s2"> following uncommitted chunk </span><span class="si">{</span><span class="n">file_a</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="n">validator</span> <span class="ow">and</span> <span class="n">range_a</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">range_a</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">!=</span> <span class="n">range_b</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Ledger cannot parse non-contiguous chunks </span><span class="si">{</span><span class="n">file_a</span><span class="si">}</span><span class="s2"> and </span><span class="si">{</span><span class="n">file_b</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span> <span class="o">=</span> <span class="n">validator</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">last_committed_chunk_range</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]]:</span>
+        <span class="n">last_chunk_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_filenames</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">range_from_filename</span><span class="p">(</span><span class="n">last_chunk_name</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_filenames</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">LedgerIterator</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_filenames</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Ledger.get_transaction"><a class="viewcode-back" href="../../audit/python_library.html#ccf.ledger.Ledger.get_transaction">[docs]</a>    <span class="k">def</span> <span class="nf">get_transaction</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seqno</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Transaction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the :py:class:`ccf.ledger.Transaction` recorded in the ledger at the given sequence number.</span>
+
+<span class="sd">        Note that the transaction returned may not yet be verified by a</span>
+<span class="sd">        signature transaction nor committed by the service.</span>
+
+<span class="sd">        :param int seqno: Sequence number of the transaction to fetch.</span>
+
+<span class="sd">        :return: :py:class:`ccf.ledger.Transaction`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">seqno</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Ledger first seqno is 1&quot;</span><span class="p">)</span>
+
+        <span class="n">transaction</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="n">_</span><span class="p">,</span> <span class="n">chunk_end</span> <span class="o">=</span> <span class="n">chunk</span><span class="o">.</span><span class="n">get_seqnos</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">tx</span> <span class="ow">in</span> <span class="n">chunk</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">chunk_end</span> <span class="ow">and</span> <span class="n">chunk_end</span> <span class="o">&lt;</span> <span class="n">seqno</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">public_transaction</span> <span class="o">=</span> <span class="n">tx</span><span class="o">.</span><span class="n">get_public_domain</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">public_transaction</span><span class="o">.</span><span class="n">get_seqno</span><span class="p">()</span> <span class="o">==</span> <span class="n">seqno</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">tx</span>
+
+        <span class="k">if</span> <span class="n">transaction</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">UnknownTransaction</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Transaction at seqno </span><span class="si">{</span><span class="n">seqno</span><span class="si">}</span><span class="s2"> does not exist in ledger&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">transaction</span></div>
+
+<div class="viewcode-block" id="Ledger.get_latest_public_state"><a class="viewcode-back" href="../../audit/python_library.html#ccf.ledger.Ledger.get_latest_public_state">[docs]</a>    <span class="k">def</span> <span class="nf">get_latest_public_state</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">dict</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the current public state of the service.</span>
+
+<span class="sd">        Note that the public state returned may not yet be verified by a</span>
+<span class="sd">        signature transaction nor committed by the service.</span>
+
+<span class="sd">        :return: Tuple[Dict, int]: Tuple containing a dictionary of public tables and their values and the seqno of the state read from the ledger.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">public_tables</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">latest_seqno</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c1"># If a transaction cannot be read (e.g. because it was only partially written to disk</span>
+        <span class="c1"># before a crash), return public state so far. This is consistent with CCF&#39;s behaviour</span>
+        <span class="c1"># which discards the incomplete transaction on recovery.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">tx</span> <span class="ow">in</span> <span class="n">chunk</span><span class="p">:</span>
+                    <span class="n">public_domain</span> <span class="o">=</span> <span class="n">tx</span><span class="o">.</span><span class="n">get_public_domain</span><span class="p">()</span>
+                    <span class="n">latest_seqno</span> <span class="o">=</span> <span class="n">public_domain</span><span class="o">.</span><span class="n">get_seqno</span><span class="p">()</span>
+                    <span class="k">for</span> <span class="n">table_name</span><span class="p">,</span> <span class="n">records</span> <span class="ow">in</span> <span class="n">public_domain</span><span class="o">.</span><span class="n">get_tables</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="k">if</span> <span class="n">table_name</span> <span class="ow">in</span> <span class="n">public_tables</span><span class="p">:</span>
+                            <span class="n">public_tables</span><span class="p">[</span><span class="n">table_name</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">records</span><span class="p">)</span>
+                            <span class="c1"># Remove deleted keys</span>
+                            <span class="n">public_tables</span><span class="p">[</span><span class="n">table_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                                <span class="n">k</span><span class="p">:</span> <span class="n">v</span>
+                                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">public_tables</span><span class="p">[</span><span class="n">table_name</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                                <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                            <span class="p">}</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">public_tables</span><span class="p">[</span><span class="n">table_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">records</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error reading ledger entry. Latest read seqno: </span><span class="si">{</span><span class="n">latest_seqno</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">public_tables</span><span class="p">,</span> <span class="n">latest_seqno</span></div>
+
+    <span class="k">def</span> <span class="nf">validator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validator</span></div>
+
+
+<span class="k">class</span> <span class="nc">InvalidRootException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;MerkleTree root doesn&#39;t match with the root reported in the signature&#39;s table&quot;&quot;&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">InvalidRootSignatureException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Signature of the MerkleRoot doesn&#39;t match with the signature that&#39;s reported in the signature&#39;s table&quot;&quot;&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">CommitIdRangeException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Missing ledger chunk in the ledger directory&quot;&quot;&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">UntrustedNodeException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The signing node wasn&#39;t part of the network&quot;&quot;&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">UnknownTransaction</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The transaction at seqno does not exist in ledger&quot;&quot;&quot;</span>
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+  
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2018, Microsoft Research
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+  <script>
+    // Edit this page, on GitHub
+    var contentIconContainer = document.querySelector(".content-icon-container");
+    const editContent = `
+    <div class="edit-this-page">
+      <a class="muted-link" href="https://github.com/Microsoft/CCF/edit/main/doc/_modules/ccf/ledger">
+        <svg viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+          <path d="M4 20h4l10.5 -10.5a1.5 1.5 0 0 0 -4 -4l-10.5 10.5v4" />
+          <line x1="13.5" y1="6.5" x2="17.5" y2="10.5" />
+        </svg>
+      </a>
+    </div>`;
+    contentIconContainer.insertAdjacentHTML("afterbegin", editContent);
+
+    // Show GitHub repository home
+    var icons = document.querySelector(".icons")
+    const repoLinkContent = `
+    <a class="muted-link" href="https://github.com/Microsoft/CCF" aria-label="On GitHub">
+      <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+        <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+      </svg>
+    </a>`;
+    icons.insertAdjacentHTML("beforeend", repoLinkContent);
+  </script>
+
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../_static/scripts/furo.js?v=32e29ea5"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/tabs.js?v=3ee01567"></script>
+    <script src="https://unpkg.com/mermaid@10.2.0/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});
+
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);</script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>

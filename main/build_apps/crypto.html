@@ -1,0 +1,1413 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Release and compatibility policy" href="release_policy.html" /><link rel="prev" title="Developer API" href="api.html" />
+
+    <link rel="shortcut icon" href="../_static/favicon.ico"/><!-- Generated with Sphinx 7.1.2 and Furo 2024.01.29 -->
+        <title>Cryptography API - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=135e06be" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/tabs.css?v=4c969af8" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css?v=2a6c4383" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css?v=45cf7dbc" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css?v=d290406d" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=36a5483c" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=ffbb6935" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #3f3f3f;
+  --color-code-foreground: #dcdccc;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #3f3f3f;
+  --color-code-foreground: #dcdccc;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="../_static/ccf.svg" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="../_static/ccf.svg" alt="Dark Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded", function(){
+      let selectedVersion = "main";
+      const thisURL = window.location.toString();
+      const splitUrl = thisURL.split("/");
+      const indexOfRelease = splitUrl.indexOf("release");
+      if (indexOfRelease > 0) {
+        selectedVersion = splitUrl[indexOfRelease + 1];
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<label for="versions">
+  <div class="visually-hidden">Select Version:</div>
+</label>
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="crypto.html">
+      
+        main
+      
+    </option>
+    <option value="../../release/3.x/build_apps/crypto.html">
+      
+        3.x
+      
+    </option>
+    <option value="../../release/4.x/build_apps/crypto.html">
+      
+        4.x
+      
+    </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of Overview</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/what_is_ccf.html">What is CCF?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/governance.html">Governance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/faq.html">Frequently Asked Questions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/maintenance.html">Maintenance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Build Apps</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Build Apps</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="get_started.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install_bin.html">Install CCF</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of C++ Application</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="example_cpp.html">Example app (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="example_rpc_api.html">Example app RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="js_app_bundle.html">JavaScript Application Bundle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html">Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle navigation of User Authentication</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="auth/cert.html">Certificate Authentication</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle navigation of Key-Value Store</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="api.html">Developer API</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Cryptography API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="release_policy.html">Release and compatibility policy</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle navigation of Use Apps</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_tx.html">Verifying Transactions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../operations/index.html">Operations</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle navigation of Operations</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../operations/run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/configuration.html">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/data_persistence.html">Data Persistence</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/code_upgrade.html">Code Upgrade</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/certificates.html">Certificates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/network.html">Networking</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../operations/platforms/index.html">Platforms</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle navigation of Platforms</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../operations/platforms/sgx.html">Intel SGX</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../operations/platforms/snp.html">AMD SEV-SNP</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../operations/platforms/virtual.html">Insecure Virtual</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/troubleshooting.html">Troubleshooting CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../governance/index.html">Governance</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle navigation of Governance</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../governance/constitution.html">Constitution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/js_runtime.html">JavaScript Runtime Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../governance/member_rpc_api.html">Member RPC API</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle navigation of Member RPC API</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../governance/gov_api_schemas/2023-06-01-preview.html">2023-06-01-preview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../governance/gov_api_schemas/classic.html">Classic API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../governance/gov_api_schemas/upgrading_from_classic.html">Upgrading From Classic API</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../audit/index.html">Audit</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle navigation of Audit</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../audit/receipts.html">Receipts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/python_library.html">Python Library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/read_write_restrictions.html">Read-Write Permissions On KV Maps</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of Contribute</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/onboarding.html">Onboarding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_ccf.html">Build CCF from Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/release_ccf.html">Release or patch a CCF release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_images.html">CCF Build Images</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../architecture/index.html">Architecture</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Architecture</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/consensus/index.html">Consensus Protocol</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/request_flow.html">Request Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/threading.html">Threading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/ledger.html">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/raft_tla.html">TLA+ Specifications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/node_to_node.html">Node-to-Node Channels</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/indexing.html">Indexing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/receipts.html">Receipts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/tls_internals.html">TLS Internals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/tcp_internals.html">TCP Internals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/quic_internals.html">QUIC Internals</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../architecture/performance/index.html">Piccolo</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Piccolo</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../architecture/performance/generator.html">Generator</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture/performance/submitter.html">Submitter</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture/performance/analysis.html">Analyzer</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../research/index.html">Research</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto"><use href="#svg-sun-half"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main">
+          <section id="cryptography-api">
+<h1>Cryptography API<a class="headerlink" href="#cryptography-api" title="Permalink to this heading">#</a></h1>
+<p>For convenience, CCF provides access to commonly used cryptographic primitives to applications.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This page describes the C++ API. For the API for TypeScript/JavaScript applications, see <a class="reference external" href="../js/ccf-app/modules/crypto.html"><code class="xref docutils literal notranslate"><span class="pre">ccf-app/crypto</span></code></a>.</p>
+</div>
+<section id="hashing">
+<h2>Hashing<a class="headerlink" href="#hashing" title="Permalink to this heading">#</a></h2>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto6sha256ERKNSt6vectorI7uint8_tEE">
+<span id="_CPPv3N6crypto6sha256ERKNSt6vectorI7uint8_tEE"></span><span id="_CPPv2N6crypto6sha256ERKNSt6vectorI7uint8_tEE"></span><span id="crypto::sha256__std::vector:uint8_t:CR"></span><span class="target" id="namespacecrypto_1aa816930a5e1fdce6c3d0c81660d42a31"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">sha256</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto6sha256ERKNSt6vectorI7uint8_tEE" title="Permalink to this definition">#</a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto4hmacE6MDTypeRKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE">
+<span id="_CPPv3N6crypto4hmacE6MDTypeRKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE"></span><span id="_CPPv2N6crypto4hmacE6MDTypeRKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE"></span><span id="crypto::hmac__MDType.std::vector:uint8_t:CR.std::vector:uint8_t:CR"></span><span class="target" id="namespacecrypto_1a640c1f96973c60c3bf406aa7927a5449"></span><span class="n"><span class="pre">HashBytes</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">hmac</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">type</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">key</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">data</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto4hmacE6MDTypeRKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Compute the HMAC of <code class="docutils literal notranslate"><span class="pre">key</span></code> and <code class="docutils literal notranslate"><span class="pre">data</span></code></p>
+</dd></dl>
+
+<dl class="cpp class">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto12HashProviderE">
+<span id="_CPPv3N6crypto12HashProviderE"></span><span id="_CPPv2N6crypto12HashProviderE"></span><span id="crypto::HashProvider"></span><span class="target" id="classcrypto_1_1HashProvider"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">HashProvider</span></span></span><a class="headerlink" href="#_CPPv4N6crypto12HashProviderE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Subclassed by crypto::OpenSSLHashProvider</p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto12HashProvider4HashEPK7uint8_t6size_t6MDType">
+<span id="_CPPv3NK6crypto12HashProvider4HashEPK7uint8_t6size_t6MDType"></span><span id="_CPPv2NK6crypto12HashProvider4HashEPK7uint8_t6size_t6MDType"></span><span id="crypto::HashProvider::Hash__uint8_tCP.s.MDTypeC"></span><span class="target" id="classcrypto_1_1HashProvider_1a53222c98656916d5e228e8092b30339c"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">HashBytes</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Hash</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">data</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">size</span></span>, <span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">type</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto12HashProvider4HashEPK7uint8_t6size_t6MDType" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Generic Hash function </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> – The data to hash </p></li>
+<li><p><strong>size</strong> – The size of <code class="docutils literal notranslate"><span class="pre">data</span></code></p></li>
+<li><p><strong>type</strong> – The type of hash to compute </p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto18make_hash_providerEv">
+<span id="_CPPv3N6crypto18make_hash_providerEv"></span><span id="_CPPv2N6crypto18make_hash_providerEv"></span><span id="crypto::make_hash_provider"></span><span class="target" id="namespacecrypto_1abbd5da297fe947b7404d6bee95226d36"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">shared_ptr</span></span><span class="p"><span class="pre">&lt;</span></span><a class="reference internal" href="#_CPPv4N6crypto12HashProviderE" title="crypto::HashProvider"><span class="n"><span class="pre">HashProvider</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">make_hash_provider</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto18make_hash_providerEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Create a default hash provider </p>
+</dd></dl>
+
+</section>
+<section id="asymmetric-keys">
+<h2>Asymmetric Keys<a class="headerlink" href="#asymmetric-keys" title="Permalink to this heading">#</a></h2>
+<p>CCF supports EC and RSA keys; public keys are held in (RSA)PublicKey objects and
+private keys in (RSA)KeyPair objects. (RSA)KeyPairs automatically generate random
+keys when constructed via <a class="reference internal" href="#_CPPv4N6crypto13make_key_pairE7CurveID" title="KeyPairPtr crypto::make_key_pair(CurveID)"><code class="xref cpp cpp-func docutils literal notranslate"><span class="pre">KeyPairPtr</span> <span class="pre">crypto::make_key_pair(CurveID)</span></code></a> or
+<a class="reference internal" href="#_CPPv4N6crypto17make_rsa_key_pairE6size_t6size_t" title="RSAKeyPairPtr crypto::make_rsa_key_pair(size_t, size_t)"><code class="xref cpp cpp-func docutils literal notranslate"><span class="pre">RSAKeyPairPtr</span> <span class="pre">crypto::make_rsa_key_pair(size_t,</span> <span class="pre">size_t)</span></code></a>.</p>
+<dl class="cpp class">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto9PublicKeyE">
+<span id="_CPPv3N6crypto9PublicKeyE"></span><span id="_CPPv2N6crypto9PublicKeyE"></span><span id="crypto::PublicKey"></span><span class="target" id="classcrypto_1_1PublicKey"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">PublicKey</span></span></span><a class="headerlink" href="#_CPPv4N6crypto9PublicKeyE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Subclassed by crypto::PublicKey_OpenSSL</p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto9PublicKey6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDTypeR9HashBytes">
+<span id="_CPPv3N6crypto9PublicKey6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDTypeR9HashBytes"></span><span id="_CPPv2N6crypto9PublicKey6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDTypeR9HashBytes"></span><span id="crypto::PublicKey::verify__uint8_tCP.s.uint8_tCP.s.MDType.HashBytesR"></span><span class="target" id="classcrypto_1_1PublicKey_1ae6cf2af2f91b06d4cb3e1e86b7df40e1"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">contents</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">contents_size</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">sig</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">sig_size</span></span>, <span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">md_type</span></span>, <span class="n"><span class="pre">HashBytes</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">bytes</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N6crypto9PublicKey6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDTypeR9HashBytes" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify that a signature was produced on contents with the private key associated with the public key held by the object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>contents</strong> – address of contents </p></li>
+<li><p><strong>contents_size</strong> – size of contents </p></li>
+<li><p><strong>sig</strong> – address of signature </p></li>
+<li><p><strong>sig_size</strong> – size of signature </p></li>
+<li><p><strong>md_type</strong> – Digest algorithm to use </p></li>
+<li><p><strong>bytes</strong> – Buffer to write the hash to</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Whether the signature matches the contents and the key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto9PublicKey6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDType">
+<span id="_CPPv3N6crypto9PublicKey6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDType"></span><span id="_CPPv2N6crypto9PublicKey6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDType"></span><span id="crypto::PublicKey::verify__uint8_tCP.s.uint8_tCP.s.MDType"></span><span class="target" id="classcrypto_1_1PublicKey_1a2d1e8b8d4c5cb44c45847230d5c9c1b5"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">contents</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">contents_size</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">sig</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">sig_size</span></span>, <span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">md_type</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">MDType</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">NONE</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto9PublicKey6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDType" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify that a signature was produced on contents with the private key associated with the public key held by the object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>contents</strong> – address of contents </p></li>
+<li><p><strong>contents_size</strong> – size of contents </p></li>
+<li><p><strong>sig</strong> – address of signature </p></li>
+<li><p><strong>sig_size</strong> – size of signature </p></li>
+<li><p><strong>md_type</strong> – Digest algorithm to use (derived from the public key if md_type == MDType::None).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Whether the signature matches the contents and the key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto9PublicKey6verifyERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE">
+<span id="_CPPv3N6crypto9PublicKey6verifyERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE"></span><span id="_CPPv2N6crypto9PublicKey6verifyERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE"></span><span id="crypto::PublicKey::verify__std::vector:uint8_t:CR.std::vector:uint8_t:CR"></span><span class="target" id="classcrypto_1_1PublicKey_1ab994e4e2e0f887656bcac845fa913399"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">contents</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">signature</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto9PublicKey6verifyERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify that a signature was produced on contents with the private key associated with the public key held by the object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>contents</strong> – Sequence of bytes that was signed </p></li>
+<li><p><strong>signature</strong> – Signature as a sequence of bytes</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Whether the signature matches the contents and the key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto9PublicKey11verify_hashERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDType">
+<span id="_CPPv3N6crypto9PublicKey11verify_hashERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDType"></span><span id="_CPPv2N6crypto9PublicKey11verify_hashERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDType"></span><span id="crypto::PublicKey::verify_hash__std::vector:uint8_t:CR.std::vector:uint8_t:CR.MDType"></span><span class="target" id="classcrypto_1_1PublicKey_1a667c8a92c458ec8092d52cee2c031349"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify_hash</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">hash</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">signature</span></span>, <span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">md_type</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto9PublicKey11verify_hashERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDType" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify that a signature was produced on the hash of some contents with the private key associated with the public key held by the object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>hash</strong> – Hash of some content </p></li>
+<li><p><strong>signature</strong> – Signature as a sequence of bytes </p></li>
+<li><p><strong>md_type</strong> – Type of hash</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Whether the signature matches the hash and the key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto9PublicKey11verify_hashEPK7uint8_t6size_tPK7uint8_t6size_t6MDType">
+<span id="_CPPv3N6crypto9PublicKey11verify_hashEPK7uint8_t6size_tPK7uint8_t6size_t6MDType"></span><span id="_CPPv2N6crypto9PublicKey11verify_hashEPK7uint8_t6size_tPK7uint8_t6size_t6MDType"></span><span id="crypto::PublicKey::verify_hash__uint8_tCP.s.uint8_tCP.s.MDType"></span><span class="target" id="classcrypto_1_1PublicKey_1af60a2a12ab086fa5342f1bfabad9c406"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify_hash</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">hash</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">hash_size</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">sig</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">sig_size</span></span>, <span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">md_type</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N6crypto9PublicKey11verify_hashEPK7uint8_t6size_tPK7uint8_t6size_t6MDType" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify that a signature was produced on the hash of some contents with the private key associated with the public key held by the object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>hash</strong> – Hash of some content </p></li>
+<li><p><strong>hash_size</strong> – length of <code class="docutils literal notranslate"><span class="pre">hash</span></code></p></li>
+<li><p><strong>sig</strong> – Signature as a sequence of bytes </p></li>
+<li><p><strong>sig_size</strong> – Length of <code class="docutils literal notranslate"><span class="pre">sig</span></code></p></li>
+<li><p><strong>md_type</strong> – Digest algorithm</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Whether the signature matches the hash and the key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto9PublicKey14public_key_pemEv">
+<span id="_CPPv3NK6crypto9PublicKey14public_key_pemEv"></span><span id="_CPPv2NK6crypto9PublicKey14public_key_pemEv"></span><span id="crypto::PublicKey::public_key_pemC"></span><span class="target" id="classcrypto_1_1PublicKey_1a0d4b04764506e8704f13cd99efa0dd7f"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">public_key_pem</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto9PublicKey14public_key_pemEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Get the public key in PEM format </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto9PublicKey14public_key_derEv">
+<span id="_CPPv3NK6crypto9PublicKey14public_key_derEv"></span><span id="_CPPv2NK6crypto9PublicKey14public_key_derEv"></span><span id="crypto::PublicKey::public_key_derC"></span><span class="target" id="classcrypto_1_1PublicKey_1a54416e04a2af9c0272b11eabf1377d52"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">public_key_der</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto9PublicKey14public_key_derEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Get the public key in DER format </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto9PublicKey14public_key_rawEv">
+<span id="_CPPv3NK6crypto9PublicKey14public_key_rawEv"></span><span id="_CPPv2NK6crypto9PublicKey14public_key_rawEv"></span><span id="crypto::PublicKey::public_key_rawC"></span><span class="target" id="classcrypto_1_1PublicKey_1a1a56f1784625c784edecbd32e86e9542"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">public_key_raw</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto9PublicKey14public_key_rawEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Get the raw bytes of the public key </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto9PublicKey12get_curve_idEv">
+<span id="_CPPv3NK6crypto9PublicKey12get_curve_idEv"></span><span id="_CPPv2NK6crypto9PublicKey12get_curve_idEv"></span><span id="crypto::PublicKey::get_curve_idC"></span><span class="target" id="classcrypto_1_1PublicKey_1a49619711821728db6e44710120ddd4e6"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N6crypto7CurveIDE" title="crypto::CurveID"><span class="n"><span class="pre">CurveID</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">get_curve_id</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto9PublicKey12get_curve_idEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>The curve ID </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto9PublicKey11coordinatesEv">
+<span id="_CPPv3NK6crypto9PublicKey11coordinatesEv"></span><span id="_CPPv2NK6crypto9PublicKey11coordinatesEv"></span><span id="crypto::PublicKey::coordinatesC"></span><span class="target" id="classcrypto_1_1PublicKey_1a4688c5aa9d742d4b693b2fb830fbb2df"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N6crypto9PublicKey11CoordinatesE" title="crypto::PublicKey::Coordinates"><span class="n"><span class="pre">Coordinates</span></span></a><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">coordinates</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto9PublicKey11coordinatesEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>The x/y coordinates of the public key </p>
+</dd></dl>
+
+</div>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto9PublicKey11CoordinatesE">
+<span id="_CPPv3N6crypto9PublicKey11CoordinatesE"></span><span id="_CPPv2N6crypto9PublicKey11CoordinatesE"></span><span id="crypto::PublicKey::Coordinates"></span><span class="target" id="structcrypto_1_1PublicKey_1_1Coordinates"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Coordinates</span></span></span><a class="headerlink" href="#_CPPv4N6crypto9PublicKey11CoordinatesE" title="Permalink to this definition">#</a><br /></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="cpp class">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto7KeyPairE">
+<span id="_CPPv3N6crypto7KeyPairE"></span><span id="_CPPv2N6crypto7KeyPairE"></span><span id="crypto::KeyPair"></span><span class="target" id="classcrypto_1_1KeyPair"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">KeyPair</span></span></span><a class="headerlink" href="#_CPPv4N6crypto7KeyPairE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Subclassed by crypto::KeyPair_OpenSSL</p>
+</dd></dl>
+
+<dl class="cpp class">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto12RSAPublicKeyE">
+<span id="_CPPv3N6crypto12RSAPublicKeyE"></span><span id="_CPPv2N6crypto12RSAPublicKeyE"></span><span id="crypto::RSAPublicKey"></span><span class="target" id="classcrypto_1_1RSAPublicKey"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">RSAPublicKey</span></span></span><a class="headerlink" href="#_CPPv4N6crypto12RSAPublicKeyE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Subclassed by crypto::RSAPublicKey_OpenSSL</p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto12RSAPublicKey12RSAPublicKeyERK3Pem">
+<span id="_CPPv3N6crypto12RSAPublicKey12RSAPublicKeyERK3Pem"></span><span id="_CPPv2N6crypto12RSAPublicKey12RSAPublicKeyERK3Pem"></span><span id="crypto::RSAPublicKey::RSAPublicKey__PemCR"></span><span class="target" id="classcrypto_1_1RSAPublicKey_1abbba2deee6bcca3134406c523d2346cd"></span><span class="sig-name descname"><span class="n"><span class="pre">RSAPublicKey</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">pem</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto12RSAPublicKey12RSAPublicKeyERK3Pem" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Construct from PEM </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto12RSAPublicKey12RSAPublicKeyERKNSt6vectorI7uint8_tEE">
+<span id="_CPPv3N6crypto12RSAPublicKey12RSAPublicKeyERKNSt6vectorI7uint8_tEE"></span><span id="_CPPv2N6crypto12RSAPublicKey12RSAPublicKeyERKNSt6vectorI7uint8_tEE"></span><span id="crypto::RSAPublicKey::RSAPublicKey__std::vector:uint8_t:CR"></span><span class="target" id="classcrypto_1_1RSAPublicKey_1a553bc4d299e968924b274c9bc7a615f0"></span><span class="sig-name descname"><span class="n"><span class="pre">RSAPublicKey</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">der</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto12RSAPublicKey12RSAPublicKeyERKNSt6vectorI7uint8_tEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Construct from DER </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto12RSAPublicKey12RSAPublicKeyERK19JsonWebKeyRSAPublic">
+<span id="_CPPv3N6crypto12RSAPublicKey12RSAPublicKeyERK19JsonWebKeyRSAPublic"></span><span id="_CPPv2N6crypto12RSAPublicKey12RSAPublicKeyERK19JsonWebKeyRSAPublic"></span><span id="crypto::RSAPublicKey::RSAPublicKey__JsonWebKeyRSAPublicCR"></span><span class="target" id="classcrypto_1_1RSAPublicKey_1a8d7f21ee18cc5b4770fec83d0500ed2e"></span><span class="sig-name descname"><span class="n"><span class="pre">RSAPublicKey</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">JsonWebKeyRSAPublic</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">jwk</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto12RSAPublicKey12RSAPublicKeyERK19JsonWebKeyRSAPublic" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Construct from JWK </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto12RSAPublicKey8key_sizeEv">
+<span id="_CPPv3NK6crypto12RSAPublicKey8key_sizeEv"></span><span id="_CPPv2NK6crypto12RSAPublicKey8key_sizeEv"></span><span id="crypto::RSAPublicKey::key_sizeC"></span><span class="target" id="classcrypto_1_1RSAPublicKey_1ae8fc6957749a418bc17091cb8ed0ca8b"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">key_size</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto12RSAPublicKey8key_sizeEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Get the key size in bits </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto12RSAPublicKey13rsa_oaep_wrapEPK7uint8_t6size_tPK7uint8_t6size_t">
+<span id="_CPPv3N6crypto12RSAPublicKey13rsa_oaep_wrapEPK7uint8_t6size_tPK7uint8_t6size_t"></span><span id="_CPPv2N6crypto12RSAPublicKey13rsa_oaep_wrapEPK7uint8_t6size_tPK7uint8_t6size_t"></span><span id="crypto::RSAPublicKey::rsa_oaep_wrap__uint8_tCP.s.uint8_tCP.s"></span><span class="target" id="classcrypto_1_1RSAPublicKey_1a20b0aed3dc191d4ce3641232ab4be194"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">rsa_oaep_wrap</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">input</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">input_size</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">label</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">nullptr</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">label_size</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N6crypto12RSAPublicKey13rsa_oaep_wrapEPK7uint8_t6size_tPK7uint8_t6size_t" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Wrap data using RSA-OAEP-256 (CKM_RSA_PKCS_OAEP)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input</strong> – Pointer to raw data to wrap </p></li>
+<li><p><strong>input_size</strong> – Size of raw data </p></li>
+<li><p><strong>label</strong> – Optional string used as label during wrapping </p></li>
+<li><p><strong>label_size</strong> – Size of <code class="docutils literal notranslate"><span class="pre">label</span></code></p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Wrapped data </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto12RSAPublicKey13rsa_oaep_wrapERKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorINSt7uint8_tEEEEE">
+<span id="_CPPv3N6crypto12RSAPublicKey13rsa_oaep_wrapERKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorINSt7uint8_tEEEEE"></span><span id="_CPPv2N6crypto12RSAPublicKey13rsa_oaep_wrapERKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorINSt7uint8_tEEEEE"></span><span id="crypto::RSAPublicKey::rsa_oaep_wrap__std::vector:uint8_t:CR.std::optional:std::vector:std::uint8_t::CR"></span><span class="target" id="classcrypto_1_1RSAPublicKey_1a5a223197f84a2b15a35c19bbfbeed164"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">rsa_oaep_wrap</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">input</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">label</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">nullopt</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N6crypto12RSAPublicKey13rsa_oaep_wrapERKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorINSt7uint8_tEEEEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Wrap data using RSA-OAEP-256 (CKM_RSA_PKCS_OAEP)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input</strong> – Raw data to wrap </p></li>
+<li><p><strong>label</strong> – Optional string used as label during wrapping</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Wrapped data </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto12RSAPublicKey14public_key_pemEv">
+<span id="_CPPv3NK6crypto12RSAPublicKey14public_key_pemEv"></span><span id="_CPPv2NK6crypto12RSAPublicKey14public_key_pemEv"></span><span id="crypto::RSAPublicKey::public_key_pemC"></span><span class="target" id="classcrypto_1_1RSAPublicKey_1a54b528118013e790d0665d471885e96c"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">public_key_pem</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto12RSAPublicKey14public_key_pemEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Get the public key in PEM format </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto12RSAPublicKey14public_key_derEv">
+<span id="_CPPv3NK6crypto12RSAPublicKey14public_key_derEv"></span><span id="_CPPv2NK6crypto12RSAPublicKey14public_key_derEv"></span><span id="crypto::RSAPublicKey::public_key_derC"></span><span class="target" id="classcrypto_1_1RSAPublicKey_1a550a86194a0864fc45860c9c90dba845"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">public_key_der</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto12RSAPublicKey14public_key_derEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Get the public key in DER format </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto12RSAPublicKey18public_key_jwk_rsaERKNSt8optionalINSt6stringEEE">
+<span id="_CPPv3NK6crypto12RSAPublicKey18public_key_jwk_rsaERKNSt8optionalINSt6stringEEE"></span><span id="_CPPv2NK6crypto12RSAPublicKey18public_key_jwk_rsaERKNSt8optionalINSt6stringEEE"></span><span id="crypto::RSAPublicKey::public_key_jwk_rsa__std::optional:ss:CRC"></span><span class="target" id="classcrypto_1_1RSAPublicKey_1ad840e1db5745e826994baeb1bc942363"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">JsonWebKeyRSAPublic</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">public_key_jwk_rsa</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">kid</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">nullopt</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto12RSAPublicKey18public_key_jwk_rsaERKNSt8optionalINSt6stringEEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Get the public key in JWK format </p>
+</dd></dl>
+
+</div>
+<dl class="cpp struct">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto12RSAPublicKey10ComponentsE">
+<span id="_CPPv3N6crypto12RSAPublicKey10ComponentsE"></span><span id="_CPPv2N6crypto12RSAPublicKey10ComponentsE"></span><span id="crypto::RSAPublicKey::Components"></span><span class="target" id="structcrypto_1_1RSAPublicKey_1_1Components"></span><span class="k"><span class="pre">struct</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Components</span></span></span><a class="headerlink" href="#_CPPv4N6crypto12RSAPublicKey10ComponentsE" title="Permalink to this definition">#</a><br /></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="cpp class">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto10RSAKeyPairE">
+<span id="_CPPv3N6crypto10RSAKeyPairE"></span><span id="_CPPv2N6crypto10RSAKeyPairE"></span><span id="crypto::RSAKeyPair"></span><span class="target" id="classcrypto_1_1RSAKeyPair"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">RSAKeyPair</span></span></span><a class="headerlink" href="#_CPPv4N6crypto10RSAKeyPairE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Subclassed by crypto::RSAKeyPair_OpenSSL</p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto10RSAKeyPair15rsa_oaep_unwrapERKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorINSt7uint8_tEEEEE">
+<span id="_CPPv3N6crypto10RSAKeyPair15rsa_oaep_unwrapERKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorINSt7uint8_tEEEEE"></span><span id="_CPPv2N6crypto10RSAKeyPair15rsa_oaep_unwrapERKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorINSt7uint8_tEEEEE"></span><span id="crypto::RSAKeyPair::rsa_oaep_unwrap__std::vector:uint8_t:CR.std::optional:std::vector:std::uint8_t::CR"></span><span class="target" id="classcrypto_1_1RSAKeyPair_1ac376e82b93d9e579338afb0a8038e35a"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">rsa_oaep_unwrap</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">input</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">label</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">nullopt</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N6crypto10RSAKeyPair15rsa_oaep_unwrapERKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorINSt7uint8_tEEEEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Unwrap data using RSA-OAEP-256 (CKM_RSA_PKCS_OAEP)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input</strong> – Raw data to unwrap </p></li>
+<li><p><strong>label</strong> – Optional string used as label during unwrapping</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Unwrapped data </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto10RSAKeyPair15private_key_pemEv">
+<span id="_CPPv3NK6crypto10RSAKeyPair15private_key_pemEv"></span><span id="_CPPv2NK6crypto10RSAKeyPair15private_key_pemEv"></span><span id="crypto::RSAKeyPair::private_key_pemC"></span><span class="target" id="classcrypto_1_1RSAKeyPair_1a3330f52db32d7d5f8d0b9d8929b59ceb"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">private_key_pem</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto10RSAKeyPair15private_key_pemEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Get the private key in PEM format </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto10RSAKeyPair14public_key_pemEv">
+<span id="_CPPv3NK6crypto10RSAKeyPair14public_key_pemEv"></span><span id="_CPPv2NK6crypto10RSAKeyPair14public_key_pemEv"></span><span id="crypto::RSAKeyPair::public_key_pemC"></span><span class="target" id="classcrypto_1_1RSAKeyPair_1abf4b1b81480144fc42b5256ba5d3882f"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">public_key_pem</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto10RSAKeyPair14public_key_pemEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Get the public key in PEM format </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto10RSAKeyPair14public_key_derEv">
+<span id="_CPPv3NK6crypto10RSAKeyPair14public_key_derEv"></span><span id="_CPPv2NK6crypto10RSAKeyPair14public_key_derEv"></span><span id="crypto::RSAKeyPair::public_key_derC"></span><span class="target" id="classcrypto_1_1RSAKeyPair_1a7016b677d53cbd24e9420950def6a2a0"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">public_key_der</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto10RSAKeyPair14public_key_derEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Get the public key in DER format </p>
+</dd></dl>
+
+</div>
+</dd></dl>
+
+<dl class="cpp enum-class">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto7CurveIDE">
+<span id="_CPPv3N6crypto7CurveIDE"></span><span id="_CPPv2N6crypto7CurveIDE"></span><span class="target" id="namespacecrypto_1aeef42d5462c5670efe1fc93577fd1bbe"></span><span class="k"><span class="pre">enum</span></span><span class="w"> </span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">CurveID</span></span></span><a class="headerlink" href="#_CPPv4N6crypto7CurveIDE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p><em>Values:</em></p>
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto7CurveID4NONEE">
+<span id="_CPPv3N6crypto7CurveID4NONEE"></span><span id="_CPPv2N6crypto7CurveID4NONEE"></span><span class="target" id="namespacecrypto_1aeef42d5462c5670efe1fc93577fd1bbeab50339a10e1de285ac99d4c3990b8693"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">NONE</span></span></span><a class="headerlink" href="#_CPPv4N6crypto7CurveID4NONEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>No curve. </p>
+</dd></dl>
+
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto7CurveID9SECP384R1E">
+<span id="_CPPv3N6crypto7CurveID9SECP384R1E"></span><span id="_CPPv2N6crypto7CurveID9SECP384R1E"></span><span class="target" id="namespacecrypto_1aeef42d5462c5670efe1fc93577fd1bbea22e60bed6bdf68bf51c8017786b26d27"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">SECP384R1</span></span></span><a class="headerlink" href="#_CPPv4N6crypto7CurveID9SECP384R1E" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>The SECP384R1 curve. </p>
+</dd></dl>
+
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto7CurveID9SECP256R1E">
+<span id="_CPPv3N6crypto7CurveID9SECP256R1E"></span><span id="_CPPv2N6crypto7CurveID9SECP256R1E"></span><span class="target" id="namespacecrypto_1aeef42d5462c5670efe1fc93577fd1bbeae391840247cc176f98c8bd36b74393ce"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">SECP256R1</span></span></span><a class="headerlink" href="#_CPPv4N6crypto7CurveID9SECP256R1E" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>The SECP256R1 curve. </p>
+</dd></dl>
+
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto7CurveID9SECP256K1E">
+<span id="_CPPv3N6crypto7CurveID9SECP256K1E"></span><span id="_CPPv2N6crypto7CurveID9SECP256K1E"></span><span class="target" id="namespacecrypto_1aeef42d5462c5670efe1fc93577fd1bbea2d434712de5c193385d797d1906f22fc"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">SECP256K1</span></span></span><a class="headerlink" href="#_CPPv4N6crypto7CurveID9SECP256K1E" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>The SECP256K1 curve. </p>
+</dd></dl>
+
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto7CurveID10CURVE25519E">
+<span id="_CPPv3N6crypto7CurveID10CURVE25519E"></span><span id="_CPPv2N6crypto7CurveID10CURVE25519E"></span><span class="target" id="namespacecrypto_1aeef42d5462c5670efe1fc93577fd1bbea4108e5437c06ac3b115bb5206677e7ac"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">CURVE25519</span></span></span><a class="headerlink" href="#_CPPv4N6crypto7CurveID10CURVE25519E" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>The CURVE25519 curve. </p>
+</dd></dl>
+
+<dl class="cpp enumerator">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto7CurveID6X25519E">
+<span id="_CPPv3N6crypto7CurveID6X25519E"></span><span id="_CPPv2N6crypto7CurveID6X25519E"></span><span class="target" id="namespacecrypto_1aeef42d5462c5670efe1fc93577fd1bbeaf2c08fed6488d1d51758a6b692d9f832"></span><span class="k"><span class="pre">enumerator</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">X25519</span></span></span><a class="headerlink" href="#_CPPv4N6crypto7CurveID6X25519E" title="Permalink to this definition">#</a><br /></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto13make_key_pairE7CurveID">
+<span id="_CPPv3N6crypto13make_key_pairE7CurveID"></span><span id="_CPPv2N6crypto13make_key_pairE7CurveID"></span><span id="crypto::make_key_pair__CurveID"></span><span class="target" id="namespacecrypto_1abab55ac4a2a83da18c62357582ad1d4f"></span><span class="n"><span class="pre">KeyPairPtr</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">make_key_pair</span></span></span><span class="sig-paren">(</span><a class="reference internal" href="#_CPPv4N6crypto7CurveIDE" title="crypto::CurveID"><span class="n"><span class="pre">CurveID</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">curve_id</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">service_identity_curve_choice</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto13make_key_pairE7CurveID" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Create a new public / private ECDSA key pair on specified curve and implementation</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>curve_id</strong> – Elliptic curve to use </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Key pair </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto13make_key_pairERK3Pem">
+<span id="_CPPv3N6crypto13make_key_pairERK3Pem"></span><span id="_CPPv2N6crypto13make_key_pairERK3Pem"></span><span id="crypto::make_key_pair__PemCR"></span><span class="target" id="namespacecrypto_1a1e88711976fa94e6173834b2e1e1c608"></span><span class="n"><span class="pre">KeyPairPtr</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">make_key_pair</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">pkey</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto13make_key_pairERK3Pem" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Create a public / private ECDSA key pair from existing private key data</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>pkey</strong> – PEM key to load </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Key pair </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto17make_rsa_key_pairE6size_t6size_t">
+<span id="_CPPv3N6crypto17make_rsa_key_pairE6size_t6size_t"></span><span id="_CPPv2N6crypto17make_rsa_key_pairE6size_t6size_t"></span><span id="crypto::make_rsa_key_pair__s.s"></span><span class="target" id="namespacecrypto_1a2ae816e3d5c9c256190dc3710ed0e48c"></span><span class="n"><span class="pre">RSAKeyPairPtr</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">make_rsa_key_pair</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">public_key_size</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N6crypto10RSAKeyPairE" title="crypto::RSAKeyPair"><span class="n"><span class="pre">RSAKeyPair</span></span></a><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">default_public_key_size</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">public_exponent</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4N6crypto10RSAKeyPairE" title="crypto::RSAKeyPair"><span class="n"><span class="pre">RSAKeyPair</span></span></a><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">default_public_exponent</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto17make_rsa_key_pairE6size_t6size_t" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Create a new public / private RSA key pair with specified size and exponent </p>
+</dd></dl>
+
+</section>
+<section id="symmetric-keys">
+<h2>Symmetric Keys<a class="headerlink" href="#symmetric-keys" title="Permalink to this heading">#</a></h2>
+<p>Currently, only AES-GCM is supported for symmetric encryption. New keys are generated via <a class="reference internal" href="#_CPPv4N6crypto7Entropy6randomE6size_t" title="crypto::Entropy::random"><code class="xref cpp cpp-func docutils literal notranslate"><span class="pre">crypto::Entropy::random()</span></code></a></p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto15aes_gcm_encryptERKNSt6vectorI7uint8_tEERNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE">
+<span id="_CPPv3N6crypto15aes_gcm_encryptERKNSt6vectorI7uint8_tEERNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE"></span><span id="_CPPv2N6crypto15aes_gcm_encryptERKNSt6vectorI7uint8_tEERNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE"></span><span id="crypto::aes_gcm_encrypt__std::vector:uint8_t:CR.std::vector:uint8_t:R.std::vector:uint8_t:CR.std::vector:uint8_t:CR"></span><span class="target" id="namespacecrypto_1a192101faa75df8102c53b9f1a3eb17e4"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">aes_gcm_encrypt</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">key</span></span>, <span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">plaintext</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">iv</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">default_iv</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">aad</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto15aes_gcm_encryptERKNSt6vectorI7uint8_tEERNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>AES-GCM Encryption with <code class="docutils literal notranslate"><span class="pre">key</span></code> of <code class="docutils literal notranslate"><span class="pre">data</span></code> </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> – The key </p></li>
+<li><p><strong>plaintext</strong> – The data </p></li>
+<li><p><strong>iv</strong> – Intialization vector </p></li>
+<li><p><strong>aad</strong> – Additional authenticated data </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>ciphertext </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto15aes_gcm_decryptERKNSt6vectorI7uint8_tEERNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE">
+<span id="_CPPv3N6crypto15aes_gcm_decryptERKNSt6vectorI7uint8_tEERNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE"></span><span id="_CPPv2N6crypto15aes_gcm_decryptERKNSt6vectorI7uint8_tEERNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE"></span><span id="crypto::aes_gcm_decrypt__std::vector:uint8_t:CR.std::vector:uint8_t:R.std::vector:uint8_t:CR.std::vector:uint8_t:CR"></span><span class="target" id="namespacecrypto_1a88eac493abb13a73629c1f2b3536947e"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">aes_gcm_decrypt</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">key</span></span>, <span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">ciphertext</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">iv</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">default_iv</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">aad</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto15aes_gcm_decryptERKNSt6vectorI7uint8_tEERNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>AES-GCM Decryption with <code class="docutils literal notranslate"><span class="pre">key</span></code> of <code class="docutils literal notranslate"><span class="pre">data</span></code> </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>key</strong> – The key </p></li>
+<li><p><strong>ciphertext</strong> – The (encrypted) data </p></li>
+<li><p><strong>iv</strong> – Initialization vector </p></li>
+<li><p><strong>aad</strong> – Additional authenticated data </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>plaintext </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp class">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto7EntropyE">
+<span id="_CPPv3N6crypto7EntropyE"></span><span id="_CPPv2N6crypto7EntropyE"></span><span id="crypto::Entropy"></span><span class="target" id="classcrypto_1_1Entropy"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Entropy</span></span></span><a class="headerlink" href="#_CPPv4N6crypto7EntropyE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Subclassed by crypto::Entropy_OpenSSL, crypto::IntelDRNG</p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto7Entropy6randomE6size_t">
+<span id="_CPPv3N6crypto7Entropy6randomE6size_t"></span><span id="_CPPv2N6crypto7Entropy6randomE6size_t"></span><span id="crypto::Entropy::random__s"></span><span class="target" id="classcrypto_1_1Entropy_1a96ce9c4ef9f5b400a39eb3a570b7ba9b"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">random</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">len</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N6crypto7Entropy6randomE6size_t" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Generate <code class="docutils literal notranslate"><span class="pre">len</span></code> random bytes </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>len</strong> – Number of random bytes to generate </p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>vector random bytes </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto7Entropy6randomEPh6size_t">
+<span id="_CPPv3N6crypto7Entropy6randomEPh6size_t"></span><span id="_CPPv2N6crypto7Entropy6randomEPh6size_t"></span><span id="crypto::Entropy::random__unsigned-cP.s"></span><span class="target" id="classcrypto_1_1Entropy_1aaf15a4509f534d24e9629d8d94366cc2"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">random</span></span></span><span class="sig-paren">(</span><span class="kt"><span class="pre">unsigned</span></span><span class="w"> </span><span class="kt"><span class="pre">char</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">data</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">len</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N6crypto7Entropy6randomEPh6size_t" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Generate <code class="docutils literal notranslate"><span class="pre">len</span></code> random bytes into <code class="docutils literal notranslate"><span class="pre">data</span></code> </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>len</strong> – Number of random bytes to generate </p></li>
+<li><p><strong>data</strong> – Buffer to fill </p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto7Entropy8random64Ev">
+<span id="_CPPv3N6crypto7Entropy8random64Ev"></span><span id="_CPPv2N6crypto7Entropy8random64Ev"></span><span id="crypto::Entropy::random64"></span><span class="target" id="classcrypto_1_1Entropy_1ab3185e7d0b07ba4d99df56fc990b0ed1"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">uint64_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">random64</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N6crypto7Entropy8random64Ev" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Generate a random uint64_t </p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>a random uint64_t </p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+</dd></dl>
+
+</section>
+<section id="signatures">
+<h2>Signatures<a class="headerlink" href="#signatures" title="Permalink to this heading">#</a></h2>
+<p>Verification of signatures is supported via the <code class="xref cpp cpp-class docutils literal notranslate"><span class="pre">Verifier</span></code> class.</p>
+<dl class="cpp class">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto8VerifierE">
+<span id="_CPPv3N6crypto8VerifierE"></span><span id="_CPPv2N6crypto8VerifierE"></span><span id="crypto::Verifier"></span><span class="target" id="classcrypto_1_1Verifier"></span><span class="k"><span class="pre">class</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">Verifier</span></span></span><a class="headerlink" href="#_CPPv4N6crypto8VerifierE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Subclassed by crypto::Verifier_OpenSSL</p>
+<div class="breathe-sectiondef docutils container">
+<p class="breathe-sectiondef-title rubric" id="breathe-section-title-public-functions">Public Functions</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto8Verifier6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDType">
+<span id="_CPPv3NK6crypto8Verifier6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDType"></span><span id="_CPPv2NK6crypto8Verifier6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDType"></span><span id="crypto::Verifier::verify__uint8_tCP.s.uint8_tCP.s.MDTypeC"></span><span class="target" id="classcrypto_1_1Verifier_1a19ba67467c28d0f944c5c366eacebcf0"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">contents</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">contents_size</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">sig</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">sig_size</span></span>, <span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">md_type</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">MDType</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">NONE</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK6crypto8Verifier6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDType" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify a signature </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>contents</strong> – Contents over which the signature was generated </p></li>
+<li><p><strong>contents_size</strong> – Size of <code class="docutils literal notranslate"><span class="pre">contents</span></code></p></li>
+<li><p><strong>sig</strong> – Signature </p></li>
+<li><p><strong>sig_size</strong> – Size of <code class="docutils literal notranslate"><span class="pre">sig</span></code></p></li>
+<li><p><strong>md_type</strong> – Hash algorithm </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Boolean indicating success </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto8Verifier6verifyENSt4spanIK7uint8_tEENSt4spanIK7uint8_tEE6MDType">
+<span id="_CPPv3NK6crypto8Verifier6verifyENSt4spanIK7uint8_tEENSt4spanIK7uint8_tEE6MDType"></span><span id="_CPPv2NK6crypto8Verifier6verifyENSt4spanIK7uint8_tEENSt4spanIK7uint8_tEE6MDType"></span><span id="crypto::Verifier::verify__std::span:uint8_tC:.std::span:uint8_tC:.MDTypeC"></span><span class="target" id="classcrypto_1_1Verifier_1adc1e98e3f797dbbbb452dffdbcff2bb5"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">span</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">contents</span></span>, <span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">span</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">sig</span></span>, <span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">md_type</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">MDType</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">NONE</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK6crypto8Verifier6verifyENSt4spanIK7uint8_tEENSt4spanIK7uint8_tEE6MDType" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify a signature </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>contents</strong> – Contents over which the signature was generated </p></li>
+<li><p><strong>sig</strong> – Signature </p></li>
+<li><p><strong>md_type</strong> – Hash algorithm </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Boolean indicating success </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto8Verifier6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDTypeR9HashBytes">
+<span id="_CPPv3NK6crypto8Verifier6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDTypeR9HashBytes"></span><span id="_CPPv2NK6crypto8Verifier6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDTypeR9HashBytes"></span><span id="crypto::Verifier::verify__uint8_tCP.s.uint8_tCP.s.MDType.HashBytesRC"></span><span class="target" id="classcrypto_1_1Verifier_1acc8caeea263937d74127e68ef8d512bc"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">contents</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">contents_size</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">sig</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">sig_size</span></span>, <span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">md_type</span></span>, <span class="n"><span class="pre">HashBytes</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">hash_bytes</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK6crypto8Verifier6verifyEPK7uint8_t6size_tPK7uint8_t6size_t6MDTypeR9HashBytes" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify a signature </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>contents</strong> – Contents over which the signature was generated </p></li>
+<li><p><strong>contents_size</strong> – Size of <code class="docutils literal notranslate"><span class="pre">contents</span></code></p></li>
+<li><p><strong>sig</strong> – Signature </p></li>
+<li><p><strong>sig_size</strong> – Size of <code class="docutils literal notranslate"><span class="pre">sig</span></code></p></li>
+<li><p><strong>md_type</strong> – Hash algorithm </p></li>
+<li><p><strong>hash_bytes</strong> – Output buffer for the hash </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Boolean indicating success </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto8Verifier6verifyERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDType">
+<span id="_CPPv3NK6crypto8Verifier6verifyERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDType"></span><span id="_CPPv2NK6crypto8Verifier6verifyERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDType"></span><span id="crypto::Verifier::verify__std::vector:uint8_t:CR.std::vector:uint8_t:CR.MDTypeC"></span><span class="target" id="classcrypto_1_1Verifier_1a11d70acf2afd93f9674c59f3555dc12f"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">contents</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">signature</span></span>, <span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">md_type</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">MDType</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">NONE</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK6crypto8Verifier6verifyERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDType" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify a signature </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>contents</strong> – Contents over which the signature was generated </p></li>
+<li><p><strong>signature</strong> – Signature </p></li>
+<li><p><strong>md_type</strong> – Hash algorithm </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Boolean indicating success </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto8Verifier6verifyERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDTypeR9HashBytes">
+<span id="_CPPv3NK6crypto8Verifier6verifyERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDTypeR9HashBytes"></span><span id="_CPPv2NK6crypto8Verifier6verifyERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDTypeR9HashBytes"></span><span id="crypto::Verifier::verify__std::vector:uint8_t:CR.std::vector:uint8_t:CR.MDType.HashBytesRC"></span><span class="target" id="classcrypto_1_1Verifier_1a21e2ad4e5577e647803982254b8554c6"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">contents</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">signature</span></span>, <span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">md_type</span></span>, <span class="n"><span class="pre">HashBytes</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">hash_bytes</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK6crypto8Verifier6verifyERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDTypeR9HashBytes" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify a signature </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>contents</strong> – Contents over which the signature was generated </p></li>
+<li><p><strong>signature</strong> – Signature </p></li>
+<li><p><strong>md_type</strong> – Hash algorithm </p></li>
+<li><p><strong>hash_bytes</strong> – Output buffer for the hash </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Boolean indicating success </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto8Verifier11verify_hashEPK7uint8_t6size_tPK7uint8_t6size_t6MDType">
+<span id="_CPPv3N6crypto8Verifier11verify_hashEPK7uint8_t6size_tPK7uint8_t6size_t6MDType"></span><span id="_CPPv2N6crypto8Verifier11verify_hashEPK7uint8_t6size_tPK7uint8_t6size_t6MDType"></span><span id="crypto::Verifier::verify_hash__uint8_tCP.s.uint8_tCP.s.MDType"></span><span class="target" id="classcrypto_1_1Verifier_1aa364e888ca9cfe14cef5cc1ab7639e42"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify_hash</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">hash</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">hash_size</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">uint8_t</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">sig</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">sig_size</span></span>, <span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">md_type</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">MDType</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">NONE</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto8Verifier11verify_hashEPK7uint8_t6size_tPK7uint8_t6size_t6MDType" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify a signature over a hash </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>hash</strong> – Hash over which the signature was generated </p></li>
+<li><p><strong>hash_size</strong> – Size of <code class="docutils literal notranslate"><span class="pre">hash</span></code></p></li>
+<li><p><strong>sig</strong> – Signature </p></li>
+<li><p><strong>sig_size</strong> – Size of <code class="docutils literal notranslate"><span class="pre">sig</span></code></p></li>
+<li><p><strong>md_type</strong> – Hash algorithm </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Boolean indicating success </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto8Verifier11verify_hashERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDType">
+<span id="_CPPv3N6crypto8Verifier11verify_hashERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDType"></span><span id="_CPPv2N6crypto8Verifier11verify_hashERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDType"></span><span id="crypto::Verifier::verify_hash__std::vector:uint8_t:CR.std::vector:uint8_t:CR.MDType"></span><span class="target" id="classcrypto_1_1Verifier_1adaeefef14cfd877a31ed7f46977fa52b"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify_hash</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">hash</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">signature</span></span>, <span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">md_type</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">MDType</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">NONE</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto8Verifier11verify_hashERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE6MDType" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify a signature over a hash </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>hash</strong> – Hash over which the signature was generated </p></li>
+<li><p><strong>signature</strong> – Signature </p></li>
+<li><p><strong>md_type</strong> – Hash algorithm </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Boolean indicating success </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4I_6size_tEN6crypto8Verifier11verify_hashEbRKNSt5arrayI7uint8_t4SIZEEERKNSt6vectorI7uint8_tEE6MDType">
+<span id="_CPPv3I_6size_tEN6crypto8Verifier11verify_hashERKNSt5arrayI7uint8_t4SIZEEERKNSt6vectorI7uint8_tEE6MDType"></span><span id="_CPPv2I_6size_tEN6crypto8Verifier11verify_hashERKNSt5arrayI7uint8_t4SIZEEERKNSt6vectorI7uint8_tEE6MDType"></span><span class="k"><span class="pre">template</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">SIZE</span></span></span><span class="p"><span class="pre">&gt;</span></span><br /><span class="target" id="classcrypto_1_1Verifier_1a1047624d538aafa8c35a2caa79d97b98"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify_hash</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">array</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#_CPPv4I_6size_tEN6crypto8Verifier11verify_hashEbRKNSt5arrayI7uint8_t4SIZEEERKNSt6vectorI7uint8_tEE6MDType" title="crypto::Verifier::verify_hash::SIZE"><span class="n"><span class="pre">SIZE</span></span></a><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">hash</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">signature</span></span>, <span class="n"><span class="pre">MDType</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">md_type</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="n"><span class="pre">MDType</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">NONE</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4I_6size_tEN6crypto8Verifier11verify_hashEbRKNSt5arrayI7uint8_t4SIZEEERKNSt6vectorI7uint8_tEE6MDType" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify a signature over a hash </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>hash</strong> – Hash over which the signature was generated </p></li>
+<li><p><strong>signature</strong> – Signature </p></li>
+<li><p><strong>md_type</strong> – Hash algorithm </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Boolean indicating success </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto8Verifier14public_key_pemEv">
+<span id="_CPPv3NK6crypto8Verifier14public_key_pemEv"></span><span id="_CPPv2NK6crypto8Verifier14public_key_pemEv"></span><span id="crypto::Verifier::public_key_pemC"></span><span class="target" id="classcrypto_1_1Verifier_1a2abe2b19d773ab98cfee8fe3c208e266"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">public_key_pem</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK6crypto8Verifier14public_key_pemEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Extract the public key of the certificate in PEM format </p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>PEM encoded public key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto8Verifier14public_key_derEv">
+<span id="_CPPv3NK6crypto8Verifier14public_key_derEv"></span><span id="_CPPv2NK6crypto8Verifier14public_key_derEv"></span><span id="crypto::Verifier::public_key_derC"></span><span class="target" id="classcrypto_1_1Verifier_1a29614e2050c106306d7285e5ef874a62"></span><span class="k"><span class="pre">inline</span></span><span class="w"> </span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">public_key_der</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><a class="headerlink" href="#_CPPv4NK6crypto8Verifier14public_key_derEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Extract the public key of the certificate in DER format </p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>DER encoded public key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto8Verifier18verify_certificateERKNSt6vectorIPK3PemEERKNSt6vectorIPK3PemEEb">
+<span id="_CPPv3N6crypto8Verifier18verify_certificateERKNSt6vectorIPK3PemEERKNSt6vectorIPK3PemEEb"></span><span id="_CPPv2N6crypto8Verifier18verify_certificateERKNSt6vectorIPK3PemEERKNSt6vectorIPK3PemEEb"></span><span id="crypto::Verifier::verify_certificate__std::vector:PemCP:CR.std::vector:PemCP:CR.b"></span><span class="target" id="classcrypto_1_1Verifier_1add4dfa50403455bb1eeb4cd0395311d7"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">verify_certificate</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">Pem</span></span><span class="p"><span class="pre">*</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">trusted_certs</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">Pem</span></span><span class="p"><span class="pre">*</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">chain</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span>, <span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">ignore_time</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="k"><span class="pre">false</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4N6crypto8Verifier18verify_certificateERKNSt6vectorIPK3PemEERKNSt6vectorIPK3PemEEb" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Verify the certificate (held internally) </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trusted_certs</strong> – Vector of trusted certificates </p></li>
+<li><p><strong>chain</strong> – Vector of ordered untrusted certificates used to build a chain to trusted certificates </p></li>
+<li><p><strong>ignore_time</strong> – Flag to disable certificate expiry checks </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>true if the verification is successful </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto8Verifier14is_self_signedEv">
+<span id="_CPPv3NK6crypto8Verifier14is_self_signedEv"></span><span id="_CPPv2NK6crypto8Verifier14is_self_signedEv"></span><span id="crypto::Verifier::is_self_signedC"></span><span class="target" id="classcrypto_1_1Verifier_1a3bcf105930b93864f19e7862b996c65a"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">is_self_signed</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto8Verifier14is_self_signedEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>Indicates whether the certificate (held intenally) is self-signed </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto8Verifier13serial_numberEv">
+<span id="_CPPv3NK6crypto8Verifier13serial_numberEv"></span><span id="_CPPv2NK6crypto8Verifier13serial_numberEv"></span><span id="crypto::Verifier::serial_numberC"></span><span class="target" id="classcrypto_1_1Verifier_1a0d92f5097ebacc92acbe5c1e5fd4b205"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">serial_number</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto8Verifier13serial_numberEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>The serial number of the certificate </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto8Verifier15validity_periodEv">
+<span id="_CPPv3NK6crypto8Verifier15validity_periodEv"></span><span id="_CPPv2NK6crypto8Verifier15validity_periodEv"></span><span id="crypto::Verifier::validity_periodC"></span><span class="target" id="classcrypto_1_1Verifier_1adb6acc99d1306a81a7c00642b79e4c91"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">pair</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">validity_period</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto8Verifier15validity_periodEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>The validity period of the certificate </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto8Verifier17remaining_secondsERKNSt6chrono12system_clock10time_pointE">
+<span id="_CPPv3NK6crypto8Verifier17remaining_secondsERKNSt6chrono12system_clock10time_pointE"></span><span id="_CPPv2NK6crypto8Verifier17remaining_secondsERKNSt6chrono12system_clock10time_pointE"></span><span id="crypto::Verifier::remaining_seconds__std::chrono::system_clock::time_pointCRC"></span><span class="target" id="classcrypto_1_1Verifier_1a6666589e65d4ff476157375ec2c3d354"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">remaining_seconds</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">chrono</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">system_clock</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">time_point</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">now</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto8Verifier17remaining_secondsERKNSt6chrono12system_clock10time_pointE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>The number of seconds of the validity period of the certificate remaining </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto8Verifier20remaining_percentageERKNSt6chrono12system_clock10time_pointE">
+<span id="_CPPv3NK6crypto8Verifier20remaining_percentageERKNSt6chrono12system_clock10time_pointE"></span><span id="_CPPv2NK6crypto8Verifier20remaining_percentageERKNSt6chrono12system_clock10time_pointE"></span><span id="crypto::Verifier::remaining_percentage__std::chrono::system_clock::time_pointCRC"></span><span class="target" id="classcrypto_1_1Verifier_1a999b9d912878d671098e1d0030701421"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="kt"><span class="pre">double</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">remaining_percentage</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">chrono</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">system_clock</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">time_point</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">now</span></span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto8Verifier20remaining_percentageERKNSt6chrono12system_clock10time_pointE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>The percentage of the validity period of the certificate remaining </p>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4NK6crypto8Verifier7subjectEv">
+<span id="_CPPv3NK6crypto8Verifier7subjectEv"></span><span id="_CPPv2NK6crypto8Verifier7subjectEv"></span><span id="crypto::Verifier::subjectC"></span><span class="target" id="classcrypto_1_1Verifier_1a0dc69ca8ec3eccedd74dd529915f0cf9"></span><span class="k"><span class="pre">virtual</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">string</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">subject</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="m"><span class="pre">0</span></span><a class="headerlink" href="#_CPPv4NK6crypto8Verifier7subjectEv" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>The subject name of the certificate </p>
+</dd></dl>
+
+</div>
+</dd></dl>
+
+</section>
+<section id="key-wrapping">
+<h2>Key Wrapping<a class="headerlink" href="#key-wrapping" title="Permalink to this heading">#</a></h2>
+<p>PKCS11 2.1.8 CKM_RSA_PKCS_OAEP</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto22ckm_rsa_pkcs_oaep_wrapE15RSAPublicKeyPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE">
+<span id="_CPPv3N6crypto22ckm_rsa_pkcs_oaep_wrapE15RSAPublicKeyPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="_CPPv2N6crypto22ckm_rsa_pkcs_oaep_wrapE15RSAPublicKeyPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="crypto::ckm_rsa_pkcs_oaep_wrap__RSAPublicKeyPtr.std::vector:uint8_t:CR.std::optional:std::vector:uint8_t::CR"></span><span class="target" id="namespacecrypto_1aa2ed76f2ded99a7224570ef6b94a7361"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">ckm_rsa_pkcs_oaep_wrap</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">RSAPublicKeyPtr</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">wrapping_key</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">unwrapped</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">label</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto22ckm_rsa_pkcs_oaep_wrapE15RSAPublicKeyPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>PKCS11 2.1.8 CKM_RSA_PKCS_OAEP wrap </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>wrapping_key</strong> – The wrapping (encryption) key </p></li>
+<li><p><strong>unwrapped</strong> – The unwrapped key to be wrapped </p></li>
+<li><p><strong>label</strong> – Optional label </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Wrapped key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto22ckm_rsa_pkcs_oaep_wrapERK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE">
+<span id="_CPPv3N6crypto22ckm_rsa_pkcs_oaep_wrapERK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="_CPPv2N6crypto22ckm_rsa_pkcs_oaep_wrapERK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="crypto::ckm_rsa_pkcs_oaep_wrap__PemCR.std::vector:uint8_t:CR.std::optional:std::vector:uint8_t::CR"></span><span class="target" id="namespacecrypto_1a93c65436a9be24114b124c870d36e7a6"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">ckm_rsa_pkcs_oaep_wrap</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">wrapping_key</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">unwrapped</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">label</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto22ckm_rsa_pkcs_oaep_wrapERK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>PKCS11 2.1.8 CKM_RSA_PKCS_OAEP </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>wrapping_key</strong> – The wrapping (encryption) key </p></li>
+<li><p><strong>unwrapped</strong> – The unwrapped key to be wrapped </p></li>
+<li><p><strong>label</strong> – Optional label </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Wrapped key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto24ckm_rsa_pkcs_oaep_unwrapE13RSAKeyPairPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE">
+<span id="_CPPv3N6crypto24ckm_rsa_pkcs_oaep_unwrapE13RSAKeyPairPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="_CPPv2N6crypto24ckm_rsa_pkcs_oaep_unwrapE13RSAKeyPairPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="crypto::ckm_rsa_pkcs_oaep_unwrap__RSAKeyPairPtr.std::vector:uint8_t:CR.std::optional:std::vector:uint8_t::CR"></span><span class="target" id="namespacecrypto_1ac41d4688bc3e3299e55420f0a58f6a4f"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">ckm_rsa_pkcs_oaep_unwrap</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">RSAKeyPairPtr</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">wrapping_key</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">wrapped</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">label</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto24ckm_rsa_pkcs_oaep_unwrapE13RSAKeyPairPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>PKCS11 2.1.8 CKM_RSA_PKCS_OAEP unwrap </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>wrapping_key</strong> – The wrapping (encryption) key </p></li>
+<li><p><strong>wrapped</strong> – The wrapped key to unwrap </p></li>
+<li><p><strong>label</strong> – Optional label </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Unwrapped key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto24ckm_rsa_pkcs_oaep_unwrapERK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE">
+<span id="_CPPv3N6crypto24ckm_rsa_pkcs_oaep_unwrapERK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="_CPPv2N6crypto24ckm_rsa_pkcs_oaep_unwrapERK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="crypto::ckm_rsa_pkcs_oaep_unwrap__PemCR.std::vector:uint8_t:CR.std::optional:std::vector:uint8_t::CR"></span><span class="target" id="namespacecrypto_1a72ee0012e87eaae9454ae61506753f31"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">ckm_rsa_pkcs_oaep_unwrap</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">wrapping_key</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">wrapped</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">label</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto24ckm_rsa_pkcs_oaep_unwrapERK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>PKCS11 2.1.8 CKM_RSA_PKCS_OAEP </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>wrapping_key</strong> – The wrapping (encryption) key </p></li>
+<li><p><strong>wrapped</strong> – The wrapped key to unwrap </p></li>
+<li><p><strong>label</strong> – Optional label </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Unwrapped key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<p>PKCS11 2.14.3 CKM_AES_KEY_WRAP_PAD (RFC 5649)</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto20ckm_aes_key_wrap_padERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE">
+<span id="_CPPv3N6crypto20ckm_aes_key_wrap_padERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE"></span><span id="_CPPv2N6crypto20ckm_aes_key_wrap_padERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE"></span><span id="crypto::ckm_aes_key_wrap_pad__std::vector:uint8_t:CR.std::vector:uint8_t:CR"></span><span class="target" id="namespacecrypto_1a0346d556403d85e32c5af1f73c31d5d1"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">ckm_aes_key_wrap_pad</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">wrapping_key</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">unwrapped</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto20ckm_aes_key_wrap_padERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>PKCS11 2.14.3 CKM_AES_KEY_WRAP_PAD wrap </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>wrapping_key</strong> – The wrapping (encryption) key </p></li>
+<li><p><strong>unwrapped</strong> – The unwrapped key to be wrapped </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Wrapped key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto22ckm_aes_key_unwrap_padERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE">
+<span id="_CPPv3N6crypto22ckm_aes_key_unwrap_padERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE"></span><span id="_CPPv2N6crypto22ckm_aes_key_unwrap_padERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE"></span><span id="crypto::ckm_aes_key_unwrap_pad__std::vector:uint8_t:CR.std::vector:uint8_t:CR"></span><span class="target" id="namespacecrypto_1a65b60e91251c52064f7434fb6928badb"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">ckm_aes_key_unwrap_pad</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">wrapping_key</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">wrapped</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto22ckm_aes_key_unwrap_padERKNSt6vectorI7uint8_tEERKNSt6vectorI7uint8_tEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>PKCS11 2.14.3 CKM_AES_KEY_WRAP_PAD unwrap </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>wrapping_key</strong> – The wrapping (encryption) key </p></li>
+<li><p><strong>wrapped</strong> – The wrapped key to unwrap </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Unwrapped key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<p>PKCS11 2.1.21 CKM_RSA_AES_KEY_WRAP</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto20ckm_rsa_aes_key_wrapE6size_t15RSAPublicKeyPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE">
+<span id="_CPPv3N6crypto20ckm_rsa_aes_key_wrapE6size_t15RSAPublicKeyPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="_CPPv2N6crypto20ckm_rsa_aes_key_wrapE6size_t15RSAPublicKeyPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="crypto::ckm_rsa_aes_key_wrap__s.RSAPublicKeyPtr.std::vector:uint8_t:CR.std::optional:std::vector:uint8_t::CR"></span><span class="target" id="namespacecrypto_1a0a5665c2600926752676ad93a9a01920"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">ckm_rsa_aes_key_wrap</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">aes_key_size</span></span>, <span class="n"><span class="pre">RSAPublicKeyPtr</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">wrapping_key</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">unwrapped</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">label</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto20ckm_rsa_aes_key_wrapE6size_t15RSAPublicKeyPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>PKCS11 2.1.21 CKM_RSA_AES_KEY_WRAP wrap </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>aes_key_size</strong> – Key size 128, 192 or 256. </p></li>
+<li><p><strong>wrapping_key</strong> – The wrapping (encryption) key </p></li>
+<li><p><strong>unwrapped</strong> – The key to wrap </p></li>
+<li><p><strong>label</strong> – Optional label </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Wrapped key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto20ckm_rsa_aes_key_wrapE6size_tRK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE">
+<span id="_CPPv3N6crypto20ckm_rsa_aes_key_wrapE6size_tRK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="_CPPv2N6crypto20ckm_rsa_aes_key_wrapE6size_tRK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="crypto::ckm_rsa_aes_key_wrap__s.PemCR.std::vector:uint8_t:CR.std::optional:std::vector:uint8_t::CR"></span><span class="target" id="namespacecrypto_1a22fc27c43a513ef8720ba510685008b3"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">ckm_rsa_aes_key_wrap</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">aes_key_size</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">wrapping_key</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">unwrapped</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">label</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto20ckm_rsa_aes_key_wrapE6size_tRK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>PKCS11 2.1.21 CKM_RSA_AES_KEY_WRAP wrap </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>aes_key_size</strong> – Key size 128, 192 or 256. </p></li>
+<li><p><strong>wrapping_key</strong> – The wrapping (encryption) key </p></li>
+<li><p><strong>unwrapped</strong> – The key to wrap </p></li>
+<li><p><strong>label</strong> – Optional label </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Wrapped key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto22ckm_rsa_aes_key_unwrapE13RSAKeyPairPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE">
+<span id="_CPPv3N6crypto22ckm_rsa_aes_key_unwrapE13RSAKeyPairPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="_CPPv2N6crypto22ckm_rsa_aes_key_unwrapE13RSAKeyPairPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="crypto::ckm_rsa_aes_key_unwrap__RSAKeyPairPtr.std::vector:uint8_t:CR.std::optional:std::vector:uint8_t::CR"></span><span class="target" id="namespacecrypto_1ac9bd74bc6a5a9807de649bd150eac0c4"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">ckm_rsa_aes_key_unwrap</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">RSAKeyPairPtr</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">wrapping_key</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">wrapped</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">label</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto22ckm_rsa_aes_key_unwrapE13RSAKeyPairPtrRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>PKCS11 2.1.21 CKM_RSA_AES_KEY_WRAP unwrap </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>wrapping_key</strong> – The wrapping (encryption) key </p></li>
+<li><p><strong>wrapped</strong> – The wrapped key to unwrap </p></li>
+<li><p><strong>label</strong> – Optional label </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Unwrapped key </p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N6crypto22ckm_rsa_aes_key_unwrapERK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE">
+<span id="_CPPv3N6crypto22ckm_rsa_aes_key_unwrapERK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="_CPPv2N6crypto22ckm_rsa_aes_key_unwrapERK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE"></span><span id="crypto::ckm_rsa_aes_key_unwrap__PemCR.std::vector:uint8_t:CR.std::optional:std::vector:uint8_t::CR"></span><span class="target" id="namespacecrypto_1a31b4e8294ac67fffc2a9d2e3dc325492"></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">crypto</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">ckm_rsa_aes_key_unwrap</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">Pem</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">wrapping_key</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">wrapped</span></span>, <span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">optional</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">std</span></span><span class="p"><span class="pre">::</span></span><span class="n"><span class="pre">vector</span></span><span class="p"><span class="pre">&lt;</span></span><span class="n"><span class="pre">uint8_t</span></span><span class="p"><span class="pre">&gt;</span></span><span class="p"><span class="pre">&gt;</span></span><span class="w"> </span><span class="p"><span class="pre">&amp;</span></span><span class="n sig-param"><span class="pre">label</span></span><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="p"><span class="pre">{</span></span><span class="p"><span class="pre">}</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N6crypto22ckm_rsa_aes_key_unwrapERK3PemRKNSt6vectorI7uint8_tEERKNSt8optionalINSt6vectorI7uint8_tEEEE" title="Permalink to this definition">#</a><br /></dt>
+<dd><p>PKCS11 2.1.21 CKM_RSA_AES_KEY_WRAP unwrap </p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>wrapping_key</strong> – The wrapping (encryption) key </p></li>
+<li><p><strong>wrapped</strong> – The wrapped key to unwrap </p></li>
+<li><p><strong>label</strong> – Optional label </p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Unwrapped key </p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+  
+        <div class="related-pages">
+          <a class="next-page" href="release_policy.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Release and compatibility policy</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="api.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Developer API</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2018, Microsoft Research
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+  <script>
+    // Edit this page, on GitHub
+    var contentIconContainer = document.querySelector(".content-icon-container");
+    const editContent = `
+    <div class="edit-this-page">
+      <a class="muted-link" href="https://github.com/Microsoft/CCF/edit/main/doc/build_apps/crypto.rst">
+        <svg viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+          <path d="M4 20h4l10.5 -10.5a1.5 1.5 0 0 0 -4 -4l-10.5 10.5v4" />
+          <line x1="13.5" y1="6.5" x2="17.5" y2="10.5" />
+        </svg>
+      </a>
+    </div>`;
+    contentIconContainer.insertAdjacentHTML("afterbegin", editContent);
+
+    // Show GitHub repository home
+    var icons = document.querySelector(".icons")
+    const repoLinkContent = `
+    <a class="muted-link" href="https://github.com/Microsoft/CCF" aria-label="On GitHub">
+      <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+        <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+      </svg>
+    </a>`;
+    icons.insertAdjacentHTML("beforeend", repoLinkContent);
+  </script>
+
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Cryptography API</a><ul>
+<li><a class="reference internal" href="#hashing">Hashing</a></li>
+<li><a class="reference internal" href="#asymmetric-keys">Asymmetric Keys</a></li>
+<li><a class="reference internal" href="#symmetric-keys">Symmetric Keys</a></li>
+<li><a class="reference internal" href="#signatures">Signatures</a></li>
+<li><a class="reference internal" href="#key-wrapping">Key Wrapping</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../_static/scripts/furo.js?v=32e29ea5"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/tabs.js?v=3ee01567"></script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>

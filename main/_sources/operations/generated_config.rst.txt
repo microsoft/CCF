@@ -1,0 +1,679 @@
+.. This is an auto-generated file. DO NOT EDIT.
+
+Configuration Options
+^^^^^^^^^^^^^^^^^^^^^
+
+\ ``enclave``
+#############
+
+This section includes configuration for the enclave application launched by this node.
+
+``file``
+   |   DEPRECATED: Replaced by --enclave-file CLI argument. Path to enclave application.
+   |   **Type**: string
+
+
+``platform``
+   |   Trusted Execution Environment platform.
+   |   **Required**
+   |   **Type**: string
+   |   **Values**: ``"SGX"``, ``"SNP"``, ``"Virtual"``
+   |   **Default**: ``"SGX"``
+
+
+``type``
+   |   Type of enclave application (only if platform is SGX). "Virtual" is deprecated (use ``platform`` instead).
+   |   **Required**
+   |   **Type**: string
+   |   **Values**: ``"Release"``, ``"Debug"``, ``"Virtual"``
+   |   **Default**: ``"Release"``
+
+
+
+\ ``network``
+#############
+
+This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications).
+
+\ ``network.node_to_node_interface``
+------------------------------------
+
+Addresses (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages).
+
+``bind_address``
+   |   Local address the node binds to and listens on.
+   |   **Required**
+   |   **Type**: string
+
+
+``published_address``
+   |   The published node address advertised to other nodes. This must be different on each node.
+   |   **Type**: string
+   |   **Default**: ``"Value of 'bind_address'"``
+
+
+
+\ ``network.rpc_interfaces``
+----------------------------
+
+Interfaces to listen on for incoming client TLS connections, as a dictionary from unique interface name to RPC interface information.
+
+\ ``network.rpc_interfaces.[name]``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+``bind_address``
+   |   Local address the node binds to and listens on.
+   |   **Required**
+   |   **Type**: string
+
+
+``published_address``
+   |   The published RPC address advertised to clients.
+   |   **Type**: string
+   |   **Default**: ``"Value of 'bind_address'"``
+
+
+``protocol``
+   |   The RPC protocol used (udp | tcp).
+   |   **Type**: string
+   |   **Default**: ``"tcp"``
+
+
+``app_protocol``
+   |   The application protocol used by all sessions on this interface.
+   |   **Type**: string
+   |   **Default**: ``"HTTP1"``
+
+
+``max_open_sessions_soft``
+   |   The maximum number of active client sessions on that interface after which clients will receive an HTTP 503 error.
+   |   **Type**: integer
+   |   **Default**: ``1000``
+
+
+``max_open_sessions_hard``
+   |   The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of ``max_open_sessions_soft``.
+   |   **Type**: integer
+   |   **Default**: ``1010``
+
+
+\ ``network.rpc_interfaces.[name].http_configuration``
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+``max_body_size``
+   |   Maximum size (size string) of a single HTTP request body. Submitting a request with a payload larger than this value will result in the client session being automatically closed.
+   |   **Type**: string
+   |   **Default**: ``"1MB"``
+
+
+``max_header_size``
+   |   Maximum size (size string) of a single HTTP request header (key or value). Submitting a request with a header larger than this value will result in the client session being automatically closed.
+   |   **Type**: string
+   |   **Default**: ``"16KB"``
+
+
+``max_headers_count``
+   |   Maximum number of headers in a single HTTP request. Submitting a request with more headers than this value will result in the session being automatically closed.
+   |   **Type**: integer
+   |   **Default**: ``256``
+
+
+``max_concurrent_streams_count``
+   |   HTTP/2 only. Maximum number of concurrent streams allowed per session.
+   |   **Type**: integer
+   |   **Default**: ``100``
+   |   **Minimum**: ``1``
+
+
+``initial_window_size``
+   |   HTTP/2 only. Initial size (size string) of flow-control window per stream.
+   |   **Type**: string
+   |   **Default**: ``"64KB"``
+
+
+``max_frame_size``
+   |   HTTP/2 only. Maximum allowed size (size string) of HTTP/2 frames (min: 16KB, max: 16MB).
+   |   **Type**: string
+   |   **Default**: ``"16KB"``
+
+
+
+\ ``network.rpc_interfaces.[name].endorsement``
++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+``authority``
+   |   The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. 'Node' means self-signed, 'Service' means service-endorsed, 'ACME' means an ACME-capable CA, 'Unsecured' means unencrypted traffic and no endorsement authority.
+   |   **Required**
+   |   **Type**: string
+   |   **Values**: ``"Node"``, ``"Service"``, ``"ACME"``, ``"Unsecured"``
+   |   **Default**: ``"Service"``
+
+
+``acme_configuration``
+   |   Name of the ACME configuration defined in the network.acme.configurations section.
+   |   **Type**: string
+
+
+
+\ ``network.rpc_interfaces.[name].accepted_endpoints``
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+An array of regular expressions that specify which URL paths are served on the interface. Optional; if not present, all paths are served.
+
+
+``forwarding_timeout_ms``
+   |   Timeout for forwarded RPC calls (in milliseconds).
+   |   **Type**: integer
+   |   **Default**: ``3000``
+
+
+\ ``network.rpc_interfaces.[name].redirections``
+++++++++++++++++++++++++++++++++++++++++++++++++
+
+Configure how redirect responses should be produced on this interface. If this is omitted, then forwarding will be used instead.
+
+\ ``network.rpc_interfaces.[name].redirections.to_primary``
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+
+``kind``
+   |   
+   |   **Required**
+   |   **Type**: None
+   |   **Values**: ``"NodeByRole"``, ``"StaticAddress"``
+
+
+\ ``network.rpc_interfaces.[name].redirections.to_primary.target``
+__________________________________________________________________
+
+(Only applies if network.rpc_interfaces.[name].redirections.to_primary.kind is ``"NodeByRole"``)
+
+``role``
+   |   
+   |   **Type**: None
+   |   **Values**: ``"primary"``
+   |   **Default**: ``"primary"``
+
+
+
+\ ``network.rpc_interfaces.[name].redirections.to_primary.target``
+__________________________________________________________________
+
+(Only applies if network.rpc_interfaces.[name].redirections.to_primary.kind is ``"StaticAddress"``)
+
+``address``
+   |   
+   |   **Required**
+   |   **Type**: string
+
+
+
+
+
+
+
+\ ``network.acme``
+------------------
+
+Configuration for the ACME client(s) to obtain globally valid TLS certificates, e.g. from Let's Encrypt.
+
+\ ``network.acme.configurations``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+\ ``network.acme.configurations.[name]``
+++++++++++++++++++++++++++++++++++++++++
+
+ACME Configurations.
+
+\ ``network.acme.configurations.[name].ca_certs``
+"""""""""""""""""""""""""""""""""""""""""""""""""
+
+Root certificate(s) of the CA to connect to in PEM format (for TLS connections to the CA, e.g. Let's Encrypt's ISRG Root X1).
+
+
+``directory_url``
+   |   URL of the ACME server's directory.
+   |   **Type**: string
+
+
+``service_dns_name``
+   |   DNS name of the service we represent.
+   |   **Type**: string
+
+
+\ ``network.acme.configurations.[name].alternative_names``
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+
+Alternative names for the service we represent (X509 SANs).
+
+
+\ ``network.acme.configurations.[name].contact``
+""""""""""""""""""""""""""""""""""""""""""""""""
+
+Contact addresses (see RFC8555 7.3, e.g. mailto:john@example.com).
+
+
+``terms_of_service_agreed``
+   |   Indication that the user/operator is aware of the latest terms and conditions for the CA.
+   |   **Type**: boolean
+
+
+``challenge_type``
+   |   Type of the ACME challenge (usually http-01; others are supported but require a custom challenge handler).
+   |   **Type**: string
+   |   **Default**: ``"http-01"``
+
+
+``challenge_server_interface``
+   |   Name of the interface for the http-01 challenge frontend to listen on.
+   |   **Type**: string
+
+
+
+
+
+
+\ ``command``
+#############
+
+This section includes configuration of how the node should start (either start, join or recover) and associated information.
+
+``type``
+   |   Type of CCF node.
+   |   **Required**
+   |   **Type**: string
+   |   **Values**: ``"Start"``, ``"Join"``, ``"Recover"``
+
+
+``service_certificate_file``
+   |   For ``Start`` and ``Recover`` nodes, path to which service certificate will be written to on startup. For ``Join`` nodes, path to the certificate of the existing service to join.
+   |   **Type**: string
+   |   **Default**: ``"service_cert.pem"``
+
+
+\ ``command.start``
+-------------------
+
+(Only applies if command.type is ``"Start"``)
+
+\ ``command.start.constitution_files``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+List of constitution files. These typically include actions.js, validate.js, resolve.js and apply.js.
+
+
+``initial_service_certificate_validity_days``
+   |   Initial validity period (days) for service certificate.
+   |   **Type**: integer
+   |   **Default**: ``1``
+   |   **Minimum**: ``1``
+
+
+``service_subject_name``
+   |   Subject name to include in service certificate. Can only be set once on service start.
+   |   **Type**: string
+   |   **Default**: ``"CN=CCF Service"``
+
+
+\ ``command.start.members``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+List of initial consortium members files, including identity certificates, public encryption keys and member data files.
+
+
+\ ``command.start.service_configuration``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+``recovery_threshold``
+   |   Number of recovery members required to recover the service. Note that if the recovery threshold is set to 0, it is automatically set to the number of recovery members specified in 'members'.
+   |   **Required**
+   |   **Type**: integer
+
+
+``maximum_node_certificate_validity_days``
+   |   The maximum number of days allowed for node certificate validity period.
+   |   **Type**: integer
+   |   **Default**: ``365``
+   |   **Minimum**: ``1``
+
+
+``maximum_service_certificate_validity_days``
+   |   The maximum number of days allowed for service certificate validity period.
+   |   **Type**: integer
+   |   **Default**: ``365``
+   |   **Minimum**: ``1``
+
+
+``recent_cose_proposals_window_size``
+   |   Size of the window of COSE proposals recently received by the service, kept for the purpose of replay protection.
+   |   **Type**: integer
+   |   **Default**: ``100``
+   |   **Minimum**: ``1``
+
+
+
+
+\ ``command.join``
+------------------
+
+(Only applies if command.type is ``"Join"``)
+
+``target_rpc_address``
+   |   Address (host:port) of a node of the existing service to join.
+   |   **Required**
+   |   **Type**: string
+
+
+``retry_timeout``
+   |   Interval (time string) at which the node sends join requests to the existing service. This should be less than the value of 'consensus.election_timeout' set on the primary node of the existing service to join.
+   |   **Type**: string
+   |   **Default**: ``"1000ms"``
+
+
+``follow_redirect``
+   |   Whether to follow redirects to the primary node of the existing service to join.
+   |   **Type**: boolean
+   |   **Default**: ``true``
+
+
+
+\ ``command.recover``
+---------------------
+
+(Only applies if command.type is ``"Recover"``)
+
+``initial_service_certificate_validity_days``
+   |   Initial validity period (days) for service certificate.
+   |   **Type**: integer
+   |   **Default**: ``1``
+   |   **Minimum**: ``1``
+
+
+``previous_service_identity_file``
+   |   Path to the previous service certificate (PEM) file.
+   |   **Required**
+   |   **Type**: string
+
+
+
+
+\ ``node_certificate``
+######################
+
+This section includes configuration for the node x509 identity certificate.
+
+``subject_name``
+   |   Subject name to include in node certificate.
+   |   **Type**: string
+   |   **Default**: ``"CN=CCF Node"``
+
+
+\ ``node_certificate.subject_alt_names``
+----------------------------------------
+
+List of ``iPAddress:`` or ``dNSName:`` strings to include as Subject Alternative Names (SAN) in node certificates. If none are set, the node certificate will automatically include the value of the main RPC interface 'published_address'.
+
+
+``curve_id``
+   |   Elliptic curve to use for node identity key.
+   |   **Type**: string
+   |   **Values**: ``"Secp384R1"``, ``"Secp256R1"``
+   |   **Default**: ``"Secp384R1"``
+
+
+``initial_validity_days``
+   |   Initial validity period (days) for node certificate.
+   |   **Type**: integer
+   |   **Default**: ``1``
+   |   **Minimum**: ``1``
+
+
+
+``node_data_json_file``
+   |   Path to file (JSON) containing initial node data. It is intended to store correlation IDs describing the node's deployment, such as a VM name or Pod identifier.
+   |   **Type**: string | null
+
+
+\ ``attestation``
+#################
+
+This section includes configuration for the attestation for AMD SEV-SNP platform (ignored for SGX).
+
+``snp_security_policy_file``
+   |   Path to file containing the security policy (SEV-SNP only), can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR.
+   |   **Type**: string | null
+
+
+``snp_uvm_endorsements_file``
+   |   Path to file containing UVM endorsements as a base64-encoded COSE Sign1 (SEV-SNP only). Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR.
+   |   **Type**: string | null
+
+
+\ ``attestation.snp_endorsements_servers``
+------------------------------------------
+
+List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. If set, attestation endorsements from ``--snp-security-context-dir-var`` are ignored, but uvm endorsements from that directory are still used.
+
+
+
+``service_data_json_file``
+   |   Path to file (JSON) containing initial service data. It is used when the node starts in 'Start' or 'Recover' mode and is intended to store arbitrary information about the service.
+   |   **Type**: string | null
+
+
+\ ``ledger``
+############
+
+This section includes configuration for the ledger directories and files.
+
+``directory``
+   |   Path to main ledger directory.
+   |   **Type**: string
+   |   **Default**: ``"ledger"``
+
+
+\ ``ledger.read_only_directories``
+----------------------------------
+
+Paths to read-only ledger directories. Note that only '.committed' files will be read from these directories.
+
+
+``chunk_size``
+   |   Minimum size (size string) of the current ledger file after which a new ledger file (chunk) is created.
+   |   **Type**: string
+   |   **Default**: ``"5MB"``
+
+
+
+\ ``snapshots``
+###############
+
+This section includes configuration for the snapshot directories and files.
+
+``directory``
+   |   Path to snapshots directory.
+   |   **Type**: string
+   |   **Default**: ``"snapshots"``
+
+
+``tx_count``
+   |   Number of transactions after which a snapshot is automatically generated.
+   |   **Type**: integer
+   |   **Default**: ``10000``
+   |   **Minimum**: ``1``
+
+
+``read_only_directory``
+   |   Path to read-only snapshots directory.
+   |   **Type**: string | null
+
+
+
+\ ``logging``
+#############
+
+This section includes configuration for the logging of the node process.
+
+``host_level``
+   |   Logging level for the untrusted host.
+   |   **Type**: string
+   |   **Values**: ``"Trace"``, ``"Debug"``, ``"Info"``, ``"Fail"``, ``"Fatal"``
+   |   **Default**: ``"Info"``
+
+
+``format``
+   |   If 'json', node logs will be formatted as JSON.
+   |   **Type**: string
+   |   **Values**: ``"Text"``, ``"Json"``
+   |   **Default**: ``"Text"``
+
+
+
+\ ``consensus``
+###############
+
+This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service).
+
+``message_timeout``
+   |   Maximum interval (time string) at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than 'election_timeout'.
+   |   **Type**: string
+   |   **Default**: ``"100ms"``
+
+
+``election_timeout``
+   |   Maximum timeout (time string) after which backup nodes that have not received any message from the primary node (or voted for a candidate) will trigger a new election. This timeout is also used by candidates to restart unsuccessful elections. This should be set to a significantly greater value than 'message_timeout' plus the expected network delay.
+   |   **Type**: string
+   |   **Default**: ``"5000ms"``
+
+
+``max_uncommitted_tx_count``
+   |   Maximum number of uncommitted transactions allowed before the primary refuses new transactions. Unlimited if set to 0.
+   |   **Type**: integer
+   |   **Default**: ``10000``
+
+
+
+\ ``ledger_signatures``
+#######################
+
+This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service). Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.
+
+``tx_count``
+   |   Number of transactions after which a signature transaction is automatically generated.
+   |   **Type**: integer
+   |   **Default**: ``5000``
+   |   **Minimum**: ``1``
+
+
+``delay``
+   |   Maximum duration after which a signature transaction is automatically generated.
+   |   **Type**: string
+   |   **Default**: ``"1000ms"``
+
+
+
+\ ``jwt``
+#########
+
+This section includes configuration for JWT issuers automatic refresh.
+
+``key_refresh_interval``
+   |   Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed.
+   |   **Type**: string
+   |   **Default**: ``"30min"``
+
+
+
+\ ``output_files``
+##################
+
+This section includes configuration for additional files output by the node.
+
+``node_certificate_file``
+   |   Path to self-signed node certificate output by node on startup.
+   |   **Type**: string
+   |   **Default**: ``"nodecert.pem"``
+
+
+``pid_file``
+   |   Path to file in which 'cchost' process identifier (PID) will be written to on startup.
+   |   **Type**: string
+   |   **Default**: ``"cchost.pid"``
+
+
+``node_to_node_address_file``
+   |   Path to file in which node address (hostname and port) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified.
+   |   **Type**: string
+
+
+``rpc_addresses_file``
+   |   Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified.
+   |   **Type**: string
+
+
+
+``tick_interval``
+   |   Interval at which the enclave time will be updated by the host (modify with care!).
+   |   **Type**: string
+   |   **Default**: ``"10ms"``
+
+
+``slow_io_logging_threshold``
+   |   Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node log.
+   |   **Type**: string
+   |   **Default**: ``"10000us"``
+
+
+``node_client_interface``
+   |   Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS. This option is particularly useful for testing purposes (e.g. establishing network partitions between nodes).
+   |   **Type**: string | null
+
+
+``client_connection_timeout``
+   |   Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded.
+   |   **Type**: string
+   |   **Default**: ``"2000ms"``
+
+
+``worker_threads``
+   |   Experimental. Number of additional threads processing incoming client requests in the enclave (modify with care!).
+   |   **Type**: integer
+
+
+\ ``memory``
+############
+
+This section includes configuration for the host-enclave ring-buffer memory (modify with care!).
+
+``circuit_size``
+   |   Size (size string) of the internal host-enclave ringbuffers (must be a power of 2).
+   |   **Type**: string
+   |   **Default**: ``"16MB"``
+
+
+``max_msg_size``
+   |   Maximum size (size string) for a message sent over the ringbuffer. Messages may be split into multiple fragments, but this limits the total size of the sum of those fragments.
+   |   **Type**: string
+   |   **Default**: ``"64MB"``
+
+
+``max_fragment_size``
+   |   Maximum size (size string) of individual ringbuffer message fragments. Messages larger than this will be split into multiple fragments.
+   |   **Type**: string
+   |   **Default**: ``"256KB"``
+
+
+
+``ignore_first_sigterm``
+   |   Ignore the first SIGTERM received by the process, but set "stop_notice" in /node/state.
+   |   **Type**: boolean
+
+
+``node_to_node_message_limit``
+   |   Cap at which node-to-node message channels will be closed, and a new channel will be created. Can be used to limit use of single cryptographic key.
+   |   **Type**: integer
