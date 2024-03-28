@@ -579,6 +579,7 @@ def test_multi_auth(network, args):
         def require_new_response(r):
             assert r.status_code == http.HTTPStatus.OK.value, r.status_code
             r_body = r.body.text()
+            assert "undefined" not in r_body, f"Looks like you misnamed a field?\n{r_body}"
             assert r_body not in response_bodies, r_body
             response_bodies.add(r_body)
 
