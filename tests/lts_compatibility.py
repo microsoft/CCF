@@ -243,6 +243,10 @@ def run_code_upgrade_from(
             )
             network.consortium.add_new_code(primary, new_code_id)
 
+            LOG.info("Update constitution")
+            new_constitution = get_new_constitution_for_install(args, to_install_path)
+            network.consortium.set_constitution(primary, new_constitution)
+
             # Note: alternate between joining from snapshot and replaying entire ledger
             new_nodes = []
             from_snapshot = True
