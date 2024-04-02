@@ -335,12 +335,9 @@ IsSendRequestVote ==
            j == logline.msg.to_node_id
        IN /\ RequestVote(i, j)
           /\ \E m \in Network!Messages':
-                /\ m.type = RequestVoteRequest
-                /\ m.type = RaftMsgType[logline.msg.packet.msg]
-                /\ m.term = logline.msg.packet.term
-                /\ m.lastCommittableIndex = logline.msg.packet.last_committable_idx
-                /\ m.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
-                \* There is now one more message of this type.
+                \* Assert that as a result of RequestVote above, the variable messages is changed to contain
+                \* a RequestVoteRequest message sent from i to j.
+                /\ IsRequestVoteRequest(m, j, i, logline)
                 /\ Network!OneMoreMessage(m)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
@@ -353,12 +350,7 @@ IsRcvRequestVoteRequest ==
        /\ LET i == logline.msg.state.node_id
               j == logline.msg.from_node_id
           IN \E m \in Network!MessagesTo(i, j):
-               /\ m.type = RequestVoteRequest
-               /\ m.dest   = i
-               /\ m.source = j
-               /\ m.term = logline.msg.packet.term
-               /\ m.lastCommittableIndex = logline.msg.packet.last_committable_idx
-               /\ m.lastCommittableTerm = logline.msg.packet.term_of_last_committable_idx
+               /\ IsRequestVoteRequest(m, i, j, logline)
                /\ \/ HandleRequestVoteRequest(i, j, m)
                   \* Below formula is a decomposed TraceRcvUpdateTermReqVote step, i.e.,
                   \* a (ccfraft!UpdateTerm \cdot ccfraft!HandleRequestVoteRequest) step.
