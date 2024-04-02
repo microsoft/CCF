@@ -103,12 +103,12 @@ export interface Request<T extends JsonCompatible<T> = any> {
   caller?: AuthnIdentity;
 }
 
-// TODO: Describe AllOfAuthnIdentity
 export interface AuthnIdentityCommon {
   /**
    * A string indicating which policy accepted this request,
    * for use when multiple policies are listed in the endpoint
-   * configuration of ``app.json``.
+   * configuration of ``app.json``, or list-of-strings to identify
+   * an all_of policy.
    */
   policy: string | string[];
 }
