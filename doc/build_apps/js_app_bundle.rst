@@ -86,7 +86,7 @@ Each endpoint object contains the following information:
           "authn_policies": [
             "member_cert",
             {
-              "allOf": ["user_cert", "jwt"]
+              "all_of": ["user_cert", "jwt"]
             },
             "jwt"
           ]
