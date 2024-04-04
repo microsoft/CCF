@@ -4,7 +4,7 @@
       "get": {
         "js_module": "endpoints/jwt.js",
         "js_function": "jwt",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": [],
         "mode": "readonly",
         "openapi": {
@@ -53,7 +53,7 @@
       "get": {
         "js_module": "endpoints/crypto.js",
         "js_function": "crypto",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -85,7 +85,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "generateAesKey",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -119,7 +119,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "generateRsaKeyPair",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -170,7 +170,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "generateEcdsaKeyPair",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -218,7 +218,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "generateEddsaKeyPair",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -266,7 +266,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "wrapKey",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -306,7 +306,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "unwrapKey",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -346,7 +346,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "sign",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -394,7 +394,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "verifySignature",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -445,7 +445,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "digest",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -482,7 +482,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "isValidX509CertBundle",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -511,7 +511,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "isValidX509CertChain",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -552,7 +552,7 @@
       "post": {
         "js_module": "endpoints/partition.js",
         "js_function": "partition",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -590,7 +590,7 @@
       "post": {
         "js_module": "endpoints/proto.js",
         "js_function": "proto",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -615,7 +615,7 @@
       "post": {
         "js_module": "endpoints/oe.js",
         "js_function": "verifyOpenEnclaveEvidence",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -667,7 +667,7 @@
       "post": {
         "js_module": "endpoints/snp_attestation.js",
         "js_function": "verifySnpAttestation",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -817,7 +817,7 @@
       "get": {
         "js_module": "endpoints/log.js",
         "js_function": "getLogItem",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -882,7 +882,7 @@
       "get": {
         "js_module": "endpoints/log.js",
         "js_function": "getAllLogItems",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -916,7 +916,7 @@
       "get": {
         "js_module": "endpoints/log.js",
         "js_function": "getLogItemVersion",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -977,7 +977,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "pubPemToJwk",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -1018,7 +1018,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "pemToJwk",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -1059,7 +1059,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "pubRsaPemToJwk",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -1100,7 +1100,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "rsaPemToJwk",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -1141,7 +1141,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "pubEddsaPemToJwk",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -1182,7 +1182,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "eddsaPemToJwk",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -1223,7 +1223,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "pubJwkToPem",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -1266,7 +1266,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "jwkToPem",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -1309,7 +1309,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "rsaJwkToPem",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -1352,7 +1352,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "pubRsaJwkToPem",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -1395,7 +1395,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "eddsaJwkToPem",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -1438,7 +1438,7 @@
       "post": {
         "js_module": "endpoints/crypto.js",
         "js_function": "pubEddsaJwkToPem",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -1481,7 +1481,7 @@
       "get": {
         "js_module": "endpoints/rpc.js",
         "js_function": "throwError",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
@@ -1510,7 +1510,7 @@
       "put": {
         "js_module": "endpoints/auth.js",
         "js_function": "checkUserCOSESign1Auth",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cose_sign1"],
         "mode": "readwrite",
         "openapi": {

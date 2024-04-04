@@ -4,7 +4,7 @@
       "get": {
         "js_module": "custom_authorization.js",
         "js_function": "compare_bearer",
-        "forwarding_required": "sometimes",
+        "forwarding_required": "sometimes", "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}
