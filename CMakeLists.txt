@@ -1389,7 +1389,10 @@ if(BUILD_TESTS)
     endif()
 
     add_e2e_test(
-      NAME e2e_redirects PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
+      NAME e2e_redirects
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
+      ADDITIONAL_ARGS --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
 
     add_e2e_test(

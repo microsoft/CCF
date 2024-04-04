@@ -14,6 +14,7 @@ from loguru import logger as LOG
 def test_redirects_with_node_role_config(network, args):
     paths = ("/app/log/private", "/app/log/public")
     msg = "Redirect test"
+    req = {"id": 42, "msg": msg}
 
     def test_redirect_to_node(talk_to, redirect_to):
         interface = redirect_to.host.rpc_interfaces[
@@ -23,13 +24,24 @@ def test_redirects_with_node_role_config(network, args):
 
         with talk_to.client("user0") as c:
             for path in paths:
-                r = c.post(path, {"id": 42, "msg": msg}, allow_redirects=False)
+                r = c.post(path, req, allow_redirects=False)
                 assert r.status_code == http.HTTPStatus.TEMPORARY_REDIRECT.value
                 assert "location" in r.headers
                 assert r.headers["location"] == f"{loc}{path}", r.headers
 
-    LOG.info("Redirect to original primary")
+                # Despite redirect config, some requests should NOT be redirected
+                r = c.get(f"{path}?id={req['id']}", allow_redirects=False)
+                assert r.status_code == http.HTTPStatus.OK
+
     primary, orig_backups = network.find_nodes()
+
+    LOG.info("Write initial values")
+    with primary.client("user0") as c:
+        for path in paths:
+            r = c.post(path, req)
+            assert r.status_code == http.HTTPStatus.OK
+
+    LOG.info("Redirect to original primary")
     for backup in orig_backups:
         test_redirect_to_node(backup, primary)
 
@@ -44,7 +56,7 @@ def test_redirects_with_node_role_config(network, args):
     assert new_primary in orig_backups  # Check it WAS a backup
     with new_primary.client("user0") as c:
         for path in paths:
-            r = c.post(path, {"id": 42, "msg": msg}, allow_redirects=False)
+            r = c.post(path, req, allow_redirects=False)
             assert r.status_code == http.HTTPStatus.OK.value
 
     LOG.info("Redirects fail when no primary available")
@@ -64,7 +76,7 @@ def test_redirects_with_node_role_config(network, args):
 
     with backup.client("user0") as c:
         for path in paths:
-            r = c.post(path, {"id": 42, "msg": msg}, allow_redirects=False)
+            r = c.post(path, req, allow_redirects=False)
             assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value
             assert r.body.json()["error"]["code"] == "PrimaryNotFound"
 
@@ -135,16 +147,30 @@ if __name__ == "__main__":
     cr = ConcurrentRunner()
 
     cr.add(
-        "redirects_role",
+        "cpp_redirects_role",
         run_redirect_tests_role,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
     )
 
     cr.add(
-        "redirects_static",
+        "cpp_redirects_static",
         run_redirect_tests_static,
         package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+    )
+
+    cr.add(
+        "js_redirects_role",
+        run_redirect_tests_role,
+        package="libjs_generic",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    )
+
+    cr.add(
+        "js_redirects_static",
+        run_redirect_tests_static,
+        package="libjs_generic",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
     )
 
