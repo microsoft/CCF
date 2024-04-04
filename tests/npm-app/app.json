@@ -846,7 +846,7 @@
       "post": {
         "js_module": "endpoints/log.js",
         "js_function": "setLogItem",
-        "forwarding_required": "always",
+        "forwarding_required": "always", "redirection_strategy": "to_primary",
         "authn_policies": ["user_cert"],
         "mode": "readwrite",
         "openapi": {
@@ -947,7 +947,7 @@
       "post": {
         "js_module": "endpoints/rpc.js",
         "js_function": "postApplyWrites",
-        "forwarding_required": "always",
+        "forwarding_required": "always", "redirection_strategy": "to_primary",
         "authn_policies": ["user_cert"],
         "mode": "readwrite",
         "openapi": {
@@ -961,7 +961,7 @@
       "get": {
         "js_module": "endpoints/rpc.js",
         "js_function": "getApplyWrites",
-        "forwarding_required": "always",
+        "forwarding_required": "always", "redirection_strategy": "to_primary",
         "authn_policies": ["user_cert"],
         "mode": "readwrite",
         "openapi": {
@@ -1539,7 +1539,7 @@
       "post": {
         "js_module": "endpoints/auth.js",
         "js_function": "checkMultiAuth",
-        "forwarding_required": "never",
+        "forwarding_required": "never", "redirection_strategy": "none",
         "authn_policies": [
           {
             "all_of": ["user_cert", "jwt", "user_cose_sign1"]
@@ -1580,7 +1580,7 @@
       "post": {
         "js_module": "endpoints/converters.js",
         "js_function": "testConvertersSet",
-        "forwarding_required": "never",
+        "forwarding_required": "never", "redirection_strategy": "none",
         "authn_policies": [],
         "mode": "readwrite",
         "openapi": {
@@ -1606,7 +1606,7 @@
       "get": {
         "js_module": "endpoints/converters.js",
         "js_function": "testConvertersGet",
-        "forwarding_required": "never",
+        "forwarding_required": "never", "redirection_strategy": "none",
         "authn_policies": [],
         "mode": "readonly",
         "openapi": {

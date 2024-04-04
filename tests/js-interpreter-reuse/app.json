@@ -4,7 +4,7 @@
       "post": {
         "js_module": "cache.js",
         "js_function": "cachedFib",
-        "forwarding_required": "never",
+        "forwarding_required": "never", "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {}
@@ -14,7 +14,7 @@
       "post": {
         "js_module": "cache.js",
         "js_function": "cachedFib",
-        "forwarding_required": "never",
+        "forwarding_required": "never", "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {},
@@ -27,7 +27,7 @@
       "post": {
         "js_module": "cache.js",
         "js_function": "cachedFib",
-        "forwarding_required": "never",
+        "forwarding_required": "never", "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {},
@@ -40,7 +40,7 @@
       "post": {
         "js_module": "cache.js",
         "js_function": "cachedFib",
-        "forwarding_required": "never",
+        "forwarding_required": "never", "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {},
@@ -53,7 +53,7 @@
       "post": {
         "js_module": "di_sample.js",
         "js_function": "slowCall",
-        "forwarding_required": "never",
+        "forwarding_required": "never", "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {},
@@ -66,7 +66,7 @@
       "post": {
         "js_module": "global_handle.js",
         "js_function": "increment",
-        "forwarding_required": "never",
+        "forwarding_required": "never", "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readwrite",
         "openapi": {},
@@ -79,7 +79,7 @@
       "post": {
         "js_module": "global_handle.js",
         "js_function": "globals",
-        "forwarding_required": "never",
+        "forwarding_required": "never", "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readwrite",
         "openapi": {},
@@ -92,7 +92,7 @@
       "get": {
         "js_module": "func_caching.js",
         "js_function": "func_caching",
-        "forwarding_required": "never",
+        "forwarding_required": "never", "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {},

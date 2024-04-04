@@ -56,7 +56,7 @@
       "get": {
         "js_module": "endpoints.js",
         "js_function": "fibonacci",
-        "forwarding_required": "never",
+        "forwarding_required": "never", "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {}

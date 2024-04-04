@@ -4,7 +4,7 @@
       "post": {
         "js_module": "batched.js",
         "js_function": "submit_batch",
-        "forwarding_required": "always",
+        "forwarding_required": "always", "redirection_strategy": "to_primary",
         "authn_policies": ["user_cert"],
         "mode": "readwrite",
         "openapi": {}
