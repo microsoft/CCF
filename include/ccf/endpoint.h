@@ -126,7 +126,7 @@ namespace ccf::endpoints
     /// Endpoint forwarding policy
     ForwardingRequired forwarding_required = ForwardingRequired::Always;
     /// Endpoint redirection policy
-    RedirectionStrategy redirection_strategy = RedirectionStrategy::None;
+    RedirectionStrategy redirection_strategy = RedirectionStrategy::ToPrimary;
     /// Authentication policies
     std::vector<nlohmann::json> authn_policies = {};
     /// OpenAPI schema for endpoint
