@@ -32,7 +32,7 @@ schedules:
 resources:
   containers:
     - container: virtual
-      image: ccfmsrc.azurecr.io/ccf/ci:2024-03-21-virtual-clang15
+      image: ccfmsrc.azurecr.io/ccf/ci:2024-04-03-virtual-clang15
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
 jobs:
