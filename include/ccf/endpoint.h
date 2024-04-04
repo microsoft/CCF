@@ -153,7 +153,8 @@ namespace ccf::endpoints
     mode,
     js_module,
     js_function,
-    interpreter_reuse);
+    interpreter_reuse,
+    redirection_strategy);
 
   struct EndpointDefinition
   {
