@@ -31,6 +31,7 @@ namespace ccf
     DECLARE_JSON_OPTIONAL_FIELDS(Failure, trace);
     using VoteFailures = std::unordered_map<ccf::MemberId, Failure>;
 
+    /// Proposal metadata stored in the KV
     struct ProposalInfo
     {
       /// Member ID of the proposer
@@ -48,6 +49,7 @@ namespace ccf
     DECLARE_JSON_OPTIONAL_FIELDS(
       ProposalInfo, final_votes, vote_failures, failure);
 
+    /// Proposal summary constructed while executing/resolving proposal ballots
     struct ProposalInfoSummary
     {
       /// Proposal ID
