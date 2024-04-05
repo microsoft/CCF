@@ -1734,7 +1734,7 @@ namespace ccf
         member_sig_only_policies("ballot"))
         .set_auto_schema<jsgov::Ballot, jsgov::ProposalInfoSummary>()
         .set_openapi_summary(
-          "Ballots submitted against a proposed change to the service")
+          "Submit a ballot for a proposed changed to the service")
         .install();
 
       auto get_vote_js =
