@@ -685,8 +685,7 @@ const actions = new Map([
             );
 
             const redirection_strategy = info.redirection_strategy;
-            if (redirection_strategy !== undefined)
-            {
+            if (redirection_strategy !== undefined) {
               checkEnum(
                 info.redirection_strategy,
                 ["none", "to_primary"],

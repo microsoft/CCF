@@ -4,7 +4,8 @@
       "post": {
         "js_module": "endpoints.js",
         "js_function": "echo",
-        "forwarding_required": "sometimes", "redirection_strategy": "none",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
         "authn_policies": ["user_cert", "no_auth"],
         "mode": "readonly",
         "openapi": {}
@@ -12,7 +13,8 @@
       "get": {
         "js_module": "endpoints.js",
         "js_function": "echo",
-        "forwarding_required": "sometimes", "redirection_strategy": "none",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
         "authn_policies": ["user_cert", "no_auth"],
         "mode": "readonly",
         "openapi": {}
@@ -20,7 +22,8 @@
       "delete": {
         "js_module": "endpoints.js",
         "js_function": "echo",
-        "forwarding_required": "sometimes", "redirection_strategy": "none",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
         "authn_policies": ["user_cert", "no_auth"],
         "mode": "readonly",
         "openapi": {}
@@ -30,7 +33,8 @@
       "post": {
         "js_module": "endpoints.js",
         "js_function": "echo",
-        "forwarding_required": "sometimes", "redirection_strategy": "none",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
         "authn_policies": ["user_cert", "no_auth"],
         "mode": "readonly",
         "openapi": {}
@@ -38,7 +42,8 @@
       "get": {
         "js_module": "endpoints.js",
         "js_function": "echo",
-        "forwarding_required": "sometimes", "redirection_strategy": "none",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
         "authn_policies": ["user_cert", "no_auth"],
         "mode": "readonly",
         "openapi": {}
@@ -46,7 +51,8 @@
       "delete": {
         "js_module": "endpoints.js",
         "js_function": "echo",
-        "forwarding_required": "sometimes", "redirection_strategy": "none",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
         "authn_policies": ["user_cert", "no_auth"],
         "mode": "readonly",
         "openapi": {}
@@ -56,7 +62,8 @@
       "get": {
         "js_module": "endpoints.js",
         "js_function": "fibonacci",
-        "forwarding_required": "never", "redirection_strategy": "none",
+        "forwarding_required": "never",
+        "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {}
@@ -66,7 +73,8 @@
       "get": {
         "js_module": "endpoints.js",
         "js_function": "make_randoms",
-        "forwarding_required": "sometimes", "redirection_strategy": "none",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {}
@@ -76,7 +84,8 @@
       "get": {
         "js_module": "endpoints.js",
         "js_function": "time_now",
-        "forwarding_required": "sometimes", "redirection_strategy": "none",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
         "authn_policies": ["no_auth"],
         "mode": "readonly",
         "openapi": {}

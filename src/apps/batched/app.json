@@ -4,7 +4,8 @@
       "post": {
         "js_module": "batched.js",
         "js_function": "submit_batch",
-        "forwarding_required": "always", "redirection_strategy": "to_primary",
+        "forwarding_required": "always",
+        "redirection_strategy": "to_primary",
         "authn_policies": ["user_cert"],
         "mode": "readwrite",
         "openapi": {}
@@ -14,7 +15,8 @@
       "post": {
         "js_module": "batched.js",
         "js_function": "fetch_batch",
-        "forwarding_required": "sometimes", "redirection_strategy": "none",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}

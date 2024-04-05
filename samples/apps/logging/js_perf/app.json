@@ -4,7 +4,8 @@
       "get": {
         "js_module": "logging.js",
         "js_function": "get_private",
-        "forwarding_required": "sometimes", "redirection_strategy": "none",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readonly",
         "openapi": {},
@@ -13,7 +14,8 @@
       "post": {
         "js_module": "logging.js",
         "js_function": "post_private",
-        "forwarding_required": "always", "redirection_strategy": "to_primary",
+        "forwarding_required": "always",
+        "redirection_strategy": "to_primary",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
         "openapi": {},
