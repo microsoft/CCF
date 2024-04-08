@@ -154,7 +154,7 @@ namespace ccf
           mb,
           "vote",
           fmt::format(
-            "public:ccf.gov.proposal_info[{}].ballots[{}]", proposal_id, mid));
+            "public:ccf.gov.proposals_info[{}].ballots[{}]", proposal_id, mid));
 
         std::vector<js::JSWrappedValue> argv = {
           context.new_string_len((const char*)proposal.data(), proposal.size()),
