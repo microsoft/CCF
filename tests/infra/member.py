@@ -60,7 +60,7 @@ class MemberAPI:
                 )
 
         @classmethod
-        def get_proposal(cls, remote_node, proposal_id):
+        def get_proposal_raw(cls, remote_node, proposal_id):
             with remote_node.api_versioned_client(
                 api_version=cls.API_VERSION,
             ) as c:
@@ -68,12 +68,16 @@ class MemberAPI:
                 if r.status_code != http.HTTPStatus.OK.value:
                     raise MemberEndpointException(r)
 
-                body = r.body.json()
-                return infra.proposal.Proposal(
-                    proposer_id=body["proposerId"],
-                    proposal_id=body["proposalId"],
-                    state=infra.proposal.ProposalState(body["proposalState"]),
-                )
+                return r.body.json()
+
+        @classmethod
+        def get_proposal(cls, remote_node, proposal_id):
+            body = cls.get_proposal_raw(remote_node, proposal_id)
+            return infra.proposal.Proposal(
+                proposer_id=body["proposerId"],
+                proposal_id=body["proposalId"],
+                state=infra.proposal.ProposalState(body["proposalState"]),
+            )
 
         @classmethod
         def vote(cls, member, remote_node, proposal, ballot):
@@ -156,18 +160,22 @@ class MemberAPI:
                 )
 
         @classmethod
-        def get_proposal(cls, remote_node, proposal_id):
+        def get_proposal_raw(cls, remote_node, proposal_id):
             with remote_node.client() as c:
                 r = c.get(f"/gov/proposals/{proposal_id}")
                 if r.status_code != http.HTTPStatus.OK.value:
                     raise MemberEndpointException(r)
 
-                body = r.body.json()
-                return infra.proposal.Proposal(
-                    proposer_id=body["proposer_id"],
-                    proposal_id=proposal_id,
-                    state=infra.proposal.ProposalState(body["state"]),
-                )
+                return r.body.json()
+
+        @classmethod
+        def get_proposal(cls, remote_node, proposal_id):
+            body = cls.get_proposal_raw(remote_node, proposal_id)
+            return infra.proposal.Proposal(
+                proposer_id=body["proposer_id"],
+                proposal_id=proposal_id,
+                state=infra.proposal.ProposalState(body["state"]),
+            )
 
         @classmethod
         def vote(cls, member, remote_node, proposal, ballot):

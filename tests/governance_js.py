@@ -1273,6 +1273,15 @@ def test_final_proposal_visibility(network, args):
         response = fairweather.vote(primary, third, ballot)
         assert response.status_code == 200
 
+        LOG.info("Confirm that finalVotes is present in submit-ballot response")
+        body = response.body.json()
+        LOG.success(body)
+
+        LOG.info("Confirm that finalVotes is present in get-proposal response")
+        body = consortium.get_proposal_raw(primary, third.proposal_id)
+        LOG.success(body)
+
+        LOG.info("Confirm that expected log lines were emitted")
         expected_lines = [
             f"Member {booster.service_id} has 3 points",
             f"Member {fairweather.service_id} has 2 points",
