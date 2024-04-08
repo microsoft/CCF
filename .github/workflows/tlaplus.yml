@@ -19,7 +19,7 @@ jobs:
     name: Model Checking - Consistency
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ccfmsrc.azurecr.io/ccf/ci:2024-03-21-virtual-clang15
+      image: ccfmsrc.azurecr.io/ccf/ci:2024-04-03-virtual-clang15
 
     steps:
       - uses: actions/checkout@v4
@@ -144,7 +144,7 @@ jobs:
         ## Identify git diff: $(git diff --name-only HEAD^ | grep '.tla')
         ## Install genaiscript runtime: https://microsoft.github.io/genaiscript/reference/cli/
         ## Output LLM response in SARIF format: https://microsoft.github.io/genaiscript/reference/scripts/annotations/ (redirect other output to /dev/null for GH not to also show the annotations)
-        run: npx --yes genaiscript run scripts/TLAi-linter.genai.js $(git diff --name-only HEAD^ | grep '\.tla') --max-tokens 2000 --out-annotations results.sarif > /dev/null
+        run: npx --yes genaiscript run scripts/TLAi-linter.genai.js $(git diff --name-only HEAD^ | grep '\.tla') --max-tokens 2000 --out-annotations results.sarif > /dev/null && jq '.runs |= map(.results |= map(select(.level != "note")))' results.sarif > filtered.sarif
 
       - name: Upload SARIF file
         if: (success() || failure()) && steps.git_commit.outputs.contains_tla == 'true'
@@ -152,4 +152,4 @@ jobs:
         ## https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/uploading-a-sarif-file-to-github
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: results.sarif
+          sarif_file: filtered.sarif

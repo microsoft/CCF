@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - CCF now supports a mode where HTTP redirect responses are returned, rather than relying on internal forwarding. This can be used to ensure that write requests are executed on a primary, even if they are initially sent to a backup. This behaviour is enabled by setting the `redirections` field in an `rpc_interface` within cchost's launch config. This can be configured to redirect either directly to a node (if each node has a distinct, accessible name), or to a static load balancer address, depending on the current deployment. See docs for description of [redirection behaviour](https://microsoft.github.io/CCF/main/architecture/request_flow.html#redirection-flow) and [configuration](https://microsoft.github.io/CCF/main/operations/configuration.html#redirections).
+- Authentication policies can now be conjoined (AND) together, in addition to the previous disjoint (OR) behaviour. The new `ccf::AllOfAuthnPolicy` takes a collection of other policies, _all of which must be true_ for this auth policy to pass. In JS, [this can be configured](https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html#allofauthnpolicy) in the `app.json` as `"authn_policies": [{ "all_of": ["policy_a", "policy_b"] }]`.
 
 ## [5.0.0-dev14]
 
@@ -64,7 +65,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `ccf::historical::adapter_v2` is removed, replaced by `ccf::historical::adapter_v3` first introduced in 2.0.0.
 - `ccf::EnclaveAttestationProvider` has been removed. It is replaced by `ccf::AttestationProvider`
-- The `attestation.environment.security_context_directory` configuration entry and `--snp-security-context-dir-var` CLI option have been removed. SNP collateral must now be provided through the `snp_security_policy_file`, `snp_uvm_endorsements_file` and `snp_endorsement_servers` configuration values. See [documentation](https://microsoft.github.io/CCF/main/operations/platforms/snp.html) for details and platform-specific configuration samples.
+- The `attestation.environment.security_context_directory` configuration entry and `--snp-security-context-dir-var` CLI option have been removed. SNP collateral must now be provided through the `snp_security_policy_file`, `snp_uvm_endorsements_file` and `snp_endorsements_servers` configuration values. See [documentation](https://microsoft.github.io/CCF/main/operations/platforms/snp.html) for details and platform-specific configuration samples.
 
 ## [5.0.0-dev10]
 
