@@ -133,16 +133,14 @@ namespace ccf::gov::endpoints
       ccf::jsgov::ProposalInfo& proposal_info,
       const std::string& constitution)
     {
-      // Resulting state describes exactly _this_ resolution attempt
-      proposal_info.final_votes = ccf::jsgov::Votes();
-      proposal_info.vote_failures = ccf::jsgov::VoteFailures();
-      proposal_info.failure.reset();
+      // Create some temporaries to store resolution progress. These are written
+      // to proposal_info, and the KV, only for completed (accepted) proposal.
+      ccf::jsgov::Votes votes = {};
+      ccf::jsgov::VoteFailures vote_failures = {};
+      std::optional<ccf::jsgov::Failure> failure = std::nullopt;
 
       auto proposal_info_handle = tx.template rw<ccf::jsgov::ProposalInfoMap>(
         jsgov::Tables::PROPOSALS_INFO);
-
-      // Ensure current (reset) proposal_info is visible to "vote" execution
-      proposal_info_handle->put(proposal_id, proposal_info);
 
       // Evaluate ballots
       for (const auto& [mid, mb] : proposal_info.ballots)
@@ -170,7 +168,7 @@ namespace ccf::gov::endpoints
 
         if (!val.is_exception())
         {
-          proposal_info.final_votes.value()[mid] = val.is_true();
+          votes[mid] = val.is_true();
         }
         else
         {
@@ -180,15 +178,13 @@ namespace ccf::gov::endpoints
           {
             reason = "Operation took too long to complete.";
           }
-          proposal_info.vote_failures.value()[mid] =
-            ccf::jsgov::Failure{reason, trace};
+          vote_failures[mid] = ccf::jsgov::Failure{reason, trace};
         }
-
-        // Ensure proposal_info with votes is visible going forward
-        proposal_info_handle->put(proposal_id, proposal_info);
       }
 
       // Evaluate resolve function
+      // NB: Since the only change from the calls to `apply` is some tentative
+      // votes, there is no change to the proposal stored in the KV.
       {
         {
           js::Context js_context(js::TxAccess::GOV_RO);
@@ -206,7 +202,7 @@ namespace ccf::gov::endpoints
 
           auto vs = js_context.new_array();
           size_t index = 0;
-          for (auto& [mid, vote] : proposal_info.final_votes.value())
+          for (auto& [mid, vote] : votes)
           {
             auto v = JS_NewObject(js_context);
             auto member_id =
@@ -235,7 +231,7 @@ namespace ccf::gov::endpoints
             {
               reason = "Operation took too long to complete.";
             }
-            proposal_info.failure = ccf::jsgov::Failure{
+            failure = ccf::jsgov::Failure{
               fmt::format("Failed to resolve(): {}", reason), trace};
           }
           else
@@ -265,7 +261,7 @@ namespace ccf::gov::endpoints
             }
           }
 
-          // Ensure resolved proposal_info is visible going forward
+          // Ensure resolved proposal_info is visible in the KV
           proposal_info_handle->put(proposal_id, proposal_info);
         }
 
@@ -275,6 +271,13 @@ namespace ccf::gov::endpoints
 
           if (proposal_info.state == ProposalState::ACCEPTED)
           {
+            // Write now-permanent values back to proposal_state, and into the
+            // KV
+            proposal_info.final_votes = votes;
+            proposal_info.vote_failures = vote_failures;
+            proposal_info.failure = failure;
+            proposal_info_handle->put(proposal_id, proposal_info);
+
             // Evaluate apply function
             js::Context js_context(js::TxAccess::GOV_RW);
 
@@ -316,12 +319,11 @@ namespace ccf::gov::endpoints
               }
               proposal_info.failure = ccf::jsgov::Failure{
                 fmt::format("Failed to apply(): {}", reason), trace};
+
+              // Update final proposal_info (in KV) again, with failure info
+              proposal_info_handle->put(proposal_id, proposal_info);
             }
           }
-
-          // Ensure final proposal_info is visible (in KV), for caller/final
-          // write
-          proposal_info_handle->put(proposal_id, proposal_info);
         }
       }
     }
