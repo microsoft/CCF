@@ -1,0 +1,22 @@
+{
+  "endpoints": {
+    "/records/{key}": {
+      "get": {
+        "js_module": "basic.js",
+        "js_function": "get_record",
+        "forwarding_required": "always",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      },
+      "put": {
+        "js_module": "basic.js",
+        "js_function": "put_record",
+        "forwarding_required": "always",
+        "authn_policies": ["no_auth"],
+        "mode": "readwrite",
+        "openapi": {}
+      }
+    }
+  }
+}
