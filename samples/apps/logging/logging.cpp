@@ -453,7 +453,7 @@ namespace loggingapp
         }
 
         return ccf::make_error(
-          HTTP_STATUS_BAD_REQUEST,
+          HTTP_STATUS_NOT_FOUND,
           ccf::errors::ResourceNotFound,
           fmt::format("No such record: {}.", id));
       };

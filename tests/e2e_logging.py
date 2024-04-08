@@ -409,7 +409,7 @@ def test_remove(network, args):
         else:
             check(
                 r,
-                error=lambda status, msg: status == http.HTTPStatus.BAD_REQUEST.value
+                error=lambda status, msg: status == http.HTTPStatus.NOT_FOUND.value
                 and msg.json()["error"]["code"] == "ResourceNotFound",
             )
 
@@ -454,7 +454,7 @@ def test_clear(network, args):
                         check(
                             get_r,
                             error=lambda status, msg: status
-                            == http.HTTPStatus.BAD_REQUEST.value,
+                            == http.HTTPStatus.NOT_FOUND.value,
                         )
 
     # Make sure no-one else is still looking for these
@@ -1729,7 +1729,7 @@ def test_committed_index(network, args, timeout=5):
     network.txs.delete(log_id, priv=True)
 
     r = network.txs.request(log_id, priv=True)
-    assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+    assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
     assert r.body.json()["error"]["message"] == f"No such record: {log_id}."
     assert r.body.json()["error"]["code"] == "ResourceNotFound"
 
@@ -1869,43 +1869,43 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        # test_basic_constraints(network, args)
-        # test(network, args)
-        # test_remove(network, args)
-        # test_clear(network, args)
-        # test_record_count(network, args)
-        # # HTTP2 doesn't support forwarding
-        # if not args.http2:
-        #     test_forwarding_frontends(network, args)
-        #     test_forwarding_frontends_without_app_prefix(network, args)
-        #     test_long_lived_forwarding(network, args)
-        # test_user_data_ACL(network, args)
-        # test_cert_prefix(network, args)
-        # test_anonymous_caller(network, args)
-        # test_multi_auth(network, args)
-        # test_custom_auth(network, args)
-        # test_custom_auth_safety(network, args)
-        # test_raw_text(network, args)
-        # test_historical_query(network, args)
-        # test_historical_query_range(network, args)
-        # test_view_history(network, args)
-        # test_metrics(network, args)
-        # test_empty_path(network, args)
-        # if args.package == "samples/apps/logging/liblogging":
-        #     # Local-commit lambda is currently only supported in C++
-        #     test_post_local_commit_failure(network, args)
-        #     # Custom indexers currently only supported in C++
-        #     test_committed_index(network, args)
-        # test_liveness(network, args)
-        # test_rekey(network, args)
-        # test_liveness(network, args)
-        # test_random_receipts(network, args, False)
-        # if args.package == "samples/apps/logging/liblogging":
-        #     test_receipts(network, args)
-        #     test_historical_query_sparse(network, args)
-        # test_historical_receipts(network, args)
-        # test_historical_receipts_with_claims(network, args)
-        # test_genesis_receipt(network, args)
+        test_basic_constraints(network, args)
+        test(network, args)
+        test_remove(network, args)
+        test_clear(network, args)
+        test_record_count(network, args)
+        # HTTP2 doesn't support forwarding
+        if not args.http2:
+            test_forwarding_frontends(network, args)
+            test_forwarding_frontends_without_app_prefix(network, args)
+            test_long_lived_forwarding(network, args)
+        test_user_data_ACL(network, args)
+        test_cert_prefix(network, args)
+        test_anonymous_caller(network, args)
+        test_multi_auth(network, args)
+        test_custom_auth(network, args)
+        test_custom_auth_safety(network, args)
+        test_raw_text(network, args)
+        test_historical_query(network, args)
+        test_historical_query_range(network, args)
+        test_view_history(network, args)
+        test_metrics(network, args)
+        test_empty_path(network, args)
+        if args.package == "samples/apps/logging/liblogging":
+            # Local-commit lambda is currently only supported in C++
+            test_post_local_commit_failure(network, args)
+            # Custom indexers currently only supported in C++
+            test_committed_index(network, args)
+        test_liveness(network, args)
+        test_rekey(network, args)
+        test_liveness(network, args)
+        test_random_receipts(network, args, False)
+        if args.package == "samples/apps/logging/liblogging":
+            test_receipts(network, args)
+            test_historical_query_sparse(network, args)
+        test_historical_receipts(network, args)
+        test_historical_receipts_with_claims(network, args)
+        test_genesis_receipt(network, args)
         if args.package == "samples/apps/logging/liblogging":
             test_etags(network, args)
 
