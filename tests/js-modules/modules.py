@@ -15,6 +15,7 @@ import infra.net
 import infra.e2e_args
 import infra.crypto
 import suite.test_requirements as reqs
+from e2e_logging import test_multi_auth
 import openapi_spec_validator
 from jwcrypto import jwk
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -464,7 +465,7 @@ def rand_bytes(n):
 
 
 @reqs.description("Test basic Node.js/npm app")
-def test_npm_app(network, args):
+def build_and_deploy_npm_app(network, args):
     primary, _ = network.find_nodes()
 
     LOG.info("Building ccf-app npm package (dependency)")
@@ -488,6 +489,13 @@ def test_npm_app(network, args):
     )  # Produced by build step of test npm-app
     bundle = infra.consortium.slurp_json(bundle_path)
     network.consortium.set_js_app_from_bundle(primary, bundle)
+
+    return network
+
+
+@reqs.description("Test basic Node.js/npm app")
+def test_npm_app(network, args):
+    primary, _ = network.find_nodes()
 
     LOG.info("Calling npm app endpoints")
     with primary.client("user0") as c:
@@ -1433,13 +1441,17 @@ def run(args):
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)
         network = test_set_js_runtime(network, args)
+        network = build_and_deploy_npm_app(network, args)
         network = test_npm_app(network, args)
         network = test_js_execution_time(network, args)
         network = test_js_exception_output(network, args)
         network = test_user_cose_authentication(network, args)
+        network = test_multi_auth(network, args)
 
 
 if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.nodes = infra.e2e_args.max_nodes(args, f=0)
+    args.initial_user_count = 2
+    args.initial_member_count = 2
     run(args)

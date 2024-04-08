@@ -10,5 +10,9 @@ export default {
     preserveModules: true,
     preserveModulesRoot: "src",
   },
-  plugins: [nodeResolve(), typescript(), commonjs()],
+  plugins: [
+    nodeResolve(),
+    typescript({ compilerOptions: { noEmitOnError: true } }),
+    commonjs(),
+  ],
 };

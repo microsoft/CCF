@@ -17,6 +17,9 @@
         "js_function": "multi_auth",
         "forwarding_required": "always",
         "authn_policies": [
+          {
+            "all_of": ["user_cert", "jwt", "user_cose_sign1"]
+          },
           "user_cert",
           "member_cert",
           "jwt",

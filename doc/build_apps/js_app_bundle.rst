@@ -74,6 +74,24 @@ Each endpoint object contains the following information:
   - ``"user_cose_sign1"``
   - ``"no_auth"``
 
+.. _allofauthnpolicy:
+.. note::
+    This tests each policy in the list in-order, and passes if any single policy passes (returning the corresponding identity).
+    To combine policies so that they must `all` pass, you may instead pass an object with an ``allOf`` key as an element of this list.
+    For example, this endpoint will test (in order of preference) for `a member cert`, then `a user cert AND a JWT`, then `a JWT`:
+
+    .. code-block:: json
+
+        {
+          "authn_policies": [
+            "member_cert",
+            {
+              "all_of": ["user_cert", "jwt"]
+            },
+            "jwt"
+          ]
+        }
+
 - ``"forwarding_required"``: A string indicating whether the endpoint is always forwarded, or whether it is safe to sometimes execute on followers. Possible values are:
 
   - ``"always"``

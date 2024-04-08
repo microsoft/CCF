@@ -128,7 +128,7 @@ namespace ccf::endpoints
     /// Endpoint redirection policy
     RedirectionStrategy redirection_strategy = RedirectionStrategy::None;
     /// Authentication policies
-    std::vector<std::string> authn_policies = {};
+    std::vector<nlohmann::json> authn_policies = {};
     /// OpenAPI schema for endpoint
     nlohmann::json openapi;
     //// Whether to include endpoint schema in frontend schema

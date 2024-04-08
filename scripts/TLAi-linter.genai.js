@@ -20,12 +20,14 @@ Explain any consistencies and inconsistencies you may find.  Report inconsistent
 ## TLA+ Syntax Hints
 - A formula [A]_v is called a temporal formula, and is shorthand for the formula A \/ v' = v.  In other words, the formula is true if A is true or if the value of v remains unchanged.  Usually, v is a tuple of the spec's variables.
 - The symbol \`#\` is alternative syntax used for inequality in TLA+; the other symbol is \`/=\".
+- There a no assignments in TLA: \`x = 23\` and \`x' = 42\` are formula that assert that x equals 23 in the current state and 42 in a successor state.  Moreover, one may write \`x = 42 /\ x = 23\` which equals false but does not assign to x twice.
 
 ## TLA+ Semantics Hints
 - Do NOT add any invariants or properties to the behavior specification Spec or any of its subformulas.  This would change THEOREM Spec => Inv into THEOREM Spec /\ Inv => Inv, which is vacuously true.
 - TLA+ specs are always stuttering insensitive, i.e., the next-state relation is always [A]_v.  In other words, one cannot write a stuttering sensitive specification.
 
 ## TLA+ Convention Hints
+- Trivial or obvious formulas and sub-formulas are typically not commented.
 - The type correctness invariant is typically called TypeOK.
 - Users can employ TLA labels as a means to conceptually associate a comment with a sub-formula like a specific disjunct or conjunct of a TLA formula. Even though these labels have no other function, they facilitate referencing particular parts of the formula from a comment.
 
