@@ -767,6 +767,7 @@ def js_gov(args):
         governance_js.test_operator_provisioner_proposals_and_votes(network, args)
         governance_js.test_apply(network, args)
         governance_js.test_read_write_restrictions(network, args)
+        governance_js.test_final_proposal_visibility(network, args)
 
 
 def gov_replay(args):

@@ -15,6 +15,7 @@ import dataclasses
 import tempfile
 import uuid
 import infra.clients
+import json
 
 
 def action(name, **args):
@@ -1053,8 +1054,8 @@ def make_action_snippet(action_name, validate="", apply=""):
 actions.set(
     "{action_name}",
     new Action(
-        function (args) {{ {validate} }},
-        function (args) {{ {apply} }}
+        function validate(args) {{ {validate} }},
+        function apply(args, proposalId) {{ {apply} }}
     )
 )
 """
@@ -1187,5 +1188,100 @@ if (args.try.includes("write_during_{kind}")) {{ table.delete(getSingletonKvKey(
                     assert (
                         not should_succeed
                     ), f"Proposal failed unexpectedly ({desc}): {msg}"
+
+    return network
+
+
+@reqs.description("Test access to accepted proposal state")
+def test_final_proposal_visibility(network, args):
+    primary, _ = network.find_primary()
+    consortium = network.consortium
+
+    with temporary_constitution(
+        network,
+        args,
+        # A dumb and bad proposal that counts who voted for it. Just proving that such a thing is _possible_
+        make_action_snippet(
+            "cronyism",
+            apply="""
+            let proposals = ccf.kv["public:ccf.gov.proposals_info"];
+            let proposalInfoBuffer = proposals.get(ccf.strToBuf(proposalId));
+            if (proposalInfoBuffer === undefined) { throw new Error(`Can't find proposal info for ${proposalId}`); }
+            const proposalInfo = ccf.bufToJsonCompatible(proposalInfoBuffer);
+            const state = proposalInfo.state;
+            if (state != "Accepted") { throw new Error(`apply() received proposal in unexpected state ${state}`); }
+            const finalVotes = proposalInfo.final_votes;
+            if (finalVotes === undefined) { throw new Error("Don't have finalVotes"); }
+
+            let cronyPoints = ccf.kv["public:ccf.gov.testonly.crony_points"];
+            for (const [memberId, vote] of Object.entries(finalVotes)) {
+                const memberIdBuf = ccf.strToBuf(memberId);
+                if (vote === true) {
+                    if (cronyPoints.has(memberIdBuf)) {
+                        const prev = ccf.bufToJsonCompatible(cronyPoints.get(memberIdBuf));
+                        cronyPoints.set(memberIdBuf, ccf.jsonCompatibleToBuf(prev + 1));
+                    } else {
+                        cronyPoints.set(memberIdBuf, ccf.jsonCompatibleToBuf(1));
+                    }
+                } else {
+                    // Null points for anyone who voted against this
+                    cronyPoints.set(memberIdBuf, ccf.jsonCompatibleToBuf(0));
+                }
+            }
+
+            console.log("Current crony scoreboard is:");
+            cronyPoints.forEach((v, k) => {
+                console.log(`  Member ${ccf.bufToStr(k)} has ${ccf.bufToJsonCompatible(v)} points`);
+            });
+""",
+        ),
+    ):
+        members = consortium.get_active_members()
+        assert len(members) >= 3
+        booster = members[0]
+        fairweather = members[1]
+        turncoat = members[2]
+
+        proposal_body, ballot = consortium.make_proposal("cronyism")
+
+        first = consortium.get_any_active_member().propose(primary, proposal_body)
+        response = booster.vote(primary, first, ballot)
+        assert response.status_code == 200
+        response = turncoat.vote(primary, first, ballot)
+        assert response.status_code == 200
+
+        second = consortium.get_any_active_member().propose(primary, proposal_body)
+        response = booster.vote(primary, second, ballot)
+        assert response.status_code == 200
+        response = fairweather.vote(primary, second, ballot)
+        assert response.status_code == 200
+
+        third = consortium.get_any_active_member().propose(primary, proposal_body)
+        response = booster.vote(primary, third, ballot)
+        assert response.status_code == 200
+        # Votes against! Loses crony points!
+        response = turncoat.vote(
+            primary,
+            third,
+            json.dumps(
+                {
+                    "ballot": "export function vote (rawProposal, proposerId) { return false }"
+                }
+            ),
+        )
+        assert response.status_code == 200
+        response = fairweather.vote(primary, third, ballot)
+        assert response.status_code == 200
+
+        expected_lines = [
+            f"Member {booster.service_id} has 3 points",
+            f"Member {fairweather.service_id} has 2 points",
+            f"Member {turncoat.service_id} has 0 points",
+        ]
+
+        for line in expected_lines:
+            assert primary.check_log_for_error_message(
+                line
+            ), f"Not found in stdout: {line}"
 
     return network
