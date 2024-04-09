@@ -14,9 +14,9 @@ import argparse
 
 2. Run tvc.py
 
-~/CCF/tests$ python3 tvc.py -t https://127.0.0.1:8000 -t https://127.0.0.1:8001 --ca ../build/workspace/sandbox_common/service_cert.pem --txs 10
+~/CCF/tests$ python3 tvc.py -t https://127.0.0.1:8000 -t https://127.0.0.1:8001 --ca ../build/workspace/sandbox_common/service_cert.pem
 
-3. Things happen
+3. Trace is printed to stdout
 
 {"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 0}
 {"action": "RwTxResponseAction", "type": "RwTxRequest", "tx": 0, "tx_id": [2, 197]}
@@ -26,12 +26,6 @@ import argparse
 {"action": "StatusCommittedResponseAction", "type": "TxStatusReceived", "tx_id": [2, 199], "status": "CommittedStatus"}
 {"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 2}
 {"action": "RwTxResponseAction", "type": "RwTxRequest", "tx": 2, "tx_id": [2, 201]}
-
-TODO:
-
-- Add new entry point instead of sandbox, with
-  - Node suspend with timeout of 1.5 * checkQuorum interval
-  - Node partition with timeout of 1.5 * checkQuorum interval
 """
 
 KEY = "0"
@@ -47,49 +41,56 @@ def tx_id(string):
     return int(view), int(seqno)
 
 
-def run(targets, cacert, txs):
+def run(targets, cacert):
     session = httpx.Client(verify=cacert)
-    for tx in range(txs):
+    tx = 0
+    while True:
         target = random.choice(targets)
         # Always start with a write, to avoid having to handle missing values
         txtype = random.choice(["Ro", "Rw"]) if tx else "Rw"
-        log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
         if txtype == "Ro":
             response = session.get(f"{target}/records/{KEY}")
-            assert response.status_code == 200
-            assert response.text == VALUE
-            txid = response.headers["x-ms-ccf-transaction-id"]
-            log(
-                action="RoTxResponseAction",
-                type="RoTxRequest",
-                tx=tx,
-                tx_id=tx_id(txid),
-            )
+            if response.status_code == 200:
+                log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
+                assert response.text == VALUE
+                txid = response.headers["x-ms-ccf-transaction-id"]
+                log(
+                    action="RoTxResponseAction",
+                    type="RoTxRequest",
+                    tx=tx,
+                    tx_id=tx_id(txid),
+                )
         elif txtype == "Rw":
             response = session.put(f"{target}/records/{KEY}", data=VALUE)
-            assert response.status_code == 204
-            txid = response.headers["x-ms-ccf-transaction-id"]
-            log(
-                action="RwTxResponseAction",
-                type="RwTxRequest",
-                tx=tx,
-                tx_id=tx_id(txid),
-            )
-            status = "Pending"
-            final = False
-            while not final:
-                response = session.get(f"{target}/tx?transaction_id={txid}")
-                status = response.json()["status"]
-                if status in ("Committed", "Invalid"):
-                    log(
-                        action=f"Status{status}ResponseAction",
-                        type="TxStatusReceived",
-                        tx_id=tx_id(txid),
-                        status=f"{status}Status",
-                    )
-                    final = True
+            if response.status_code == 204:
+                log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
+                txid = response.headers["x-ms-ccf-transaction-id"]
+                log(
+                    action="RwTxResponseAction",
+                    type="RwTxRequest",
+                    tx=tx,
+                    tx_id=tx_id(txid),
+                )
+                status = "Pending"
+                final = False
+                while not final:
+                    response = session.get(f"{target}/tx?transaction_id={txid}")
+                    if response.status_code == 200:
+                        status = response.json()["status"]
+                        if status in ("Committed", "Invalid"):
+                            log(
+                                action=f"Status{status}ResponseAction",
+                                type="TxStatusReceived",
+                                tx_id=tx_id(txid),
+                                status=f"{status}Status",
+                            )
+                            final = True
+                    else:
+                        # if our target has gone away or does not know who is primary, try another one
+                        target = random.choice(targets)
         else:
             raise ValueError(f"Unknown Tx type: {txtype}")
+        tx += 1
 
 
 if __name__ == "__main__":
@@ -98,7 +99,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("-t", "--target", help="Host to connect to", action="append")
     parser.add_argument("--ca", help="CA for the server")
-    parser.add_argument("--txs", type=int, help="Number of transactions")
     args = parser.parse_args()
 
-    run(args.target, args.ca, args.txs)
+    try:
+        run(args.target, args.ca)
+    except KeyboardInterrupt:
+        pass
