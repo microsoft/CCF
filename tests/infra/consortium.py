@@ -144,7 +144,6 @@ class Consortium:
         for cls in (
             infra.member.MemberAPI.Preview_v1,
             infra.member.MemberAPI.Classic,
-            infra.member.MemberAPI.LtsCompat,
         ):
             if version_s == cls.API_VERSION:
                 self.gov_api_impl = cls

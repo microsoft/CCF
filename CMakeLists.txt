@@ -1472,7 +1472,12 @@ if(BUILD_TESTS)
         NAME lts_compatibility
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
         LABEL e2e
-        ADDITIONAL_ARGS ${LTS_TEST_ARGS} --gov-api-version "lts-compatibility"
+        ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+      )
+      set_property(
+        TEST lts_compatibility
+        APPEND
+        PROPERTY ENVIRONMENT "LTS_COMPAT_GOV_CLIENT=1"
       )
     endif()
 

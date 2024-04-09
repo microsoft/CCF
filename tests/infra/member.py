@@ -40,36 +40,6 @@ class MemberStatus(Enum):
     ACTIVE = "Active"
 
 
-def call_or_fallback_all():
-    def _call_or_fallback(func):
-        # There is _a_ positional arg called remote_node, but its position varies
-        insp = inspect.getfullargspec(func)
-        arg_idx = insp.args.index("remote_node")
-        min_version = "4.0.0"
-        classic_instance = MemberAPI.Classic()
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            remote_node = args[arg_idx]
-            if remote_node.version_after(min_version):
-                # Version is high enough, call original func
-                return func(*args, **kwargs)
-            else:
-                # Version is too low, call fallback
-                f = getattr(classic_instance, func.__name__)
-                return f(*args, **kwargs)
-
-        return wrapper
-    
-    class Decorator(type):
-        def __new__(cls, name, bases, dct):
-            for attr, value in dct.items():
-                if "__" not in attr and isinstance(value, FunctionType):
-                    dct[attr] = _call_or_fallback(value)
-            return super().__new__(cls, name, bases, dct)
-
-    return Decorator
-
 class MemberAPI:
     class Preview_v1:
         API_VERSION = infra.clients.API_VERSION_PREVIEW_01
@@ -193,7 +163,7 @@ class MemberAPI:
                     state=infra.proposal.ProposalState(body["state"]),
                 )
 
-        def vote(cls, member, remote_node, proposal, ballot):
+        def vote(self, member, remote_node, proposal, ballot):
             with remote_node.client(*member.auth(write=True)) as mc:
                 r = mc.post(
                     f"/gov/proposals/{proposal.proposal_id}/ballots",
@@ -201,7 +171,7 @@ class MemberAPI:
                 )
                 return r
 
-        def withdraw(cls, member, remote_node, proposal):
+        def withdraw(self, member, remote_node, proposal):
             with remote_node.client(*member.auth(write=True)) as c:
                 r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
                 if (
@@ -211,11 +181,11 @@ class MemberAPI:
                     proposal.state = infra.proposal.ProposalState.WITHDRAWN
                 return r
 
-        def update_ack_state_digest(cls, member, remote_node):
+        def update_ack_state_digest(self, member, remote_node):
             with remote_node.client(*member.auth()) as mc:
                 return mc.post("/gov/ack/update_state_digest")
 
-        def ack(cls, member, remote_node, state_digest):
+        def ack(self, member, remote_node, state_digest):
             with remote_node.client(*member.auth(write=True)) as mc:
                 r = mc.post("/gov/ack", body=state_digest)
                 if r.status_code == http.HTTPStatus.UNAUTHORIZED:
@@ -226,24 +196,63 @@ class MemberAPI:
                 member.status = MemberStatus.ACTIVE
                 return r
 
-        def get_recovery_share(cls, member, remote_node):
+        def get_recovery_share(self, member, remote_node):
             with remote_node.client() as mc:
                 r = mc.get(f"/gov/encrypted_recovery_share/{member.service_id}")
                 if r.status_code != http.HTTPStatus.OK.value:
                     raise NoRecoveryShareFound(r)
                 return r.body.json()["encrypted_share"]
 
-    
     # A special client used only for lts_compatibility tests. Attempts to use latest
     # API by default, but checks node version to fallback to a supported older API
     # where required
-    class LtsCompat(Preview_v1):
-        API_VERSION = "lts-compatibility"
-
-        __metaclass__ = call_or_fallback_all()
-
+    class LtsCompat:
         def __init__(self):
-            self.API_VERSION = MemberAPI.Preview_v1.API_VERSION
+            self._preview_v1 = MemberAPI.Preview_v1()
+            self._classic = MemberAPI.Classic()
+
+        def _by_node_version(self, remote_node):
+            min_version = "4.0.0"
+            if remote_node.version_after(min_version):
+                return self._preview_v1
+            else:
+                return self._classic
+
+        def propose(self, member, remote_node, proposal):
+            return self._by_node_version(remote_node).propose(
+                member, remote_node, proposal
+            )
+
+        def get_proposal(self, remote_node, proposal_id):
+            return self._by_node_version(remote_node).get_proposal(
+                remote_node, proposal_id
+            )
+
+        def vote(self, member, remote_node, proposal, ballot):
+            return self._by_node_version(remote_node).vote(
+                member, remote_node, proposal, ballot
+            )
+
+        def withdraw(self, member, remote_node, proposal):
+            return self._by_node_version(remote_node).withdraw(
+                member, remote_node, proposal
+            )
+
+        def update_ack_state_digest(self, member, remote_node):
+            return self._by_node_version(remote_node).update_ack_state_digest(
+                member, remote_node
+            )
+
+        def ack(self, member, remote_node, state_digest):
+            return self._by_node_version(remote_node).ack(
+                member, remote_node, state_digest
+            )
+
+        def get_recovery_share(self, member, remote_node):
+            return self._by_node_version(remote_node).get_recovery_share(
+                member, remote_node
+            )
+
 
 class Member:
     def __init__(
@@ -267,6 +276,11 @@ class Member:
         self.is_retired = False
         self.authenticate_session = authenticate_session
         assert self.authenticate_session == "COSE", self.authenticate_session
+
+        if "LTS_COMPAT_GOV_CLIENT" in os.environ:
+            LOG.warning("Using custom LTS compatibility mode for member client!")
+            gov_api_impl = MemberAPI.LtsCompat
+
         self.gov_api_impl_inst = gov_api_impl()
 
         self.member_info = {}
