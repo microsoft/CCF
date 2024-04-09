@@ -589,7 +589,7 @@ class Network:
 
         primary = self._start_all_nodes(args, **kwargs)
         self.wait_for_all_nodes_to_commit(primary=primary)
-        LOG.success("All nodes joined network WHATSAHRHAEWH")
+        LOG.success("All nodes joined network")
 
     def open(self, args):
         def get_target_node(args, primary):
