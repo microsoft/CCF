@@ -630,7 +630,6 @@ namespace ccf::gov::endpoints
               return;
             }
 
-            // TODO: Change to API response format!
             const auto response_body = detail::convert_proposal_to_api_format(
               proposal_id, proposal_info);
 
@@ -1022,7 +1021,6 @@ namespace ccf::gov::endpoints
               return;
             }
 
-            // TODO: Change to API response format!
             const auto response_body = detail::convert_proposal_to_api_format(
               proposal_id, proposal_info.value());
 
