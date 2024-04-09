@@ -9,12 +9,12 @@ import argparse
 """
 1. Run sandbox
 
-~/CCF/build$ ../tests/sandbox/sandbox.sh --js-app-bundle ../samples/apps/basic_tv/js/
+~/CCF/build$ ../tests/sandbox/sandbox.sh --js-app-bundle ../samples/apps/basic_tv/js/ -n local://127.0.0.1:8000 -n local://127.0.0.1:8001
 ...
 
 2. Run tvc.py
 
-~/CCF/tests$ python3 tvc.py --target https://127.0.0.1:8000 --ca ../build/workspace/sandbox_common/service_cert.pem --writes 10
+~/CCF/tests$ python3 tvc.py -t https://127.0.0.1:8000 -t https://127.0.0.1:8001 --ca ../build/workspace/sandbox_common/service_cert.pem --writes 10
 
 3. Things happen
 
