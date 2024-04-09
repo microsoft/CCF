@@ -14,7 +14,7 @@ import argparse
 
 2. Run tvc.py
 
-~/CCF/tests$ python3 tvc.py -t https://127.0.0.1:8000 -t https://127.0.0.1:8001 --ca ../build/workspace/sandbox_common/service_cert.pem --writes 10
+~/CCF/tests$ python3 tvc.py -t https://127.0.0.1:8000 -t https://127.0.0.1:8001 --ca ../build/workspace/sandbox_common/service_cert.pem --txs 10
 
 3. Things happen
 
@@ -29,11 +29,13 @@ import argparse
 
 TODO:
 
-- Reads
 - Add new entry point instead of sandbox, with
   - Node suspend with timeout of 1.5 * checkQuorum interval
   - Node partition with timeout of 1.5 * checkQuorum interval
 """
+
+KEY = "0"
+VALUE = "value"
 
 
 def log(**kwargs):
@@ -45,37 +47,58 @@ def tx_id(string):
     return int(view), int(seqno)
 
 
-def run(targets, cacert, writes):
+def run(targets, cacert, txs):
     session = httpx.Client(verify=cacert)
-    for write in range(writes):
+    for tx in range(txs):
         target = random.choice(targets)
-        log(action="RwTxRequestAction", type="RwTxRequest", tx=write)
-        response = session.put(f"{target}/records/0", data="value")
-        assert response.status_code == 204
-        txid = response.headers["x-ms-ccf-transaction-id"]
-        log(
-            action="RwTxResponseAction", type="RwTxRequest", tx=write, tx_id=tx_id(txid)
-        )
-        status = "Pending"
-        final = False
-        while not final:
-            response = session.get(f"{target}/tx?transaction_id={txid}")
-            status = response.json()["status"]
-            if status in ("Committed", "Invalid"):
-                log(
-                    action=f"Status{status}ResponseAction",
-                    type="TxStatusReceived",
-                    tx_id=tx_id(txid),
-                    status=f"{status}Status",
-                )
-                final = True
+        # Always start with a write, to avoid having to handle missing values
+        txtype = random.choice(["Ro", "Rw"]) if tx else "Rw"
+        log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
+        if txtype == "Ro":
+            response = session.get(f"{target}/records/{KEY}")
+            assert response.status_code == 200
+            assert response.text == VALUE
+            txid = response.headers["x-ms-ccf-transaction-id"]
+            log(
+                action="RoTxResponseAction",
+                type="RoTxRequest",
+                tx=tx,
+                tx_id=tx_id(txid),
+            )
+        elif txtype == "Rw":
+            response = session.put(f"{target}/records/{KEY}", data=VALUE)
+            assert response.status_code == 204
+            txid = response.headers["x-ms-ccf-transaction-id"]
+            log(
+                action="RwTxResponseAction",
+                type="RwTxRequest",
+                tx=tx,
+                tx_id=tx_id(txid),
+            )
+            status = "Pending"
+            final = False
+            while not final:
+                response = session.get(f"{target}/tx?transaction_id={txid}")
+                status = response.json()["status"]
+                if status in ("Committed", "Invalid"):
+                    log(
+                        action=f"Status{status}ResponseAction",
+                        type="TxStatusReceived",
+                        tx_id=tx_id(txid),
+                        status=f"{status}Status",
+                    )
+                    final = True
+        else:
+            raise ValueError(f"Unknown Tx type: {txtype}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Run --txs steps, a ~50% mix of reads and writes, randomly distributed across --target nodes"
+    )
     parser.add_argument("-t", "--target", help="Host to connect to", action="append")
     parser.add_argument("--ca", help="CA for the server")
-    parser.add_argument("--writes", type=int, help="Number of writes to perform")
+    parser.add_argument("--txs", type=int, help="Number of transactions")
     args = parser.parse_args()
 
-    run(args.target, args.ca, args.writes)
+    run(args.target, args.ca, args.txs)
