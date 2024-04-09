@@ -20,6 +20,25 @@ namespace ccf::gov::endpoints
   std::optional<ApiVersion> get_api_version(
     ccf::endpoints::CommandEndpointContext& ctx)
   {
+    static std::string accepted_versions_suffix = "";
+    if (accepted_versions_suffix.empty())
+    {
+      accepted_versions_suffix = "The supported api-versions are: ";
+      auto first = true;
+      for (const auto& p : api_version_strings)
+      {
+        if (first)
+        {
+          accepted_versions_suffix += p.second;
+          first = false;
+        }
+        else
+        {
+          accepted_versions_suffix += fmt::format(", {}", p.second);
+        }
+      }
+    }
+
     const auto param_name = "api-version";
     const auto parsed_query =
       http::parse_query(ctx.rpc_ctx->get_request_query());
@@ -31,8 +50,9 @@ namespace ccf::gov::endpoints
         ccf::errors::MissingApiVersionParameter,
         fmt::format(
           "The api-version query parameter (?{}=) is required for all "
-          "requests.",
-          param_name));
+          "requests. {}",
+          param_name,
+          accepted_versions_suffix));
       return std::nullopt;
     }
 
@@ -43,21 +63,9 @@ namespace ccf::gov::endpoints
     if (it == std::end(api_version_strings))
     {
       auto message = fmt::format(
-        "Unsupported api-version '{}'. The supported api-versions are: ",
-        qit->second);
-      auto first = true;
-      for (const auto& p : api_version_strings)
-      {
-        if (first)
-        {
-          message += p.second;
-          first = false;
-        }
-        else
-        {
-          message += fmt::format(", {}", p.second);
-        }
-      }
+        "Unsupported api-version '{}'. {}",
+        qit->second,
+        accepted_versions_suffix);
       ctx.rpc_ctx->set_error(
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::UnsupportedApiVersionValue,
