@@ -5,6 +5,7 @@ import httpx
 import sys
 import random
 import json
+import argparse
 
 """
 1. Run sandbox
@@ -14,18 +15,18 @@ import json
 
 2. Run tvc.py
 
-~/CCF/tests$ python3 tvc.py https://127.0.0.1:8000 ../build/workspace/sandbox_common/service_cert.pem 10
+~/CCF/tests$ python3 tvc.py --target https://127.0.0.1:8000 --ca ../build/workspace/sandbox_common/service_cert.pem --writes 10
 
 3. Things happen
 
-5755 -> 3656 (2.127)
-2.127 -> Committed
-7053 -> 5225 (2.129)
-2.129 -> Committed
-4048 -> 4951 (2.131)
-2.131 -> Committed
-3403 -> 2415 (2.133)
-2.133 -> Committed
+{"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 0}
+{"action": "RwTxResponseAction", "type": "RwTxRequest", "tx": 0, "tx_id": [2, 197]}
+{"action": "StatusCommittedResponseAction", "type": "TxStatusReceived", "tx_id": [2, 197], "status": "CommittedStatus"}
+{"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 1}
+{"action": "RwTxResponseAction", "type": "RwTxRequest", "tx": 1, "tx_id": [2, 199]}
+{"action": "StatusCommittedResponseAction", "type": "TxStatusReceived", "tx_id": [2, 199], "status": "CommittedStatus"}
+{"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 2}
+{"action": "RwTxResponseAction", "type": "RwTxRequest", "tx": 2, "tx_id": [2, 201]}
 
 TODO:
 
@@ -46,13 +47,13 @@ def tx_id(string):
     return int(view), int(seqno)
 
 
-def run(host, cacert, writes):
+def run(targets, cacert, writes):
     session = httpx.Client(verify=cacert)
     for write in range(writes):
         log(action="RwTxRequestAction", type="RwTxRequest", tx=write)
         key = random.randrange(0, 10000)
         value = random.randrange(0, 10000)
-        response = session.put(f"{host}/records/{key}", data=f"{value}")
+        response = session.put(f"{targets[0]}/records/{key}", data=f"{value}")
         assert response.status_code == 204
         txid = response.headers["x-ms-ccf-transaction-id"]
         log(
@@ -61,7 +62,7 @@ def run(host, cacert, writes):
         status = "Pending"
         final = False
         while not final:
-            response = session.get(f"{host}/tx?transaction_id={txid}")
+            response = session.get(f"{targets[0]}/tx?transaction_id={txid}")
             status = response.json()["status"]
             if status in ("Committed", "Invalid"):
                 log(
@@ -74,7 +75,10 @@ def run(host, cacert, writes):
 
 
 if __name__ == "__main__":
-    host = sys.argv[1]
-    cacert = sys.argv[2]
-    writes = int(sys.argv[3])
-    run(host, cacert, writes)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-t", "--target", help="Host to connect to", action="append")
+    parser.add_argument("--ca", help="CA for the server")
+    parser.add_argument("--writes", type=int, help="Number of writes to perform")
+    args = parser.parse_args()
+
+    run(args.target, args.ca, args.writes)
