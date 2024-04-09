@@ -248,7 +248,7 @@ Status, proposer ID and ballots attached to a proposal.
 
 **Value** Represented as JSON.
 
-.. doxygenstruct:: ccf::jsgov::ProposalInfoDetails
+.. doxygenstruct:: ccf::jsgov::ProposalInfo
    :project: CCF
    :members:
 
