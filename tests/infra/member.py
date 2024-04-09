@@ -39,7 +39,6 @@ class MemberStatus(Enum):
     ACTIVE = "Active"
 
 
-
 class MemberAPI:
     class Classic:
         API_VERSION = infra.clients.API_VERSION_CLASSIC
