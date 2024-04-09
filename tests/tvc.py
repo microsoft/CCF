@@ -30,11 +30,12 @@ import argparse
 
 TODO:
 
+- Single key
 - Reads
-- Elections
-- Multiple clients
 - Point them at multiple nodes
-
+- Add new entry point instead of sandbox, with
+  - Node suspend with timeout of 1.5 * checkQuorum interval
+  - Node partition with timeout of 1.5 * checkQuorum interval
 """
 
 
