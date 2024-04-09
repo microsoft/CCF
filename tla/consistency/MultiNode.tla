@@ -46,4 +46,11 @@ NextMultiNodeAction ==
 
 SpecMultiNode == Init /\ [][NextMultiNodeAction]_vars
 
+\* A version of spec which supports noop transactions
+NextMultiNodeNoopAction ==
+    \/ NextMultiNodeAction
+    \/ AppendNoopTxnAction
+
+SpecMultiNodeNoop == Init /\ [][NextMultiNodeNoopAction]_vars
+
 ====

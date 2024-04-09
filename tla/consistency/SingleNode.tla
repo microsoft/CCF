@@ -101,6 +101,13 @@ StatusCommittedResponseAction ==
             )
     /\ UNCHANGED ledgerBranches
 
+\* Append a transaction to the ledger which does not impact the state we are considering
+AppendNoopTxnAction ==
+    /\ \E view \in DOMAIN ledgerBranches:
+        ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
+                    Append(@,[view |-> view])]
+    /\ UNCHANGED history
+
 \* A CCF service with a single node will never have a view change
 \* so the log will never be rolled back and thus transaction IDs cannot be invalid
 NextSingleNodeAction ==
@@ -111,5 +118,12 @@ NextSingleNodeAction ==
 
 
 SpecSingleNode == Init /\ [][NextSingleNodeAction]_vars
+
+\* A version of spec which supports noop transactions
+NextSingleNodeNoopAction ==
+    \/ NextSingleNodeAction
+    \/ AppendNoopTxnAction
+
+SpecSingleNodeNoop == Init /\ [][NextSingleNodeNoopAction]_vars
 
 ====
