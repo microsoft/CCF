@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import httpx
-import sys
 import random
 import json
 import argparse
@@ -30,9 +29,7 @@ import argparse
 
 TODO:
 
-- Single key
 - Reads
-- Point them at multiple nodes
 - Add new entry point instead of sandbox, with
   - Node suspend with timeout of 1.5 * checkQuorum interval
   - Node partition with timeout of 1.5 * checkQuorum interval
@@ -51,10 +48,9 @@ def tx_id(string):
 def run(targets, cacert, writes):
     session = httpx.Client(verify=cacert)
     for write in range(writes):
+        target = random.choice(targets)
         log(action="RwTxRequestAction", type="RwTxRequest", tx=write)
-        key = random.randrange(0, 10000)
-        value = random.randrange(0, 10000)
-        response = session.put(f"{targets[0]}/records/{key}", data=f"{value}")
+        response = session.put(f"{target}/records/0", data="value")
         assert response.status_code == 204
         txid = response.headers["x-ms-ccf-transaction-id"]
         log(
@@ -63,7 +59,7 @@ def run(targets, cacert, writes):
         status = "Pending"
         final = False
         while not final:
-            response = session.get(f"{targets[0]}/tx?transaction_id={txid}")
+            response = session.get(f"{target}/tx?transaction_id={txid}")
             status = response.json()["status"]
             if status in ("Committed", "Invalid"):
                 log(
