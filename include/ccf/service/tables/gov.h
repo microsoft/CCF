@@ -61,21 +61,6 @@ namespace ccf
     DECLARE_JSON_OPTIONAL_FIELDS(
       ProposalInfoSummary, votes, vote_failures, failure);
 
-    struct ProposalInfoDetails
-    {
-      /// Proposal ID
-      ccf::ProposalId proposal_id;
-      /// Member ID of the proposer
-      ccf::MemberId proposer_id;
-      /// Proposal state
-      ccf::ProposalState state;
-      /// Ballots (scripts) submitted for the proposal
-      Ballots ballots = {};
-    };
-    DECLARE_JSON_TYPE(ProposalInfoDetails);
-    DECLARE_JSON_REQUIRED_FIELDS(
-      ProposalInfoDetails, proposal_id, proposer_id, state, ballots);
-
     using ProposalMap =
       kv::RawCopySerialisedMap<ccf::ProposalId, std::vector<uint8_t>>;
     using ProposalInfoMap = ServiceMap<ccf::ProposalId, ProposalInfo>;
