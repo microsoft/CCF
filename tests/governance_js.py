@@ -1275,11 +1275,11 @@ def test_final_proposal_visibility(network, args):
 
         LOG.info("Confirm that finalVotes is present in submit-ballot response")
         body = response.body.json()
-        LOG.success(body)
+        assert "finalVotes" in body, body
 
         LOG.info("Confirm that finalVotes is present in get-proposal response")
         body = consortium.get_proposal_raw(primary, third.proposal_id)
-        LOG.success(body)
+        assert "finalVotes" in body, body
 
         LOG.info("Confirm that expected log lines were emitted")
         expected_lines = [
