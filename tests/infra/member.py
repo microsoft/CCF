@@ -12,6 +12,7 @@ import base64
 import json
 import functools
 import inspect
+from types import FunctionType
 
 from loguru import logger as LOG
 
@@ -39,30 +40,40 @@ class MemberStatus(Enum):
     ACTIVE = "Active"
 
 
+def call_or_fallback_all():
+    def _call_or_fallback(func):
+        # There is _a_ positional arg called remote_node, but its position varies
+        insp = inspect.getfullargspec(func)
+        arg_idx = insp.args.index("remote_node")
+        min_version = "4.0.0"
+        classic_instance = MemberAPI.Classic()
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            remote_node = args[arg_idx]
+            if remote_node.version_after(min_version):
+                # Version is high enough, call original func
+                return func(*args, **kwargs)
+            else:
+                # Version is too low, call fallback
+                f = getattr(classic_instance, func.__name__)
+                return f(*args, **kwargs)
+
+        return wrapper
+    
+    class Decorator(type):
+        def __new__(cls, name, bases, dct):
+            for attr, value in dct.items():
+                if "__" not in attr and isinstance(value, FunctionType):
+                    dct[attr] = _call_or_fallback(value)
+            return super().__new__(cls, name, bases, dct)
+
+    return Decorator
+
 class MemberAPI:
     class Preview_v1:
         API_VERSION = infra.clients.API_VERSION_PREVIEW_01
 
-        def min_version_fallback(func):
-            # There is _a_ positional arg called remote_node, but its position varies
-            insp = inspect.getfullargspec(func)
-            arg_idx = insp.args.index("remote_node")
-            min_version = "4.0.0"
-
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                remote_node = args[arg_idx]
-                if remote_node.version_after(min_version):
-                    # Version is high enough, call original func
-                    return func(*args, **kwargs)
-                else:
-                    # Version is too low, call fallback
-                    f = getattr(MemberAPI.Classic, func.__name__)
-                    return f(*args, **kwargs)
-
-            return wrapper
-
-        @min_version_fallback
         def propose(self, member, remote_node, proposal):
             with remote_node.api_versioned_client(
                 *member.auth(write=True),
@@ -80,7 +91,6 @@ class MemberAPI:
                     seqno=r.seqno,
                 )
 
-        @min_version_fallback
         def get_proposal(self, remote_node, proposal_id):
             with remote_node.api_versioned_client(
                 api_version=self.API_VERSION,
@@ -96,7 +106,6 @@ class MemberAPI:
                     state=infra.proposal.ProposalState(body["proposalState"]),
                 )
 
-        @min_version_fallback
         def vote(self, member, remote_node, proposal, ballot):
             with remote_node.api_versioned_client(
                 *member.auth(write=True),
@@ -108,7 +117,6 @@ class MemberAPI:
                 )
                 return r
 
-        @min_version_fallback
         def withdraw(self, member, remote_node, proposal):
             with remote_node.api_versioned_client(
                 *member.auth(write=True),
@@ -122,7 +130,6 @@ class MemberAPI:
                     proposal.state = infra.proposal.ProposalState.WITHDRAWN
                 return r
 
-        @min_version_fallback
         def update_ack_state_digest(self, member, remote_node):
             with remote_node.api_versioned_client(
                 *member.auth(write=True),
@@ -130,7 +137,6 @@ class MemberAPI:
             ) as mc:
                 return mc.post(f"/gov/members/state-digests/{member.service_id}:update")
 
-        @min_version_fallback
         def ack(self, member, remote_node, state_digest):
             with remote_node.api_versioned_client(
                 *member.auth(write=True),
@@ -148,7 +154,6 @@ class MemberAPI:
                 member.status = MemberStatus.ACTIVE
                 return r
 
-        @min_version_fallback
         def get_recovery_share(self, member, remote_node):
             with remote_node.api_versioned_client(
                 api_version=self.API_VERSION,
@@ -228,6 +233,17 @@ class MemberAPI:
                     raise NoRecoveryShareFound(r)
                 return r.body.json()["encrypted_share"]
 
+    
+    # A special client used only for lts_compatibility tests. Attempts to use latest
+    # API by default, but checks node version to fallback to a supported older API
+    # where required
+    class LtsCompat(Preview_v1):
+        API_VERSION = "lts-compatibility"
+
+        __metaclass__ = call_or_fallback_all()
+
+        def __init__(self):
+            self.API_VERSION = MemberAPI.Preview_v1.API_VERSION
 
 class Member:
     def __init__(
