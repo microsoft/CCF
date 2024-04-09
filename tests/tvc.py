@@ -1,6 +1,10 @@
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+
 import httpx
 import sys
 import random
+import json
 
 """
 1. Run sandbox
@@ -26,31 +30,48 @@ import random
 TODO:
 
 - Reads
-- Request ids are awkward across clients - do we need to validate that part?
-- Format to JSON to be consumed by TLA+
 - Elections
-- Start lots of tvcs
+- Multiple clients
 - Point them at multiple nodes
 
 """
 
+
+def log(**kwargs):
+    print(json.dumps(kwargs))
+
+
+def tx_id(string):
+    view, seqno = string.split(".")
+    return int(view), int(seqno)
+
+
 def run(host, cacert, writes):
     session = httpx.Client(verify=cacert)
     for write in range(writes):
+        log(action="RwTxRequestAction", type="RwTxRequest", tx=write)
         key = random.randrange(0, 10000)
         value = random.randrange(0, 10000)
-        response = session.put(f"{host}/records/{key}", data=f"value")
+        response = session.put(f"{host}/records/{key}", data=f"{value}")
         assert response.status_code == 204
-        txid = response.headers['x-ms-ccf-transaction-id']
-        print(f"{key} -> {value} ({txid})")
+        txid = response.headers["x-ms-ccf-transaction-id"]
+        log(
+            action="RwTxResponseAction", type="RwTxRequest", tx=write, tx_id=tx_id(txid)
+        )
         status = "Pending"
         final = False
         while not final:
             response = session.get(f"{host}/tx?transaction_id={txid}")
-            status = response.json()['status']
+            status = response.json()["status"]
             if status in ("Committed", "Invalid"):
-                print(f"{txid} -> {status}")
+                log(
+                    action=f"Status{status}ResponseAction",
+                    type="TxStatusReceived",
+                    tx_id=tx_id(txid),
+                    status=f"{status}Status",
+                )
                 final = True
+
 
 if __name__ == "__main__":
     host = sys.argv[1]
