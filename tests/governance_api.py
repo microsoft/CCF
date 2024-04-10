@@ -11,6 +11,7 @@ from loguru import logger as LOG  # type: ignore
 def test_api_service_state(network, args):
     primary, _ = network.find_primary()
 
+    # TODO: Check we return all members, users, nodes that we expect!
     with primary.api_versioned_client(api_version=args.gov_api_version) as c:
         # Test members endpoints
         r = c.get("/gov/service/members")
@@ -29,6 +30,21 @@ def test_api_service_state(network, args):
             assert r.status_code == 200, r
             body = r.body.json()
             assert body == member_info
+
+        # Test users endpoints
+        r = c.get("/gov/service/users")
+        assert r.status_code == 200, r
+        body = r.body.json()
+        user_infos = {}
+        for user in body["value"]:
+            assert user["certificate"].startswith("-----BEGIN CERTIFICATE-----"), node
+            user_infos[user["nodeId"]] = user
+
+        for user_id, user_info in user_infos.items():
+            r = c.get(f"/gov/service/users/{user_id}")
+            assert r.status_code == 200, r
+            body = r.body.json()
+            assert body == user_info
 
         # Test nodes endpoints
         r = c.get("/gov/service/nodes")

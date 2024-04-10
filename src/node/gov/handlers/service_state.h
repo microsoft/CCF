@@ -38,6 +38,24 @@ namespace ccf::gov::endpoints
     return member;
   }
 
+  nlohmann::json produce_user_description(
+    const ccf::UserId& user_id,
+    const crypto::Pem& user_cert,
+    ccf::UserCerts::ReadOnlyHandle* user_certs_handle)
+  {
+    auto user = nlohmann::json::object();
+
+    user["userId"] = user_id;
+
+    const auto user_info = user_certs_handle->get(user_id);
+    if (user_info.has_value())
+    {
+      user["userData"] = user_info.value();
+    }
+
+    return user;
+  }
+
   nlohmann::json produce_node_description(
     const ccf::NodeId& node_id,
     const ccf::NodeInfo& node_info,
@@ -605,6 +623,94 @@ namespace ccf::gov::endpoints
         "/service/members/{memberId}",
         HTTP_GET,
         api_version_adapter(get_member_by_id),
+        no_auth_required)
+      .set_openapi_hidden(true)
+      .install();
+
+    auto get_users = [&](auto& ctx, ApiVersion api_version) {
+      switch (api_version)
+      {
+        case ApiVersion::preview_v1:
+        default:
+        {
+          auto response_body = nlohmann::json::object();
+
+          {
+            auto user_list = nlohmann::json::array();
+
+            auto user_certs_handle =
+              ctx.tx.template ro<ccf::UserCerts>(ccf::Tables::USER_CERTS);
+            auto user_info_handle =
+              ctx.tx.template ro<ccf::UserInfo>(ccf::Tables::USER_INFO);
+
+            user_certs_handle->foreach([&user_list, user_info_handle](
+                                         const ccf::UserId& user_id,
+                                         const crypto::Pem& user_cert) {
+              user_list.push_back(
+                produce_user_description(user_id, user_cert, user_info_handle));
+              return true;
+            });
+
+            response_body["value"] = user_list;
+          }
+
+          ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
+          return;
+        }
+      }
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/users",
+        HTTP_GET,
+        api_version_adapter(get_users),
+        no_auth_required)
+      .set_openapi_hidden(true)
+      .install();
+
+    auto get_user_by_id = [&](auto& ctx, ApiVersion api_version) {
+      switch (api_version)
+      {
+        // TODO TODO: This body is by_id
+        case ApiVersion::preview_v1:
+        default:
+        {
+          ccf::UserId user_id;
+          if (!detail::try_parse_user_id(ctx.rpc_ctx, user_id))
+          {
+            return;
+          }
+
+          auto user_certs_handle =
+            ctx.tx.template ro<ccf::UserCerts>(ccf::Tables::USER_CERTS);
+
+          const auto user_cert = user_certs_handle->get(user_id);
+          if (!user_cert.has_value())
+          {
+            detail::set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              fmt::format("User {} does not exist.", user_id));
+            return;
+          }
+
+          auto user_info_handle =
+            ctx.tx.template ro<ccf::UserInfo>(ccf::Tables::USER_INFO);
+
+          const auto user = produce_user_description(
+            user_id, user_cert.value(), user_info_handle);
+
+          ctx.rpc_ctx->set_response_json(user, HTTP_STATUS_OK);
+          return;
+        }
+      }
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/users/{userId}",
+        HTTP_GET,
+        api_version_adapter(get_users),
         no_auth_required)
       .set_openapi_hidden(true)
       .install();
