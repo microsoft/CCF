@@ -58,8 +58,7 @@ class MemberAPI:
                     seqno=r.seqno,
                 )
 
-        @classmethod
-        def get_proposal_raw(cls, remote_node, proposal_id):
+        def get_proposal_raw(self, remote_node, proposal_id):
             with remote_node.api_versioned_client(
                 api_version=self.API_VERSION,
             ) as c:
@@ -69,9 +68,8 @@ class MemberAPI:
 
                 return r.body.json()
 
-        @classmethod
-        def get_proposal(cls, remote_node, proposal_id):
-            body = cls.get_proposal_raw(remote_node, proposal_id)
+        def get_proposal(self, remote_node, proposal_id):
+            body = self.get_proposal_raw(remote_node, proposal_id)
             return infra.proposal.Proposal(
                 proposer_id=body["proposerId"],
                 proposal_id=body["proposalId"],
@@ -152,9 +150,7 @@ class MemberAPI:
                     seqno=r.seqno,
                 )
 
-        # TODO: Check this
-        @classmethod
-        def get_proposal_raw(cls, remote_node, proposal_id):
+        def get_proposal_raw(self, remote_node, proposal_id):
             with remote_node.client() as c:
                 r = c.get(f"/gov/proposals/{proposal_id}")
                 if r.status_code != http.HTTPStatus.OK.value:
@@ -162,9 +158,8 @@ class MemberAPI:
 
                 return r.body.json()
 
-        @classmethod
-        def get_proposal(cls, remote_node, proposal_id):
-            body = cls.get_proposal_raw(remote_node, proposal_id)
+        def get_proposal(self, remote_node, proposal_id):
+            body = self.get_proposal_raw(remote_node, proposal_id)
             return infra.proposal.Proposal(
                 proposer_id=body["proposer_id"],
                 proposal_id=proposal_id,
