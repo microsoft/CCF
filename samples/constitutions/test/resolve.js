@@ -37,7 +37,7 @@ function canOperatorProvisionerPass(action) {
   );
 }
 
-export function resolve(proposal, proposer_id, votes) {
+export function resolve(proposal, proposer_id, votes, proposal_id) {
   const actions = JSON.parse(proposal)["actions"];
   if (actions.length === 1) {
     if (actions[0].name === "always_accept_noop") {
@@ -94,6 +94,15 @@ export function resolve(proposal, proposer_id, votes) {
       votes[1].vote === false
     ) {
       return "Rejected";
+    } else if (actions[0].name === "check_proposal_id_is_set_correctly") {
+      const proposal_from_kv = ccf.kv["public:ccf.gov.proposals"].get(
+        ccf.strToBuf(proposal_id),
+      );
+      if (proposal === ccf.bufToStr(proposal_from_kv)) {
+        return "Accepted";
+      } else {
+        return "Rejected";
+      }
     }
   }
 

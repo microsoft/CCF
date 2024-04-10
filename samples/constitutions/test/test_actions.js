@@ -120,3 +120,15 @@ actions.set(
     },
   ),
 );
+
+actions.set(
+  "check_proposal_id_is_set_correctly",
+  new Action(
+    function (args) {
+      return true;
+    },
+    function (args) {
+      return true;
+    },
+  ),
+);
