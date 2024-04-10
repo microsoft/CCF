@@ -36,7 +36,7 @@ def test_api_service_state(network, args):
         body = r.body.json()
         user_infos = {}
         for user in body["value"]:
-            assert user["certificate"].startswith("-----BEGIN CERTIFICATE-----"), node
+            assert user["certificate"].startswith("-----BEGIN CERTIFICATE-----"), user
             user_infos[user["userId"]] = user
 
         for user_id, user_info in user_infos.items():
