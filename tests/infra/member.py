@@ -41,11 +41,10 @@ class MemberAPI:
     class Preview_v1:
         API_VERSION = infra.clients.API_VERSION_PREVIEW_01
 
-        @classmethod
-        def propose(cls, member, remote_node, proposal):
+        def propose(self, member, remote_node, proposal):
             with remote_node.api_versioned_client(
                 *member.auth(write=True),
-                api_version=cls.API_VERSION,
+                api_version=self.API_VERSION,
             ) as mc:
                 r = mc.post("/gov/members/proposals:create", proposal)
                 if r.status_code != http.HTTPStatus.OK.value:
@@ -62,7 +61,7 @@ class MemberAPI:
         @classmethod
         def get_proposal_raw(cls, remote_node, proposal_id):
             with remote_node.api_versioned_client(
-                api_version=cls.API_VERSION,
+                api_version=self.API_VERSION,
             ) as c:
                 r = c.get(f"/gov/members/proposals/{proposal_id}")
                 if r.status_code != http.HTTPStatus.OK.value:
@@ -79,11 +78,10 @@ class MemberAPI:
                 state=infra.proposal.ProposalState(body["proposalState"]),
             )
 
-        @classmethod
-        def vote(cls, member, remote_node, proposal, ballot):
+        def vote(self, member, remote_node, proposal, ballot):
             with remote_node.api_versioned_client(
                 *member.auth(write=True),
-                api_version=cls.API_VERSION,
+                api_version=self.API_VERSION,
             ) as mc:
                 r = mc.post(
                     f"/gov/members/proposals/{proposal.proposal_id}/ballots/{member.service_id}:submit",
@@ -91,11 +89,10 @@ class MemberAPI:
                 )
                 return r
 
-        @classmethod
-        def withdraw(cls, member, remote_node, proposal):
+        def withdraw(self, member, remote_node, proposal):
             with remote_node.api_versioned_client(
                 *member.auth(write=True),
-                api_version=cls.API_VERSION,
+                api_version=self.API_VERSION,
             ) as mc:
                 r = mc.post(f"/gov/members/proposals/{proposal.proposal_id}:withdraw")
                 if (
@@ -105,19 +102,17 @@ class MemberAPI:
                     proposal.state = infra.proposal.ProposalState.WITHDRAWN
                 return r
 
-        @classmethod
-        def update_ack_state_digest(cls, member, remote_node):
+        def update_ack_state_digest(self, member, remote_node):
             with remote_node.api_versioned_client(
                 *member.auth(write=True),
-                api_version=cls.API_VERSION,
+                api_version=self.API_VERSION,
             ) as mc:
                 return mc.post(f"/gov/members/state-digests/{member.service_id}:update")
 
-        @classmethod
-        def ack(cls, member, remote_node, state_digest):
+        def ack(self, member, remote_node, state_digest):
             with remote_node.api_versioned_client(
                 *member.auth(write=True),
-                api_version=cls.API_VERSION,
+                api_version=self.API_VERSION,
             ) as mc:
                 r = mc.post(
                     f"/gov/members/state-digests/{member.service_id}:ack",
@@ -131,10 +126,9 @@ class MemberAPI:
                 member.status = MemberStatus.ACTIVE
                 return r
 
-        @classmethod
-        def get_recovery_share(cls, member, remote_node):
+        def get_recovery_share(self, member, remote_node):
             with remote_node.api_versioned_client(
-                api_version=cls.API_VERSION,
+                api_version=self.API_VERSION,
             ) as mc:
                 r = mc.get(f"/gov/recovery/encrypted-shares/{member.service_id}")
                 if r.status_code != http.HTTPStatus.OK.value:
@@ -144,8 +138,7 @@ class MemberAPI:
     class Classic:
         API_VERSION = infra.clients.API_VERSION_CLASSIC
 
-        @classmethod
-        def propose(cls, member, remote_node, proposal):
+        def propose(self, member, remote_node, proposal):
             with remote_node.client(*member.auth(write=True)) as mc:
                 r = mc.post("/gov/proposals", proposal)
                 if r.status_code != http.HTTPStatus.OK.value:
@@ -159,6 +152,7 @@ class MemberAPI:
                     seqno=r.seqno,
                 )
 
+        # TODO: Check this
         @classmethod
         def get_proposal_raw(cls, remote_node, proposal_id):
             with remote_node.client() as c:
@@ -177,8 +171,7 @@ class MemberAPI:
                 state=infra.proposal.ProposalState(body["state"]),
             )
 
-        @classmethod
-        def vote(cls, member, remote_node, proposal, ballot):
+        def vote(self, member, remote_node, proposal, ballot):
             with remote_node.client(*member.auth(write=True)) as mc:
                 r = mc.post(
                     f"/gov/proposals/{proposal.proposal_id}/ballots",
@@ -186,8 +179,7 @@ class MemberAPI:
                 )
                 return r
 
-        @classmethod
-        def withdraw(cls, member, remote_node, proposal):
+        def withdraw(self, member, remote_node, proposal):
             with remote_node.client(*member.auth(write=True)) as c:
                 r = c.post(f"/gov/proposals/{proposal.proposal_id}/withdraw")
                 if (
@@ -197,13 +189,11 @@ class MemberAPI:
                     proposal.state = infra.proposal.ProposalState.WITHDRAWN
                 return r
 
-        @classmethod
-        def update_ack_state_digest(cls, member, remote_node):
+        def update_ack_state_digest(self, member, remote_node):
             with remote_node.client(*member.auth()) as mc:
                 return mc.post("/gov/ack/update_state_digest")
 
-        @classmethod
-        def ack(cls, member, remote_node, state_digest):
+        def ack(self, member, remote_node, state_digest):
             with remote_node.client(*member.auth(write=True)) as mc:
                 r = mc.post("/gov/ack", body=state_digest)
                 if r.status_code == http.HTTPStatus.UNAUTHORIZED:
@@ -214,13 +204,62 @@ class MemberAPI:
                 member.status = MemberStatus.ACTIVE
                 return r
 
-        @classmethod
-        def get_recovery_share(cls, member, remote_node):
+        def get_recovery_share(self, member, remote_node):
             with remote_node.client() as mc:
                 r = mc.get(f"/gov/encrypted_recovery_share/{member.service_id}")
                 if r.status_code != http.HTTPStatus.OK.value:
                     raise NoRecoveryShareFound(r)
                 return r.body.json()["encrypted_share"]
+
+    # A special client used only for lts_compatibility tests. Attempts to use latest
+    # API by default, but checks node version to fallback to a supported older API
+    # where required
+    class LtsCompat:
+        def __init__(self):
+            self._preview_v1 = MemberAPI.Preview_v1()
+            self._classic = MemberAPI.Classic()
+
+        def _by_node_version(self, remote_node):
+            min_version = "4.0.0"
+            if remote_node.version_after(min_version):
+                return self._preview_v1
+            else:
+                return self._classic
+
+        def propose(self, member, remote_node, proposal):
+            return self._by_node_version(remote_node).propose(
+                member, remote_node, proposal
+            )
+
+        def get_proposal(self, remote_node, proposal_id):
+            return self._by_node_version(remote_node).get_proposal(
+                remote_node, proposal_id
+            )
+
+        def vote(self, member, remote_node, proposal, ballot):
+            return self._by_node_version(remote_node).vote(
+                member, remote_node, proposal, ballot
+            )
+
+        def withdraw(self, member, remote_node, proposal):
+            return self._by_node_version(remote_node).withdraw(
+                member, remote_node, proposal
+            )
+
+        def update_ack_state_digest(self, member, remote_node):
+            return self._by_node_version(remote_node).update_ack_state_digest(
+                member, remote_node
+            )
+
+        def ack(self, member, remote_node, state_digest):
+            return self._by_node_version(remote_node).ack(
+                member, remote_node, state_digest
+            )
+
+        def get_recovery_share(self, member, remote_node):
+            return self._by_node_version(remote_node).get_recovery_share(
+                member, remote_node
+            )
 
 
 class Member:
@@ -245,7 +284,12 @@ class Member:
         self.is_retired = False
         self.authenticate_session = authenticate_session
         assert self.authenticate_session == "COSE", self.authenticate_session
-        self.gov_api_impl = gov_api_impl
+
+        if "LTS_COMPAT_GOV_CLIENT" in os.environ:
+            LOG.warning("Using custom LTS compatibility mode for member client!")
+            gov_api_impl = MemberAPI.LtsCompat
+
+        self.gov_api_impl_inst = gov_api_impl()
 
         self.member_info = {}
         self.member_info["certificate_file"] = f"{self.local_id}_cert.pem"
@@ -327,16 +371,19 @@ class Member:
 
     def propose(self, remote_node, proposal):
         infra.clients.get_clock().advance()
-        return self.gov_api_impl.propose(self, remote_node, proposal)
+        return self.gov_api_impl_inst.propose(self, remote_node, proposal)
+
+    def get_proposal(self, remote_node, proposal_id):
+        return self.gov_api_impl_inst.get_proposal(remote_node, proposal_id)
 
     def vote(self, remote_node, proposal, ballot):
-        return self.gov_api_impl.vote(self, remote_node, proposal, ballot)
+        return self.gov_api_impl_inst.vote(self, remote_node, proposal, ballot)
 
     def withdraw(self, remote_node, proposal):
-        return self.gov_api_impl.withdraw(self, remote_node, proposal)
+        return self.gov_api_impl_inst.withdraw(self, remote_node, proposal)
 
     def update_ack_state_digest(self, remote_node):
-        r = self.gov_api_impl.update_ack_state_digest(self, remote_node)
+        r = self.gov_api_impl_inst.update_ack_state_digest(self, remote_node)
         if r.status_code == http.HTTPStatus.UNAUTHORIZED:
             raise UnauthenticatedMember(
                 f"Failed to ack member {self.local_id}: {r.status_code}"
@@ -346,12 +393,12 @@ class Member:
         return r
 
     def ack(self, remote_node):
-        return self.gov_api_impl.ack(
+        return self.gov_api_impl_inst.ack(
             self, remote_node, self.update_ack_state_digest(remote_node).body.json()
         )
 
     def get_and_decrypt_recovery_share(self, remote_node):
-        share = self.gov_api_impl.get_recovery_share(self, remote_node)
+        share = self.gov_api_impl_inst.get_recovery_share(self, remote_node)
 
         with open(
             os.path.join(self.common_dir, f"{self.local_id}_enc_privk.pem"),
@@ -393,7 +440,7 @@ class Member:
         if supports_api_version:
             cmd += [
                 "--api-version",
-                self.gov_api_impl.API_VERSION,
+                self.gov_api_impl_inst.API_VERSION,
             ]
 
         # Versions of the script that do not support --member-id arguments use
