@@ -362,6 +362,9 @@ class Member:
         infra.clients.get_clock().advance()
         return self.gov_api_impl_inst.propose(self, remote_node, proposal)
 
+    def get_proposal(self, remote_node, proposal_id):
+        return self.gov_api_impl_inst.get_proposal(remote_node, proposal_id)
+
     def vote(self, remote_node, proposal, ballot):
         return self.gov_api_impl_inst.vote(self, remote_node, proposal, ballot)
 

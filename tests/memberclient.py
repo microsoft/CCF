@@ -174,7 +174,7 @@ def test_governance(network, args):
     current_recovery_thresold = network.consortium.recovery_threshold
     expected_error = (
         http.HTTPStatus.FORBIDDEN
-        if new_member.gov_api_impl.API_VERSION == infra.clients.API_VERSION_CLASSIC
+        if new_member.gov_api_impl_inst.API_VERSION == infra.clients.API_VERSION_CLASSIC
         else http.HTTPStatus.UNAUTHORIZED
     )
     try:
@@ -219,7 +219,7 @@ def test_governance(network, args):
     proposal = network.consortium.get_proposal(node, proposal.proposal_id)
     assert proposal.state == infra.proposal.ProposalState.WITHDRAWN
 
-    if new_member.gov_api_impl.API_VERSION == infra.clients.API_VERSION_CLASSIC:
+    if new_member.gov_api_impl_inst.API_VERSION == infra.clients.API_VERSION_CLASSIC:
         LOG.debug("Further withdraw proposals fail")
         response = new_member.withdraw(node, proposal)
         assert response.status_code == params_error
