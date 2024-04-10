@@ -38,7 +38,7 @@ def test_api_service_state(network, args):
         user_infos = {}
         for user in body["value"]:
             assert user["certificate"].startswith("-----BEGIN CERTIFICATE-----"), node
-            user_infos[user["nodeId"]] = user
+            user_infos[user["userId"]] = user
 
         for user_id, user_info in user_infos.items():
             r = c.get(f"/gov/service/users/{user_id}")
@@ -62,6 +62,25 @@ def test_api_service_state(network, args):
             assert r.status_code == 200, r
             body = r.body.json()
             assert body == node_info
+
+        # Sanity check - these ID namespaces are distinct, and the endpoints return sensible 404s
+        member_id = next(iter(member_infos.keys()))
+        user_id = next(iter(user_infos.keys()))
+        node_id = next(iter(node_infos.keys()))
+
+        for uri in [
+            # /gov/service/members/{id}
+            f"/gov/service/members/{user_id}",
+            f"/gov/service/members/{node_id}",
+            # /gov/service/users/{id}
+            f"/gov/service/users/{member_id}",
+            f"/gov/service/users/{node_id}",
+            # /gov/service/nodes/{id}
+            f"/gov/service/nodes/{user_id}",
+            f"/gov/service/nodes/{member_id}",
+        ]:
+            r = c.get(uri)
+            assert r.status_code == 404, r
 
     return network
 

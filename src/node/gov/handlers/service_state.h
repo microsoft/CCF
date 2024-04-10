@@ -41,17 +41,17 @@ namespace ccf::gov::endpoints
   nlohmann::json produce_user_description(
     const ccf::UserId& user_id,
     const crypto::Pem& user_cert,
-    ccf::UserCerts::ReadOnlyHandle* user_certs_handle)
+    ccf::UserInfo::ReadOnlyHandle* user_info_handle)
   {
     auto user = nlohmann::json::object();
 
     user["userId"] = user_id;
+    user["certificate"] = user_cert.str();
 
-    const auto user_info = user_certs_handle->get(user_id);
-    if (user_info.has_value())
-    {
-      user["userData"] = user_info.value();
-    }
+    const auto user_info = user_info_handle->get(user_id);
+    // For consistency with other *Data fields, we always insert this, even if
+    // it iss nullopt (JSON null)
+    user["userData"] = user_info;
 
     return user;
   }
@@ -671,7 +671,6 @@ namespace ccf::gov::endpoints
     auto get_user_by_id = [&](auto& ctx, ApiVersion api_version) {
       switch (api_version)
       {
-        // TODO TODO: This body is by_id
         case ApiVersion::preview_v1:
         default:
         {
@@ -710,7 +709,7 @@ namespace ccf::gov::endpoints
       .make_read_only_endpoint(
         "/service/users/{userId}",
         HTTP_GET,
-        api_version_adapter(get_users),
+        api_version_adapter(get_user_by_id),
         no_auth_required)
       .set_openapi_hidden(true)
       .install();
