@@ -1081,6 +1081,11 @@ if(BUILD_TESTS)
     target_link_libraries(http_test PRIVATE http_parser.host)
 
     add_unit_test(
+      http_etag_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_etag_test.cpp
+    )
+
+    add_unit_test(
       frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp

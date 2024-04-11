@@ -21,7 +21,7 @@ namespace http
     std::set<std::string> if_etags;
 
   public:
-    /**
+    /*
      * If-Match = "*" / #entity-tag
      * entity-tag = [ weak ] opaque-tag
      * weak       = %s"W/"
