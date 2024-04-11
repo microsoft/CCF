@@ -1320,7 +1320,7 @@ def test_ledger_governance_invariants(network, args):
 
     ledger = ccf.ledger.Ledger(ledger_dirs)
 
-    LOG.info("All non-open proposals contain final_vote for each submitted ballot")
+    LOG.info("Completed proposals contain final_vote for each submitted ballot")
     table_name = "public:ccf.gov.proposals_info"
     for transaction in ledger.transactions():
         public_tables = transaction.get_public_domain().get_tables()
@@ -1334,13 +1334,18 @@ def test_ledger_governance_invariants(network, args):
 
             proposal = json.loads(raw_proposal)
 
-            if proposal["state"] == "Open":
-                # This proposal is still open, contains no final_votes
+            state = proposal["state"]
+            if state in ("Open", "Withdrawn", "Dropped"):
+                # This proposal contains no final_votes
                 continue
 
             ballots = proposal["ballots"]
             final_votes = proposal["final_votes"]
+            vote_failures = proposal["vote_failures"]
 
-            assert ballots.keys() == final_votes.keys()
+            all_submitted = set(ballots.keys())
+            all_results = set.union(set(final_votes.keys()), set(vote_failures.keys()))
+
+            assert all_submitted == all_results, proposal
 
     return network
