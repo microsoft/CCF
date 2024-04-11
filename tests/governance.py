@@ -762,6 +762,7 @@ def js_gov(args):
         governance_js.test_pure_proposals(network, args)
         governance_js.test_set_constitution(network, args)
         governance_js.test_proposals_with_votes(network, args)
+        governance_js.test_check_proposal_id_is_set_correctly(network, args)
         governance_js.test_vote_failure_reporting(network, args)
         governance_js.test_operator_proposals_and_votes(network, args)
         governance_js.test_operator_provisioner_proposals_and_votes(network, args)

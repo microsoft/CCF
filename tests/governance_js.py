@@ -52,6 +52,9 @@ always_accept_if_proposed_by_operator = proposal(
 )
 always_accept_with_two_votes = proposal(action("always_accept_with_two_votes"))
 always_reject_with_two_votes = proposal(action("always_reject_with_two_votes"))
+check_proposal_id_is_set_correctly = proposal(
+    action("check_proposal_id_is_set_correctly")
+)
 
 ballot_yes = vote("return true")
 ballot_no = vote("return false")
@@ -610,6 +613,19 @@ def test_proposals_with_votes(network, args):
                 )
                 assert r.status_code == 200, r.body.text()
                 assert r.body.json()["proposalState"] == state, r.body.json()
+
+    return network
+
+
+@reqs.description("Test proposal id is set correctly in resolve()")
+def test_check_proposal_id_is_set_correctly(network, args):
+    node = choose_node(network)
+    with node.api_versioned_client(
+        None, None, "member0", api_version=args.gov_api_version
+    ) as c:
+        r = c.post("/gov/members/proposals:create", check_proposal_id_is_set_correctly)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["proposalState"] == "Accepted", r.body.json()
 
     return network
 
