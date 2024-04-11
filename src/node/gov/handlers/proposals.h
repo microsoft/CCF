@@ -342,6 +342,7 @@ namespace ccf::gov::endpoints
       response_body["proposalId"] = proposal_id;
       response_body["proposerId"] = summary.proposer_id;
       response_body["proposalState"] = summary.state;
+      response_body["ballotCount"] = summary.ballots.size();
 
       std::optional<ccf::jsgov::Votes> votes = summary.final_votes;
 
