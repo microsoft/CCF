@@ -581,12 +581,11 @@ class Network:
             args.consensus,
             initial_members_info,
             args.participants_curve,
+            gov_api_version=args.gov_api_version,
         )
         set_authenticate_session = kwargs.pop("set_authenticate_session", None)
         if set_authenticate_session is not None:
             self.consortium.set_authenticate_session(set_authenticate_session)
-
-        self.consortium.set_gov_api_version(args.gov_api_version)
 
         primary = self._start_all_nodes(args, **kwargs)
         self.wait_for_all_nodes_to_commit(primary=primary)
@@ -681,12 +680,11 @@ class Network:
                 self.share_script,
                 args.consensus,
                 public_state=public_state,
+                gov_api_version=args.gov_api_version,
             )
 
         if set_authenticate_session is not None:
             self.consortium.set_authenticate_session(set_authenticate_session)
-
-        self.consortium.set_gov_api_version(args.gov_api_version)
 
         for node in self.get_joined_nodes():
             self.wait_for_state(

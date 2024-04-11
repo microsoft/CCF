@@ -1479,6 +1479,11 @@ if(BUILD_TESTS)
         LABEL e2e
         ADDITIONAL_ARGS ${LTS_TEST_ARGS}
       )
+      set_property(
+        TEST lts_compatibility
+        APPEND
+        PROPERTY ENVIRONMENT "LTS_COMPAT_GOV_CLIENT=1"
+      )
     endif()
 
     if(LONG_TESTS)
