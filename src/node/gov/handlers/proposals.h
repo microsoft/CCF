@@ -269,15 +269,15 @@ namespace ccf::gov::endpoints
         {
           remove_all_other_non_open_proposals(tx, proposal_id);
 
+          // Write now-permanent values back to proposal_state, and into the
+          // KV
+          proposal_info.final_votes = votes;
+          proposal_info.vote_failures = vote_failures;
+          proposal_info.failure = failure;
+          proposal_info_handle->put(proposal_id, proposal_info);
+
           if (proposal_info.state == ProposalState::ACCEPTED)
           {
-            // Write now-permanent values back to proposal_state, and into the
-            // KV
-            proposal_info.final_votes = votes;
-            proposal_info.vote_failures = vote_failures;
-            proposal_info.failure = failure;
-            proposal_info_handle->put(proposal_id, proposal_info);
-
             // Evaluate apply function
             js::Context js_context(js::TxAccess::GOV_RW);
 
