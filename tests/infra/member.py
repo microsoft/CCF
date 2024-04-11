@@ -226,6 +226,11 @@ class MemberAPI:
                 member, remote_node, proposal
             )
 
+        def get_proposal_raw(self, remote_node, proposal_id):
+            return self._by_node_version(remote_node).get_proposal_raw(
+                remote_node, proposal_id
+            )
+
         def get_proposal(self, remote_node, proposal_id):
             return self._by_node_version(remote_node).get_proposal(
                 remote_node, proposal_id
@@ -367,6 +372,9 @@ class Member:
     def propose(self, remote_node, proposal):
         infra.clients.get_clock().advance()
         return self.gov_api_impl_inst.propose(self, remote_node, proposal)
+
+    def get_proposal_raw(self, remote_node, proposal_id):
+        return self.gov_api_impl_inst.get_proposal_raw(remote_node, proposal_id)
 
     def get_proposal(self, remote_node, proposal_id):
         return self.gov_api_impl_inst.get_proposal(remote_node, proposal_id)

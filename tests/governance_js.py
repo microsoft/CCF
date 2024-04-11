@@ -16,6 +16,7 @@ import tempfile
 import uuid
 import infra.clients
 import json
+import ccf.ledger
 
 
 def action(name, **args):
@@ -1308,5 +1309,38 @@ def test_final_proposal_visibility(network, args):
             assert primary.check_log_for_error_message(
                 line
             ), f"Not found in stdout: {line}"
+
+    return network
+
+
+@reqs.description("Test final proposal description written to KV")
+def test_ledger_governance_invariants(network, args):
+    node = network.nodes[0]
+    ledger_dirs = node.remote.ledger_paths()
+
+    ledger = ccf.ledger.Ledger(ledger_dirs)
+
+    LOG.info("All non-open proposals contain final_vote for each submitted ballot")
+    table_name = "public:ccf.gov.proposals_info"
+    for transaction in ledger.transactions():
+        public_tables = transaction.get_public_domain().get_tables()
+        if table_name not in public_tables:
+            continue
+
+        for _, raw_proposal in public_tables[table_name].items():
+            if raw_proposal is None:
+                # This is a deletion
+                continue
+
+            proposal = json.loads(raw_proposal)
+
+            if proposal["state"] == "Open":
+                # This proposal is still open, contains no final_votes
+                continue
+
+            ballots = proposal["ballots"]
+            final_votes = proposal["final_votes"]
+
+            assert ballots.keys() == final_votes.keys()
 
     return network
