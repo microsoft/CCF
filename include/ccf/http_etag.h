@@ -51,13 +51,22 @@ namespace http
         if_match_header.value().end(),
         etag_rx);
       auto etags_end = std::sregex_iterator();
+      ssize_t last_matched = 0;
+
       for (std::sregex_iterator i = etags_begin; i != etags_end; ++i)
       {
+        if (i->position() != last_matched)
+        {
+          throw std::runtime_error("Invalid If-Match header");
+        }
         std::smatch match = *i;
         if_etags.insert(match[1].str());
+        last_matched = match.position() + match.length();
       }
 
-      if (if_etags.empty() && !any_value)
+      ssize_t last_index_in_header = if_match_header.value().size();
+
+      if (last_matched != last_index_in_header || if_etags.empty())
       {
         throw std::runtime_error("Invalid If-Match header");
       }
