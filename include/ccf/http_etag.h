@@ -13,11 +13,24 @@ namespace http
   class IfMatch
   {
   private:
+    /// If-Match header is not present
     bool noop = false;
+    /// If-Match header is present and has the value "*"
     bool any_value = false;
+    /// If-Match header is present and has specific etag values
     std::set<std::string> if_etags;
 
   public:
+    /**
+     * If-Match = "*" / #entity-tag
+     * entity-tag = [ weak ] opaque-tag
+     * weak       = %s"W/"
+     * opaque-tag = DQUOTE *etagc DQUOTE
+     * etagc      = %x21 / %x23-7E / obs-text
+     *            ; VCHAR except double quotes, plus obs-text
+     *
+     * Note: Weak tags are not supported.
+     */
     IfMatch(const std::optional<std::string>& if_match_header)
     {
       if (!if_match_header.has_value())
@@ -58,16 +71,6 @@ namespace http
       }
 
       return any_value || if_etags.contains(val);
-    }
-
-    bool matches(const std::optional<std::string>& val) const
-    {
-      if (!val.has_value())
-      {
-        return false;
-      }
-
-      return matches(val.value());
     }
 
     bool is_noop() const

@@ -775,7 +775,6 @@ namespace loggingapp
         const auto id = params["id"].get<size_t>();
 
         http::IfMatch if_match(ctx.rpc_ctx->get_request_header("if-match"));
-        std::optional<std::string> etag = std::nullopt;
         if (!if_match.is_noop())
         {
           // If there is an actual If-Match header, we need to read the current
@@ -786,11 +785,8 @@ namespace loggingapp
           if (current_value.has_value())
           {
             crypto::Sha256Hash value_digest(current_value.value());
-            etag = value_digest.hex_str();
-            if (!if_match.matches(etag))
+            if (!if_match.matches(value_digest.hex_str()))
             {
-              // TODO: should we send the updated ETag here, or must the user
-              // GET it?
               return ccf::make_error(
                 HTTP_STATUS_PRECONDITION_FAILED,
                 ccf::errors::PreconditionFailed,
@@ -844,8 +840,6 @@ namespace loggingapp
           ctx.tx.template ro<RecordsMap>(public_records(ctx));
         auto record = public_records_handle->get(id);
 
-        http::IfMatch if_match(ctx.rpc_ctx->get_request_header("if-match"));
-
         if (record.has_value())
         {
           crypto::Sha256Hash value_digest(record.value());
@@ -853,6 +847,7 @@ namespace loggingapp
             std::make_shared<std::string>(value_digest.hex_str());
           ctx.rpc_ctx->set_user_data(user_data);
 
+          http::IfMatch if_match(ctx.rpc_ctx->get_request_header("if-match"));
           if (!if_match.matches(*user_data))
           {
             return ccf::make_error(
@@ -899,10 +894,23 @@ namespace loggingapp
 
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
-        auto had = records_handle->has(id);
-        records_handle->remove(id);
+        auto current_value = records_handle->get(id);
 
-        return ccf::make_success(LoggingRemove::Out{had});
+        http::IfMatch if_match(ctx.rpc_ctx->get_request_header("if-match"));
+        if (current_value.has_value())
+        {
+          crypto::Sha256Hash value_digest(current_value.value());
+          if (!if_match.matches(value_digest.hex_str()))
+          {
+            return ccf::make_error(
+              HTTP_STATUS_PRECONDITION_FAILED,
+              ccf::errors::PreconditionFailed,
+              "Resource has changed.");
+          }
+        }
+
+        records_handle->remove(id);
+        return ccf::make_success(LoggingRemove::Out{current_value.has_value()});
       };
       make_endpoint(
         "/log/public",

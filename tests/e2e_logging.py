@@ -1844,6 +1844,22 @@ def test_etags(network, args):
         etag = sha256(doc["msg"].encode()).hexdigest()
         assert r.headers["ETag"] == etag, r.headers["ETag"]
 
+        r = c.delete(f"/app/log/public?id={doc['id']}", headers={"If-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
+
+        r = c.delete(
+            f"/app/log/public?id={doc['id']}", headers={"If-Match": f'"{etag}"'}
+        )
+        assert r.status_code == http.HTTPStatus.OK
+
+        r = c.delete(
+            f"/app/log/public?id={doc['id']}", headers={"If-Match": f'"{etag}"'}
+        )
+        assert r.status_code == http.HTTPStatus.OK
+
+        r = c.delete(f"/app/log/public?id={doc['id']}", headers={"If-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.OK
+
     return network
 
 
