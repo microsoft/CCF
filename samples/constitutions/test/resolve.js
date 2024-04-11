@@ -37,7 +37,7 @@ function canOperatorProvisionerPass(action) {
   );
 }
 
-export function resolve(proposal, proposer_id, votes, proposal_id) {
+export function resolve(proposal, proposerId, votes, proposalId) {
   const actions = JSON.parse(proposal)["actions"];
   if (actions.length === 1) {
     if (actions[0].name === "always_accept_noop") {
@@ -75,7 +75,7 @@ export function resolve(proposal, proposer_id, votes, proposal_id) {
       }
     } else if (actions[0].name === "always_accept_if_proposed_by_operator") {
       const mi = ccf.kv["public:ccf.gov.members.info"].get(
-        ccf.strToBuf(proposer_id),
+        ccf.strToBuf(proposerId),
       );
       if (mi && (ccf.bufToJsonCompatible(mi).member_data ?? {}).is_operator) {
         return "Accepted";
@@ -96,7 +96,7 @@ export function resolve(proposal, proposer_id, votes, proposal_id) {
       return "Rejected";
     } else if (actions[0].name === "check_proposal_id_is_set_correctly") {
       const proposal_from_kv = ccf.kv["public:ccf.gov.proposals"].get(
-        ccf.strToBuf(proposal_id),
+        ccf.strToBuf(proposalId),
       );
       if (proposal === ccf.bufToStr(proposal_from_kv)) {
         return "Accepted";
@@ -108,7 +108,7 @@ export function resolve(proposal, proposer_id, votes, proposal_id) {
 
   // If the node is an operator provisioner, strictly enforce what proposals it can
   // make
-  if (isOperatorProvisioner(proposer_id)) {
+  if (isOperatorProvisioner(proposerId)) {
     return actions.every(canOperatorProvisionerPass) ? "Accepted" : "Rejected";
   }
 
