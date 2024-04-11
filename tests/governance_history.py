@@ -292,7 +292,7 @@ def run(args):
             ).withdraw(primary, new_member_proposal)
             infra.checker.Checker(c)(response)
         assert response.status_code == http.HTTPStatus.OK.value
-        assert response.body.json()["state"] == ProposalState.WITHDRAWN.value
+        assert response.body.json()["proposalState"] == ProposalState.WITHDRAWN.value
         member = network.consortium.get_member_by_local_id(
             new_member_proposal.proposer_id
         )
