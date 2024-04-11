@@ -159,7 +159,11 @@ namespace ccf
         std::vector<js::JSWrappedValue> argv = {
           context.new_string_len((const char*)proposal.data(), proposal.size()),
           context.new_string_len(
-            pi_->proposer_id.data(), pi_->proposer_id.size())};
+            pi_->proposer_id.data(), pi_->proposer_id.size()),
+          // Also pass the proposal_id as a string. This is useful for proposals
+          // that want to refer to themselves in the resolve function, for
+          // example to examine/distinguish themselves other pending proposals.
+          context.new_string_len(proposal_id.data(), proposal_id.size())};
 
         auto val = context.call_with_rt_options(
           ballot_func,

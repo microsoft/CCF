@@ -1436,6 +1436,11 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
+      NAME consistency_trace_validation
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
+    )
+
+    add_e2e_test(
       NAME fuzz_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
     )
 

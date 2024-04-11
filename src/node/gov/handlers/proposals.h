@@ -214,6 +214,12 @@ namespace ccf::gov::endpoints
           }
           argv.push_back(vs);
 
+          // Also pass the proposal_id as a string. This is useful for proposals
+          // that want to refer to themselves in the resolve function, for
+          // example to examine/distinguish themselves other pending proposals.
+          argv.push_back(
+            js_context.new_string_len(proposal_id.data(), proposal_id.size()));
+
           auto val = js_context.call_with_rt_options(
             resolve_func,
             argv,
