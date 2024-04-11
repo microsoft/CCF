@@ -119,6 +119,40 @@ namespace ccf::gov::endpoints::detail
     return true;
   }
 
+  // Extract userId from path parameter, confirm it is a plausible ID
+  bool try_parse_user_id(
+    const std::shared_ptr<ccf::RpcContext>& rpc_ctx, ccf::UserId& user_id)
+  {
+    // Extract user ID from path parameter
+    std::string user_id_str;
+    std::string error;
+    if (!ccf::endpoints::get_path_param(
+          rpc_ctx->get_request_path_params(), "userId", user_id_str, error))
+    {
+      detail::set_gov_error(
+        rpc_ctx,
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidResourceName,
+        std::move(error));
+      return false;
+    }
+
+    // Parse user ID from string
+    const auto user_id_opt = parse_hex_id<ccf::UserId>(user_id_str);
+    if (!user_id_opt.has_value())
+    {
+      detail::set_gov_error(
+        rpc_ctx,
+        HTTP_STATUS_BAD_REQUEST,
+        ccf::errors::InvalidResourceName,
+        fmt::format("'{}' is not a valid hex-encoded user ID", user_id_str));
+      return false;
+    }
+
+    user_id = user_id_opt.value();
+    return true;
+  }
+
   // Extract proposalId from path parameter, confirm it is a plausible ID
   bool try_parse_proposal_id(
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
