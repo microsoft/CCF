@@ -1805,29 +1805,36 @@ def test_etags(network, args):
         doc = {"id": 999999, "msg": "hello world"}
         etag = sha256(doc["msg"].encode()).hexdigest()
 
+        # POST ETag matches value
         r = c.post("/app/log/public", doc)
         assert r.status_code == http.HTTPStatus.OK
         assert r.headers["ETag"] == etag, r.headers["ETag"]
 
+        # GET ETag matches value
         r = c.get(f"/app/log/public?id={doc['id']}")
         assert r.status_code == http.HTTPStatus.OK
         assert r.headers["ETag"] == etag, r.headers["ETag"]
 
+        # GET If-Match: * for missing resource still returns 404
         r = c.get("/app/log/public?id=999998", headers={"If-Match": "*"})
         assert r.status_code == http.HTTPStatus.NOT_FOUND
 
+        # GET If-Match: * for existing resource returns 200
         r = c.get(f"/app/log/public?id={doc['id']}", headers={"If-Match": "*"})
         assert r.status_code == http.HTTPStatus.OK
         assert r.headers["ETag"] == etag, r.headers["ETag"]
 
+        # GET If-Match: mismatching ETag returns 412
         r = c.get(f"/app/log/public?id={doc['id']}", headers={"If-Match": '"abc"'})
         assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
         assert r.body.json()["error"]["code"] == "PreconditionFailed"
 
+        # GET If-Match: matching ETag returns 200
         r = c.get(f"/app/log/public?id={doc['id']}", headers={"If-Match": f'"{etag}"'})
         assert r.status_code == http.HTTPStatus.OK
         assert r.body.json() == {"msg": doc["msg"]}
 
+        # GET If-Match: multiple ETags including matching returns 200
         r = c.get(
             f"/app/log/public?id={doc['id']}", headers={"If-Match": f'"{etag}", "abc"'}
         )
@@ -1859,6 +1866,23 @@ def test_etags(network, args):
 
         r = c.delete(f"/app/log/public?id={doc['id']}", headers={"If-Match": '"abc"'})
         assert r.status_code == http.HTTPStatus.OK
+
+        r = c.post("/app/log/public", doc)
+        assert r.status_code == http.HTTPStatus.OK
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        r = c.get("/app/log/public?id=999999", headers={"If-None-Match": "*"})
+        assert r.status_code == http.HTTPStatus.NOT_MODIFIED
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        r = c.get("/app/log/public?id=999999", headers={"If-None-Match": f'"{etag}"'})
+        assert r.status_code == http.HTTPStatus.NOT_MODIFIED
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        r = c.get("/app/log/public?id=999999", headers={"If-None-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.OK
+        assert r.body.json() == {"msg": doc["msg"]}
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
 
     return network
 

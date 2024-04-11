@@ -8,6 +8,7 @@
 #include "ccf/http_header_map.h"
 #include "ccf/http_responder.h"
 #include "ccf/odata_error.h"
+#include "ccf/redirect.h"
 #include "ccf/rest_verb.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/tx_id.h"

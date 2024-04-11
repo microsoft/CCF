@@ -492,17 +492,6 @@ namespace loggingapp
         ctx.rpc_ctx->set_response_body(nlohmann::json(*out).dump());
       };
 
-      auto add_etag_to_response = [](auto& ctx, const auto& tx_id) {
-        ctx.rpc_ctx->set_response_header(
-          http::headers::CCF_TX_ID, tx_id.to_str());
-
-        auto etag = static_cast<std::string*>(ctx.rpc_ctx->get_user_data());
-        if (etag != nullptr)
-        {
-          ctx.rpc_ctx->set_response_header("ETag", etag->c_str());
-        }
-      };
-
       auto record_v2 = [this](auto& ctx, nlohmann::json&& params) {
         const auto in = params.get<LoggingRecord::In>();
 
@@ -805,17 +794,15 @@ namespace loggingapp
         CCF_APP_INFO("Storing {} = {}", id, in.msg);
 
         crypto::Sha256Hash value_digest(in.msg);
-        auto user_data = std::make_shared<std::string>(value_digest.hex_str());
-        ctx.rpc_ctx->set_user_data(user_data);
+        ctx.rpc_ctx->set_response_header("ETag", value_digest.hex_str());
 
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
-      make_endpoint_with_local_commit_handler(
+      make_endpoint(
         "/log/public",
         HTTP_POST,
         ccf::json_adapter(record_public),
-        add_etag_to_response,
         auth_policies)
         .set_auto_schema<LoggingRecord::In, bool>()
         .install();
@@ -843,17 +830,38 @@ namespace loggingapp
         if (record.has_value())
         {
           crypto::Sha256Hash value_digest(record.value());
-          auto user_data =
-            std::make_shared<std::string>(value_digest.hex_str());
-          ctx.rpc_ctx->set_user_data(user_data);
+          const auto etag = value_digest.hex_str();
+          ctx.rpc_ctx->set_response_header("ETag", value_digest.hex_str());
 
-          http::IfMatch if_match(ctx.rpc_ctx->get_request_header("if-match"));
-          if (!if_match.matches(*user_data))
+          auto if_match = ctx.rpc_ctx->get_request_header("if-match");
+          auto if_none_match = ctx.rpc_ctx->get_request_header("if-none-match");
+          if (if_match.has_value() && if_none_match.has_value())
           {
             return ccf::make_error(
-              HTTP_STATUS_PRECONDITION_FAILED,
-              ccf::errors::PreconditionFailed,
-              "Resource has changed.");
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidHeaderValue,
+              "Cannot have both If-Match and If-None-Match headers.");
+          }
+
+          if (if_match.has_value())
+          {
+            http::IfMatch matcher(if_match);
+            if (!matcher.matches(etag))
+            {
+              return ccf::make_error(
+                HTTP_STATUS_PRECONDITION_FAILED,
+                ccf::errors::PreconditionFailed,
+                "Resource has changed.");
+            }
+          }
+
+          if (if_none_match.has_value())
+          {
+            http::IfMatch matcher(if_none_match);
+            if (matcher.matches(etag))
+            {
+              return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+            }
           }
 
           CCF_APP_INFO("Fetching {} = {}", id, record.value());
@@ -867,11 +875,10 @@ namespace loggingapp
           fmt::format("No such record: {}.", id));
       };
       // SNIPPET_END: get_public
-      make_read_only_endpoint_with_local_commit_handler(
+      make_read_only_endpoint(
         "/log/public",
         HTTP_GET,
         ccf::json_read_only_adapter(get_public),
-        add_etag_to_response,
         auth_policies)
         .set_auto_schema<void, LoggingGet::Out>()
         .add_query_parameter<size_t>("id")
