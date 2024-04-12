@@ -763,23 +763,67 @@ namespace loggingapp
         // SNIPPET_END: public_table_access
         const auto id = params["id"].get<size_t>();
 
-        http::IfMatch if_match(ctx.rpc_ctx->get_request_header("if-match"));
-        if (!if_match.is_noop())
+        auto if_match = ctx.rpc_ctx->get_request_header("if-match");
+        auto if_none_match = ctx.rpc_ctx->get_request_header("if-none-match");
+        if (if_match.has_value() && if_none_match.has_value())
         {
-          // If there is an actual If-Match header, we need to read the current
-          // value and make sure it matches the provided ETags
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidHeaderValue,
+            "Cannot have both If-Match and If-None-Match headers.");
+        }
+
+        if (if_match.has_value())
+        {
+          http::IfMatch matcher(if_match);
+          if (!matcher.is_noop())
+          {
+            // If there is a If-Match header that's not *, we need to read the
+            // current value and make sure it matches the provided ETags This
+            // could be done every time, but the read dependency comes with
+            // performance implications, so we only want to do if it necessary.
+            auto current_value = records_handle->get(id);
+            if (current_value.has_value())
+            {
+              crypto::Sha256Hash value_digest(current_value.value());
+              if (!matcher.matches(value_digest.hex_str()))
+              {
+                return ccf::make_error(
+                  HTTP_STATUS_PRECONDITION_FAILED,
+                  ccf::errors::PreconditionFailed,
+                  "Resource has changed.");
+              }
+            }
+          }
+        }
+
+        if (if_none_match.has_value())
+        {
+          http::IfMatch matcher(if_none_match);
+          // If there is any If-Non-Match header, we need to read the current
+          // value and make sure it does not matches the provided ETags
           // This could be done every time, but the read dependency comes with
           // performance implications, so we only want to do if it necessary.
           auto current_value = records_handle->get(id);
           if (current_value.has_value())
           {
-            crypto::Sha256Hash value_digest(current_value.value());
-            if (!if_match.matches(value_digest.hex_str()))
+            if (matcher.is_noop())
             {
               return ccf::make_error(
                 HTTP_STATUS_PRECONDITION_FAILED,
                 ccf::errors::PreconditionFailed,
                 "Resource has changed.");
+            }
+            else
+            {
+              crypto::Sha256Hash value_digest(current_value.value());
+              if (matcher.matches(value_digest.hex_str()))
+              {
+                return ccf::make_error(
+                  HTTP_STATUS_PRECONDITION_FAILED,
+                  ccf::errors::PreconditionFailed,
+                  "Resource has changed.");
+              }
             }
           }
         }

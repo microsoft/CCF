@@ -1853,6 +1853,28 @@ def test_etags(network, args):
         etag = sha256(doc["msg"].encode()).hexdigest()
         assert r.headers["ETag"] == etag, r.headers["ETag"]
 
+        # POST If-Match: mutiple, one which is matching, ETags returns 200
+        r = c.post("/app/log/public", doc, headers={"If-Match": f'"{etag}", "abc"'})
+        assert r.status_code == http.HTTPStatus.OK
+        etag = sha256(doc["msg"].encode()).hexdigest()
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        # POST If-Match: mutiple, one which is matching, ETags returns 200
+        r = c.post("/app/log/public", doc, headers={"If-Match": f'"{etag}", "abc"'})
+        assert r.status_code == http.HTTPStatus.OK
+        etag = sha256(doc["msg"].encode()).hexdigest()
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        # POST If-None-Match: * on existing resource returns 412
+        r = c.post("/app/log/public", doc, headers={"If-None-Match": "*"})
+        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
+        etag = sha256(doc["msg"].encode()).hexdigest()
+
+        # POST If-None-Match: matching ETag on existing resource returns 412
+        r = c.post("/app/log/public", doc, headers={"If-None-Match": "*"})
+        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
+        etag = sha256(doc["msg"].encode()).hexdigest()
+
         # DELETE If-Match: mismatching ETag returns 412
         r = c.delete(f"/app/log/public?id={doc['id']}", headers={"If-Match": '"abc"'})
         assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
@@ -1923,6 +1945,19 @@ def test_etags(network, args):
         assert r.status_code == http.HTTPStatus.OK
         r = c.get(f"/app/log/public?id={doc['id']}")
         assert r.status_code == http.HTTPStatus.NOT_FOUND
+
+        # POST If-None-Match: * on deleted returns 200
+        r = c.post("/app/log/public", doc, headers={"If-None-Match": "*"})
+        assert r.status_code == http.HTTPStatus.OK
+        etag = sha256(doc["msg"].encode()).hexdigest()
+
+        r = c.get(f"/app/log/public?id={doc['id']}")
+        assert r.status_code == http.HTTPStatus.OK
+
+        # POST If-None-Match: mismatching ETag returns 200
+        r = c.post("/app/log/public", doc, headers={"If-None-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.OK
+        etag = sha256(doc["msg"].encode()).hexdigest()
 
     return network
 
