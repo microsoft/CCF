@@ -154,3 +154,4 @@ HTTP Entity Tags Matching
 
 .. doxygenclass:: ccf::http::Matcher
    :project: CCF
+   :members:

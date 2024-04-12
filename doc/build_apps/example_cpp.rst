@@ -329,8 +329,39 @@ Single transactions are always handled atomically by the service, transparently 
 
 Implementing `If-Match` and `If-None-Match` HTTP headers in endpoint logic is a common pattern for this use case. The following endpoints of the C++ logging app demonstrate this:
 
-- ``POST /app/log/public``
-- ``GET /app/log/public/{idx}``
-- ``DELETE /app/log/public/{idx}``
+POST /app/log/public
+~~~~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: public_table_post_match
+    :end-before: SNIPPET_END: public_table_post_match
+    :dedent:
+
+And before returning ``200 OK``:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: public_table_post_etag
+    :end-before: SNIPPET_END: public_table_post_etag
+    :dedent:
+
+GET /app/log/public/{idx}
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: public_table_get_match
+    :end-before: SNIPPET_END: public_table_get_match
+    :dedent:
+
+DELETE /app/log/public/{idx}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: public_table_delete_match
+    :end-before: SNIPPET_END: public_table_delete_match
+    :dedent:
 
 The framework provides a :cpp:class:`ccf::http::Matcher` class, which can be used to evaluate these conditions.

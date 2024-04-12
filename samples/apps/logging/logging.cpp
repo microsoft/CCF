@@ -763,6 +763,7 @@ namespace loggingapp
         // SNIPPET_END: public_table_access
         const auto id = params["id"].get<size_t>();
 
+        // SNIPPET_START: public_table_post_match
         auto if_match =
           ccf::http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
         auto if_none_match =
@@ -820,6 +821,7 @@ namespace loggingapp
             }
           }
         }
+        // SNIPPET_END: public_table_post_match
 
         records_handle->put(id, in.msg);
         // SNIPPET_START: set_claims_digest
@@ -830,9 +832,11 @@ namespace loggingapp
         // SNIPPET_END: set_claims_digest
         CCF_APP_INFO("Storing {} = {}", id, in.msg);
 
+        // SNIPPET_START: public_table_post_etag
         crypto::Sha256Hash value_digest(in.msg);
         // Succesful calls set an ETag
         ctx.rpc_ctx->set_response_header("ETag", value_digest.hex_str());
+        // SNIPPET_END: public_table_post_etag
 
         return ccf::make_success(true);
       };
@@ -865,6 +869,7 @@ namespace loggingapp
           ctx.tx.template ro<RecordsMap>(public_records(ctx));
         auto record = public_records_handle->get(id);
 
+        // SNIPPET_START: public_table_get_match
         auto if_match =
           ccf::http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
         auto if_none_match =
@@ -903,6 +908,7 @@ namespace loggingapp
           CCF_APP_INFO("Fetching {} = {}", id, record.value());
           return ccf::make_success(LoggingGet::Out{record.value()});
         }
+        // SNIPPET_END: public_table_get_match
 
         CCF_APP_INFO("Fetching - no entry for {}", id);
         return ccf::make_error(
@@ -939,6 +945,7 @@ namespace loggingapp
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
         auto current_value = records_handle->get(id);
 
+        // SNIPPET_START: public_table_delete_match
         auto if_match =
           ccf::http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
         auto if_none_match =
@@ -986,6 +993,7 @@ namespace loggingapp
             }
           }
         }
+        // SNIPPET_END: public_table_delete_match
 
         // Succesful calls remove the value, and therefore do not set an ETag
         records_handle->remove(id);
