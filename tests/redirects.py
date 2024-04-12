@@ -41,6 +41,9 @@ def test_redirects_with_node_role_config(network, args):
             r = c.post(path, req)
             assert r.status_code == http.HTTPStatus.OK
 
+    with orig_backups[0].client() as c:
+        c.wait_for_commit(r)
+
     LOG.info("Redirect to original primary")
     for backup in orig_backups:
         test_redirect_to_node(backup, primary)
