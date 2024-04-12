@@ -5,6 +5,7 @@
         "js_module": "host_process.js",
         "js_function": "launch",
         "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}
@@ -15,6 +16,7 @@
         "js_module": "host_process.js",
         "js_function": "launchMany",
         "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}
