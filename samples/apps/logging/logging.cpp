@@ -764,9 +764,9 @@ namespace loggingapp
         const auto id = params["id"].get<size_t>();
 
         auto if_match =
-          http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
+          ccf::http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
         auto if_none_match =
-          http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
+          ccf::http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
         if (!if_match.empty() && !if_none_match.empty())
         {
           return ccf::make_error(
@@ -866,9 +866,9 @@ namespace loggingapp
         auto record = public_records_handle->get(id);
 
         auto if_match =
-          http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
+          ccf::http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
         auto if_none_match =
-          http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
+          ccf::http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
         if (!if_match.empty() && !if_none_match.empty())
         {
           return ccf::make_error(
@@ -940,9 +940,9 @@ namespace loggingapp
         auto current_value = records_handle->get(id);
 
         auto if_match =
-          http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
+          ccf::http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
         auto if_none_match =
-          http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
+          ccf::http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
         if (!if_match.empty() && !if_none_match.empty())
         {
           return ccf::make_error(

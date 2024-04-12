@@ -7,89 +7,89 @@
 #include <set>
 #include <string>
 
-namespace http
+namespace ccf
 {
-  // https://www.rfc-editor.org/rfc/rfc9110#field.if-match
-  class Matcher
+  namespace http
   {
-  private:
-    /// If-Match header is not present
-    bool _empty = false;
-    /// If-Match header is present and has the value "*"
-    bool any_value = false;
-    /// If-Match header is present and has specific etag values
-    std::set<std::string> if_etags;
-
-  public:
-    /*
-     * If-Match = "*" / #entity-tag
-     * entity-tag = [ weak ] opaque-tag
-     * weak       = %s"W/"
-     * opaque-tag = DQUOTE *etagc DQUOTE
-     * etagc      = %x21 / %x23-7E / obs-text
-     *            ; VCHAR except double quotes, plus obs-text
-     *
-     * Note: Weak tags are not supported.
+    /** Utility class to resolve If-Match and If-None-Match as described
+     * in https://www.rfc-editor.org/rfc/rfc9110#field.if-match
      */
-    Matcher(const std::optional<std::string>& if_match_header)
+    class Matcher
     {
-      if (!if_match_header.has_value())
-      {
-        _empty = true;
-        return;
-      }
+    private:
+      /// If-Match header is not present
+      bool _empty = false;
+      /// If-Match header is present and has the value "*"
+      bool any_value = false;
+      /// If-Match header is present and has specific etag values
+      std::set<std::string> if_etags;
 
-      if (if_match_header.value() == "*")
+    public:
+      /** Construct a Matcher from a match header if present
+       *
+       * Note: Weak tags are not supported.
+       */
+      Matcher(const std::optional<std::string>& match_header)
       {
-        any_value = true;
-        return;
-      }
+        if (!match_header.has_value())
+        {
+          _empty = true;
+          return;
+        }
 
-      std::regex etag_rx("\\\"([0-9a-f]+)\\\",?\\s*");
-      auto etags_begin = std::sregex_iterator(
-        if_match_header.value().begin(),
-        if_match_header.value().end(),
-        etag_rx);
-      auto etags_end = std::sregex_iterator();
-      ssize_t last_matched = 0;
+        if (match_header.value() == "*")
+        {
+          any_value = true;
+          return;
+        }
 
-      for (std::sregex_iterator i = etags_begin; i != etags_end; ++i)
-      {
-        if (i->position() != last_matched)
+        std::regex etag_rx("\\\"([0-9a-f]+)\\\",?\\s*");
+        auto etags_begin = std::sregex_iterator(
+          match_header.value().begin(), match_header.value().end(), etag_rx);
+        auto etags_end = std::sregex_iterator();
+        ssize_t last_matched = 0;
+
+        for (std::sregex_iterator i = etags_begin; i != etags_end; ++i)
+        {
+          if (i->position() != last_matched)
+          {
+            throw std::runtime_error("Invalid If-Match header");
+          }
+          std::smatch match = *i;
+          if_etags.insert(match[1].str());
+          last_matched = match.position() + match.length();
+        }
+
+        ssize_t last_index_in_header = match_header.value().size();
+
+        if (last_matched != last_index_in_header || if_etags.empty())
         {
           throw std::runtime_error("Invalid If-Match header");
         }
-        std::smatch match = *i;
-        if_etags.insert(match[1].str());
-        last_matched = match.position() + match.length();
       }
 
-      ssize_t last_index_in_header = if_match_header.value().size();
-
-      if (last_matched != last_index_in_header || if_etags.empty())
+      /// Check if a given ETag matches the If-Match/If-None-Match header
+      bool matches(const std::string& etag) const
       {
-        throw std::runtime_error("Invalid If-Match header");
-      }
-    }
+        if (_empty)
+        {
+          return true;
+        }
 
-    bool matches(const std::string& val) const
-    {
-      if (_empty)
+        return any_value || if_etags.contains(etag);
+      }
+
+      /// Check if the header is empty
+      bool empty() const
       {
-        return true;
+        return _empty;
       }
 
-      return any_value || if_etags.contains(val);
-    }
-
-    bool empty() const
-    {
-      return _empty;
-    }
-
-    bool is_any() const
-    {
-      return any_value;
-    }
-  };
+      /// Check if the header will match any ETag (*)
+      bool is_any() const
+      {
+        return any_value;
+      }
+    };
+  }
 }
