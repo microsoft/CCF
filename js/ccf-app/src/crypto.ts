@@ -108,7 +108,7 @@ export const eddsaPemToJwk = ccf.crypto.eddsaPemToJwk;
 export const pubJwkToPem = ccf.crypto.pubJwkToPem;
 
 /**
- * @inheritDoc global!CCFCrypto.JwkToPem
+ * @inheritDoc global!CCFCrypto.jwkToPem
  */
 export const jwkToPem = ccf.crypto.jwkToPem;
 
