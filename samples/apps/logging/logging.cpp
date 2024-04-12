@@ -763,8 +763,10 @@ namespace loggingapp
         // SNIPPET_END: public_table_access
         const auto id = params["id"].get<size_t>();
 
-        auto if_match = http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
-        auto if_none_match = http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
+        auto if_match =
+          http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
+        auto if_none_match =
+          http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
         if (!if_match.empty() && !if_none_match.empty())
         {
           return ccf::make_error(
@@ -864,8 +866,10 @@ namespace loggingapp
           const auto etag = value_digest.hex_str();
           ctx.rpc_ctx->set_response_header("ETag", value_digest.hex_str());
 
-          auto if_match = http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
-          auto if_none_match = http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
+          auto if_match =
+            http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
+          auto if_none_match =
+            http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
           if (!if_match.empty() && !if_none_match.empty())
           {
             return ccf::make_error(
@@ -932,8 +936,10 @@ namespace loggingapp
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
         auto current_value = records_handle->get(id);
 
-        auto if_match = http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
-        auto if_none_match = http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
+        auto if_match =
+          http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
+        auto if_none_match =
+          http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
         if (!if_match.empty() && !if_none_match.empty())
         {
           return ccf::make_error(
