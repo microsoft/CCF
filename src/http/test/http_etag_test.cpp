@@ -13,6 +13,7 @@ TEST_CASE("If-Match missing")
 {
   http::Matcher im(std::nullopt);
   REQUIRE(im.empty());
+  REQUIRE(!im.is_any());
   REQUIRE(im.matches(""));
   REQUIRE(im.matches("abc"));
 }
@@ -21,6 +22,7 @@ TEST_CASE("If-Match: *")
 {
   http::Matcher im("*");
   REQUIRE(!im.empty());
+  REQUIRE(im.is_any());
   REQUIRE(im.matches(""));
   REQUIRE(im.matches("abc"));
 }
@@ -29,6 +31,7 @@ TEST_CASE("If-Match: \"abc\"")
 {
   http::Matcher im("\"abc\"");
   REQUIRE(!im.empty());
+  REQUIRE(!im.is_any());
   REQUIRE(!im.matches(""));
   REQUIRE(im.matches("abc"));
   REQUIRE(!im.matches("def"));
@@ -38,6 +41,7 @@ TEST_CASE("If-Match: \"abc\", \"def\"")
 {
   http::Matcher im("\"abc\", \"def\"");
   REQUIRE(!im.empty());
+  REQUIRE(!im.is_any());
   REQUIRE(!im.matches(""));
   REQUIRE(im.matches("abc"));
   REQUIRE(im.matches("def"));

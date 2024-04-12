@@ -1903,12 +1903,10 @@ def test_etags(network, args):
         # GET If-None-Match: * for existing resource returns 304
         r = c.get("/app/log/public?id=999999", headers={"If-None-Match": "*"})
         assert r.status_code == http.HTTPStatus.NOT_MODIFIED
-        assert r.headers["ETag"] == etag, r.headers["ETag"]
 
         # GET If-None-Match: matching ETag for existing resource returns 304
         r = c.get("/app/log/public?id=999999", headers={"If-None-Match": f'"{etag}"'})
         assert r.status_code == http.HTTPStatus.NOT_MODIFIED
-        assert r.headers["ETag"] == etag, r.headers["ETag"]
 
         # GET If-None-Match: mismatching ETag for existing resource returns 200
         r = c.get("/app/log/public?id=999999", headers={"If-None-Match": '"abc"'})

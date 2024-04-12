@@ -775,6 +775,8 @@ namespace loggingapp
             "Cannot have both If-Match and If-None-Match headers.");
         }
 
+        // An If-Match causes a read dependency to confirm the value
+        // matches the constraint
         if (!if_match.empty())
         {
           auto current_value = records_handle->get(id);
@@ -791,6 +793,8 @@ namespace loggingapp
           }
         }
 
+        // An If-None-Match causes a read dependency to confirm the value
+        // does not match the constraint
         if (!if_none_match.empty())
         {
           auto current_value = records_handle->get(id);
@@ -827,6 +831,7 @@ namespace loggingapp
         CCF_APP_INFO("Storing {} = {}", id, in.msg);
 
         crypto::Sha256Hash value_digest(in.msg);
+        // Succesful calls set an ETag
         ctx.rpc_ctx->set_response_header("ETag", value_digest.hex_str());
 
         return ccf::make_success(true);
@@ -874,9 +879,11 @@ namespace loggingapp
 
         if (record.has_value())
         {
+          // If a record is present, compute an Entity Tag, and apply
+          // If-Match and If-None-Match. If no record is present, the
+          // response is always NOT_FOUND, regardless of If-<conditions>.
           crypto::Sha256Hash value_digest(record.value());
           const auto etag = value_digest.hex_str();
-          ctx.rpc_ctx->set_response_header("ETag", value_digest.hex_str());
 
           if (!if_match.empty() && !if_match.matches(etag))
           {
@@ -891,6 +898,8 @@ namespace loggingapp
             return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
           }
 
+          // Succesful calls set an ETag
+          ctx.rpc_ctx->set_response_header("ETag", etag);
           CCF_APP_INFO("Fetching {} = {}", id, record.value());
           return ccf::make_success(LoggingGet::Out{record.value()});
         }
@@ -942,6 +951,7 @@ namespace loggingapp
             "Cannot have both If-Match and If-None-Match headers.");
         }
 
+        // When If-Match is set and a value is present, the value must match
         if (!if_match.empty() && current_value.has_value())
         {
           crypto::Sha256Hash value_digest(current_value.value());
@@ -955,6 +965,8 @@ namespace loggingapp
           }
         }
 
+        // When If-None-Match is set, either the value must not match,
+        // or there must be no value and If-None-Match: *
         if (!if_none_match.empty())
         {
           if (current_value.has_value())
@@ -975,6 +987,7 @@ namespace loggingapp
           }
         }
 
+        // Succesful calls remove the value, and therefore do not set an ETag
         records_handle->remove(id);
         return ccf::make_success(LoggingRemove::Out{current_value.has_value()});
       };
