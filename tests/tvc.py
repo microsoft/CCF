@@ -56,7 +56,7 @@ def run(targets, cacert):
                 txid = response.headers["x-ms-ccf-transaction-id"]
                 log(
                     action="RoTxResponseAction",
-                    type="RoTxRequest",
+                    type="RoTxResponse",
                     tx=tx,
                     tx_id=tx_id(txid),
                 )

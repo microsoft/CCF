@@ -28,7 +28,13 @@ logline ==
 ToTxType ==
     "RwTxRequest" :> RwTxRequest @@
     "RwTxResponse" :>  RwTxResponse @@
-    "TxStatusReceived" :> TxStatusReceived
+    "TxStatusReceived" :> TxStatusReceived @@
+    "RoTxRequest" :> RoTxRequest @@
+    "RoTxResponse" :>  RoTxResponse
+
+ToStatus ==
+    "CommittedStatus" :> CommittedStatus @@
+    "InvalidStatus" :>  InvalidStatus
 
 \* Beware to only prime e.g. inbox in inbox'[rcv] and *not* also rcv, i.e.,
  \* inbox[rcv]'.  rcv is defined in terms of TLCGet("level") that correctly
@@ -49,26 +55,45 @@ IsRwTxExecuteAction ==
     /\ IsEvent("RwTxExecuteAction")
     /\ RwTxExecuteAction
     /\ history'[Len(history')].tx = logline.tx
-    \* TODO: check view
 
 IsRwTxResponseAction ==
     /\ IsEvent("RwTxResponseAction")
     /\ RwTxResponseAction
     /\ history'[Len(history')].type = ToTxType[logline.type]
     /\ history'[Len(history')].tx = logline.tx
-    \* TODO: check view and seqno
 
 IsStatusCommittedResponseAction ==
     /\ IsEvent("StatusCommittedResponseAction")
     /\ StatusCommittedResponseAction
     /\ history'[Len(history')].type = ToTxType[logline.type]
-    \* TODO: check view and seqno
+    /\ history'[Len(history')].status = ToStatus[logline.status]
+
+IsRoTxRequestAction ==
+    /\ IsEvent("RoTxRequestAction")
+    /\ RoTxRequestAction
+    /\ history'[Len(history')].type = ToTxType[logline.type]
+    /\ history'[Len(history')].tx = logline.tx
+
+IsRoTxResponseAction ==
+    /\ IsEvent("RoTxResponseAction")
+    /\ RoTxResponseAction
+    /\ history'[Len(history')].type = ToTxType[logline.type]
+    /\ history'[Len(history')].tx = logline.tx
+
+IsStatusInvalidResponseAction ==
+    /\ IsEvent("StatusInvalidResponseAction")
+    /\ StatusInvalidResponseAction
+    /\ history'[Len(history')].type = ToTxType[logline.type]
+    /\ history'[Len(history')].status = ToStatus[logline.status]
 
 TraceNext ==
     \/ IsRwTxRequestAction
     \/ IsRwTxExecuteAction
     \/ IsRwTxResponseAction
     \/ IsStatusCommittedResponseAction
+    \/ IsRoTxRequestAction
+    \/ IsRoTxResponseAction
+    \/ IsStatusInvalidResponseAction
 
 TraceSpec ==
     TraceInit /\ [][TraceNext]_<<l, vars>>
