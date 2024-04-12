@@ -903,16 +903,48 @@ namespace loggingapp
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
         auto current_value = records_handle->get(id);
 
-        http::IfMatch if_match(ctx.rpc_ctx->get_request_header("if-match"));
-        if (current_value.has_value())
+        auto if_match = ctx.rpc_ctx->get_request_header("if-match");
+        auto if_none_match = ctx.rpc_ctx->get_request_header("if-none-match");
+        if (if_match.has_value() && if_none_match.has_value())
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidHeaderValue,
+            "Cannot have both If-Match and If-None-Match headers.");
+        }
+
+        if (if_match.has_value() && current_value.has_value())
         {
           crypto::Sha256Hash value_digest(current_value.value());
-          if (!if_match.matches(value_digest.hex_str()))
+          const auto etag = value_digest.hex_str();
+          http::IfMatch matcher(if_match);
+          if (!matcher.matches(etag))
           {
             return ccf::make_error(
               HTTP_STATUS_PRECONDITION_FAILED,
               ccf::errors::PreconditionFailed,
               "Resource has changed.");
+          }
+        }
+
+        if (if_none_match.has_value())
+        {
+          http::IfMatch matcher(if_none_match);
+          if (current_value.has_value())
+          {
+            crypto::Sha256Hash value_digest(current_value.value());
+            const auto etag = value_digest.hex_str();
+            if (matcher.matches(etag))
+            {
+              return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+            }
+          }
+          else
+          {
+            if (matcher.is_noop())
+            {
+              return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+            }
           }
         }
 

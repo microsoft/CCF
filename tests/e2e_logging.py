@@ -1843,46 +1843,86 @@ def test_etags(network, args):
 
         doc = {"id": 999999, "msg": "saluton mondo"}
 
+        # POST If-Match: mismatching ETag returns 412
         r = c.post("/app/log/public", doc, headers={"If-Match": '"abc"'})
         assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
 
+        # POST If-Match: matching ETag returns 200
         r = c.post("/app/log/public", doc, headers={"If-Match": f'"{etag}"'})
         assert r.status_code == http.HTTPStatus.OK
         etag = sha256(doc["msg"].encode()).hexdigest()
         assert r.headers["ETag"] == etag, r.headers["ETag"]
 
+        # DELETE If-Match: mismatching ETag returns 412
         r = c.delete(f"/app/log/public?id={doc['id']}", headers={"If-Match": '"abc"'})
         assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
 
+        # DELETE If-Match: matching ETag returns 200
         r = c.delete(
             f"/app/log/public?id={doc['id']}", headers={"If-Match": f'"{etag}"'}
         )
         assert r.status_code == http.HTTPStatus.OK
 
+        # DELETE If-Match: missing resource still returns 200
         r = c.delete(
             f"/app/log/public?id={doc['id']}", headers={"If-Match": f'"{etag}"'}
         )
         assert r.status_code == http.HTTPStatus.OK
 
+        # DELETE If-Match: mismatching ETag for missing resouce still returns 200
         r = c.delete(f"/app/log/public?id={doc['id']}", headers={"If-Match": '"abc"'})
         assert r.status_code == http.HTTPStatus.OK
 
+        # Restore resource
         r = c.post("/app/log/public", doc)
         assert r.status_code == http.HTTPStatus.OK
         assert r.headers["ETag"] == etag, r.headers["ETag"]
 
+        # GET If-None-Match: * for existing resource returns 304
         r = c.get("/app/log/public?id=999999", headers={"If-None-Match": "*"})
         assert r.status_code == http.HTTPStatus.NOT_MODIFIED
         assert r.headers["ETag"] == etag, r.headers["ETag"]
 
+        # GET If-None-Match: matching ETag for existing resource returns 304
         r = c.get("/app/log/public?id=999999", headers={"If-None-Match": f'"{etag}"'})
         assert r.status_code == http.HTTPStatus.NOT_MODIFIED
         assert r.headers["ETag"] == etag, r.headers["ETag"]
 
+        # GET If-None-Match: mismatching ETag for existing resource returns 200
         r = c.get("/app/log/public?id=999999", headers={"If-None-Match": '"abc"'})
         assert r.status_code == http.HTTPStatus.OK
         assert r.body.json() == {"msg": doc["msg"]}
         assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        # DELETE If-None-Match: * on missing resource is 200
+        r = c.delete("/app/log/public?id=999998", headers={"If-None-Match": "*"})
+        assert r.status_code == http.HTTPStatus.OK
+
+        # DELETE If-None-Match: on mismatching ETag for missing resource 200
+        r = c.delete("/app/log/public?id=999998", headers={"If-None-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.OK
+
+        # DELETE If-None-Match: * on existing resource is 304
+        r = c.delete(f"/app/log/public?id={doc['id']}", headers={"If-None-Match": "*"})
+        assert r.status_code == http.HTTPStatus.NOT_MODIFIED
+        r = c.get(f"/app/log/public?id={doc['id']}")
+        assert r.status_code == http.HTTPStatus.OK
+
+        # DELETE If-None-Match: matching ETag on existing resource is 304
+        r = c.delete(
+            f"/app/log/public?id={doc['id']}", headers={"If-None-Match": f'"{etag}"'}
+        )
+        assert r.status_code == http.HTTPStatus.NOT_MODIFIED
+        r = c.get(f"/app/log/public?id={doc['id']}")
+        assert r.status_code == http.HTTPStatus.OK
+
+        # DELETE If-None-Match: mismatching ETag on existing resource is 200
+        r = c.delete(
+            f"/app/log/public?id={doc['id']}", headers={"If-None-Match": '"abc"'}
+        )
+        assert r.status_code == http.HTTPStatus.OK
+        r = c.get(f"/app/log/public?id={doc['id']}")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND
 
     return network
 
