@@ -5,6 +5,7 @@
         "js_module": "limits.js",
         "js_function": "recursive",
         "forwarding_required": "never",
+        "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}
@@ -15,6 +16,7 @@
         "js_module": "limits.js",
         "js_function": "alloc",
         "forwarding_required": "never",
+        "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}
@@ -25,6 +27,7 @@
         "js_module": "limits.js",
         "js_function": "sleep",
         "forwarding_required": "never",
+        "redirection_strategy": "none",
         "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {}

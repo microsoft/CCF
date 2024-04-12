@@ -684,6 +684,15 @@ const actions = new Map([
               `${prefix2}.forwarding_required`,
             );
 
+            const redirection_strategy = info.redirection_strategy;
+            if (redirection_strategy !== undefined) {
+              checkEnum(
+                info.redirection_strategy,
+                ["none", "to_primary"],
+                `${prefix2}.redirection_strategy`,
+              );
+            }
+
             checkType(info.openapi, "object?", `${prefix2}.openapi`);
             checkType(
               info.openapi_hidden,
