@@ -19,13 +19,13 @@ import argparse
 3. Trace is printed to stdout
 
 {"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 0}
-{"action": "RwTxResponseAction", "type": "RwTxRequest", "tx": 0, "tx_id": [2, 197]}
+{"action": "RwTxResponseAction", "type": "RwTxResponse", "tx": 0, "tx_id": [2, 197]}
 {"action": "StatusCommittedResponseAction", "type": "TxStatusReceived", "tx_id": [2, 197], "status": "CommittedStatus"}
 {"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 1}
-{"action": "RwTxResponseAction", "type": "RwTxRequest", "tx": 1, "tx_id": [2, 199]}
+{"action": "RwTxResponseAction", "type": "RwTxResponse", "tx": 1, "tx_id": [2, 199]}
 {"action": "StatusCommittedResponseAction", "type": "TxStatusReceived", "tx_id": [2, 199], "status": "CommittedStatus"}
 {"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 2}
-{"action": "RwTxResponseAction", "type": "RwTxRequest", "tx": 2, "tx_id": [2, 201]}
+{"action": "RwTxResponseAction", "type": "RwTxResponse", "tx": 2, "tx_id": [2, 201]}
 """
 
 KEY = "0"
@@ -66,8 +66,14 @@ def run(targets, cacert):
                 log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
                 txid = response.headers["x-ms-ccf-transaction-id"]
                 log(
+                    action="RwTxExecuteAction",
+                    type="RwTxExecute",
+                    view=tx_id(txid)[0],
+                    tx=tx,
+                )
+                log(
                     action="RwTxResponseAction",
-                    type="RwTxRequest",
+                    type="RwTxResponse",
                     tx=tx,
                     tx_id=tx_id(txid),
                 )
