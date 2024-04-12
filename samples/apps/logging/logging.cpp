@@ -860,41 +860,35 @@ namespace loggingapp
           ctx.tx.template ro<RecordsMap>(public_records(ctx));
         auto record = public_records_handle->get(id);
 
+        auto if_match =
+          http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
+        auto if_none_match =
+          http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
+        if (!if_match.empty() && !if_none_match.empty())
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidHeaderValue,
+            "Cannot have both If-Match and If-None-Match headers.");
+        }
+
         if (record.has_value())
         {
           crypto::Sha256Hash value_digest(record.value());
           const auto etag = value_digest.hex_str();
           ctx.rpc_ctx->set_response_header("ETag", value_digest.hex_str());
 
-          auto if_match =
-            http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
-          auto if_none_match =
-            http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
-          if (!if_match.empty() && !if_none_match.empty())
+          if (!if_match.empty() && !if_match.matches(etag))
           {
             return ccf::make_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidHeaderValue,
-              "Cannot have both If-Match and If-None-Match headers.");
+              HTTP_STATUS_PRECONDITION_FAILED,
+              ccf::errors::PreconditionFailed,
+              "Resource has changed.");
           }
 
-          if (!if_match.empty())
+          if (!if_none_match.empty() && if_none_match.matches(etag))
           {
-            if (!if_match.matches(etag))
-            {
-              return ccf::make_error(
-                HTTP_STATUS_PRECONDITION_FAILED,
-                ccf::errors::PreconditionFailed,
-                "Resource has changed.");
-            }
-          }
-
-          if (!if_none_match.empty())
-          {
-            if (if_none_match.matches(etag))
-            {
-              return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
-            }
+            return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
           }
 
           CCF_APP_INFO("Fetching {} = {}", id, record.value());
