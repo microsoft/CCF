@@ -763,9 +763,9 @@ namespace loggingapp
         // SNIPPET_END: public_table_access
         const auto id = params["id"].get<size_t>();
 
-        auto if_match = ctx.rpc_ctx->get_request_header("if-match");
-        auto if_none_match = ctx.rpc_ctx->get_request_header("if-none-match");
-        if (if_match.has_value() && if_none_match.has_value())
+        auto if_match = http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
+        auto if_none_match = http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
+        if (!if_match.empty() && !if_none_match.empty())
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -773,41 +773,28 @@ namespace loggingapp
             "Cannot have both If-Match and If-None-Match headers.");
         }
 
-        if (if_match.has_value())
+        if (!if_match.empty())
         {
-          http::IfMatch matcher(if_match);
-          if (!matcher.is_noop())
+          auto current_value = records_handle->get(id);
+          if (current_value.has_value())
           {
-            // If there is a If-Match header that's not *, we need to read the
-            // current value and make sure it matches the provided ETags This
-            // could be done every time, but the read dependency comes with
-            // performance implications, so we only want to do if it necessary.
-            auto current_value = records_handle->get(id);
-            if (current_value.has_value())
+            crypto::Sha256Hash value_digest(current_value.value());
+            if (!if_match.matches(value_digest.hex_str()))
             {
-              crypto::Sha256Hash value_digest(current_value.value());
-              if (!matcher.matches(value_digest.hex_str()))
-              {
-                return ccf::make_error(
-                  HTTP_STATUS_PRECONDITION_FAILED,
-                  ccf::errors::PreconditionFailed,
-                  "Resource has changed.");
-              }
+              return ccf::make_error(
+                HTTP_STATUS_PRECONDITION_FAILED,
+                ccf::errors::PreconditionFailed,
+                "Resource has changed.");
             }
           }
         }
 
-        if (if_none_match.has_value())
+        if (!if_none_match.empty())
         {
-          http::IfMatch matcher(if_none_match);
-          // If there is any If-Non-Match header, we need to read the current
-          // value and make sure it does not matches the provided ETags
-          // This could be done every time, but the read dependency comes with
-          // performance implications, so we only want to do if it necessary.
           auto current_value = records_handle->get(id);
           if (current_value.has_value())
           {
-            if (matcher.is_noop())
+            if (if_none_match.is_any())
             {
               return ccf::make_error(
                 HTTP_STATUS_PRECONDITION_FAILED,
@@ -817,7 +804,7 @@ namespace loggingapp
             else
             {
               crypto::Sha256Hash value_digest(current_value.value());
-              if (matcher.matches(value_digest.hex_str()))
+              if (if_none_match.matches(value_digest.hex_str()))
               {
                 return ccf::make_error(
                   HTTP_STATUS_PRECONDITION_FAILED,
@@ -877,9 +864,9 @@ namespace loggingapp
           const auto etag = value_digest.hex_str();
           ctx.rpc_ctx->set_response_header("ETag", value_digest.hex_str());
 
-          auto if_match = ctx.rpc_ctx->get_request_header("if-match");
-          auto if_none_match = ctx.rpc_ctx->get_request_header("if-none-match");
-          if (if_match.has_value() && if_none_match.has_value())
+          auto if_match = http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
+          auto if_none_match = http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
+          if (!if_match.empty() && !if_none_match.empty())
           {
             return ccf::make_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -887,10 +874,9 @@ namespace loggingapp
               "Cannot have both If-Match and If-None-Match headers.");
           }
 
-          if (if_match.has_value())
+          if (!if_match.empty())
           {
-            http::IfMatch matcher(if_match);
-            if (!matcher.matches(etag))
+            if (!if_match.matches(etag))
             {
               return ccf::make_error(
                 HTTP_STATUS_PRECONDITION_FAILED,
@@ -899,10 +885,9 @@ namespace loggingapp
             }
           }
 
-          if (if_none_match.has_value())
+          if (!if_none_match.empty())
           {
-            http::IfMatch matcher(if_none_match);
-            if (matcher.matches(etag))
+            if (if_none_match.matches(etag))
             {
               return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
             }
@@ -947,9 +932,9 @@ namespace loggingapp
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
         auto current_value = records_handle->get(id);
 
-        auto if_match = ctx.rpc_ctx->get_request_header("if-match");
-        auto if_none_match = ctx.rpc_ctx->get_request_header("if-none-match");
-        if (if_match.has_value() && if_none_match.has_value())
+        auto if_match = http::Matcher(ctx.rpc_ctx->get_request_header("if-match"));
+        auto if_none_match = http::Matcher(ctx.rpc_ctx->get_request_header("if-none-match"));
+        if (!if_match.empty() && !if_none_match.empty())
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -957,12 +942,11 @@ namespace loggingapp
             "Cannot have both If-Match and If-None-Match headers.");
         }
 
-        if (if_match.has_value() && current_value.has_value())
+        if (!if_match.empty() && current_value.has_value())
         {
           crypto::Sha256Hash value_digest(current_value.value());
           const auto etag = value_digest.hex_str();
-          http::IfMatch matcher(if_match);
-          if (!matcher.matches(etag))
+          if (!if_match.matches(etag))
           {
             return ccf::make_error(
               HTTP_STATUS_PRECONDITION_FAILED,
@@ -971,21 +955,20 @@ namespace loggingapp
           }
         }
 
-        if (if_none_match.has_value())
+        if (!if_none_match.empty())
         {
-          http::IfMatch matcher(if_none_match);
           if (current_value.has_value())
           {
             crypto::Sha256Hash value_digest(current_value.value());
             const auto etag = value_digest.hex_str();
-            if (matcher.matches(etag))
+            if (if_none_match.matches(etag))
             {
               return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
             }
           }
           else
           {
-            if (matcher.is_noop())
+            if (if_none_match.is_any())
             {
               return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
             }

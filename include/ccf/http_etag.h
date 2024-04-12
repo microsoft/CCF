@@ -10,11 +10,11 @@
 namespace http
 {
   // https://www.rfc-editor.org/rfc/rfc9110#field.if-match
-  class IfMatch
+  class Matcher
   {
   private:
     /// If-Match header is not present
-    bool noop = false;
+    bool _empty = false;
     /// If-Match header is present and has the value "*"
     bool any_value = false;
     /// If-Match header is present and has specific etag values
@@ -31,11 +31,11 @@ namespace http
      *
      * Note: Weak tags are not supported.
      */
-    IfMatch(const std::optional<std::string>& if_match_header)
+    Matcher(const std::optional<std::string>& if_match_header)
     {
       if (!if_match_header.has_value())
       {
-        noop = true;
+        _empty = true;
         return;
       }
 
@@ -74,7 +74,7 @@ namespace http
 
     bool matches(const std::string& val) const
     {
-      if (noop)
+      if (_empty)
       {
         return true;
       }
@@ -82,9 +82,14 @@ namespace http
       return any_value || if_etags.contains(val);
     }
 
-    bool is_noop() const
+    bool empty() const
     {
-      return noop;
+      return _empty;
+    }
+
+    bool is_any() const
+    {
+      return any_value;
     }
   };
 }

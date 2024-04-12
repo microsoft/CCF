@@ -1916,9 +1916,9 @@ def test_etags(network, args):
         assert r.body.json() == {"msg": doc["msg"]}
         assert r.headers["ETag"] == etag, r.headers["ETag"]
 
-        # DELETE If-None-Match: * on missing resource is 200
+        # DELETE If-None-Match: * on missing resource returns 304
         r = c.delete("/app/log/public?id=999998", headers={"If-None-Match": "*"})
-        assert r.status_code == http.HTTPStatus.OK
+        assert r.status_code == http.HTTPStatus.NOT_MODIFIED
 
         # DELETE If-None-Match: on mismatching ETag for missing resource 200
         r = c.delete("/app/log/public?id=999998", headers={"If-None-Match": '"abc"'})
