@@ -19,7 +19,6 @@
 #include "ccf/version.h"
 
 #include <charconv>
-#include <regex>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 

@@ -1853,17 +1853,21 @@ def test_etags(network, args):
         etag = sha256(doc["msg"].encode()).hexdigest()
         assert r.headers["ETag"] == etag, r.headers["ETag"]
 
-        # POST If-Match: mutiple, one which is matching, ETags returns 200
+        # POST If-Match: mutiple ETags, first one matching returns 200
         r = c.post("/app/log/public", doc, headers={"If-Match": f'"{etag}", "abc"'})
         assert r.status_code == http.HTTPStatus.OK
         etag = sha256(doc["msg"].encode()).hexdigest()
         assert r.headers["ETag"] == etag, r.headers["ETag"]
 
-        # POST If-Match: mutiple, one which is matching, ETags returns 200
-        r = c.post("/app/log/public", doc, headers={"If-Match": f'"{etag}", "abc"'})
+        # POST If-Match: mutiple ETags, one, not the first, matching returns 200
+        r = c.post("/app/log/public", doc, headers={"If-Match": f'"abc", "{etag}"'})
         assert r.status_code == http.HTTPStatus.OK
         etag = sha256(doc["msg"].encode()).hexdigest()
         assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        # POST If-Match: multiple, none matching, returns 412
+        r = c.post("/app/log/public", doc, headers={"If-Match": '"abc", "def"'})
+        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
 
         # POST If-None-Match: * on existing resource returns 412
         r = c.post("/app/log/public", doc, headers={"If-None-Match": "*"})
