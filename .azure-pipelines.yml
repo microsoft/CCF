@@ -15,17 +15,6 @@ pr:
     include:
       - "*"
 
-schedules:
-  - cron: "0 3 * * Mon-Fri"
-    displayName: Daily morning build
-    branches:
-      include:
-        - main
-        - "release/*"
-      exclude:
-        - "release/1.x"
-    always: true
-
 resources:
   containers:
     - container: virtual
