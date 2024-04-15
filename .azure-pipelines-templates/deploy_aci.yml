@@ -92,13 +92,15 @@ jobs:
   - job: cleanup_aci
     displayName: "Cleanup ACI"
     pool:
-      vmImage: ubuntu-20.04
+      name: ado-virtual-ccf-sub # For access to managed identity
     dependsOn:
       - generate_ssh_key
       - deploy_primary_aci
       - ${{ parameters.used_by }}
     condition: always()
     variables:
+      Codeql.SkipTaskAutoInjection: true
+      skipComponentGovernanceDetection: true
       IpAddresses: $[ dependencies.deploy_primary_aci.outputs['deploy_primary_aci.ipAddresses'] ]
       sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
     steps:
