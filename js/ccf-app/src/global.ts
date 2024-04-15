@@ -479,21 +479,21 @@ export interface CCFCrypto {
   /**
    * Converts an elliptic curve private key as JSON Web Key (JWK) object to PEM.
    *
-   * @param pem Elliptic curve private key as JWK
+   * @param jwk Elliptic curve private key as JWK
    */
   jwkToPem(jwk: JsonWebKeyECPrivate): string;
 
   /**
    * Converts an RSA public key as JSON Web Key (JWK) object to PEM.
    *
-   * @param pem RSA public key as JWK
+   * @param jwk RSA public key as JWK
    */
   pubRsaJwkToPem(jwk: JsonWebKeyRSAPublic): string;
 
   /**
    * Converts an RSA private key as JSON Web Key (JWK) object to PEM.
    *
-   * @param pem RSA private key as JWK
+   * @param jwk RSA private key as JWK
    */
   rsaJwkToPem(jwk: JsonWebKeyRSAPrivate): string;
 
@@ -501,7 +501,7 @@ export interface CCFCrypto {
    * Converts an EdDSA public key as JSON Web Key (JWK) object to PEM.
    * Currently only Curve25519 is supported.
    *
-   * @param pem EdDSA public key as JWK
+   * @param jwk EdDSA public key as JWK
    */
   pubEddsaJwkToPem(jwk: JsonWebKeyEdDSAPublic): string;
 
@@ -509,7 +509,7 @@ export interface CCFCrypto {
    * Converts an EdDSA private key as JSON Web Key (JWK) object to PEM.
    * Currently only Curve25519 is supported.
    *
-   * @param pem EdDSA private key as JWK
+   * @param jwk EdDSA private key as JWK
    */
   eddsaJwkToPem(jwk: JsonWebKeyEdDSAPrivate): string;
 }
@@ -818,6 +818,14 @@ export const snp_attestation: SnpAttestation = (<any>globalThis)
   .snp_attestation;
 
 export interface SnpAttestation {
+  /**
+   * Verify SNP Attestation
+   *
+   * @param evidence Raw SNP attestation evidence
+   * @param endorsements SNP attestation endorsements
+   * @param uvm_endorsements UVM endorsements, optional
+   * @param endorsed_tcb Endorsed TCB version, optional
+   */
   verifySnpAttestation(
     evidence: ArrayBuffer,
     endorsements: ArrayBuffer,
