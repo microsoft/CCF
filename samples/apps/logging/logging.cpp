@@ -45,6 +45,27 @@ namespace loggingapp
   };
   // SNIPPET_END: custom_identity
 
+  struct MatchHeaders
+  {
+    std::optional<std::string> if_match;
+    std::optional<std::string> if_none_match;
+
+    MatchHeaders(const std::shared_ptr<ccf::RpcContext>& rpc_ctx) :
+      if_match(rpc_ctx->get_request_header("if-match")),
+      if_none_match(rpc_ctx->get_request_header("if-none-match"))
+    {}
+
+    bool conflict() const
+    {
+      return if_match.has_value() && if_none_match.has_value();
+    }
+
+    bool empty() const
+    {
+      return !if_match.has_value() && !if_none_match.has_value();
+    }
+  };
+
   // SNIPPET_START: custom_auth_policy
   class CustomAuthPolicy : public ccf::AuthnPolicy
   {
@@ -763,9 +784,8 @@ namespace loggingapp
         const auto id = params["id"].get<size_t>();
 
         // SNIPPET_START: public_table_post_match
-        auto if_match = ctx.rpc_ctx->get_request_header("if-match");
-        auto if_none_match = ctx.rpc_ctx->get_request_header("if-none-match");
-        if (if_match.has_value() && if_none_match.has_value())
+        MatchHeaders match_headers(ctx.rpc_ctx);
+        if (match_headers.conflict())
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -773,40 +793,41 @@ namespace loggingapp
             "Cannot have both If-Match and If-None-Match headers.");
         }
 
-        // An If-Match causes a read dependency to confirm the value
-        // matches the constraint
-        if (if_match.has_value())
+        // The presence of a Match header requires a read dependency
+        // to check the value matches the constraint
+        if (!match_headers.empty())
         {
-          ccf::http::Matcher matcher(if_match.value());
           auto current_value = records_handle->get(id);
           if (current_value.has_value())
           {
             crypto::Sha256Hash value_digest(current_value.value());
-            if (!matcher.matches(value_digest.hex_str()))
-            {
-              return ccf::make_error(
-                HTTP_STATUS_PRECONDITION_FAILED,
-                ccf::errors::PreconditionFailed,
-                "Resource has changed.");
-            }
-          }
-        }
+            auto etag = value_digest.hex_str();
 
-        // An If-None-Match causes a read dependency to confirm the value
-        // does not match the constraint
-        if (if_none_match.has_value())
-        {
-          ccf::http::Matcher matcher(if_none_match.value());
-          auto current_value = records_handle->get(id);
-          if (current_value.has_value())
-          {
-            crypto::Sha256Hash value_digest(current_value.value());
-            if (matcher.matches(value_digest.hex_str()))
+            // On a POST operation, If-Match failing or If-None-Match passing
+            // both return a 412 Precondition Failed to be returned, and no
+            // side-effect.
+            if (match_headers.if_match.has_value())
             {
-              return ccf::make_error(
-                HTTP_STATUS_PRECONDITION_FAILED,
-                ccf::errors::PreconditionFailed,
-                "Resource has changed.");
+              ccf::http::Matcher matcher(match_headers.if_match.value());
+              if (!matcher.matches(etag))
+              {
+                return ccf::make_error(
+                  HTTP_STATUS_PRECONDITION_FAILED,
+                  ccf::errors::PreconditionFailed,
+                  "Resource has changed.");
+              }
+            }
+
+            if (match_headers.if_none_match.has_value())
+            {
+              ccf::http::Matcher matcher(match_headers.if_none_match.value());
+              if (matcher.matches(etag))
+              {
+                return ccf::make_error(
+                  HTTP_STATUS_PRECONDITION_FAILED,
+                  ccf::errors::PreconditionFailed,
+                  "Resource has changed.");
+              }
             }
           }
         }
@@ -859,27 +880,27 @@ namespace loggingapp
         auto record = public_records_handle->get(id);
 
         // SNIPPET_START: public_table_get_match
-        auto if_match = ctx.rpc_ctx->get_request_header("if-match");
-        auto if_none_match = ctx.rpc_ctx->get_request_header("if-none-match");
-        if (if_match.has_value() && if_none_match.has_value())
-        {
-          return ccf::make_error(
-            HTTP_STATUS_BAD_REQUEST,
-            ccf::errors::InvalidHeaderValue,
-            "Cannot have both If-Match and If-None-Match headers.");
-        }
-
+        // If there is not value, the response is always Not Found
+        // regardless of Match headers
         if (record.has_value())
         {
+          MatchHeaders match_headers(ctx.rpc_ctx);
+          if (match_headers.conflict())
+          {
+            return ccf::make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidHeaderValue,
+              "Cannot have both If-Match and If-None-Match headers.");
+          }
+
           // If a record is present, compute an Entity Tag, and apply
-          // If-Match and If-None-Match. If no record is present, the
-          // response is always NOT_FOUND, regardless of If-<conditions>.
+          // If-Match and If-None-Match.
           crypto::Sha256Hash value_digest(record.value());
           const auto etag = value_digest.hex_str();
 
-          if (if_match.has_value())
+          if (match_headers.if_match.has_value())
           {
-            ccf::http::Matcher matcher(if_match.value());
+            ccf::http::Matcher matcher(match_headers.if_match.value());
             if (!matcher.matches(etag))
             {
               return ccf::make_error(
@@ -889,9 +910,10 @@ namespace loggingapp
             }
           }
 
-          if (if_none_match.has_value())
+          // On a GET, If-None-Match passing returns 304 Not Modified
+          if (match_headers.if_none_match.has_value())
           {
-            ccf::http::Matcher matcher(if_none_match.value());
+            ccf::http::Matcher matcher(match_headers.if_none_match.value());
             if (matcher.matches(etag))
             {
               return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
@@ -941,11 +963,12 @@ namespace loggingapp
         auto current_value = records_handle->get(id);
 
         // SNIPPET_START: public_table_delete_match
+        // If there is no value, we don't need to look at the Match
+        // headers to report that the value is deleted (200 OK)
         if (current_value.has_value())
         {
-          auto if_match = ctx.rpc_ctx->get_request_header("if-match");
-          auto if_none_match = ctx.rpc_ctx->get_request_header("if-none-match");
-          if (if_match.has_value() && if_none_match.has_value())
+          MatchHeaders match_headers(ctx.rpc_ctx);
+          if (match_headers.conflict())
           {
             return ccf::make_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -953,31 +976,32 @@ namespace loggingapp
               "Cannot have both If-Match and If-None-Match headers.");
           }
 
-          // When If-Match is set and a value is present, the value must match
-          if (if_match.has_value())
+          if (!match_headers.empty())
           {
+            // If a Match header is present, we need to compute the ETag
+            // to resolve the constraints
             crypto::Sha256Hash value_digest(current_value.value());
             const auto etag = value_digest.hex_str();
-            ccf::http::Matcher matcher(if_match.value());
-            if (!matcher.matches(etag))
-            {
-              return ccf::make_error(
-                HTTP_STATUS_PRECONDITION_FAILED,
-                ccf::errors::PreconditionFailed,
-                "Resource has changed.");
-            }
-          }
 
-          // When If-None-Match is set, either the value must not match,
-          // or there must be no value and If-None-Match: *
-          if (if_none_match.has_value())
-          {
-            crypto::Sha256Hash value_digest(current_value.value());
-            const auto etag = value_digest.hex_str();
-            ccf::http::Matcher matcher(if_none_match.value());
-            if (matcher.matches(etag))
+            if (match_headers.if_match.has_value())
             {
-              return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+              ccf::http::Matcher matcher(match_headers.if_match.value());
+              if (!matcher.matches(etag))
+              {
+                return ccf::make_error(
+                  HTTP_STATUS_PRECONDITION_FAILED,
+                  ccf::errors::PreconditionFailed,
+                  "Resource has changed.");
+              }
+            }
+
+            if (match_headers.if_none_match.has_value())
+            {
+              ccf::http::Matcher matcher(match_headers.if_none_match.value());
+              if (matcher.matches(etag))
+              {
+                return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+              }
             }
           }
         }

@@ -100,7 +100,7 @@ namespace ccf
     /// Returns value associated with named header, or nullopt of this header
     /// was not present.
     virtual std::optional<std::string> get_request_header(
-      const std::string_view& name) = 0;
+      const std::string_view& name) const = 0;
 
     /// Returns full URL provided in request, rather than split into path +
     /// query.
