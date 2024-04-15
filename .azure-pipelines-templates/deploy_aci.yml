@@ -48,10 +48,7 @@ jobs:
 
       - template: azure_cli.yml
         parameters:
-          app_id: $(CCF_SNP_CI_APP_ID)
-          service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
-          msi_id: $(CCF_SNP_CI_MANAGED_IDENTITY_ID)
-          tenant: $(CCF_SNP_CI_TENANT)
+          managed_identity_id: $(CCF_SNP_CI_MANAGED_IDENTITY_ID)
 
       - script: |
           set -ex
@@ -123,9 +120,7 @@ jobs:
 
       - template: azure_cli.yml
         parameters:
-          app_id: $(CCF_SNP_CI_APP_ID)
-          service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
-          tenant: $(CCF_SNP_CI_TENANT)
+          managed_identity_id: $(CCF_SNP_CI_MANAGED_IDENTITY_ID)
 
       - script: |
           set -ex
