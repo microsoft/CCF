@@ -2,11 +2,6 @@ steps:
   - script: |
       set -ex
       set -o pipefail
-      curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-      # After the extension being in public preview, we can install the latest version automatically
-      # by `az extension update --name confcom`.
-      # But for now we need to manually manage the version. 
-      az extension add --name confcom -y
       az login --identity -u "${{ parameters.msi_id }}"
     name: setup_azure_cli
-    displayName: "Install Azure CLI and login"
+    displayName: "Azure CLI login"
