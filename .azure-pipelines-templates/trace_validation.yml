@@ -10,9 +10,9 @@ steps:
       set -ex
       set -o pipefail
       cd tla/
-      mkdir traces
-      cp ../build/*.ndjson traces/
-      parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls traces/*.ndjson)
+      mkdir -p traces/consensus
+      cp ../build/consensus/*.ndjson traces/
+      parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
     displayName: "Run trace validation"
 
   - task: PublishPipelineArtifact@1
