@@ -10,12 +10,10 @@ steps:
       set -ex
       set -o pipefail
       cd tla/
-      mkdir consensus_traces
-      cp ../build/*.ndjson consensus_traces/
-      # Unfortunate, handling directories under build/ is not appealing, perhaps we want .consensus.ndjson and .consistency.ndjson suffixes
-      rm -f consensus_traces/consistency_trace.ndjson
-      parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls consensus_traces/*.ndjson)
-    displayName: "Run Consensus Trace Validation"
+      mkdir -p traces/consensus
+      mv ../build/consensus traces/
+      parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
+    displayName: "Run Consensus trace validation"
 
   - task: PublishPipelineArtifact@1
     inputs:
