@@ -7,6 +7,6 @@ steps:
       # by `az extension update --name confcom`.
       # But for now we need to manually manage the version. 
       az extension add --name confcom -y
-      az login --identity -u "${{ parameters.msi_id }}" --tenant "${{ parameters.tenant }}"
+      az login --identity -u "${{ parameters.msi_id }}"
     name: setup_azure_cli
     displayName: "Install Azure CLI and login"
