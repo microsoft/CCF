@@ -50,6 +50,7 @@ jobs:
         parameters:
           app_id: $(CCF_SNP_CI_APP_ID)
           service_principal_password: $(CCF_SNP_CI_SERVICE_PRINCIPAL_PASSWORD)
+          msi_id: $(CCF_SNP_MANAGED_IDENTITY_ID)
           tenant: $(CCF_SNP_CI_TENANT)
 
       - script: |
