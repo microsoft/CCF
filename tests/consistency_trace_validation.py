@@ -5,6 +5,7 @@ import infra.e2e_args
 import subprocess
 import sys
 import time
+import os
 
 
 def run(args):
@@ -21,7 +22,12 @@ def run(args):
             cli.append(target)
         cli.append("--ca")
         cli.append(network.cert_path)
-        with open("consistency_trace.ndjson", "w") as trace_file:
+
+        # Create consistency-specific output directory
+        output_dir = os.path.join("consistency")
+        os.makedirs(output_dir, exist_ok=True)
+
+        with open("consistency/trace.ndjson", "w") as trace_file:
             tvc = subprocess.Popen(cli, stdout=trace_file)
             # Do some normal transactions
             time.sleep(2)

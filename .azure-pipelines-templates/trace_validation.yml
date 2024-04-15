@@ -13,27 +13,21 @@ steps:
       mkdir -p traces/consensus
       mv ../build/consensus traces/
       parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
-    displayName: "Run Consensus trace validation"
-
-  - task: PublishPipelineArtifact@1
-    inputs:
-      artifactName: "Consensus Trace Validation Output"
-      targetPath: tla/consensus_traces
-    condition: or(failed(), canceled())
+    displayName: "Run Consensus Trace validation"
 
   - script: |
       set -ex
       set -o pipefail
       cd tla/
-      mkdir consistency_traces
+      mkdir -p traces/consistency
       # Passing prefix, following lines require implementing TruncateLedgerAction
-      # Will become cp ../build/consistency_trace.ndjson consensus_traces/ once every action matches
-      head -13 ../build/consistency_trace.ndjson > consistency_traces/consistency_trace.ndjson
-      JSON=consistency_traces/consistency_trace.ndjson ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consistency/TraceMultiNodeReads.tla
+      # Will become mv ../build/consistency traces/ once every action matches
+      head -13 ../build/consistency/trace.ndjson > traces/consistency/trace.ndjson
+      JSON=traces/consistency/trace.ndjson ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consistency/TraceMultiNodeReads.tla
     displayName: "Run Consistency Trace Validation"
 
   - task: PublishPipelineArtifact@1
     inputs:
-      artifactName: "Consistency Trace Validation Output"
-      targetPath: tla/consistency_traces
+      artifactName: "Trace Validation Output"
+      targetPath: tla/traces
     condition: or(failed(), canceled())
