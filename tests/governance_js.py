@@ -1217,9 +1217,10 @@ def test_final_proposal_visibility(network, args):
     with temporary_constitution(
         network,
         args,
-        # A dumb and bad proposal that counts who voted for it. Just proving that such a thing is _possible_
+        # An proposal that counts who voted for it.
+        # Proving that such a thing is _possible_, but in practice we mostly expect that this visibility will only be used for reporting.
         make_action_snippet(
-            "cronyism",
+            "vote_provenance",
             apply="""
             let proposals = ccf.kv["public:ccf.gov.proposals_info"];
             let proposalInfoBuffer = proposals.get(ccf.strToBuf(proposalId));
@@ -1230,24 +1231,24 @@ def test_final_proposal_visibility(network, args):
             const finalVotes = proposalInfo.final_votes;
             if (finalVotes === undefined) { throw new Error("Don't have finalVotes"); }
 
-            let cronyPoints = ccf.kv["public:ccf.gov.testonly.crony_points"];
+            let supporters = ccf.kv["public:ccf.gov.testonly.supporter_points"];
             for (const [memberId, vote] of Object.entries(finalVotes)) {
                 const memberIdBuf = ccf.strToBuf(memberId);
                 if (vote === true) {
-                    if (cronyPoints.has(memberIdBuf)) {
-                        const prev = ccf.bufToJsonCompatible(cronyPoints.get(memberIdBuf));
-                        cronyPoints.set(memberIdBuf, ccf.jsonCompatibleToBuf(prev + 1));
+                    if (supporters.has(memberIdBuf)) {
+                        const prev = ccf.bufToJsonCompatible(supporters.get(memberIdBuf));
+                        supporters.set(memberIdBuf, ccf.jsonCompatibleToBuf(prev + 1));
                     } else {
-                        cronyPoints.set(memberIdBuf, ccf.jsonCompatibleToBuf(1));
+                        supporters.set(memberIdBuf, ccf.jsonCompatibleToBuf(1));
                     }
                 } else {
                     // Null points for anyone who voted against this
-                    cronyPoints.set(memberIdBuf, ccf.jsonCompatibleToBuf(0));
+                    supporters.set(memberIdBuf, ccf.jsonCompatibleToBuf(0));
                 }
             }
 
-            console.log("Current crony scoreboard is:");
-            cronyPoints.forEach((v, k) => {
+            console.log("Current supporter scoreboard is:");
+            supporters.forEach((v, k) => {
                 console.log(`  Member ${ccf.bufToStr(k)} has ${ccf.bufToJsonCompatible(v)} points`);
             });
 """,
@@ -1259,7 +1260,7 @@ def test_final_proposal_visibility(network, args):
         fairweather = members[1]
         turncoat = members[2]
 
-        proposal_body, ballot = consortium.make_proposal("cronyism")
+        proposal_body, ballot = consortium.make_proposal("vote_provenance")
 
         first = consortium.get_any_active_member().propose(primary, proposal_body)
         response = booster.vote(primary, first, ballot)
@@ -1276,7 +1277,7 @@ def test_final_proposal_visibility(network, args):
         third = consortium.get_any_active_member().propose(primary, proposal_body)
         response = booster.vote(primary, third, ballot)
         assert response.status_code == 200
-        # Votes against! Loses crony points!
+        # Votes against! Loses supporter points!
         response = turncoat.vote(
             primary,
             third,
@@ -1298,17 +1299,44 @@ def test_final_proposal_visibility(network, args):
         body = consortium.get_proposal_raw(primary, third.proposal_id)
         assert "finalVotes" in body, body
 
-        LOG.info("Confirm that expected log lines were emitted")
+    LOG.info("Confirm that expected values were actually written to the KV")
+    # To avoid creating an extra endpoint in the app, we smuggle a read into a new
+    # action's apply, reported to the caller via an exception
+    with temporary_constitution(
+        network,
+        args,
+        make_action_snippet(
+            "read_supporters",
+            apply="""
+            let supporters = ccf.kv["public:ccf.gov.testonly.supporter_points"];
+            let s = "Current supporter scoreboard is:\\n";
+            supporters.forEach((v, k) => {
+                s += `  Member ${ccf.bufToStr(k)} has ${ccf.bufToJsonCompatible(v)} points\\n`;
+            });
+            throw new Error(s);
+            """,
+        ),
+    ):
+
+        proposal_body, ballot = consortium.make_proposal("read_supporters")
+
+        proposal = consortium.get_any_active_member().propose(primary, proposal_body)
+
         expected_lines = [
             f"Member {booster.service_id} has 3 points",
             f"Member {fairweather.service_id} has 2 points",
             f"Member {turncoat.service_id} has 0 points",
         ]
 
-        for line in expected_lines:
-            assert primary.check_log_for_error_message(
-                line
-            ), f"Not found in stdout: {line}"
+        thrown = False
+        try:
+            consortium.vote_using_majority(primary, proposal, ballot)
+        except infra.proposal.ProposalNotAccepted as e:
+            thrown = True
+            msg = e.response.body.json()["error"]["message"]
+            for line in expected_lines:
+                assert line in msg
+        assert thrown
 
     return network
 
@@ -1322,6 +1350,7 @@ def test_ledger_governance_invariants(network, args):
 
     LOG.info("Completed proposals contain final_vote for each submitted ballot")
     table_name = "public:ccf.gov.proposals_info"
+    seen_states = set()
     for transaction in ledger.transactions():
         public_tables = transaction.get_public_domain().get_tables()
         if table_name not in public_tables:
@@ -1335,6 +1364,7 @@ def test_ledger_governance_invariants(network, args):
             proposal = json.loads(raw_proposal)
 
             state = proposal["state"]
+            seen_states.add(state)
             if state in ("Open", "Withdrawn", "Dropped"):
                 # This proposal contains no final_votes
                 continue
@@ -1347,5 +1377,17 @@ def test_ledger_governance_invariants(network, args):
             all_results = set.union(set(final_votes.keys()), set(vote_failures.keys()))
 
             assert all_submitted == all_results, proposal
+
+    LOG.info("Confirm that previous tests properly stressed this behaviour")
+    expected = {
+        "Accepted",
+        "Dropped",
+        # "Failed", # This state produces an error, and is never written to the KV
+        "Open",
+        "Rejected",
+        "Withdrawn",
+    }
+    diff = seen_states.symmetric_difference(expected)
+    assert len(diff) == 0, diff
 
     return network

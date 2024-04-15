@@ -34,14 +34,27 @@ namespace ccf
     /// Proposal metadata stored in the KV
     struct ProposalInfo
     {
-      /// Member ID of the proposer
+      /// ID of the member who originally created/submitted this proposal
       ccf::MemberId proposer_id;
-      /// Proposal state
+      /// Current state of this proposal (eg - open, accepted, withdrawn)
       ccf::ProposalState state;
-      /// Ballots (scripts) submitted for the proposal
+      /// Collection of ballots (scripts) submitted for this proposal. Each
+      /// ballot is a javascript module exporting a single 'vote' function,
+      /// re-executed to determine the member's vote each proposal resolution.
+      /// Keyed by each submitting member's ID
       Ballots ballots = {};
+      /// Collection of boolean results of the submitted ballots, keyed by
+      /// submitting member's ID, that caused a transition to a terminal state.
+      /// Note that this is not present for open, withdrawn, or dropped
+      /// proposals
       std::optional<Votes> final_votes = std::nullopt;
+      /// Collection of exception details describing which ballots failed
+      /// to execute successfully, keyed by submitting member's ID. Populated in
+      /// the same circumstances as final_votes
       std::optional<VoteFailures> vote_failures = std::nullopt;
+      /// Exception details from execution of the proposal itself, either during
+      /// resolution or application. Populated in the same circumstances as
+      /// final_votes
       std::optional<Failure> failure = std::nullopt;
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposalInfo);
@@ -52,13 +65,9 @@ namespace ccf
     /// Proposal summary constructed while executing/resolving proposal ballots
     struct ProposalInfoSummary
     {
-      /// Proposal ID
       ccf::ProposalId proposal_id;
-      /// Member ID of the proposer
       ccf::MemberId proposer_id;
-      /// Proposal state
       ccf::ProposalState state;
-      /// Count of ballots (scripts) submitted for the proposal
       size_t ballot_count;
       std::optional<Votes> votes = std::nullopt;
       std::optional<VoteFailures> vote_failures = std::nullopt;

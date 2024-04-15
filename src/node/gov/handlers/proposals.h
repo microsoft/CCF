@@ -134,10 +134,9 @@ namespace ccf::gov::endpoints
       const std::string& constitution)
     {
       // Create some temporaries to store resolution progress. These are written
-      // to proposal_info, and the KV, only for completed (accepted) proposal.
+      // to proposal_info, and the KV, when proposals leave the Open state.
       ccf::jsgov::Votes votes = {};
       ccf::jsgov::VoteFailures vote_failures = {};
-      std::optional<ccf::jsgov::Failure> failure = std::nullopt;
 
       auto proposal_info_handle = tx.template rw<ccf::jsgov::ProposalInfoMap>(
         jsgov::Tables::PROPOSALS_INFO);
@@ -151,7 +150,10 @@ namespace ccf::gov::endpoints
           mb,
           "vote",
           fmt::format(
-            "public:ccf.gov.proposals_info[{}].ballots[{}]", proposal_id, mid));
+            "{}[{}].ballots[{}]",
+            ccf::jsgov::Tables::PROPOSALS_INFO,
+            proposal_id,
+            mid));
 
         std::vector<js::JSWrappedValue> argv = {
           js_context.new_string_len(
@@ -190,7 +192,9 @@ namespace ccf::gov::endpoints
           js::Context js_context(js::TxAccess::GOV_RO);
           js::populate_global_ccf_kv(tx, js_context);
           auto resolve_func = js_context.function(
-            constitution, "resolve", "public:ccf.gov.constitution[0]");
+            constitution,
+            "resolve",
+            fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
           std::vector<js::JSWrappedValue> argv;
           argv.push_back(js_context.new_string_len(
@@ -237,7 +241,7 @@ namespace ccf::gov::endpoints
             {
               reason = "Operation took too long to complete.";
             }
-            failure = ccf::jsgov::Failure{
+            proposal_info.failure = ccf::jsgov::Failure{
               fmt::format("Failed to resolve(): {}", reason), trace};
           }
           else
@@ -279,7 +283,6 @@ namespace ccf::gov::endpoints
           // KV
           proposal_info.final_votes = votes;
           proposal_info.vote_failures = vote_failures;
-          proposal_info.failure = failure;
           proposal_info_handle->put(proposal_id, proposal_info);
 
           if (proposal_info.state == ProposalState::ACCEPTED)
@@ -301,7 +304,9 @@ namespace ccf::gov::endpoints
             js::populate_global_ccf_gov_actions(js_context);
 
             auto apply_func = js_context.function(
-              constitution, "apply", "public:ccf.gov.constitution[0]");
+              constitution,
+              "apply",
+              fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
             std::vector<js::JSWrappedValue> argv = {
               js_context.new_string_len(
@@ -443,7 +448,7 @@ namespace ccf::gov::endpoints
             auto validate_func = context.function(
               constitution.value(),
               "validate",
-              "public:ccf.gov.constitution[0]");
+              fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
             proposal_body = cose_ident.content;
             auto proposal_arg = context.new_string_len(
