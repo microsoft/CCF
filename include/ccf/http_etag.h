@@ -17,27 +17,19 @@ namespace ccf
     class Matcher
     {
     private:
-      /// If-Match header is not present
-      bool _empty = false;
       /// If-Match header is present and has the value "*"
       bool any_value = false;
       /// If-Match header is present and has specific etag values
       std::set<std::string> if_etags;
 
     public:
-      /** Construct a Matcher from a match header if present
+      /** Construct a Matcher from a match header
        *
        * Note: Weak tags are not supported.
        */
-      Matcher(const std::optional<std::string>& match_header)
+      Matcher(const std::string& match_header)
       {
-        if (!match_header.has_value())
-        {
-          _empty = true;
-          return;
-        }
-
-        if (match_header.value() == "*")
+        if (match_header == "*")
         {
           any_value = true;
           return;
@@ -45,7 +37,7 @@ namespace ccf
 
         std::regex etag_rx("\\\"([0-9a-f]+)\\\",?\\s*");
         auto etags_begin = std::sregex_iterator(
-          match_header.value().begin(), match_header.value().end(), etag_rx);
+          match_header.begin(), match_header.end(), etag_rx);
         auto etags_end = std::sregex_iterator();
         ssize_t last_matched = 0;
 
@@ -60,7 +52,7 @@ namespace ccf
           last_matched = match.position() + match.length();
         }
 
-        ssize_t last_index_in_header = match_header.value().size();
+        ssize_t last_index_in_header = match_header.size();
 
         if (last_matched != last_index_in_header || if_etags.empty())
         {
@@ -71,18 +63,7 @@ namespace ccf
       /// Check if a given ETag matches the If-Match/If-None-Match header
       bool matches(const std::string& etag) const
       {
-        if (_empty)
-        {
-          return true;
-        }
-
         return any_value || if_etags.contains(etag);
-      }
-
-      /// Check if the header is empty
-      bool empty() const
-      {
-        return _empty;
       }
 
       /// Check if the header will match any ETag (*)

@@ -9,19 +9,9 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
-TEST_CASE("If-Match missing")
-{
-  ccf::http::Matcher im(std::nullopt);
-  REQUIRE(im.empty());
-  REQUIRE(!im.is_any());
-  REQUIRE(im.matches(""));
-  REQUIRE(im.matches("abc"));
-}
-
 TEST_CASE("If-Match: *")
 {
   ccf::http::Matcher im("*");
-  REQUIRE(!im.empty());
   REQUIRE(im.is_any());
   REQUIRE(im.matches(""));
   REQUIRE(im.matches("abc"));
@@ -30,7 +20,6 @@ TEST_CASE("If-Match: *")
 TEST_CASE("If-Match: \"abc\"")
 {
   ccf::http::Matcher im("\"abc\"");
-  REQUIRE(!im.empty());
   REQUIRE(!im.is_any());
   REQUIRE(!im.matches(""));
   REQUIRE(im.matches("abc"));
@@ -40,7 +29,6 @@ TEST_CASE("If-Match: \"abc\"")
 TEST_CASE("If-Match: \"abc\", \"def\"")
 {
   ccf::http::Matcher im("\"abc\", \"def\"");
-  REQUIRE(!im.empty());
   REQUIRE(!im.is_any());
   REQUIRE(!im.matches(""));
   REQUIRE(im.matches("abc"));
@@ -50,6 +38,8 @@ TEST_CASE("If-Match: \"abc\", \"def\"")
 
 TEST_CASE("If-Match invalid inputs")
 {
+  REQUIRE_THROWS_AS_MESSAGE(
+    ccf::http::Matcher im(""), std::runtime_error, "Invalid If-Match header");
   REQUIRE_THROWS_AS_MESSAGE(
     ccf::http::Matcher im("not etags"),
     std::runtime_error,

@@ -1920,7 +1920,7 @@ def test_etags(network, args):
 
         # DELETE If-None-Match: * on missing resource returns 304
         r = c.delete("/app/log/public?id=999998", headers={"If-None-Match": "*"})
-        assert r.status_code == http.HTTPStatus.NOT_MODIFIED
+        assert r.status_code == http.HTTPStatus.OK
 
         # DELETE If-None-Match: on mismatching ETag for missing resource 200
         r = c.delete("/app/log/public?id=999998", headers={"If-None-Match": '"abc"'})
