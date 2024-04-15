@@ -11,7 +11,7 @@ steps:
       set -o pipefail
       cd tla/
       mkdir -p traces/consensus
-      cp ../build/consensus/*.ndjson traces/
+      mv ../build/consensus traces/
       parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
     displayName: "Run trace validation"
 
