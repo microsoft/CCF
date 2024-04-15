@@ -796,22 +796,22 @@ if __name__ == "__main__":
 
     cr = ConcurrentRunner(add)
 
-    # cr.add(
-    #     "single_node",
-    #     single_node,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.min_nodes(cr.args, f=0),
-    #     authenticate_session="COSE",
-    # )
+    cr.add(
+        "single_node",
+        single_node,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),
+        authenticate_session="COSE",
+    )
 
-    # cr.add(
-    #     "session_coseauth",
-    #     gov,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=3,
-    #     authenticate_session="COSE",
-    # )
+    cr.add(
+        "session_coseauth",
+        gov,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session="COSE",
+    )
 
     cr.add(
         "js",
@@ -822,28 +822,28 @@ if __name__ == "__main__":
         authenticate_session="COSE",
     )
 
-    # cr.add(
-    #     "replay",
-    #     gov_replay,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=3,
-    #     authenticate_session="COSE",
-    # )
+    cr.add(
+        "replay",
+        gov_replay,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=3,
+        authenticate_session="COSE",
+    )
 
-    # cr.add(
-    #     "history",
-    #     governance_history.run,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     authenticate_session="COSE",
-    # )
+    cr.add(
+        "history",
+        governance_history.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        authenticate_session="COSE",
+    )
 
-    # cr.add(
-    #     "gov_api",
-    #     governance_api.run,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    # )
+    cr.add(
+        "gov_api",
+        governance_api.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
 
     cr.run(2)
