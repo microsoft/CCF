@@ -10,13 +10,32 @@ steps:
       set -ex
       set -o pipefail
       cd tla/
-      mkdir traces
-      cp ../build/*.ndjson traces/
-      parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls traces/*.ndjson)
-    displayName: "Run trace validation"
+      mkdir consensus_traces
+      cp ../build/*.ndjson consensus_traces/
+      # Unfortunate, handling directories under build/ is not appealing, perhaps we want .consensus.ndjson and .consistency.ndjson suffixes
+      rm -f consensus_traces/consistency_trace.ndjson
+      parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls consensus_traces/*.ndjson)
+    displayName: "Run Consensus Trace Validation"
 
   - task: PublishPipelineArtifact@1
     inputs:
-      artifactName: "Trace Validation Output"
-      targetPath: tla/traces
+      artifactName: "Consensus Trace Validation Output"
+      targetPath: tla/consensus_traces
+    condition: or(failed(), canceled())
+
+  - script: |
+      set -ex
+      set -o pipefail
+      cd tla/
+      mkdir consistency_traces
+      # Passing prefix, following lines require implementing TruncateLedgerAction
+      # Will become cp ../build/consistency_trace.ndjson consensus_traces/ once every action matches
+      head -13 ../build/consistency_trace.ndjson > consistency_traces/consistency_trace.ndjson
+      JSON=consistency_traces/consistency_trace.ndjson ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consistency/TraceMultiNodeReads.tla
+    displayName: "Run Consistency Trace Validation"
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      artifactName: "Consistency Trace Validation Output"
+      targetPath: tla/consistency_traces
     condition: or(failed(), canceled())
