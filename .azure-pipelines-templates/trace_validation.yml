@@ -6,25 +6,27 @@ steps:
       python3 ./tla/install_deps.py
     displayName: "Install TLA dependencies"
 
-  - script: |
-      set -ex
-      set -o pipefail
-      cd tla/
-      mkdir -p traces/consensus
-      mv ../build/consensus traces/
-      parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
-    displayName: "Run Consensus Trace validation"
+  - ${{ if eq(parameters.suffix, 'Tracing') }}:
+      - script: |
+          set -ex
+          set -o pipefail
+          cd tla/
+          mkdir -p traces/consensus
+          mv ../build/consensus traces/
+          parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
+        displayName: "Run Consensus Trace Validation"
 
-  - script: |
-      set -ex
-      set -o pipefail
-      cd tla/
-      mkdir -p traces/consistency
-      # Passing prefix, following lines require implementing TruncateLedgerAction
-      # Will become mv ../build/consistency traces/ once every action matches
-      head -13 ../build/consistency/trace.ndjson > traces/consistency/trace.ndjson
-      JSON=traces/consistency/trace.ndjson ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consistency/TraceMultiNodeReads.tla
-    displayName: "Run Consistency Trace Validation"
+  - ${{ if eq(parameters.suffix, 'Debug') }}:
+      - script: |
+          set -ex
+          set -o pipefail
+          cd tla/
+          mkdir -p traces/consistency
+          # Passing prefix, following lines require implementing TruncateLedgerAction
+          # Will become mv ../build/consistency traces/ once every action matches
+          head -13 ../build/consistency/trace.ndjson > traces/consistency/trace.ndjson
+          JSON=traces/consistency/trace.ndjson ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consistency/TraceMultiNodeReads.tla
+        displayName: "Run Consistency Trace Validation"
 
   - task: PublishPipelineArtifact@1
     inputs:
