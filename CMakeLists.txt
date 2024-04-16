@@ -300,6 +300,28 @@ if(COMPILE_TARGET STREQUAL "sgx")
   target_link_libraries(cchost PRIVATE openenclave::oehost)
 endif()
 
+# Build a cchost.dbg, containing only symbols
+find_program(OBJCOPY objcopy)
+function(strip_symbols targetName)
+  set(src_file $<TARGET_FILE:${targetName}>)
+  set(syms_dir $<TARGET_FILE_DIR:${targetName}>/symbols)
+  set(dst_file ${syms_dir}/${targetName}.dbg)
+
+  add_custom_command(
+    TARGET ${targetName}
+    POST_BUILD
+    VERBATIM
+    COMMAND echo Stripping symbols from ${src_file} into ${dst_file}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${syms_dir}
+    COMMAND ${OBJCOPY} --only-keep-debug ${src_file} ${dst_file}
+    COMMAND ${OBJCOPY} --strip-unneeded ${src_file}
+    COMMAND ${OBJCOPY} --add-gnu-debuglink=${dst_file} ${src_file}
+    COMMENT Stripping symbols from ${src_file} into ${dst_file}
+  )
+endfunction()
+
+strip_symbols(cchost)
+
 install(TARGETS cchost DESTINATION bin)
 
 # Perf scenario executable
