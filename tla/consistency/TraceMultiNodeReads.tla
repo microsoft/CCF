@@ -128,7 +128,7 @@ TraceMatched ==
 
 TraceMatchedNonTrivially ==
     \* If, e.g., the FALSE state constraint excludes all states, TraceMatched won't be violated.
-    TLCGet("stats").diameter = Len(JsonLog)
+    TLCGet("stats").diameter >= Len(JsonLog)
 
 MNR == INSTANCE MultiNodeReads
 

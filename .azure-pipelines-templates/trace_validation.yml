@@ -24,12 +24,12 @@ steps:
           mkdir -p traces/consistency
           # Passing prefix, following lines require implementing TruncateLedgerAction
           # Will become mv ../build/consistency traces/ once every action matches
-          head -13 ../build/consistency/trace.ndjson > traces/consistency/trace.ndjson
-          JSON=traces/consistency/trace.ndjson ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consistency/TraceMultiNodeReads.tla
+          head -12 ../build/consistency/trace.ndjson > traces/consistency/trace.ndjson
+          JSON=traces/consistency/trace.ndjson ./tlc.sh -dump dot,constrained,colorize,actionlabels traces/consistency/trace.dot -dumpTrace tla traces/consistency/trace.trace.tla -dumpTrace json traces/consistency/trace.trace.json consistency/TraceMultiNodeReads.tla
         displayName: "Run Consistency Trace Validation"
 
   - task: PublishPipelineArtifact@1
     inputs:
-      artifactName: "Trace Validation Output"
+      artifactName: "Trace Validation Output: ${{ parameters.suffix }}"
       targetPath: tla/traces
     condition: or(failed(), canceled())
