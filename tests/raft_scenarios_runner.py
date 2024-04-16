@@ -138,6 +138,10 @@ if __name__ == "__main__":
 
     ostream = sys.stdout
 
+    # Create consensus-specific output directory
+    output_dir = os.path.join("consensus")
+    os.makedirs(output_dir, exist_ok=True)
+
     for scenario in files:
         ostream.write("## {}\n\n".format(os.path.basename(scenario)))
         with block(ostream, "steps", 3):
@@ -165,7 +169,11 @@ if __name__ == "__main__":
         with block(ostream, "diagram", 3, "mermaid", ["sequenceDiagram"]):
             ostream.write(mermaid)
 
-        with open(f"{os.path.basename(scenario)}.ndjson", "w", encoding="utf-8") as f:
+        with open(
+            os.path.join(output_dir, f"{os.path.basename(scenario)}.ndjson"),
+            "w",
+            encoding="utf-8",
+        ) as f:
             f.write(log)
 
     write_error_report(err_list)
