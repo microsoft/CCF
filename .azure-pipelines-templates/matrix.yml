@@ -158,17 +158,18 @@ jobs:
           depends_on:
             - configure
 
-  - ${{ if eq(parameters.perf_tests, 'run') }}:
-      - template: cimetrics.yml
-        parameters:
-          target: Virtual
-          env: ${{ parameters.env.Virtual }}
-          suffix: "Perf"
-          installExtendedTestingTools: false
-          depends_on:
-            - configure
-            - SGX_Perf
-            - Virtual_Perf
-            - Virtual_Perf_MultiThreaded
-            - SGX_Perf_MultiThreaded
-            - Simulation
+  # Temporarily disabled, until cimetrics supports auth other than connection-string
+  # - ${{ if eq(parameters.perf_tests, 'run') }}:
+  #     - template: cimetrics.yml
+  #       parameters:
+  #         target: Virtual
+  #         env: ${{ parameters.env.Virtual }}
+  #         suffix: "Perf"
+  #         installExtendedTestingTools: false
+  #         depends_on:
+  #           - configure
+  #           - SGX_Perf
+  #           - Virtual_Perf
+  #           - Virtual_Perf_MultiThreaded
+  #           - SGX_Perf_MultiThreaded
+  #           - Simulation
