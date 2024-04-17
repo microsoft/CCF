@@ -115,7 +115,7 @@ NextSingleNodeAction ==
     \/ RwTxExecuteAction
     \/ RwTxResponseAction
     \/ StatusCommittedResponseAction
-    \/ AppendSigTxnAction
+    \/ AppendOtherTxnAction
 
 SpecSingleNode == Init /\ [][NextSingleNodeAction]_vars
 
