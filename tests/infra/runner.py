@@ -9,7 +9,6 @@ import infra.jwt_issuer
 import infra.network
 import infra.proc
 import infra.remote_client
-import cimetrics.upload
 import threading
 import copy
 from typing import List
@@ -137,6 +136,7 @@ def run(get_command, args):
             try:
                 # https://github.com/microsoft/CCF/issues/6126
                 # with cimetrics.upload.metrics(complete=False) as metrics:
+                if True:  # Avoiding dedent
                     start_time = time.time()
                     while True:
                         stop_waiting = True

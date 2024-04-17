@@ -6,7 +6,6 @@ import infra.e2e_args
 import infra.remote_client
 import infra.jwt_issuer
 from loguru import logger as LOG
-import cimetrics.upload
 import time
 import http
 import hashlib

@@ -4,7 +4,6 @@
 import time
 import http
 import statistics
-import cimetrics.upload
 import infra.e2e_args
 import infra.network
 import suite.test_requirements as reqs

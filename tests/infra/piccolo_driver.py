@@ -9,7 +9,6 @@ from infra.perf import PERF_COLUMNS
 from random import seed
 import getpass
 from loguru import logger as LOG
-import cimetrics.upload
 import time
 import http
 import hashlib
@@ -178,6 +177,7 @@ def run(get_command, args):
             try:
                 # https://github.com/microsoft/CCF/issues/6126
                 # with cimetrics.upload.metrics(complete=False) as metrics:
+                if True:  # Avoiding dedent
                     start_time = time.time()
                     while True:
                         stop_waiting = True
