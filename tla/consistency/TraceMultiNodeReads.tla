@@ -1,5 +1,5 @@
 -------------------------------- MODULE TraceMultiNodeReads -------------------------------
-EXTENDS MultiNodeReads, Json, IOUtils, Sequences
+EXTENDS MultiNodeReads, Json, IOUtils, Sequences, SequencesExt
 
 \* Trace validation has been designed for TLC running in default model-checking
 \* mode, i.e., breadth-first search.
@@ -49,43 +49,43 @@ IsEvent(e) ==
 IsRwTxRequestAction ==
     /\ IsEvent("RwTxRequestAction")
     /\ RwTxRequestAction
-    /\ history'[Len(history')].type = ToTxType[logline.type]
-    /\ history'[Len(history')].tx = logline.tx
+    /\ Last(history').type = ToTxType[logline.type]
+    /\ Last(history').tx = logline.tx
 
 IsRwTxExecuteAction ==
     /\ IsEvent("RwTxExecuteAction")
     /\ RwTxExecuteAction
-    /\ history'[Len(history')].tx = logline.tx
+    /\ Last(history').tx = logline.tx
 
 IsRwTxResponseAction ==
     /\ IsEvent("RwTxResponseAction")
     /\ RwTxResponseAction
-    /\ history'[Len(history')].type = ToTxType[logline.type]
-    /\ history'[Len(history')].tx = logline.tx
+    /\ Last(history').type = ToTxType[logline.type]
+    /\ Last(history').tx = logline.tx
 
 IsStatusCommittedResponseAction ==
     /\ IsEvent("StatusCommittedResponseAction")
     /\ StatusCommittedResponseAction
-    /\ history'[Len(history')].type = ToTxType[logline.type]
-    /\ history'[Len(history')].status = ToStatus[logline.status]
+    /\ Last(history').type = ToTxType[logline.type]
+    /\ Last(history').status = ToStatus[logline.status]
 
 IsRoTxRequestAction ==
     /\ IsEvent("RoTxRequestAction")
     /\ RoTxRequestAction
-    /\ history'[Len(history')].type = ToTxType[logline.type]
-    /\ history'[Len(history')].tx = logline.tx
+    /\ Last(history').type = ToTxType[logline.type]
+    /\ Last(history').tx = logline.tx
 
 IsRoTxResponseAction ==
     /\ IsEvent("RoTxResponseAction")
     /\ RoTxResponseAction
-    /\ history'[Len(history')].type = ToTxType[logline.type]
-    /\ history'[Len(history')].tx = logline.tx
+    /\ Last(history').type = ToTxType[logline.type]
+    /\ Last(history').tx = logline.tx
 
 IsStatusInvalidResponseAction ==
     /\ IsEvent("StatusInvalidResponseAction")
     /\ StatusInvalidResponseAction
-    /\ history'[Len(history')].type = ToTxType[logline.type]
-    /\ history'[Len(history')].status = ToStatus[logline.status]
+    /\ Last(history').type = ToTxType[logline.type]
+    /\ Last(history').status = ToStatus[logline.status]
 
 TraceNext ==
     \/ IsRwTxRequestAction
