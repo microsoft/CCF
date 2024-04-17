@@ -588,12 +588,13 @@ def run(args):
                         f"Errors: {number_of_errors} ({number_of_errors / total_number_of_requests * 100:.2f}%)"
                     )
 
-                with cimetrics.upload.metrics(complete=False) as metrics:
-                    LOG.success("Uploading results")
-                    metrics.put(args.label, round(throughput, 1))
+                # https://github.com/microsoft/CCF/issues/6126
+                # with cimetrics.upload.metrics(complete=False) as metrics:
+                #     LOG.success("Uploading results")
+                #     metrics.put(args.label, round(throughput, 1))
 
-                    for key, value in additional_metrics.items():
-                        metrics.put(key, value)
+                #     for key, value in additional_metrics.items():
+                #         metrics.put(key, value)
 
             except Exception as e:
                 LOG.error(f"Stopping clients due to exception: {e}")

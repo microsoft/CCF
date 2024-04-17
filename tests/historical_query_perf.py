@@ -186,10 +186,11 @@ def test_historical_query_range(network, args):
 
     average_fetch_rate = (id_a_fetch_rate + id_b_fetch_rate + id_c_fetch_rate) / 3
 
-    with cimetrics.upload.metrics(complete=False) as metrics:
-        upload_name = "hist_sgx_cft^"
-        LOG.debug(f"Uploading metric: {upload_name} = {average_fetch_rate}")
-        metrics.put(upload_name, average_fetch_rate)
+    # https://github.com/microsoft/CCF/issues/6126
+    # with cimetrics.upload.metrics(complete=False) as metrics:
+    #     upload_name = "hist_sgx_cft^"
+    #     LOG.debug(f"Uploading metric: {upload_name} = {average_fetch_rate}")
+    #     metrics.put(upload_name, average_fetch_rate)
 
     # NB: The similar test in e2e_logging checks correctness, so we make no duplicate
     # assertions here
