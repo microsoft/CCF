@@ -4,6 +4,7 @@
 
 #include "ccf/http_consts.h"
 #include "ccf/odata_error.h"
+#include "ccf/redirect.h"
 #include "ccf/rpc_context.h"
 #include "http/http_accept.h"
 #include "node/rpc/rpc_exception.h"
@@ -144,35 +145,44 @@ namespace ccf
       }
       else
       {
-        const auto body = std::get_if<nlohmann::json>(&res);
-        if (body->is_null())
+        auto redirect = std::get_if<RedirectDetails>(&res);
+        if (redirect != nullptr)
         {
-          ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+          ctx->set_response_status(redirect->status);
         }
         else
         {
-          ctx->set_response_status(HTTP_STATUS_OK);
-          const auto packing = get_response_pack(ctx, request_packing);
-          switch (packing)
+          const auto body = std::get_if<nlohmann::json>(&res);
+          if (body->is_null())
           {
-            case serdes::Pack::Text:
-            {
-              const auto s = body->dump();
-              ctx->set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
-              break;
-            }
-            case serdes::Pack::MsgPack:
-            {
-              ctx->set_response_body(nlohmann::json::to_msgpack(*body));
-              break;
-            }
-            default:
-            {
-              throw std::logic_error("Unhandled serdes::Pack");
-            }
+            ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
           }
-          ctx->set_response_header(
-            http::headers::CONTENT_TYPE, pack_to_content_type(packing));
+          else
+          {
+            ctx->set_response_status(HTTP_STATUS_OK);
+            const auto packing = get_response_pack(ctx, request_packing);
+            switch (packing)
+            {
+              case serdes::Pack::Text:
+              {
+                const auto s = body->dump();
+                ctx->set_response_body(
+                  std::vector<uint8_t>(s.begin(), s.end()));
+                break;
+              }
+              case serdes::Pack::MsgPack:
+              {
+                ctx->set_response_body(nlohmann::json::to_msgpack(*body));
+                break;
+              }
+              default:
+              {
+                throw std::logic_error("Unhandled serdes::Pack");
+              }
+            }
+            ctx->set_response_header(
+              http::headers::CONTENT_TYPE, pack_to_content_type(packing));
+          }
         }
       }
     }
@@ -200,6 +210,11 @@ namespace ccf
     LOG_DEBUG_FMT(
       "Frontend error: status={} code={} msg={}", status, code, msg);
     return ErrorDetails{status, code, msg};
+  }
+
+  jsonhandler::JsonAdapterResponse make_redirect(http_status status)
+  {
+    return RedirectDetails{status};
   }
 
   endpoints::EndpointFunction json_adapter(const HandlerJsonParamsAndForward& f)

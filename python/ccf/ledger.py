@@ -979,6 +979,11 @@ class Ledger:
     def __iter__(self):
         return LedgerIterator(self._filenames, self._validator)
 
+    def transactions(self):
+        for chunk in self:
+            for transaction in chunk:
+                yield transaction
+
     def get_transaction(self, seqno: int) -> Transaction:
         """
         Return the :py:class:`ccf.ledger.Transaction` recorded in the ledger at the given sequence number.

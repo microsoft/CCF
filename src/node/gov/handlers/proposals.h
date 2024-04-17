@@ -122,7 +122,9 @@ namespace ccf::gov::endpoints
       }
     }
 
-    ccf::jsgov::ProposalInfoSummary resolve_proposal(
+    // Evaluate JS functions on this proposal. Result is presented in modified
+    // proposal_info argument, which is written back to the KV by this function
+    void resolve_proposal(
       ccfapp::AbstractNodeContext& context,
       ccf::NetworkState& network,
       kv::Tx& tx,
@@ -131,10 +133,13 @@ namespace ccf::gov::endpoints
       ccf::jsgov::ProposalInfo& proposal_info,
       const std::string& constitution)
     {
-      std::vector<std::pair<MemberId, bool>> votes;
-      std::optional<jsgov::Failure> failure = std::nullopt;
-      std::optional<ccf::jsgov::Votes> final_votes = std::nullopt;
-      std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
+      // Create some temporaries to store resolution progress. These are written
+      // to proposal_info, and the KV, when proposals leave the Open state.
+      ccf::jsgov::Votes votes = {};
+      ccf::jsgov::VoteFailures vote_failures = {};
+
+      auto proposal_info_handle = tx.template rw<ccf::jsgov::ProposalInfoMap>(
+        jsgov::Tables::PROPOSALS_INFO);
 
       // Evaluate ballots
       for (const auto& [mid, mb] : proposal_info.ballots)
@@ -145,7 +150,10 @@ namespace ccf::gov::endpoints
           mb,
           "vote",
           fmt::format(
-            "public:ccf.gov.proposal_info[{}].ballots[{}]", proposal_id, mid));
+            "{}[{}].ballots[{}]",
+            ccf::jsgov::Tables::PROPOSALS_INFO,
+            proposal_id,
+            mid));
 
         std::vector<js::JSWrappedValue> argv = {
           js_context.new_string_len(
@@ -162,32 +170,31 @@ namespace ccf::gov::endpoints
 
         if (!val.is_exception())
         {
-          votes.emplace_back(mid, val.is_true());
+          votes[mid] = val.is_true();
         }
         else
         {
-          if (!vote_failures.has_value())
-          {
-            vote_failures = ccf::jsgov::VoteFailures();
-          }
-
           auto [reason, trace] = js::js_error_message(js_context);
 
           if (js_context.interrupt_data.request_timed_out)
           {
             reason = "Operation took too long to complete.";
           }
-          vote_failures.value()[mid] = ccf::jsgov::Failure{reason, trace};
+          vote_failures[mid] = ccf::jsgov::Failure{reason, trace};
         }
       }
 
       // Evaluate resolve function
+      // NB: Since the only change from the calls to `apply` is some tentative
+      // votes, there is no change to the proposal stored in the KV.
       {
         {
           js::Context js_context(js::TxAccess::GOV_RO);
           js::populate_global_ccf_kv(tx, js_context);
           auto resolve_func = js_context.function(
-            constitution, "resolve", "public:ccf.gov.constitution[0]");
+            constitution,
+            "resolve",
+            fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
           std::vector<js::JSWrappedValue> argv;
           argv.push_back(js_context.new_string_len(
@@ -234,7 +241,7 @@ namespace ccf::gov::endpoints
             {
               reason = "Operation took too long to complete.";
             }
-            failure = ccf::jsgov::Failure{
+            proposal_info.failure = ccf::jsgov::Failure{
               fmt::format("Failed to resolve(): {}", reason), trace};
           }
           else
@@ -256,23 +263,27 @@ namespace ccf::gov::endpoints
             else
             {
               proposal_info.state = ProposalState::FAILED;
-              failure = ccf::jsgov::Failure{
+              proposal_info.failure = ccf::jsgov::Failure{
                 fmt::format(
                   "resolve() returned invalid status value: \"{}\"", status),
                 std::nullopt // No trace
               };
             }
           }
+
+          // Ensure resolved proposal_info is visible in the KV
+          proposal_info_handle->put(proposal_id, proposal_info);
         }
 
         if (proposal_info.state != ProposalState::OPEN)
         {
           remove_all_other_non_open_proposals(tx, proposal_id);
-          final_votes = std::unordered_map<ccf::MemberId, bool>();
-          for (auto& [mid, vote] : votes)
-          {
-            final_votes.value()[mid] = vote;
-          }
+
+          // Write now-permanent values back to proposal_state, and into the
+          // KV
+          proposal_info.final_votes = votes;
+          proposal_info.vote_failures = vote_failures;
+          proposal_info_handle->put(proposal_id, proposal_info);
 
           if (proposal_info.state == ProposalState::ACCEPTED)
           {
@@ -293,7 +304,9 @@ namespace ccf::gov::endpoints
             js::populate_global_ccf_gov_actions(js_context);
 
             auto apply_func = js_context.function(
-              constitution, "apply", "public:ccf.gov.constitution[0]");
+              constitution,
+              "apply",
+              fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
             std::vector<js::JSWrappedValue> argv = {
               js_context.new_string_len(
@@ -315,49 +328,28 @@ namespace ccf::gov::endpoints
               {
                 reason = "Operation took too long to complete.";
               }
-              failure = ccf::jsgov::Failure{
+              proposal_info.failure = ccf::jsgov::Failure{
                 fmt::format("Failed to apply(): {}", reason), trace};
+
+              // Update final proposal_info (in KV) again, with failure info
+              proposal_info_handle->put(proposal_id, proposal_info);
             }
           }
         }
-
-        return jsgov::ProposalInfoSummary{
-          proposal_id,
-          proposal_info.proposer_id,
-          proposal_info.state,
-          proposal_info.ballots.size(),
-          final_votes,
-          vote_failures,
-          failure};
       }
     }
 
-    // We have several structurally-similar types for representing proposals (in
-    // KV vs post-exec vs fully expanded). This aims to take any, and produce
-    // the same API-compatible description.
-    template <typename TProposal>
-    nlohmann::json convert_proposal_to_api_format(const TProposal& summary)
+    nlohmann::json convert_proposal_to_api_format(
+      const ProposalId& proposal_id, const ccf::jsgov::ProposalInfo& summary)
     {
       auto response_body = nlohmann::json::object();
 
+      response_body["proposalId"] = proposal_id;
       response_body["proposerId"] = summary.proposer_id;
       response_body["proposalState"] = summary.state;
+      response_body["ballotCount"] = summary.ballots.size();
 
-      std::optional<ccf::jsgov::Votes> votes;
-
-      if constexpr (std::is_same_v<TProposal, ccf::jsgov::ProposalInfoSummary>)
-      {
-        response_body["proposalId"] = summary.proposal_id;
-        response_body["ballotCount"] = summary.ballot_count;
-
-        votes = summary.votes;
-      }
-      else if constexpr (std::is_same_v<TProposal, ccf::jsgov::ProposalInfo>)
-      {
-        response_body["ballotCount"] = summary.ballots.size();
-
-        votes = summary.final_votes;
-      }
+      std::optional<ccf::jsgov::Votes> votes = summary.final_votes;
 
       if (votes.has_value())
       {
@@ -456,7 +448,7 @@ namespace ccf::gov::endpoints
             auto validate_func = context.function(
               constitution.value(),
               "validate",
-              "public:ccf.gov.constitution[0]");
+              fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
             proposal_body = cose_ident.content;
             auto proposal_arg = context.new_string_len(
@@ -625,7 +617,7 @@ namespace ccf::gov::endpoints
 
           // Resolve proposal (may pass immediately)
           {
-            const auto resolve_result = detail::resolve_proposal(
+            detail::resolve_proposal(
               node_context,
               network,
               ctx.tx,
@@ -634,7 +626,7 @@ namespace ccf::gov::endpoints
               proposal_info,
               constitution.value());
 
-            if (resolve_result.state == ProposalState::FAILED)
+            if (proposal_info.state == ProposalState::FAILED)
             {
               // If the proposal failed to apply, we want to discard the tx and
               // not apply its side-effects to the KV state, because it may have
@@ -646,24 +638,12 @@ namespace ccf::gov::endpoints
                 ctx.rpc_ctx,
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
-                fmt::format("{}", resolve_result.failure));
+                fmt::format("{}", proposal_info.failure));
               return;
             }
 
-            // Write updated proposal info
-            {
-              auto proposal_info_handle =
-                ctx.tx.template wo<ccf::jsgov::ProposalInfoMap>(
-                  jsgov::Tables::PROPOSALS_INFO);
-
-              proposal_info.state = resolve_result.state;
-              proposal_info.failure = resolve_result.failure;
-
-              proposal_info_handle->put(proposal_id, proposal_info);
-            }
-
-            const auto response_body =
-              detail::convert_proposal_to_api_format(resolve_result);
+            const auto response_body = detail::convert_proposal_to_api_format(
+              proposal_id, proposal_info);
 
             ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
             return;
@@ -757,9 +737,8 @@ namespace ccf::gov::endpoints
               ctx.tx, cose_ident.member_id, cose_ident.envelope);
           }
 
-          auto response_body =
-            detail::convert_proposal_to_api_format(proposal_info.value());
-          response_body["proposalId"] = proposal_id;
+          auto response_body = detail::convert_proposal_to_api_format(
+            proposal_id, proposal_info.value());
 
           ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
           return;
@@ -801,9 +780,8 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          auto response_body =
-            detail::convert_proposal_to_api_format(proposal_info.value());
-          response_body["proposalId"] = proposal_id;
+          auto response_body = detail::convert_proposal_to_api_format(
+            proposal_id, proposal_info.value());
 
           ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
           return;
@@ -833,9 +811,8 @@ namespace ccf::gov::endpoints
           proposal_info_handle->foreach(
             [&proposal_list](
               const auto& proposal_id, const auto& proposal_info) {
-              auto api_proposal =
-                detail::convert_proposal_to_api_format(proposal_info);
-              api_proposal["proposalId"] = proposal_id;
+              auto api_proposal = detail::convert_proposal_to_api_format(
+                proposal_id, proposal_info);
               proposal_list.push_back(api_proposal);
               return true;
             });
@@ -1006,7 +983,8 @@ namespace ccf::gov::endpoints
               if (info_ballot_it->second == ballot)
               {
                 const auto response_body =
-                  detail::convert_proposal_to_api_format(proposal_info.value());
+                  detail::convert_proposal_to_api_format(
+                    proposal_id, proposal_info.value());
 
                 ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
                 return;
@@ -1032,7 +1010,7 @@ namespace ccf::gov::endpoints
             detail::record_cose_governance_history(
               ctx.tx, cose_ident.member_id, cose_ident.envelope);
 
-            const auto resolve_result = detail::resolve_proposal(
+            detail::resolve_proposal(
               node_context,
               network,
               ctx.tx,
@@ -1041,7 +1019,7 @@ namespace ccf::gov::endpoints
               proposal_info.value(),
               constitution.value());
 
-            if (resolve_result.state == ProposalState::FAILED)
+            if (proposal_info->state == ProposalState::FAILED)
             {
               // If the proposal failed to apply, we want to discard the tx and
               // not apply its side-effects to the KV state, because it may have
@@ -1051,20 +1029,12 @@ namespace ccf::gov::endpoints
                 ctx.rpc_ctx,
                 HTTP_STATUS_INTERNAL_SERVER_ERROR,
                 ccf::errors::InternalError,
-                fmt::format("{}", resolve_result.failure));
+                fmt::format("{}", proposal_info->failure));
               return;
             }
 
-            // Write updated proposal info
-            {
-              proposal_info->state = resolve_result.state;
-              proposal_info->failure = resolve_result.failure;
-
-              proposal_info_handle->put(proposal_id, proposal_info.value());
-            }
-
-            const auto response_body =
-              detail::convert_proposal_to_api_format(resolve_result);
+            const auto response_body = detail::convert_proposal_to_api_format(
+              proposal_id, proposal_info.value());
 
             ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
             return;
