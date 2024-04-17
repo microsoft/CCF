@@ -102,7 +102,7 @@ StatusCommittedResponseAction ==
     /\ UNCHANGED ledgerBranches
 
 \* Append a transaction to the ledger which does not impact the state we are considering
-AppendNoopTxnAction ==
+AppendSigTxnAction ==
     /\ \E view \in DOMAIN ledgerBranches:
         ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
                     Append(@,[view |-> view])]
@@ -115,15 +115,9 @@ NextSingleNodeAction ==
     \/ RwTxExecuteAction
     \/ RwTxResponseAction
     \/ StatusCommittedResponseAction
-
+    \/ AppendSigTxnAction
 
 SpecSingleNode == Init /\ [][NextSingleNodeAction]_vars
 
-\* A version of spec which supports noop transactions
-NextSingleNodeNoopAction ==
-    \/ NextSingleNodeAction
-    \/ AppendNoopTxnAction
-
-SpecSingleNodeNoop == Init /\ [][NextSingleNodeNoopAction]_vars
 
 ====
