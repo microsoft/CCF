@@ -28,7 +28,7 @@ RoTxResponseAction ==
                 history,[
                     type |-> RoTxResponse, 
                     tx |-> history[i].tx, 
-                    observed |-> [seqnum \in DOMAIN ledgerBranches[view] |-> ledgerBranches[view][seqnum].tx],
+                    observed |-> LedgerBranchTxOnly(ledgerBranches[view]),
                     tx_id |-> <<ledgerBranches[view][Len(ledgerBranches[view])].view, Len(ledgerBranches[view])>>] )
     /\ UNCHANGED ledgerBranches
 
