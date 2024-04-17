@@ -9,7 +9,6 @@ from infra.perf import PERF_COLUMNS
 from random import seed
 import getpass
 from loguru import logger as LOG
-import cimetrics.upload
 import time
 import http
 import hashlib
@@ -176,7 +175,9 @@ def run(get_command, args):
             format_width = len(str(hard_stop_timeout)) + 3
 
             try:
-                with cimetrics.upload.metrics(complete=False) as metrics:
+                # https://github.com/microsoft/CCF/issues/6126
+                # with cimetrics.upload.metrics(complete=False) as metrics:
+                if True:  # Avoiding dedent
                     start_time = time.time()
                     while True:
                         stop_waiting = True
@@ -213,11 +214,12 @@ def run(get_command, args):
 
                         # TODO: Only results for first client are uploaded
                         # https://github.com/microsoft/CCF/issues/1046
-                        if remote_client == clients[0]:
-                            LOG.success(f"Uploading results for {remote_client.name}")
-                            metrics.put(args.label, perf_result)
-                        else:
-                            LOG.warning(f"Skipping upload for {remote_client.name}")
+                        # https://github.com/microsoft/CCF/issues/6126
+                        # if remote_client == clients[0]:
+                        #     LOG.success(f"Uploading results for {remote_client.name}")
+                        #     metrics.put(args.label, perf_result)
+                        # else:
+                        #     LOG.warning(f"Skipping upload for {remote_client.name}")
 
                     primary, _ = network.find_primary()
                     with primary.client() as nc:
@@ -236,7 +238,8 @@ def run(get_command, args):
                                 heap_peak_metric = heap_peak_metric[:-1]
                             heap_peak_metric += "_mem"
 
-                            metrics.put(heap_peak_metric, peak_value)
+                            # https://github.com/microsoft/CCF/issues/6126
+                            # metrics.put(heap_peak_metric, peak_value)
 
                     for remote_client in clients:
                         remote_client.stop()
