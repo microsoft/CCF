@@ -58,7 +58,7 @@ class MemberAPI:
                     seqno=r.seqno,
                 )
 
-        def get_proposal(self, remote_node, proposal_id):
+        def get_proposal_raw(self, remote_node, proposal_id):
             with remote_node.api_versioned_client(
                 api_version=self.API_VERSION,
             ) as c:
@@ -66,12 +66,15 @@ class MemberAPI:
                 if r.status_code != http.HTTPStatus.OK.value:
                     raise MemberEndpointException(r)
 
-                body = r.body.json()
-                return infra.proposal.Proposal(
-                    proposer_id=body["proposerId"],
-                    proposal_id=body["proposalId"],
-                    state=infra.proposal.ProposalState(body["proposalState"]),
-                )
+                return r.body.json()
+
+        def get_proposal(self, remote_node, proposal_id):
+            body = self.get_proposal_raw(remote_node, proposal_id)
+            return infra.proposal.Proposal(
+                proposer_id=body["proposerId"],
+                proposal_id=body["proposalId"],
+                state=infra.proposal.ProposalState(body["proposalState"]),
+            )
 
         def vote(self, member, remote_node, proposal, ballot):
             with remote_node.api_versioned_client(
@@ -147,18 +150,21 @@ class MemberAPI:
                     seqno=r.seqno,
                 )
 
-        def get_proposal(self, remote_node, proposal_id):
+        def get_proposal_raw(self, remote_node, proposal_id):
             with remote_node.client() as c:
                 r = c.get(f"/gov/proposals/{proposal_id}")
                 if r.status_code != http.HTTPStatus.OK.value:
                     raise MemberEndpointException(r)
 
-                body = r.body.json()
-                return infra.proposal.Proposal(
-                    proposer_id=body["proposer_id"],
-                    proposal_id=proposal_id,
-                    state=infra.proposal.ProposalState(body["state"]),
-                )
+                return r.body.json()
+
+        def get_proposal(self, remote_node, proposal_id):
+            body = self.get_proposal_raw(remote_node, proposal_id)
+            return infra.proposal.Proposal(
+                proposer_id=body["proposer_id"],
+                proposal_id=proposal_id,
+                state=infra.proposal.ProposalState(body["state"]),
+            )
 
         def vote(self, member, remote_node, proposal, ballot):
             with remote_node.client(*member.auth(write=True)) as mc:
@@ -218,6 +224,11 @@ class MemberAPI:
         def propose(self, member, remote_node, proposal):
             return self._by_node_version(remote_node).propose(
                 member, remote_node, proposal
+            )
+
+        def get_proposal_raw(self, remote_node, proposal_id):
+            return self._by_node_version(remote_node).get_proposal_raw(
+                remote_node, proposal_id
             )
 
         def get_proposal(self, remote_node, proposal_id):
@@ -361,6 +372,9 @@ class Member:
     def propose(self, remote_node, proposal):
         infra.clients.get_clock().advance()
         return self.gov_api_impl_inst.propose(self, remote_node, proposal)
+
+    def get_proposal_raw(self, remote_node, proposal_id):
+        return self.gov_api_impl_inst.get_proposal_raw(remote_node, proposal_id)
 
     def get_proposal(self, remote_node, proposal_id):
         return self.gov_api_impl_inst.get_proposal(remote_node, proposal_id)

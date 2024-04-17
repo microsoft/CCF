@@ -5,7 +5,6 @@ import infra.network
 import infra.proc
 import infra.commit
 import http
-import cimetrics.upload
 from concurrent import futures
 from infra.log_capture import flush_info
 from infra.snp import IS_SNP
@@ -180,16 +179,18 @@ def test_historical_query_range(network, args):
 
         c.get("/node/memory")
 
+    # https://github.com/microsoft/CCF/issues/6126
     id_a_fetch_rate = len(entries[id_a]) / duration_a
     id_b_fetch_rate = len(entries[id_b]) / duration_b
     id_c_fetch_rate = len(entries[id_c]) / duration_c
 
     average_fetch_rate = (id_a_fetch_rate + id_b_fetch_rate + id_c_fetch_rate) / 3
+    LOG.info(f"Average fetch rate: {average_fetch_rate}")
 
-    with cimetrics.upload.metrics(complete=False) as metrics:
-        upload_name = "hist_sgx_cft^"
-        LOG.debug(f"Uploading metric: {upload_name} = {average_fetch_rate}")
-        metrics.put(upload_name, average_fetch_rate)
+    # with cimetrics.upload.metrics(complete=False) as metrics:
+    #     upload_name = "hist_sgx_cft^"
+    #     LOG.debug(f"Uploading metric: {upload_name} = {average_fetch_rate}")
+    #     metrics.put(upload_name, average_fetch_rate)
 
     # NB: The similar test in e2e_logging checks correctness, so we make no duplicate
     # assertions here
