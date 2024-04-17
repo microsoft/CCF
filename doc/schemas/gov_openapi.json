@@ -2463,7 +2463,7 @@
             "member_cose_sign1": []
           }
         ],
-        "summary": "Ballots submitted against a proposed change to the service",
+        "summary": "Submit a ballot for a proposed change to the service",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }

@@ -1,6 +1,4 @@
 steps:
   - script: ./cimetrics_env.sh python upload_pico_metrics.py
-    env:
-      METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
     workingDirectory: build
     displayName: "Upload picobench metrics"
