@@ -36,7 +36,7 @@ jobs:
 
           - task: PublishSymbols@2
             inputs:
-              SymbolsFolder: build
+              SymbolsFolder: $(Build.SourcesDirectory)/build
               SearchPattern: "**/symbols/**/*.dbg"
               IndexSources: true
               PublishSymbols: true
