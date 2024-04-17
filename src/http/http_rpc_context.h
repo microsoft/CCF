@@ -192,7 +192,7 @@ namespace http
     }
 
     virtual std::optional<std::string> get_request_header(
-      const std::string_view& name) override
+      const std::string_view& name) const override
     {
       const auto it = request_headers.find(name);
       if (it != request_headers.end())

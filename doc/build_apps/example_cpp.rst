@@ -316,3 +316,52 @@ Receipts from this endpoint will then look like:
                  'signature': 'MGUCMHYBgZ3gySdkJ+STUL13EURVBd8354ULC11l/kjx20IwpXrg/aDYLWYf7tsGwqUxPwIxAMH2wJDd9wpwbQrULpaAx5XEifpUfOriKtYo7XiFr05J+BV10U39xa9GBS49OK47QA=='}}
                  
 Note that the ``claims_digest`` is deliberately omitted from ``leaf_components``, and must be re-computed by digesting the ``msg``.
+
+Client-side Concurrency Control
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Clients of a CCF application submit transactions concurrently.
+Single transactions are always handled atomically by the service, transparently for clients and for application writers. But some clients may wish to submit sequences of multiple, dependent transactions. For example:
+
+1. Client reads value at key ``K``
+2. Performs some client-side processing
+3. Writes a new value at key ``K``, but only if the server-side value has not changed
+
+Implementing `If-Match` and `If-None-Match` HTTP headers in endpoint logic is a common pattern for this use case. The following endpoints of the C++ logging app demonstrate this:
+
+POST /app/log/public
+~~~~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: public_table_post_match
+    :end-before: SNIPPET_END: public_table_post_match
+    :dedent:
+
+And before returning ``200 OK``:
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: public_table_post_etag
+    :end-before: SNIPPET_END: public_table_post_etag
+    :dedent:
+
+GET /app/log/public/{idx}
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: public_table_get_match
+    :end-before: SNIPPET_END: public_table_get_match
+    :dedent:
+
+DELETE /app/log/public/{idx}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. literalinclude:: ../../samples/apps/logging/logging.cpp
+    :language: cpp
+    :start-after: SNIPPET_START: public_table_delete_match
+    :end-before: SNIPPET_END: public_table_delete_match
+    :dedent:
+
+The framework provides a :cpp:class:`ccf::http::Matcher` class, which can be used to evaluate these conditions.

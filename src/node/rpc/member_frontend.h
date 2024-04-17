@@ -154,12 +154,19 @@ namespace ccf
           mb,
           "vote",
           fmt::format(
-            "public:ccf.gov.proposal_info[{}].ballots[{}]", proposal_id, mid));
+            "{}[{}].ballots[{}]",
+            ccf::jsgov::Tables::PROPOSALS_INFO,
+            proposal_id,
+            mid));
 
         std::vector<js::JSWrappedValue> argv = {
           context.new_string_len((const char*)proposal.data(), proposal.size()),
           context.new_string_len(
-            pi_->proposer_id.data(), pi_->proposer_id.size())};
+            pi_->proposer_id.data(), pi_->proposer_id.size()),
+          // Also pass the proposal_id as a string. This is useful for proposals
+          // that want to refer to themselves in the resolve function, for
+          // example to examine/distinguish themselves other pending proposals.
+          context.new_string_len(proposal_id.data(), proposal_id.size())};
 
         auto val = context.call_with_rt_options(
           ballot_func,
@@ -192,7 +199,9 @@ namespace ccf
         js::Context js_context(js::TxAccess::GOV_RO);
         js::populate_global_ccf_kv(tx, js_context);
         auto resolve_func = js_context.function(
-          constitution, "resolve", "public:ccf.gov.constitution[0]");
+          constitution,
+          "resolve",
+          fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
         std::vector<js::JSWrappedValue> argv;
         argv.push_back(js_context.new_string_len(
@@ -304,7 +313,9 @@ namespace ccf
             js::populate_global_ccf_gov_actions(apply_js_context);
 
             auto apply_func = apply_js_context.function(
-              constitution, "apply", "public:ccf.gov.constitution[0]");
+              constitution,
+              "apply",
+              fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
             std::vector<js::JSWrappedValue> apply_argv = {
               apply_js_context.new_string_len(
@@ -575,7 +586,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "4.1.5";
+      openapi_info.document_version = "4.1.6";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -1160,7 +1171,9 @@ namespace ccf
         js::populate_global_ccf_kv(ctx.tx, context);
 
         auto validate_func = context.function(
-          validate_script, "validate", "public:ccf.gov.constitution[0]");
+          validate_script,
+          "validate",
+          fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
         const std::span<const uint8_t> proposal_body =
           cose_auth_id.has_value() ? cose_auth_id->content :
@@ -1734,7 +1747,7 @@ namespace ccf
         member_sig_only_policies("ballot"))
         .set_auto_schema<jsgov::Ballot, jsgov::ProposalInfoSummary>()
         .set_openapi_summary(
-          "Ballots submitted against a proposed change to the service")
+          "Submit a ballot for a proposed change to the service")
         .install();
 
       auto get_vote_js =

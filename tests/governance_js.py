@@ -15,6 +15,8 @@ import dataclasses
 import tempfile
 import uuid
 import infra.clients
+import json
+import ccf.ledger
 
 
 def action(name, **args):
@@ -51,6 +53,9 @@ always_accept_if_proposed_by_operator = proposal(
 )
 always_accept_with_two_votes = proposal(action("always_accept_with_two_votes"))
 always_reject_with_two_votes = proposal(action("always_reject_with_two_votes"))
+check_proposal_id_is_set_correctly = proposal(
+    action("check_proposal_id_is_set_correctly")
+)
 
 ballot_yes = vote("return true")
 ballot_no = vote("return false")
@@ -613,6 +618,19 @@ def test_proposals_with_votes(network, args):
     return network
 
 
+@reqs.description("Test proposal id is set correctly in resolve()")
+def test_check_proposal_id_is_set_correctly(network, args):
+    node = choose_node(network)
+    with node.api_versioned_client(
+        None, None, "member0", api_version=args.gov_api_version
+    ) as c:
+        r = c.post("/gov/members/proposals:create", check_proposal_id_is_set_correctly)
+        assert r.status_code == 200, r.body.text()
+        assert r.body.json()["proposalState"] == "Accepted", r.body.json()
+
+    return network
+
+
 @reqs.description("Test vote failure reporting")
 def test_vote_failure_reporting(network, args):
     node = choose_node(network)
@@ -1053,8 +1071,8 @@ def make_action_snippet(action_name, validate="", apply=""):
 actions.set(
     "{action_name}",
     new Action(
-        function (args) {{ {validate} }},
-        function (args) {{ {apply} }}
+        function validate(args) {{ {validate} }},
+        function apply(args, proposalId) {{ {apply} }}
     )
 )
 """
@@ -1187,5 +1205,189 @@ if (args.try.includes("write_during_{kind}")) {{ table.delete(getSingletonKvKey(
                     assert (
                         not should_succeed
                     ), f"Proposal failed unexpectedly ({desc}): {msg}"
+
+    return network
+
+
+@reqs.description("Test access to accepted proposal state")
+def test_final_proposal_visibility(network, args):
+    primary, _ = network.find_primary()
+    consortium = network.consortium
+
+    with temporary_constitution(
+        network,
+        args,
+        # An proposal that counts who voted for it.
+        # Proving that such a thing is _possible_, but in practice we mostly expect that this visibility will only be used for reporting.
+        make_action_snippet(
+            "vote_provenance",
+            apply="""
+            let proposals = ccf.kv["public:ccf.gov.proposals_info"];
+            let proposalInfoBuffer = proposals.get(ccf.strToBuf(proposalId));
+            if (proposalInfoBuffer === undefined) { throw new Error(`Can't find proposal info for ${proposalId}`); }
+            const proposalInfo = ccf.bufToJsonCompatible(proposalInfoBuffer);
+            const state = proposalInfo.state;
+            if (state != "Accepted") { throw new Error(`apply() received proposal in unexpected state ${state}`); }
+            const finalVotes = proposalInfo.final_votes;
+            if (finalVotes === undefined) { throw new Error("Don't have finalVotes"); }
+
+            let supporters = ccf.kv["public:ccf.gov.testonly.supporter_points"];
+            for (const [memberId, vote] of Object.entries(finalVotes)) {
+                const memberIdBuf = ccf.strToBuf(memberId);
+                if (vote === true) {
+                    if (supporters.has(memberIdBuf)) {
+                        const prev = ccf.bufToJsonCompatible(supporters.get(memberIdBuf));
+                        supporters.set(memberIdBuf, ccf.jsonCompatibleToBuf(prev + 1));
+                    } else {
+                        supporters.set(memberIdBuf, ccf.jsonCompatibleToBuf(1));
+                    }
+                } else {
+                    // Null points for anyone who voted against this
+                    supporters.set(memberIdBuf, ccf.jsonCompatibleToBuf(0));
+                }
+            }
+
+            console.log("Current supporter scoreboard is:");
+            supporters.forEach((v, k) => {
+                console.log(`  Member ${ccf.bufToStr(k)} has ${ccf.bufToJsonCompatible(v)} points`);
+            });
+""",
+        ),
+    ):
+        members = consortium.get_active_members()
+        assert len(members) >= 3
+        booster = members[0]
+        fairweather = members[1]
+        turncoat = members[2]
+
+        proposal_body, ballot = consortium.make_proposal("vote_provenance")
+
+        first = consortium.get_any_active_member().propose(primary, proposal_body)
+        response = booster.vote(primary, first, ballot)
+        assert response.status_code == 200
+        response = turncoat.vote(primary, first, ballot)
+        assert response.status_code == 200
+
+        second = consortium.get_any_active_member().propose(primary, proposal_body)
+        response = booster.vote(primary, second, ballot)
+        assert response.status_code == 200
+        response = fairweather.vote(primary, second, ballot)
+        assert response.status_code == 200
+
+        third = consortium.get_any_active_member().propose(primary, proposal_body)
+        response = booster.vote(primary, third, ballot)
+        assert response.status_code == 200
+        # Votes against! Loses supporter points!
+        response = turncoat.vote(
+            primary,
+            third,
+            json.dumps(
+                {
+                    "ballot": "export function vote (rawProposal, proposerId) { return false }"
+                }
+            ),
+        )
+        assert response.status_code == 200
+        response = fairweather.vote(primary, third, ballot)
+        assert response.status_code == 200
+
+        LOG.info("Confirm that finalVotes is present in submit-ballot response")
+        body = response.body.json()
+        assert "finalVotes" in body, body
+
+        LOG.info("Confirm that finalVotes is present in get-proposal response")
+        body = consortium.get_proposal_raw(primary, third.proposal_id)
+        assert "finalVotes" in body, body
+
+    LOG.info("Confirm that expected values were actually written to the KV")
+    # To avoid creating an extra endpoint in the app, we smuggle a read into a new
+    # action's apply, reported to the caller via an exception
+    with temporary_constitution(
+        network,
+        args,
+        make_action_snippet(
+            "read_supporters",
+            apply="""
+            let supporters = ccf.kv["public:ccf.gov.testonly.supporter_points"];
+            let s = "Current supporter scoreboard is:\\n";
+            supporters.forEach((v, k) => {
+                s += `  Member ${ccf.bufToStr(k)} has ${ccf.bufToJsonCompatible(v)} points\\n`;
+            });
+            throw new Error(s);
+            """,
+        ),
+    ):
+
+        proposal_body, ballot = consortium.make_proposal("read_supporters")
+
+        proposal = consortium.get_any_active_member().propose(primary, proposal_body)
+
+        expected_lines = [
+            f"Member {booster.service_id} has 3 points",
+            f"Member {fairweather.service_id} has 2 points",
+            f"Member {turncoat.service_id} has 0 points",
+        ]
+
+        thrown = False
+        try:
+            consortium.vote_using_majority(primary, proposal, ballot)
+        except infra.proposal.ProposalNotAccepted as e:
+            thrown = True
+            msg = e.response.body.json()["error"]["message"]
+            for line in expected_lines:
+                assert line in msg
+        assert thrown
+
+    return network
+
+
+@reqs.description("Test final proposal description written to KV")
+def test_ledger_governance_invariants(network, args):
+    node = network.nodes[0]
+    ledger_dirs = node.remote.ledger_paths()
+
+    ledger = ccf.ledger.Ledger(ledger_dirs)
+
+    LOG.info("Completed proposals contain final_vote for each submitted ballot")
+    table_name = "public:ccf.gov.proposals_info"
+    seen_states = set()
+    for transaction in ledger.transactions():
+        public_tables = transaction.get_public_domain().get_tables()
+        if table_name not in public_tables:
+            continue
+
+        for _, raw_proposal in public_tables[table_name].items():
+            if raw_proposal is None:
+                # This is a deletion
+                continue
+
+            proposal = json.loads(raw_proposal)
+
+            state = proposal["state"]
+            seen_states.add(state)
+            if state in ("Open", "Withdrawn", "Dropped"):
+                # This proposal contains no final_votes
+                continue
+
+            ballots = proposal["ballots"]
+            final_votes = proposal["final_votes"]
+            vote_failures = proposal["vote_failures"]
+
+            all_submitted = set(ballots.keys())
+            all_results = set.union(set(final_votes.keys()), set(vote_failures.keys()))
+
+            assert all_submitted == all_results, proposal
+
+    LOG.info("Confirm that previous tests properly stressed this behaviour")
+    expected = {
+        "Accepted",
+        "Dropped",
+        # "Failed", # This state produces an error, and is never written to the KV
+        "Open",
+        "Rejected",
+        "Withdrawn",
+    }
+    diff = seen_states.symmetric_difference(expected)
+    assert len(diff) == 0, diff
 
     return network

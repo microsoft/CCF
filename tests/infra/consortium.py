@@ -56,6 +56,7 @@ class Consortium:
         curve=None,
         public_state=None,
         authenticate_session="COSE",
+        gov_api_version=infra.member.MemberAPI.Preview_v1.API_VERSION,
     ):
         self.common_dir = common_dir
         self.members = []
@@ -64,7 +65,7 @@ class Consortium:
         self.consensus = consensus
         self.recovery_threshold = None
         self.authenticate_session = authenticate_session
-        self.gov_api_impl = infra.member.MemberAPI.Classic
+        self.set_gov_api_version(gov_api_version)
         # If a list of member IDs is passed in, generate fresh member identities.
         # Otherwise, recover the state of the consortium from the common directory
         # and the state of the service
@@ -337,8 +338,11 @@ class Consortium:
 
         return proposal
 
+    def get_proposal_raw(self, remote_node, proposal_id):
+        return self.get_any_active_member().get_proposal_raw(remote_node, proposal_id)
+
     def get_proposal(self, remote_node, proposal_id):
-        return self.gov_api_impl.get_proposal(remote_node, proposal_id)
+        return self.get_any_active_member().get_proposal(remote_node, proposal_id)
 
     def retire_node(self, remote_node, node_to_retire, timeout=10):
         pending = False

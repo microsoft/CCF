@@ -1081,6 +1081,11 @@ if(BUILD_TESTS)
     target_link_libraries(http_test PRIVATE http_parser.host)
 
     add_unit_test(
+      http_etag_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/http/test/http_etag_test.cpp
+    )
+
+    add_unit_test(
       frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
@@ -1389,7 +1394,10 @@ if(BUILD_TESTS)
     endif()
 
     add_e2e_test(
-      NAME e2e_redirects PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
+      NAME e2e_redirects
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
+      ADDITIONAL_ARGS --js-app-bundle
+                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
 
     add_e2e_test(
@@ -1433,6 +1441,11 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
+      NAME consistency_trace_validation
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
+    )
+
+    add_e2e_test(
       NAME fuzz_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
     )
 
@@ -1473,6 +1486,11 @@ if(BUILD_TESTS)
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
         LABEL e2e
         ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+      )
+      set_property(
+        TEST lts_compatibility
+        APPEND
+        PROPERTY ENVIRONMENT "LTS_COMPAT_GOV_CLIENT=1"
       )
     endif()
 

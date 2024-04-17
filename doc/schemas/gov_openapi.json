@@ -182,6 +182,9 @@
           },
           "openapi_hidden": {
             "$ref": "#/components/schemas/boolean"
+          },
+          "redirection_strategy": {
+            "$ref": "#/components/schemas/RedirectionStrategy"
           }
         },
         "required": [
@@ -985,6 +988,13 @@
         ],
         "type": "string"
       },
+      "RedirectionStrategy": {
+        "enum": [
+          "none",
+          "to_primary"
+        ],
+        "type": "string"
+      },
       "ServiceConfiguration": {
         "properties": {
           "consensus": {
@@ -1325,7 +1335,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.1.5"
+    "version": "4.1.6"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -2453,7 +2463,7 @@
             "member_cose_sign1": []
           }
         ],
-        "summary": "Ballots submitted against a proposed change to the service",
+        "summary": "Submit a ballot for a proposed change to the service",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }

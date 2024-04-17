@@ -32,10 +32,10 @@ import infra.crypto
 from infra.runner import ConcurrentRunner
 from hashlib import sha256
 from infra.member import AckException
-import e2e_common_endpoints
 from types import MappingProxyType
 import threading
 import copy
+import e2e_common_endpoints
 
 from loguru import logger as LOG
 
@@ -410,7 +410,7 @@ def test_remove(network, args):
         else:
             check(
                 r,
-                error=lambda status, msg: status == http.HTTPStatus.BAD_REQUEST.value
+                error=lambda status, msg: status == http.HTTPStatus.NOT_FOUND.value
                 and msg.json()["error"]["code"] == "ResourceNotFound",
             )
 
@@ -455,7 +455,7 @@ def test_clear(network, args):
                         check(
                             get_r,
                             error=lambda status, msg: status
-                            == http.HTTPStatus.BAD_REQUEST.value,
+                            == http.HTTPStatus.NOT_FOUND.value,
                         )
 
     # Make sure no-one else is still looking for these
@@ -1754,7 +1754,7 @@ def test_committed_index(network, args, timeout=5):
     network.txs.delete(log_id, priv=True)
 
     r = network.txs.request(log_id, priv=True)
-    assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+    assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
     assert r.body.json()["error"]["message"] == f"No such record: {log_id}."
     assert r.body.json()["error"]["code"] == "ResourceNotFound"
 
@@ -1796,6 +1796,172 @@ def test_basic_constraints(network, args):
     )
     assert basic_constraints.critical is True
     assert basic_constraints.value.ca is False
+
+
+def test_etags(network, args):
+    primary, _ = network.find_primary()
+
+    with primary.client("user0") as c:
+        doc = {"id": 999999, "msg": "hello world"}
+        etag = sha256(doc["msg"].encode()).hexdigest()
+
+        # POST ETag matches value
+        r = c.post("/app/log/public", doc)
+        assert r.status_code == http.HTTPStatus.OK
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        # GET ETag matches value
+        r = c.get(f"/app/log/public?id={doc['id']}")
+        assert r.status_code == http.HTTPStatus.OK
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        # GET If-Match: * for missing resource still returns 404
+        r = c.get("/app/log/public?id=999998", headers={"If-Match": "*"})
+        assert r.status_code == http.HTTPStatus.NOT_FOUND
+
+        # GET If-Match: * for existing resource returns 200
+        r = c.get(f"/app/log/public?id={doc['id']}", headers={"If-Match": "*"})
+        assert r.status_code == http.HTTPStatus.OK
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        # GET If-Match: mismatching ETag returns 412
+        r = c.get(f"/app/log/public?id={doc['id']}", headers={"If-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
+        assert r.body.json()["error"]["code"] == "PreconditionFailed"
+
+        # GET If-Match: matching ETag returns 200
+        r = c.get(f"/app/log/public?id={doc['id']}", headers={"If-Match": f'"{etag}"'})
+        assert r.status_code == http.HTTPStatus.OK
+        assert r.body.json() == {"msg": doc["msg"]}
+
+        # GET If-Match: multiple ETags including matching returns 200
+        r = c.get(
+            f"/app/log/public?id={doc['id']}", headers={"If-Match": f'"{etag}", "abc"'}
+        )
+        assert r.status_code == http.HTTPStatus.OK
+        assert r.body.json() == {"msg": doc["msg"]}
+
+        doc = {"id": 999999, "msg": "saluton mondo"}
+
+        # POST If-Match: mismatching ETag returns 412
+        r = c.post("/app/log/public", doc, headers={"If-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
+
+        # POST If-Match: matching ETag returns 200
+        r = c.post("/app/log/public", doc, headers={"If-Match": f'"{etag}"'})
+        assert r.status_code == http.HTTPStatus.OK
+        etag = sha256(doc["msg"].encode()).hexdigest()
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        # POST If-Match: mutiple ETags, first one matching returns 200
+        r = c.post("/app/log/public", doc, headers={"If-Match": f'"{etag}", "abc"'})
+        assert r.status_code == http.HTTPStatus.OK
+        etag = sha256(doc["msg"].encode()).hexdigest()
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        # POST If-Match: mutiple ETags, one, not the first, matching returns 200
+        r = c.post("/app/log/public", doc, headers={"If-Match": f'"abc", "{etag}"'})
+        assert r.status_code == http.HTTPStatus.OK
+        etag = sha256(doc["msg"].encode()).hexdigest()
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        # POST If-Match: multiple, none matching, returns 412
+        r = c.post("/app/log/public", doc, headers={"If-Match": '"abc", "def"'})
+        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
+
+        # POST If-None-Match: * on existing resource returns 412
+        r = c.post("/app/log/public", doc, headers={"If-None-Match": "*"})
+        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
+        etag = sha256(doc["msg"].encode()).hexdigest()
+
+        # POST If-None-Match: matching ETag on existing resource returns 412
+        r = c.post("/app/log/public", doc, headers={"If-None-Match": "*"})
+        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
+        etag = sha256(doc["msg"].encode()).hexdigest()
+
+        # DELETE If-Match: mismatching ETag returns 412
+        r = c.delete(f"/app/log/public?id={doc['id']}", headers={"If-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.PRECONDITION_FAILED
+
+        # DELETE If-Match: matching ETag returns 200
+        r = c.delete(
+            f"/app/log/public?id={doc['id']}", headers={"If-Match": f'"{etag}"'}
+        )
+        assert r.status_code == http.HTTPStatus.OK
+
+        # DELETE If-Match: missing resource still returns 200
+        r = c.delete(
+            f"/app/log/public?id={doc['id']}", headers={"If-Match": f'"{etag}"'}
+        )
+        assert r.status_code == http.HTTPStatus.OK
+
+        # DELETE If-Match: mismatching ETag for missing resouce still returns 200
+        r = c.delete(f"/app/log/public?id={doc['id']}", headers={"If-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.OK
+
+        # Restore resource
+        r = c.post("/app/log/public", doc)
+        assert r.status_code == http.HTTPStatus.OK
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        # GET If-None-Match: * for existing resource returns 304
+        r = c.get("/app/log/public?id=999999", headers={"If-None-Match": "*"})
+        assert r.status_code == http.HTTPStatus.NOT_MODIFIED
+
+        # GET If-None-Match: matching ETag for existing resource returns 304
+        r = c.get("/app/log/public?id=999999", headers={"If-None-Match": f'"{etag}"'})
+        assert r.status_code == http.HTTPStatus.NOT_MODIFIED
+
+        # GET If-None-Match: mismatching ETag for existing resource returns 200
+        r = c.get("/app/log/public?id=999999", headers={"If-None-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.OK
+        assert r.body.json() == {"msg": doc["msg"]}
+        assert r.headers["ETag"] == etag, r.headers["ETag"]
+
+        # DELETE If-None-Match: * on missing resource returns 304
+        r = c.delete("/app/log/public?id=999998", headers={"If-None-Match": "*"})
+        assert r.status_code == http.HTTPStatus.OK
+
+        # DELETE If-None-Match: on mismatching ETag for missing resource 200
+        r = c.delete("/app/log/public?id=999998", headers={"If-None-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.OK
+
+        # DELETE If-None-Match: * on existing resource is 304
+        r = c.delete(f"/app/log/public?id={doc['id']}", headers={"If-None-Match": "*"})
+        assert r.status_code == http.HTTPStatus.NOT_MODIFIED
+        r = c.get(f"/app/log/public?id={doc['id']}")
+        assert r.status_code == http.HTTPStatus.OK
+
+        # DELETE If-None-Match: matching ETag on existing resource is 304
+        r = c.delete(
+            f"/app/log/public?id={doc['id']}", headers={"If-None-Match": f'"{etag}"'}
+        )
+        assert r.status_code == http.HTTPStatus.NOT_MODIFIED
+        r = c.get(f"/app/log/public?id={doc['id']}")
+        assert r.status_code == http.HTTPStatus.OK
+
+        # DELETE If-None-Match: mismatching ETag on existing resource is 200
+        r = c.delete(
+            f"/app/log/public?id={doc['id']}", headers={"If-None-Match": '"abc"'}
+        )
+        assert r.status_code == http.HTTPStatus.OK
+        r = c.get(f"/app/log/public?id={doc['id']}")
+        assert r.status_code == http.HTTPStatus.NOT_FOUND
+
+        # POST If-None-Match: * on deleted returns 200
+        r = c.post("/app/log/public", doc, headers={"If-None-Match": "*"})
+        assert r.status_code == http.HTTPStatus.OK
+        etag = sha256(doc["msg"].encode()).hexdigest()
+
+        r = c.get(f"/app/log/public?id={doc['id']}")
+        assert r.status_code == http.HTTPStatus.OK
+
+        # POST If-None-Match: mismatching ETag returns 200
+        r = c.post("/app/log/public", doc, headers={"If-None-Match": '"abc"'})
+        assert r.status_code == http.HTTPStatus.OK
+        etag = sha256(doc["msg"].encode()).hexdigest()
+
+    return network
 
 
 def run_udp_tests(args):
@@ -1882,6 +2048,8 @@ def run(args):
         test_historical_receipts(network, args)
         test_historical_receipts_with_claims(network, args)
         test_genesis_receipt(network, args)
+        if args.package == "samples/apps/logging/liblogging":
+            test_etags(network, args)
 
 
 def run_parsing_errors(args):

@@ -274,7 +274,7 @@ class Response:
         return (
             f"<{status_color}>{self.status_code}</> "
             + (
-                f"<yellow>[Redirect to -> {self.headers['location']}]</> "
+                f"<yellow>[Redirect to -> {self.headers.get('location')}]</> "
                 if redirect
                 else ""
             )
