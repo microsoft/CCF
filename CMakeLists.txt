@@ -309,8 +309,7 @@ function(strip_symbols targetName)
 
   add_custom_command(
     TARGET ${targetName}
-    POST_BUILD
-    VERBATIM
+    POST_BUILD VERBATIM
     COMMAND echo Stripping symbols from ${src_file} into ${dst_file}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${syms_dir}
     COMMAND ${OBJCOPY} --only-keep-debug ${src_file} ${dst_file}
