@@ -2,10 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/http_status.h"
+
 namespace ccf
 {
-  enum class FrameFormat : uint8_t
+  struct RedirectDetails
   {
-    http = 0
+    http_status status;
   };
 }

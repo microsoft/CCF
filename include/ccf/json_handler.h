@@ -62,7 +62,8 @@ namespace ccf
    */
   namespace jsonhandler
   {
-    using JsonAdapterResponse = std::variant<ErrorDetails, nlohmann::json>;
+    using JsonAdapterResponse =
+      std::variant<ErrorDetails, RedirectDetails, nlohmann::json>;
 
     char const* pack_to_content_type(serdes::Pack p);
 
@@ -92,6 +93,8 @@ namespace ccf
 
   jsonhandler::JsonAdapterResponse make_error(
     http_status status, const std::string& code, const std::string& msg);
+
+  jsonhandler::JsonAdapterResponse make_redirect(http_status status);
 
   using HandlerJsonParamsAndForward =
     std::function<jsonhandler::JsonAdapterResponse(

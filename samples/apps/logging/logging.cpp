@@ -11,6 +11,7 @@
 #include "ccf/ds/hash.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/http_etag.h"
 #include "ccf/http_query.h"
 #include "ccf/indexing/strategies/seqnos_by_key_bucketed.h"
 #include "ccf/indexing/strategy.h"
@@ -43,6 +44,27 @@ namespace loggingapp
     size_t age;
   };
   // SNIPPET_END: custom_identity
+
+  struct MatchHeaders
+  {
+    std::optional<std::string> if_match;
+    std::optional<std::string> if_none_match;
+
+    MatchHeaders(const std::shared_ptr<ccf::RpcContext>& rpc_ctx) :
+      if_match(rpc_ctx->get_request_header("if-match")),
+      if_none_match(rpc_ctx->get_request_header("if-none-match"))
+    {}
+
+    bool conflict() const
+    {
+      return if_match.has_value() && if_none_match.has_value();
+    }
+
+    bool empty() const
+    {
+      return !if_match.has_value() && !if_none_match.has_value();
+    }
+  };
 
   // SNIPPET_START: custom_auth_policy
   class CustomAuthPolicy : public ccf::AuthnPolicy
@@ -560,7 +582,7 @@ namespace loggingapp
         }
 
         return ccf::make_error(
-          HTTP_STATUS_BAD_REQUEST,
+          HTTP_STATUS_NOT_FOUND,
           ccf::errors::ResourceNotFound,
           fmt::format("No such record: {}.", id));
       };
@@ -760,6 +782,57 @@ namespace loggingapp
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
         // SNIPPET_END: public_table_access
         const auto id = params["id"].get<size_t>();
+
+        // SNIPPET_START: public_table_post_match
+        MatchHeaders match_headers(ctx.rpc_ctx);
+        if (match_headers.conflict())
+        {
+          return ccf::make_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidHeaderValue,
+            "Cannot have both If-Match and If-None-Match headers.");
+        }
+
+        // The presence of a Match header requires a read dependency
+        // to check the value matches the constraint
+        if (!match_headers.empty())
+        {
+          auto current_value = records_handle->get(id);
+          if (current_value.has_value())
+          {
+            crypto::Sha256Hash value_digest(current_value.value());
+            auto etag = value_digest.hex_str();
+
+            // On a POST operation, If-Match failing or If-None-Match passing
+            // both return a 412 Precondition Failed to be returned, and no
+            // side-effect.
+            if (match_headers.if_match.has_value())
+            {
+              ccf::http::Matcher matcher(match_headers.if_match.value());
+              if (!matcher.matches(etag))
+              {
+                return ccf::make_error(
+                  HTTP_STATUS_PRECONDITION_FAILED,
+                  ccf::errors::PreconditionFailed,
+                  "Resource has changed.");
+              }
+            }
+
+            if (match_headers.if_none_match.has_value())
+            {
+              ccf::http::Matcher matcher(match_headers.if_none_match.value());
+              if (matcher.matches(etag))
+              {
+                return ccf::make_error(
+                  HTTP_STATUS_PRECONDITION_FAILED,
+                  ccf::errors::PreconditionFailed,
+                  "Resource has changed.");
+              }
+            }
+          }
+        }
+        // SNIPPET_END: public_table_post_match
+
         records_handle->put(id, in.msg);
         // SNIPPET_START: set_claims_digest
         if (in.record_claim)
@@ -768,6 +841,13 @@ namespace loggingapp
         }
         // SNIPPET_END: set_claims_digest
         CCF_APP_INFO("Storing {} = {}", id, in.msg);
+
+        // SNIPPET_START: public_table_post_etag
+        crypto::Sha256Hash value_digest(in.msg);
+        // Succesful calls set an ETag
+        ctx.rpc_ctx->set_response_header("ETag", value_digest.hex_str());
+        // SNIPPET_END: public_table_post_etag
+
         return ccf::make_success(true);
       };
       // SNIPPET_END: record_public
@@ -799,15 +879,57 @@ namespace loggingapp
           ctx.tx.template ro<RecordsMap>(public_records(ctx));
         auto record = public_records_handle->get(id);
 
+        // SNIPPET_START: public_table_get_match
+        // If there is not value, the response is always Not Found
+        // regardless of Match headers
         if (record.has_value())
         {
+          MatchHeaders match_headers(ctx.rpc_ctx);
+          if (match_headers.conflict())
+          {
+            return ccf::make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidHeaderValue,
+              "Cannot have both If-Match and If-None-Match headers.");
+          }
+
+          // If a record is present, compute an Entity Tag, and apply
+          // If-Match and If-None-Match.
+          crypto::Sha256Hash value_digest(record.value());
+          const auto etag = value_digest.hex_str();
+
+          if (match_headers.if_match.has_value())
+          {
+            ccf::http::Matcher matcher(match_headers.if_match.value());
+            if (!matcher.matches(etag))
+            {
+              return ccf::make_error(
+                HTTP_STATUS_PRECONDITION_FAILED,
+                ccf::errors::PreconditionFailed,
+                "Resource has changed.");
+            }
+          }
+
+          // On a GET, If-None-Match passing returns 304 Not Modified
+          if (match_headers.if_none_match.has_value())
+          {
+            ccf::http::Matcher matcher(match_headers.if_none_match.value());
+            if (matcher.matches(etag))
+            {
+              return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+            }
+          }
+
+          // Succesful calls set an ETag
+          ctx.rpc_ctx->set_response_header("ETag", etag);
           CCF_APP_INFO("Fetching {} = {}", id, record.value());
           return ccf::make_success(LoggingGet::Out{record.value()});
         }
+        // SNIPPET_END: public_table_get_match
 
         CCF_APP_INFO("Fetching - no entry for {}", id);
         return ccf::make_error(
-          HTTP_STATUS_BAD_REQUEST,
+          HTTP_STATUS_NOT_FOUND,
           ccf::errors::ResourceNotFound,
           fmt::format("No such record: {}.", id));
       };
@@ -838,10 +960,56 @@ namespace loggingapp
 
         auto records_handle =
           ctx.tx.template rw<RecordsMap>(public_records(ctx));
-        auto had = records_handle->has(id);
-        records_handle->remove(id);
+        auto current_value = records_handle->get(id);
 
-        return ccf::make_success(LoggingRemove::Out{had});
+        // SNIPPET_START: public_table_delete_match
+        // If there is no value, we don't need to look at the Match
+        // headers to report that the value is deleted (200 OK)
+        if (current_value.has_value())
+        {
+          MatchHeaders match_headers(ctx.rpc_ctx);
+          if (match_headers.conflict())
+          {
+            return ccf::make_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidHeaderValue,
+              "Cannot have both If-Match and If-None-Match headers.");
+          }
+
+          if (!match_headers.empty())
+          {
+            // If a Match header is present, we need to compute the ETag
+            // to resolve the constraints
+            crypto::Sha256Hash value_digest(current_value.value());
+            const auto etag = value_digest.hex_str();
+
+            if (match_headers.if_match.has_value())
+            {
+              ccf::http::Matcher matcher(match_headers.if_match.value());
+              if (!matcher.matches(etag))
+              {
+                return ccf::make_error(
+                  HTTP_STATUS_PRECONDITION_FAILED,
+                  ccf::errors::PreconditionFailed,
+                  "Resource has changed.");
+              }
+            }
+
+            if (match_headers.if_none_match.has_value())
+            {
+              ccf::http::Matcher matcher(match_headers.if_none_match.value());
+              if (matcher.matches(etag))
+              {
+                return ccf::make_redirect(HTTP_STATUS_NOT_MODIFIED);
+              }
+            }
+          }
+        }
+        // SNIPPET_END: public_table_delete_match
+
+        // Succesful calls remove the value, and therefore do not set an ETag
+        records_handle->remove(id);
+        return ccf::make_success(LoggingRemove::Out{current_value.has_value()});
       };
       make_endpoint(
         "/log/public",
