@@ -102,7 +102,7 @@ StatusCommittedResponseAction ==
     /\ UNCHANGED ledgerBranches
 
 \* Append a transaction to the ledger which does not impact the state we are considering
-AppendSigTxnAction ==
+AppendOtherTxnAction ==
     /\ \E view \in DOMAIN ledgerBranches:
         ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
                     Append(@,[view |-> view])]
