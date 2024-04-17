@@ -35,6 +35,8 @@ jobs:
               ninja_targets: "${{ parameters.ninja_targets }}"
 
           - task: PublishSymbols@2
+            env:
+              ARTIFACTSERVICES_SYMBOL_ACCOUNTNAME: microsoft
             inputs:
               SymbolsFolder: $(Build.SourcesDirectory)/build
               SearchPattern: "**/symbols/**/*.dbg"
