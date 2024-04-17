@@ -45,5 +45,4 @@ NextMultiNodeAction ==
 
 
 SpecMultiNode == Init /\ [][NextMultiNodeAction]_vars
-
 ====
