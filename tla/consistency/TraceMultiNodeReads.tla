@@ -3,7 +3,8 @@ EXTENDS MultiNodeReads, Json, IOUtils, Sequences, SequencesExt
 
 \* Trace validation has been designed for TLC running in default model-checking
 \* mode, i.e., breadth-first search.
-ASSUME TLCGet("config").mode = "bfs"
+\* The property TraceMatched will be violated if TLC runs with more than a single worker.
+ASSUME TLCGet("config").mode = "bfs" /\ TLCGet("config").worker = 1
 
 \* Note the extra /../ necessary to run in the VSCode extension but not a happy CLI default
 JsonFile ==
@@ -105,9 +106,6 @@ Termination ==
     l = Len(JsonLog) => TLCSet("exit", TRUE)
 
 -------------------------------------------------------------------------------------
-
-\* The property TraceMatched below will be violated if TLC runs with more than a single worker.
-ASSUME TLCGet("config").worker = 1
 
 TraceMatched ==
     \* We force TLC to check TraceMatched as a temporal property because TLC checks temporal
