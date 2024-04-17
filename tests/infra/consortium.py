@@ -338,6 +338,9 @@ class Consortium:
 
         return proposal
 
+    def get_proposal_raw(self, remote_node, proposal_id):
+        return self.get_any_active_member().get_proposal_raw(remote_node, proposal_id)
+
     def get_proposal(self, remote_node, proposal_id):
         return self.get_any_active_member().get_proposal(remote_node, proposal_id)
 

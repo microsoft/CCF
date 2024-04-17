@@ -31,13 +31,30 @@ namespace ccf
     DECLARE_JSON_OPTIONAL_FIELDS(Failure, trace);
     using VoteFailures = std::unordered_map<ccf::MemberId, Failure>;
 
+    /// Proposal metadata stored in the KV
     struct ProposalInfo
     {
+      /// ID of the member who originally created/submitted this proposal
       ccf::MemberId proposer_id;
+      /// Current state of this proposal (eg - open, accepted, withdrawn)
       ccf::ProposalState state;
+      /// Collection of ballots (scripts) submitted for this proposal. Each
+      /// ballot is a javascript module exporting a single 'vote' function,
+      /// re-executed to determine the member's vote each proposal resolution.
+      /// Keyed by each submitting member's ID
       Ballots ballots = {};
+      /// Collection of boolean results of the submitted ballots, keyed by
+      /// submitting member's ID, that caused a transition to a terminal state.
+      /// Note that this is not present for open, withdrawn, or dropped
+      /// proposals
       std::optional<Votes> final_votes = std::nullopt;
+      /// Collection of exception details describing which ballots failed
+      /// to execute successfully, keyed by submitting member's ID. Populated in
+      /// the same circumstances as final_votes
       std::optional<VoteFailures> vote_failures = std::nullopt;
+      /// Exception details from execution of the proposal itself, either during
+      /// resolution or application. Populated in the same circumstances as
+      /// final_votes
       std::optional<Failure> failure = std::nullopt;
     };
     DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ProposalInfo);
@@ -45,6 +62,7 @@ namespace ccf
     DECLARE_JSON_OPTIONAL_FIELDS(
       ProposalInfo, final_votes, vote_failures, failure);
 
+    /// Proposal summary constructed while executing/resolving proposal ballots
     struct ProposalInfoSummary
     {
       ccf::ProposalId proposal_id;

@@ -768,6 +768,11 @@ def js_gov(args):
         governance_js.test_operator_provisioner_proposals_and_votes(network, args)
         governance_js.test_apply(network, args)
         governance_js.test_read_write_restrictions(network, args)
+        governance_js.test_final_proposal_visibility(network, args)
+
+        network.stop_all_nodes()
+        # Should come last, requires stopped network
+        governance_js.test_ledger_governance_invariants(network, args)
 
 
 def gov_replay(args):
