@@ -34,6 +34,18 @@ jobs:
             parameters:
               ninja_targets: "${{ parameters.ninja_targets }}"
 
+          - task: PublishSymbols@2
+            inputs:
+              SymbolsFolder: build
+              SearchPattern: "**/symbols/**/*.dbg"
+              IndexSources: true
+              PublishSymbols: true
+              SymbolServerType: "TeamServices"
+              SymbolExpirationInDays: "365"
+              IndexableFileFormats: "Default"
+              DetailedLog: true
+              SymbolsArtifactName: "Symbols_$(BuildConfiguration)"
+
           - ${{ if and(eq(parameters.suffix, 'Release'), eq(parameters.target, 'SNPCC')) }}:
               - template: build_check.yml
                 parameters:
