@@ -36,4 +36,7 @@ Explain any consistencies and inconsistencies you may find.  Report inconsistent
 
 ## Natural language Hints
 - Unless a built-in TLA+ declaration or definition like an operator in the TLA+ standard library dictates otherwise, the prose comments should follow British English spelling conventions.
+
+## Experiment with copy-paste catching
+- Files that do not have the word "raft" in their name should not contain any mention of raft.
 `;
