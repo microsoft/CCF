@@ -79,7 +79,7 @@ RwTxResponseAction ==
             /\ j > i 
             /\ history[j].type = RwTxResponse
             /\ history[j].tx = history[i].tx} = {}
-        /\ \E view \in DOMAIN ledgerBranches:
+        /\ \E view \in 2..Len(ledgerBranches):
             /\ \E seqnum \in DOMAIN ledgerBranches[view]: 
                 /\ "tx" \in DOMAIN ledgerBranches[view][seqnum]
                 /\ history[i].tx = ledgerBranches[view][seqnum].tx
