@@ -765,7 +765,7 @@ namespace ccf
         return;
       }
 
-      if (!endorsed_cert.has_value())
+      if (!endorsed_cert.has_value() || endorsed_cert->empty())
       {
         throw std::logic_error(
           fmt::format("No endorsed certificate set to emit signature"));
@@ -829,6 +829,11 @@ namespace ccf
 
     void set_endorsed_certificate(const crypto::Pem& cert) override
     {
+      if (cert.empty())
+      {
+        throw std::logic_error(fmt::format("Cannot set empty endorsed cert"));
+      }
+
       endorsed_cert = cert;
     }
   };

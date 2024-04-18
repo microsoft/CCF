@@ -5,7 +5,6 @@
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
 #include "ccf/service/tables/nodes.h"
-#include "crypto/certs.h"
 #include "crypto/openssl/hash.h"
 #include "ds/x509_time_fmt.h"
 #include "kv/kv_types.h"
@@ -13,6 +12,7 @@
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "service/tables/signatures.h"
+#include "cert_utils.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -22,14 +22,6 @@ std::unique_ptr<threading::ThreadMessaging>
   threading::ThreadMessaging::singleton = nullptr;
 
 using MapT = kv::Map<size_t, size_t>;
-
-constexpr size_t certificate_validity_period_days = 365;
-using namespace std::literals;
-auto valid_from =
-  ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
-
-auto valid_to = crypto::compute_cert_valid_to_string(
-  valid_from, certificate_validity_period_days);
 
 class DummyConsensus : public kv::test::StubConsensus
 {
@@ -75,7 +67,7 @@ TEST_CASE("Check signature verification")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
   auto kp = crypto::make_key_pair();
-  const auto self_signed = kp->self_sign("CN=Node", valid_from, valid_to);
+  const auto self_signed = make_self_signed_cert(kp);
 
   kv::Store primary_store;
   primary_store.set_encryptor(encryptor);
@@ -140,7 +132,7 @@ TEST_CASE("Check signing works across rollback")
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
   auto kp = crypto::make_key_pair();
-  const auto self_signed = kp->self_sign("CN=Node", valid_from, valid_to);
+  const auto self_signed = make_self_signed_cert(kp);
 
   kv::Store primary_store;
   primary_store.set_encryptor(encryptor);

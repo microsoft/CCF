@@ -3,6 +3,7 @@
 
 #include "ccf/crypto/key_pair.h"
 #include "ccf/service/tables/nodes.h"
+#include "cert_utils.h"
 #include "crypto/openssl/hash.h"
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
@@ -30,7 +31,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
   auto source_history = std::make_shared<ccf::MerkleTxHistory>(
     source_store, source_node_id, *source_node_kp);
-  source_history->set_endorsed_certificate({});
+  source_history->set_endorsed_certificate(
+    make_self_signed_cert(source_node_kp));
   source_store.set_history(source_history);
   source_store.initialise_term(2);
 
@@ -97,7 +99,8 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
         target_store, kv::test::PrimaryNodeId, *target_node_kp);
-      target_history->set_endorsed_certificate({});
+      target_history->set_endorsed_certificate(
+        make_self_signed_cert(target_node_kp));
       target_store.set_history(target_history);
     }
 
