@@ -22,7 +22,7 @@ RoTxResponseAction ==
             /\ j > i 
             /\ history[j].type = RoTxResponse
             /\ history[j].tx = history[i].tx} = {}
-        /\ \E view \in 2..Len(ledgerBranches):
+        /\ \E view \in FirstBranch..Len(ledgerBranches):
             /\ Len(ledgerBranches[view]) > 0
             /\ history' = Append(
                 history,[

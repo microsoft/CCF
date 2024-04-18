@@ -59,7 +59,7 @@ IsRwTxExecuteAction ==
     /\ Last(history').tx = logline.tx
     \* RwTxExecuteAction can only take place if a branch exists for the view
     /\ Len(ledgerBranches) >= logline.tx_id[1]
-    \* and it contains just the right amount of transactions (seqno - 1)
+    \* and that branch contains just the right amount of transactions (seqno - 1)
     /\ Len(ledgerBranches[logline.tx_id[1]]) = logline.tx_id[2] - 1
 
 IsRwTxResponseAction ==

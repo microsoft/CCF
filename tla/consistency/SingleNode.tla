@@ -33,7 +33,7 @@ TypeOK ==
 
 Init ==
     /\ history = <<>>
-    /\ ledgerBranches = [ x \in {1, 2} |-> <<>>]
+    /\ ledgerBranches = [ x \in 1..FirstBranch |-> <<>>]
 
 IndexOfLastRequested ==
     SelectLastInSeq(history, LAMBDA e : e.type \in {RwTxRequest, RoTxRequest})
@@ -61,7 +61,7 @@ RwTxExecuteAction ==
                 => history[i].tx /= ledgerBranches[view][seqnum].tx
         \* Note that a transaction can be added to any ledger, simulating the fact
         \* that it can be picked up by the current leader or any former leader
-        /\ \E view \in 2..Len(ledgerBranches):
+        /\ \E view \in FirstBranch..Len(ledgerBranches):
                 ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
                     Append(@,[view |-> view, tx |-> history[i].tx])]
         /\ UNCHANGED history
@@ -79,7 +79,7 @@ RwTxResponseAction ==
             /\ j > i 
             /\ history[j].type = RwTxResponse
             /\ history[j].tx = history[i].tx} = {}
-        /\ \E view \in 2..Len(ledgerBranches):
+        /\ \E view \in FirstBranch..Len(ledgerBranches):
             /\ \E seqnum \in DOMAIN ledgerBranches[view]: 
                 /\ "tx" \in DOMAIN ledgerBranches[view][seqnum]
                 /\ history[i].tx = ledgerBranches[view][seqnum].tx
@@ -109,7 +109,7 @@ StatusCommittedResponseAction ==
 
 \* Append a transaction to the ledger which does not impact the state we are considering
 AppendOtherTxnAction ==
-    /\ \E view \in 2..Len(ledgerBranches):
+    /\ \E view \in FirstBranch..Len(ledgerBranches):
         ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
                     Append(@,[view |-> view])]
     /\ UNCHANGED history
