@@ -117,7 +117,7 @@ TraceNext ==
     \/ IsRoTxRequestAction
     \/ IsRoTxResponseAction
     \/ IsStatusInvalidResponseAction
-    \/ InsertTruncateLedgerAction
+    \* \/ InsertTruncateLedgerAction
     \/ InsertOtherTxnAction
 
 TraceSpec ==

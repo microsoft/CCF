@@ -35,7 +35,7 @@ VALUE = "value"
 class Log:
     """
     A simple way to defer logging until the end of transaction cycle,
-    and to prepend actions if necessary, such as TruncateLedgerAction
+    and to prepend actions if necessary
     """
 
     def __init__(self):
@@ -116,7 +116,7 @@ def run(targets, cacert):
                                 )
                                 new_view, _ = tx_id(txid)
                                 if new_view > view:
-                                    log.prepend(action="TruncateLedgerAction")
+                                    # log.prepend(action="TruncateLedgerAction")
                                     view = new_view
                                 final = True
                                 break
