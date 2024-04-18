@@ -85,10 +85,13 @@ def run(targets, cacert):
             if response.status_code == 204:
                 log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
                 txid = response.headers["x-ms-ccf-transaction-id"]
+                # In principle, the spec doesn't observe the transaction id until RwTxResponseAction
+                # but in practice, it is needed for trace validation, to bound the number of AppendOtherTxnActions.
+                # We would otherwise risk inserting in the "wrong" place, and never get the correct RwTxResponseAction.
                 log(
                     action="RwTxExecuteAction",
                     type="RwTxExecute",
-                    view=tx_id(txid)[0],
+                    tx_id=tx_id(txid),
                     tx=tx,
                 )
                 log(

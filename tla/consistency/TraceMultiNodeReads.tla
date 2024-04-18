@@ -57,14 +57,16 @@ IsRwTxExecuteAction ==
     /\ IsEvent("RwTxExecuteAction")
     /\ RwTxExecuteAction
     /\ Last(history').tx = logline.tx
-    /\ Len(ledgerBranches') = logline.view
+    \* RwTxExecuteAction can only take place if a branch exists for the view
+    /\ Len(ledgerBranches) >= logline.tx_id[1]
+    \* and it contains just the right amount of transactions (seqno - 1)
+    /\ Len(ledgerBranches[logline.tx_id[1]]) = logline.tx_id[2] - 1
 
 IsRwTxResponseAction ==
     /\ IsEvent("RwTxResponseAction")
     /\ RwTxResponseAction
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').tx = logline.tx
-    /\ Last(history').status = ToStatus[logline.status]
     /\ Last(history').tx_id = logline.tx_id
 
 IsStatusCommittedResponseAction ==
@@ -104,8 +106,6 @@ InsertTruncateLedgerAction ==
 
 InsertOtherTxnAction ==
     /\ IsNotEvent
-    /\ "tx_id" \in DOMAIN logline
-    /\ logline.tx_id[2] > Len(Last(ledgerBranches))
     /\ AppendOtherTxnAction
 
 TraceNext ==
