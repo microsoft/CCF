@@ -57,12 +57,15 @@ IsRwTxExecuteAction ==
     /\ IsEvent("RwTxExecuteAction")
     /\ RwTxExecuteAction
     /\ Last(history').tx = logline.tx
+    /\ Len(ledgerBranches') = logline.view
 
 IsRwTxResponseAction ==
     /\ IsEvent("RwTxResponseAction")
     /\ RwTxResponseAction
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').tx = logline.tx
+    /\ Last(history').status = ToStatus[logline.status]
+    /\ Last(history').tx_id = logline.tx_id
 
 IsStatusCommittedResponseAction ==
     /\ IsEvent("StatusCommittedResponseAction")
@@ -88,6 +91,23 @@ IsStatusInvalidResponseAction ==
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').status = ToStatus[logline.status]
 
+IsNotEvent ==
+    l' = l
+
+InsertTruncateLedgerAction ==
+    /\ IsNotEvent
+    /\ "view" \in DOMAIN logline
+    /\ logline.view > Len(ledgerBranches)
+    /\ "tx_id" \in DOMAIN logline
+    /\ logline.tx_id[1] > Len(ledgerBranches)
+    /\ TruncateLedgerAction
+
+InsertOtherTxnAction ==
+    /\ IsNotEvent
+    /\ "tx_id" \in DOMAIN logline
+    /\ logline.tx_id[2] > Len(Last(ledgerBranches))
+    /\ AppendOtherTxnAction
+
 TraceNext ==
     \/ IsRwTxRequestAction
     \/ IsRwTxExecuteAction
@@ -96,6 +116,8 @@ TraceNext ==
     \/ IsRoTxRequestAction
     \/ IsRoTxResponseAction
     \/ IsStatusInvalidResponseAction
+    \/ InsertTruncateLedgerAction
+    \/ InsertOtherTxnAction
 
 TraceSpec ==
     TraceInit /\ [][TraceNext]_<<l, vars>>
