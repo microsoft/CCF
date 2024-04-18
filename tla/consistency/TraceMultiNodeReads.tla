@@ -86,6 +86,7 @@ IsRoTxResponseAction ==
     /\ RoTxResponseAction
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').tx = logline.tx
+    /\ Last(history').tx_id = logline.tx_id
 
 IsStatusInvalidResponseAction ==
     /\ IsEvent("StatusInvalidResponseAction")
