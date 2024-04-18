@@ -40,7 +40,7 @@ ToStatus ==
 
 \* Beware to only prime e.g. inbox in inbox'[rcv] and *not* also rcv, i.e.,
  \* inbox[rcv]'.  rcv is defined in terms of TLCGet("level") that correctly
- \* handles priming, which causes for rcv' to equal rcv of the next log line.
+ \* handles priming, which causes rcv' to equal rcv of the next log line.
 IsEvent(e) ==
     \* Equals FALSE if we get past the end of the log, causing model checking to stop.
     /\ l \in 1..Len(JsonLog)
