@@ -19,21 +19,38 @@ import argparse
 3. Trace is printed to stdout
 
 {"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 0}
-{"action": "RwTxResponseAction", "type": "RwTxRequest", "tx": 0, "tx_id": [2, 197]}
+{"action": "RwTxResponseAction", "type": "RwTxResponse", "tx": 0, "tx_id": [2, 197]}
 {"action": "StatusCommittedResponseAction", "type": "TxStatusReceived", "tx_id": [2, 197], "status": "CommittedStatus"}
 {"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 1}
-{"action": "RwTxResponseAction", "type": "RwTxRequest", "tx": 1, "tx_id": [2, 199]}
+{"action": "RwTxResponseAction", "type": "RwTxResponse", "tx": 1, "tx_id": [2, 199]}
 {"action": "StatusCommittedResponseAction", "type": "TxStatusReceived", "tx_id": [2, 199], "status": "CommittedStatus"}
 {"action": "RwTxRequestAction", "type": "RwTxRequest", "tx": 2}
-{"action": "RwTxResponseAction", "type": "RwTxRequest", "tx": 2, "tx_id": [2, 201]}
+{"action": "RwTxResponseAction", "type": "RwTxResponse", "tx": 2, "tx_id": [2, 201]}
 """
 
 KEY = "0"
 VALUE = "value"
 
 
-def log(**kwargs):
-    print(json.dumps(kwargs))
+class Log:
+    """
+    A simple way to defer logging until the end of transaction cycle,
+    and to prepend actions if necessary, such as TruncateLedgerAction
+    """
+
+    def __init__(self):
+        self.entries = []
+
+    def prepend(self, **kwargs):
+        self.entries.insert(0, kwargs)
+
+    def __call__(self, **kwargs):
+        self.entries.append(kwargs)
+
+    def dump(self):
+        for entry in self.entries:
+            print(json.dumps(entry))
+        self.entries = []
 
 
 def tx_id(string):
@@ -42,9 +59,12 @@ def tx_id(string):
 
 
 def run(targets, cacert):
-    session = httpx.Client(verify=cacert)
+    transport = httpx.HTTPTransport(retries=10, verify=cacert)
+    session = httpx.Client(transport=transport)
     tx = 0
+    view = 2
     while True:
+        log = Log()
         target = random.choice(targets)
         # Always start with a write, to avoid having to handle missing values
         txtype = random.choice(["Ro", "Rw"]) if tx else "Rw"
@@ -56,7 +76,7 @@ def run(targets, cacert):
                 txid = response.headers["x-ms-ccf-transaction-id"]
                 log(
                     action="RoTxResponseAction",
-                    type="RoTxRequest",
+                    type="RoTxResponse",
                     tx=tx,
                     tx_id=tx_id(txid),
                 )
@@ -66,30 +86,45 @@ def run(targets, cacert):
                 log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
                 txid = response.headers["x-ms-ccf-transaction-id"]
                 log(
+                    action="RwTxExecuteAction",
+                    type="RwTxExecute",
+                    view=tx_id(txid)[0],
+                    tx=tx,
+                )
+                log(
                     action="RwTxResponseAction",
-                    type="RwTxRequest",
+                    type="RwTxResponse",
                     tx=tx,
                     tx_id=tx_id(txid),
                 )
                 status = "Pending"
                 final = False
                 while not final:
-                    response = session.get(f"{target}/tx?transaction_id={txid}")
-                    if response.status_code == 200:
-                        status = response.json()["status"]
-                        if status in ("Committed", "Invalid"):
-                            log(
-                                action=f"Status{status}ResponseAction",
-                                type="TxStatusReceived",
-                                tx_id=tx_id(txid),
-                                status=f"{status}Status",
-                            )
-                            final = True
-                    else:
-                        # if our target has gone away or does not know who is primary, try another one
-                        target = random.choice(targets)
+                    try:
+                        response = session.get(f"{target}/tx?transaction_id={txid}")
+                        if response.status_code == 200:
+                            status = response.json()["status"]
+                            if status in ("Committed", "Invalid"):
+                                log(
+                                    action=f"Status{status}ResponseAction",
+                                    type="TxStatusReceived",
+                                    tx_id=tx_id(txid),
+                                    status=f"{status}Status",
+                                )
+                                new_view, _ = tx_id(txid)
+                                if new_view > view:
+                                    log.prepend(action="TruncateLedgerAction")
+                                    view = new_view
+                                final = True
+                                break
+                    except httpx.ReadTimeout:
+                        pass
+
+                    # if our target has gone away or does not know who is primary, try another one
+                    target = random.choice(targets)
         else:
             raise ValueError(f"Unknown Tx type: {txtype}")
+        log.dump()
         tx += 1
 
 
