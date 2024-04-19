@@ -93,10 +93,19 @@ IsRoTxResponseAction ==
 
 IsStatusInvalidResponseAction ==
     /\ IsEvent("StatusInvalidResponseAction")
-    /\ StatusInvalidResponseAction
-    /\ Last(history').type = ToTxType[logline.type]
-    /\ Last(history').status = ToStatus[logline.status]
-    /\ Last(history').tx_id = logline.tx_id
+    \* Cannot use StatusInvalidResponseAction directly, as it requires knowledge
+    \* of an incompatible history state, which is not available at this point in the trace.
+    /\ LET view == logline.tx_id[1]
+           seqno == logline.tx_id[2]
+       IN /\ Len(ledgerBranches[view]) < seqno 
+          /\ history' = Append(
+             history, [
+                type |-> ToTxType[logline.type],
+                tx_id |-> logline.tx_id,
+                status |-> ToStatus[logline.status]
+             ]
+            )
+    /\ UNCHANGED <<ledgerBranches>>
 
 \* Matches an event, but without advancing the log line. Useful to apply changes
 \* before an event can be handled, for example backfilling the ledger branch, or
@@ -106,18 +115,48 @@ PreEvent(e) ==
     /\ l \in 1..Len(JsonLog)
     /\ logline.action = e
 
-BackfillBeforeTxExecuteAction ==
+BackfillLedgerBranch ==
     /\
         \/ PreEvent("RwTxExecuteAction")
         \* There is no separate RoTxExecuteAction, but conceptually,
         \* we would backfill before it as well. Instead we do before the
         \* RoTxResponseAction, which is the earliest possible opportunity.
         \/ PreEvent("RoTxResponseAction")
-    \* Similar to AppendOtherTxnAction, but we know which branch to backfill
+    \* Similar to AppendOtherTxnAction, but only append to the specific branch
+    \* necessary to enable the next transaction to execute.
     /\ LET view == logline.tx_id[1]
            seqno == logline.tx_id[2]
-       IN /\ Len(ledgerBranches[view]) < seqno - 1
+       IN /\ Len(ledgerBranches) >= view
+          /\ Len(ledgerBranches[view]) < seqno - 1
           /\ ledgerBranches' = [ledgerBranches EXCEPT ![view] = Append(@, [view |-> view])]
+    /\ UNCHANGED history
+
+\* Same idead as BackfillLedgerBranch, but creating new ledger branches
+\* when transaction execution takes place on a hitherto unseen view.
+ViewChange ==
+    /\
+        \/ PreEvent("RwTxExecuteAction")
+        \/ PreEvent("RoTxResponseAction")
+    /\ LET view == logline.tx_id[1]
+           seqno == logline.tx_id[2]
+           newView == Len(ledgerBranches) + 1
+       IN /\ Len(ledgerBranches) > view
+          \* Conservative, always includes full uncommitted suffix from previous branch
+          \* May be something to revisit, but avoids dropping seqnos that may later commit.
+          /\ ledgerBranches' = [ledgerBranches EXCEPT ![newView] = Last(ledgerBranches)]
+    /\ UNCHANGED history
+
+\* 
+
+\* Similar to TransactionRollback, but only roll back the specific branch necessary, and the
+\* least amount necessary to invalidate the transaction. This is also conservative,
+\* but it is not possible to know exactly how far along the commit is at this point from the trace alone.
+RollbackLedgerBranch ==
+    /\ PreEvent("StatusInvalidResponseAction")
+    /\ LET view == logline.tx_id[1]
+           seqno == logline.tx_id[2]
+       IN /\ Len(ledgerBranches[view]) >= seqno
+          /\ ledgerBranches' = [ledgerBranches EXCEPT ![view] = SubSeq(ledgerBranches[view], 1, seqno - 1)]
     /\ UNCHANGED history
 
 TraceNext ==
@@ -128,7 +167,10 @@ TraceNext ==
     \/ IsRoTxRequestAction
     \/ IsRoTxResponseAction
     \/ IsStatusInvalidResponseAction
-    \/ BackfillBeforeTxExecuteAction
+    \/ BackfillLedgerBranch
+    \* That does not work because of LedgersMonoProp
+    \* \/ RollbackLedgerBranch
+    \* \/ ViewChange
 
 TraceSpec ==
     TraceInit /\ [][TraceNext]_<<l, vars>>

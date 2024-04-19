@@ -19,7 +19,7 @@ LedgerTypeOK ==
             \* Each ledger entry is tuple containing a view and tx
             \* The ledger entry index is the sequence number
             /\ ledgerBranches[view][seqnum].view \in Views
-            \* /\ ledgerBranches[view][seqnum].tx \in Txs
+            /\ "tx" \in DOMAIN ledgerBranches[view][seqnum] => ledgerBranches[view][seqnum].tx \in Txs
 
 \* In this abstract version of CCF's consensus layer, each ledger is append-only
 LedgersMonoProp ==
