@@ -74,6 +74,7 @@ IsStatusCommittedResponseAction ==
     /\ StatusCommittedResponseAction
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').status = ToStatus[logline.status]
+    /\ Last(history').tx_id = logline.tx_id
 
 IsRoTxRequestAction ==
     /\ IsEvent("RoTxRequestAction")
@@ -95,6 +96,7 @@ IsStatusInvalidResponseAction ==
     /\ StatusInvalidResponseAction
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').status = ToStatus[logline.status]
+    /\ Last(history').tx_id = logline.tx_id
 
 \* Matches an event, but without advancing the log line. Useful to apply changes
 \* before an event can be handled, for example backfilling the ledger branch, or
