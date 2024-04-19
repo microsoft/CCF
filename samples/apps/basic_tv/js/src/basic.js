@@ -33,14 +33,32 @@ export function get_record(request) {
   };
 }
 
-export function post_records(request) {
-  const records = request.body.json();
+export function get_tx_status(request) {
+  const txid = request.params.txid;
+  if (txid === undefined) {
+    return { statusCode: 404, body: "Missing txid" };
+  }
 
-  for (let key in records) {
-    records_table.set(ccf.strToBuf(key), ccf.strToBuf(records[key]));
+  var [view, seqno] = txid.split(".");
+  view = parseInt(view);
+  seqno = parseInt(seqno);
+
+  const status = ccf.consensus.getStatusForTxId(view, seqno);
+  var lastCommittedSeqno = 0;
+
+  if (status === "Invalid")
+  {
+    while (ccf.consensus.getViewForSeqno(seqno) > view) {
+      seqno--;
+    };
+    lastCommittedSeqno = seqno;
   }
 
   return {
-    statusCode: 204,
+    statusCode: 200,
+    body: {
+      status: status,
+      lastCommittedSeqno: lastCommittedSeqno
+    }
   };
 }

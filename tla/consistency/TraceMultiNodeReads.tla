@@ -4,7 +4,7 @@ EXTENDS MultiNodeReads, Json, IOUtils, Sequences, SequencesExt
 \* Trace validation has been designed for TLC running in default model-checking
 \* mode, i.e., breadth-first search.
 \* The property TraceMatched will be violated if TLC runs with more than a single worker.
-ASSUME TLCGet("config").mode = "bfs" /\ TLCGet("config").worker = 1
+ASSUME TLCGet("config").mode = "bfs" /\ TLCGet("config").worker = 1 /\ TLCSet(0, 0)
 
 \* Note the extra /../ necessary to run in the VSCode extension but not a happy CLI default
 JsonFile ==
@@ -46,6 +46,7 @@ IsEvent(e) ==
     /\ l \in 1..Len(JsonLog)
     /\ logline.action = e
     /\ l' = l + 1
+    /\ TLCSet(0, Max({l', TLCGet(0)}))
 
 IsRwTxRequestAction ==
     /\ IsEvent("RwTxRequestAction")
@@ -159,6 +160,15 @@ RollbackLedgerBranch ==
           /\ ledgerBranches' = [ledgerBranches EXCEPT ![view] = SubSeq(ledgerBranches[view], 1, seqno - 1)]
     /\ UNCHANGED history
 
+RollbackLedgerBranch2 ==
+    /\ PreEvent("StatusInvalidResponseAction")
+    /\ LET view == logline.tx_id[1]
+           seqno == logline.tx_id[2]
+           lastCommittedSeqnoInView == logline.last_committed
+       IN /\ Len(ledgerBranches) < view + 1
+          /\ ledgerBranches' = Append(ledgerBranches, SubSeq(ledgerBranches[view], 1, lastCommittedSeqnoInView))
+    /\ UNCHANGED history
+
 TraceNext ==
     \/ IsRwTxRequestAction
     \/ IsRwTxExecuteAction
@@ -168,7 +178,8 @@ TraceNext ==
     \/ IsRoTxResponseAction
     \/ IsStatusInvalidResponseAction
     \/ BackfillLedgerBranch
-    \* That does not work because of LedgersMonoProp
+    \/ RollbackLedgerBranch2
+    \* That does not work because of action properties in MultiNodeReads
     \* \/ RollbackLedgerBranch
     \* \/ ViewChange
 
@@ -194,7 +205,7 @@ TraceMatched ==
 
 TraceMatchedNonTrivially ==
     \* If, e.g., the FALSE state constraint excludes all states, TraceMatched won't be violated.
-    TLCGet("stats").diameter >= Len(JsonLog)
+    TLCGet(0) >= Len(JsonLog)
 
 MNR == INSTANCE MultiNodeReads
 

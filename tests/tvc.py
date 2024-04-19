@@ -5,6 +5,7 @@ import httpx
 import random
 import json
 import argparse
+import sys
 
 """
 1. Run sandbox
@@ -104,19 +105,21 @@ def run(targets, cacert):
                 final = False
                 while not final:
                     try:
-                        response = session.get(f"{target}/tx?transaction_id={txid}")
+                        response = session.get(f"{target}/tx/{txid}")
                         if response.status_code == 200:
                             status = response.json()["status"]
+                            last_committed = response.json().get("lastCommittedSeqno", 0)
                             if status in ("Committed", "Invalid"):
                                 log(
                                     action=f"Status{status}ResponseAction",
                                     type="TxStatusReceived",
                                     tx_id=tx_id(txid),
                                     status=f"{status}Status",
+                                    last_committed=last_committed,
                                 )
                                 new_view, _ = tx_id(txid)
                                 if new_view > view:
-                                    log.prepend(action="TruncateLedgerAction")
+                                    # log.prepend(action="TruncateLedgerAction")
                                     view = new_view
                                 final = True
                                 break

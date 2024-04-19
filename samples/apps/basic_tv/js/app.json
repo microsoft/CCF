@@ -17,6 +17,16 @@
         "mode": "readwrite",
         "openapi": {}
       }
+    },
+    "/tx/{txid}": {
+      "get": {
+        "js_module": "basic.js",
+        "js_function": "get_tx_status",
+        "forwarding_required": "always",
+        "authn_policies": ["no_auth"],
+        "mode": "readonly",
+        "openapi": {}
+      }
     }
   }
 }

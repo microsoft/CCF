@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 import os
+from loguru import logger as LOG
 
 
 def run(args):
@@ -28,6 +29,7 @@ def run(args):
         os.makedirs(output_dir, exist_ok=True)
 
         with open("consistency/trace.ndjson", "w") as trace_file:
+            LOG.info(f"Starting TVC: {cli} > {trace_file.name}")
             tvc = subprocess.Popen(cli, stdout=trace_file)
             # Do some normal transactions
             time.sleep(2)
