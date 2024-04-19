@@ -44,7 +44,8 @@ HistoryTypeOK ==
             /\ history[i].tx \in Txs
         \/  /\ history[i].type \in {RwTxResponse, RoTxResponse}
             /\ history[i].tx \in Txs
-            /\ history[i].observed \in Seq(Txs)
+            /\ DOMAIN history[i].observed \subseteq Views
+            /\ Range(history[i].observed) \subseteq Txs
             /\ history[i].tx_id \in TxIDs
         \/  /\ history[i].type = TxStatusReceived
             /\ history[i].tx_id \in TxIDs

@@ -23,13 +23,13 @@ RoTxResponseAction ==
             /\ history[j].type = RoTxResponse
             /\ history[j].tx = history[i].tx} = {}
         /\ \E view \in DOMAIN ledgerBranches:
-            /\ Len(ledgerBranches[view]) > 0
+            /\ ledgerBranches[view] # <<>>
             /\ history' = Append(
                 history,[
                     type |-> RoTxResponse, 
                     tx |-> history[i].tx, 
                     observed |-> LedgerBranchTxOnly(ledgerBranches[view]),
-                    tx_id |-> <<ledgerBranches[view][Len(ledgerBranches[view])].view, Len(ledgerBranches[view])>>] )
+                    tx_id |-> <<ledgerBranches[view][Max(DOMAIN ledgerBranches[view])].view, Max(DOMAIN ledgerBranches[view])>>] )
     /\ UNCHANGED ledgerBranches
 
 NextSingleNodeReadsAction ==
