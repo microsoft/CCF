@@ -85,8 +85,10 @@ IsRoTxResponseAction ==
     /\ IsEvent("RoTxResponseAction")
     /\ RoTxResponseAction
     /\ Last(history').type = ToTxType[logline.type]
-    /\ Last(history').tx = logline.tx
-    /\ Last(history').tx_id = logline.tx_id
+    \* RwTxExecuteAction can only take place if a branch exists for the view
+    /\ Len(ledgerBranches) >= logline.tx_id[1]
+    \* and that branch contains just the right amount of transactions (seqno - 1)
+    /\ Len(ledgerBranches[logline.tx_id[1]]) = logline.tx_id[2] - 1
 
 IsStatusInvalidResponseAction ==
     /\ IsEvent("StatusInvalidResponseAction")
@@ -94,20 +96,27 @@ IsStatusInvalidResponseAction ==
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').status = ToStatus[logline.status]
 
-IsNotEvent ==
-    l' = l
+\* Matches an event, but without advancing the log line. Useful to apply changes
+\* before an event can be handled, for example backfilling the ledger branch, or
+\* creating new ledger branches.
+PreEvent(e) ==
+    /\ l' = l
+    /\ l \in 1..Len(JsonLog)
+    /\ logline.action = e
 
-InsertTruncateLedgerAction ==
-    /\ IsNotEvent
-    /\ "view" \in DOMAIN logline
-    /\ logline.view > Len(ledgerBranches)
-    /\ "tx_id" \in DOMAIN logline
-    /\ logline.tx_id[1] > Len(ledgerBranches)
-    /\ TruncateLedgerAction
-
-InsertOtherTxnAction ==
-    /\ IsNotEvent
-    /\ AppendOtherTxnAction
+BackfillBeforeTxExecuteAction ==
+    /\
+        \/ PreEvent("RwTxExecuteAction")
+        \* There is no separate RoTxExecuteAction, but conceptually,
+        \* we would backfill before it as well. Instead we do before the
+        \* RoTxResponseAction, which is the earliest possible opportunity.
+        \/ PreEvent("RoTxResponseAction")
+    \* Similar to AppendOtherTxnAction, but we know which branch to backfill
+    /\ LET view == logline.tx_id[1]
+           seqno == logline.tx_id[2]
+       IN /\ Len(ledgerBranches[view]) < seqno - 1
+          /\ ledgerBranches' = [ledgerBranches EXCEPT ![view] = Append(@, [view |-> view])]
+    /\ UNCHANGED history
 
 TraceNext ==
     \/ IsRwTxRequestAction
@@ -117,8 +126,7 @@ TraceNext ==
     \/ IsRoTxRequestAction
     \/ IsRoTxResponseAction
     \/ IsStatusInvalidResponseAction
-    \/ InsertTruncateLedgerAction
-    \/ InsertOtherTxnAction
+    \/ BackfillBeforeTxExecuteAction
 
 TraceSpec ==
     TraceInit /\ [][TraceNext]_<<l, vars>>
