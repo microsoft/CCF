@@ -308,11 +308,19 @@ that existing instances need to be flushed.
 
 JavaScript endpoint definitions.
 
-**Key** Represented as JSON.
+**Key** Concatenation of HTTP method and endpoint dispatch key.
 
-.. doxygenstruct:: ccf::endpoints::EndpointKey
-   :project: CCF
-   :members:
+.. list-table:: Examples
+   :header-rows: 1
+
+   * - ``app.json`` fragment
+     - Key
+   * - ``{ "endpoints": { "/jwt": { "get": { ... } } } }``
+     - ``GET /jwt``
+   * - ``{ "endpoints": { "/jwt": { "post": { ... } } } }``
+     - ``POST /jwt``
+   * - ``{ "endpoints": { "/log/private/{id}": { "post": { ... } } } }``
+     - ``POST /log/private/{id}``
 
 **Value** Represented as JSON.
 
