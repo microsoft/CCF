@@ -98,7 +98,7 @@ IsStatusInvalidResponseAction ==
     \* of an incompatible history state, which is not available at this point in the trace.
     /\ LET view == logline.tx_id[1]
            seqno == logline.tx_id[2]
-       IN /\ Len(ledgerBranches) < seqno 
+       IN /\ Len(ledgerBranches) > view
           /\ history' = Append(
              history, [
                 type |-> ToTxType[logline.type],
