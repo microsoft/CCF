@@ -22,9 +22,7 @@ steps:
           set -o pipefail
           cd tla/
           mkdir -p traces/consistency
-          # Passing prefix, following lines require implementing TruncateLedgerAction
-          # Will become mv ../build/consistency traces/ once every action matches
-          head -12 ../build/consistency/trace.ndjson > traces/consistency/trace.ndjson
+          mv ../build/consistency/trace.ndjson traces/consistency/
           JSON=traces/consistency/trace.ndjson ./tlc.sh -dump dot,constrained,colorize,actionlabels traces/consistency/trace.dot -dumpTrace tla traces/consistency/trace.trace.tla -dumpTrace json traces/consistency/trace.trace.json consistency/TraceMultiNodeReads.tla
           ls traces
         displayName: "Run Consistency Trace Validation"
