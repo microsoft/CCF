@@ -91,7 +91,7 @@ jobs:
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
-    container: virtual 
+    container: virtual
     pool:
       name: ado-virtual-ccf-sub # For access to managed identity
     dependsOn:
