@@ -37,6 +37,7 @@ jobs:
           - task: PublishSymbols@2
             env:
               ARTIFACTSERVICES_SYMBOL_ACCOUNTNAME: microsoft
+              ARTIFACTSERVICES_SYMBOL_PAT: $(ARTIFACTSERVICES_SYMBOL_PAT)
             inputs:
               SymbolsFolder: $(Build.SourcesDirectory)/build
               SearchPattern: "**/symbols/**/*.dbg"
