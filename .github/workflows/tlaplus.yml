@@ -113,7 +113,9 @@ jobs:
             tla/*.json
 
   tlai-linter:
+
     runs-on: ubuntu-latest
+    if: github.repository == 'microsoft/CCF'
 
     env:
       ## https://microsoft.github.io/genaiscript/reference/token/
