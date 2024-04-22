@@ -114,6 +114,19 @@ AppendOtherTxnAction ==
                     Append(@,[view |-> view])]
     /\ UNCHANGED history
 
+\* Append a committed status message to the history about the highest branch, which is NOT
+\* a response to a pending request
+StatusCommittedAction ==
+    /\ \E i \in DOMAIN Last(ledgerBranches):
+        /\ i > CommitSeqNum
+        /\ history' = Append(
+            history,[
+                type |-> StatusReceived, 
+                tx_id |-> << Len(ledgerBranches), i >>,
+                status |-> CommittedStatus]
+            )
+    /\ UNCHANGED ledgerBranches
+
 \* A CCF service with a single node will never have a view change
 \* so the log will never be rolled back and thus transaction IDs cannot be invalid
 NextSingleNodeAction ==
@@ -122,6 +135,7 @@ NextSingleNodeAction ==
     \/ RwTxResponseAction
     \/ StatusCommittedResponseAction
     \/ AppendOtherTxnAction
+    \/ StatusCommittedAction
 
 SpecSingleNode == Init /\ [][NextSingleNodeAction]_vars
 

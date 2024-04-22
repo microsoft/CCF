@@ -99,6 +99,7 @@ IsStatusInvalidResponseAction ==
     /\ LET view == logline.tx_id[1]
            seqno == logline.tx_id[2]
        IN /\ Len(ledgerBranches) > view
+          /\ Last(history).type = StatusReceived
           /\ history' = Append(
              history, [
                 type |-> ToTxType[logline.type],
@@ -143,6 +144,34 @@ RollbackLedgerBranch ==
           /\ ledgerBranches' = Append(ledgerBranches, SubSeq(ledgerBranches[view], 1, lastCommittedSeqnoInView))
     /\ UNCHANGED history
 
+LastCommitInBranchUpdate ==
+    /\ PreEvent("StatusInvalidResponseAction")
+    /\ LET view == logline.tx_id[1]
+           seqno == logline.tx_id[2]
+           lastCommittedSeqnoInView == logline.last_committed
+           nextView == logline.next_view
+       IN /\ Len(ledgerBranches) = nextView
+          /\ Len(Last(ledgerBranches)) = lastCommittedSeqnoInView + 1
+          /\ Last(history).type # StatusReceived
+          /\ history' = Append(
+             history,[
+                type |-> StatusReceived, 
+                tx_id |-> <<nextView, lastCommittedSeqnoInView + 1>>,
+                status |-> CommittedStatus]
+             )
+    /\ UNCHANGED ledgerBranches
+
+BackfillLedgerBranches2 ==
+    /\ PreEvent("StatusInvalidResponseAction")
+    /\ LET view == logline.tx_id[1]
+           seqno == logline.tx_id[2]
+           lastCommittedSeqnoInView == logline.last_committed
+           nextView == logline.next_view
+       IN /\ Len(ledgerBranches) < nextView
+          /\ Len(Last(ledgerBranches)) = lastCommittedSeqnoInView
+          /\ ledgerBranches' = Append(ledgerBranches, Last(ledgerBranches))
+    /\ UNCHANGED history
+
 \* Term may rev up by more than one post rollback, in which case we need to backfill
 \* branches before we can backfill transactions in the new view with BackfillLedgerBranch
 BackfillLedgerBranches ==
@@ -152,6 +181,20 @@ BackfillLedgerBranches ==
        IN /\ Len(ledgerBranches) < view
           /\ ledgerBranches' = Append(ledgerBranches, Last(ledgerBranches))
     /\ UNCHANGED history
+
+\* Term may rev up by more than one post rollback, in which case we need to backfill
+\* branches before we can backfill transactions in the new view with BackfillLedgerBranch
+BackfillLedgerBranches3 ==
+    /\ PreEvent("StatusInvalidResponseAction")
+    /\ LET view == logline.tx_id[1]
+           seqno == logline.tx_id[2]
+           lastCommittedSeqnoInView == logline.last_committed
+           nextView == logline.next_view
+       IN /\ Len(ledgerBranches) = nextView
+          /\ Len(Last(ledgerBranches)) < lastCommittedSeqnoInView + 1
+          /\ ledgerBranches' = [ledgerBranches EXCEPT ![nextView] = Append(@, [view |-> nextView])]
+    /\ UNCHANGED history
+
 
 TraceNext ==
     \/ IsRwTxRequestAction
@@ -164,6 +207,9 @@ TraceNext ==
     \/ BackfillLedgerBranch
     \/ RollbackLedgerBranch
     \/ BackfillLedgerBranches
+    \/ LastCommitInBranchUpdate
+    \/ BackfillLedgerBranches2
+    \/ BackfillLedgerBranches3
 
 TraceSpec ==
     TraceInit /\ [][TraceNext]_<<l, vars>>

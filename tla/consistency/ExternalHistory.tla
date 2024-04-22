@@ -10,7 +10,7 @@ EXTENDS Naturals, Sequences, SequencesExt, FiniteSets, FiniteSetsExt
 \* Currently only read-write (Rw) transactions and read-only (Ro) transactions are modelled
 \* Both transaction types are modelled as forward-always transactions
 \* This could be extended to support more types of read-only transactions
-CONSTANTS RwTxRequest, RwTxResponse, RoTxRequest, RoTxResponse, TxStatusReceived
+CONSTANTS RwTxRequest, RwTxResponse, RoTxRequest, RoTxResponse, TxStatusReceived, StatusReceived
 
 
 \* Transaction statuses
@@ -53,6 +53,9 @@ HistoryTypeOK ==
         \/  /\ history[i].type = TxStatusReceived
             /\ history[i].tx_id \in TxIDs
             /\ history[i].status \in TxStatuses
+        \/  /\ history[i].type = StatusReceived
+            /\ history[i].status \in TxStatuses
+        
 
 \* History is append-only
 \* Like HistoryTypeOK, this property should always hold
@@ -62,7 +65,7 @@ HistoryMonoProp ==
 \* Indexes into history for events where a committed status is received
 CommittedEventIndexes == 
     {i \in DOMAIN history: 
-        /\ history[i].type = TxStatusReceived
+        /\ history[i].type \in { TxStatusReceived, StatusReceived }
         /\ history[i].status = CommittedStatus
         }
 

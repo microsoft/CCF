@@ -109,6 +109,7 @@ def run(targets, cacert):
                         if response.status_code == 200:
                             status = response.json()["status"]
                             last_committed = response.json().get("lastCommittedSeqno", 0)
+                            next_view = response.json().get("nextView", 0)
                             if status in ("Committed", "Invalid"):
                                 log(
                                     action=f"Status{status}ResponseAction",
@@ -116,6 +117,7 @@ def run(targets, cacert):
                                     tx_id=tx_id(txid),
                                     status=f"{status}Status",
                                     last_committed=last_committed,
+                                    next_view=next_view,
                                 )
                                 new_view, _ = tx_id(txid)
                                 if new_view > view:

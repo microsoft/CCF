@@ -45,6 +45,7 @@ export function get_tx_status(request) {
 
   const status = ccf.consensus.getStatusForTxId(view, seqno);
   var lastCommittedSeqno = 0;
+  var nextView = view;
 
   if (status === "Invalid")
   {
@@ -52,13 +53,15 @@ export function get_tx_status(request) {
       seqno--;
     };
     lastCommittedSeqno = seqno;
+    nextView = ccf.consensus.getViewForSeqno(seqno + 1);
   }
 
   return {
     statusCode: 200,
     body: {
       status: status,
-      lastCommittedSeqno: lastCommittedSeqno
+      lastCommittedSeqno: lastCommittedSeqno,
+      nextView: nextView
     }
   };
 }
