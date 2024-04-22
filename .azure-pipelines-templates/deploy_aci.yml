@@ -94,6 +94,8 @@ jobs:
     container: virtual
     pool:
       name: ado-virtual-ccf-sub # For access to managed identity
+      demands:
+        - WorkFolder -equals /mnt/storage
     dependsOn:
       - generate_ssh_key
       - deploy_primary_aci
