@@ -5,6 +5,7 @@ import infra.e2e_args
 import subprocess
 import sys
 import time
+import os
 
 
 def run(args):
@@ -21,7 +22,12 @@ def run(args):
             cli.append(target)
         cli.append("--ca")
         cli.append(network.cert_path)
-        with open("consistency_trace.ndjson", "w") as trace_file:
+
+        # Create consistency-specific output directory
+        output_dir = os.path.join("consistency")
+        os.makedirs(output_dir, exist_ok=True)
+
+        with open("consistency/trace.ndjson", "w") as trace_file:
             tvc = subprocess.Popen(cli, stdout=trace_file)
             # Do some normal transactions
             time.sleep(2)
@@ -41,6 +47,6 @@ if __name__ == "__main__":
     args.package = "libjs_generic"
     args.js_app_bundle = "../samples/apps/basic_tv/js/"
     args.nodes = infra.e2e_args.nodes(args, 5)
-    # Long signature interval to maximise the chace of an InvalidStatus transaction
+    # Long signature interval to maximise the chance of an InvalidStatus transaction
     args.sig_ms_interval = 1000
     run(args)

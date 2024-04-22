@@ -19,7 +19,7 @@ LedgerTypeOK ==
             \* Each ledger entry is tuple containing a view and tx
             \* The ledger entry index is the sequence number
             /\ ledgerBranches[view][seqnum].view \in Views
-            /\ ledgerBranches[view][seqnum].tx \in Txs
+            \* /\ ledgerBranches[view][seqnum].tx \in Txs
 
 \* In this abstract version of CCF's consensus layer, each ledger is append-only
 LedgersMonoProp ==
@@ -56,14 +56,19 @@ RwTxExecuteAction ==
         /\ history[i].type = RwTxRequest
         \* Check transaction has not already been added to a ledger
         /\ \A view \in DOMAIN ledgerBranches: 
-            {seqnum \in DOMAIN ledgerBranches[view]: 
-                history[i].tx = ledgerBranches[view][seqnum].tx} = {}
+            \A seqnum \in DOMAIN ledgerBranches[view]: 
+                "tx" \in DOMAIN ledgerBranches[view][seqnum]
+                => history[i].tx /= ledgerBranches[view][seqnum].tx
         \* Note that a transaction can be added to any ledger, simulating the fact
         \* that it can be picked up by the current leader or any former leader
         /\ \E view \in DOMAIN ledgerBranches:
                 ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
                     Append(@,[view |-> view, tx |-> history[i].tx])]
         /\ UNCHANGED history
+
+LedgerBranchTxOnly(branch) ==
+    LET SubBranch == SelectSeq(branch, LAMBDA e : "tx" \in DOMAIN e)
+    IN [i \in DOMAIN SubBranch |-> SubBranch[i].tx]
 
 \* Response to a read-write transaction
 RwTxResponseAction ==
@@ -76,12 +81,13 @@ RwTxResponseAction ==
             /\ history[j].tx = history[i].tx} = {}
         /\ \E view \in DOMAIN ledgerBranches:
             /\ \E seqnum \in DOMAIN ledgerBranches[view]: 
+                /\ "tx" \in DOMAIN ledgerBranches[view][seqnum]
                 /\ history[i].tx = ledgerBranches[view][seqnum].tx
                 /\ history' = Append(
                     history,[
                         type |-> RwTxResponse, 
                         tx |-> history[i].tx, 
-                        observed |-> [x \in 1..seqnum |-> ledgerBranches[view][x].tx],
+                        observed |-> LedgerBranchTxOnly(SubSeq(ledgerBranches[view],1,seqnum)),
                         tx_id |-> <<ledgerBranches[view][seqnum].view, seqnum>>] )
     /\ UNCHANGED ledgerBranches
 
@@ -101,6 +107,13 @@ StatusCommittedResponseAction ==
             )
     /\ UNCHANGED ledgerBranches
 
+\* Append a transaction to the ledger which does not impact the state we are considering
+AppendOtherTxnAction ==
+    /\ \E view \in DOMAIN ledgerBranches:
+        ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
+                    Append(@,[view |-> view])]
+    /\ UNCHANGED history
+
 \* A CCF service with a single node will never have a view change
 \* so the log will never be rolled back and thus transaction IDs cannot be invalid
 NextSingleNodeAction ==
@@ -108,8 +121,9 @@ NextSingleNodeAction ==
     \/ RwTxExecuteAction
     \/ RwTxResponseAction
     \/ StatusCommittedResponseAction
-
+    \/ AppendOtherTxnAction
 
 SpecSingleNode == Init /\ [][NextSingleNodeAction]_vars
+
 
 ====
