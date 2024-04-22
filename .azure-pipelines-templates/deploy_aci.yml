@@ -29,6 +29,7 @@ jobs:
       name: ado-virtual-ccf-sub # To build CCF quickly
       demands:
         - WorkFolder -equals /mnt/storage
+    container: virtual
 
     steps:
       - checkout: self
@@ -66,7 +67,6 @@ jobs:
 
       - script: |
           set -ex
-          sudo apt-get install -y python3.8-venv
           python3.8 -m venv ./scripts/azure_deployment/.env
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
@@ -91,6 +91,7 @@ jobs:
 
   - job: cleanup_aci
     displayName: "Cleanup ACI"
+    container: virtual
     pool:
       name: ado-virtual-ccf-sub # For access to managed identity
     dependsOn:
