@@ -19,7 +19,7 @@ LedgerTypeOK ==
             \* Each ledger entry is tuple containing a view and tx
             \* The ledger entry index is the sequence number
             /\ ledgerBranches[view][seqnum].view \in Views
-            \* /\ ledgerBranches[view][seqnum].tx \in Txs
+            /\ "tx" \in DOMAIN ledgerBranches[view][seqnum] => ledgerBranches[view][seqnum].tx \in Txs
 
 \* In this abstract version of CCF's consensus layer, each ledger is append-only
 LedgersMonoProp ==
@@ -33,7 +33,7 @@ TypeOK ==
 
 Init ==
     /\ history = <<>>
-    /\ ledgerBranches = [ x \in {1} |-> <<>>]
+    /\ ledgerBranches = [ x \in 1..FirstBranch |-> <<>>]
 
 IndexOfLastRequested ==
     SelectLastInSeq(history, LAMBDA e : e.type \in {RwTxRequest, RoTxRequest})
@@ -61,7 +61,7 @@ RwTxExecuteAction ==
                 => history[i].tx /= ledgerBranches[view][seqnum].tx
         \* Note that a transaction can be added to any ledger, simulating the fact
         \* that it can be picked up by the current leader or any former leader
-        /\ \E view \in DOMAIN ledgerBranches:
+        /\ \E view \in FirstBranch..Len(ledgerBranches):
                 ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
                     Append(@,[view |-> view, tx |-> history[i].tx])]
         /\ UNCHANGED history
@@ -79,7 +79,7 @@ RwTxResponseAction ==
             /\ j > i 
             /\ history[j].type = RwTxResponse
             /\ history[j].tx = history[i].tx} = {}
-        /\ \E view \in DOMAIN ledgerBranches:
+        /\ \E view \in FirstBranch..Len(ledgerBranches):
             /\ \E seqnum \in DOMAIN ledgerBranches[view]: 
                 /\ "tx" \in DOMAIN ledgerBranches[view][seqnum]
                 /\ history[i].tx = ledgerBranches[view][seqnum].tx
@@ -109,7 +109,7 @@ StatusCommittedResponseAction ==
 
 \* Append a transaction to the ledger which does not impact the state we are considering
 AppendOtherTxnAction ==
-    /\ \E view \in DOMAIN ledgerBranches:
+    /\ \E view \in FirstBranch..Len(ledgerBranches):
         ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
                     Append(@,[view |-> view])]
     /\ UNCHANGED history
