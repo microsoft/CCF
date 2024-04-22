@@ -4,11 +4,11 @@ EXTENDS MultiNodeReads, Json, IOUtils, Sequences, SequencesExt
 \* Trace validation has been designed for TLC running in default model-checking
 \* mode, i.e., breadth-first search.
 \* The property TraceMatched will be violated if TLC runs with more than a single worker.
-ASSUME TLCGet("config").mode = "bfs" /\ TLCGet("config").worker = 1
+ASSUME TLCGet("config").mode = "bfs" /\ TLCGet("config").worker = 1 /\ TLCSet(0, 0)
 
 \* Note the extra /../ necessary to run in the VSCode extension but not a happy CLI default
 JsonFile ==
-    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../../build/consistency/trace.ndjson"
+    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "trace.ndjson"
 
 JsonLog ==
     \* Deserialize the System log as a sequence of records from the log file.
@@ -46,6 +46,7 @@ IsEvent(e) ==
     /\ l \in 1..Len(JsonLog)
     /\ logline.action = e
     /\ l' = l + 1
+    /\ TLCSet(0, Max({l', TLCGet(0)}))
 
 IsRwTxRequestAction ==
     /\ IsEvent("RwTxRequestAction")
@@ -57,18 +58,24 @@ IsRwTxExecuteAction ==
     /\ IsEvent("RwTxExecuteAction")
     /\ RwTxExecuteAction
     /\ Last(history').tx = logline.tx
+     \* RwTxExecuteAction can only take place if a branch exists for the view
+    /\ Len(ledgerBranches) >= logline.tx_id[1]
+    \* and that branch contains just the right amount of transactions (seqno - 1)
+    /\ Len(ledgerBranches[logline.tx_id[1]]) = logline.tx_id[2] - 1
 
 IsRwTxResponseAction ==
     /\ IsEvent("RwTxResponseAction")
     /\ RwTxResponseAction
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').tx = logline.tx
+    /\ Last(history').tx_id = logline.tx_id
 
 IsStatusCommittedResponseAction ==
     /\ IsEvent("StatusCommittedResponseAction")
     /\ StatusCommittedResponseAction
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').status = ToStatus[logline.status]
+    /\ Last(history').tx_id = logline.tx_id
 
 IsRoTxRequestAction ==
     /\ IsEvent("RoTxRequestAction")
@@ -81,12 +88,49 @@ IsRoTxResponseAction ==
     /\ RoTxResponseAction
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').tx = logline.tx
+     \* RwTxExecuteAction can only take place if a branch exists for the view
+    /\ Len(ledgerBranches) >= logline.tx_id[1]
+    \* and that branch contains just the right amount of transactions (seqno - 1)
+    /\ Len(ledgerBranches[logline.tx_id[1]]) = logline.tx_id[2] - 1
 
 IsStatusInvalidResponseAction ==
     /\ IsEvent("StatusInvalidResponseAction")
     /\ StatusInvalidResponseAction
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').status = ToStatus[logline.status]
+    /\ Last(history').tx_id = logline.tx_id
+
+\* Matches an event, but without advancing the log line. Useful to apply changes
+\* before an event can be handled, for example backfilling the ledger branch, or
+\* creating new ledger branches.
+PreEvent(e) ==
+    /\ l' = l
+    /\ l \in 1..Len(JsonLog)
+    /\ logline.action = e
+
+BackfillLedgerBranch ==
+    /\
+        \/ PreEvent("RwTxExecuteAction")
+        \* There is no separate RoTxExecuteAction, but conceptually,
+        \* we would backfill before it as well. Instead we do before the
+        \* RoTxResponseAction, which is the earliest possible opportunity.
+        \/ PreEvent("RoTxResponseAction")
+    \* Similar to AppendOtherTxnAction, but only append to the specific branch
+    \* necessary to enable the next transaction to execute.
+    /\ LET view == logline.tx_id[1]
+           seqno == logline.tx_id[2]
+       IN /\ Len(ledgerBranches) >= view
+          /\ Len(ledgerBranches[view]) < seqno - 1
+          /\ ledgerBranches' = [ledgerBranches EXCEPT ![view] = Append(@, [view |-> view])]
+    /\ UNCHANGED history
+
+BackfillLedgerBranches ==
+    /\ PreEvent("RwTxExecuteAction")
+    /\ LET view == logline.tx_id[1]
+           seqno == logline.tx_id[2]
+       IN /\ Len(ledgerBranches) < view
+          /\ ledgerBranches' = Append(ledgerBranches, Last(ledgerBranches))
+    /\ UNCHANGED history
 
 TraceNext ==
     \/ IsRwTxRequestAction
@@ -96,6 +140,8 @@ TraceNext ==
     \/ IsRoTxRequestAction
     \/ IsRoTxResponseAction
     \/ IsStatusInvalidResponseAction
+    \/ BackfillLedgerBranch
+    \/ BackfillLedgerBranches
 
 TraceSpec ==
     TraceInit /\ [][TraceNext]_<<l, vars>>
@@ -119,7 +165,7 @@ TraceMatched ==
 
 TraceMatchedNonTrivially ==
     \* If, e.g., the FALSE state constraint excludes all states, TraceMatched won't be violated.
-    TLCGet("stats").diameter >= Len(JsonLog)
+    TLCGet(0) >= Len(JsonLog)
 
 MNR == INSTANCE MultiNodeReads
 
