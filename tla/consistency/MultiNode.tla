@@ -25,10 +25,13 @@ StatusInvalidResponseAction ==
         /\ \/ /\ CommitSeqNum >= history[i].tx_id[2]
               /\ Len(ledgerBranches[Len(ledgerBranches)]) >= history[i].tx_id[2]
               /\ ledgerBranches[Len(ledgerBranches)][history[i].tx_id[2]].view # history[i].tx_id[1]
-        \* or commit hasn't reached seqnum but never will as current seqnum is higher
+        \* or commit hasn't reached seqnum but never will as current view is higher
             \/ /\ CommitSeqNum > 0
                /\ CommitSeqNum < history[i].tx_id[2]
                /\ ledgerBranches[Len(ledgerBranches)][CommitSeqNum].view > history[i].tx_id[1]
+        \* or commit hasn't reached there,... but can never reach there
+            \/ /\ history[i].tx_id[1] = Len(ledgerBranches)
+               /\ history[i].tx_id[2] > CommitSeqNum
         \* Reply
         /\ history' = Append(
             history,[
