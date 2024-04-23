@@ -48,52 +48,70 @@ IsEvent(e) ==
 
 IsRwTxRequestAction ==
     /\ IsEvent("RwTxRequestAction")
+    \* Model action
     /\ RwTxRequestAction
+    \* Match message contents
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').tx = logline.tx
 
 IsRwTxExecuteAction ==
     /\ IsEvent("RwTxExecuteAction")
+    \* Model action
     /\ RwTxExecuteAction
+    \* Match message contents
     /\ Last(history').tx = logline.tx
-     \* RwTxExecuteAction can only take place if a branch exists for the view
+    \* RwTxExecuteAction can only take place if a branch exists for the view
+    \* If there is no branch, BackfillLedgerBranches will create the right amount of branches
     /\ Len(ledgerBranches) >= logline.tx_id[1]
-    \* and that branch contains just the right amount of transactions (seqno - 1)
+    \* That branch contains just the right amount of transactions (seqno - 1)
+    \* If that's not the case, BackfillLedgerBranche will create the right amount of txs
     /\ Len(ledgerBranches[logline.tx_id[1]]) = logline.tx_id[2] - 1
 
 IsRwTxResponseAction ==
     /\ IsEvent("RwTxResponseAction")
+    \* Model action
     /\ RwTxResponseAction
+    \* Match message contents
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').tx = logline.tx
     /\ Last(history').tx_id = logline.tx_id
 
 IsStatusCommittedResponseAction ==
     /\ IsEvent("StatusCommittedResponseAction")
+    \* Model action
     /\ StatusCommittedResponseAction
+    \* Match message contents
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').status = ToStatus[logline.status]
     /\ Last(history').tx_id = logline.tx_id
 
 IsRoTxRequestAction ==
     /\ IsEvent("RoTxRequestAction")
+    \* Model action
     /\ RoTxRequestAction
+    \* Match message contents
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').tx = logline.tx
 
 IsRoTxResponseAction ==
     /\ IsEvent("RoTxResponseAction")
+    \* Model action
     /\ RoTxResponseAction
+    \* Match message contents
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').tx = logline.tx
-     \* RwTxExecuteAction can only take place if a branch exists for the view
+    \* RoTxResponseAction can only take place if a branch exists for the view
+    \* If there is no branch, BackfillLedgerBranches will create the right amount of branches
     /\ Len(ledgerBranches) >= logline.tx_id[1]
-    \* and that branch contains just the right amount of transactions (seqno - 1)
+    \* That branch contains just the right amount of transactions (seqno - 1)
+    \* If that's not the case, BackfillLedgerBranche will create the right amount of txs
     /\ Len(ledgerBranches[logline.tx_id[1]]) = logline.tx_id[2] - 1
 
 IsStatusInvalidResponseAction ==
     /\ IsEvent("StatusInvalidResponseAction")
+    \* Model action
     /\ StatusInvalidResponseAction
+    \* Match message contents
     /\ Last(history').type = ToTxType[logline.type]
     /\ Last(history').status = ToStatus[logline.status]
     /\ Last(history').tx_id = logline.tx_id
@@ -108,11 +126,11 @@ PreEvent(e) ==
 
 BackfillLedgerBranch ==
     /\
-        \/ PreEvent("RwTxExecuteAction")
-        \* There is no separate RoTxExecuteAction, but conceptually,
-        \* we would backfill before it as well. Instead we do before the
-        \* RoTxResponseAction, which is the earliest possible opportunity.
-        \/ PreEvent("RoTxResponseAction")
+       \/ PreEvent("RwTxExecuteAction")
+       \* There is no separate RoTxExecuteAction, but conceptually,
+       \* we would backfill before it as well. Instead we do before the
+       \* RoTxResponseAction, which is the earliest possible opportunity.
+       \/ PreEvent("RoTxResponseAction")
     \* Similar to AppendOtherTxnAction, but only append to the specific branch
     \* necessary to enable the next transaction to execute.
     /\ LET view == logline.tx_id[1]
@@ -125,7 +143,11 @@ BackfillLedgerBranch ==
 BackfillLedgerBranches ==
     /\
        \/ PreEvent("RwTxExecuteAction")
+       \* There is no separate RoTxExecuteAction, but conceptually,
+       \* we would backfill before it as well. Instead we do before the
+       \* RoTxResponseAction, which is the earliest possible opportunity.
        \/ PreEvent("RoTxResponseAction")
+    \* Similar to TruncateLedgerAction, but only advances the view
     /\ LET view == logline.tx_id[1]
            seqno == logline.tx_id[2]
        IN /\ Len(ledgerBranches) < view
