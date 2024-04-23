@@ -101,6 +101,10 @@ StatusCommittedResponseAction ==
            /\ Len(Last(ledgerBranches)) >= seqno
            /\ Last(ledgerBranches)[seqno].view = view
            \* There is no future InvalidStatus that's incompatible with this commit
+           \* This is to accomodate StatusInvalidResponseAction making future commits invalid,
+           \* and is an unnecessary complication for model checking. It does facilitate trace
+           \* validation though, by allowing immediate processing of Invalids without
+           \* needing to wait for the commit history knowledge to catch up.
            /\ \lnot \E j \in DOMAIN history:
                 /\ history[j].type = TxStatusReceived
                 /\ history[j].status = InvalidStatus
