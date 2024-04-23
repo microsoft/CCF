@@ -13,7 +13,7 @@ ViewWithAllCommitted ==
 \* Simulates leader election by rolling back some number of uncommitted transactions and updating view
 TruncateLedgerAction ==
     /\ \E view \in ViewWithAllCommitted:
-        /\ \E i \in (CommitSeqNum + 1)..Len(ledgerBranches[view]) :
+        /\ \E i \in CommitSeqNum..Len(ledgerBranches[view]) :
             /\ ledgerBranches' = Append(ledgerBranches, SubSeq(ledgerBranches[view], 1, i))
             /\ UNCHANGED history
 

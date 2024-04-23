@@ -7,6 +7,8 @@ import sys
 import time
 import os
 
+from loguru import logger as LOG
+
 
 def run(args):
     with infra.network.network(
@@ -28,6 +30,7 @@ def run(args):
         os.makedirs(output_dir, exist_ok=True)
 
         with open("consistency/trace.ndjson", "w") as trace_file:
+            LOG.info(f"Starting {' '.join(cli)} > {trace_file.name}")
             tvc = subprocess.Popen(cli, stdout=trace_file)
             # Do some normal transactions
             time.sleep(2)
@@ -38,6 +41,9 @@ def run(args):
             primary.resume()
             # Do some more transactions
             time.sleep(5)
+            tvc.poll()
+            if tvc.returncode is not None:
+                raise Exception(f"tvc failed with rc {tvc.returncode}")
             tvc.send_signal(subprocess.signal.SIGINT)
             tvc.wait()
 
