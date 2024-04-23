@@ -123,7 +123,9 @@ BackfillLedgerBranch ==
     /\ UNCHANGED history
 
 BackfillLedgerBranches ==
-    /\ PreEvent("RwTxExecuteAction")
+    /\
+       \/ PreEvent("RwTxExecuteAction")
+       \/ PreEvent("RoTxResponseAction")
     /\ LET view == logline.tx_id[1]
            seqno == logline.tx_id[2]
        IN /\ Len(ledgerBranches) < view
