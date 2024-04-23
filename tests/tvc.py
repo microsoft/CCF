@@ -32,25 +32,8 @@ KEY = "0"
 VALUE = "value"
 
 
-class Log:
-    """
-    A simple way to defer logging until the end of transaction cycle,
-    and to prepend actions if necessary, such as TruncateLedgerAction
-    """
-
-    def __init__(self):
-        self.entries = []
-
-    def prepend(self, **kwargs):
-        self.entries.insert(0, kwargs)
-
-    def __call__(self, **kwargs):
-        self.entries.append(kwargs)
-
-    def dump(self):
-        for entry in self.entries:
-            print(json.dumps(entry))
-        self.entries = []
+def log(**kwargs):
+    print(json.dumps(kwargs))
 
 
 def tx_id(string):
@@ -62,9 +45,7 @@ def run(targets, cacert):
     transport = httpx.HTTPTransport(retries=10, verify=cacert)
     session = httpx.Client(transport=transport)
     tx = 0
-    view = 2
     while True:
-        log = Log()
         target = random.choice(targets)
         # Always start with a write, to avoid having to handle missing values
         txtype = random.choice(["Ro", "Rw"]) if tx else "Rw"
@@ -111,10 +92,6 @@ def run(targets, cacert):
                                     tx_id=tx_id(txid),
                                     status=f"{status}Status",
                                 )
-                                new_view, _ = tx_id(txid)
-                                if new_view > view:
-                                    # log.prepend(action="TruncateLedgerAction")
-                                    view = new_view
                                 final = True
                                 break
                     except httpx.ReadTimeout:
@@ -124,7 +101,6 @@ def run(targets, cacert):
                     target = random.choice(targets)
         else:
             raise ValueError(f"Unknown Tx type: {txtype}")
-        log.dump()
         tx += 1
 
 
