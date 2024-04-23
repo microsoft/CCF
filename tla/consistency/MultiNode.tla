@@ -30,6 +30,10 @@ StatusInvalidResponseAction ==
                /\ CommitSeqNum < history[i].tx_id[2]
                /\ ledgerBranches[Len(ledgerBranches)][CommitSeqNum].view > history[i].tx_id[1]
         \* or commit hasn't reached there,... but can never reach there
+        \* note that this effectively allows StatusInvalidResponseAction to "declare" future transactions
+        \* invalid, and requires a corresponding change in SingleNode::StatusCommittedResponseAction to
+        \* constrain future commits. This combined change is unnecessary for model checking, but greatly
+        \* simplifies trace validation. 
             \/ /\ history[i].tx_id[1] = Len(ledgerBranches)
                /\ history[i].tx_id[2] > CommitSeqNum
         \* Reply
