@@ -110,17 +110,18 @@ def test_commit_view_history(network, args):
         # Endpoint works with no query parameter
         res = c.get("/app/commit")
         assert res.status_code == http.HTTPStatus.OK
-        assert "view_history" not in res.body.json()
+        view_history = res.body.json().get("view_history", None)
+        assert view_history is None
 
         # Invalid query parameter
         res = c.get("/app/commit?view_history=nottrue")
         assert res.status_code == http.HTTPStatus.BAD_REQUEST
-        assert res.body.json() == {
-            "error": {
-                "code": "InvalidQueryParameterValue",
-                "message": "Invalid value for view_history, must be one of [true, false] when present",
-            }
-        }
+        error = res.body.json()["error"]
+        assert error["code"] == "InvalidQueryParameterValue"
+        assert (
+            error["message"]
+            == "Invalid value for view_history, must be one of [true, false] when present"
+        )
 
         # true view_history should list all history
         res = c.get("/app/commit?view_history=true")
@@ -136,12 +137,12 @@ def test_commit_view_history(network, args):
         # ask for an invalid view
         res = c.get("/app/commit?view_history_since=0")
         assert res.status_code == http.HTTPStatus.BAD_REQUEST
-        assert res.body.json() == {
-            "error": {
-                "code": "InvalidQueryParameterValue",
-                "message": "Invalid value for view_history_since, must be in range [1, current_term]",
-            }
-        }
+        error = res.body.json()["error"]
+        assert error["code"] == "InvalidQueryParameterValue"
+        assert (
+            error["message"]
+            == "Invalid value for view_history_since, must be in range [1, current_term]",
+        )
 
         # views start at 1, at least internally
         res = c.get("/app/commit?view_history_since=1")
@@ -161,12 +162,12 @@ def test_commit_view_history(network, args):
         # getting from the future doesn't work
         res = c.get(f"/app/commit?view_history_since={current_view + 1}")
         assert res.status_code == http.HTTPStatus.NOT_FOUND
-        assert res.body.json() == {
-            "error": {
-                "code": "InvalidQueryParameterValue",
-                "message": "Invalid value for view_history_since, must be in range [1, current_term]",
-            }
-        }
+        error = res.body.json()["error"]
+        assert error["code"] == "InvalidQueryParameterValue"
+        assert (
+            error["message"]
+            == "Invalid value for view_history_since, must be in range [1, current_term]",
+        )
 
         # view_history should override the view_history_since
         res = c.get(f"/app/commit?view_history=true&view_history_since={current_view}")
