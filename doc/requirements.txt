@@ -12,3 +12,6 @@ furo
 # docutils 0.17.0 causes "AttributeError: module 
 # 'docutils.nodes' has no attribute 'meta'" error when building doc
 docutils==0.18.*
+# Required-by: sphinxcontrib-openapi
+# cannot import name 'error_string' from 'docutils.io'
+sphinx-mdinclude==0.5.4
