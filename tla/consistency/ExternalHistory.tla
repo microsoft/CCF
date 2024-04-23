@@ -21,6 +21,10 @@ TxStatuses == {
     InvalidStatus
     }
 
+\* Although views start at 1 in the consistency spec, this constant allows increasing the first branch
+\* that can be appended to, to enable trace validation against the implementation, where view starts at 2
+CONSTANT FirstBranch
+
 \* Views start at 1, 0 is used a null value
 Views == Nat
 
