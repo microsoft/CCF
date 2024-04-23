@@ -29,6 +29,6 @@ steps:
 
   - task: PublishPipelineArtifact@1
     inputs:
-      artifactName: "Trace Validation Output: ${{ parameters.suffix }}"
+      artifactName: "Trace Validation Output ${{ parameters.suffix }}"
       targetPath: tla/traces
     condition: or(failed(), canceled())
