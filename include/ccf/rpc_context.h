@@ -160,7 +160,7 @@ namespace ccf
       http_status status,
       const std::string& code,
       std::string&& msg,
-      const std::vector<nlohmann::json>& details = {}) = 0;
+      const std::optional<std::vector<nlohmann::json>>& details = std::nullopt) = 0;
 
     /// Construct error response, formatted according to the request content
     /// type (either JSON OData-formatted or gRPC error)

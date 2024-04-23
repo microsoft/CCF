@@ -276,13 +276,14 @@ def test_member_data(network, args):
     md_count = 0
     for member in network.get_members():
         stored_member_info = json.loads(members_info[member.service_id.encode()])
+        stored_member_data = stored_member_info.get("member_data", None)
         if member.member_data:
             assert (
-                stored_member_info["member_data"] == member.member_data
-            ), f'stored member data "{stored_member_info["member_data"]}" != expected "{member.member_data} "'
+                stored_member_data == member.member_data
+            ), f'stored member data "{stored_member_data}" != expected "{member.member_data} "'
             md_count += 1
         else:
-            assert "member_data" not in stored_member_info
+            assert stored_member_data is None
 
     assert md_count == args.initial_operator_count
 

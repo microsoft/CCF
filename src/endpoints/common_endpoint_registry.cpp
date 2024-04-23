@@ -164,7 +164,7 @@ namespace ccf
         }
         else if (view_history.value() == "false")
         {
-          out.view_history.clear();
+          out.view_history = std::nullopt;
         }
         else
         {

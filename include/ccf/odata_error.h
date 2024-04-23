@@ -37,7 +37,7 @@ namespace ccf
   {
     std::string code;
     std::string message;
-    std::vector<nlohmann::json> details = {};
+    std::optional<std::vector<nlohmann::json>> details = std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ODataError);

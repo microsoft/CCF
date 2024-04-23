@@ -76,7 +76,7 @@ namespace ccf
       http_status status,
       const std::string& code,
       std::string&& msg,
-      const std::vector<nlohmann::json>& details = {}) override
+      const std::optional<std::vector<nlohmann::json>>& details = std::nullopt) override
     {
       auto content_type = get_request_header(http::headers::CONTENT_TYPE);
       if (

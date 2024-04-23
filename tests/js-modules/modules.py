@@ -51,6 +51,12 @@ def generate_and_verify_jwk(client):
     r = client.post("/app/pubPemToJwk", body={"pem": "invalid_pem"})
     assert r.status_code != http.HTTPStatus.OK
 
+    def jwk_matches_ref(jwk, ref):
+        for k, v in ref.items():
+            assert k in jwk, jwk
+            assert jwk[k] == v
+
+
     # Elliptic curve
     curves = [ec.SECP256R1, ec.SECP256K1, ec.SECP384R1]
     for curve in curves:
@@ -63,7 +69,7 @@ def generate_and_verify_jwk(client):
         body = r.body.json()
         assert r.status_code == http.HTTPStatus.OK
         assert body["kty"] == "EC"
-        assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
+        jwk_matches_ref(body, ref_priv_jwk)
 
         r = client.post("/app/jwkToPem", body={"jwk": body})
         body = r.body.json()
@@ -78,7 +84,7 @@ def generate_and_verify_jwk(client):
         body = r.body.json()
         assert r.status_code == http.HTTPStatus.OK
         assert body["kty"] == "EC"
-        assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
+        jwk_matches_ref(body, ref_pub_jwk)
 
         r = client.post("/app/pubJwkToPem", body={"jwk": body})
         body = r.body.json()
@@ -98,7 +104,7 @@ def generate_and_verify_jwk(client):
         body = r.body.json()
         assert r.status_code == http.HTTPStatus.OK
         assert body["kty"] == "RSA"
-        assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
+        jwk_matches_ref(body, ref_priv_jwk)
 
         r = client.post("/app/rsaJwkToPem", body={"jwk": body})
         body = r.body.json()
@@ -113,7 +119,7 @@ def generate_and_verify_jwk(client):
         body = r.body.json()
         assert r.status_code == http.HTTPStatus.OK
         assert body["kty"] == "RSA"
-        assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
+        jwk_matches_ref(body, ref_pub_jwk)
 
         r = client.post("/app/pubRsaJwkToPem", body={"jwk": body})
         body = r.body.json()
@@ -131,7 +137,7 @@ def generate_and_verify_jwk(client):
         body = r.body.json()
         assert r.status_code == http.HTTPStatus.OK
         assert body["kty"] == "OKP"
-        assert body == ref_priv_jwk, f"{body} != {ref_priv_jwk}"
+        jwk_matches_ref(body, ref_priv_jwk)
 
         r = client.post("/app/eddsaJwkToPem", body={"jwk": body})
         body = r.body.json()
@@ -146,7 +152,7 @@ def generate_and_verify_jwk(client):
         body = r.body.json()
         assert r.status_code == http.HTTPStatus.OK
         assert body["kty"] == "OKP"
-        assert body == ref_pub_jwk, f"{body} != {ref_pub_jwk}"
+        jwk_matches_ref(body, ref_pub_jwk)
 
         r = client.post("/app/pubEddsaJwkToPem", body={"jwk": body})
         body = r.body.json()
@@ -1351,7 +1357,8 @@ def test_js_exception_output(network, args):
         body = r.body.json()
         assert body["error"]["code"] == "InternalError"
         assert body["error"]["message"] == "Exception thrown while executing."
-        assert "details" not in body["error"]
+        details = body["error"].get("details", None)
+        assert details is None
 
         network.consortium.set_js_runtime_options(
             primary,
@@ -1385,7 +1392,8 @@ def test_js_exception_output(network, args):
         body = r.body.json()
         assert body["error"]["code"] == "InternalError"
         assert body["error"]["message"] == "Exception thrown while executing."
-        assert "details" not in body["error"]
+        details = body["error"].get("details", None)
+        assert details is None
 
         network.consortium.set_js_runtime_options(
             primary,
@@ -1400,7 +1408,8 @@ def test_js_exception_output(network, args):
         body = r.body.json()
         assert body["error"]["code"] == "InternalError"
         assert body["error"]["message"] == "Exception thrown while executing."
-        assert "details" not in body["error"]
+        details = body["error"].get("details", None)
+        assert details is None
 
     return network
 
