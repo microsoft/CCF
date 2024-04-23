@@ -4,9 +4,10 @@ EXTENDS MultiNodeReads, Json, IOUtils, Sequences, SequencesExt
 \* Trace validation has been designed for TLC running in default model-checking
 \* mode, i.e., breadth-first search.
 \* The property TraceMatched will be violated if TLC runs with more than a single worker.
+\* TLC register 0 is used to hold the count of line numbers processed, so it can be checked
+\* in the post-condition, which can only include constants and not state variables such as l.
 ASSUME TLCGet("config").mode = "bfs" /\ TLCGet("config").worker = 1 /\ TLCSet(0, 0)
 
-\* Note the extra /../ necessary to run in the VSCode extension but not a happy CLI default
 JsonFile ==
     IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "trace.ndjson"
 
@@ -38,9 +39,6 @@ ToStatus ==
     "CommittedStatus" :> CommittedStatus @@
     "InvalidStatus" :>  InvalidStatus
 
-\* Beware to only prime e.g. inbox in inbox'[rcv] and *not* also rcv, i.e.,
- \* inbox[rcv]'.  rcv is defined in terms of TLCGet("level") that correctly
- \* handles priming, which causes rcv' to equal rcv of the next log line.
 IsEvent(e) ==
     \* Equals FALSE if we get past the end of the log, causing model checking to stop.
     /\ l \in 1..Len(JsonLog)

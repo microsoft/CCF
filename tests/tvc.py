@@ -88,7 +88,7 @@ def run(targets, cacert):
                 log(
                     action="RwTxExecuteAction",
                     type="RwTxExecute",
-                    view=tx_id(txid)[0],
+                    tx_id=tx_id(txid),
                     tx=tx,
                 )
                 log(
@@ -113,7 +113,7 @@ def run(targets, cacert):
                                 )
                                 new_view, _ = tx_id(txid)
                                 if new_view > view:
-                                    log.prepend(action="TruncateLedgerAction")
+                                    # log.prepend(action="TruncateLedgerAction")
                                     view = new_view
                                 final = True
                                 break
