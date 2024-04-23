@@ -22,7 +22,7 @@ RoTxResponseAction ==
             /\ j > i 
             /\ history[j].type = RoTxResponse
             /\ history[j].tx = history[i].tx} = {}
-        /\ \E view \in DOMAIN ledgerBranches:
+        /\ \E view \in (DOMAIN ledgerBranches) \ 1..(FirstBranch-1):
             /\ ledgerBranches[view] # <<>>
             /\ history' = Append(
                 history,[

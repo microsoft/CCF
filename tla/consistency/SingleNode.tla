@@ -18,7 +18,7 @@ LedgerTypeOK ==
             \* Each ledger entry is tuple containing a view and tx
             \* The ledger entry index is the sequence number
             /\ ledgerBranches[view][seqnum].view \in Views
-            \* /\ ledgerBranches[view][seqnum].tx \in Txs
+            /\ "tx" \in DOMAIN ledgerBranches[view][seqnum] => ledgerBranches[view][seqnum].tx \in Txs
 
 \* In this abstract version of CCF's consensus layer, each ledger is append-only
 LedgersMonoProp ==
@@ -32,7 +32,7 @@ TypeOK ==
 
 Init ==
     /\ history = <<>>
-    /\ ledgerBranches = [ x \in {1} |-> <<>>]
+    /\ ledgerBranches = [ x \in 1..FirstBranch |-> <<>>]
 
 IndexOfLastRequested ==
     SelectLastInSeq(history, LAMBDA e : e.type \in {RwTxRequest, RoTxRequest})
@@ -60,7 +60,7 @@ RwTxExecuteAction ==
                 => history[i].tx /= ledgerBranches[view][seqnum].tx
         \* Note that a transaction can be added to any ledger, simulating the fact
         \* that it can be picked up by the current leader or any former leader
-        /\ \E view \in DOMAIN ledgerBranches:
+        /\ \E view \in FirstBranch..Len(ledgerBranches):
                 ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
                     @ @@ (Max(DOMAIN ledgerBranches[view] \cup {0})+1) :> [view |-> view, tx |-> history[i].tx]]
         /\ UNCHANGED history
@@ -78,7 +78,7 @@ RwTxResponseAction ==
             /\ j > i 
             /\ history[j].type = RwTxResponse
             /\ history[j].tx = history[i].tx} = {}
-        /\ \E view \in DOMAIN ledgerBranches:
+        /\ \E view \in FirstBranch..Len(ledgerBranches):
             /\ \E seqnum \in DOMAIN ledgerBranches[view]: 
                 /\ "tx" \in DOMAIN ledgerBranches[view][seqnum]
                 /\ history[i].tx = ledgerBranches[view][seqnum].tx
@@ -94,21 +94,33 @@ RwTxResponseAction ==
 \* Note that a request could only be committed if it's in the highest view's ledger
 StatusCommittedResponseAction ==
     /\ \E i \in DOMAIN history :
-        /\ history[i].type = RwTxResponse
-        /\ Max(DOMAIN ledgerBranches[Len(ledgerBranches)]) >= history[i].tx_id[2]
-        /\ ledgerBranches[Len(ledgerBranches)][history[i].tx_id[2]].view = history[i].tx_id[1]
-        \* Reply
-        /\ history' = Append(
-            history,[
+        LET view == history[i].tx_id[1]
+            seqno == history[i].tx_id[2]
+        IN /\ history[i].type = RwTxResponse
+           /\ Max(DOMAIN ledgerBranches[Len(ledgerBranches)] \cup {0}) >= seqno
+           /\ ledgerBranches[Len(ledgerBranches)][history[i].tx_id[2]].view = view
+           \* There is no future InvalidStatus that's incompatible with this commit
+           \* This is to accomodate StatusInvalidResponseAction making future commits invalid,
+           \* and is an unnecessary complication for model checking. It does facilitate trace
+           \* validation though, by allowing immediate processing of Invalids without
+           \* needing to wait for the commit history knowledge to catch up.
+           /\ \lnot \E j \in DOMAIN history:
+                /\ history[j].type = TxStatusReceived
+                /\ history[j].status = InvalidStatus
+                /\ history[j].tx_id[1] = view
+                /\ history[j].tx_id[2] <= seqno
+           \* Reply
+           /\ history' = Append(
+              history,[
                 type |-> TxStatusReceived, 
                 tx_id |-> history[i].tx_id,
                 status |-> CommittedStatus]
-            )
+              )
     /\ UNCHANGED ledgerBranches
 
 \* Append a transaction to the ledger which does not impact the state we are considering
 AppendOtherTxnAction ==
-    /\ \E view \in DOMAIN ledgerBranches:
+    /\ \E view \in (DOMAIN ledgerBranches) \ 0..(FirstBranch-1):
         ledgerBranches' = [ledgerBranches EXCEPT ![view] = @ @@ (Max(DOMAIN ledgerBranches[view] \cup {0})+1) :> [view |-> view] ]
     /\ UNCHANGED history
 
