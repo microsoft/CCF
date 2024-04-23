@@ -95,16 +95,28 @@ RwTxResponseAction ==
 \* Note that a request could only be committed if it's in the highest view's ledger
 StatusCommittedResponseAction ==
     /\ \E i \in DOMAIN history :
-        /\ history[i].type = RwTxResponse
-        /\ Len(ledgerBranches[Len(ledgerBranches)]) >= history[i].tx_id[2]
-        /\ ledgerBranches[Len(ledgerBranches)][history[i].tx_id[2]].view = history[i].tx_id[1]
-        \* Reply
-        /\ history' = Append(
-            history,[
+        LET view == history[i].tx_id[1]
+            seqno == history[i].tx_id[2]
+        IN /\ history[i].type = RwTxResponse
+           /\ Len(Last(ledgerBranches)) >= seqno
+           /\ Last(ledgerBranches)[seqno].view = view
+           \* There is no future InvalidStatus that's incompatible with this commit
+           \* This is to accomodate StatusInvalidResponseAction making future commits invalid,
+           \* and is an unnecessary complication for model checking. It does facilitate trace
+           \* validation though, by allowing immediate processing of Invalids without
+           \* needing to wait for the commit history knowledge to catch up.
+           /\ \lnot \E j \in DOMAIN history:
+                /\ history[j].type = TxStatusReceived
+                /\ history[j].status = InvalidStatus
+                /\ history[j].tx_id[1] = view
+                /\ history[j].tx_id[2] <= seqno
+           \* Reply
+           /\ history' = Append(
+              history,[
                 type |-> TxStatusReceived, 
                 tx_id |-> history[i].tx_id,
                 status |-> CommittedStatus]
-            )
+              )
     /\ UNCHANGED ledgerBranches
 
 \* Append a transaction to the ledger which does not impact the state we are considering
