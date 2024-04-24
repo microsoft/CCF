@@ -234,7 +234,7 @@ namespace ccf
             return;
           }
 
-          LOG_DEBUG_FMT(
+          LOG_INFO_FMT(
             "Error fetching endorsements for attestation report: {}", status);
           if (status == HTTP_STATUS_TOO_MANY_REQUESTS)
           {
