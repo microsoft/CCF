@@ -8,7 +8,7 @@ Redirections
 
 Full use of the redirect behaviour requires changes in both the node configuration (by the operator) and the endpoint definitions (by the application developer). If redirections are enabled on a node or service by the operator without any change to the application, then all endpoints will revert to their default redirect behaviour, which is that all requests are redirected to the primary. If the endpoint definitions are updated, but then deployed on an in instance with no per-node redirection configuration, then no redirects will be returned (and the service will instead rely on the previous forwarding behaviour).
 
-Forwarding may be deprecated and removed in a future release, so we recommend that all users update their apps and deployments to use redirections.
+Forwarding will be deprecated and removed in a future release, so we recommend that all users update their apps and deployments to use redirections.
 
 .. warning::
     While most HTTP client libraries will allow you to automatically follow redirects, many will also remove ``Authorization`` headers after redirection, to prevent you submitting confidential information to an unintended host. Some will only do this if they believe the redirection has crossed to a fresh domain, while others will do it for all redirections.
