@@ -52,7 +52,7 @@ if __name__ == "__main__":
     args = infra.e2e_args.cli_args()
     args.package = "libjs_generic"
     args.js_app_bundle = "../samples/apps/basic_tv/js/"
-    args.nodes = infra.e2e_args.nodes(args, 5)
+    args.nodes = infra.e2e_args.nodes(args, 3)
     # Long signature interval to maximise the chance of an InvalidStatus transaction
     args.sig_ms_interval = 1000
     run(args)
