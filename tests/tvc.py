@@ -53,7 +53,7 @@ def retry(call, urls, **kwargs):
         try:
             url = random.choice(urls)
             response = call(url, **kwargs)
-        except (httpx.ReadTimeout, httpcore.ConnectTimeout):
+        except (httpx.ReadTimeout, httpx.ConnectTimeout):
             pass
     return response
 
