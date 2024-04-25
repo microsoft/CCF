@@ -10,7 +10,6 @@
 #include "enclave/enclave_time.h"
 #include "js/interpreter_cache_interface.h"
 #include "js/wrap.h"
-#include "kv/untyped_map.h"
 #include "named_auth_policies.h"
 #include "node/rpc/rpc_context_impl.h"
 #include "service/tables/endpoints.h"

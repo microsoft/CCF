@@ -2,6 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "./checks.h"
+#include "./constants.h"
+#include "./wrapped_value.h"
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/ds/logger.h"
 #include "ccf/historical_queries_interface.h"
@@ -18,35 +21,11 @@
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
 
-#define JS_CHECK_EXC(val) \
-  do \
-  { \
-    if (val.is_exception()) \
-    { \
-      return val.take(); \
-    } \
-  } while (0)
-
-#define JS_CHECK_SET(val) \
-  do \
-  { \
-    if (val != 1) \
-    { \
-      return ccf::js::constants::Exception; \
-    } \
-  } while (0)
-
 namespace ccf::js
 {
-  extern JSClassID kv_class_id;
-  extern JSClassID kv_historical_class_id;
-  extern JSClassID kv_map_handle_class_id;
-  extern JSClassID body_class_id;
-  extern JSClassID node_class_id;
-  extern JSClassID network_class_id;
-  extern JSClassID consensus_class_id;
-  extern JSClassID historical_class_id;
-  extern JSClassID historical_state_class_id;
+  extern JSClassID body_class_id; //
+  extern JSClassID consensus_class_id; //
+  extern JSClassID historical_class_id; //
 
   const std::chrono::milliseconds default_max_execution_time{1000};
   const size_t default_stack_size = 1024 * 1024;
@@ -79,187 +58,7 @@ namespace ccf::js
     GOV_RW
   };
 
-  namespace constants
-  {
-// "compound literals are a C99-specific feature"
-// Used heavily by QuickJS, including in macros (such as
-// ccf::js::constants::Null). Rather than disabling throughout the code, we
-// replace those with const instances here
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
-    static constexpr JSValue Null = JS_NULL;
-    static constexpr JSValue Undefined = JS_UNDEFINED;
-    static constexpr JSValue False = JS_FALSE;
-    static constexpr JSValue True = JS_TRUE;
-    static constexpr JSValue Exception = JS_EXCEPTION;
-#pragma clang diagnostic pop
-  }
-
   class Context;
-
-  struct JSWrappedValue
-  {
-    JSWrappedValue() : ctx(NULL), val(ccf::js::constants::Null) {}
-    JSWrappedValue(JSContext* ctx, JSValue&& val) :
-      ctx(ctx),
-      val(std::move(val))
-    {}
-    JSWrappedValue(JSContext* ctx, const JSValue& value) : ctx(ctx)
-    {
-      val = JS_DupValue(ctx, value);
-    }
-    JSWrappedValue(const JSWrappedValue& other) : ctx(other.ctx)
-    {
-      val = JS_DupValue(ctx, other.val);
-    }
-    JSWrappedValue(JSWrappedValue&& other) : ctx(other.ctx)
-    {
-      val = other.val;
-      other.val = ccf::js::constants::Null;
-    }
-    ~JSWrappedValue()
-    {
-      if (ctx && JS_VALUE_GET_TAG(val) != JS_TAG_MODULE)
-      {
-        JS_FreeValue(ctx, val);
-      }
-    }
-
-    JSWrappedValue& operator=(const JSWrappedValue& other)
-    {
-      ctx = other.ctx;
-      val = JS_DupValue(ctx, other.val);
-      return *this;
-    }
-
-    JSWrappedValue operator[](const char* prop) const
-    {
-      return JSWrappedValue(ctx, JS_GetPropertyStr(ctx, val, prop));
-    }
-
-    JSWrappedValue operator[](const std::string& prop) const
-    {
-      return (*this)[prop.c_str()];
-    }
-
-    JSWrappedValue operator[](uint32_t i) const
-    {
-      return JSWrappedValue(ctx, JS_GetPropertyUint32(ctx, val, i));
-    }
-
-    int set(const char* prop, JSWrappedValue&& value) const
-    {
-      int rc = JS_SetPropertyStr(ctx, val, prop, value.val);
-      if (rc == 1)
-      {
-        value.val = ccf::js::constants::Null;
-      }
-      return rc;
-    }
-
-    int set_getter(const char* prop, JSWrappedValue&& getter) const
-    {
-      JSAtom size_atom = JS_NewAtom(ctx, prop);
-      if (size_atom == JS_ATOM_NULL)
-      {
-        getter.val = ccf::js::constants::Null;
-        return -1;
-      }
-
-      // NB: Where other calls check the return code to determine whether they
-      // are responsible for freeing, this call unconditionally frees the getter
-      // arg, so we call .take() to always drop our local owning reference
-      int rc = JS_DefinePropertyGetSet(
-        ctx, val, size_atom, getter.take(), ccf::js::constants::Undefined, 0);
-
-      JS_FreeAtom(ctx, size_atom);
-
-      return rc;
-    }
-
-    int set(const std::string& prop, JSWrappedValue&& value) const
-    {
-      return set(prop.c_str(), std::move(value));
-    }
-
-    int set(const std::string& prop, JSValue&& value) const
-    {
-      return JS_SetPropertyStr(ctx, val, prop.c_str(), value);
-    }
-
-    int set_null(const std::string& prop) const
-    {
-      return JS_SetPropertyStr(
-        ctx, val, prop.c_str(), ccf::js::constants::Null);
-    }
-
-    int set_uint32(const std::string& prop, uint32_t i) const
-    {
-      return JS_SetPropertyStr(ctx, val, prop.c_str(), JS_NewUint32(ctx, i));
-    }
-
-    int set_int64(const std::string& prop, int64_t i) const
-    {
-      return JS_SetPropertyStr(ctx, val, prop.c_str(), JS_NewInt64(ctx, i));
-    }
-
-    int set_bool(const std::string& prop, bool b) const
-    {
-      return JS_SetPropertyStr(ctx, val, prop.c_str(), JS_NewBool(ctx, b));
-    }
-
-    int set_at_index(uint32_t index, JSWrappedValue&& value)
-    {
-      int rc =
-        JS_DefinePropertyValueUint32(ctx, val, index, value.val, JS_PROP_C_W_E);
-      if (rc == 1)
-      {
-        value.val = ccf::js::constants::Null;
-      }
-      return rc;
-    }
-
-    bool is_exception() const
-    {
-      return JS_IsException(val);
-    }
-
-    bool is_error() const
-    {
-      return JS_IsError(ctx, val);
-    }
-
-    bool is_obj() const
-    {
-      return JS_IsObject(val);
-    }
-
-    bool is_str() const
-    {
-      return JS_IsString(val);
-    }
-
-    bool is_true() const
-    {
-      int rc = JS_ToBool(ctx, val);
-      return rc > 0;
-    }
-
-    bool is_undefined() const
-    {
-      return JS_IsUndefined(val);
-    }
-
-    JSValue take()
-    {
-      JSValue r = val;
-      val = ccf::js::constants::Null;
-      return r;
-    }
-
-    JSContext* ctx;
-    JSValue val;
-  };
 
   void register_ffi_plugins(const std::vector<ccf::js::FFIPlugin>& plugins);
   void register_class_ids();
