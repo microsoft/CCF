@@ -101,3 +101,8 @@ Support calendar
    * - 4.0
      - May 2, 2023
      - \-
+
+.. toctree::
+   :maxdepth: 2
+
+   migration_4_x_to_5_0
