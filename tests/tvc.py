@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 
 import httpx
-import httpcore
 import random
 import json
 import argparse
