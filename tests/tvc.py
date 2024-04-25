@@ -2,6 +2,7 @@
 # Licensed under the Apache 2.0 License.
 
 import httpx
+import httpcore
 import random
 import json
 import argparse
@@ -52,7 +53,7 @@ def retry(call, urls, **kwargs):
         try:
             url = random.choice(urls)
             response = call(url, **kwargs)
-        except httpx.ReadTimeout:
+        except (httpx.ReadTimeout, httpcore.ConnectTimeout):
             pass
     return response
 
