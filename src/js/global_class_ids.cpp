@@ -8,6 +8,33 @@
 
 namespace ccf::js
 {
+  JSClassID kv_class_id = 0;
+  JSClassID kv_historical_class_id = 0;
+  JSClassID kv_map_handle_class_id = 0;
+  JSClassID body_class_id = 0;
+  JSClassID node_class_id = 0;
+  JSClassID network_class_id = 0;
+  JSClassID rpc_class_id = 0;
+  JSClassID host_class_id = 0;
+  JSClassID consensus_class_id = 0;
+  JSClassID historical_class_id = 0;
+  JSClassID historical_state_class_id = 0;
+
+  JSClassDef kv_class_def = {};
+  JSClassExoticMethods kv_exotic_methods = {};
+  JSClassDef kv_historical_class_def = {};
+  JSClassExoticMethods kv_historical_exotic_methods = {};
+  JSClassDef kv_map_handle_class_def = {};
+  JSClassDef kv_historical_map_handle_class_def = {};
+  JSClassDef body_class_def = {};
+  JSClassDef node_class_def = {};
+  JSClassDef network_class_def = {};
+  JSClassDef rpc_class_def = {};
+  JSClassDef host_class_def = {};
+  JSClassDef consensus_class_def = {};
+  JSClassDef historical_class_def = {};
+  JSClassDef historical_state_class_def = {};
+
   void register_class_ids()
   {
     JS_NewClassID(&kv_class_id);
