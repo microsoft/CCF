@@ -15,7 +15,7 @@
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "frontend.h"
-#include "js/wrap.h"
+#include "js/context.h"
 #include "node/gov/gov_endpoint_registry.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/gov_effects_interface.h"
@@ -149,7 +149,7 @@ namespace ccf
       for (const auto& [mid, mb] : pi_->ballots)
       {
         js::Context context(js::TxAccess::GOV_RO);
-        js::populate_global_ccf_kv(tx, context);
+        context.populate_global_ccf_kv(tx);
         auto ballot_func = context.function(
           mb,
           "vote",
@@ -185,7 +185,7 @@ namespace ccf
             vote_failures = ccf::jsgov::VoteFailures();
           }
 
-          auto [reason, trace] = js::js_error_message(context);
+          auto [reason, trace] = context.error_message();
 
           if (context.interrupt_data.request_timed_out)
           {
@@ -197,7 +197,7 @@ namespace ccf
 
       {
         js::Context js_context(js::TxAccess::GOV_RO);
-        js::populate_global_ccf_kv(tx, js_context);
+        js_context.populate_global_ccf_kv(tx);
         auto resolve_func = js_context.function(
           constitution,
           "resolve",
@@ -236,7 +236,7 @@ namespace ccf
         if (val.is_exception())
         {
           pi_.value().state = ProposalState::FAILED;
-          auto [reason, trace] = js::js_error_message(js_context);
+          auto [reason, trace] = js_context.error_message();
           if (js_context.interrupt_data.request_timed_out)
           {
             reason = "Operation took too long to complete.";
@@ -307,10 +307,10 @@ namespace ccf
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
-            js::populate_global_ccf_kv(tx, apply_js_context);
-            js::populate_global_ccf_node(gov_effects.get(), apply_js_context);
-            js::populate_global_ccf_network(&network, apply_js_context);
-            js::populate_global_ccf_gov_actions(apply_js_context);
+            apply_js_context.populate_global_ccf_kv(tx);
+            apply_js_context.populate_global_ccf_node(gov_effects.get());
+            apply_js_context.populate_global_ccf_network(&network);
+            apply_js_context.populate_global_ccf_gov_actions();
 
             auto apply_func = apply_js_context.function(
               constitution,
@@ -332,7 +332,7 @@ namespace ccf
             if (apply_val.is_exception())
             {
               pi_.value().state = ProposalState::FAILED;
-              auto [reason, trace] = js::js_error_message(apply_js_context);
+              auto [reason, trace] = apply_js_context.error_message();
               if (apply_js_context.interrupt_data.request_timed_out)
               {
                 reason = "Operation took too long to complete.";
@@ -1168,7 +1168,7 @@ namespace ccf
         auto validate_script = constitution.value();
 
         js::Context context(js::TxAccess::GOV_RO);
-        js::populate_global_ccf_kv(ctx.tx, context);
+        context.populate_global_ccf_kv(ctx.tx);
 
         auto validate_func = context.function(
           validate_script,
@@ -1191,7 +1191,7 @@ namespace ccf
 
         if (val.is_exception())
         {
-          auto [reason, trace] = js_error_message(context);
+          auto [reason, trace] = context.error_message();
           if (context.interrupt_data.request_timed_out)
           {
             reason = "Operation took too long to complete.";

@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/verifier.h"
 #include "ccf/service/tables/jwt.h"
+#include "ccf/service/tables/proposals.h"
 
 #ifdef SGX_ATTESTATION_VERIFICATION
 #  include <openenclave/attestation/verifier.h>

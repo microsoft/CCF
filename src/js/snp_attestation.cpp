@@ -5,7 +5,8 @@
 #include "ccf/js_snp_attestation_plugin.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/version.h"
-#include "js/wrap.h"
+#include "js/checks.h"
+#include "js/context.h"
 #include "node/uvm_endorsements.h"
 
 #include <algorithm>

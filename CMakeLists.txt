@@ -680,10 +680,20 @@ endif()
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
 
+set(CCF_JS_SOURCES
+  ${CCF_DIR}/src/js/wrap.cpp
+  ${CCF_DIR}/src/js/global_class_ids.cpp
+  ${CCF_DIR}/src/js/wrapped_value.cpp
+  ${CCF_DIR}/src/js/runtime.cpp
+  ${CCF_DIR}/src/js/context.cpp
+)
+
 set(CCF_IMPL_SOURCE
-    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
-    ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/js/wrap.cpp ${CCF_DIR}/src/js/wrapped_value.cpp
+    ${CCF_DIR}/src/enclave/main.cpp
+    ${CCF_DIR}/src/enclave/enclave_time.cpp
+    ${CCF_DIR}/src/enclave/thread_local.cpp
     ${CCF_DIR}/src/node/quote.cpp
+    ${CCF_JS_SOURCES}
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -1087,10 +1097,10 @@ if(BUILD_TESTS)
 
     add_unit_test(
       frontend_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
       ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_JS_SOURCES}
     )
     target_link_libraries(
       frontend_test
@@ -1115,9 +1125,10 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      node_frontend_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
+      node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
       ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_JS_SOURCES}
     )
     target_link_libraries(
       node_frontend_test

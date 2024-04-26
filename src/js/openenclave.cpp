@@ -1,6 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/ds/hex.h"
+#include "ccf/js_openenclave_plugin.h"
+#include "ccf/js_plugin.h"
+#include "ccf/version.h"
+#include "js/checks.h"
+#include "js/context.h"
+
 #include <algorithm>
 #include <openenclave/attestation/custom_claims.h>
 #include <openenclave/attestation/verifier.h>
@@ -13,10 +20,6 @@
 #else
 #  include <openenclave/host_verify.h>
 #endif
-#include "ccf/js_openenclave_plugin.h"
-#include "ccf/js_plugin.h"
-#include "ccf/version.h"
-#include "js/wrap.h"
 
 namespace ccf::js
 {

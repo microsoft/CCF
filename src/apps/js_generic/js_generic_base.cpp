@@ -9,7 +9,9 @@
 #include "ccf/version.h"
 #include "enclave/enclave_time.h"
 #include "js/interpreter_cache_interface.h"
-#include "js/wrap.h"
+#include "js/context.h"
+#include "js/wrapped_property_enum.h"
+#include "js/modules.h"
 #include "named_auth_policies.h"
 #include "node/rpc/rpc_context_impl.h"
 #include "service/tables/endpoints.h"
@@ -278,7 +280,7 @@ namespace ccfapp
             ccf::historical::StatePtr state) {
             auto add_historical_globals = [&](js::Context& ctx) {
               auto ccf = ctx.get_global_property("ccf");
-              auto val = ccf::js::create_historical_state_object(ctx, state);
+              auto val = ctx.create_historical_state_object(state);
               ccf.set("historicalState", std::move(val));
             };
             do_execute_request(endpoint, endpoint_ctx, add_historical_globals);
@@ -348,13 +350,13 @@ namespace ccfapp
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
       js::register_request_body_class(ctx);
-      js::populate_global_ccf_kv(endpoint_ctx.tx, ctx);
+      ctx.populate_global_ccf_kv(endpoint_ctx.tx);
 
-      js::populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get(), ctx);
-      js::populate_global_ccf_host(
-        context.get_subsystem<ccf::AbstractHostProcesses>().get(), ctx);
-      js::populate_global_ccf_consensus(this, ctx);
-      js::populate_global_ccf_historical(&context.get_historical_state(), ctx);
+      ctx.populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get());
+      ctx.populate_global_ccf_host(
+        context.get_subsystem<ccf::AbstractHostProcesses>().get());
+      ctx.populate_global_ccf_consensus(this);
+      ctx.populate_global_ccf_historical(&context.get_historical_state());
 
       if (pre_exec_hook.has_value())
       {
@@ -404,7 +406,7 @@ namespace ccfapp
           error_msg = "Operation took too long to complete.";
         }
 
-        auto [reason, trace] = js::js_error_message(ctx);
+        auto [reason, trace] = ctx.error_message();
 
         if (rt.log_exception_details)
         {
@@ -491,7 +493,7 @@ namespace ccfapp
               auto rval = ctx.json_stringify(response_body_js);
               if (rval.is_exception())
               {
-                auto [reason, trace] = js::js_error_message(ctx);
+                auto [reason, trace] = ctx.error_message();
 
                 if (rt.log_exception_details)
                 {
@@ -528,7 +530,7 @@ namespace ccfapp
 
             if (!str)
             {
-              auto [reason, trace] = js::js_error_message(ctx);
+              auto [reason, trace] = ctx.error_message();
 
               if (rt.log_exception_details)
               {

@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "./wrap.h"
 #include "ccf/endpoint.h"
 #include "ccf/node_subsystem_interface.h"
+#include "js/tx_access.h"
 
 namespace ccf::js
 {
