@@ -39,7 +39,6 @@ ToStatus ==
     "CommittedStatus" :> CommittedStatus @@
     "InvalidStatus" :>  InvalidStatus
 
-Foo == l > 40
 
 IsEvent(e) ==
     \* Equals FALSE if we get past the end of the log, causing model checking to stop.
