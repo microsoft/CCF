@@ -2,9 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/service/tables/modules.h"
+
+#include <quickjs/quickjs.h>
+
 namespace ccf::js
 {
-  JSWrappedValue load_app_module(
+  static inline JSWrappedValue load_app_module(
     JSContext* ctx, const char* module_name, kv::Tx* tx)
   {
     js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
@@ -112,7 +116,7 @@ namespace ccf::js
     return module_val;
   }
 
-  JSModuleDef* js_app_module_loader(
+  static inline JSModuleDef* js_app_module_loader(
     JSContext* ctx, const char* module_name, void* opaque)
   {
     auto tx = (kv::Tx*)opaque;

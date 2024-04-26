@@ -470,6 +470,8 @@ namespace ccf::js
       ccf::historical::AbstractStateCache* historical_state);
     void populate_global_ccf_gov_actions();
 
+    void register_request_body_class();
+
     JSValue create_historical_state_object(ccf::historical::StatePtr state);
 
     std::pair<std::string, std::optional<std::string>> error_message();

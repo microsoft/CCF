@@ -681,11 +681,11 @@ endif()
 add_custom_target(ccf ALL)
 
 set(CCF_JS_SOURCES
-  ${CCF_DIR}/src/js/wrap.cpp
   ${CCF_DIR}/src/js/global_class_ids.cpp
   ${CCF_DIR}/src/js/wrapped_value.cpp
   ${CCF_DIR}/src/js/runtime.cpp
   ${CCF_DIR}/src/js/context.cpp
+  ${CCF_DIR}/src/js/no_plugins.cpp
 )
 
 set(CCF_IMPL_SOURCE

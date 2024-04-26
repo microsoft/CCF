@@ -7,11 +7,13 @@
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/node/host_processes_interface.h"
 #include "ccf/version.h"
+#include "ccf/service/tables/jsengine.h"
 #include "enclave/enclave_time.h"
-#include "js/interpreter_cache_interface.h"
 #include "js/context.h"
-#include "js/wrapped_property_enum.h"
+#include "js/global_class_ids.h"
+#include "js/interpreter_cache_interface.h"
 #include "js/modules.h"
+#include "js/wrapped_property_enum.h"
 #include "named_auth_policies.h"
 #include "node/rpc/rpc_context_impl.h"
 #include "service/tables/endpoints.h"
@@ -349,7 +351,7 @@ namespace ccfapp
       JS_SetModuleLoaderFunc(
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
-      js::register_request_body_class(ctx);
+      ctx.register_request_body_class();
       ctx.populate_global_ccf_kv(endpoint_ctx.tx);
 
       ctx.populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get());
@@ -393,7 +395,7 @@ namespace ccfapp
       // Clear globals (which potentially reference locals like txctx), from
       // this potentially reused interpreter
       invalidate_request_obj_body(ctx);
-      js::invalidate_globals(ctx);
+      ctx.invalidate_globals();
 
       const auto& rt = ctx.runtime();
 
