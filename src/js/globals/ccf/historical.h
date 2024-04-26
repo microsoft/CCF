@@ -77,8 +77,7 @@ namespace ccf::js
       size_t i = 0;
       for (auto& state : states)
       {
-        auto js_state =
-          jsctx(jsctx.create_historical_state_object(state));
+        auto js_state = jsctx(jsctx.create_historical_state_object(state));
         JS_CHECK_SET(states_array.set_at_index(i++, std::move(js_state)));
       }
 
