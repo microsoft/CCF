@@ -39,6 +39,8 @@ ToStatus ==
     "CommittedStatus" :> CommittedStatus @@
     "InvalidStatus" :>  InvalidStatus
 
+Foo == l > 40
+
 IsEvent(e) ==
     \* Equals FALSE if we get past the end of the log, causing model checking to stop.
     /\ l \in 1..Len(JsonLog)
@@ -103,9 +105,9 @@ IsRoTxResponseAction ==
     \* RoTxResponseAction can only take place if a branch exists for the view
     \* If there is no branch, BackfillLedgerBranches will create the right amount of branches
     /\ Len(ledgerBranches) >= logline.tx_id[1]
-    \* That branch contains just the right amount of transactions (seqno - 1)
-    \* If that's not the case, BackfillLedgerBranche will create the right amount of txs
-    /\ Len(ledgerBranches[logline.tx_id[1]]) = logline.tx_id[2] - 1
+    \* That branch contains just the right amount of transactions (seqno)
+    \* If that's not the case, BackfillLedgerBranch will create the right amount of txs
+    /\ Len(ledgerBranches[logline.tx_id[1]]) = logline.tx_id[2]
 
 IsStatusInvalidResponseAction ==
     /\ IsEvent("StatusInvalidResponseAction")
@@ -124,19 +126,28 @@ PreEvent(e) ==
     /\ l \in 1..Len(JsonLog)
     /\ logline.action = e
 
-BackfillLedgerBranch ==
-    /\
-       \/ PreEvent("RwTxExecuteAction")
-       \* There is no separate RoTxExecuteAction, but conceptually,
-       \* we would backfill before it as well. Instead we do before the
-       \* RoTxResponseAction, which is the earliest possible opportunity.
-       \/ PreEvent("RoTxResponseAction")
+BackfillLedgerBranchForWrite ==
     \* Similar to AppendOtherTxnAction, but only append to the specific branch
     \* necessary to enable the next transaction to execute.
+    /\ PreEvent("RwTxExecuteAction")
     /\ LET view == logline.tx_id[1]
            seqno == logline.tx_id[2]
        IN /\ Len(ledgerBranches) >= view
           /\ Len(ledgerBranches[view]) < seqno - 1
+          /\ ledgerBranches' = [ledgerBranches EXCEPT ![view] = Append(@, [view |-> view])]
+    /\ UNCHANGED history
+
+BackfillLedgerBranchForRead ==
+    \* Similar to AppendOtherTxnAction, but only append to the specific branch
+    \* necessary to enable the next transaction to execute.
+    /\ PreEvent("RoTxResponseAction")
+    \* There is no separate RoTxExecuteAction, but conceptually,
+    \* we would backfill before it as well. Instead we do before the
+    \* RoTxResponseAction, which is the earliest possible opportunity.
+    /\ LET view == logline.tx_id[1]
+           seqno == logline.tx_id[2]
+       IN /\ Len(ledgerBranches) >= view
+          /\ Len(ledgerBranches[view]) < seqno
           /\ ledgerBranches' = [ledgerBranches EXCEPT ![view] = Append(@, [view |-> view])]
     /\ UNCHANGED history
 
@@ -162,7 +173,8 @@ TraceNext ==
     \/ IsRoTxRequestAction
     \/ IsRoTxResponseAction
     \/ IsStatusInvalidResponseAction
-    \/ BackfillLedgerBranch
+    \/ BackfillLedgerBranchForRead
+    \/ BackfillLedgerBranchForWrite
     \/ BackfillLedgerBranches
 
 TraceSpec ==
