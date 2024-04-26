@@ -1,6 +1,9 @@
 -------------------------------- MODULE TraceMultiNodeReads -------------------------------
 EXTENDS MultiNodeReads, Json, IOUtils, Sequences, SequencesExt
 
+Stats == 
+    PrintT(<<"VARIABLE l (TLCGet(0))", TLCGet(0)>>)
+
 \* Trace validation has been designed for TLC running in default model-checking
 \* mode, i.e., breadth-first search.
 \* The property TraceMatched will be violated if TLC runs with more than a single worker.
