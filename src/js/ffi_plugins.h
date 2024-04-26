@@ -9,9 +9,9 @@
 
 namespace ccf::js
 {
-  std::vector<FFIPlugin> ffi_plugins;
+  extern std::vector<FFIPlugin> ffi_plugins;
 
-  static void register_ffi_plugin(const FFIPlugin& plugin)
+  static inline void register_ffi_plugin(const FFIPlugin& plugin)
   {
     if (plugin.ccf_version != std::string(ccf::ccf_version))
     {
@@ -25,7 +25,7 @@ namespace ccf::js
     ffi_plugins.push_back(plugin);
   }
 
-  void register_ffi_plugins(const std::vector<FFIPlugin>& plugins)
+  static inline void register_ffi_plugins(const std::vector<FFIPlugin>& plugins)
   {
     for (const auto& plugin : plugins)
     {

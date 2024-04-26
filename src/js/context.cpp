@@ -19,6 +19,8 @@
 
 namespace ccf::js
 {
+  std::vector<FFIPlugin> ffi_plugins;
+
   class ContextImpl
   {
     // TODO TODO TODO TODO

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/entropy.h"
+#include "js/ffi_plugins.h"
 #include "js/globals/ccf.h"
 #include "js/globals/ccf/crypto.h"
 #include "js/globals/console.h"
@@ -62,11 +63,11 @@ namespace ccf::js
 
       details::override_builtin_funcs(ctx);
 
-      // TODO
-      // for (auto& plugin : ffi_plugins)
-      // {
-      //   plugin.extend(ctx);
-      // }
+      for (auto& plugin : ffi_plugins)
+      {
+        LOG_DEBUG_FMT("Extending JS context with plugin {}", plugin.name);
+        plugin.extend(ctx);
+      }
     }
   }
 }
