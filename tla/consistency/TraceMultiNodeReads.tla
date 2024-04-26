@@ -60,16 +60,16 @@ IsRwTxRequestAction ==
 
 IsRwTxExecuteAction ==
     /\ IsEvent("RwTxExecuteAction")
-    \* Model action
-    /\ RwTxExecuteAction
-    \* Match message contents
-    /\ Last(history').tx = logline.tx
     \* RwTxExecuteAction can only take place if a branch exists for the view
     \* If there is no branch, BackfillLedgerBranches will create the right amount of branches
     /\ Len(ledgerBranches) >= logline.tx_id[1]
     \* That branch contains just the right amount of transactions (seqno - 1)
     \* If that's not the case, BackfillLedgerBranche will create the right amount of txs
     /\ Len(ledgerBranches[logline.tx_id[1]]) = logline.tx_id[2] - 1
+    \* Model action
+    /\ RwTxExecuteAction
+    \* Match message contents
+    /\ Last(history').tx = logline.tx
 
 IsRwTxResponseAction ==
     /\ IsEvent("RwTxResponseAction")
@@ -99,17 +99,17 @@ IsRoTxRequestAction ==
 
 IsRoTxResponseAction ==
     /\ IsEvent("RoTxResponseAction")
-    \* Model action
-    /\ RoTxResponseAction
-    \* Match message contents
-    /\ Last(history').type = ToTxType[logline.type]
-    /\ Last(history').tx = logline.tx
     \* RoTxResponseAction can only take place if a branch exists for the view
     \* If there is no branch, BackfillLedgerBranches will create the right amount of branches
     /\ Len(ledgerBranches) >= logline.tx_id[1]
     \* That branch contains just the right amount of transactions (seqno)
     \* If that's not the case, BackfillLedgerBranch will create the right amount of txs
     /\ Len(ledgerBranches[logline.tx_id[1]]) = logline.tx_id[2]
+    \* Model action
+    /\ RoTxResponseAction
+    \* Match message contents
+    /\ Last(history').type = ToTxType[logline.type]
+    /\ Last(history').tx = logline.tx
 
 IsStatusInvalidResponseAction ==
     /\ IsEvent("StatusInvalidResponseAction")
