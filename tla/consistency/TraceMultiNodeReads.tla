@@ -204,4 +204,12 @@ MNR == INSTANCE MultiNodeReads
 
 MNRSpec == MNR!SpecMultiNodeReads
 
+-------------------------------------------------------------------------------------
+
+Alias ==
+    [
+        l |-> l,
+        history |-> history,
+        ledgerBranches |-> [ b \in DOMAIN ledgerBranches |-> [ e \in { i \in DOMAIN ledgerBranches[b] : "tx" \in DOMAIN ledgerBranches[b][i] } |-> ledgerBranches[b][e] ] ]
+    ]
 ==================================================================================
