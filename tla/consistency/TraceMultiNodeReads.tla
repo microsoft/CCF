@@ -128,17 +128,18 @@ PreEvent(e) ==
     /\ l' = l
     /\ l \in 1..Len(JsonLog)
 
+BackfillLedgerBranch(bound) ==
+    /\ LET view == logline.tx_id[1]
+       IN /\ Len(ledgerBranches) >= view
+          /\ Len(ledgerBranches[view]) < bound
+          /\ ledgerBranches' = [ledgerBranches EXCEPT ![view] = Append(@, [view |-> view])]
+    /\ UNCHANGED history    
 
 BackfillLedgerBranchForWrite ==
     \* Similar to AppendOtherTxnAction, but only append to the specific branch
     \* necessary to enable the next transaction to execute.
     /\ PreEvent("RwTxExecuteAction")
-    /\ LET view == logline.tx_id[1]
-           seqno == logline.tx_id[2]
-       IN /\ Len(ledgerBranches) >= view
-          /\ Len(ledgerBranches[view]) < seqno - 1
-          /\ ledgerBranches' = [ledgerBranches EXCEPT ![view] = Append(@, [view |-> view])]
-    /\ UNCHANGED history
+    /\ BackfillLedgerBranch(logline.tx_id[2] - 1)
 
 BackfillLedgerBranchForRead ==
     \* Similar to AppendOtherTxnAction, but only append to the specific branch
@@ -147,12 +148,7 @@ BackfillLedgerBranchForRead ==
     \* There is no separate RoTxExecuteAction, but conceptually,
     \* we would backfill before it as well. Instead we do before the
     \* RoTxResponseAction, which is the earliest possible opportunity.
-    /\ LET view == logline.tx_id[1]
-           seqno == logline.tx_id[2]
-       IN /\ Len(ledgerBranches) >= view
-          /\ Len(ledgerBranches[view]) < seqno
-          /\ ledgerBranches' = [ledgerBranches EXCEPT ![view] = Append(@, [view |-> view])]
-    /\ UNCHANGED history
+    /\ BackfillLedgerBranch(logline.tx_id[2])
 
 BackfillLedgerBranches ==
     /\
