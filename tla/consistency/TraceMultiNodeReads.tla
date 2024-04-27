@@ -124,9 +124,10 @@ IsStatusInvalidResponseAction ==
 \* before an event can be handled, for example backfilling the ledger branch, or
 \* creating new ledger branches.
 PreEvent(e) ==
+    /\ logline.action = e
     /\ l' = l
     /\ l \in 1..Len(JsonLog)
-    /\ logline.action = e
+
 
 BackfillLedgerBranchForWrite ==
     \* Similar to AppendOtherTxnAction, but only append to the specific branch
