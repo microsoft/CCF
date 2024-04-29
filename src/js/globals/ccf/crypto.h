@@ -557,7 +557,8 @@ namespace ccf::js::globals
           // key can in principle be arbitrary data (see note on maximum size
           // in rsa_key_pair.h). wrapping_key is a public RSA key.
 
-          auto label_val = jsctx.wrap(JS_GetPropertyStr(ctx, parameters, "label"));
+          auto label_val =
+            jsctx.wrap(JS_GetPropertyStr(ctx, parameters, "label"));
           JS_CHECK_EXC(label_val);
 
           size_t label_buf_size = 0;
@@ -602,7 +603,8 @@ namespace ccf::js::globals
             return ccf::js::constants::Exception;
           }
 
-          auto label_val = jsctx.wrap(JS_GetPropertyStr(ctx, parameters, "label"));
+          auto label_val =
+            jsctx.wrap(JS_GetPropertyStr(ctx, parameters, "label"));
           JS_CHECK_EXC(label_val);
 
           size_t label_buf_size = 0;
@@ -688,7 +690,8 @@ namespace ccf::js::globals
           // key can in principle be arbitrary data (see note on maximum size
           // in rsa_key_pair.h). unwrapping_key is a private RSA key.
 
-          auto label_val = jsctx.wrap(JS_GetPropertyStr(ctx, parameters, "label"));
+          auto label_val =
+            jsctx.wrap(JS_GetPropertyStr(ctx, parameters, "label"));
           JS_CHECK_EXC(label_val);
 
           size_t label_buf_size = 0;
@@ -736,7 +739,8 @@ namespace ccf::js::globals
             return ccf::js::constants::Exception;
           }
 
-          auto label_val = jsctx.wrap(JS_GetPropertyStr(ctx, parameters, "label"));
+          auto label_val =
+            jsctx.wrap(JS_GetPropertyStr(ctx, parameters, "label"));
           JS_CHECK_EXC(label_val);
 
           size_t label_buf_size = 0;
@@ -793,10 +797,12 @@ namespace ccf::js::globals
 
       auto algorithm = argv[0];
 
-      auto algo_name_val = jsctx.wrap(JS_GetPropertyStr(ctx, algorithm, "name"));
+      auto algo_name_val =
+        jsctx.wrap(JS_GetPropertyStr(ctx, algorithm, "name"));
       JS_CHECK_EXC(algo_name_val);
 
-      auto algo_hash_val = jsctx.wrap(JS_GetPropertyStr(ctx, algorithm, "hash"));
+      auto algo_hash_val =
+        jsctx.wrap(JS_GetPropertyStr(ctx, algorithm, "hash"));
       JS_CHECK_EXC(algo_hash_val);
 
       auto algo_name_str = jsctx.to_str(algo_name_val);
@@ -944,10 +950,12 @@ namespace ccf::js::globals
 
       auto algorithm = argv[0];
 
-      auto algo_name_val = jsctx.wrap(JS_GetPropertyStr(ctx, algorithm, "name"));
+      auto algo_name_val =
+        jsctx.wrap(JS_GetPropertyStr(ctx, algorithm, "name"));
       JS_CHECK_EXC(algo_name_val);
 
-      auto algo_hash_val = jsctx.wrap(JS_GetPropertyStr(ctx, algorithm, "hash"));
+      auto algo_hash_val =
+        jsctx.wrap(JS_GetPropertyStr(ctx, algorithm, "hash"));
       JS_CHECK_EXC(algo_hash_val);
 
       auto algo_name_str = jsctx.to_str(algo_name_val);
