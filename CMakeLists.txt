@@ -686,6 +686,7 @@ set(CCF_JS_SOURCES
   ${CCF_DIR}/src/js/runtime.cpp
   ${CCF_DIR}/src/js/context.cpp
   ${CCF_DIR}/src/js/no_plugins.cpp
+  ${CCF_DIR}/src/js/globals/ccf.cpp
 )
 
 set(CCF_IMPL_SOURCE

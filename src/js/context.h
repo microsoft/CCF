@@ -56,8 +56,6 @@ namespace ccf::js
     // needs to be refreshed.
     std::map<std::string, JSWrappedValue> loaded_modules_cache;
 
-    void init_globals();
-
   public:
     // NB: This should really be hidden as an implementation detail
     // State which may be set by calls to populate_global_ccf_*. Likely
@@ -110,222 +108,48 @@ namespace ccf::js
     }
 
     std::optional<JSWrappedValue> get_module_from_cache(
-      const std::string& module_name)
-    {
-      auto module = loaded_modules_cache.find(module_name);
-      if (module == loaded_modules_cache.end())
-      {
-        return std::nullopt;
-      }
-
-      return module->second;
-    }
-
+      const std::string& module_name);
     void load_module_to_cache(
-      const std::string& module_name, const JSWrappedValue& module)
-    {
-      if (get_module_from_cache(module_name).has_value())
-      {
-        throw std::logic_error(fmt::format(
-          "Module '{}' is already loaded in interpreter cache", module_name));
-      }
-      loaded_modules_cache[module_name] = module;
-    }
+      const std::string& module_name, const JSWrappedValue& module);
 
-    JSWrappedValue operator()(JSValue&& val) const
-    {
-      return W(std::move(val));
-    };
+    JSWrappedValue wrap(JSValue&& val) const;
+    JSWrappedValue wrap(const JSValue& x) const;
 
-    JSWrappedValue wrap(JSValue&& val) const
-    {
-      return W(std::move(val));
-    };
-
-    JSWrappedValue new_obj() const
-    {
-      return W(JS_NewObject(ctx));
-    }
-
-    JSWrappedValue new_obj_class(JSClassID class_id) const
-    {
-      return W(JS_NewObjectClass(ctx, class_id));
-    }
-
-    JSWrappedValue get_global_obj() const
-    {
-      return W(JS_GetGlobalObject(ctx));
-    }
-
-    JSWrappedValue get_global_property(const char* s) const
-    {
-      auto g = get_global_obj();
-      return W(JS_GetPropertyStr(ctx, g.val, s));
-    }
-
-    JSValue get_string_array(JSValueConst& argv, std::vector<std::string>& out)
-    {
-      auto args = JSWrappedValue(ctx, argv);
-
-      if (!JS_IsArray(ctx, argv))
-      {
-        return JS_ThrowTypeError(ctx, "First argument must be an array");
-      }
-
-      auto len_val = args["length"];
-      uint32_t len = 0;
-      if (JS_ToUint32(ctx, &len, len_val.val))
-      {
-        return ccf::js::constants::Exception;
-      }
-
-      if (len == 0)
-      {
-        return JS_ThrowRangeError(
-          ctx, "First argument must be a non-empty array");
-      }
-
-      for (uint32_t i = 0; i < len; i++)
-      {
-        auto arg_val = args[i];
-        if (!arg_val.is_str())
-        {
-          return JS_ThrowTypeError(
-            ctx,
-            "First argument must be an array of strings, found non-string");
-        }
-        auto s = to_str(arg_val);
-        if (!s)
-        {
-          return JS_ThrowTypeError(
-            ctx, "Failed to extract C string from JS string at position %d", i);
-        }
-        out.push_back(*s);
-      }
-
-      return ccf::js::constants::Undefined;
-    }
-
-    JSWrappedValue json_stringify(const JSWrappedValue& obj) const
-    {
-      return W(JS_JSONStringify(
-        ctx, obj.val, ccf::js::constants::Null, ccf::js::constants::Null));
-    }
-
-    JSWrappedValue new_array() const
-    {
-      return W(JS_NewArray(ctx));
-    }
-
+    JSWrappedValue new_obj() const;
+    JSWrappedValue new_obj_class(JSClassID class_id) const;
+    JSWrappedValue get_global_obj() const;
+    JSWrappedValue get_global_property(const char* s) const;
+    JSValue get_string_array(JSValueConst& argv, std::vector<std::string>& out);
+    JSWrappedValue json_stringify(const JSWrappedValue& obj) const;
+    JSWrappedValue new_array() const;
     JSWrappedValue new_array_buffer(
       uint8_t* buf,
       size_t len,
       JSFreeArrayBufferDataFunc* free_func,
       void* opaque,
-      bool is_shared) const
-    {
-      return JSWrappedValue(
-        ctx,
-        JS_NewArrayBuffer(
-          ctx, (uint8_t*)buf, len, free_func, opaque, is_shared));
-    }
-
+      bool is_shared) const;
     JSWrappedValue new_array_buffer_copy(
-      const uint8_t* buf, size_t buf_len) const
-    {
-      return JSWrappedValue(ctx, JS_NewArrayBufferCopy(ctx, buf, buf_len));
-    }
-
-    JSWrappedValue new_array_buffer_copy(const char* buf, size_t buf_len) const
-    {
-      return JSWrappedValue(
-        ctx, JS_NewArrayBufferCopy(ctx, (uint8_t*)buf, buf_len));
-    }
-
-    JSWrappedValue new_array_buffer_copy(std::span<const uint8_t> data) const
-    {
-      return JSWrappedValue(
-        ctx, JS_NewArrayBufferCopy(ctx, data.data(), data.size()));
-    }
-
-    JSWrappedValue new_string(const std::string& str) const
-    {
-      return W(JS_NewStringLen(ctx, str.data(), str.size()));
-    }
-
-    JSWrappedValue new_string(const char* str) const
-    {
-      return W(JS_NewString(ctx, str));
-    }
-
-    JSWrappedValue new_string_len(const char* buf, size_t buf_len) const
-    {
-      return W(JS_NewStringLen(ctx, buf, buf_len));
-    }
-
-    JSWrappedValue new_type_error(const char* fmt, ...) const
-    {
-      va_list ap;
-      va_start(ap, fmt);
-      auto r = W(JS_ThrowTypeError(ctx, fmt, ap));
-      va_end(ap);
-      return r;
-    }
-
-    JSValue new_internal_error(const char* fmt, ...) const
-    {
-      va_list ap;
-      va_start(ap, fmt);
-      auto r = JS_ThrowInternalError(ctx, fmt, ap);
-      va_end(ap);
-      return r;
-    }
-
-    JSWrappedValue new_tag_value(int tag, int32_t val = 0) const
-    {
-// "compound literals are a C99-specific feature"
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wc99-extensions"
-      return W((JSValue){(JSValueUnion){.int32 = val}, tag});
-#pragma clang diagnostic pop
-    }
-
-    JSWrappedValue null() const
-    {
-      return W(ccf::js::constants::Null);
-    }
-
-    JSWrappedValue undefined() const
-    {
-      return W(ccf::js::constants::Undefined);
-    }
-
+      const uint8_t* buf, size_t buf_len) const;
+    JSWrappedValue new_array_buffer_copy(const char* buf, size_t buf_len) const;
+    JSWrappedValue new_array_buffer_copy(std::span<const uint8_t> data) const;
+    JSWrappedValue new_string(const std::string& str) const;
+    JSWrappedValue new_string(const char* str) const;
+    JSWrappedValue new_string_len(const char* buf, size_t buf_len) const;
+    JSWrappedValue new_type_error(const char* fmt, ...) const;
+    JSValue new_internal_error(const char* fmt, ...) const;
+    JSWrappedValue new_tag_value(int tag, int32_t val = 0) const;
+    JSWrappedValue null() const;
+    JSWrappedValue undefined() const;
     JSWrappedValue new_c_function(
-      JSCFunction* func, const char* name, int length) const
-    {
-      return W(JS_NewCFunction(ctx, func, name, length));
-    }
-
+      JSCFunction* func, const char* name, int length) const;
     JSWrappedValue new_getter_c_function(
-      JSCFunction* func, const char* name) const
-    {
-      return W(JS_NewCFunction2(
-        ctx, func, name, 0, JS_CFUNC_getter, JS_CFUNC_getter_magic));
-    }
-
+      JSCFunction* func, const char* name) const;
     JSWrappedValue eval(
       const char* input,
       size_t input_len,
       const char* filename,
-      int eval_flags) const
-    {
-      return W(JS_Eval(ctx, input, input_len, filename, eval_flags));
-    }
-
-    JSWrappedValue eval_function(const JSWrappedValue& module) const
-    {
-      return W(JS_EvalFunction(ctx, module.val));
-    }
+      int eval_flags) const;
+    JSWrappedValue eval_function(const JSWrappedValue& module) const;
 
     JSWrappedValue default_function(
       const std::string& code, const std::string& path);
@@ -340,21 +164,10 @@ namespace ccf::js
       const std::string& func,
       const std::string& path);
 
-    JSWrappedValue get_module_export_entry(JSModuleDef* m, int idx) const
-    {
-      return W(JS_GetModuleExportEntry(ctx, m, idx));
-    }
-
+    JSWrappedValue get_module_export_entry(JSModuleDef* m, int idx) const;
     JSWrappedValue read_object(
-      const uint8_t* buf, size_t buf_len, int flags) const
-    {
-      return W(JS_ReadObject(ctx, buf, buf_len, flags));
-    }
-
-    JSWrappedValue get_exception() const
-    {
-      return W(JS_GetException(ctx));
-    }
+      const uint8_t* buf, size_t buf_len, int flags) const;
+    JSWrappedValue get_exception() const;
 
     JSWrappedValue call_with_rt_options(
       const JSWrappedValue& f,
@@ -369,79 +182,18 @@ namespace ccf::js
     JSWrappedValue inner_call(
       const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv);
 
-    JSWrappedValue parse_json(const nlohmann::json& j) const
-    {
-      const auto buf = j.dump();
-      return W(JS_ParseJSON(ctx, buf.data(), buf.size(), "<json>"));
-    }
-
+    JSWrappedValue parse_json(const nlohmann::json& j) const;
     JSWrappedValue parse_json(
-      const char* buf, size_t buf_len, const char* filename) const
-    {
-      return W(JS_ParseJSON(ctx, buf, buf_len, filename));
-    }
-
+      const char* buf, size_t buf_len, const char* filename) const;
     JSWrappedValue get_typed_array_buffer(
       const JSWrappedValue& obj,
       size_t* pbyte_offset,
       size_t* pbyte_length,
-      size_t* pbytes_per_element) const
-    {
-      return W(JS_GetTypedArrayBuffer(
-        ctx, obj.val, pbyte_offset, pbyte_length, pbytes_per_element));
-    }
-
-    std::optional<std::string> to_str(const JSWrappedValue& x) const
-    {
-      auto val = JS_ToCString(ctx, x.val);
-      if (!val)
-      {
-        new_type_error("value is not a string");
-        return std::nullopt;
-      }
-      std::string r(val);
-      JS_FreeCString(ctx, val);
-      return r;
-    }
-
-    std::optional<std::string> to_str(const JSValue& x) const
-    {
-      auto val = JS_ToCString(ctx, x);
-      if (!val)
-      {
-        new_type_error("value is not a string");
-        return std::nullopt;
-      }
-      std::string r(val);
-      JS_FreeCString(ctx, val);
-      return r;
-    }
-
-    std::optional<std::string> to_str(const JSValue& x, size_t& len) const
-    {
-      auto val = JS_ToCStringLen(ctx, &len, x);
-      if (!val)
-      {
-        new_type_error("value is not a string");
-        return std::nullopt;
-      }
-      std::string r(val);
-      JS_FreeCString(ctx, val);
-      return r;
-    }
-
-    std::optional<std::string> to_str(const JSAtom& atom) const
-    {
-      auto val = JS_AtomToCString(ctx, atom);
-      if (!val)
-      {
-        new_type_error("atom is not a string");
-        return std::nullopt;
-      }
-      std::string r(val);
-      JS_FreeCString(ctx, val);
-      return r;
-    }
+      size_t* pbytes_per_element) const;
+    std::optional<std::string> to_str(const JSWrappedValue& x) const;
+    std::optional<std::string> to_str(const JSValue& x) const;
+    std::optional<std::string> to_str(const JSValue& x, size_t& len) const;
+    std::optional<std::string> to_str(const JSAtom& atom) const;
 
     // Reset any state that has been stored on the ctx object to implement
     // globals. This should be called at the end of any invocation where the
@@ -467,16 +219,5 @@ namespace ccf::js
     JSValue create_historical_state_object(ccf::historical::StatePtr state);
 
     std::pair<std::string, std::optional<std::string>> error_message();
-
-  protected:
-    JSWrappedValue W(JSValue&& x) const
-    {
-      return JSWrappedValue(ctx, std::move(x));
-    }
-
-    JSWrappedValue W(const JSValue& x) const
-    {
-      return JSWrappedValue(ctx, x);
-    }
   };
 }
