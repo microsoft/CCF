@@ -343,6 +343,46 @@ if(INSTALL_VIRTUAL_LIBRARIES)
   )
 endif()
 
+# CCF js libs
+set(CCF_JS_SOURCES
+    ${CCF_DIR}/src/js/global_class_ids.cpp ${CCF_DIR}/src/js/wrapped_value.cpp
+    ${CCF_DIR}/src/js/runtime.cpp ${CCF_DIR}/src/js/context.cpp
+    ${CCF_DIR}/src/js/no_plugins.cpp ${CCF_DIR}/src/js/globals/ccf.cpp
+)
+
+if(COMPILE_TARGET STREQUAL "sgx")
+  add_enclave_library(ccf_js.enclave "${CCF_JS_SOURCES}")
+  target_link_libraries(ccf_js.enclave PUBLIC ccfcrypto.enclave quickjs.enclave)
+  add_warning_checks(ccf_js.enclave)
+  install(
+    TARGETS ccf_js.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
+  add_san(ccf_js.snp)
+  target_link_libraries(ccf_js.snp PUBLIC ccfcrypto.snp quickjs.snp)
+  add_warning_checks(ccf_js.snp)
+  install(
+    TARGETS ccf_js.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
+add_host_library(ccf_js.host "${CCF_JS_SOURCES}")
+add_san(ccf_js.host)
+target_link_libraries(ccf_js.host PUBLIC ccfcrypto.host quickjs.host)
+add_warning_checks(ccf_js.host)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS ccf_js.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
 # CCF kv libs
 set(CCF_KV_SOURCES
     ${CCF_DIR}/src/kv/tx.cpp ${CCF_DIR}/src/kv/untyped_map_handle.cpp
@@ -458,7 +498,9 @@ if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(
     js_snp_attestation.enclave ${CCF_DIR}/src/js/snp_attestation.cpp
   )
-  target_link_libraries(js_snp_attestation.enclave PUBLIC ccf.enclave)
+  target_link_libraries(
+    js_snp_attestation.enclave PUBLIC ccf.enclave
+  )
   add_lvi_mitigations(js_snp_attestation.enclave)
   install(
     TARGETS js_snp_attestation.enclave
@@ -484,7 +526,9 @@ elseif(COMPILE_TARGET STREQUAL "snp" AND REQUIRE_OPENENCLAVE)
 elseif(COMPILE_TARGET STREQUAL "virtual" AND REQUIRE_OPENENCLAVE)
   add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
   add_san(js_openenclave.virtual)
-  target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
+  target_link_libraries(
+    js_openenclave.virtual PUBLIC ccf.virtual
+  )
   target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_openenclave.virtual
@@ -527,7 +571,9 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
     js_snp_attestation.virtual STATIC ${CCF_DIR}/src/js/snp_attestation.cpp
   )
   add_san(js_snp_attestation.virtual)
-  target_link_libraries(js_snp_attestation.virtual PUBLIC ccf.virtual)
+  target_link_libraries(
+    js_snp_attestation.virtual PUBLIC ccf.virtual
+  )
   target_compile_options(js_snp_attestation.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_snp_attestation.virtual
@@ -549,7 +595,9 @@ if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(
     js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
   )
-  target_link_libraries(js_generic_base.enclave PUBLIC ccf.enclave)
+  target_link_libraries(
+    js_generic_base.enclave PUBLIC ccf.enclave
+  )
   add_lvi_mitigations(js_generic_base.enclave)
   install(
     TARGETS js_generic_base.enclave
@@ -582,7 +630,9 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
   )
   add_san(js_generic_base.virtual)
   add_warning_checks(js_generic_base.virtual)
-  target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
+  target_link_libraries(
+    js_generic_base.virtual PUBLIC ccf.virtual
+  )
   target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
   if(REQUIRE_OPENENCLAVE)
     target_compile_definitions(
@@ -680,16 +730,9 @@ endif()
 # Build common library for CCF enclaves
 add_custom_target(ccf ALL)
 
-set(CCF_JS_SOURCES
-    ${CCF_DIR}/src/js/global_class_ids.cpp ${CCF_DIR}/src/js/wrapped_value.cpp
-    ${CCF_DIR}/src/js/runtime.cpp ${CCF_DIR}/src/js/context.cpp
-    ${CCF_DIR}/src/js/no_plugins.cpp ${CCF_DIR}/src/js/globals/ccf.cpp
-)
-
 set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
-    ${CCF_JS_SOURCES}
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -718,14 +761,8 @@ if(COMPILE_TARGET STREQUAL "sgx")
   )
 
   target_link_libraries(
-    ccf.enclave
-    PUBLIC quickjs.enclave
-           http_parser.enclave
-           sss.enclave
-           ccf_endpoints.enclave
-           ccfcrypto.enclave
-           ccf_kv.enclave
-           nghttp2.enclave
+    ccf.enclave PUBLIC http_parser.enclave sss.enclave ccf_endpoints.enclave
+                       ccfcrypto.enclave ccf_kv.enclave ccf_js.enclave nghttp2.enclave
   )
 
   add_lvi_mitigations(ccf.enclave)
@@ -768,11 +805,11 @@ elseif(COMPILE_TARGET STREQUAL "snp")
     PUBLIC ${LINK_LIBCXX}
            -lgcc
            http_parser.snp
-           quickjs.snp
            sss.snp
            ccf_endpoints.snp
            ccfcrypto.snp
            ccf_kv.snp
+           ccf_js.snp
            nghttp2.snp
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -819,11 +856,11 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
     PUBLIC ${LINK_LIBCXX}
            -lgcc
            http_parser.host
-           quickjs.host
            sss.host
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
+           ccf_js.host
            nghttp2.host
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -1024,8 +1061,8 @@ if(BUILD_TESTS)
 
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
-      js_test PRIVATE quickjs.host ccf_kv.host ccf_endpoints.host
-                      ccfcrypto.host http_parser.host
+      js_test PRIVATE ccf_js.host ccf_kv.host ccf_endpoints.host ccfcrypto.host
+                      http_parser.host
     )
 
     add_unit_test(
@@ -1096,7 +1133,6 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
       ${CCF_DIR}/src/node/quote.cpp
-      ${CCF_JS_SOURCES}
     )
     target_link_libraries(
       frontend_test
@@ -1106,7 +1142,7 @@ if(BUILD_TESTS)
               ccf_endpoints.host
               ccfcrypto.host
               ccf_kv.host
-              quickjs.host
+              ccf_js.host
     )
 
     add_unit_test(
@@ -1123,7 +1159,7 @@ if(BUILD_TESTS)
     add_unit_test(
       node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
-      ${CCF_DIR}/src/node/quote.cpp ${CCF_JS_SOURCES}
+      ${CCF_DIR}/src/node/quote.cpp
     )
     target_link_libraries(
       node_frontend_test
@@ -1133,7 +1169,7 @@ if(BUILD_TESTS)
               ccf_endpoints.host
               ccfcrypto.host
               ccf_kv.host
-              quickjs.host
+              ccf_js.host
     )
 
     add_unit_test(
