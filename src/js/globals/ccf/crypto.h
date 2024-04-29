@@ -591,7 +591,8 @@ namespace ccf::js::globals
         }
         else if (algo_name == "RSA-OAEP-AES-KWP")
         {
-          auto aes_key_size_value = jsctx.get_property(parameters, "aesKeySize");
+          auto aes_key_size_value =
+            jsctx.get_property(parameters, "aesKeySize");
           JS_CHECK_EXC(aes_key_size_value);
 
           int32_t aes_key_size = 0;
@@ -723,7 +724,8 @@ namespace ccf::js::globals
         }
         else if (algo_name == "RSA-OAEP-AES-KWP")
         {
-          auto aes_key_size_value = jsctx.get_property(parameters, "aesKeySize");
+          auto aes_key_size_value =
+            jsctx.get_property(parameters, "aesKeySize");
           JS_CHECK_EXC(aes_key_size_value);
 
           int32_t aes_key_size = 0;

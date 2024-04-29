@@ -498,9 +498,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(
     js_snp_attestation.enclave ${CCF_DIR}/src/js/snp_attestation.cpp
   )
-  target_link_libraries(
-    js_snp_attestation.enclave PUBLIC ccf.enclave
-  )
+  target_link_libraries(js_snp_attestation.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_snp_attestation.enclave)
   install(
     TARGETS js_snp_attestation.enclave
@@ -526,9 +524,7 @@ elseif(COMPILE_TARGET STREQUAL "snp" AND REQUIRE_OPENENCLAVE)
 elseif(COMPILE_TARGET STREQUAL "virtual" AND REQUIRE_OPENENCLAVE)
   add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
   add_san(js_openenclave.virtual)
-  target_link_libraries(
-    js_openenclave.virtual PUBLIC ccf.virtual
-  )
+  target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
   target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_openenclave.virtual
@@ -571,9 +567,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
     js_snp_attestation.virtual STATIC ${CCF_DIR}/src/js/snp_attestation.cpp
   )
   add_san(js_snp_attestation.virtual)
-  target_link_libraries(
-    js_snp_attestation.virtual PUBLIC ccf.virtual
-  )
+  target_link_libraries(js_snp_attestation.virtual PUBLIC ccf.virtual)
   target_compile_options(js_snp_attestation.virtual PRIVATE ${COMPILE_LIBCXX})
   target_compile_definitions(
     js_snp_attestation.virtual
@@ -595,9 +589,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(
     js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
   )
-  target_link_libraries(
-    js_generic_base.enclave PUBLIC ccf.enclave
-  )
+  target_link_libraries(js_generic_base.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_generic_base.enclave)
   install(
     TARGETS js_generic_base.enclave
@@ -630,9 +622,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
   )
   add_san(js_generic_base.virtual)
   add_warning_checks(js_generic_base.virtual)
-  target_link_libraries(
-    js_generic_base.virtual PUBLIC ccf.virtual
-  )
+  target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
   target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
   if(REQUIRE_OPENENCLAVE)
     target_compile_definitions(
@@ -761,8 +751,14 @@ if(COMPILE_TARGET STREQUAL "sgx")
   )
 
   target_link_libraries(
-    ccf.enclave PUBLIC http_parser.enclave sss.enclave ccf_endpoints.enclave
-                       ccfcrypto.enclave ccf_kv.enclave ccf_js.enclave nghttp2.enclave
+    ccf.enclave
+    PUBLIC http_parser.enclave
+           sss.enclave
+           ccf_endpoints.enclave
+           ccfcrypto.enclave
+           ccf_kv.enclave
+           ccf_js.enclave
+           nghttp2.enclave
   )
 
   add_lvi_mitigations(ccf.enclave)
