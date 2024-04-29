@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- CCF now supports a mode where HTTP redirect responses are returned, rather than relying on internal forwarding. This can be used to ensure that write requests are executed on a primary, even if they are initially sent to a backup. This behaviour is enabled by setting the `redirections` field in an `rpc_interface` within cchost's launch config. This can be configured to redirect either directly to a node (if each node has a distinct, accessible name), or to a static load balancer address, depending on the current deployment. See docs for description of [redirection behaviour](https://microsoft.github.io/CCF/main/architecture/request_flow.html#redirection-flow) and [configuration](https://microsoft.github.io/CCF/main/operations/configuration.html#redirections).
+- CCF now supports a mode where HTTP redirect responses are returned, rather than relying on internal forwarding. See docs for description of [redirection behaviour](https://microsoft.github.io/CCF/main/architecture/request_flow.html#redirection-flow) and [migration instructions](https://microsoft.github.io/CCF/main/build_apps/migration_4_x_to_5_0.html).
 - Authentication policies can now be conjoined (AND) together, in addition to the previous disjoint (OR) behaviour. The new `ccf::AllOfAuthnPolicy` takes a collection of other policies, _all of which must be true_ for this auth policy to pass. In JS, [this can be configured](https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html#allofauthnpolicy) in the `app.json` as `"authn_policies": [{ "all_of": ["policy_a", "policy_b"] }]`.
 
 ### Changed
