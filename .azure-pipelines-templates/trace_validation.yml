@@ -23,6 +23,9 @@ steps:
           cd tla/
           mkdir -p traces/consistency
           mv ../build/consistency/trace.ndjson traces/consistency/
+          # Note that -Dtlc2.tool.queue.IStateQueue=StateDeque makes TLC effectively
+          # causes TLC to run a depth-first search rather than a breadth-first search, which tends to
+          # be more efficient in the case of trace validation including non-deterministic steps.
           JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON=traces/consistency/trace.ndjson ./tlc.sh -dump dot,constrained,colorize,actionlabels traces/consistency/trace.dot -dumpTrace tla traces/consistency/trace.trace.tla -dumpTrace json traces/consistency/trace.trace.json consistency/TraceMultiNodeReads.tla
           ls traces
         displayName: "Run Consistency Trace Validation"
