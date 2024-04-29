@@ -21,16 +21,8 @@ namespace ccf::js
 {
   std::vector<FFIPlugin> ffi_plugins;
 
-  class ContextImpl
-  {
-    // TODO TODO TODO TODO
-    // Can we use this?
-  };
-
   Context::Context(TxAccess acc) : access(acc)
   {
-    pimpl = std::make_unique<ContextImpl>();
-
     ctx = JS_NewContext(rt);
     if (ctx == nullptr)
     {

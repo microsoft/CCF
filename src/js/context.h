@@ -31,11 +31,6 @@ namespace ccf
 
     using StatePtr = std::shared_ptr<State>;
   }
-
-  namespace js
-  {
-    class ContextImpl;
-  }
 }
 
 namespace ccf::js
@@ -51,8 +46,6 @@ namespace ccf::js
   class Context
   {
   private:
-    std::unique_ptr<ContextImpl> pimpl;
-
     JSContext* ctx;
     Runtime rt;
 
