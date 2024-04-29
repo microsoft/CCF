@@ -9,7 +9,6 @@
 
 namespace ccf::js
 {
-  // TODO: Should these be inside Runtime?
   enum class RuntimeLimitsPolicy
   {
     NONE,

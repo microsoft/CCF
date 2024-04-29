@@ -213,7 +213,6 @@ namespace ccf::js
   void Context::populate_global_ccf_rpc(ccf::RpcContext* rpc_ctx)
   {
     auto rpc = create_global_rpc_object(rpc_ctx, ctx);
-    // TODO: Can't you do this inside?
     globals.rpc_ctx = rpc_ctx;
     auto ccf = get_global_property("ccf");
     ccf.set("rpc", std::move(rpc));

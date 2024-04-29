@@ -186,7 +186,7 @@ namespace ccf::js::globals
       }
     }
 
-    JSValue js_refresh_app_bytecode_cache(
+    static JSValue js_refresh_app_bytecode_cache(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
       js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
@@ -252,7 +252,7 @@ namespace ccf::js::globals
       return ccf::js::constants::Undefined;
     }
 
-    JSValue js_gov_set_jwt_public_signing_keys(
+    static JSValue js_gov_set_jwt_public_signing_keys(
       JSContext* ctx,
       [[maybe_unused]] JSValueConst this_val,
       int argc,

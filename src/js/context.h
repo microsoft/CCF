@@ -11,7 +11,7 @@
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
 
-// TODO: Only required while globals is public
+// NB: Only required while globals is public
 #include "ccf/tx.h"
 #include "kv/untyped_map.h"
 
@@ -59,7 +59,7 @@ namespace ccf::js
     void init_globals();
 
   public:
-    // TODO TODO: Would _really_ like to hide this in impl...
+    // NB: This should really be hidden as an implementation detail
     // State which may be set by calls to populate_global_ccf_*. Likely
     // references transaction-scoped entries, so should be cleared between
     // calls. Retained handles to these globals must not access the previous
@@ -452,7 +452,6 @@ namespace ccf::js
     void invalidate_globals();
 
     void populate_global_ccf_kv(kv::Tx& tx);
-    // TODO: Forward declare all of these
     void populate_global_ccf_node(ccf::AbstractGovernanceEffects* gov_effects);
     void populate_global_ccf_host(ccf::AbstractHostProcesses* host_processes);
     void populate_global_ccf_network(ccf::NetworkState* network_state);
