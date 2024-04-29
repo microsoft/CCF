@@ -206,7 +206,8 @@ MNRSpec == MNR!SpecMultiNodeReads
 
 -------------------------------------------------------------------------------------
 
-Alias ==
+\* Does not include backfilled transactions
+ClientTxnsOnlyAlias ==
     [
         l |-> l,
         history |-> history,
