@@ -115,6 +115,9 @@ namespace ccf::js
     JSWrappedValue wrap(JSValue&& val) const;
     JSWrappedValue wrap(const JSValue& x) const;
 
+    JSWrappedValue get_property(
+      JSValue object, char const* property_name) const;
+
     JSWrappedValue new_obj() const;
     JSWrappedValue new_obj_class(JSClassID class_id) const;
     JSWrappedValue get_global_obj() const;
@@ -138,6 +141,9 @@ namespace ccf::js
     JSWrappedValue new_type_error(const char* fmt, ...) const;
     JSValue new_internal_error(const char* fmt, ...) const;
     JSWrappedValue new_tag_value(int tag, int32_t val = 0) const;
+
+    JSWrappedValue duplicate_value(JSValueConst original) const;
+
     JSWrappedValue null() const;
     JSWrappedValue undefined() const;
     JSWrappedValue new_c_function(

@@ -85,7 +85,7 @@ namespace ccf::js
     static KVMap::Handle* _get_map_handle(
       js::Context& jsctx, JSValueConst _this_val)
     {
-      JSWrappedValue this_val = jsctx.wrap(JS_DupValue(jsctx, _this_val));
+      JSWrappedValue this_val = jsctx.duplicate_value(_this_val);
       auto map_name_val = this_val["_map_name"];
       auto map_name = jsctx.to_str(map_name_val);
 
@@ -129,7 +129,7 @@ namespace ccf::js
     static KVMap::ReadOnlyHandle* _get_map_handle_historical(
       js::Context& jsctx, JSValueConst _this_val)
     {
-      JSWrappedValue this_val = jsctx.wrap(JS_DupValue(jsctx, _this_val));
+      JSWrappedValue this_val = jsctx.duplicate_value(_this_val);
       auto map_name_val = this_val["_map_name"];
       auto map_name = jsctx.to_str(map_name_val);
 

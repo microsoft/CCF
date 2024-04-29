@@ -72,6 +72,12 @@ namespace ccf::js
     return JSWrappedValue(ctx, val);
   };
 
+  JSWrappedValue Context::get_property(
+    JSValue object, char const* property_name) const
+  {
+    return wrap(JS_GetPropertyStr(ctx, object, property_name));
+  }
+
   JSWrappedValue Context::new_obj() const
   {
     return wrap(JS_NewObject(ctx));
@@ -219,6 +225,11 @@ namespace ccf::js
 #pragma clang diagnostic ignored "-Wc99-extensions"
     return wrap((JSValue){(JSValueUnion){.int32 = val}, tag});
 #pragma clang diagnostic pop
+  }
+
+  JSWrappedValue Context::duplicate_value(JSValueConst original) const
+  {
+    return wrap(JS_DupValue(ctx, original));
   }
 
   JSWrappedValue Context::null() const
