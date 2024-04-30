@@ -26,19 +26,19 @@ namespace ccf::js
       int64_t seconds_until_expiry;
       if (JS_ToInt64(ctx, &handle, argv[0]) < 0)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       if (JS_ToInt64(ctx, &start_seqno, argv[1]) < 0)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       if (JS_ToInt64(ctx, &end_seqno, argv[2]) < 0)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       if (JS_ToInt64(ctx, &seconds_until_expiry, argv[3]) < 0)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       if (
         handle < 0 || start_seqno < 0 || end_seqno < 0 ||
@@ -67,10 +67,10 @@ namespace ccf::js
 
       if (states.empty())
       {
-        return ccf::js::constants::Null;
+        return ccf::js::core::constants::Null;
       }
 
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       auto states_array = jsctx.new_array();
       JS_CHECK_EXC(states_array);
@@ -99,7 +99,7 @@ namespace ccf::js
       int64_t handle;
       if (JS_ToInt64(ctx, &handle, argv[0]) < 0)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       if (handle < 0)
       {

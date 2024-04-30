@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/rpc_context.h"
-#include "js/context.h"
+#include "js/core/context.h"
 #include "js/global_class_ids.h"
 
 #include <quickjs/quickjs.h>
@@ -15,7 +15,7 @@ namespace ccf::js
     JSValue js_rpc_set_apply_writes(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 1)
       {
@@ -32,17 +32,17 @@ namespace ccf::js
       int val = JS_ToBool(ctx, argv[0]);
       if (val == -1)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
 
       rpc_ctx->set_apply_writes(val);
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
 
     JSValue js_rpc_set_claims_digest(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 1)
       {
@@ -77,7 +77,7 @@ namespace ccf::js
       rpc_ctx->set_claims_digest(
         ccf::ClaimsDigest::Digest::from_span(digest_bytes));
 
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
   }
 

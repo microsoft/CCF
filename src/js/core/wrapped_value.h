@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "constants.h"
+#include "js/core/constants.h"
 
 #include <quickjs/quickjs.h>
 #include <string>
 
-namespace ccf::js
+namespace ccf::js::core
 {
   struct JSWrappedValue
   {

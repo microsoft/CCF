@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "js/context.h"
+#include "js/core/context.h"
 #include "js/global_class_ids.h"
 #include "node/network_state.h"
 
@@ -18,7 +18,7 @@ namespace ccf::js
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 0)
       {
@@ -64,7 +64,7 @@ namespace ccf::js
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 3)
       {
@@ -82,7 +82,7 @@ namespace ccf::js
       auto csr_cstr = jsctx.to_str(argv[0]);
       if (!csr_cstr)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       crypto::Pem csr;
       try
@@ -97,14 +97,14 @@ namespace ccf::js
       auto valid_from_str = jsctx.to_str(argv[1]);
       if (!valid_from_str)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       auto valid_from = *valid_from_str;
 
       size_t validity_period_days = 0;
       if (JS_ToIndex(ctx, &validity_period_days, argv[2]) < 0)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
 
       try
@@ -131,7 +131,7 @@ namespace ccf::js
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 2)
       {
@@ -149,14 +149,14 @@ namespace ccf::js
       auto valid_from_str = jsctx.to_str(argv[0]);
       if (!valid_from_str)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       auto valid_from = *valid_from_str;
 
       size_t validity_period_days = 0;
       if (JS_ToIndex(ctx, &validity_period_days, argv[1]) < 0)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
 
       try

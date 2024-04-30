@@ -13,13 +13,13 @@ namespace ccf::js
   protected:
     // Locks access to all internal fields
     ccf::pal::Mutex lock;
-    LRU<std::string, std::shared_ptr<js::Context>> lru;
+    LRU<std::string, std::shared_ptr<js::core::Context>> lru;
     size_t cache_build_marker;
 
   public:
     InterpreterCache(size_t max_cache_size) : lru(max_cache_size) {}
 
-    std::shared_ptr<js::Context> get_interpreter(
+    std::shared_ptr<js::core::Context> get_interpreter(
       js::TxAccess access,
       const JSDynamicEndpoint& endpoint,
       size_t freshness_marker) override
@@ -63,7 +63,7 @@ namespace ccf::js
             {
               LOG_TRACE_FMT(
                 "Inserting new interpreter into cache, with key {}", key);
-              it = lru.insert(key, std::make_shared<js::Context>(access));
+              it = lru.insert(key, std::make_shared<js::core::Context>(access));
             }
             else
             {
@@ -79,7 +79,7 @@ namespace ccf::js
 
       // Return a fresh interpreter, not stored in the cache
       LOG_TRACE_FMT("Returning freshly constructed interpreter");
-      return std::make_shared<js::Context>(access);
+      return std::make_shared<js::core::Context>(access);
     }
 
     void set_max_cached_interpreters(size_t max) override

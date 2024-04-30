@@ -16,6 +16,6 @@
   { \
     if (val != 1) \
     { \
-      return ccf::js::constants::Exception; \
+      return ccf::js::core::constants::Exception; \
     } \
   } while (0)

@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/pal/locking.h"
+#include "js/core/runtime.h"
+#include "js/core/wrapped_value.h"
 #include "js/tx_access.h"
-#include "runtime.h"
-#include "wrapped_value.h"
 
 #include <chrono>
 #include <quickjs/quickjs-exports.h>
@@ -33,7 +33,7 @@ namespace ccf
   }
 }
 
-namespace ccf::js
+namespace ccf::js::core
 {
   struct InterruptData
   {
@@ -177,7 +177,7 @@ namespace ccf::js
 
     JSWrappedValue call_with_rt_options(
       const JSWrappedValue& f,
-      const std::vector<js::JSWrappedValue>& argv,
+      const std::vector<JSWrappedValue>& argv,
       kv::Tx* tx,
       RuntimeLimitsPolicy policy);
 
@@ -186,7 +186,7 @@ namespace ccf::js
     // invoked JS function, where the caller has already set up the necessary
     // limits.
     JSWrappedValue inner_call(
-      const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv);
+      const JSWrappedValue& f, const std::vector<JSWrappedValue>& argv);
 
     JSWrappedValue parse_json(const nlohmann::json& j) const;
     JSWrappedValue parse_json(

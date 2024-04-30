@@ -4,13 +4,13 @@
 
 #include <quickjs/quickjs.h>
 
-namespace ccf::js
+namespace ccf::js::core
 {
   namespace constants
   {
 // "compound literals are a C99-specific feature"
 // Used heavily by QuickJS, including in macros (such as
-// ccf::js::constants::Null). Rather than disabling throughout the code, we
+// ccf::js::core::constants::Null). Rather than disabling throughout the code, we
 // replace those with const instances here
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-extensions"

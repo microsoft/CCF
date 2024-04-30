@@ -6,7 +6,7 @@
 #include "ccf/pal/attestation.h"
 #include "ccf/version.h"
 #include "js/checks.h"
-#include "js/context.h"
+#include "js/core/context.h"
 #include "node/uvm_endorsements.h"
 
 #include <algorithm>
@@ -19,7 +19,7 @@ namespace ccf::js
 #pragma clang diagnostic push
 
   static JSValue make_js_tcb_version(
-    js::Context& jsctx, pal::snp::TcbVersion tcb)
+    js::core::Context& jsctx, pal::snp::TcbVersion tcb)
   {
     auto js_tcb = jsctx.new_obj();
     JS_CHECK_EXC(js_tcb);
@@ -43,20 +43,20 @@ namespace ccf::js
     if (argc < 2 && argc > 4)
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected between 2 and 4", argc);
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     size_t evidence_size;
     uint8_t* evidence = JS_GetArrayBuffer(ctx, &evidence_size, argv[0]);
     if (!evidence)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     size_t endorsements_size;
     uint8_t* endorsements = JS_GetArrayBuffer(ctx, &endorsements_size, argv[1]);
     if (!endorsements)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     std::optional<std::vector<uint8_t>> uvm_endorsements;
@@ -67,7 +67,7 @@ namespace ccf::js
         JS_GetArrayBuffer(ctx, &uvm_endorsements_size, argv[2]);
       if (!uvm_endorsements_array)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       uvm_endorsements = std::vector<uint8_t>(
         uvm_endorsements_array, uvm_endorsements_array + uvm_endorsements_size);
@@ -79,7 +79,7 @@ namespace ccf::js
       endorsed_tcb = jsctx.to_str(argv[3]);
       if (!endorsed_tcb)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
     }
 
@@ -149,8 +149,8 @@ namespace ccf::js
     JS_CHECK_SET(a.set_uint32(
       "signature_algo", static_cast<uint32_t>(attestation.signature_algo)));
 
-    auto platform_version = JSWrappedValue(
-      ctx, make_js_tcb_version(jsctx, attestation.platform_version));
+    auto platform_version =
+      jsctx.wrap(make_js_tcb_version(jsctx, attestation.platform_version));
     JS_CHECK_EXC(platform_version);
     JS_CHECK_SET(a.set("platform_version", std::move(platform_version)));
 
@@ -209,7 +209,7 @@ namespace ccf::js
     JS_CHECK_SET(a.set("report_id_ma", std::move(attestation_report_id_ma)));
 
     auto reported_tcb =
-      JSWrappedValue(ctx, make_js_tcb_version(jsctx, attestation.reported_tcb));
+      jsctx.wrap(make_js_tcb_version(jsctx, attestation.reported_tcb));
     JS_CHECK_EXC(reported_tcb);
     JS_CHECK_SET(a.set("reported_tcb", std::move(reported_tcb)));
 
@@ -217,8 +217,8 @@ namespace ccf::js
     JS_CHECK_EXC(attestation_chip_id);
     JS_CHECK_SET(a.set("chip_id", std::move(attestation_chip_id)));
 
-    auto committed_tcb = JSWrappedValue(
-      ctx, make_js_tcb_version(jsctx, attestation.committed_tcb));
+    auto committed_tcb =
+      jsctx.wrap(make_js_tcb_version(jsctx, attestation.committed_tcb));
     JS_CHECK_EXC(committed_tcb);
     JS_CHECK_SET(a.set("committed_tcb", std::move(committed_tcb)));
 
@@ -230,7 +230,7 @@ namespace ccf::js
     JS_CHECK_SET(a.set_uint32("committed_major", attestation.committed_major));
 
     auto launch_tcb =
-      JSWrappedValue(ctx, make_js_tcb_version(jsctx, attestation.launch_tcb));
+      jsctx.wrap(make_js_tcb_version(jsctx, attestation.launch_tcb));
     JS_CHECK_EXC(launch_tcb);
     JS_CHECK_SET(a.set("launch_tcb", std::move(launch_tcb)));
 
@@ -287,7 +287,7 @@ namespace ccf::js
     return snp_attestation;
   }
 
-  static void populate_global_snp_attestation(Context& ctx)
+  static void populate_global_snp_attestation(js::core::Context& ctx)
   {
     auto global_obj = ctx.get_global_obj();
     global_obj.set("snp_attestation", create_snp_attestation_obj(ctx));

@@ -8,10 +8,10 @@
 
 namespace ccf::js
 {
-  static inline JSWrappedValue load_app_module(
+  static inline js::core::JSWrappedValue load_app_module(
     JSContext* ctx, const char* module_name, kv::Tx* tx)
   {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     std::string module_name_kv(module_name);
     if (module_name_kv[0] != '/')
@@ -42,7 +42,7 @@ namespace ccf::js
         bytecode = std::nullopt;
     }
 
-    JSWrappedValue module_val;
+    js::core::JSWrappedValue module_val;
 
     if (!bytecode)
     {
@@ -129,7 +129,7 @@ namespace ccf::js
     catch (const std::exception& exc)
     {
       JS_ThrowReferenceError(ctx, "%s", exc.what());
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
       auto [reason, trace] = jsctx.error_message();
 
       auto& rt = jsctx.runtime();

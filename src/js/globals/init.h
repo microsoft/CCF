@@ -10,7 +10,10 @@
 
 namespace ccf::js
 {
-  class Context;
+  namespace core
+  {
+    class Context;
+  }
 
   namespace globals
   {
@@ -45,7 +48,7 @@ namespace ccf::js
         return JS_NewFloat64(ctx, u.d - 1.0);
       }
 
-      static inline void override_builtin_funcs(js::Context& ctx)
+      static inline void override_builtin_funcs(js::core::Context& ctx)
       {
         // Overriding built-in Math.random
         auto math_val = ctx.get_global_property("Math");
@@ -53,7 +56,7 @@ namespace ccf::js
       }
     }
 
-    void init_globals(Context& ctx)
+    void init_globals(js::core::Context& ctx)
     {
       populate_global_ccf(ctx);
 

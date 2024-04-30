@@ -4,7 +4,7 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "js/checks.h"
-#include "js/context.h"
+#include "js/core/context.h"
 #include "js/global_class_ids.h"
 
 #include <quickjs/quickjs.h>
@@ -41,7 +41,7 @@ namespace ccf::js
           ccf::api_result_to_str(result));
       }
 
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       auto obj = jsctx.new_obj();
       JS_CHECK_EXC(obj);
@@ -61,11 +61,11 @@ namespace ccf::js
       int64_t seqno;
       if (JS_ToInt64(ctx, &view, argv[0]) < 0)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       if (JS_ToInt64(ctx, &seqno, argv[1]) < 0)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       if (view < 0 || seqno < 0)
       {
@@ -105,7 +105,7 @@ namespace ccf::js
       int64_t seqno;
       if (JS_ToInt64(ctx, &seqno, argv[0]) < 0)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       if (seqno < 0)
       {
@@ -124,7 +124,7 @@ namespace ccf::js
       auto result = endpoint_registry->get_view_for_seqno_v1(seqno, view);
       if (result == ccf::ApiResult::NotFound)
       {
-        return ccf::js::constants::Null;
+        return ccf::js::core::constants::Null;
       }
       if (result != ccf::ApiResult::OK)
       {

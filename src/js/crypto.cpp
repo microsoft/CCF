@@ -10,7 +10,7 @@
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/verifier.h"
 #include "js/checks.h"
-#include "js/context.h"
+#include "js/core/context.h"
 #include "tls/ca.h"
 
 #include <quickjs/quickjs.h>
@@ -27,7 +27,7 @@ namespace ccf::js
     int32_t key_size;
     if (JS_ToInt32(ctx, &key_size, argv[0]) < 0)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
     // Supported key sizes for AES.
     if (key_size != 128 && key_size != 192 && key_size != 256)
@@ -58,12 +58,12 @@ namespace ccf::js
     uint32_t key_size = 0, key_exponent = 0;
     if (JS_ToUint32(ctx, &key_size, argv[0]) < 0)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     if (argc == 2 && JS_ToUint32(ctx, &key_exponent, argv[1]) < 0)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     std::shared_ptr<crypto::RSAKeyPair> k;
@@ -84,7 +84,7 @@ namespace ccf::js
         ctx, "Failed to generate RSA key pair: %s", exc.what());
     }
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     try
     {
@@ -117,11 +117,11 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
     auto curve = jsctx.to_str(argv[0]);
     if (!curve)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     crypto::CurveID cid;
@@ -177,11 +177,11 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
     auto curve = jsctx.to_str(argv[0]);
     if (!curve)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     crypto::CurveID cid;
@@ -232,11 +232,11 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 2", argc);
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
     auto digest_algo_name_str = jsctx.to_str(argv[0]);
     if (!digest_algo_name_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     if (*digest_algo_name_str != "SHA-256")
@@ -249,7 +249,7 @@ namespace ccf::js
     uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[1]);
     if (!data)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     try
@@ -270,12 +270,12 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     auto pem = jsctx.to_str(argv[0]);
     if (!pem)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     try
@@ -285,7 +285,7 @@ namespace ccf::js
     catch (const std::runtime_error& e)
     {
       LOG_DEBUG_FMT("isValidX509Bundle: {}", e.what());
-      return ccf::js::constants::False;
+      return ccf::js::core::constants::False;
     }
     catch (const std::logic_error& e)
     {
@@ -293,7 +293,7 @@ namespace ccf::js
         ctx, "isValidX509Bundle failed: %s", e.what());
     }
 
-    return ccf::js::constants::True;
+    return ccf::js::core::constants::True;
   }
 
   static JSValue js_is_valid_x509_cert_chain(
@@ -308,17 +308,17 @@ namespace ccf::js
     auto chain_js = argv[0];
     auto trusted_js = argv[1];
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     auto chain_str = jsctx.to_str(chain_js);
     if (!chain_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
     auto trusted_str = jsctx.to_str(trusted_js);
     if (!trusted_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     try
@@ -352,7 +352,7 @@ namespace ccf::js
     catch (const std::runtime_error& e)
     {
       LOG_DEBUG_FMT("isValidX509Chain: {}", e.what());
-      return ccf::js::constants::False;
+      return ccf::js::core::constants::False;
     }
     catch (const std::logic_error& e)
     {
@@ -360,7 +360,7 @@ namespace ccf::js
         ctx, "isValidX509Chain failed: %s", e.what());
     }
 
-    return ccf::js::constants::True;
+    return ccf::js::core::constants::True;
   }
 
   static JSValue js_pem_to_id(
@@ -370,12 +370,12 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     auto pem_str = jsctx.to_str(argv[0]);
     if (!pem_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     try
@@ -400,12 +400,12 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1 or 2", argc);
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     auto pem_str = jsctx.to_str(argv[0]);
     if (!pem_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     std::optional<std::string> kid = std::nullopt;
@@ -414,7 +414,7 @@ namespace ccf::js
       auto kid_str = jsctx.to_str(argv[1]);
       if (!kid_str)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       kid = kid_str;
     }
@@ -483,13 +483,12 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
-    auto jwk_str =
-      jsctx.to_str(jsctx.json_stringify(JSWrappedValue(ctx, argv[0])));
+    auto jwk_str = jsctx.to_str(jsctx.json_stringify(ctx.wrap(argv[0])));
     if (!jwk_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     crypto::Pem pem;
@@ -557,17 +556,17 @@ namespace ccf::js
     uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
     if (!key)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     size_t wrapping_key_size;
     uint8_t* wrapping_key = JS_GetArrayBuffer(ctx, &wrapping_key_size, argv[1]);
     if (!wrapping_key)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     auto parameters = argv[2];
     auto wrap_algo_name_val = jsctx(JS_GetPropertyStr(ctx, parameters, "name"));
@@ -576,7 +575,7 @@ namespace ccf::js
     auto wrap_algo_name_str = jsctx.to_str(wrap_algo_name_val);
     if (!wrap_algo_name_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     try
@@ -629,7 +628,7 @@ namespace ccf::js
         int32_t aes_key_size = 0;
         if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value.val) < 0)
         {
-          return ccf::js::constants::Exception;
+          return ccf::js::core::constants::Exception;
         }
 
         auto label_val = jsctx(JS_GetPropertyStr(ctx, parameters, "label"));
@@ -686,7 +685,7 @@ namespace ccf::js
     uint8_t* key = JS_GetArrayBuffer(ctx, &key_size, argv[0]);
     if (!key)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     size_t unwrapping_key_size;
@@ -694,10 +693,10 @@ namespace ccf::js
       JS_GetArrayBuffer(ctx, &unwrapping_key_size, argv[1]);
     if (!unwrapping_key)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     auto parameters = argv[2];
     auto wrap_algo_name_val = jsctx(JS_GetPropertyStr(ctx, parameters, "name"));
@@ -706,7 +705,7 @@ namespace ccf::js
     auto wrap_algo_name_str = jsctx.to_str(wrap_algo_name_val);
     if (!wrap_algo_name_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     try
@@ -762,7 +761,7 @@ namespace ccf::js
         int32_t aes_key_size = 0;
         if (JS_ToInt32(ctx, &aes_key_size, aes_key_size_value.val) < 0)
         {
-          return ccf::js::constants::Exception;
+          return ccf::js::core::constants::Exception;
         }
 
         auto label_val = jsctx(JS_GetPropertyStr(ctx, parameters, "label"));
@@ -810,7 +809,7 @@ namespace ccf::js
   static JSValue js_sign(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     if (argc != 3)
     {
@@ -829,13 +828,13 @@ namespace ccf::js
     auto algo_name_str = jsctx.to_str(algo_name_val);
     if (!algo_name_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     auto key_str = jsctx.to_str(argv[1]);
     if (!key_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
     auto key = *key_str;
 
@@ -843,7 +842,7 @@ namespace ccf::js
     uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[2]);
     if (!data)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
     std::vector<uint8_t> contents(data, data + data_size);
 
@@ -867,7 +866,7 @@ namespace ccf::js
     auto algo_hash_str = jsctx.to_str(algo_hash_val);
     if (!algo_hash_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     try
@@ -944,7 +943,7 @@ namespace ccf::js
   static JSValue js_verify_signature(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     if (argc != 4)
     {
@@ -959,14 +958,14 @@ namespace ccf::js
     uint8_t* signature = JS_GetArrayBuffer(ctx, &signature_size, argv[2]);
     if (!signature)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     size_t data_size;
     uint8_t* data = JS_GetArrayBuffer(ctx, &data_size, argv[3]);
     if (!data)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     auto algorithm = argv[0];
@@ -980,13 +979,13 @@ namespace ccf::js
     auto algo_name_str = jsctx.to_str(algo_name_val);
     if (!algo_name_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     auto key_str = jsctx.to_str(argv[1]);
     if (!key_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     // Handle algorithms that don't use algo_hash here
@@ -1009,7 +1008,7 @@ namespace ccf::js
     auto algo_hash_str = jsctx.to_str(algo_hash_val);
     if (!algo_hash_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     try

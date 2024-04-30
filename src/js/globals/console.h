@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "js/constants.h"
-#include "js/context.h"
+#include "js/core/constants.h"
+#include "js/core/context.h"
 #include "js/tx_access.h"
 
 namespace ccf::js::globals
@@ -39,7 +39,7 @@ namespace ccf::js::globals
     std::optional<std::stringstream> stringify_args(
       JSContext* ctx, int argc, JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       int i;
       std::optional<std::string> str;
@@ -53,7 +53,7 @@ namespace ccf::js::globals
         }
         if (!JS_IsError(ctx, argv[i]) && JS_IsObject(argv[i]))
         {
-          auto rval = jsctx.json_stringify(JSWrappedValue(ctx, argv[i]));
+          auto rval = jsctx.json_stringify(jsctx.wrap(argv[i]));
           str = jsctx.to_str(rval);
         }
         else
@@ -74,12 +74,12 @@ namespace ccf::js::globals
       const auto ss = stringify_args(ctx, argc, argv);
       if (!ss.has_value())
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
 
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
       log_info_with_tag(jsctx.access, ss->str());
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
 
     JSValue js_fail(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
@@ -87,10 +87,10 @@ namespace ccf::js::globals
       const auto ss = stringify_args(ctx, argc, argv);
       if (!ss.has_value())
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
 
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
       switch (jsctx.access)
       {
         case (js::TxAccess::APP_RO):
@@ -113,7 +113,7 @@ namespace ccf::js::globals
           break;
         }
       }
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
 
     JSValue js_fatal(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
@@ -121,10 +121,10 @@ namespace ccf::js::globals
       const auto ss = stringify_args(ctx, argc, argv);
       if (!ss.has_value())
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
 
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
       switch (jsctx.access)
       {
         case (js::TxAccess::APP_RO):
@@ -147,10 +147,10 @@ namespace ccf::js::globals
           break;
         }
       }
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
 
-    static JSWrappedValue create_console_obj(Context& jsctx)
+    static js::core::JSWrappedValue create_console_obj(js::core::Context& jsctx)
     {
       auto console = jsctx.new_obj();
 
@@ -163,7 +163,7 @@ namespace ccf::js::globals
     }
   }
 
-  void populate_global_console(Context& ctx)
+  void populate_global_console(js::core::Context& ctx)
   {
     auto global_obj = ctx.get_global_obj();
     global_obj.set("console", create_console_obj(ctx));

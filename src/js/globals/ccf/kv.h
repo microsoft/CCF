@@ -3,7 +3,7 @@
 #pragma once
 
 #include "js/checks.h"
-#include "js/context.h"
+#include "js/core/context.h"
 #include "js/global_class_ids.h"
 #include "js/map_access_permissions.h"
 #include "js/tx_access.h"
@@ -15,8 +15,8 @@ namespace ccf::js
   {
     using KVMap = kv::untyped::Map;
 
-    using HandleGetter =
-      KVMap::ReadOnlyHandle* (*)(js::Context& jsctx, JSValueConst this_val);
+    using HandleGetter = KVMap::
+      ReadOnlyHandle* (*)(js::core::Context& jsctx, JSValueConst this_val);
 
     static constexpr char const* access_permissions_explanation_url =
       "https://microsoft.github.io/CCF/main/audit/read_write_restrictions.html";
@@ -25,7 +25,7 @@ namespace ccf::js
   static JSValue C_FUNC_NAME( \
     JSContext* ctx, JSValueConst this_val, int, JSValueConst*) \
   { \
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx); \
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx); \
     const auto table_name = \
       jsctx.to_str(JS_GetPropertyStr(jsctx, this_val, "_map_name")) \
         .value_or(""); \
@@ -83,9 +83,9 @@ namespace ccf::js
 #undef JS_KV_PERMISSION_ERROR_HELPER
 
     static KVMap::Handle* _get_map_handle(
-      js::Context& jsctx, JSValueConst _this_val)
+      js::core::Context& jsctx, JSValueConst _this_val)
     {
-      JSWrappedValue this_val = jsctx.duplicate_value(_this_val);
+      auto this_val = jsctx.duplicate_value(_this_val);
       auto map_name_val = this_val["_map_name"];
       auto map_name = jsctx.to_str(map_name_val);
 
@@ -117,7 +117,7 @@ namespace ccf::js
     }
 
     static KVMap::ReadOnlyHandle* _get_map_handle_current(
-      js::Context& jsctx, JSValueConst this_val)
+      js::core::Context& jsctx, JSValueConst this_val)
     {
       // NB: This creates (and stores) a writeable handle internally, but
       // converts to the (subtype) ReadOnlyHandle* in return here. This means
@@ -127,9 +127,9 @@ namespace ccf::js
     }
 
     static KVMap::ReadOnlyHandle* _get_map_handle_historical(
-      js::Context& jsctx, JSValueConst _this_val)
+      js::core::Context& jsctx, JSValueConst _this_val)
     {
-      JSWrappedValue this_val = jsctx.duplicate_value(_this_val);
+      auto this_val = jsctx.duplicate_value(_this_val);
       auto map_name_val = this_val["_map_name"];
       auto map_name = jsctx.to_str(map_name_val);
 
@@ -187,7 +187,7 @@ namespace ccf::js
     static JSValue js_kv_map_has(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 1)
       {
@@ -215,7 +215,7 @@ namespace ccf::js
     static JSValue js_kv_map_get(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 1)
       {
@@ -238,7 +238,7 @@ namespace ccf::js
 
       if (!val.has_value())
       {
-        return ccf::js::constants::Undefined;
+        return ccf::js::core::constants::Undefined;
       }
 
       auto buf =
@@ -252,7 +252,7 @@ namespace ccf::js
     static JSValue js_kv_get_version_of_previous_write(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 1)
       {
@@ -275,7 +275,7 @@ namespace ccf::js
 
       if (!val.has_value())
       {
-        return ccf::js::constants::Undefined;
+        return ccf::js::core::constants::Undefined;
       }
 
       return JS_NewInt64(ctx, val.value());
@@ -285,7 +285,7 @@ namespace ccf::js
     static JSValue js_kv_map_size_getter(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst*)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       auto handle = handle_getter_(jsctx, this_val);
       JS_CHECK_HANDLE(handle);
@@ -303,7 +303,7 @@ namespace ccf::js
     static JSValue js_kv_map_delete(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 1)
       {
@@ -324,13 +324,13 @@ namespace ccf::js
 
       handle->remove({key, key + key_size});
 
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
 
     static JSValue js_kv_map_set(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 2)
       {
@@ -360,7 +360,7 @@ namespace ccf::js
     static JSValue js_kv_map_clear(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 0)
       {
@@ -373,21 +373,21 @@ namespace ccf::js
 
       handle->clear();
 
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
 
     template <HandleGetter handle_getter_>
     static JSValue js_kv_map_foreach(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 1)
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1", argc);
 
-      JSWrappedValue func(ctx, argv[0]);
-      JSWrappedValue obj(ctx, this_val);
+      js::core::JSWrappedValue func(ctx, argv[0]);
+      js::core::JSWrappedValue obj(ctx, this_val);
 
       if (!JS_IsFunction(ctx, func.val))
       {
@@ -413,7 +413,7 @@ namespace ccf::js
             return false;
           }
           // JS forEach expects (v, k, map) rather than (k, v)
-          std::vector<JSWrappedValue> args = {value, key, obj};
+          std::vector<js::core::JSWrappedValue> args = {value, key, obj};
 
           auto val = jsctx.inner_call(func, args);
 
@@ -428,15 +428,15 @@ namespace ccf::js
 
       if (failed)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
 
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
 
     template <HandleGetter HG>
     static JSValue _create_kv_map_handle(
-      js::Context& ctx,
+      js::core::Context& ctx,
       const std::string& map_name,
       MapAccessPermissions access_permission)
     {
@@ -528,7 +528,7 @@ namespace ccf::js
     JSValueConst this_val,
     JSAtom property)
   {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
     const auto map_name = jsctx.to_str(property).value_or("");
     LOG_TRACE_FMT("Looking for kv map '{}'", map_name);
 
@@ -552,7 +552,7 @@ namespace ccf::js
     JSValueConst this_val,
     JSAtom property)
   {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
     const auto map_name = jsctx.to_str(property).value_or("");
     auto seqno = reinterpret_cast<ccf::SeqNo>(
       JS_GetOpaque(this_val, kv_historical_class_id));

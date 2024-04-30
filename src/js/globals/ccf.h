@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include "js/context.h"
+#include "js/core/context.h"
 
 namespace ccf::js::globals
 {
@@ -38,7 +38,7 @@ namespace ccf::js::globals
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
   }
 
-  void populate_global_ccf(js::Context& ctx)
+  void populate_global_ccf(js::core::Context& ctx)
   {
     using namespace details;
 
@@ -69,7 +69,7 @@ namespace ccf::js::globals
     global_obj.set("ccf", std::move(ccf));
   }
 
-  void extend_ccf_object_with_gov_actions(js::Context& ctx)
+  void extend_ccf_object_with_gov_actions(js::core::Context& ctx)
   {
     using namespace details;
 

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 #include "ccf/node/host_processes_interface.h"
-#include "js/context.h"
+#include "js/core/context.h"
 #include "js/global_class_ids.h"
 
 #include <quickjs/quickjs.h>
@@ -14,7 +14,7 @@ namespace ccf::js
     JSValue js_node_trigger_host_process_launch(
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 1 && argc != 2)
       {
@@ -56,7 +56,7 @@ namespace ccf::js
           ctx, "Unable to launch host process: %s", e.what());
       }
 
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
   }
 

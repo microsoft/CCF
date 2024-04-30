@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "js/context.h"
+#include "js/core/context.h"
 #include "js/global_class_ids.h"
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/gov_logging.h"
@@ -19,7 +19,7 @@ namespace ccf::js
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
       if (argc != 0)
       {
         return JS_ThrowTypeError(
@@ -52,7 +52,7 @@ namespace ccf::js
           ctx, "Failed to rekey ledger: %s", e.what());
       }
 
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
 
     JSValue js_node_transition_service_to_open(
@@ -61,7 +61,7 @@ namespace ccf::js
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 2)
       {
@@ -131,7 +131,7 @@ namespace ccf::js
           ctx, "Unable to open service: %s", e.what());
       }
 
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
 
     JSValue js_node_trigger_recovery_shares_refresh(
@@ -140,7 +140,7 @@ namespace ccf::js
       int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       if (argc != 0)
       {
@@ -169,7 +169,7 @@ namespace ccf::js
           ctx, "Unable to trigger recovery shares refresh: %s", e.what());
       }
 
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
 
     JSValue js_trigger_ledger_chunk(
@@ -178,7 +178,7 @@ namespace ccf::js
       [[maybe_unused]] int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
         JS_GetOpaque(this_val, node_class_id));
@@ -200,7 +200,7 @@ namespace ccf::js
           ctx, "Unable to force ledger chunk: %s", e.what());
       }
 
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
 
     JSValue js_trigger_snapshot(
@@ -209,7 +209,7 @@ namespace ccf::js
       [[maybe_unused]] int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
         JS_GetOpaque(this_val, node_class_id));
@@ -231,7 +231,7 @@ namespace ccf::js
           ctx, "Unable to request snapshot: %s", e.what());
       }
 
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
 
     JSValue js_trigger_acme_refresh(
@@ -240,7 +240,7 @@ namespace ccf::js
       [[maybe_unused]] int argc,
       [[maybe_unused]] JSValueConst* argv)
     {
-      js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
         JS_GetOpaque(this_val, node_class_id));
@@ -277,7 +277,7 @@ namespace ccf::js
           ctx, "Unable to request snapshot: %s", e.what());
       }
 
-      return ccf::js::constants::Undefined;
+      return ccf::js::core::constants::Undefined;
     }
   }
 

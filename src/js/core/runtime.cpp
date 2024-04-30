@@ -1,15 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "runtime.h"
+#include "js/core/runtime.h"
 
 #include "ccf/service/tables/jsengine.h"
 #include "ccf/tx.h"
-#include "global_class_ids.h"
+#include "js/global_class_ids.h"
 
 #include <vector>
 
-namespace ccf::js
+namespace ccf::js::core
 {
   Runtime::Runtime()
   {

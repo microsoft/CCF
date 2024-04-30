@@ -7,7 +7,7 @@
 #include <chrono>
 #include <quickjs/quickjs.h>
 
-namespace ccf::js
+namespace ccf::js::core
 {
   enum class RuntimeLimitsPolicy
   {

@@ -1,13 +1,16 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "wrapped_value.h"
+#include "js/core/wrapped_value.h"
 
-#include "constants.h"
+#include "js/core/constants.h"
 
-namespace ccf::js
+namespace ccf::js::core
 {
-  JSWrappedValue::JSWrappedValue() : ctx(NULL), val(ccf::js::constants::Null) {}
+  JSWrappedValue::JSWrappedValue() :
+    ctx(NULL),
+    val(ccf::js::core::constants::Null)
+  {}
   JSWrappedValue::JSWrappedValue(JSContext* ctx, JSValue&& val) :
     ctx(ctx),
     val(std::move(val))
@@ -27,7 +30,7 @@ namespace ccf::js
   JSWrappedValue::JSWrappedValue(JSWrappedValue&& other) : ctx(other.ctx)
   {
     val = other.val;
-    other.val = ccf::js::constants::Null;
+    other.val = ccf::js::core::constants::Null;
   }
 
   JSWrappedValue::~JSWrappedValue()
@@ -65,7 +68,7 @@ namespace ccf::js
     int rc = JS_SetPropertyStr(ctx, val, prop, value.val);
     if (rc == 1)
     {
-      value.val = ccf::js::constants::Null;
+      value.val = ccf::js::core::constants::Null;
     }
     return rc;
   }
@@ -76,7 +79,7 @@ namespace ccf::js
     JSAtom size_atom = JS_NewAtom(ctx, prop);
     if (size_atom == JS_ATOM_NULL)
     {
-      getter.val = ccf::js::constants::Null;
+      getter.val = ccf::js::core::constants::Null;
       return -1;
     }
 
@@ -84,7 +87,12 @@ namespace ccf::js
     // are responsible for freeing, this call unconditionally frees the getter
     // arg, so we call .take() to always drop our local owning reference
     int rc = JS_DefinePropertyGetSet(
-      ctx, val, size_atom, getter.take(), ccf::js::constants::Undefined, 0);
+      ctx,
+      val,
+      size_atom,
+      getter.take(),
+      ccf::js::core::constants::Undefined,
+      0);
 
     JS_FreeAtom(ctx, size_atom);
 
@@ -103,7 +111,8 @@ namespace ccf::js
 
   int JSWrappedValue::set_null(const std::string& prop) const
   {
-    return JS_SetPropertyStr(ctx, val, prop.c_str(), ccf::js::constants::Null);
+    return JS_SetPropertyStr(
+      ctx, val, prop.c_str(), ccf::js::core::constants::Null);
   }
 
   int JSWrappedValue::set_uint32(const std::string& prop, uint32_t i) const
@@ -127,7 +136,7 @@ namespace ccf::js
       JS_DefinePropertyValueUint32(ctx, val, index, value.val, JS_PROP_C_W_E);
     if (rc == 1)
     {
-      value.val = ccf::js::constants::Null;
+      value.val = ccf::js::core::constants::Null;
     }
     return rc;
   }
@@ -166,7 +175,7 @@ namespace ccf::js
   JSValue JSWrappedValue::take()
   {
     JSValue r = val;
-    val = ccf::js::constants::Null;
+    val = ccf::js::core::constants::Null;
     return r;
   }
 }

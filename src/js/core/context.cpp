@@ -3,6 +3,8 @@
 
 #include "ccf/pal/locking.h"
 #include "enclave/enclave_time.h"
+#include "js/core/runtime.h"
+#include "js/core/wrapped_value.h"
 #include "js/globals/ccf/consensus.h"
 #include "js/globals/ccf/historical.h"
 #include "js/globals/ccf/host.h"
@@ -10,17 +12,13 @@
 #include "js/globals/ccf/node.h"
 #include "js/globals/ccf/rpc.h"
 #include "js/globals/init.h"
-#include "js/runtime.h"
 #include "js/tx_access.h"
-#include "js/wrapped_value.h"
 
 #include <chrono>
 #include <quickjs/quickjs.h>
 
-namespace ccf::js
+namespace ccf::js::core
 {
-  std::vector<FFIPlugin> ffi_plugins;
-
   Context::Context(TxAccess acc) : access(acc)
   {
     ctx = JS_NewContext(rt);
@@ -102,7 +100,7 @@ namespace ccf::js
   JSValue Context::get_string_array(
     JSValueConst& argv, std::vector<std::string>& out)
   {
-    auto args = JSWrappedValue(ctx, argv);
+    auto args = wrap(argv);
 
     if (!JS_IsArray(ctx, argv))
     {
@@ -113,7 +111,7 @@ namespace ccf::js
     uint32_t len = 0;
     if (JS_ToUint32(ctx, &len, len_val.val))
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     if (len == 0)
@@ -139,13 +137,16 @@ namespace ccf::js
       out.push_back(*s);
     }
 
-    return ccf::js::constants::Undefined;
+    return ccf::js::core::constants::Undefined;
   }
 
   JSWrappedValue Context::json_stringify(const JSWrappedValue& obj) const
   {
     return wrap(JS_JSONStringify(
-      ctx, obj.val, ccf::js::constants::Null, ccf::js::constants::Null));
+      ctx,
+      obj.val,
+      ccf::js::core::constants::Null,
+      ccf::js::core::constants::Null));
   }
 
   JSWrappedValue Context::new_array() const
@@ -168,7 +169,7 @@ namespace ccf::js
   JSWrappedValue Context::new_array_buffer_copy(
     const uint8_t* buf, size_t buf_len) const
   {
-    return JSWrappedValue(ctx, JS_NewArrayBufferCopy(ctx, buf, buf_len));
+    return wrap(JS_NewArrayBufferCopy(ctx, buf, buf_len));
   }
 
   JSWrappedValue Context::new_array_buffer_copy(
@@ -234,12 +235,12 @@ namespace ccf::js
 
   JSWrappedValue Context::null() const
   {
-    return wrap(ccf::js::constants::Null);
+    return wrap(ccf::js::core::constants::Null);
   }
 
   JSWrappedValue Context::undefined() const
   {
-    return wrap(ccf::js::constants::Undefined);
+    return wrap(ccf::js::core::constants::Undefined);
   }
 
   JSWrappedValue Context::new_c_function(
@@ -338,7 +339,7 @@ namespace ccf::js
   }
 
   JSWrappedValue Context::inner_call(
-    const JSWrappedValue& f, const std::vector<js::JSWrappedValue>& argv)
+    const JSWrappedValue& f, const std::vector<JSWrappedValue>& argv)
   {
     std::vector<JSValue> argvn;
     argvn.reserve(argv.size());
@@ -348,7 +349,11 @@ namespace ccf::js
     }
 
     return wrap(JS_Call(
-      ctx, f.val, ccf::js::constants::Undefined, argv.size(), argvn.data()));
+      ctx,
+      f.val,
+      ccf::js::core::constants::Undefined,
+      argv.size(),
+      argvn.data()));
   }
 
   JSWrappedValue Context::get_module_export_entry(JSModuleDef* m, int idx) const
@@ -468,7 +473,7 @@ namespace ccf::js
 
   JSWrappedValue Context::call_with_rt_options(
     const JSWrappedValue& f,
-    const std::vector<js::JSWrappedValue>& argv,
+    const std::vector<JSWrappedValue>& argv,
     kv::Tx* tx,
     RuntimeLimitsPolicy policy)
   {
@@ -560,7 +565,7 @@ namespace ccf::js
     globals::extend_ccf_object_with_gov_actions(*this);
   }
 
-  static JSValue ccf_receipt_to_js(js::Context& jsctx, TxReceiptImplPtr receipt)
+  static JSValue ccf_receipt_to_js(Context& jsctx, TxReceiptImplPtr receipt)
   {
     ccf::ReceiptPtr receipt_out_p = ccf::describe_receipt_v2(*receipt);
     auto& receipt_out = *receipt_out_p;
@@ -668,7 +673,7 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected none", argc);
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    Context& jsctx = *(Context*)JS_GetContextOpaque(ctx);
     auto body = jsctx.globals.current_request_body;
     if (body == nullptr)
     {
@@ -689,7 +694,7 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected none", argc);
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    Context& jsctx = *(Context*)JS_GetContextOpaque(ctx);
     auto body = jsctx.globals.current_request_body;
     if (body == nullptr)
     {
@@ -711,7 +716,7 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected none", argc);
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    Context& jsctx = *(Context*)JS_GetContextOpaque(ctx);
     auto body = jsctx.globals.current_request_body;
     if (body == nullptr)
     {
@@ -821,8 +826,8 @@ extern "C"
     if (tv != NULL)
     {
       // Opaque may be null, when this is called during Context construction
-      const ccf::js::Context* jsctx =
-        (ccf::js::Context*)JS_GetContextOpaque(ctx);
+      const ccf::js::core::Context* jsctx =
+        (ccf::js::core::Context*)JS_GetContextOpaque(ctx);
       if (jsctx != nullptr && jsctx->implement_untrusted_time)
       {
         const auto microseconds_since_epoch = ccf::get_enclave_time();

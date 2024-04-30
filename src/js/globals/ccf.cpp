@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/version.h"
 #include "js/checks.h"
-#include "js/context.h"
+#include "js/core/context.h"
 #include "js/modules.h"
 #include "node/rpc/jwt_management.h"
 
@@ -11,7 +11,7 @@ namespace ccf::js::globals::details
   JSValue js_str_to_buf(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     if (argc != 1)
     {
@@ -27,7 +27,7 @@ namespace ccf::js::globals::details
     auto str = jsctx.to_str(argv[0]);
     if (!str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     auto buf = jsctx.new_array_buffer_copy((uint8_t*)str->c_str(), str->size());
@@ -39,7 +39,7 @@ namespace ccf::js::globals::details
   JSValue js_buf_to_str(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     if (argc != 1)
     {
@@ -64,7 +64,7 @@ namespace ccf::js::globals::details
   JSValue js_json_compatible_to_buf(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     if (argc != 1)
     {
@@ -72,16 +72,16 @@ namespace ccf::js::globals::details
         ctx, "Passed %d arguments, but expected 1", argc);
     }
 
-    auto str = jsctx.json_stringify(JSWrappedValue(ctx, argv[0]));
+    auto str = jsctx.json_stringify(jsctx.wrap(argv[0]));
     JS_CHECK_EXC(str);
 
-    return js_str_to_buf(ctx, ccf::js::constants::Null, 1, &str.val);
+    return js_str_to_buf(ctx, ccf::js::core::constants::Null, 1, &str.val);
   }
 
   JSValue js_buf_to_json_compatible(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     if (argc != 1)
     {
@@ -122,7 +122,7 @@ namespace ccf::js::globals::details
     {
       return JS_ThrowTypeError(ctx, "First argument must be a boolean");
     }
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     const auto previous = jsctx.implement_untrusted_time;
     jsctx.implement_untrusted_time = JS_ToBool(ctx, v);
@@ -145,7 +145,7 @@ namespace ccf::js::globals::details
       return JS_ThrowTypeError(ctx, "First argument must be a boolean");
     }
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
     const auto previous = jsctx.log_execution_metrics;
     jsctx.log_execution_metrics = JS_ToBool(ctx, v);
 
@@ -159,12 +159,12 @@ namespace ccf::js::globals::details
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 1", argc);
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     auto pem_str = jsctx.to_str(argv[0]);
     if (!pem_str)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     try
@@ -184,7 +184,7 @@ namespace ccf::js::globals::details
   JSValue js_refresh_app_bytecode_cache(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
   {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     if (argc != 0)
     {
@@ -201,9 +201,9 @@ namespace ccf::js::globals::details
 
     auto& tx = *tx_ptr;
 
-    js::Context ctx2(js::TxAccess::APP_RW);
+    js::core::Context ctx2(js::TxAccess::APP_RW);
     ctx2.runtime().set_runtime_options(
-      tx_ptr, js::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+      tx_ptr, js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
     JS_SetModuleLoaderFunc(
       ctx2.runtime(), nullptr, js::js_app_module_loader, &tx);
 
@@ -244,7 +244,7 @@ namespace ccf::js::globals::details
         ctx, "Failed to refresh bytecode: %s", exc.what());
     }
 
-    return ccf::js::constants::Undefined;
+    return ccf::js::core::constants::Undefined;
   }
 
   JSValue js_gov_set_jwt_public_signing_keys(
@@ -253,7 +253,7 @@ namespace ccf::js::globals::details
     int argc,
     JSValueConst* argv)
   {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     if (argc != 3)
     {
@@ -275,7 +275,7 @@ namespace ccf::js::globals::details
       return JS_ThrowTypeError(ctx, "issuer argument is not a string");
     }
 
-    auto metadata_val = jsctx.json_stringify(JSWrappedValue(ctx, argv[1]));
+    auto metadata_val = jsctx.json_stringify(jsctx.wrap(argv[1]));
     if (metadata_val.is_exception())
     {
       return JS_ThrowTypeError(ctx, "metadata argument is not a JSON object");
@@ -287,7 +287,7 @@ namespace ccf::js::globals::details
         ctx, "Failed to convert metadata JSON to string");
     }
 
-    auto jwks_val = jsctx.json_stringify(JSWrappedValue(ctx, argv[2]));
+    auto jwks_val = jsctx.json_stringify(jsctx.wrap(argv[2]));
     if (jwks_val.is_exception())
     {
       return JS_ThrowTypeError(ctx, "jwks argument is not a JSON object");
@@ -316,7 +316,7 @@ namespace ccf::js::globals::details
       return JS_ThrowInternalError(
         ctx, "Error setting JWT public signing keys: %s", exc.what());
     }
-    return ccf::js::constants::Undefined;
+    return ccf::js::core::constants::Undefined;
   }
 
   JSValue js_gov_remove_jwt_public_signing_keys(
@@ -325,7 +325,7 @@ namespace ccf::js::globals::details
     int argc,
     JSValueConst* argv)
   {
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     if (argc != 1)
     {
@@ -355,6 +355,6 @@ namespace ccf::js::globals::details
       return JS_ThrowInternalError(
         ctx, "Failed to remove JWT public signing keys: %s", exc.what());
     }
-    return ccf::js::constants::Undefined;
+    return ccf::js::core::constants::Undefined;
   }
 }
