@@ -600,6 +600,7 @@ def test_jwt_key_initial_refresh(network, args):
     return network
 
 
+@reqs.description("JWT with auto_refresh enabled, via AAD")
 def test_jwt_key_refresh_aad(network, args):
     primary, _ = network.find_nodes()
 
