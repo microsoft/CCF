@@ -357,6 +357,10 @@ set(CCF_JS_SOURCES
 if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(ccf_js.enclave "${CCF_JS_SOURCES}")
   target_link_libraries(ccf_js.enclave PUBLIC ccfcrypto.enclave quickjs.enclave)
+  # JS extension observes jwt_management.h header where this definition is required
+  target_compile_definitions(
+    ccf_js.enclave PUBLIC SGX_ATTESTATION_VERIFICATION
+  )
   add_warning_checks(ccf_js.enclave)
   install(
     TARGETS ccf_js.enclave
