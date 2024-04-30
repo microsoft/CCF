@@ -1,6 +1,13 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/ds/hex.h"
+#include "ccf/js_openenclave_plugin.h"
+#include "ccf/js_plugin.h"
+#include "ccf/version.h"
+#include "js/checks.h"
+#include "js/core/context.h"
+
 #include <algorithm>
 #include <openenclave/attestation/custom_claims.h>
 #include <openenclave/attestation/verifier.h>
@@ -13,10 +20,6 @@
 #else
 #  include <openenclave/host_verify.h>
 #endif
-#include "ccf/js_openenclave_plugin.h"
-#include "ccf/js_plugin.h"
-#include "ccf/version.h"
-#include "js/wrap.h"
 
 namespace ccf::js
 {
@@ -49,7 +52,7 @@ namespace ccf::js
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected 2 or 3", argc);
 
-    js::Context& jsctx = *(js::Context*)JS_GetContextOpaque(ctx);
+    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     oe_uuid_t format_;
     oe_uuid_t* format = nullptr;
@@ -58,7 +61,7 @@ namespace ccf::js
       auto format_str = jsctx.to_str(argv[0]);
       if (!format_str)
       {
-        return ccf::js::constants::Exception;
+        return ccf::js::core::constants::Exception;
       }
       format_str = std::regex_replace(*format_str, std::regex("-"), "");
       if (format_str->size() != 32)
@@ -88,7 +91,7 @@ namespace ccf::js
     uint8_t* evidence = JS_GetArrayBuffer(ctx, &evidence_size, argv[1]);
     if (!evidence)
     {
-      return ccf::js::constants::Exception;
+      return ccf::js::core::constants::Exception;
     }
 
     size_t endorsements_size = 0;
@@ -197,7 +200,7 @@ namespace ccf::js
     return openenclave;
   }
 
-  static void populate_global_openenclave(Context& ctx)
+  static void populate_global_openenclave(js::core::Context& ctx)
   {
     auto global_obj = ctx.get_global_obj();
     global_obj.set("openenclave", create_openenclave_obj(ctx));

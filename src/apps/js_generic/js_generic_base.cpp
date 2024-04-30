@@ -6,11 +6,14 @@
 #include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/node/host_processes_interface.h"
+#include "ccf/service/tables/jsengine.h"
 #include "ccf/version.h"
 #include "enclave/enclave_time.h"
+#include "js/core/context.h"
+#include "js/core/wrapped_property_enum.h"
+#include "js/global_class_ids.h"
 #include "js/interpreter_cache_interface.h"
-#include "js/wrap.h"
-#include "kv/untyped_map.h"
+#include "js/modules.h"
 #include "named_auth_policies.h"
 #include "node/rpc/rpc_context_impl.h"
 #include "service/tables/endpoints.h"
@@ -34,10 +37,10 @@ namespace ccfapp
     std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache =
       nullptr;
 
-    js::JSWrappedValue create_caller_ident_obj(
+    js::core::JSWrappedValue create_caller_ident_obj(
       ccf::endpoints::EndpointContext& endpoint_ctx,
       const std::unique_ptr<ccf::AuthnIdentity>& ident,
-      js::Context& ctx)
+      js::core::Context& ctx)
     {
       if (ident == nullptr)
       {
@@ -172,16 +175,16 @@ namespace ccfapp
       return caller;
     }
 
-    js::JSWrappedValue create_caller_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx, js::Context& ctx)
+    js::core::JSWrappedValue create_caller_obj(
+      ccf::endpoints::EndpointContext& endpoint_ctx, js::core::Context& ctx)
     {
       return create_caller_ident_obj(endpoint_ctx, endpoint_ctx.caller, ctx);
     }
 
-    js::JSWrappedValue create_request_obj(
+    js::core::JSWrappedValue create_request_obj(
       const ccf::js::JSDynamicEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx,
-      js::Context& ctx)
+      js::core::Context& ctx)
     {
       auto request = ctx.new_obj();
 
@@ -256,7 +259,7 @@ namespace ccfapp
       return request;
     }
 
-    void invalidate_request_obj_body(js::Context& ctx)
+    void invalidate_request_obj_body(js::core::Context& ctx)
     {
       ctx.globals.current_request_body = nullptr;
     }
@@ -277,9 +280,9 @@ namespace ccfapp
           [this, endpoint](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
-            auto add_historical_globals = [&](js::Context& ctx) {
+            auto add_historical_globals = [&](js::core::Context& ctx) {
               auto ccf = ctx.get_global_property("ccf");
-              auto val = ccf::js::create_historical_state_object(ctx, state);
+              auto val = ctx.create_historical_state_object(state);
               ccf.set("historicalState", std::move(val));
             };
             do_execute_request(endpoint, endpoint_ctx, add_historical_globals);
@@ -293,7 +296,7 @@ namespace ccfapp
       }
     }
 
-    using PreExecutionHook = std::function<void(js::Context&)>;
+    using PreExecutionHook = std::function<void(js::core::Context&)>;
 
     void do_execute_request(
       const ccf::js::JSDynamicEndpoint* endpoint,
@@ -323,13 +326,13 @@ namespace ccfapp
         endpoint->properties.mode == ccf::endpoints::Mode::ReadWrite ?
         js::TxAccess::APP_RW :
         js::TxAccess::APP_RO;
-      std::shared_ptr<js::Context> interpreter =
+      std::shared_ptr<js::core::Context> interpreter =
         interpreter_cache->get_interpreter(rw_access, *endpoint, flush_marker);
       if (interpreter == nullptr)
       {
         throw std::logic_error("Cache failed to produce interpreter");
       }
-      js::Context& ctx = *interpreter;
+      js::core::Context& ctx = *interpreter;
 
       // Prevent any other thread modifying this interpreter, until this
       // function completes. We could create interpreters per-thread, but then
@@ -348,21 +351,21 @@ namespace ccfapp
       JS_SetModuleLoaderFunc(
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
-      js::register_request_body_class(ctx);
-      js::populate_global_ccf_kv(endpoint_ctx.tx, ctx);
+      ctx.register_request_body_class();
+      ctx.populate_global_ccf_kv(endpoint_ctx.tx);
 
-      js::populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get(), ctx);
-      js::populate_global_ccf_host(
-        context.get_subsystem<ccf::AbstractHostProcesses>().get(), ctx);
-      js::populate_global_ccf_consensus(this, ctx);
-      js::populate_global_ccf_historical(&context.get_historical_state(), ctx);
+      ctx.populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get());
+      ctx.populate_global_ccf_host(
+        context.get_subsystem<ccf::AbstractHostProcesses>().get());
+      ctx.populate_global_ccf_consensus(this);
+      ctx.populate_global_ccf_historical(&context.get_historical_state());
 
       if (pre_exec_hook.has_value())
       {
         pre_exec_hook.value()(ctx);
       }
 
-      js::JSWrappedValue export_func;
+      js::core::JSWrappedValue export_func;
       try
       {
         const auto& props = endpoint->properties;
@@ -387,12 +390,12 @@ namespace ccfapp
         export_func,
         {request},
         &endpoint_ctx.tx,
-        ccf::js::RuntimeLimitsPolicy::NONE);
+        ccf::js::core::RuntimeLimitsPolicy::NONE);
 
       // Clear globals (which potentially reference locals like txctx), from
       // this potentially reused interpreter
       invalidate_request_obj_body(ctx);
-      js::invalidate_globals(ctx);
+      ctx.invalidate_globals();
 
       const auto& rt = ctx.runtime();
 
@@ -405,7 +408,7 @@ namespace ccfapp
           error_msg = "Operation took too long to complete.";
         }
 
-        auto [reason, trace] = js::js_error_message(ctx);
+        auto [reason, trace] = ctx.error_message();
 
         if (rt.log_exception_details)
         {
@@ -492,7 +495,7 @@ namespace ccfapp
               auto rval = ctx.json_stringify(response_body_js);
               if (rval.is_exception())
               {
-                auto [reason, trace] = js::js_error_message(ctx);
+                auto [reason, trace] = ctx.error_message();
 
                 if (rt.log_exception_details)
                 {
@@ -529,7 +532,7 @@ namespace ccfapp
 
             if (!str)
             {
-              auto [reason, trace] = js::js_error_message(ctx);
+              auto [reason, trace] = ctx.error_message();
 
               if (rt.log_exception_details)
               {
@@ -572,7 +575,7 @@ namespace ccfapp
         auto response_headers_js = val["headers"];
         if (response_headers_js.is_obj())
         {
-          js::JSWrappedPropertyEnum prop_enum(ctx, response_headers_js);
+          js::core::JSWrappedPropertyEnum prop_enum(ctx, response_headers_js);
           for (size_t i = 0; i < prop_enum.size(); i++)
           {
             auto prop_name = ctx.to_str(prop_enum[i]);

@@ -16,7 +16,7 @@
 #include "ds/std_formatters.h"
 #include "enclave/reconfiguration_type.h"
 #include "frontend.h"
-#include "js/wrap.h"
+#include "js/core/context.h"
 #include "node/network_state.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/no_create_tx_claims_digest.cpp"
@@ -1432,9 +1432,10 @@ namespace ccf
           version_val->get() == std::string(ccf::quickjs_version);
 
         auto js_engine_options = js_engine_map->get();
-        m.max_stack_size = js::default_stack_size;
-        m.max_heap_size = js::default_heap_size;
-        m.max_execution_time = js::default_max_execution_time.count();
+        m.max_stack_size = js::core::Runtime::default_stack_size;
+        m.max_heap_size = js::core::Runtime::default_heap_size;
+        m.max_execution_time =
+          js::core::Runtime::default_max_execution_time.count();
         if (js_engine_options.has_value())
         {
           auto& options = js_engine_options.value();

@@ -2,12 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "./wrap.h"
 #include "ccf/endpoint.h"
 #include "ccf/node_subsystem_interface.h"
+#include "js/tx_access.h"
 
 namespace ccf::js
 {
+  namespace core
+  {
+    class Context;
+  };
+
   struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
   {};
 
@@ -28,7 +33,7 @@ namespace ccf::js
     // fresh or previously used, and should treat it identically going forward.
     // The only benefit of a reused value from the cache should be seen during
     // execution, where some global initialisation may already be done.
-    virtual std::shared_ptr<js::Context> get_interpreter(
+    virtual std::shared_ptr<js::core::Context> get_interpreter(
       js::TxAccess access,
       const JSDynamicEndpoint& endpoint,
       size_t freshness_marker) = 0;

@@ -343,6 +343,54 @@ if(INSTALL_VIRTUAL_LIBRARIES)
   )
 endif()
 
+# CCF js libs
+set(CCF_JS_SOURCES
+    ${CCF_DIR}/src/js/global_class_ids.cpp
+    ${CCF_DIR}/src/js/core/wrapped_value.cpp
+    ${CCF_DIR}/src/js/core/runtime.cpp
+    ${CCF_DIR}/src/js/core/context.cpp
+    ${CCF_DIR}/src/js/no_plugins.cpp
+    ${CCF_DIR}/src/js/globals/ccf.cpp
+    ${CCF_DIR}/src/js/ffi_plugins.cpp
+)
+
+if(COMPILE_TARGET STREQUAL "sgx")
+  add_enclave_library(ccf_js.enclave "${CCF_JS_SOURCES}")
+  target_link_libraries(ccf_js.enclave PUBLIC ccfcrypto.enclave quickjs.enclave)
+  # JS extension observes jwt_management.h header where this definition is required
+  target_compile_definitions(
+    ccf_js.enclave PUBLIC SGX_ATTESTATION_VERIFICATION
+  )
+  add_warning_checks(ccf_js.enclave)
+  install(
+    TARGETS ccf_js.enclave
+    EXPORT ccf
+    DESTINATION lib
+  )
+elseif(COMPILE_TARGET STREQUAL "snp")
+  add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
+  add_san(ccf_js.snp)
+  target_link_libraries(ccf_js.snp PUBLIC ccfcrypto.snp quickjs.snp)
+  add_warning_checks(ccf_js.snp)
+  install(
+    TARGETS ccf_js.snp
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
+add_host_library(ccf_js.host "${CCF_JS_SOURCES}")
+add_san(ccf_js.host)
+target_link_libraries(ccf_js.host PUBLIC ccfcrypto.host quickjs.host)
+add_warning_checks(ccf_js.host)
+if(INSTALL_VIRTUAL_LIBRARIES)
+  install(
+    TARGETS ccf_js.host
+    EXPORT ccf
+    DESTINATION lib
+  )
+endif()
+
 # CCF kv libs
 set(CCF_KV_SOURCES
     ${CCF_DIR}/src/kv/tx.cpp ${CCF_DIR}/src/kv/untyped_map_handle.cpp
@@ -682,8 +730,7 @@ add_custom_target(ccf ALL)
 
 set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
-    ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/js/wrap.cpp
-    ${CCF_DIR}/src/node/quote.cpp
+    ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -713,12 +760,12 @@ if(COMPILE_TARGET STREQUAL "sgx")
 
   target_link_libraries(
     ccf.enclave
-    PUBLIC quickjs.enclave
-           http_parser.enclave
+    PUBLIC http_parser.enclave
            sss.enclave
            ccf_endpoints.enclave
            ccfcrypto.enclave
            ccf_kv.enclave
+           ccf_js.enclave
            nghttp2.enclave
   )
 
@@ -762,11 +809,11 @@ elseif(COMPILE_TARGET STREQUAL "snp")
     PUBLIC ${LINK_LIBCXX}
            -lgcc
            http_parser.snp
-           quickjs.snp
            sss.snp
            ccf_endpoints.snp
            ccfcrypto.snp
            ccf_kv.snp
+           ccf_js.snp
            nghttp2.snp
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -813,11 +860,11 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
     PUBLIC ${LINK_LIBCXX}
            -lgcc
            http_parser.host
-           quickjs.host
            sss.host
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
+           ccf_js.host
            nghttp2.host
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -1018,8 +1065,8 @@ if(BUILD_TESTS)
 
     add_unit_test(js_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/test/js.cpp)
     target_link_libraries(
-      js_test PRIVATE quickjs.host ccf_kv.host ccf_endpoints.host
-                      ccfcrypto.host http_parser.host
+      js_test PRIVATE ccf_js.host ccf_kv.host ccf_endpoints.host ccfcrypto.host
+                      http_parser.host
     )
 
     add_unit_test(
@@ -1087,7 +1134,6 @@ if(BUILD_TESTS)
 
     add_unit_test(
       frontend_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
       ${CCF_DIR}/src/node/quote.cpp
@@ -1100,7 +1146,7 @@ if(BUILD_TESTS)
               ccf_endpoints.host
               ccfcrypto.host
               ccf_kv.host
-              quickjs.host
+              ccf_js.host
     )
 
     add_unit_test(
@@ -1115,7 +1161,7 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      node_frontend_test ${CMAKE_CURRENT_SOURCE_DIR}/src/js/wrap.cpp
+      node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
       ${CCF_DIR}/src/node/quote.cpp
     )
@@ -1127,7 +1173,7 @@ if(BUILD_TESTS)
               ccf_endpoints.host
               ccfcrypto.host
               ccf_kv.host
-              quickjs.host
+              ccf_js.host
     )
 
     add_unit_test(
