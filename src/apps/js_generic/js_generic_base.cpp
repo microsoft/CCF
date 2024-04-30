@@ -168,9 +168,9 @@ namespace ccfapp
       }
 
       caller.set("policy", ctx.new_string(policy_name));
-      caller.set("id", ctx.new_string_len(id.data(), id.size()));
+      caller.set("id", ctx.new_string(id));
       caller.set("data", ctx.parse_json(data));
-      caller.set("cert", ctx.new_string_len(cert.str().data(), cert.size()));
+      caller.set("cert", ctx.new_string(cert.str()));
 
       return caller;
     }
@@ -192,20 +192,16 @@ namespace ccfapp
       auto headers = ctx.new_obj();
       for (auto& [header_name, header_value] : r_headers)
       {
-        headers.set(
-          header_name,
-          ctx.new_string_len(header_value.c_str(), header_value.size()));
+        headers.set(header_name, ctx.new_string(header_value));
       }
       request.set("headers", std::move(headers));
 
       const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
-      auto query_str =
-        ctx.new_string_len(request_query.c_str(), request_query.size());
+      auto query_str = ctx.new_string(request_query);
       request.set("query", std::move(query_str));
 
       const auto& request_path = endpoint_ctx.rpc_ctx->get_request_path();
-      auto path_str =
-        ctx.new_string_len(request_path.c_str(), request_path.size());
+      auto path_str = ctx.new_string(request_path);
       request.set("path", std::move(path_str));
 
       const auto& request_method = endpoint_ctx.rpc_ctx->get_request_verb();
@@ -216,8 +212,7 @@ namespace ccfapp
       if (host_it != r_headers.end())
       {
         const auto& request_hostname = host_it->second;
-        auto hostname_str =
-          ctx.new_string_len(request_hostname.c_str(), request_hostname.size());
+        auto hostname_str = ctx.new_string(request_hostname);
         request.set("hostname", std::move(hostname_str));
       }
       else
@@ -226,8 +221,7 @@ namespace ccfapp
       }
 
       const auto request_route = endpoint->full_uri_path;
-      auto route_str =
-        ctx.new_string_len(request_route.c_str(), request_route.size());
+      auto route_str = ctx.new_string(request_route);
       request.set("route", std::move(route_str));
 
       auto request_url = request_path;
@@ -235,17 +229,14 @@ namespace ccfapp
       {
         request_url = fmt::format("{}?{}", request_url, request_query);
       }
-      auto url_str =
-        ctx.new_string_len(request_url.c_str(), request_url.size());
+      auto url_str = ctx.new_string(request_url);
       request.set("url", std::move(url_str));
 
       auto params = ctx.new_obj();
       for (auto& [param_name, param_value] :
            endpoint_ctx.rpc_ctx->get_request_path_params())
       {
-        params.set(
-          param_name,
-          ctx.new_string_len(param_value.c_str(), param_value.size()));
+        params.set(param_name, ctx.new_string(param_value));
       }
       request.set("params", std::move(params));
 
@@ -371,8 +362,8 @@ namespace ccfapp
         const auto& props = endpoint->properties;
         auto module_val =
           js::load_app_module(ctx, props.js_module.c_str(), &endpoint_ctx.tx);
-        export_func =
-          ctx.function(module_val, props.js_function, props.js_module);
+        export_func = ctx.get_exported_function(
+          module_val, props.js_function, props.js_module);
       }
       catch (const std::exception& exc)
       {

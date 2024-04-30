@@ -97,7 +97,7 @@ namespace ccf::js::core
     return wrap(JS_GetPropertyStr(ctx, g.val, s));
   }
 
-  JSValue Context::get_string_array(
+  JSValue Context::extract_string_array(
     JSValueConst& argv, std::vector<std::string>& out)
   {
     auto args = wrap(argv);
@@ -154,18 +154,6 @@ namespace ccf::js::core
     return wrap(JS_NewArray(ctx));
   }
 
-  JSWrappedValue Context::new_array_buffer(
-    uint8_t* buf,
-    size_t len,
-    JSFreeArrayBufferDataFunc* free_func,
-    void* opaque,
-    bool is_shared) const
-  {
-    return JSWrappedValue(
-      ctx,
-      JS_NewArrayBuffer(ctx, (uint8_t*)buf, len, free_func, opaque, is_shared));
-  }
-
   JSWrappedValue Context::new_array_buffer_copy(
     const uint8_t* buf, size_t buf_len) const
   {
@@ -186,14 +174,9 @@ namespace ccf::js::core
       ctx, JS_NewArrayBufferCopy(ctx, data.data(), data.size()));
   }
 
-  JSWrappedValue Context::new_string(const std::string& str) const
+  JSWrappedValue Context::new_string(const std::string_view& str) const
   {
-    return wrap(JS_NewStringLen(ctx, str.data(), str.size()));
-  }
-
-  JSWrappedValue Context::new_string(const char* str) const
-  {
-    return wrap(JS_NewString(ctx, str));
+    return new_string_len(str.data(), str.size());
   }
 
   JSWrappedValue Context::new_string_len(const char* buf, size_t buf_len) const
@@ -210,11 +193,11 @@ namespace ccf::js::core
     return r;
   }
 
-  JSValue Context::new_internal_error(const char* fmt, ...) const
+  JSWrappedValue Context::new_internal_error(const char* fmt, ...) const
   {
     va_list ap;
     va_start(ap, fmt);
-    auto r = JS_ThrowInternalError(ctx, fmt, ap);
+    auto r = wrap(JS_ThrowInternalError(ctx, fmt, ap));
     va_end(ap);
     return r;
   }
@@ -265,19 +248,7 @@ namespace ccf::js::core
     return wrap(JS_Eval(ctx, input, input_len, filename, eval_flags));
   }
 
-  JSWrappedValue Context::eval_function(const JSWrappedValue& module) const
-  {
-    return wrap(JS_EvalFunction(ctx, module.val));
-  }
-
-  JSWrappedValue Context::default_function(
-    const std::string& code, const std::string& path)
-
-  {
-    return function(code, "default", path);
-  }
-
-  JSWrappedValue Context::function(
+  JSWrappedValue Context::get_exported_function(
     const std::string& code, const std::string& func, const std::string& path)
   {
     auto module = eval(
@@ -291,15 +262,15 @@ namespace ccf::js::core
       throw std::runtime_error(fmt::format("Failed to compile {}", path));
     }
 
-    return function(module, func, path);
+    return get_exported_function(module, func, path);
   }
 
-  JSWrappedValue Context::function(
+  JSWrappedValue Context::get_exported_function(
     const JSWrappedValue& module,
     const std::string& func,
     const std::string& path)
   {
-    auto eval_val = eval_function(module);
+    auto eval_val = wrap(JS_EvalFunction(ctx, module.val));
 
     if (eval_val.is_exception())
     {
@@ -324,13 +295,13 @@ namespace ccf::js::core
       JS_FreeAtom(ctx, export_name_atom);
       if (export_name.value_or("") == func)
       {
-        auto export_func = get_module_export_entry(module_def, i);
-        if (!JS_IsFunction(ctx, export_func.val))
+        auto export_func = JS_GetModuleExportEntry(ctx, module_def, i);
+        if (!JS_IsFunction(ctx, export_func))
         {
           throw std::runtime_error(fmt::format(
             "Export '{}' of module '{}' is not a function", func, path));
         }
-        return export_func;
+        return wrap(export_func);
       }
     }
 
@@ -356,20 +327,10 @@ namespace ccf::js::core
       argvn.data()));
   }
 
-  JSWrappedValue Context::get_module_export_entry(JSModuleDef* m, int idx) const
-  {
-    return wrap(JS_GetModuleExportEntry(ctx, m, idx));
-  }
-
   JSWrappedValue Context::read_object(
     const uint8_t* buf, size_t buf_len, int flags) const
   {
     return wrap(JS_ReadObject(ctx, buf, buf_len, flags));
-  }
-
-  JSWrappedValue Context::get_exception() const
-  {
-    return wrap(JS_GetException(ctx));
   }
 
   JSWrappedValue Context::parse_json(const nlohmann::json& j) const
@@ -579,18 +540,20 @@ namespace ccf::js::core
     }
     catch (const std::exception& e)
     {
-      return jsctx.new_internal_error(
-        "Failed to convert signature to base64: %s", e.what());
+      return jsctx
+        .new_internal_error(
+          "Failed to convert signature to base64: %s", e.what())
+        .take();
     }
-    auto sig_string = jsctx.new_string(sig_b64.c_str());
+    auto sig_string = jsctx.new_string(sig_b64);
     JS_CHECK_EXC(sig_string);
     JS_CHECK_SET(js_receipt.set("signature", std::move(sig_string)));
 
-    auto js_cert = jsctx.new_string(receipt_out.cert.str().c_str());
+    auto js_cert = jsctx.new_string(receipt_out.cert.str());
     JS_CHECK_EXC(js_cert);
     JS_CHECK_SET(js_receipt.set("cert", std::move(js_cert)));
 
-    auto js_node_id = jsctx.new_string(receipt_out.node_id.value().c_str());
+    auto js_node_id = jsctx.new_string(receipt_out.node_id.value());
     JS_CHECK_EXC(js_node_id);
     JS_CHECK_SET(js_receipt.set("node_id", std::move(js_node_id)));
     bool is_signature_transaction = receipt_out.is_signature_transaction();
@@ -607,12 +570,12 @@ namespace ccf::js::core
       const auto wsd_hex =
         ds::to_hex(p_receipt->leaf_components.write_set_digest.h);
 
-      auto js_wsd = jsctx.new_string(wsd_hex.c_str());
+      auto js_wsd = jsctx.new_string(wsd_hex);
       JS_CHECK_EXC(js_wsd);
       JS_CHECK_SET(leaf_components.set("write_set_digest", std::move(js_wsd)));
 
       auto js_commit_evidence =
-        jsctx.new_string(p_receipt->leaf_components.commit_evidence.c_str());
+        jsctx.new_string(p_receipt->leaf_components.commit_evidence);
       JS_CHECK_EXC(js_commit_evidence);
       JS_CHECK_SET(
         leaf_components.set("commit_evidence", std::move(js_commit_evidence)));
@@ -622,7 +585,7 @@ namespace ccf::js::core
         const auto cd_hex =
           ds::to_hex(p_receipt->leaf_components.claims_digest.value().h);
 
-        auto js_cd = jsctx.new_string(cd_hex.c_str());
+        auto js_cd = jsctx.new_string(cd_hex);
         JS_CHECK_EXC(js_cd);
         JS_CHECK_SET(leaf_components.set("claims_digest", std::move(js_cd)));
       }
@@ -641,7 +604,7 @@ namespace ccf::js::core
         auto is_left = element.direction == ccf::ProofReceipt::ProofStep::Left;
         const auto hash_hex = ds::to_hex(element.hash.h);
 
-        auto js_hash = jsctx.new_string(hash_hex.c_str());
+        auto js_hash = jsctx.new_string(hash_hex);
         JS_CHECK_EXC(js_hash);
         JS_CHECK_SET(
           js_element.set(is_left ? "left" : "right", std::move(js_hash)));
@@ -655,7 +618,7 @@ namespace ccf::js::core
         std::dynamic_pointer_cast<ccf::SignatureReceipt>(receipt_out_p);
       const auto signed_root = sig_receipt->signed_root;
       const auto root_hex = ds::to_hex(signed_root.h);
-      auto js_root_hex = jsctx.new_string(root_hex.c_str());
+      auto js_root_hex = jsctx.new_string(root_hex);
       JS_CHECK_EXC(js_root_hex);
       JS_CHECK_SET(js_receipt.set("root_hex", std::move(js_root_hex)));
     }
@@ -785,7 +748,8 @@ namespace ccf::js::core
     catch (const std::exception& e)
     {
       return new_internal_error(
-        "Failed to create read-only historical tx: %s", e.what());
+               "Failed to create read-only historical tx: %s", e.what())
+        .take();
     }
 
     return js_state.take();
@@ -793,7 +757,7 @@ namespace ccf::js::core
 
   std::pair<std::string, std::optional<std::string>> Context::error_message()
   {
-    auto exception_val = get_exception();
+    auto exception_val = wrap(JS_GetException(ctx));
     std::optional<std::string> message;
     bool is_error = exception_val.is_error();
     if (!is_error && exception_val.is_obj())

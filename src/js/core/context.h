@@ -102,78 +102,87 @@ namespace ccf::js::core
       return rt;
     }
 
+    // TODO: Would like to remove this, if possible
     operator JSContext*() const
     {
       return ctx;
     }
 
+    // TODO: Caching should be removed from here, inserted by a CRTP mixin?
+    // Need a virtual "load_module" on the context itself, that throws (or is
+    // unimplemented?), then a derivation that reads from the KV, from a table
+    // specified at constructor.
     std::optional<JSWrappedValue> get_module_from_cache(
       const std::string& module_name);
     void load_module_to_cache(
       const std::string& module_name, const JSWrappedValue& module);
 
+    // Construct RAII wrapper around raw QuickJS value
     JSWrappedValue wrap(JSValue&& val) const;
     JSWrappedValue wrap(const JSValue& x) const;
 
+    // If the first argument is a string-array, populates the second, and
+    // returns undefined. Otherwise returns a JS error value.
+    JSValue extract_string_array(
+      JSValueConst& argv, std::vector<std::string>& out);
+
+    std::pair<std::string, std::optional<std::string>> error_message();
+
+    // Getters
     JSWrappedValue get_property(
       JSValue object, char const* property_name) const;
-
-    JSWrappedValue new_obj() const;
-    JSWrappedValue new_obj_class(JSClassID class_id) const;
     JSWrappedValue get_global_obj() const;
     JSWrappedValue get_global_property(const char* s) const;
-    JSValue get_string_array(JSValueConst& argv, std::vector<std::string>& out);
-    JSWrappedValue json_stringify(const JSWrappedValue& obj) const;
+    JSWrappedValue get_typed_array_buffer(
+      const JSWrappedValue& obj,
+      size_t* pbyte_offset,
+      size_t* pbyte_length,
+      size_t* pbytes_per_element) const;
+
+    // Constant values
+    JSWrappedValue null() const;
+    JSWrappedValue undefined() const;
+
+    // Construct new values
+    // TODO: Re-order all methods. These are mostly good, sanitise/group the
+    // rest
+    JSWrappedValue new_obj() const;
+    JSWrappedValue new_obj_class(JSClassID class_id) const;
     JSWrappedValue new_array() const;
-    JSWrappedValue new_array_buffer(
-      uint8_t* buf,
-      size_t len,
-      JSFreeArrayBufferDataFunc* free_func,
-      void* opaque,
-      bool is_shared) const;
     JSWrappedValue new_array_buffer_copy(
       const uint8_t* buf, size_t buf_len) const;
     JSWrappedValue new_array_buffer_copy(const char* buf, size_t buf_len) const;
     JSWrappedValue new_array_buffer_copy(std::span<const uint8_t> data) const;
-    JSWrappedValue new_string(const std::string& str) const;
-    JSWrappedValue new_string(const char* str) const;
+    JSWrappedValue new_string(const std::string_view& str) const;
     JSWrappedValue new_string_len(const char* buf, size_t buf_len) const;
     JSWrappedValue new_type_error(const char* fmt, ...) const;
-    JSValue new_internal_error(const char* fmt, ...) const;
+    JSWrappedValue new_internal_error(const char* fmt, ...) const;
     JSWrappedValue new_tag_value(int tag, int32_t val = 0) const;
-
-    JSWrappedValue duplicate_value(JSValueConst original) const;
-
-    JSWrappedValue null() const;
-    JSWrappedValue undefined() const;
     JSWrappedValue new_c_function(
       JSCFunction* func, const char* name, int length) const;
     JSWrappedValue new_getter_c_function(
       JSCFunction* func, const char* name) const;
+
+    JSWrappedValue duplicate_value(JSValueConst original) const;
+
     JSWrappedValue eval(
       const char* input,
       size_t input_len,
       const char* filename,
       int eval_flags) const;
-    JSWrappedValue eval_function(const JSWrappedValue& module) const;
 
-    JSWrappedValue default_function(
-      const std::string& code, const std::string& path);
-
-    JSWrappedValue function(
+    JSWrappedValue get_exported_function(
       const std::string& code,
       const std::string& func,
       const std::string& path);
 
-    JSWrappedValue function(
+    JSWrappedValue get_exported_function(
       const JSWrappedValue& module,
       const std::string& func,
       const std::string& path);
 
-    JSWrappedValue get_module_export_entry(JSModuleDef* m, int idx) const;
     JSWrappedValue read_object(
       const uint8_t* buf, size_t buf_len, int flags) const;
-    JSWrappedValue get_exception() const;
 
     JSWrappedValue call_with_rt_options(
       const JSWrappedValue& f,
@@ -188,14 +197,14 @@ namespace ccf::js::core
     JSWrappedValue inner_call(
       const JSWrappedValue& f, const std::vector<JSWrappedValue>& argv);
 
+    // JSON I/O
+    JSWrappedValue json_stringify(const JSWrappedValue& obj) const;
+
     JSWrappedValue parse_json(const nlohmann::json& j) const;
     JSWrappedValue parse_json(
       const char* buf, size_t buf_len, const char* filename) const;
-    JSWrappedValue get_typed_array_buffer(
-      const JSWrappedValue& obj,
-      size_t* pbyte_offset,
-      size_t* pbyte_length,
-      size_t* pbytes_per_element) const;
+
+    // Convert objects to string
     std::optional<std::string> to_str(const JSWrappedValue& x) const;
     std::optional<std::string> to_str(const JSValue& x) const;
     std::optional<std::string> to_str(const JSValue& x, size_t& len) const;
@@ -209,6 +218,8 @@ namespace ccf::js::core
     // instances of state as required.
     void invalidate_globals();
 
+    // TODO: All of these should be removed from here, only exist in some
+    // derived interpreter
     void populate_global_ccf_kv(kv::Tx& tx);
     void populate_global_ccf_node(ccf::AbstractGovernanceEffects* gov_effects);
     void populate_global_ccf_host(ccf::AbstractHostProcesses* host_processes);
@@ -223,7 +234,5 @@ namespace ccf::js::core
     void register_request_body_class();
 
     JSValue create_historical_state_object(ccf::historical::StatePtr state);
-
-    std::pair<std::string, std::optional<std::string>> error_message();
   };
 }

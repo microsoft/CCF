@@ -25,7 +25,7 @@ namespace ccf::js
       std::vector<std::string> process_args;
       std::vector<uint8_t> process_input;
 
-      JSValue r = jsctx.get_string_array(argv[0], process_args);
+      JSValue r = jsctx.extract_string_array(argv[0], process_args);
       if (!JS_IsUndefined(r))
       {
         return r;

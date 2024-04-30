@@ -258,7 +258,7 @@ namespace ccf::js
         if (argc > 0)
         {
           std::vector<std::string> interfaces;
-          JSValue r = jsctx.get_string_array(argv[0], interfaces);
+          JSValue r = jsctx.extract_string_array(argv[0], interfaces);
 
           if (!JS_IsUndefined(r))
           {

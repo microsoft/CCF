@@ -136,12 +136,15 @@ namespace ccf
     ccf::jsgov::ProposalInfoSummary resolve_proposal(
       kv::Tx& tx,
       const ProposalId& proposal_id,
-      const std::vector<uint8_t>& proposal,
+      const std::span<const uint8_t>& proposal_bytes,
       const std::string& constitution)
     {
       auto pi =
         tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
       auto pi_ = pi->get(proposal_id);
+
+      const std::string_view proposal{
+        (const char*)proposal_bytes.data(), proposal_bytes.size()};
 
       std::vector<std::pair<MemberId, bool>> votes;
       std::optional<ccf::jsgov::Votes> final_votes = std::nullopt;
@@ -150,7 +153,7 @@ namespace ccf
       {
         js::core::Context context(js::TxAccess::GOV_RO);
         context.populate_global_ccf_kv(tx);
-        auto ballot_func = context.function(
+        auto ballot_func = context.get_exported_function(
           mb,
           "vote",
           fmt::format(
@@ -160,13 +163,12 @@ namespace ccf
             mid));
 
         std::vector<js::core::JSWrappedValue> argv = {
-          context.new_string_len((const char*)proposal.data(), proposal.size()),
-          context.new_string_len(
-            pi_->proposer_id.data(), pi_->proposer_id.size()),
+          context.new_string(proposal),
+          context.new_string(pi_->proposer_id.value()),
           // Also pass the proposal_id as a string. This is useful for proposals
           // that want to refer to themselves in the resolve function, for
           // example to examine/distinguish themselves other pending proposals.
-          context.new_string_len(proposal_id.data(), proposal_id.size())};
+          context.new_string(proposal_id)};
 
         auto val = context.call_with_rt_options(
           ballot_func,
@@ -198,17 +200,15 @@ namespace ccf
       {
         js::core::Context js_context(js::TxAccess::GOV_RO);
         js_context.populate_global_ccf_kv(tx);
-        auto resolve_func = js_context.function(
+        auto resolve_func = js_context.get_exported_function(
           constitution,
           "resolve",
           fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
         std::vector<js::core::JSWrappedValue> argv;
-        argv.push_back(js_context.new_string_len(
-          (const char*)proposal.data(), proposal.size()));
+        argv.push_back(js_context.new_string(proposal));
 
-        argv.push_back(js_context.new_string_len(
-          pi_->proposer_id.data(), pi_->proposer_id.size()));
+        argv.push_back(js_context.new_string(pi_->proposer_id.value()));
 
         auto vs = js_context.new_array();
         size_t index = 0;
@@ -312,16 +312,14 @@ namespace ccf
             apply_js_context.populate_global_ccf_network(&network);
             apply_js_context.populate_global_ccf_gov_actions();
 
-            auto apply_func = apply_js_context.function(
+            auto apply_func = apply_js_context.get_exported_function(
               constitution,
               "apply",
               fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
             std::vector<js::core::JSWrappedValue> apply_argv = {
-              apply_js_context.new_string_len(
-                (const char*)proposal.data(), proposal.size()),
-              apply_js_context.new_string_len(
-                proposal_id.c_str(), proposal_id.size())};
+              apply_js_context.new_string(proposal),
+              apply_js_context.new_string(proposal_id)};
 
             auto apply_val = apply_js_context.call_with_rt_options(
               apply_func,
@@ -1170,7 +1168,7 @@ namespace ccf
         js::core::Context context(js::TxAccess::GOV_RO);
         context.populate_global_ccf_kv(ctx.tx);
 
-        auto validate_func = context.function(
+        auto validate_func = context.get_exported_function(
           validate_script,
           "validate",
           fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
@@ -1700,8 +1698,8 @@ namespace ccf
           js::core::Context context(js::TxAccess::GOV_RO);
           context.runtime().set_runtime_options(
             &ctx.tx, js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
-          auto ballot_func =
-            context.function(params["ballot"], "vote", "body[\"ballot\"]");
+          auto ballot_func = context.get_exported_function(
+            params["ballot"], "vote", "body[\"ballot\"]");
         }
 
         pi_->ballots[member_id.value()] = params["ballot"];
