@@ -14,8 +14,6 @@ import suite.test_requirements as reqs
 import infra.jwt_issuer
 from infra.runner import ConcurrentRunner
 import ca_certs
-import ssl
-import socket
 import ccf.ledger
 from ccf.tx_id import TxID
 import infra.clients
@@ -600,19 +598,39 @@ def test_jwt_key_initial_refresh(network, args):
     return network
 
 
+# Root CA for login.microsoftonline.com:443
+# Used as root of trust by CCF (after being set via set_ca_cert_bundle)
+# for the purpose of fetching JWK list and JWKs
+DIGICERT_GLOBAL_ROOT_CA = """-----BEGIN CERTIFICATE-----
+MIIDrzCCApegAwIBAgIQCDvgVpBCRrGhdWrJWZHHSjANBgkqhkiG9w0BAQUFADBh
+MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
+d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBD
+QTAeFw0wNjExMTAwMDAwMDBaFw0zMTExMTAwMDAwMDBaMGExCzAJBgNVBAYTAlVT
+MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j
+b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IENBMIIBIjANBgkqhkiG
+9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4jvhEXLeqKTTo1eqUKKPC3eQyaKl7hLOllsB
+CSDMAZOnTjC3U/dDxGkAV53ijSLdhwZAAIEJzs4bg7/fzTtxRuLWZscFs3YnFo97
+nh6Vfe63SKMI2tavegw5BmV/Sl0fvBf4q77uKNd0f3p4mVmFaG5cIzJLv07A6Fpt
+43C/dxC//AH2hdmoRBBYMql1GNXRor5H4idq9Joz+EkIYIvUX7Q6hL+hqkpMfT7P
+T19sdl6gSzeRntwi5m3OFBqOasv+zbMUZBfHWymeMr/y7vrTC0LUq7dBMtoM1O/4
+gdW7jVg/tRvoSSiicNoxBN33shbyTApOB6jtSj1etX+jkMOvJwIDAQABo2MwYTAO
+BgNVHQ8BAf8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUA95QNVbR
+TLtm8KPiGxvDl7I90VUwHwYDVR0jBBgwFoAUA95QNVbRTLtm8KPiGxvDl7I90VUw
+DQYJKoZIhvcNAQEFBQADggEBAMucN6pIExIK+t1EnE9SsPTfrgT1eXkIoyQY/Esr
+hMAtudXH/vTBH1jLuG2cenTnmCmrEbXjcKChzUyImZOMkXDiqw8cvpOp/2PV5Adg
+06O/nVsJ8dWO41P0jmP6P6fbtGbfYmbW0W5BjfIttep3Sp+dWOIrWcBAI+0tKIJF
+PnlUkiaY4IBIqDfv8NZ5YBberOgOzW6sRBc4L0na4UU+Krk2U886UAb3LujEV0ls
+YSEY1QSteDwsOoBrp+uvFRTp2InBuThs4pFsiv9kuXclVzDAGySj4dzp30d8tbQk
+CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
+-----END CERTIFICATE-----"""
+
+
 def test_jwt_key_refresh_aad(network, args):
     primary, _ = network.find_nodes()
 
-    hostname = "login.microsoftonline.com"
-    ctx = ssl.create_default_context()
-    with ctx.wrap_socket(socket.socket(), server_hostname=hostname) as s:
-        s.connect((hostname, 443))
-    ca_der = ctx.get_ca_certs(binary_form=True)[0]
-    ca_pem = infra.crypto.cert_der_to_pem(ca_der)
-
-    LOG.info("Add CA cert for JWT issuer")
+    LOG.info("Add CA cert for Entra JWT issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
-        ca_cert_bundle_fp.write(ca_pem)
+        ca_cert_bundle_fp.write(DIGICERT_GLOBAL_ROOT_CA)
         ca_cert_bundle_fp.flush()
         network.consortium.set_ca_cert_bundle(primary, "aad", ca_cert_bundle_fp.name)
 
