@@ -1,6 +1,6 @@
 ---- MODULE ExternalHistoryInvars ----
 
-EXTENDS ExternalHistory
+EXTENDS ExternalHistory, Functions
 
 \* Read-write transaction responses always follow an associated request
 AllRwReceivedIsFirstSentInv ==
@@ -127,7 +127,7 @@ AllCommittedObservedInv ==
             \A k \in RwTxResponseCommittedEventIndexes :
                 /\ history[k].tx = history[j].tx
                 /\ i < j
-                => Contains(history[k].observed, history[i].tx)
+                => \E idx \in DOMAIN history[k].observed : history[k].observed[idx] = history[i].tx
 
 \* All committed read-only txs observe all previously committed txs (wrt to real-time)
 \* Note that this requires committed txs to be observed from their response, 
@@ -178,8 +178,8 @@ RwSerializableInv ==
     \A i,j \in DOMAIN history:
         /\ history[i].type = RwTxResponse
         /\ history[j].type = RwTxResponse
-        => \/ IsPrefix(history[i].observed, history[j].observed)
-           \/ IsPrefix(history[j].observed, history[i].observed)
+        => \/ IsRestriction(history[i].observed, history[j].observed)
+           \/ IsRestriction(history[j].observed, history[i].observed)
 
 \* A weaker version of RwSerializableInv which only considers committed requests
 \* If any committed request observes A before B then every committed request must observe A before B
@@ -195,8 +195,8 @@ CommittedRwSerializableInv ==
         /\ history[l].type = TxStatusReceived
         /\ history[l].status = CommittedStatus
         /\ history[j].tx_id = history[l].tx_id
-        => \/ IsPrefix(history[i].observed, history[j].observed)
-           \/ IsPrefix(history[j].observed, history[i].observed)
+        => \/ IsRestriction(history[i].observed, history[j].observed)
+           \/ IsRestriction(history[j].observed, history[i].observed)
 
 \* Linearizability for read-write transactions
 \* Or equivalently, strict serializability as we are modeling a single object system

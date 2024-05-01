@@ -6,7 +6,6 @@
 
 EXTENDS ExternalHistoryInvars, TLC
 
-
 \* Abstract ledgers that contains only client transactions (no signatures)
 \* Indexed by view, each ledger is the ledger associated with leader of that view 
 \* In practice, the ledger of every CCF node is one of these or a prefix for one of these
@@ -63,11 +62,11 @@ RwTxExecuteAction ==
         \* that it can be picked up by the current leader or any former leader
         /\ \E view \in FirstBranch..Len(ledgerBranches):
                 ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
-                    Append(@,[view |-> view, tx |-> history[i].tx])]
+                    @ @@ (Max(DOMAIN ledgerBranches[view] \cup {0})+1) :> [view |-> view, tx |-> history[i].tx]]
         /\ UNCHANGED history
 
 LedgerBranchTxOnly(branch) ==
-    LET SubBranch == SelectSeq(branch, LAMBDA e : "tx" \in DOMAIN e)
+    LET SubBranch == [ i \in {j \in DOMAIN branch : "tx" \in DOMAIN branch[j] } |-> branch[i] ] 
     IN [i \in DOMAIN SubBranch |-> SubBranch[i].tx]
 
 \* Response to a read-write transaction
@@ -87,7 +86,7 @@ RwTxResponseAction ==
                     history,[
                         type |-> RwTxResponse, 
                         tx |-> history[i].tx, 
-                        observed |-> LedgerBranchTxOnly(SubSeq(ledgerBranches[view],1,seqnum)),
+                        observed |-> LedgerBranchTxOnly([j \in DOMAIN ledgerBranches[view] \cap 1..seqnum |-> ledgerBranches[view][j]]),
                         tx_id |-> <<ledgerBranches[view][seqnum].view, seqnum>>] )
     /\ UNCHANGED ledgerBranches
 
@@ -98,8 +97,8 @@ StatusCommittedResponseAction ==
         LET view == history[i].tx_id[1]
             seqno == history[i].tx_id[2]
         IN /\ history[i].type = RwTxResponse
-           /\ Len(Last(ledgerBranches)) >= seqno
-           /\ Last(ledgerBranches)[seqno].view = view
+           /\ Max(DOMAIN ledgerBranches[Len(ledgerBranches)] \cup {0}) >= seqno
+           /\ ledgerBranches[Len(ledgerBranches)][history[i].tx_id[2]].view = view
            \* There is no future InvalidStatus that's incompatible with this commit
            \* This is to accomodate StatusInvalidResponseAction making future commits invalid,
            \* and is an unnecessary complication for model checking. It does facilitate trace
@@ -121,9 +120,8 @@ StatusCommittedResponseAction ==
 
 \* Append a transaction to the ledger which does not impact the state we are considering
 AppendOtherTxnAction ==
-    /\ \E view \in FirstBranch..Len(ledgerBranches):
-        ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
-                    Append(@,[view |-> view])]
+    /\ \E view \in (DOMAIN ledgerBranches) \ 0..(FirstBranch-1):
+        ledgerBranches' = [ledgerBranches EXCEPT ![view] = @ @@ (Max(DOMAIN ledgerBranches[view] \cup {0})+1) :> [view |-> view] ]
     /\ UNCHANGED history
 
 \* A CCF service with a single node will never have a view change
