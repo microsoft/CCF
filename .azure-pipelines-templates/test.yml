@@ -11,7 +11,6 @@ steps:
       export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS})
       ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}
     env:
-      METRICS_MONGO_CONNECTION: $(METRICS_MONGO_CONNECTION)
       CTEST_TIMEOUT: "${{ parameters.ctest_timeout }}"
     displayName: CTest
     workingDirectory: build
