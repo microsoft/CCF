@@ -102,7 +102,6 @@ namespace ccf::js::core
       return rt;
     }
 
-    // TODO: Would like to remove this, if possible
     operator JSContext*() const
     {
       return ctx;
@@ -138,14 +137,20 @@ namespace ccf::js::core
       size_t* pbyte_offset,
       size_t* pbyte_length,
       size_t* pbytes_per_element) const;
+    JSWrappedValue get_exported_function(
+      const std::string& code,
+      const std::string& func,
+      const std::string& path);
+    JSWrappedValue get_exported_function(
+      const JSWrappedValue& module,
+      const std::string& func,
+      const std::string& path);
 
     // Constant values
     JSWrappedValue null() const;
     JSWrappedValue undefined() const;
 
     // Construct new values
-    // TODO: Re-order all methods. These are mostly good, sanitise/group the
-    // rest
     JSWrappedValue new_obj() const;
     JSWrappedValue new_obj_class(JSClassID class_id) const;
     JSWrappedValue new_array() const;
@@ -170,17 +175,6 @@ namespace ccf::js::core
       size_t input_len,
       const char* filename,
       int eval_flags) const;
-
-    JSWrappedValue get_exported_function(
-      const std::string& code,
-      const std::string& func,
-      const std::string& path);
-
-    JSWrappedValue get_exported_function(
-      const JSWrappedValue& module,
-      const std::string& func,
-      const std::string& path);
-
     JSWrappedValue read_object(
       const uint8_t* buf, size_t buf_len, int flags) const;
 
@@ -199,7 +193,6 @@ namespace ccf::js::core
 
     // JSON I/O
     JSWrappedValue json_stringify(const JSWrappedValue& obj) const;
-
     JSWrappedValue parse_json(const nlohmann::json& j) const;
     JSWrappedValue parse_json(
       const char* buf, size_t buf_len, const char* filename) const;

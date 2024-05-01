@@ -70,33 +70,6 @@ namespace ccf::js::core
     return JSWrappedValue(ctx, val);
   };
 
-  JSWrappedValue Context::get_property(
-    JSValue object, char const* property_name) const
-  {
-    return wrap(JS_GetPropertyStr(ctx, object, property_name));
-  }
-
-  JSWrappedValue Context::new_obj() const
-  {
-    return wrap(JS_NewObject(ctx));
-  }
-
-  JSWrappedValue Context::new_obj_class(JSClassID class_id) const
-  {
-    return wrap(JS_NewObjectClass(ctx, class_id));
-  }
-
-  JSWrappedValue Context::get_global_obj() const
-  {
-    return wrap(JS_GetGlobalObject(ctx));
-  }
-
-  JSWrappedValue Context::get_global_property(const char* s) const
-  {
-    auto g = Context::get_global_obj();
-    return wrap(JS_GetPropertyStr(ctx, g.val, s));
-  }
-
   JSValue Context::extract_string_array(
     JSValueConst& argv, std::vector<std::string>& out)
   {
@@ -140,13 +113,139 @@ namespace ccf::js::core
     return ccf::js::core::constants::Undefined;
   }
 
-  JSWrappedValue Context::json_stringify(const JSWrappedValue& obj) const
+  std::pair<std::string, std::optional<std::string>> Context::error_message()
   {
-    return wrap(JS_JSONStringify(
-      ctx,
-      obj.val,
-      ccf::js::core::constants::Null,
-      ccf::js::core::constants::Null));
+    auto exception_val = wrap(JS_GetException(ctx));
+    std::optional<std::string> message;
+    bool is_error = exception_val.is_error();
+    if (!is_error && exception_val.is_obj())
+    {
+      auto rval = json_stringify(exception_val);
+      message = to_str(rval);
+    }
+    else
+    {
+      message = to_str(exception_val);
+    }
+
+    std::optional<std::string> trace = std::nullopt;
+    if (is_error)
+    {
+      auto val = exception_val["stack"];
+      if (!val.is_undefined())
+      {
+        trace = to_str(val);
+      }
+    }
+    return {message.value_or(""), trace};
+  }
+
+  JSWrappedValue Context::get_property(
+    JSValue object, char const* property_name) const
+  {
+    return wrap(JS_GetPropertyStr(ctx, object, property_name));
+  }
+
+  JSWrappedValue Context::get_global_obj() const
+  {
+    return wrap(JS_GetGlobalObject(ctx));
+  }
+
+  JSWrappedValue Context::get_global_property(const char* s) const
+  {
+    auto g = Context::get_global_obj();
+    return wrap(JS_GetPropertyStr(ctx, g.val, s));
+  }
+
+  JSWrappedValue Context::get_typed_array_buffer(
+    const JSWrappedValue& obj,
+    size_t* pbyte_offset,
+    size_t* pbyte_length,
+    size_t* pbytes_per_element) const
+  {
+    return wrap(JS_GetTypedArrayBuffer(
+      ctx, obj.val, pbyte_offset, pbyte_length, pbytes_per_element));
+  }
+
+  JSWrappedValue Context::get_exported_function(
+    const std::string& code, const std::string& func, const std::string& path)
+  {
+    auto module = eval(
+      code.c_str(),
+      code.size(),
+      path.c_str(),
+      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+
+    if (module.is_exception())
+    {
+      throw std::runtime_error(fmt::format("Failed to compile {}", path));
+    }
+
+    return get_exported_function(module, func, path);
+  }
+
+  JSWrappedValue Context::get_exported_function(
+    const JSWrappedValue& module,
+    const std::string& func,
+    const std::string& path)
+  {
+    auto eval_val = wrap(JS_EvalFunction(ctx, module.val));
+
+    if (eval_val.is_exception())
+    {
+      auto [reason, trace] = error_message();
+
+      if (rt.log_exception_details)
+      {
+        CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
+      }
+      throw std::runtime_error(
+        fmt::format("Failed to execute {}: {}", path, reason));
+    }
+
+    // Get exported function from module
+    assert(JS_VALUE_GET_TAG(module.val) == JS_TAG_MODULE);
+    auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module.val);
+    auto export_count = JS_GetModuleExportEntriesCount(module_def);
+    for (auto i = 0; i < export_count; i++)
+    {
+      auto export_name_atom = JS_GetModuleExportEntryName(ctx, module_def, i);
+      auto export_name = to_str(export_name_atom);
+      JS_FreeAtom(ctx, export_name_atom);
+      if (export_name.value_or("") == func)
+      {
+        auto export_func = JS_GetModuleExportEntry(ctx, module_def, i);
+        if (!JS_IsFunction(ctx, export_func))
+        {
+          throw std::runtime_error(fmt::format(
+            "Export '{}' of module '{}' is not a function", func, path));
+        }
+        return wrap(export_func);
+      }
+    }
+
+    throw std::runtime_error(
+      fmt::format("Failed to find export '{}' in module '{}'", func, path));
+  }
+
+  JSWrappedValue Context::null() const
+  {
+    return wrap(ccf::js::core::constants::Null);
+  }
+
+  JSWrappedValue Context::undefined() const
+  {
+    return wrap(ccf::js::core::constants::Undefined);
+  }
+
+  JSWrappedValue Context::new_obj() const
+  {
+    return wrap(JS_NewObject(ctx));
+  }
+
+  JSWrappedValue Context::new_obj_class(JSClassID class_id) const
+  {
+    return wrap(JS_NewObjectClass(ctx, class_id));
   }
 
   JSWrappedValue Context::new_array() const
@@ -211,21 +310,6 @@ namespace ccf::js::core
 #pragma clang diagnostic pop
   }
 
-  JSWrappedValue Context::duplicate_value(JSValueConst original) const
-  {
-    return wrap(JS_DupValue(ctx, original));
-  }
-
-  JSWrappedValue Context::null() const
-  {
-    return wrap(ccf::js::core::constants::Null);
-  }
-
-  JSWrappedValue Context::undefined() const
-  {
-    return wrap(ccf::js::core::constants::Undefined);
-  }
-
   JSWrappedValue Context::new_c_function(
     JSCFunction* func, const char* name, int length) const
   {
@@ -239,6 +323,11 @@ namespace ccf::js::core
       ctx, func, name, 0, JS_CFUNC_getter, JS_CFUNC_getter_magic));
   }
 
+  JSWrappedValue Context::duplicate_value(JSValueConst original) const
+  {
+    return wrap(JS_DupValue(ctx, original));
+  }
+
   JSWrappedValue Context::eval(
     const char* input,
     size_t input_len,
@@ -248,65 +337,53 @@ namespace ccf::js::core
     return wrap(JS_Eval(ctx, input, input_len, filename, eval_flags));
   }
 
-  JSWrappedValue Context::get_exported_function(
-    const std::string& code, const std::string& func, const std::string& path)
+  JSWrappedValue Context::read_object(
+    const uint8_t* buf, size_t buf_len, int flags) const
   {
-    auto module = eval(
-      code.c_str(),
-      code.size(),
-      path.c_str(),
-      JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-
-    if (module.is_exception())
-    {
-      throw std::runtime_error(fmt::format("Failed to compile {}", path));
-    }
-
-    return get_exported_function(module, func, path);
+    return wrap(JS_ReadObject(ctx, buf, buf_len, flags));
   }
 
-  JSWrappedValue Context::get_exported_function(
-    const JSWrappedValue& module,
-    const std::string& func,
-    const std::string& path)
+  static int js_custom_interrupt_handler(JSRuntime* rt, void* opaque)
   {
-    auto eval_val = wrap(JS_EvalFunction(ctx, module.val));
-
-    if (eval_val.is_exception())
+    InterruptData* inter = reinterpret_cast<InterruptData*>(opaque);
+    auto now = ccf::get_enclave_time();
+    auto elapsed_time = now - inter->start_time;
+    auto elapsed_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
+    if (elapsed_ms.count() >= inter->max_execution_time.count())
     {
-      auto [reason, trace] = error_message();
-
-      if (rt.log_exception_details)
-      {
-        CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
-      }
-      throw std::runtime_error(
-        fmt::format("Failed to execute {}: {}", path, reason));
+      globals::log_info_with_tag(
+        inter->access,
+        fmt::format(
+          "JS execution has timed out after {}ms (max is {}ms)",
+          elapsed_ms.count(),
+          inter->max_execution_time.count()));
+      inter->request_timed_out = true;
+      return 1;
     }
-
-    // Get exported function from module
-    assert(JS_VALUE_GET_TAG(module.val) == JS_TAG_MODULE);
-    auto module_def = (JSModuleDef*)JS_VALUE_GET_PTR(module.val);
-    auto export_count = JS_GetModuleExportEntriesCount(module_def);
-    for (auto i = 0; i < export_count; i++)
+    else
     {
-      auto export_name_atom = JS_GetModuleExportEntryName(ctx, module_def, i);
-      auto export_name = to_str(export_name_atom);
-      JS_FreeAtom(ctx, export_name_atom);
-      if (export_name.value_or("") == func)
-      {
-        auto export_func = JS_GetModuleExportEntry(ctx, module_def, i);
-        if (!JS_IsFunction(ctx, export_func))
-        {
-          throw std::runtime_error(fmt::format(
-            "Export '{}' of module '{}' is not a function", func, path));
-        }
-        return wrap(export_func);
-      }
+      return 0;
     }
+  }
 
-    throw std::runtime_error(
-      fmt::format("Failed to find export '{}' in module '{}'", func, path));
+  JSWrappedValue Context::call_with_rt_options(
+    const JSWrappedValue& f,
+    const std::vector<JSWrappedValue>& argv,
+    kv::Tx* tx,
+    RuntimeLimitsPolicy policy)
+  {
+    rt.set_runtime_options(tx, policy);
+    const auto curr_time = ccf::get_enclave_time();
+    interrupt_data.start_time = curr_time;
+    interrupt_data.max_execution_time = rt.get_max_exec_time();
+    JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
+
+    auto rv = inner_call(f, argv);
+
+    rt.reset_runtime_options();
+
+    return rv;
   }
 
   JSWrappedValue Context::inner_call(
@@ -327,10 +404,13 @@ namespace ccf::js::core
       argvn.data()));
   }
 
-  JSWrappedValue Context::read_object(
-    const uint8_t* buf, size_t buf_len, int flags) const
+  JSWrappedValue Context::json_stringify(const JSWrappedValue& obj) const
   {
-    return wrap(JS_ReadObject(ctx, buf, buf_len, flags));
+    return wrap(JS_JSONStringify(
+      ctx,
+      obj.val,
+      ccf::js::core::constants::Null,
+      ccf::js::core::constants::Null));
   }
 
   JSWrappedValue Context::parse_json(const nlohmann::json& j) const
@@ -343,16 +423,6 @@ namespace ccf::js::core
     const char* buf, size_t buf_len, const char* filename) const
   {
     return wrap(JS_ParseJSON(ctx, buf, buf_len, filename));
-  }
-
-  JSWrappedValue Context::get_typed_array_buffer(
-    const JSWrappedValue& obj,
-    size_t* pbyte_offset,
-    size_t* pbyte_length,
-    size_t* pbytes_per_element) const
-  {
-    return wrap(JS_GetTypedArrayBuffer(
-      ctx, obj.val, pbyte_offset, pbyte_length, pbytes_per_element));
   }
 
   std::optional<std::string> Context::to_str(const JSWrappedValue& x) const
@@ -406,49 +476,6 @@ namespace ccf::js::core
     std::string r(val);
     JS_FreeCString(ctx, val);
     return r;
-  }
-
-  static int js_custom_interrupt_handler(JSRuntime* rt, void* opaque)
-  {
-    InterruptData* inter = reinterpret_cast<InterruptData*>(opaque);
-    auto now = ccf::get_enclave_time();
-    auto elapsed_time = now - inter->start_time;
-    auto elapsed_ms =
-      std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
-    if (elapsed_ms.count() >= inter->max_execution_time.count())
-    {
-      globals::log_info_with_tag(
-        inter->access,
-        fmt::format(
-          "JS execution has timed out after {}ms (max is {}ms)",
-          elapsed_ms.count(),
-          inter->max_execution_time.count()));
-      inter->request_timed_out = true;
-      return 1;
-    }
-    else
-    {
-      return 0;
-    }
-  }
-
-  JSWrappedValue Context::call_with_rt_options(
-    const JSWrappedValue& f,
-    const std::vector<JSWrappedValue>& argv,
-    kv::Tx* tx,
-    RuntimeLimitsPolicy policy)
-  {
-    rt.set_runtime_options(tx, policy);
-    const auto curr_time = ccf::get_enclave_time();
-    interrupt_data.start_time = curr_time;
-    interrupt_data.max_execution_time = rt.get_max_exec_time();
-    JS_SetInterruptHandler(rt, js_custom_interrupt_handler, &interrupt_data);
-
-    auto rv = inner_call(f, argv);
-
-    rt.reset_runtime_options();
-
-    return rv;
   }
 
   void Context::invalidate_globals()
@@ -753,33 +780,6 @@ namespace ccf::js::core
     }
 
     return js_state.take();
-  }
-
-  std::pair<std::string, std::optional<std::string>> Context::error_message()
-  {
-    auto exception_val = wrap(JS_GetException(ctx));
-    std::optional<std::string> message;
-    bool is_error = exception_val.is_error();
-    if (!is_error && exception_val.is_obj())
-    {
-      auto rval = json_stringify(exception_val);
-      message = to_str(rval);
-    }
-    else
-    {
-      message = to_str(exception_val);
-    }
-
-    std::optional<std::string> trace = std::nullopt;
-    if (is_error)
-    {
-      auto val = exception_val["stack"];
-      if (!val.is_undefined())
-      {
-        trace = to_str(val);
-      }
-    }
-    return {message.value_or(""), trace};
   }
 }
 
