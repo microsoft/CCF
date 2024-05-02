@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#pragma once
+
+#include "js/extensions/ccf/crypto.h"
+
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
@@ -13,7 +15,7 @@
 #include "js/core/context.h"
 #include "tls/ca.h"
 
-namespace ccf::js::globals
+namespace ccf::js::extensions
 {
   namespace
   {
@@ -1044,7 +1046,7 @@ namespace ccf::js::globals
     }
   }
 
-  void populate_global_ccf_crypto(js::core::Context& ctx)
+  void CcfCryptoExtension::install(js::core::Context& ctx)
   {
     auto crypto = JS_NewObject(ctx);
 
@@ -1186,5 +1188,4 @@ namespace ccf::js::globals
     auto ccf = ctx.get_global_property("ccf");
     ccf.set("crypto", std::move(crypto));
   }
-
 }

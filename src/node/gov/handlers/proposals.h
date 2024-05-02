@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "js/extensions/ccf/crypto.h"
 #include "js/extensions/ccf/network.h"
 #include "js/extensions/ccf/node.h"
 #include "node/gov/api_version.h"
@@ -297,6 +298,8 @@ namespace ccf::gov::endpoints
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
+            js_context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
             js_context.populate_global_ccf_kv(tx);
             js_context.add_extension(
               std::make_shared<ccf::js::extensions::CcfNodeExtension>(

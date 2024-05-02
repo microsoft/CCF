@@ -12,6 +12,7 @@
 #include "js/core/context.h"
 #include "js/core/wrapped_property_enum.h"
 #include "js/extensions/ccf/consensus.h"
+#include "js/extensions/ccf/crypto.h"
 #include "js/extensions/ccf/historical.h"
 #include "js/extensions/ccf/host.h"
 #include "js/extensions/ccf/rpc.h"
@@ -349,6 +350,10 @@ namespace ccfapp
 
       ctx.register_request_body_class();
       ctx.populate_global_ccf_kv(endpoint_ctx.tx);
+
+      // ccf.crypto.*
+      ctx.add_extension(
+        std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
 
       // ccf.rpc.*
       ctx.add_extension(std::make_shared<ccf::js::extensions::CcfRpcExtension>(
