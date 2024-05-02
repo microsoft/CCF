@@ -2,17 +2,20 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/base_endpoint_registry.h"
 #include "js/extensions/iextension.h"
+#include "node/rpc/gov_effects_interface.h"
 
 namespace ccf::js::extensions
 {
-  class CcfConsensusExtension : public IExtension
+  class CcfNodeExtension : public IExtension
   {
   public:
-    ccf::BaseEndpointRegistry* endpoint_registry;
+    ccf::AbstractGovernanceEffects* gov_effects;
+    kv::Tx* tx;
 
-    CcfConsensusExtension(ccf::BaseEndpointRegistry* er) : endpoint_registry(er)
+    CcfNodeExtension(ccf::AbstractGovernanceEffects* ge, kv::Tx* t) :
+      gov_effects(ge),
+      tx(t)
     {}
 
     void install(js::core::Context& ctx) override;

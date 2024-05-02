@@ -220,12 +220,6 @@ namespace ccf::js::core
     // TODO: All of these should be removed from here, only exist in some
     // derived interpreter
     void populate_global_ccf_kv(kv::Tx& tx);
-    void populate_global_ccf_node(ccf::AbstractGovernanceEffects* gov_effects);
-    void populate_global_ccf_host(ccf::AbstractHostProcesses* host_processes);
-    void populate_global_ccf_network(ccf::NetworkState* network_state);
-    void populate_global_ccf_rpc(ccf::RpcContext* rpc_ctx);
-    void populate_global_ccf_historical(
-      ccf::historical::AbstractStateCache* historical_state);
     void populate_global_ccf_gov_actions();
 
     void register_request_body_class();

@@ -12,6 +12,9 @@
 #include "js/core/context.h"
 #include "js/core/wrapped_property_enum.h"
 #include "js/extensions/ccf/consensus.h"
+#include "js/extensions/ccf/historical.h"
+#include "js/extensions/ccf/host.h"
+#include "js/extensions/ccf/rpc.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache_interface.h"
 #include "js/modules.h"
@@ -274,7 +277,8 @@ namespace ccfapp
             ccf::historical::StatePtr state) {
             auto add_historical_globals = [&](js::core::Context& ctx) {
               auto ccf = ctx.get_global_property("ccf");
-              auto val = ctx.create_historical_state_object(state);
+              auto val = ccf::js::extensions::CcfHistoricalExtension::
+                create_historical_state_object(ctx, state);
               ccf.set("historicalState", std::move(val));
             };
             do_execute_request(endpoint, endpoint_ctx, add_historical_globals);
@@ -346,13 +350,22 @@ namespace ccfapp
       ctx.register_request_body_class();
       ctx.populate_global_ccf_kv(endpoint_ctx.tx);
 
-      ctx.populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get());
-      ctx.populate_global_ccf_host(
-        context.get_subsystem<ccf::AbstractHostProcesses>().get());
+      // ccf.rpc.*
+      ctx.add_extension(std::make_shared<ccf::js::extensions::CcfRpcExtension>(
+        endpoint_ctx.rpc_ctx.get()));
 
+      // ccf.host.*
+      ctx.add_extension(std::make_shared<ccf::js::extensions::CcfHostExtension>(
+        context.get_subsystem<ccf::AbstractHostProcesses>().get()));
+
+      // ccf.consensus.*
       ctx.add_extension(
         std::make_shared<ccf::js::extensions::CcfConsensusExtension>(this));
-      ctx.populate_global_ccf_historical(&context.get_historical_state());
+
+      // ccf.historical.*
+      ctx.add_extension(
+        std::make_shared<ccf::js::extensions::CcfHistoricalExtension>(
+          &context.get_historical_state()));
 
       if (pre_exec_hook.has_value())
       {
@@ -390,6 +403,7 @@ namespace ccfapp
       // this potentially reused interpreter
       invalidate_request_obj_body(ctx);
       ctx.invalidate_globals();
+      ctx.clear_extensions();
 
       const auto& rt = ctx.runtime();
 

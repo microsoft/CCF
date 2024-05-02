@@ -16,6 +16,8 @@
 #include "ccf/service/tables/nodes.h"
 #include "frontend.h"
 #include "js/core/context.h"
+#include "js/extensions/ccf/network.h"
+#include "js/extensions/ccf/node.h"
 #include "node/gov/gov_endpoint_registry.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/gov_effects_interface.h"
@@ -308,8 +310,12 @@ namespace ccf
             }
 
             apply_js_context.populate_global_ccf_kv(tx);
-            apply_js_context.populate_global_ccf_node(gov_effects.get());
-            apply_js_context.populate_global_ccf_network(&network);
+            apply_js_context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfNodeExtension>(
+                gov_effects.get(), &tx));
+            apply_js_context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfNetworkExtension>(
+                &network, &tx));
             apply_js_context.populate_global_ccf_gov_actions();
 
             auto apply_func = apply_js_context.get_exported_function(

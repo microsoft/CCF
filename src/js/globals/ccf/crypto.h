@@ -4,9 +4,12 @@
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
+#include "ccf/crypto/hmac.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/sha256.h"
+#include "ccf/crypto/verifier.h"
+#include "js/checks.h"
 #include "js/core/context.h"
 #include "tls/ca.h"
 

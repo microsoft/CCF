@@ -10,6 +10,20 @@
 
 #include <quickjs/quickjs.h>
 
+#define GET_ENDPOINT_REGISTRY_FROM_OPAQUE(THIS_VAL) \
+  auto extension = static_cast<CcfConsensusExtension*>( \
+    JS_GetOpaque(THIS_VAL, consensus_class_id)); \
+  if (extension == nullptr) \
+  { \
+    return JS_ThrowInternalError(ctx, "Failed to get extension object"); \
+  } \
+  auto endpoint_registry = extension->endpoint_registry; \
+  if (endpoint_registry == nullptr) \
+  { \
+    return JS_ThrowInternalError( \
+      ctx, "Failed to get endpoint registry object"); \
+  }
+
 namespace ccf::js::extensions
 {
   namespace
@@ -23,14 +37,7 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments, but expected 0", argc);
       }
 
-      auto extension = static_cast<CcfConsensusExtension*>(
-        JS_GetOpaque(this_val, consensus_class_id));
-      auto endpoint_registry = extension->endpoint_registry;
-      if (endpoint_registry == nullptr)
-      {
-        return JS_ThrowInternalError(
-          ctx, "Failed to get endpoint registry object");
-      }
+      GET_ENDPOINT_REGISTRY_FROM_OPAQUE(this_val);
 
       ccf::View view;
       ccf::SeqNo seqno;
@@ -75,14 +82,7 @@ namespace ccf::js::extensions
           ctx, "Invalid view or seqno: cannot be negative");
       }
 
-      auto extension = static_cast<CcfConsensusExtension*>(
-        JS_GetOpaque(this_val, consensus_class_id));
-      auto endpoint_registry = extension->endpoint_registry;
-      if (endpoint_registry == nullptr)
-      {
-        return JS_ThrowInternalError(
-          ctx, "Failed to get endpoint registry object");
-      }
+      GET_ENDPOINT_REGISTRY_FROM_OPAQUE(this_val);
 
       ccf::TxStatus status;
       auto result =
@@ -115,14 +115,7 @@ namespace ccf::js::extensions
         return JS_ThrowRangeError(ctx, "Invalid seqno: cannot be negative");
       }
 
-      auto extension = static_cast<CcfConsensusExtension*>(
-        JS_GetOpaque(this_val, consensus_class_id));
-      auto endpoint_registry = extension->endpoint_registry;
-      if (endpoint_registry == nullptr)
-      {
-        return JS_ThrowInternalError(
-          ctx, "Failed to get endpoint registry object");
-      }
+      GET_ENDPOINT_REGISTRY_FROM_OPAQUE(this_val);
 
       ccf::View view;
       auto result = endpoint_registry->get_view_for_seqno_v1(seqno, view);

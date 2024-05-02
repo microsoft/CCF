@@ -2,18 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/base_endpoint_registry.h"
+#include "ccf/node/host_processes_interface.h"
 #include "js/extensions/iextension.h"
 
 namespace ccf::js::extensions
 {
-  class CcfConsensusExtension : public IExtension
+  class CcfHostExtension : public IExtension
   {
   public:
-    ccf::BaseEndpointRegistry* endpoint_registry;
+    ccf::AbstractHostProcesses* host_processes;
 
-    CcfConsensusExtension(ccf::BaseEndpointRegistry* er) : endpoint_registry(er)
-    {}
+    CcfHostExtension(ccf::AbstractHostProcesses* hp) : host_processes(hp) {}
 
     void install(js::core::Context& ctx) override;
   };

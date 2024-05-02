@@ -2,18 +2,17 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/base_endpoint_registry.h"
 #include "js/extensions/iextension.h"
+#include "ccf/rpc_context.h"
 
 namespace ccf::js::extensions
 {
-  class CcfConsensusExtension : public IExtension
+  class CcfRpcExtension : public IExtension
   {
   public:
-    ccf::BaseEndpointRegistry* endpoint_registry;
+    ccf::RpcContext* rpc_ctx;
 
-    CcfConsensusExtension(ccf::BaseEndpointRegistry* er) : endpoint_registry(er)
-    {}
+    CcfRpcExtension(ccf::RpcContext* rc) : rpc_ctx(rc) {}
 
     void install(js::core::Context& ctx) override;
   };

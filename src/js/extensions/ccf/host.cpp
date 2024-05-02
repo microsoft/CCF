@@ -1,13 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#pragma once
-#include "ccf/node/host_processes_interface.h"
+
+#include "js/extensions/ccf/host.h"
+
 #include "js/core/context.h"
 #include "js/global_class_ids.h"
 
 #include <quickjs/quickjs.h>
 
-namespace ccf::js
+namespace ccf::js::extensions
 {
   namespace
   {
@@ -42,8 +43,19 @@ namespace ccf::js
         process_input.assign(buf, buf + size);
       }
 
-      auto host_processes = static_cast<ccf::AbstractHostProcesses*>(
-        JS_GetOpaque(this_val, host_class_id));
+      auto extension =
+        static_cast<CcfHostExtension*>(JS_GetOpaque(this_val, host_class_id));
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto host_processes = extension->host_processes;
+      if (host_processes == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get host processes object");
+      }
 
       try
       {
@@ -60,11 +72,10 @@ namespace ccf::js
     }
   }
 
-  JSValue create_global_host_object(
-    ccf::AbstractHostProcesses* host_processes, JSContext* ctx)
+  void CcfHostExtension::install(js::core::Context& ctx)
   {
     auto host = JS_NewObjectClass(ctx, host_class_id);
-    JS_SetOpaque(host, host_processes);
+    JS_SetOpaque(host, this);
 
     JS_SetPropertyStr(
       ctx,
@@ -73,6 +84,7 @@ namespace ccf::js
       JS_NewCFunction(
         ctx, js_node_trigger_host_process_launch, "triggerSubprocess", 1));
 
-    return host;
+    auto ccf = ctx.get_global_property("ccf");
+    ccf.set("host", std::move(host));
   }
 }

@@ -1,15 +1,34 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#pragma once
+
+#include "js/extensions/ccf/node.h"
 
 #include "js/core/context.h"
 #include "js/global_class_ids.h"
-#include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/gov_logging.h"
 
 #include <quickjs/quickjs.h>
 
-namespace ccf::js
+#define LOAD_FROM_OPAQUE(THIS_VAL) \
+  auto extension = \
+    static_cast<CcfNodeExtension*>(JS_GetOpaque(THIS_VAL, node_class_id)); \
+  if (extension == nullptr) \
+  { \
+    return JS_ThrowInternalError(ctx, "Failed to get extension object"); \
+  } \
+  auto gov_effects = extension->gov_effects; \
+  if (gov_effects == nullptr) \
+  { \
+    return JS_ThrowInternalError( \
+      ctx, "Failed to get governance effects object"); \
+  } \
+  auto tx_ptr = extension->tx; \
+  if (tx_ptr == nullptr) \
+  { \
+    return JS_ThrowInternalError(ctx, "Failed to get tx object"); \
+  }
+
+namespace ccf::js::extensions
 {
   namespace
   {
@@ -26,16 +45,7 @@ namespace ccf::js
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
-        JS_GetOpaque(this_val, node_class_id));
-
-      auto tx_ptr = jsctx.globals.tx;
-
-      if (tx_ptr == nullptr)
-      {
-        return JS_ThrowInternalError(
-          ctx, "No transaction available to rekey ledger");
-      }
+      LOAD_FROM_OPAQUE(this_val);
 
       try
       {
@@ -69,21 +79,7 @@ namespace ccf::js
           ctx, "Passed %d arguments but expected two", argc);
       }
 
-      auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
-        JS_GetOpaque(this_val, node_class_id));
-
-      if (gov_effects == nullptr)
-      {
-        return JS_ThrowInternalError(ctx, "Node state is not set");
-      }
-
-      auto tx_ptr = jsctx.globals.tx;
-
-      if (tx_ptr == nullptr)
-      {
-        return JS_ThrowInternalError(
-          ctx, "No transaction available to open service");
-      }
+      LOAD_FROM_OPAQUE(this_val);
 
       try
       {
@@ -148,15 +144,7 @@ namespace ccf::js
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
-        JS_GetOpaque(this_val, node_class_id));
-      auto tx_ptr = jsctx.globals.tx;
-
-      if (tx_ptr == nullptr)
-      {
-        return JS_ThrowInternalError(
-          ctx, "No transaction available to open service");
-      }
+      LOAD_FROM_OPAQUE(this_val);
 
       try
       {
@@ -180,14 +168,7 @@ namespace ccf::js
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
-      auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
-        JS_GetOpaque(this_val, node_class_id));
-      auto tx_ptr = jsctx.globals.tx;
-
-      if (tx_ptr == nullptr)
-      {
-        return JS_ThrowInternalError(ctx, "No transaction available");
-      }
+      LOAD_FROM_OPAQUE(this_val);
 
       try
       {
@@ -211,14 +192,7 @@ namespace ccf::js
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
-      auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
-        JS_GetOpaque(this_val, node_class_id));
-      auto tx_ptr = jsctx.globals.tx;
-
-      if (tx_ptr == nullptr)
-      {
-        return JS_ThrowInternalError(ctx, "No transaction available");
-      }
+      LOAD_FROM_OPAQUE(this_val);
 
       try
       {
@@ -242,14 +216,7 @@ namespace ccf::js
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
-      auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
-        JS_GetOpaque(this_val, node_class_id));
-      auto tx_ptr = jsctx.globals.tx;
-
-      if (tx_ptr == nullptr)
-      {
-        return JS_ThrowInternalError(ctx, "No transaction available");
-      }
+      LOAD_FROM_OPAQUE(this_val);
 
       try
       {
@@ -281,11 +248,11 @@ namespace ccf::js
     }
   }
 
-  JSValue create_global_node_object(
-    ccf::AbstractGovernanceEffects* gov_effects, JSContext* ctx)
+  void CcfNodeExtension::install(js::core::Context& ctx)
   {
     auto node = JS_NewObjectClass(ctx, node_class_id);
-    JS_SetOpaque(node, gov_effects);
+    JS_SetOpaque(node, this);
+
     JS_SetPropertyStr(
       ctx,
       node,
@@ -323,6 +290,7 @@ namespace ccf::js
       "triggerACMERefresh",
       JS_NewCFunction(ctx, js_trigger_acme_refresh, "triggerACMERefresh", 0));
 
-    return node;
+    auto ccf = ctx.get_global_property("ccf");
+    ccf.set("node", std::move(node));
   }
 }

@@ -4,6 +4,7 @@
 #include "js/core/constants.h"
 #include "js/core/context.h"
 #include "js/tx_access.h"
+#include "node/rpc/gov_logging.h"
 
 namespace ccf::js::globals
 {

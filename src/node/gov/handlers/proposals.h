@@ -3,6 +3,8 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "js/extensions/ccf/network.h"
+#include "js/extensions/ccf/node.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 
@@ -296,8 +298,12 @@ namespace ccf::gov::endpoints
             }
 
             js_context.populate_global_ccf_kv(tx);
-            js_context.populate_global_ccf_node(gov_effects.get());
-            js_context.populate_global_ccf_network(&network);
+            js_context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfNodeExtension>(
+                gov_effects.get(), &tx));
+            js_context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfNetworkExtension>(
+                &network, &tx));
             js_context.populate_global_ccf_gov_actions();
 
             auto apply_func = js_context.get_exported_function(
