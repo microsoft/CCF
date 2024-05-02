@@ -217,13 +217,11 @@ namespace ccf::js::core
     // instances of state as required.
     void invalidate_globals();
 
-    // TODO: All of these should be removed from here, only exist in some
-    // derived interpreter
+    // TODO: All of these should be removed from here, only be added by some
+    // extension
     void populate_global_ccf_kv(kv::Tx& tx);
     void populate_global_ccf_gov_actions();
 
     void register_request_body_class();
-
-    JSValue create_historical_state_object(ccf::historical::StatePtr state);
   };
 }
