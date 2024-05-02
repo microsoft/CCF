@@ -5,6 +5,7 @@
 #include "ccf/pal/locking.h"
 #include "js/core/runtime.h"
 #include "js/core/wrapped_value.h"
+#include "js/extensions/iextension.h"
 #include "js/tx_access.h"
 
 #include <chrono>
@@ -55,6 +56,8 @@ namespace ccf::js::core
     // and the entire interpreter should be thrown away if _any_ of its modules
     // needs to be refreshed.
     std::map<std::string, JSWrappedValue> loaded_modules_cache;
+
+    js::extensions::Extensions extensions;
 
   public:
     // NB: This should really be hidden as an implementation detail
@@ -203,6 +206,9 @@ namespace ccf::js::core
     std::optional<std::string> to_str(const JSValue& x, size_t& len) const;
     std::optional<std::string> to_str(const JSAtom& atom) const;
 
+    void add_extension(const js::extensions::ExtensionPtr& extension);
+    void clear_extensions();
+
     // Reset any state that has been stored on the ctx object to implement
     // globals. This should be called at the end of any invocation where the
     // globals may point to locally-scoped memory, and the Context itself (the
@@ -218,8 +224,6 @@ namespace ccf::js::core
     void populate_global_ccf_host(ccf::AbstractHostProcesses* host_processes);
     void populate_global_ccf_network(ccf::NetworkState* network_state);
     void populate_global_ccf_rpc(ccf::RpcContext* rpc_ctx);
-    void populate_global_ccf_consensus(
-      ccf::BaseEndpointRegistry* endpoint_registry);
     void populate_global_ccf_historical(
       ccf::historical::AbstractStateCache* historical_state);
     void populate_global_ccf_gov_actions();

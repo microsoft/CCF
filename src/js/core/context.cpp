@@ -478,6 +478,17 @@ namespace ccf::js::core
     return r;
   }
 
+  void Context::add_extension(const js::extensions::ExtensionPtr& extension)
+  {
+    extensions.push_back(extension);
+    extension->install(*this);
+  }
+
+  void Context::clear_extensions()
+  {
+    extensions.clear();
+  }
+
   void Context::invalidate_globals()
   {
     globals.tx = nullptr;
@@ -530,14 +541,6 @@ namespace ccf::js::core
     globals.rpc_ctx = rpc_ctx;
     auto ccf = get_global_property("ccf");
     ccf.set("rpc", std::move(rpc));
-  }
-
-  void Context::populate_global_ccf_consensus(
-    ccf::BaseEndpointRegistry* endpoint_registry)
-  {
-    auto consensus = create_global_consensus_object(endpoint_registry, ctx);
-    auto ccf = get_global_property("ccf");
-    ccf.set("consensus", std::move(consensus));
   }
 
   void Context::populate_global_ccf_historical(

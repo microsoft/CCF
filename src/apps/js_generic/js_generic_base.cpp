@@ -11,6 +11,7 @@
 #include "enclave/enclave_time.h"
 #include "js/core/context.h"
 #include "js/core/wrapped_property_enum.h"
+#include "js/extensions/ccf/consensus.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache_interface.h"
 #include "js/modules.h"
@@ -348,7 +349,9 @@ namespace ccfapp
       ctx.populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get());
       ctx.populate_global_ccf_host(
         context.get_subsystem<ccf::AbstractHostProcesses>().get());
-      ctx.populate_global_ccf_consensus(this);
+
+      ctx.add_extension(
+        std::make_shared<ccf::js::extensions::CcfConsensusExtension>(this));
       ctx.populate_global_ccf_historical(&context.get_historical_state());
 
       if (pre_exec_hook.has_value())

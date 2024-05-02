@@ -352,6 +352,7 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/no_plugins.cpp
     ${CCF_DIR}/src/js/globals/ccf.cpp
     ${CCF_DIR}/src/js/ffi_plugins.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
