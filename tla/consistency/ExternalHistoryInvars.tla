@@ -162,7 +162,7 @@ InvalidNotObservedByCommittedInv ==
         /\ history[j].status = InvalidStatus
         /\ history[k].type = RwTxResponse
         /\ history[l].type = TxStatusReceived
-        /\ history[l].type = CommittedStatus
+        /\ history[l].status = CommittedStatus
         /\ history[k].tx_id = history[l]
         /\ i # k
         => history[i].tx \notin ToSet(history[k].observed)
