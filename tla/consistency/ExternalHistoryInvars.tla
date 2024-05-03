@@ -180,19 +180,14 @@ RwSerializableInv ==
 \* A weaker version of RwSerializableInv which only considers committed requests
 \* If any committed request observes A before B then every committed request must observe A before B
 CommittedRwSerializableInv ==
-    \A i,j,k,l \in DOMAIN history:
-        \* Event k is the committed status received for the transaction in event i
-        /\ history[i].type = RwTxResponse
-        /\ history[k].type = TxStatusReceived
-        /\ history[k].status = CommittedStatus
-        /\ history[i].tx_id = history[k].tx_id
-        \* Event l is the committed status received for the transaction in event j
-        /\ history[j].type = RwTxResponse
-        /\ history[l].type = TxStatusReceived
-        /\ history[l].status = CommittedStatus
-        /\ history[j].tx_id = history[l].tx_id
-        => \/ IsPrefix(history[i].observed, history[j].observed)
-           \/ IsPrefix(history[j].observed, history[i].observed)
+    \A i, j \in RwTxResponseEventIndexes:
+        \A k, l \in CommittedEventIndexes:
+            \* Event k is the committed status received for the transaction in event i
+            /\ history[i].tx_id = history[k].tx_id
+            \* Event l is the committed status received for the transaction in event j
+            /\ history[j].tx_id = history[l].tx_id
+            => \/ IsPrefix(history[i].observed, history[j].observed)
+               \/ IsPrefix(history[j].observed, history[i].observed)
 
 \* Linearizability for read-write transactions
 \* Or equivalently, strict serializability as we are modeling a single object system
