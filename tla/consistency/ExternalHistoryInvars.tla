@@ -156,16 +156,12 @@ InvalidNotObservedInv ==
 \* A weaker variant of InvalidNotObservedInv which states that invalid requests are 
 \* not observed by committed requests
 InvalidNotObservedByCommittedInv ==
-    \A i, j, k, l \in DOMAIN history:
-        /\ history[i].type = RwTxResponse
-        /\ history[j].type = TxStatusReceived
-        /\ history[j].status = InvalidStatus
-        /\ history[k].type = RwTxResponse
-        /\ history[l].type = TxStatusReceived
-        /\ history[l].status = CommittedStatus
-        /\ history[k].tx_id = history[l]
-        /\ i # k
-        => history[i].tx \notin ToSet(history[k].observed)
+    \A i, k \in RwTxResponseEventIndexes:
+        i # k =>
+        \A j \in InvalidEventIndexes:
+            \A l \in CommittedEventIndexes:
+                history[k].tx_id = history[l]
+                => history[i].tx \notin ToSet(history[k].observed)
 
 \* A history is serializable if there exists an execution sequence which is consistent 
 \* with client observations. This property completely ignores the order of events.
