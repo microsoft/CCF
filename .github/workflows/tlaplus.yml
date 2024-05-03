@@ -101,7 +101,7 @@ jobs:
       - name: consistency/MultiNodeReads.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto -simulate num=5 -depth 50 consistency/MultiNodeReads.tla -dumpTrace json MultiNodeReads.json
+          ./tlc.sh -workers auto -simulate num=500 -depth 50 consistency/MultiNodeReads.tla -dumpTrace json MultiNodeReads.json
 
       - name: Upload traces in TLA and JSON format
         uses: actions/upload-artifact@v3
