@@ -1,8 +1,14 @@
+
+
+DO NOT MODIFY THIS FILE!!! MODIFY THE INDIVIDUAL MODULES FROM WHICH THIS IS MANUALLY STICHED TOGETHER!!!
+
+
 ---- MODULE Consistency ----
 
 EXTENDS Naturals, Sequences
 
 ----------------------------------------------------------------------
+\* Sequences.tla
 
 \* tla-web doesn't have a builtin for the standard module's Sequences!SelectSeq.
 \* This is why its definition is included under a new name here.  TLC will suffer
@@ -15,9 +21,10 @@ MySelectSeq(s, Test(_)) ==
   IN F[Len(s)]
 
 ----------------------------------------------------------------------
+\* SequencesExt.tla
 
-\* The following four operators are taken from the CommunityModule's SequencesExt,
-\* because tla-web does not have a module system.
+\* The following five operators are copied from the CommunityModule's SequencesExt,
+\* because tla-web does not have a module system that can load SequencesExt.
 Max(S) == CHOOSE x \in S : \A y \in S : x >= y
 
 Last(s) == s[Len(s)]
@@ -31,7 +38,9 @@ IsPrefix(s, t) ==
 
 Contains(s, e) ==
   \E i \in 1..Len(s) : s[i] = e
+
 ----------------------------------------------------------------------
+\* ExteranlHistory.tla
 
 RwTxRequest == "RwTxRequest"
 RwTxResponse == "RwTxResponse"
@@ -61,8 +70,6 @@ TxIDs == Views \X SeqNums
 \* Read-only transactions simply read the list
 Txs == Nat
 
-----------------------------------------------------------------------
-
 VARIABLES history
 
 HistoryTypeOK ==
@@ -86,8 +93,40 @@ CommittedEventIndexes ==
 \* Transaction IDs which received committed status messages
 CommittedTxIDs ==
     {history[i].tx_id: i \in CommittedEventIndexes}
+
 CommitSeqNum == 
     Max({i[2]: i \in CommittedTxIDs} \cup {0})
+
+RwTxResponseCommittedEventIndexes ==
+    {x \in DOMAIN history : 
+        /\ history[x].type = RwTxResponse
+        /\ history[x].tx_id \in CommittedTxIDs}
+
+\* Note these index are the events where the transaction was responded to
+RoTxResponseCommittedEventIndexes ==
+    {x \in DOMAIN history : 
+        /\ history[x].type = RoTxResponse
+        /\ history[x].tx_id \in CommittedTxIDs}
+
+RoTxRequestCommittedEventIndexes ==
+    {x \in DOMAIN history :
+        /\ history[x].type = RoTxRequest
+        /\ \E y \in RoTxResponseCommittedEventIndexes:
+            history[y].tx = history[x].tx}
+                
+----------------------------------------------------------------------
+\* ExternalHistoryInvars.tla
+
+AllCommittedObservedRoInv ==
+    \A i \in RwTxResponseCommittedEventIndexes :
+        \A j \in RoTxRequestCommittedEventIndexes :
+            \A k \in RoTxResponseCommittedEventIndexes :
+                /\ history[k].tx = history[j].tx
+                /\ i < j
+                => Contains(history[k].observed, history[i].tx)
+
+----------------------------------------------------------------------
+\* SingleNode.tla
 
 \* Abstract ledgers that contains only client transactions (no signatures)
 \* Indexed by view, each ledger is the ledger associated with leader of that view 
@@ -107,30 +146,6 @@ LedgerTypeOK ==
 LedgersMonoProp ==
     [][\A view \in DOMAIN ledgerBranches: IsPrefix(ledgerBranches[view], ledgerBranches'[view])]_ledgerBranches
 
-RwTxResponseCommittedEventIndexes ==
-    {x \in DOMAIN history : 
-        /\ history[x].type = RwTxResponse
-        /\ history[x].tx_id \in CommittedTxIDs}
-
-\* Note these index are the events where the transaction was responded to
-RoTxResponseCommittedEventIndexes ==
-    {x \in DOMAIN history : 
-        /\ history[x].type = RoTxResponse
-        /\ history[x].tx_id \in CommittedTxIDs}
-
-RoTxRequestCommittedEventIndexes ==
-    {x \in DOMAIN history :
-        /\ history[x].type = RoTxRequest
-        /\ \E y \in RoTxResponseCommittedEventIndexes:
-            history[y].tx = history[x].tx}
-
-AllCommittedObservedRoInv ==
-    \A i \in RwTxResponseCommittedEventIndexes :
-        \A j \in RoTxRequestCommittedEventIndexes :
-            \A k \in RoTxResponseCommittedEventIndexes :
-                /\ history[k].tx = history[j].tx
-                /\ i < j
-                => Contains(history[k].observed, history[i].tx)
 
 VARIABLE action
 
@@ -242,6 +257,8 @@ AppendOtherTxnAction ==
     /\ UNCHANGED history
     /\ action' = "AppendOtherTxn"
 
+----------------------------------------------------------------------
+\* SingleNodeReads.tla
 
 \* Submit new read-only transaction
 RoTxRequestAction ==
@@ -274,6 +291,9 @@ RoTxResponseAction(i) ==
                     tx_id |-> <<ledgerBranches[view][Len(ledgerBranches[view])].view, Len(ledgerBranches[view])>>] )
     /\ UNCHANGED ledgerBranches
     /\ action' = "RoTxResponse"
+
+----------------------------------------------------------------------
+\* MultiNode.tla
 
 \* The set of views where the corresponding terms have all committed log entries
 ViewWithAllCommitted ==
@@ -319,6 +339,8 @@ StatusInvalidResponseAction(i) ==
             )
     /\ UNCHANGED ledgerBranches
     /\ action' = "StatusInvalidResponse"
+
+----------------------------------------------------------------------
 
 \* A CCF service with a single node will never have a view change
 \* so the log will never be rolled back and thus transaction IDs cannot be invalid
