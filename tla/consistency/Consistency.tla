@@ -105,7 +105,9 @@ LedgerTypeOK ==
 LedgersMonoProp ==
     [][\A view \in DOMAIN ledgerBranches: IsPrefix(ledgerBranches[view], ledgerBranches'[view])]_ledgerBranches
 
-vars == << history, ledgerBranches >>
+VARIABLE action
+
+vars == << history, ledgerBranches, action >>
 
 TypeOK ==
     /\ HistoryTypeOK
@@ -114,6 +116,7 @@ TypeOK ==
 Init ==
     /\ history = <<>>
     /\ ledgerBranches = [ x \in 1..FirstBranch |-> <<>>]
+    /\ action = "Init"
 
 IndexOfLastRequested ==
     SelectLastInSeq(history, LAMBDA e : e.type \in {RwTxRequest, RoTxRequest})
@@ -129,6 +132,7 @@ RwTxRequestAction ==
         [type |-> RwTxRequest, tx |-> NextRequestId]
         )
     /\ UNCHANGED ledgerBranches
+    /\ action' = "RwTxRequest"
 
 \* Execute a read-write transaction
 RwTxExecuteAction(i) ==
@@ -146,6 +150,7 @@ RwTxExecuteAction(i) ==
                 ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
                     Append(@,[view |-> view, tx |-> history[i].tx])]
         /\ UNCHANGED history
+        /\ action' = "RwTxExecute"
 
 LedgerBranchTxOnly(branch) ==
     LET SubBranch == MySelectSeq(branch, LAMBDA e : "tx" \in DOMAIN e)
@@ -172,6 +177,7 @@ RwTxResponseAction(i) ==
                         observed |-> LedgerBranchTxOnly(SubSeq(ledgerBranches[view],1,seqnum)),
                         tx_id |-> <<ledgerBranches[view][seqnum].view, seqnum>>] )
     /\ UNCHANGED ledgerBranches
+    /\ action' = "RwTxResponse"
 
 \* Sending a committed status message
 \* Note that a request could only be committed if it's in the highest view's ledger
@@ -199,6 +205,7 @@ StatusCommittedResponseAction(i) ==
                 status |-> CommittedStatus]
               )
     /\ UNCHANGED ledgerBranches
+    /\ action' = "StatusCommittedResponse"
 
 \* Append a transaction to the ledger which does not impact the state we are considering
 AppendOtherTxnAction ==
@@ -206,6 +213,7 @@ AppendOtherTxnAction ==
         ledgerBranches' = [ledgerBranches EXCEPT ![view] = 
                     Append(@,[view |-> view])]
     /\ UNCHANGED history
+    /\ action' = "AppendOtherTxn"
 
 
 \* Submit new read-only transaction
@@ -215,6 +223,7 @@ RoTxRequestAction ==
         [type |-> RoTxRequest, tx |-> NextRequestId]
         )
     /\ UNCHANGED ledgerBranches
+    /\ action' = "RoTxRequest"
 
 \* Response to a read-only transaction request
 \* Assumes read-only transactions are always forwarded
@@ -237,6 +246,7 @@ RoTxResponseAction(i) ==
                     observed |-> LedgerBranchTxOnly(ledgerBranches[view]),
                     tx_id |-> <<ledgerBranches[view][Len(ledgerBranches[view])].view, Len(ledgerBranches[view])>>] )
     /\ UNCHANGED ledgerBranches
+    /\ action' = "RoTxResponse"
 
 \* The set of views where the corresponding terms have all committed log entries
 ViewWithAllCommitted ==
@@ -251,6 +261,7 @@ TruncateLedgerAction ==
         /\ \E i \in CommitSeqNum..Len(ledgerBranches[view]) :
             /\ ledgerBranches' = Append(ledgerBranches, SubSeq(ledgerBranches[view], 1, i))
             /\ UNCHANGED history
+    /\ action' = "TruncateLedger (CheckQuorum)"
 
 \* Sends status invalid message
 StatusInvalidResponseAction(i) ==
@@ -280,6 +291,7 @@ StatusInvalidResponseAction(i) ==
                 status |-> InvalidStatus]
             )
     /\ UNCHANGED ledgerBranches
+    /\ action' = "StatusInvalidResponse"
 
 \* A CCF service with a single node will never have a view change
 \* so the log will never be rolled back and thus transaction IDs cannot be invalid
