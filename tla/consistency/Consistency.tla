@@ -29,6 +29,8 @@ SelectLastInSeq(seq, Test(_)) ==
 IsPrefix(s, t) ==
   Len(s) <= Len(t) /\ SubSeq(s, 1, Len(s)) = SubSeq(t, 1, Len(s))
 
+Contains(s, e) ==
+  \E i \in 1..Len(s) : s[i] = e
 ----------------------------------------------------------------------
 
 RwTxRequest == "RwTxRequest"
@@ -104,6 +106,31 @@ LedgerTypeOK ==
 \* In this abstract version of CCF's consensus layer, each ledger is append-only
 LedgersMonoProp ==
     [][\A view \in DOMAIN ledgerBranches: IsPrefix(ledgerBranches[view], ledgerBranches'[view])]_ledgerBranches
+
+RwTxResponseCommittedEventIndexes ==
+    {x \in DOMAIN history : 
+        /\ history[x].type = RwTxResponse
+        /\ history[x].tx_id \in CommittedTxIDs}
+
+\* Note these index are the events where the transaction was responded to
+RoTxResponseCommittedEventIndexes ==
+    {x \in DOMAIN history : 
+        /\ history[x].type = RoTxResponse
+        /\ history[x].tx_id \in CommittedTxIDs}
+
+RoTxRequestCommittedEventIndexes ==
+    {x \in DOMAIN history :
+        /\ history[x].type = RoTxRequest
+        /\ \E y \in RoTxResponseCommittedEventIndexes:
+            history[y].tx = history[x].tx}
+
+AllCommittedObservedRoInv ==
+    \A i \in RwTxResponseCommittedEventIndexes :
+        \A j \in RoTxRequestCommittedEventIndexes :
+            \A k \in RoTxResponseCommittedEventIndexes :
+                /\ history[k].tx = history[j].tx
+                /\ i < j
+                => Contains(history[k].observed, history[i].tx)
 
 VARIABLE action
 
