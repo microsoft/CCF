@@ -3,8 +3,10 @@ TLA+ Specifications
 
 The CCF repository includes two formal specification in TLA+ of CCF:
 
-* :ccf_repo:`tla/consistency` which models CCF at a high level of abstraction to test the consistency model exposed to the clients, and 
+* :ccf_repo:`tla/consistency` specifies CCF's consistency model exposed to the clients, and 
 * :ccf_repo:`tla/consensus` which models in detail the custom distributed consensus protocol implemented in CCF.
+
+CCF provides linearizability guarantees to client, and you can `interactively explore CCF's consistency model online <https://will62794.github.io/tla-web/#!/home?specpath=https%3A%2F%2Fraw.githubusercontent.com%2Fmicrosoft%2FCCF%2Fmain%2Ftla%2Fconsistency%2FConsistency.tla>`.
 
 CCF implements various modifications to Raft as it was originally proposed by Ongaro and Ousterhout. Specifically, CCF constrains that only appended entries that were *signed* by the primary can be committed. Any other entry that has *not* been signed is rolled back. The TLA+ consensus specification models the intended behavior of Raft as it is modified for CCF. 
 
