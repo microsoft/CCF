@@ -77,7 +77,7 @@ IsMessage(msg, dst, src, logline) ==
 ASSUME TLCGet("config").mode = "bfs"
 
 JsonFile ==
-    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../traces/reconfig_01_el0_12.ndjson"
+    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../traces/consensus/reconfig_01_el0_12.ndjson"
 
 JsonLog ==
     \* Deserialize the System log as a sequence of records from the log file.
@@ -521,6 +521,9 @@ TraceMatchesConstraints ==
     /\ LogConfigurationConsistentInv
     /\ MembershipStateConsistentInv
     /\ CommitCommittableIndices
+
+CommittableIndicesIsConstantSpaceInv ==
+    "committable_indices" \in DOMAIN logline.msg.state => Len(logline.msg.state.committable_indices) <= 2
 
 -------------------------------------------------------------------------------------
 
