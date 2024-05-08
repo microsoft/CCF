@@ -133,7 +133,7 @@ void read_parquet_file(string generator_filepath, ParquetData& data_handler)
     exit(1);
   }
 
-  for (int row = 0; row < table->num_rows(); row++)
+  for (int64_t row = 0; row < table->num_rows(); row++)
   {
     data_handler.ids.push_back(message_id_values->GetString(row));
     const auto request = request_values->Value(row);
