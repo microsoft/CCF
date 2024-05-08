@@ -36,6 +36,17 @@ namespace ccf
 
     /** COSE Signature */
     std::span<const uint8_t> signature;
+
+    COSESign1AuthnIdentity(
+      const std::span<const uint8_t>& content_,
+      const std::span<const uint8_t>& envelope_,
+      const std::span<const uint8_t>& signature_) :
+      content(content_),
+      envelope(envelope_),
+      signature(signature_)
+    {}
+
+    COSESign1AuthnIdentity() = default;
   };
 
   struct MemberCOSESign1AuthnIdentity : public COSESign1AuthnIdentity
@@ -48,6 +59,19 @@ namespace ccf
 
     /** COSE Protected Header */
     GovernanceProtectedHeader protected_header;
+
+    MemberCOSESign1AuthnIdentity(
+      const std::span<const uint8_t>& content_,
+      const std::span<const uint8_t>& envelope_,
+      const std::span<const uint8_t>& signature_,
+      const MemberId& member_id_,
+      const crypto::Pem& member_cert_,
+      const GovernanceProtectedHeader& protected_header_) :
+      COSESign1AuthnIdentity(content_, envelope_, signature_),
+      member_id(member_id_),
+      member_cert(member_cert_),
+      protected_header(protected_header_)
+    {}
   };
 
   struct UserCOSESign1AuthnIdentity : public COSESign1AuthnIdentity
@@ -60,6 +84,19 @@ namespace ccf
 
     /** COSE Protected Header */
     ProtectedHeader protected_header;
+
+    UserCOSESign1AuthnIdentity(
+      const std::span<const uint8_t>& content_,
+      const std::span<const uint8_t>& envelope_,
+      const std::span<const uint8_t>& signature_,
+      const UserId& user_id_,
+      const crypto::Pem& user_cert_,
+      const ProtectedHeader& protected_header_) :
+      COSESign1AuthnIdentity(content_, envelope_, signature_),
+      user_id(user_id_),
+      user_cert(user_cert_),
+      protected_header(protected_header_)
+    {}
   };
 
   /** Member COSE Sign1 Authentication Policy

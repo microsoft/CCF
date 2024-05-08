@@ -334,14 +334,13 @@ namespace ccf
         }
       }
 
-      auto identity = std::make_unique<MemberCOSESign1AuthnIdentity>();
-      identity->member_id = phdr.kid;
-      identity->member_cert = member_cert.value();
-      identity->protected_header = phdr;
-      identity->envelope = body;
-      identity->content = authned_content;
-      identity->signature = cose_signature;
-      return identity;
+      return std::make_unique<MemberCOSESign1AuthnIdentity>(
+        authned_content,
+        body,
+        cose_signature,
+        phdr.kid,
+        member_cert.value(),
+        phdr);
     }
     else
     {
@@ -453,14 +452,13 @@ namespace ccf
         return nullptr;
       }
 
-      auto identity = std::make_unique<UserCOSESign1AuthnIdentity>();
-      identity->user_id = phdr.kid;
-      identity->user_cert = user_cert.value();
-      identity->protected_header = phdr;
-      identity->envelope = body;
-      identity->content = authned_content;
-      identity->signature = cose_signature;
-      return identity;
+      return std::make_unique<UserCOSESign1AuthnIdentity>(
+        authned_content,
+        body,
+        cose_signature,
+        phdr.kid,
+        user_cert.value(),
+        phdr);
     }
     else
     {
