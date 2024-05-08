@@ -522,9 +522,6 @@ TraceMatchesConstraints ==
     /\ MembershipStateConsistentInv
     /\ CommitCommittableIndices
 
-CommittableIndicesIsConstantSpaceInv ==
-    "committable_indices" \in DOMAIN logline.msg.state => Len(logline.msg.state.committable_indices) <= 2
-
 -------------------------------------------------------------------------------------
 
 TraceDifferentialInv ==
