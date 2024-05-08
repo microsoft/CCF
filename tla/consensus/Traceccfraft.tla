@@ -363,7 +363,7 @@ IsRcvRequestVoteRequest ==
     \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsExecuteAppendEntries ==
-    \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
+    \* Skip append because ccfraft!HandleRequestVoteRequest atomically handles the request, sends the response,
        \* and appends the entry to the ledger.
        /\ IsEvent("execute_append_entries_sync")
        \* Not asserting CommittableIndices here because the impl and spec will only be in sync upon the subsequent send_append_entries.
