@@ -72,7 +72,10 @@ static inline void add_committable_indices_start_and_end(
   if (!state->committable_indices.empty())
   {
     committable_indices.push_back(state->committable_indices.front());
-    committable_indices.push_back(state->committable_indices.back());
+    if (state->committable_indices.size() > 1)
+    {
+      committable_indices.push_back(state->committable_indices.back());
+    }
   }
   j["committable_indices"] = committable_indices;
 }
