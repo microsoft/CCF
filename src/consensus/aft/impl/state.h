@@ -198,8 +198,7 @@ namespace aft
     commit_idx,
     new_view_idx,
     leadership_state,
-    membership_state,
-    committable_indices);
+    membership_state);
   DECLARE_JSON_OPTIONAL_FIELDS(
     State,
     retirement_phase,
