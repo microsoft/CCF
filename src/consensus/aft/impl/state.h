@@ -160,7 +160,6 @@ namespace aft
     kv::Version last_idx = 0;
     kv::Version commit_idx = 0;
     ViewHistory view_history;
-    kv::Version new_view_idx = 0;
 
     // Indices that are eligible for global commit, from a Node's perspective
     std::deque<Index> committable_indices;
@@ -196,7 +195,6 @@ namespace aft
     current_view,
     last_idx,
     commit_idx,
-    new_view_idx,
     leadership_state,
     membership_state);
   DECLARE_JSON_OPTIONAL_FIELDS(
