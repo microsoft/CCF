@@ -16,7 +16,7 @@ jobs:
             cd build
             cmake -GNinja -DCOMPILE_TARGET=virtual ..
             ninja
-            ./tests.sh -VV -R pi_basic
+            ./tests.sh -VV -R pi_basic_virtual_cft
 
         - uses: bencherdev/bencher@main
         - name: Track base branch benchmarks with Bencher
@@ -28,4 +28,4 @@ jobs:
             --testbed gha-virtual-ccf-sub \
             --adapter json \
             --err \
-            bencher mock
+            --file build/bencher.json
