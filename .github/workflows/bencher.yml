@@ -5,7 +5,9 @@ on:
 jobs:
     benchmark_base_branch:
       name: Continuous Benchmarking with Bencher
-      runs-on: ubuntu-latest
+      runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+      container:
+        image: ccfmsrc.azurecr.io/ccf/ci:2024-04-25-virtual-clang15
       steps:
         - uses: actions/checkout@v4
         - uses: bencherdev/bencher@main
@@ -15,7 +17,7 @@ jobs:
             --project ccf \
             --token '${{ secrets.BENCHER_API_TOKEN }}' \
             --branch bencher_experiment \
-            --testbed ubuntu-latest \
+            --testbed gha-virtual-ccf-sub \
             --adapter json \
             --err \
             bencher mock
