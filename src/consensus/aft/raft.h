@@ -1194,6 +1194,11 @@ namespace aft
           state->commit_idx);
         return;
       }
+      // Redundant with check on get_term_internal() at line 1149
+      // Which captures this case in every situation, except r.prev_term == 0.
+      // That only happens if r.prev_idx == 0 however, see line 1033,
+      // in which case this assertion is also true.
+      assert(r.prev_idx <= state->last_idx);
 
       RAFT_DEBUG_FMT(
         "Recv append entries to {} from {} for index {} and previous index {}",
