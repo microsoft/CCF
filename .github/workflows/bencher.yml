@@ -11,10 +11,12 @@ jobs:
       steps:
         - uses: actions/checkout@v4
         - run: |
+            git config --global --add safe.directory /__w/CCF/CCF
             mkdir build
             cd build
             cmake -GNinja -DCOMPILE_TARGET=virtual ..
             ninja
+            ./tests.sh -VV -R pi_basic
 
         - uses: bencherdev/bencher@main
         - name: Track base branch benchmarks with Bencher
