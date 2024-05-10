@@ -14,7 +14,7 @@ jobs:
             bencher run \
             --project ccf \
             --token '${{ secrets.BENCHER_API_TOKEN }}' \
-            --branch main \
+            --branch bencher_experiment \
             --testbed ubuntu-latest \
             --adapter json \
             --err \
