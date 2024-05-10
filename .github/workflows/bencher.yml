@@ -10,6 +10,12 @@ jobs:
         image: ccfmsrc.azurecr.io/ccf/ci:2024-04-25-virtual-clang15
       steps:
         - uses: actions/checkout@v4
+        - run: |
+            mkdir build
+            cd build
+            cmake -GNinja -DCOMPILE_TARGET=virtual ..
+            ninja
+
         - uses: bencherdev/bencher@main
         - name: Track base branch benchmarks with Bencher
           run: |
