@@ -447,6 +447,8 @@ namespace ccf::gov::endpoints
             }
 
             js::core::Context context(js::TxAccess::GOV_RO);
+            context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
             context.populate_global_ccf_kv(ctx.tx);
 
             auto validate_func = context.get_exported_function(
