@@ -13,6 +13,10 @@
 #include <chrono>
 #include <quickjs/quickjs.h>
 
+#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
+#  include <openenclave/3rdparty/libc/sys/time.h> // For timeval
+#endif
+
 namespace ccf::js::core
 {
   Context::Context(TxAccess acc) : access(acc)
@@ -608,7 +612,7 @@ namespace ccf::js::core
       ctx, body_proto, js_body_proto_funcs, func_count);
     JS_SetClassProto(ctx, body_class_id, body_proto);
   }
-  
+
 }
 
 extern "C"
