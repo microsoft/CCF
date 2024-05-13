@@ -1335,10 +1335,7 @@ namespace ccf
         }
 
         auto rv = resolve_proposal(
-          ctx.tx,
-          proposal_id,
-          {proposal_body.begin(), proposal_body.end()},
-          constitution.value());
+          ctx.tx, proposal_id, proposal_body, constitution.value());
 
         if (rv.state == ProposalState::FAILED)
         {
