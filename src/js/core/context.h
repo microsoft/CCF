@@ -163,6 +163,7 @@ namespace ccf::js::core
     JSWrappedValue new_array_buffer_copy(std::span<const uint8_t> data) const;
     JSWrappedValue new_string(const std::string_view& str) const;
     JSWrappedValue new_string_len(const char* buf, size_t buf_len) const;
+    JSWrappedValue new_string_len(const std::span<const uint8_t> buf) const;
     JSWrappedValue new_type_error(const char* fmt, ...) const;
     JSWrappedValue new_internal_error(const char* fmt, ...) const;
     JSWrappedValue new_tag_value(int tag, int32_t val = 0) const;

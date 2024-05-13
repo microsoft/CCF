@@ -279,6 +279,12 @@ namespace ccf::js::core
     return wrap(JS_NewStringLen(ctx, buf, buf_len));
   }
 
+  JSWrappedValue Context::new_string_len(
+    const std::span<const uint8_t> buf) const
+  {
+    return wrap(JS_NewStringLen(ctx, (const char*)buf.data(), buf.size()));
+  }
+
   JSWrappedValue Context::new_type_error(const char* fmt, ...) const
   {
     va_list ap;

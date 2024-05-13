@@ -156,16 +156,12 @@ InvalidNotObservedInv ==
 \* A weaker variant of InvalidNotObservedInv which states that invalid requests are 
 \* not observed by committed requests
 InvalidNotObservedByCommittedInv ==
-    \A i, j, k, l \in DOMAIN history:
-        /\ history[i].type = RwTxResponse
-        /\ history[j].type = TxStatusReceived
-        /\ history[j].status = InvalidStatus
-        /\ history[k].type = RwTxResponse
-        /\ history[l].type = TxStatusReceived
-        /\ history[l].type = CommittedStatus
-        /\ history[k].tx_id = history[l]
-        /\ i # k
-        => history[i].tx \notin ToSet(history[k].observed)
+    \A i, k \in RwTxResponseEventIndexes:
+        i # k =>
+        \A j \in InvalidEventIndexes:
+            \A l \in CommittedEventIndexes:
+                history[k].tx_id = history[l]
+                => history[i].tx \notin ToSet(history[k].observed)
 
 \* A history is serializable if there exists an execution sequence which is consistent 
 \* with client observations. This property completely ignores the order of events.
@@ -184,19 +180,14 @@ RwSerializableInv ==
 \* A weaker version of RwSerializableInv which only considers committed requests
 \* If any committed request observes A before B then every committed request must observe A before B
 CommittedRwSerializableInv ==
-    \A i,j,k,l \in DOMAIN history:
-        \* Event k is the committed status received for the transaction in event i
-        /\ history[i].type = RwTxResponse
-        /\ history[k].type = TxStatusReceived
-        /\ history[k].status = CommittedStatus
-        /\ history[i].tx_id = history[k].tx_id
-        \* Event l is the committed status received for the transaction in event j
-        /\ history[j].type = RwTxResponse
-        /\ history[l].type = TxStatusReceived
-        /\ history[l].status = CommittedStatus
-        /\ history[j].tx_id = history[l].tx_id
-        => \/ IsPrefix(history[i].observed, history[j].observed)
-           \/ IsPrefix(history[j].observed, history[i].observed)
+    \A i, j \in RwTxResponseEventIndexes:
+        \A k, l \in CommittedEventIndexes:
+            \* Event k is the committed status received for the transaction in event i
+            /\ history[i].tx_id = history[k].tx_id
+            \* Event l is the committed status received for the transaction in event j
+            /\ history[j].tx_id = history[l].tx_id
+            => \/ IsPrefix(history[i].observed, history[j].observed)
+               \/ IsPrefix(history[j].observed, history[i].observed)
 
 \* Linearizability for read-write transactions
 \* Or equivalently, strict serializability as we are modeling a single object system

@@ -397,12 +397,12 @@ namespace ccf::gov::endpoints
         case ApiVersion::preview_v1:
         default:
         {
-          std::span<const uint8_t> proposal_body;
-          ccf::jsgov::ProposalInfo proposal_info;
-          std::optional<std::string> constitution;
-
           const auto& cose_ident =
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
+
+          std::span<const uint8_t> proposal_body = cose_ident.content;
+          ccf::jsgov::ProposalInfo proposal_info;
+          std::optional<std::string> constitution;
 
           // Construct proposal_id, as digest of request and root
           ProposalId proposal_id;
@@ -454,9 +454,7 @@ namespace ccf::gov::endpoints
               "validate",
               fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
-            proposal_body = cose_ident.content;
-            auto proposal_arg = context.new_string_len(
-              (char*)proposal_body.data(), proposal_body.size());
+            auto proposal_arg = context.new_string_len(cose_ident.content);
             auto validate_result = context.call_with_rt_options(
               validate_func,
               {proposal_arg},
