@@ -302,19 +302,6 @@ endif()
 
 install(TARGETS cchost DESTINATION bin)
 
-# Perf scenario executable
-add_executable(
-  scenario_perf_client ${CCF_DIR}/src/clients/perf/scenario_perf_client.cpp
-)
-target_link_libraries(
-  scenario_perf_client PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host
-                               ccfcrypto.host
-)
-if(NOT CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9)
-  target_link_libraries(scenario_perf_client PRIVATE c++fs)
-endif()
-install(TARGETS scenario_perf_client DESTINATION bin)
-
 # HTTP parser
 if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
@@ -1585,23 +1572,6 @@ if(BUILD_TESTS)
     endif()
 
     add_perf_test(
-      NAME ls
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-      CLIENT_BIN ./scenario_perf_client
-      ADDITIONAL_ARGS
-        --package
-        "samples/apps/logging/liblogging"
-        --scenario-file
-        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-        --max-writes-ahead
-        1000
-        --repetitions
-        10000
-        --msg-ser-fmt
-        text
-    )
-
-    add_perf_test(
       NAME pi_ls
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
       CLIENT_BIN ./submit
@@ -1636,24 +1606,6 @@ if(BUILD_TESTS)
     endif()
 
     add_perf_test(
-      NAME ls_jwt
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-      CLIENT_BIN ./scenario_perf_client
-      ADDITIONAL_ARGS
-        --package
-        "samples/apps/logging/liblogging"
-        --scenario-file
-        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-        --max-writes-ahead
-        1000
-        --repetitions
-        1000
-        --use-jwt
-        --msg-ser-fmt
-        msgpack
-    )
-
-    add_perf_test(
       NAME pi_ls_jwt
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
       CLIENT_BIN ./submit
@@ -1665,58 +1617,6 @@ if(BUILD_TESTS)
         --repetitions
         1000
         --use-jwt
-    )
-
-    add_perf_test(
-      NAME ls_js
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-      CLIENT_BIN ./scenario_perf_client
-      ADDITIONAL_ARGS
-        --js-app-bundle
-        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js_perf
-        --scenario-file
-        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-        --max-writes-ahead
-        1000
-        --repetitions
-        1000
-        --msg-ser-fmt
-        text
-    )
-
-    add_perf_test(
-      NAME ls_full_js
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-      CLIENT_BIN ./scenario_perf_client
-      ADDITIONAL_ARGS
-        --js-app-bundle
-        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-        --scenario-file
-        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-        --max-writes-ahead
-        1000
-        --repetitions
-        1000
-        --msg-ser-fmt
-        text
-    )
-
-    add_perf_test(
-      NAME ls_js_jwt
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/perfclient.py
-      CLIENT_BIN ./scenario_perf_client
-      ADDITIONAL_ARGS
-        --js-app-bundle
-        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js_perf
-        --scenario-file
-        ${CMAKE_CURRENT_LIST_DIR}/tests/perf_logging_scenario_100txs.json
-        --max-writes-ahead
-        1000
-        --repetitions
-        700
-        --use-jwt
-        --msg-ser-fmt
-        text
     )
 
     add_e2e_test(
