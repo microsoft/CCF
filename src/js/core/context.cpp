@@ -497,30 +497,12 @@ namespace ccf::js::core
 
   void Context::invalidate_globals()
   {
-    globals.tx = nullptr;
-
     // Any KV handles which have been created with reference to this tx should
     // no longer be accessed. Any future calls on these JSValues will
     // re-populate this map with fresh KVMap::Handle*s
     globals.kv_handles.clear();
 
     globals.historical_handles.clear();
-
-    globals.rpc_ctx = nullptr;
-  }
-
-  void Context::populate_global_ccf_kv(kv::Tx& tx)
-  {
-    auto kv = new_obj_class(kv_class_id);
-    globals.tx = &tx;
-
-    auto ccf = get_global_property("ccf");
-    ccf.set("kv", std::move(kv));
-  }
-
-  void Context::populate_global_ccf_gov_actions()
-  {
-    globals::extend_ccf_object_with_gov_actions(*this);
   }
 
   JSValue js_body_text(

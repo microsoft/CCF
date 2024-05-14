@@ -157,7 +157,8 @@ namespace ccf
         js::core::Context context(js::TxAccess::GOV_RO);
         context.add_extension(
           std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
-        context.populate_global_ccf_kv(tx);
+        context.add_extension(
+          std::make_shared<ccf::js::extensions::CcfKvExtension>(&tx));
         auto ballot_func = context.get_exported_function(
           mb,
           "vote",
@@ -206,7 +207,8 @@ namespace ccf
         js::core::Context js_context(js::TxAccess::GOV_RO);
         js_context.add_extension(
           std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
-        js_context.populate_global_ccf_kv(tx);
+        js_context.add_extension(
+          std::make_shared<ccf::js::extensions::CcfKvExtension>(&tx));
         auto resolve_func = js_context.get_exported_function(
           constitution,
           "resolve",
@@ -314,7 +316,8 @@ namespace ccf
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
-            apply_js_context.populate_global_ccf_kv(tx);
+            apply_js_context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfKvExtension>(&tx));
             apply_js_context.add_extension(
               std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
             apply_js_context.add_extension(
@@ -323,7 +326,9 @@ namespace ccf
             apply_js_context.add_extension(
               std::make_shared<ccf::js::extensions::CcfNetworkExtension>(
                 &network, &tx));
-            apply_js_context.populate_global_ccf_gov_actions();
+            apply_js_context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfGovEffectsExtension>(
+                &tx));
 
             auto apply_func = apply_js_context.get_exported_function(
               constitution,
@@ -1181,7 +1186,8 @@ namespace ccf
         js::core::Context context(js::TxAccess::GOV_RO);
         context.add_extension(
           std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
-        context.populate_global_ccf_kv(ctx.tx);
+        context.add_extension(
+          std::make_shared<ccf::js::extensions::CcfKvExtension>(&ctx.tx));
 
         auto validate_func = context.get_exported_function(
           validate_script,

@@ -354,8 +354,10 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/ffi_plugins.cpp
     ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
     ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
     ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
     ${CCF_DIR}/src/js/extensions/ccf/host.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/kv.cpp
     ${CCF_DIR}/src/js/extensions/ccf/network.cpp
     ${CCF_DIR}/src/js/extensions/ccf/node.cpp
     ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp

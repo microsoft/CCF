@@ -296,11 +296,8 @@ namespace ccf::js::extensions
       // Create a tx which will be used to access this state
       auto tx = state->store->create_read_only_tx_ptr();
 
-      // Extend lifetime of state and tx, by storing on the ctx
-      // TODO TODO: I guess this needs to be instanced, to remove dependency on
-      // globals?
-      ctx.globals.historical_handles[transaction_id.seqno] = {
-        state, std::move(tx)};
+      // Extend lifetime of state and tx, by storing on this extension
+      historical_handles[transaction_id.seqno] = {state, std::move(tx)};
     }
     catch (const std::exception& e)
     {

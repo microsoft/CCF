@@ -27,15 +27,6 @@ namespace ccf::js::globals
 
     JSValue js_pem_to_id(
       JSContext* ctx, JSValueConst, int argc, JSValueConst* argv);
-
-    JSValue js_refresh_app_bytecode_cache(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
-
-    JSValue js_gov_set_jwt_public_signing_keys(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
-
-    JSValue js_gov_remove_jwt_public_signing_keys(
-      JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
   }
 
   void populate_global_ccf(js::core::Context& ctx)
@@ -67,27 +58,5 @@ namespace ccf::js::globals
 
     auto global_obj = ctx.get_global_obj();
     global_obj.set("ccf", std::move(ccf));
-  }
-
-  void extend_ccf_object_with_gov_actions(js::core::Context& ctx)
-  {
-    using namespace details;
-
-    auto ccf = ctx.get_global_property("ccf");
-
-    ccf.set(
-      "refreshAppBytecodeCache",
-      ctx.new_c_function(
-        js_refresh_app_bytecode_cache, "refreshAppBytecodeCache", 0));
-    ccf.set(
-      "setJwtPublicSigningKeys",
-      ctx.new_c_function(
-        js_gov_set_jwt_public_signing_keys, "setJwtPublicSigningKeys", 3));
-    ccf.set(
-      "removeJwtPublicSigningKeys",
-      ctx.new_c_function(
-        js_gov_remove_jwt_public_signing_keys,
-        "removeJwtPublicSigningKeys",
-        1));
   }
 }

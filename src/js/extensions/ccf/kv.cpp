@@ -1,15 +1,16 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#pragma once
+
+#include "js/extensions/ccf/kv.h"
 
 #include "js/checks.h"
 #include "js/core/context.h"
 #include "js/global_class_ids.h"
 #include "js/map_access_permissions.h"
-#include "js/tx_access.h"
-#include "kv/untyped_map.h"
 
-namespace ccf::js
+#include <quickjs/quickjs.h>
+
+namespace ccf::js::extensions
 {
   namespace
   {
@@ -33,7 +34,8 @@ namespace ccf::js
     { \
       return JS_ThrowTypeError(ctx, "Internal: No map name stored on handle"); \
     } \
-    const auto permission = check_kv_map_access(jsctx.access, table_name); \
+    const auto permission = \
+      ccf::js::check_kv_map_access(jsctx.access, table_name); \
     char const* table_kind = permission == MapAccessPermissions::READ_ONLY ? \
       "read-only" : \
       "inaccessible"; \
@@ -95,7 +97,14 @@ namespace ccf::js
         return nullptr;
       }
 
-      auto& handles = jsctx.globals.kv_handles;
+      auto extension = jsctx.get_extension<CcfKvExtension>();
+      if (extension == nullptr)
+      {
+        LOG_FAIL_FMT("No KV extension available");
+        return nullptr;
+      }
+
+      auto& handles = extension->kv_handles;
       auto it = handles.find(map_name.value());
       if (it == handles.end())
       {
@@ -104,7 +113,7 @@ namespace ccf::js
 
       if (it->second == nullptr)
       {
-        kv::Tx* tx = jsctx.globals.tx;
+        kv::Tx* tx = extension->tx;
         if (tx == nullptr)
         {
           LOG_FAIL_FMT("Can't rehydrate MapHandle - no transaction context");
@@ -143,6 +152,7 @@ namespace ccf::js
         JS_GetOpaque(_this_val, kv_map_handle_class_id));
 
       // Handle to historical KV
+      // TODO: Store these on the same extension? A separate extension?
       auto it = jsctx.globals.historical_handles.find(seqno);
       if (it == jsctx.globals.historical_handles.end())
       {
@@ -522,58 +532,84 @@ namespace ccf::js
     }
   }
 
-  static int js_kv_lookup(
-    JSContext* ctx,
-    JSPropertyDescriptor* desc,
-    JSValueConst this_val,
-    JSAtom property)
+  namespace lookup
   {
-    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
-    const auto map_name = jsctx.to_str(property).value_or("");
-    LOG_TRACE_FMT("Looking for kv map '{}'", map_name);
-
-    const auto access_permission = check_kv_map_access(jsctx.access, map_name);
-    auto handle_val = _create_kv_map_handle<_get_map_handle_current>(
-      jsctx, map_name, access_permission);
-    if (JS_IsException(handle_val))
+    static int js_kv_lookup(
+      JSContext* ctx,
+      JSPropertyDescriptor* desc,
+      JSValueConst this_val,
+      JSAtom property)
     {
-      return -1;
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      const auto map_name = jsctx.to_str(property).value_or("");
+      LOG_TRACE_FMT("Looking for kv map '{}'", map_name);
+
+      const auto access_permission =
+        ccf::js::check_kv_map_access(jsctx.access, map_name);
+      auto handle_val = _create_kv_map_handle<_get_map_handle_current>(
+        jsctx, map_name, access_permission);
+      if (JS_IsException(handle_val))
+      {
+        return -1;
+      }
+
+      desc->flags = 0;
+      desc->value = handle_val;
+
+      return true;
     }
 
-    desc->flags = 0;
-    desc->value = handle_val;
-
-    return true;
-  }
-
-  static int js_historical_kv_lookup(
-    JSContext* ctx,
-    JSPropertyDescriptor* desc,
-    JSValueConst this_val,
-    JSAtom property)
-  {
-    js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
-    const auto map_name = jsctx.to_str(property).value_or("");
-    auto seqno = reinterpret_cast<ccf::SeqNo>(
-      JS_GetOpaque(this_val, kv_historical_class_id));
-    LOG_TRACE_FMT(
-      "Looking for historical kv map '{}' at seqno {}", map_name, seqno);
-
-    // Ignore evaluated access permissions - all tables are read-only
-    const auto access_permission = MapAccessPermissions::READ_ONLY;
-    auto handle_val = _create_kv_map_handle<_get_map_handle_historical>(
-      jsctx, map_name, access_permission);
-    if (JS_IsException(handle_val))
+    static int js_historical_kv_lookup(
+      JSContext* ctx,
+      JSPropertyDescriptor* desc,
+      JSValueConst this_val,
+      JSAtom property)
     {
-      return -1;
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      const auto map_name = jsctx.to_str(property).value_or("");
+      auto seqno = reinterpret_cast<ccf::SeqNo>(
+        JS_GetOpaque(this_val, kv_historical_class_id));
+      LOG_TRACE_FMT(
+        "Looking for historical kv map '{}' at seqno {}", map_name, seqno);
+
+      // Ignore evaluated access permissions - all tables are read-only
+      const auto access_permission = MapAccessPermissions::READ_ONLY;
+      auto handle_val = _create_kv_map_handle<_get_map_handle_historical>(
+        jsctx, map_name, access_permission);
+      if (JS_IsException(handle_val))
+      {
+        return -1;
+      }
+
+      // Copy seqno from kv to handle
+      JS_SetOpaque(handle_val, reinterpret_cast<void*>(seqno));
+
+      desc->flags = 0;
+      desc->value = handle_val;
+
+      return true;
     }
-
-    // Copy seqno from kv to handle
-    JS_SetOpaque(handle_val, reinterpret_cast<void*>(seqno));
-
-    desc->flags = 0;
-    desc->value = handle_val;
-
-    return true;
   }
+
+  void CcfKvExtension::install(js::core::Context& ctx)
+  {
+    auto kv = ctx.new_obj_class(kv_class_id);
+
+    auto ccf = ctx.get_global_property("ccf");
+    ccf.set("kv", std::move(kv));
+  }
+}
+
+namespace ccf::js
+{
+  JSClassExoticMethods kv_exotic_methods = {
+    .get_own_property = extensions::lookup::js_kv_lookup};
+  JSClassDef kv_class_def = {
+    .class_name = "KV Tables", .exotic = &kv_exotic_methods};
+
+  JSClassExoticMethods kv_historical_exotic_methods = {
+    .get_own_property = extensions::lookup::js_historical_kv_lookup};
+  JSClassDef kv_historical_class_def = {
+    .class_name = "Read-only Historical KV Tables",
+    .exotic = &kv_historical_exotic_methods};
 }

@@ -4,6 +4,7 @@
 
 #include "ccf/historical_queries_interface.h"
 #include "js/extensions/iextension.h"
+#include "kv/untyped_map.h"
 
 #include <quickjs/quickjs.h>
 
@@ -11,6 +12,16 @@ namespace ccf::js::extensions
 {
   class CcfHistoricalExtension : public IExtension
   {
+  protected:
+    struct HistoricalHandle
+    {
+      ccf::historical::StatePtr state;
+      std::unique_ptr<kv::ReadOnlyTx> tx;
+      std::unordered_map<std::string, kv::untyped::Map::ReadOnlyHandle*>
+        kv_handles = {};
+    };
+    std::unordered_map<ccf::SeqNo, HistoricalHandle> historical_handles;
+
   public:
     ccf::historical::AbstractStateCache* historical_state;
 
@@ -20,7 +31,7 @@ namespace ccf::js::extensions
 
     void install(js::core::Context& ctx) override;
 
-    static JSValue create_historical_state_object(
+    JSValue create_historical_state_object(
       js::core::Context& ctx, ccf::historical::StatePtr state);
   };
 }

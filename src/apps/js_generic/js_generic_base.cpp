@@ -15,6 +15,7 @@
 #include "js/extensions/ccf/crypto.h"
 #include "js/extensions/ccf/historical.h"
 #include "js/extensions/ccf/host.h"
+#include "js/extensions/ccf/kv.h"
 #include "js/extensions/ccf/rpc.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache_interface.h"
@@ -278,9 +279,21 @@ namespace ccfapp
             ccf::historical::StatePtr state) {
             auto add_historical_globals = [&](js::core::Context& ctx) {
               auto ccf = ctx.get_global_property("ccf");
-              auto val = ccf::js::extensions::CcfHistoricalExtension::
-                create_historical_state_object(ctx, state);
-              ccf.set("historicalState", std::move(val));
+              auto extension =
+                ctx
+                  .get_extension<ccf::js::extensions::CcfHistoricalExtension>();
+              if (extension != nullptr)
+              {
+                auto val =
+                  extension->create_historical_state_object(ctx, state);
+                ccf.set("historicalState", std::move(val));
+              }
+              else
+              {
+                LOG_FAIL_FMT(
+                  "Error while inserting historicalState into JS interpreter - "
+                  "no extension found");
+              }
             };
             do_execute_request(endpoint, endpoint_ctx, add_historical_globals);
           },
@@ -349,7 +362,10 @@ namespace ccfapp
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
       ctx.register_request_body_class();
-      ctx.populate_global_ccf_kv(endpoint_ctx.tx);
+
+      // ccf.kv.*
+      ctx.add_extension(std::make_shared<ccf::js::extensions::CcfKvExtension>(
+        &endpoint_ctx.tx));
 
       // ccf.crypto.*
       ctx.add_extension(

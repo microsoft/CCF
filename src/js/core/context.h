@@ -79,8 +79,6 @@ namespace ccf::js::core
       };
       std::unordered_map<ccf::SeqNo, HistoricalHandle> historical_handles;
 
-      ccf::RpcContext* rpc_ctx = nullptr;
-
       const std::vector<uint8_t>* current_request_body = nullptr;
     } globals;
 
@@ -231,12 +229,11 @@ namespace ccf::js::core
     // interpreter) may live longer and be reused for future calls. Those calls
     // must re-populate the globals appropriately, pointing to their own local
     // instances of state as required.
+    // TODO: This can be stripped eventually?
     void invalidate_globals();
 
     // TODO: All of these should be removed from here, only be added by some
     // extension
-    void populate_global_ccf_kv(kv::Tx& tx);
-    void populate_global_ccf_gov_actions();
 
     void register_request_body_class();
   };

@@ -4,6 +4,8 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "js/extensions/ccf/crypto.h"
+#include "js/extensions/ccf/gov_effects.h"
+#include "js/extensions/ccf/kv.h"
 #include "js/extensions/ccf/network.h"
 #include "js/extensions/ccf/node.h"
 #include "node/gov/api_version.h"
@@ -151,7 +153,11 @@ namespace ccf::gov::endpoints
       for (const auto& [mid, mb] : proposal_info.ballots)
       {
         js::core::Context js_context(js::TxAccess::GOV_RO);
-        js_context.populate_global_ccf_kv(tx);
+
+        // ccf.kv.*
+        js_context.add_extension(
+          std::make_shared<ccf::js::extensions::CcfKvExtension>(&tx));
+
         auto ballot_func = js_context.get_exported_function(
           mb,
           "vote",
@@ -193,7 +199,11 @@ namespace ccf::gov::endpoints
       {
         {
           js::core::Context js_context(js::TxAccess::GOV_RO);
-          js_context.populate_global_ccf_kv(tx);
+
+          // ccf.kv.*
+          js_context.add_extension(
+            std::make_shared<ccf::js::extensions::CcfKvExtension>(&tx));
+
           auto resolve_func = js_context.get_exported_function(
             constitution,
             "resolve",
@@ -300,14 +310,17 @@ namespace ccf::gov::endpoints
 
             js_context.add_extension(
               std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
-            js_context.populate_global_ccf_kv(tx);
+            js_context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfKvExtension>(&tx));
             js_context.add_extension(
               std::make_shared<ccf::js::extensions::CcfNodeExtension>(
                 gov_effects.get(), &tx));
             js_context.add_extension(
               std::make_shared<ccf::js::extensions::CcfNetworkExtension>(
                 &network, &tx));
-            js_context.populate_global_ccf_gov_actions();
+            js_context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfGovEffectsExtension>(
+                &tx));
 
             auto apply_func = js_context.get_exported_function(
               constitution,
@@ -449,7 +462,8 @@ namespace ccf::gov::endpoints
             js::core::Context context(js::TxAccess::GOV_RO);
             context.add_extension(
               std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
-            context.populate_global_ccf_kv(ctx.tx);
+            context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfKvExtension>(&ctx.tx));
 
             auto validate_func = context.get_exported_function(
               constitution.value(),
