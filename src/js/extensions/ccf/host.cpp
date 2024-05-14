@@ -43,8 +43,7 @@ namespace ccf::js::extensions
         process_input.assign(buf, buf + size);
       }
 
-      auto extension =
-        static_cast<CcfHostExtension*>(JS_GetOpaque(this_val, host_class_id));
+      auto extension = jsctx.get_extension<CcfHostExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
@@ -75,7 +74,6 @@ namespace ccf::js::extensions
   void CcfHostExtension::install(js::core::Context& ctx)
   {
     auto host = JS_NewObjectClass(ctx, host_class_id);
-    JS_SetOpaque(host, this);
 
     JS_SetPropertyStr(
       ctx,

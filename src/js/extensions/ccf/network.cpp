@@ -27,8 +27,7 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      auto extension = static_cast<CcfNetworkExtension*>(
-        JS_GetOpaque(this_val, network_class_id));
+      auto extension = jsctx.get_extension<CcfNetworkExtension>();
 
       auto network = extension->network_state;
       if (network == nullptr)
@@ -74,8 +73,8 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 3", argc);
       }
 
-      auto extension = static_cast<CcfNetworkExtension*>(
-        JS_GetOpaque(this_val, network_class_id));
+      auto extension = jsctx.get_extension<CcfNetworkExtension>();
+
       auto network = extension->network_state;
       if (network == nullptr)
       {
@@ -142,8 +141,8 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 2", argc);
       }
 
-      auto extension = static_cast<CcfNetworkExtension*>(
-        JS_GetOpaque(this_val, network_class_id));
+      auto extension = jsctx.get_extension<CcfNetworkExtension>();
+
       auto network = extension->network_state;
       if (network == nullptr)
       {
@@ -180,7 +179,6 @@ namespace ccf::js::extensions
   void CcfNetworkExtension::install(js::core::Context& ctx)
   {
     auto network = JS_NewObjectClass(ctx, network_class_id);
-    JS_SetOpaque(network, this);
 
     JS_SetPropertyStr(
       ctx,

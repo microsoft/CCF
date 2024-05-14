@@ -210,6 +210,21 @@ namespace ccf::js::core
     void add_extension(const js::extensions::ExtensionPtr& extension);
     void clear_extensions();
 
+    template <typename TExtension>
+    TExtension* get_extension()
+    {
+      for (auto& extension : extensions)
+      {
+        if (TExtension* t = dynamic_cast<TExtension*>(extension.get());
+            t != nullptr)
+        {
+          return t;
+        }
+      }
+
+      return nullptr;
+    }
+
     // Reset any state that has been stored on the ctx object to implement
     // globals. This should be called at the end of any invocation where the
     // globals may point to locally-scoped memory, and the Context itself (the

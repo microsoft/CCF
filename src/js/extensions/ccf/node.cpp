@@ -9,9 +9,8 @@
 
 #include <quickjs/quickjs.h>
 
-#define LOAD_FROM_OPAQUE(THIS_VAL) \
-  auto extension = \
-    static_cast<CcfNodeExtension*>(JS_GetOpaque(THIS_VAL, node_class_id)); \
+#define LOAD_FROM_EXTENSION(JSCTX) \
+  auto extension = JSCTX.get_extension<CcfNodeExtension>(); \
   if (extension == nullptr) \
   { \
     return JS_ThrowInternalError(ctx, "Failed to get extension object"); \
@@ -45,7 +44,7 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      LOAD_FROM_OPAQUE(this_val);
+      LOAD_FROM_EXTENSION(jsctx);
 
       try
       {
@@ -79,7 +78,7 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected two", argc);
       }
 
-      LOAD_FROM_OPAQUE(this_val);
+      LOAD_FROM_EXTENSION(jsctx);
 
       try
       {
@@ -144,7 +143,7 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      LOAD_FROM_OPAQUE(this_val);
+      LOAD_FROM_EXTENSION(jsctx);
 
       try
       {
@@ -168,7 +167,7 @@ namespace ccf::js::extensions
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
-      LOAD_FROM_OPAQUE(this_val);
+      LOAD_FROM_EXTENSION(jsctx);
 
       try
       {
@@ -192,7 +191,7 @@ namespace ccf::js::extensions
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
-      LOAD_FROM_OPAQUE(this_val);
+      LOAD_FROM_EXTENSION(jsctx);
 
       try
       {
@@ -216,7 +215,7 @@ namespace ccf::js::extensions
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
-      LOAD_FROM_OPAQUE(this_val);
+      LOAD_FROM_EXTENSION(jsctx);
 
       try
       {
@@ -251,7 +250,6 @@ namespace ccf::js::extensions
   void CcfNodeExtension::install(js::core::Context& ctx)
   {
     auto node = JS_NewObjectClass(ctx, node_class_id);
-    JS_SetOpaque(node, this);
 
     JS_SetPropertyStr(
       ctx,

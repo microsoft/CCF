@@ -17,11 +17,14 @@ namespace ccf::js::extensions
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
       if (argc != 4)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 4", argc);
+      }
 
-      auto extension = static_cast<CcfHistoricalExtension*>(
-        JS_GetOpaque(this_val, historical_class_id));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      auto extension = jsctx.get_extension<CcfHistoricalExtension>();
+
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
@@ -83,8 +86,6 @@ namespace ccf::js::extensions
         return ccf::js::core::constants::Null;
       }
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
-
       auto states_array = jsctx.new_array();
       JS_CHECK_EXC(states_array);
       size_t i = 0;
@@ -102,11 +103,14 @@ namespace ccf::js::extensions
       JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
     {
       if (argc != 1)
+      {
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected 1", argc);
+      }
 
-      auto extension = static_cast<CcfHistoricalExtension*>(
-        JS_GetOpaque(this_val, historical_class_id));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      auto extension = jsctx.get_extension<CcfHistoricalExtension>();
+
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
@@ -248,7 +252,6 @@ namespace ccf::js::extensions
   void CcfHistoricalExtension::install(js::core::Context& ctx)
   {
     auto historical = JS_NewObjectClass(ctx, historical_class_id);
-    JS_SetOpaque(historical, this);
 
     JS_SetPropertyStr(
       ctx,

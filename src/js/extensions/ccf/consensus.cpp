@@ -10,9 +10,8 @@
 
 #include <quickjs/quickjs.h>
 
-#define GET_ENDPOINT_REGISTRY_FROM_OPAQUE(THIS_VAL) \
-  auto extension = static_cast<CcfConsensusExtension*>( \
-    JS_GetOpaque(THIS_VAL, consensus_class_id)); \
+#define GET_ENDPOINT_REGISTRY_EXTENSION(JSCTX) \
+  auto extension = JSCTX.get_extension<CcfConsensusExtension>(); \
   if (extension == nullptr) \
   { \
     return JS_ThrowInternalError(ctx, "Failed to get extension object"); \
@@ -37,7 +36,8 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments, but expected 0", argc);
       }
 
-      GET_ENDPOINT_REGISTRY_FROM_OPAQUE(this_val);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      GET_ENDPOINT_REGISTRY_EXTENSION(jsctx);
 
       ccf::View view;
       ccf::SeqNo seqno;
@@ -49,8 +49,6 @@ namespace ccf::js::extensions
           "Failed to get last committed txid: %s",
           ccf::api_result_to_str(result));
       }
-
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       auto obj = jsctx.new_obj();
       JS_CHECK_EXC(obj);
@@ -82,7 +80,8 @@ namespace ccf::js::extensions
           ctx, "Invalid view or seqno: cannot be negative");
       }
 
-      GET_ENDPOINT_REGISTRY_FROM_OPAQUE(this_val);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      GET_ENDPOINT_REGISTRY_EXTENSION(jsctx);
 
       ccf::TxStatus status;
       auto result =
@@ -115,7 +114,8 @@ namespace ccf::js::extensions
         return JS_ThrowRangeError(ctx, "Invalid seqno: cannot be negative");
       }
 
-      GET_ENDPOINT_REGISTRY_FROM_OPAQUE(this_val);
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      GET_ENDPOINT_REGISTRY_EXTENSION(jsctx);
 
       ccf::View view;
       auto result = endpoint_registry->get_view_for_seqno_v1(seqno, view);
@@ -138,7 +138,6 @@ namespace ccf::js::extensions
   void CcfConsensusExtension::install(js::core::Context& ctx)
   {
     auto consensus = JS_NewObjectClass(ctx, consensus_class_id);
-    JS_SetOpaque(consensus, this);
 
     JS_SetPropertyStr(
       ctx,
