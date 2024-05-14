@@ -288,7 +288,7 @@ namespace ccf::js::extensions
       "triggerACMERefresh",
       JS_NewCFunction(ctx, js_trigger_acme_refresh, "triggerACMERefresh", 0));
 
-    auto ccf = ctx.get_global_property("ccf");
+    auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     ccf.set("node", std::move(node));
   }
 }

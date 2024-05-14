@@ -265,7 +265,7 @@ namespace ccf::js::extensions
       JS_NewCFunction(
         ctx, js_historical_drop_cached_states, "dropCachedStates", 1));
 
-    auto ccf = ctx.get_global_property("ccf");
+    auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     ccf.set("historical", std::move(historical));
   }
 

@@ -12,6 +12,7 @@
 #include "js/core/context.h"
 #include "js/core/wrapped_property_enum.h"
 #include "js/extensions/ccf/consensus.h"
+#include "js/extensions/ccf/converters.h"
 #include "js/extensions/ccf/crypto.h"
 #include "js/extensions/ccf/historical.h"
 #include "js/extensions/ccf/host.h"
@@ -278,7 +279,8 @@ namespace ccfapp
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
             auto add_historical_globals = [&](js::core::Context& ctx) {
-              auto ccf = ctx.get_global_property("ccf");
+              auto ccf =
+                ctx.get_or_create_global_property("ccf", ctx.new_obj());
               auto extension =
                 ctx
                   .get_extension<ccf::js::extensions::CcfHistoricalExtension>();
@@ -362,6 +364,10 @@ namespace ccfapp
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
       ctx.register_request_body_class();
+
+      // ccf.[strToBuf|bufToStr|...]
+      ctx.add_extension(
+        std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
 
       // ccf.kv.*
       ctx.add_extension(std::make_shared<ccf::js::extensions::CcfKvExtension>(

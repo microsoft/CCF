@@ -1185,7 +1185,7 @@ namespace ccf::js::extensions
       JS_NewCFunction(
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
 
-    auto ccf = ctx.get_global_property("ccf");
+    auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     ccf.set("crypto", std::move(crypto));
   }
 }

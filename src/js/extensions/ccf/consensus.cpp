@@ -158,7 +158,7 @@ namespace ccf::js::extensions
       JS_NewCFunction(
         ctx, js_consensus_get_view_for_seqno, "getViewForSeqno", 1));
 
-    auto ccf = ctx.get_global_property("ccf");
+    auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     ccf.set("consensus", std::move(consensus));
   }
 }

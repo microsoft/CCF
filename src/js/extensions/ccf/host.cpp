@@ -82,7 +82,7 @@ namespace ccf::js::extensions
       JS_NewCFunction(
         ctx, js_node_trigger_host_process_launch, "triggerSubprocess", 1));
 
-    auto ccf = ctx.get_global_property("ccf");
+    auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     ccf.set("host", std::move(host));
   }
 }

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 // NB: Despite the naming scheme used elsewhere, this populates functions
-// directly on the ccf object for backwards compatibility.
+// directly on the ccf object.
 
 #include "js/extensions/ccf/gov_effects.h"
 
@@ -215,7 +215,7 @@ namespace ccf::js::extensions
 
   void CcfGovEffectsExtension::install(js::core::Context& ctx)
   {
-    auto ccf = ctx.get_global_property("ccf");
+    auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
 
     ccf.set(
       "refreshAppBytecodeCache",

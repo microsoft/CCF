@@ -4,7 +4,6 @@
 
 #include "ccf/crypto/entropy.h"
 #include "js/ffi_plugins.h"
-#include "js/globals/ccf.h"
 #include "js/globals/console.h"
 
 namespace ccf::js
@@ -57,8 +56,6 @@ namespace ccf::js
 
     void init_globals(js::core::Context& ctx)
     {
-      populate_global_ccf(ctx);
-
       // Always available, no other dependencies
       populate_global_console(ctx);
 

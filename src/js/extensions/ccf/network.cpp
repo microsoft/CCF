@@ -205,7 +205,7 @@ namespace ccf::js::extensions
       JS_NewCFunction(
         ctx, js_network_generate_certificate, "generateNetworkCertificate", 0));
 
-    auto ccf = ctx.get_global_property("ccf");
+    auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     ccf.set("network", std::move(network));
   }
 }

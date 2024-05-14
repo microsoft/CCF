@@ -89,6 +89,7 @@ namespace ccf::js::core
     bool implement_untrusted_time = false;
     bool log_execution_metrics = true;
 
+    // TODO: TxAccess is (presumably) only needed by the KV extension?
     Context(TxAccess acc);
 
     ~Context();
@@ -133,6 +134,8 @@ namespace ccf::js::core
       JSValue object, char const* property_name) const;
     JSWrappedValue get_global_obj() const;
     JSWrappedValue get_global_property(const char* s) const;
+    JSWrappedValue get_or_create_global_property(
+      const char* s, JSWrappedValue default_value) const;
     JSWrappedValue get_typed_array_buffer(
       const JSWrappedValue& obj,
       size_t* pbyte_offset,

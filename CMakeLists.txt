@@ -350,9 +350,9 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/core/runtime.cpp
     ${CCF_DIR}/src/js/core/context.cpp
     ${CCF_DIR}/src/js/no_plugins.cpp
-    ${CCF_DIR}/src/js/globals/ccf.cpp
     ${CCF_DIR}/src/js/ffi_plugins.cpp
     ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
     ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
     ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
     ${CCF_DIR}/src/js/extensions/ccf/historical.cpp

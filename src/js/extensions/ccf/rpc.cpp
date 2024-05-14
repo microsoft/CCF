@@ -109,7 +109,7 @@ namespace ccf::js::extensions
       "setClaimsDigest",
       JS_NewCFunction(ctx, js_rpc_set_claims_digest, "setClaimsDigest", 1));
 
-    auto ccf = ctx.get_global_property("ccf");
+    auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     ccf.set("rpc", std::move(rpc));
   }
 }

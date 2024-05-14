@@ -16,6 +16,7 @@
 #include "ccf/service/tables/nodes.h"
 #include "frontend.h"
 #include "js/core/context.h"
+#include "js/extensions/ccf/converters.h"
 #include "js/extensions/ccf/crypto.h"
 #include "js/extensions/ccf/network.h"
 #include "js/extensions/ccf/node.h"
@@ -156,6 +157,8 @@ namespace ccf
       {
         js::core::Context context(js::TxAccess::GOV_RO);
         context.add_extension(
+          std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
+        context.add_extension(
           std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
         context.add_extension(
           std::make_shared<ccf::js::extensions::CcfKvExtension>(&tx));
@@ -205,6 +208,8 @@ namespace ccf
 
       {
         js::core::Context js_context(js::TxAccess::GOV_RO);
+        js_context.add_extension(
+          std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
         js_context.add_extension(
           std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
         js_context.add_extension(
@@ -316,6 +321,8 @@ namespace ccf
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
+            apply_js_context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
             apply_js_context.add_extension(
               std::make_shared<ccf::js::extensions::CcfKvExtension>(&tx));
             apply_js_context.add_extension(
@@ -1184,6 +1191,8 @@ namespace ccf
         auto validate_script = constitution.value();
 
         js::core::Context context(js::TxAccess::GOV_RO);
+        context.add_extension(
+          std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
         context.add_extension(
           std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
         context.add_extension(
