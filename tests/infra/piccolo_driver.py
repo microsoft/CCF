@@ -212,15 +212,6 @@ def run(get_command, args):
                         perf_result = round(len(df_sends.index) / time_spent, 1)
                         LOG.success(f"{args.label}/{remote_client.name}: {perf_result}")
 
-                        # TODO: Only results for first client are uploaded
-                        # https://github.com/microsoft/CCF/issues/1046
-                        # https://github.com/microsoft/CCF/issues/6126
-                        # if remote_client == clients[0]:
-                        #     LOG.success(f"Uploading results for {remote_client.name}")
-                        #     metrics.put(args.label, perf_result)
-                        # else:
-                        #     LOG.warning(f"Skipping upload for {remote_client.name}")
-
                     primary, _ = network.find_primary()
                     with primary.client() as nc:
                         r = nc.get("/node/memory")
