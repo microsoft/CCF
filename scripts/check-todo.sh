@@ -13,7 +13,7 @@ DENYLIST="TODO FIXME"
 STATUS=0
 
 for DENYTERM in $DENYLIST; do
-  FOUND=$(git ls-files "$@" | xargs grep -n "$DENYTERM")
+  FOUND=$(git ls-files ":!:3rdparty" ":!:.github/ISSUE_TEMPLATE" ":!:scripts/ci-checks.sh" ":!:scripts/check-todo.sh" ":!:Doxyfile" "$@" | xargs grep -n "$DENYTERM")
 
   if [ "$FOUND" == "" ]; then
     echo "No ${DENYTERM}s found"
