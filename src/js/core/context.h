@@ -12,9 +12,6 @@
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
 
-// NB: Only required while globals is public
-#include "ccf/tx.h"
-
 // Forward declarations
 namespace ccf
 {
@@ -59,7 +56,7 @@ namespace ccf::js::core
     js::extensions::Extensions extensions;
 
   public:
-    // NB: This should really be hidden as an implementation detail
+    // TODO: This should really be hidden as an implementation detail
     // State which may be set by calls to populate_global_ccf_*. Likely
     // references transaction-scoped entries, so should be cleared between
     // calls. Retained handles to these globals must not access the previous
@@ -79,7 +76,7 @@ namespace ccf::js::core
     // TODO: TxAccess is (presumably) only needed by the KV extension?
     Context(TxAccess acc);
 
-    ~Context();
+    virtual ~Context();
 
     // Delete copy and assignment operators, since this assumes sole ownership
     // of underlying rt and ctx

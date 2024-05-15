@@ -9,9 +9,26 @@
 #include "js/core/context.h"
 #include "js/extensions/ccf/kv_helpers.h"
 #include "js/global_class_ids.h"
+#include "kv/untyped_map.h"
 
 namespace ccf::js::extensions
 {
+  struct CcfHistoricalExtension::Impl
+  {
+    ccf::historical::AbstractStateCache* historical_state;
+
+    struct HistoricalHandle
+    {
+      ccf::historical::StatePtr state;
+      std::unique_ptr<kv::ReadOnlyTx> tx;
+      std::unordered_map<std::string, kv::untyped::Map::ReadOnlyHandle*>
+        kv_handles = {};
+    };
+    std::unordered_map<ccf::SeqNo, HistoricalHandle> historical_handles;
+
+    Impl(ccf::historical::AbstractStateCache* hs) : historical_state(hs){};
+  };
+
   namespace
   {
     static JSValue js_historical_get_state_range(
@@ -31,7 +48,7 @@ namespace ccf::js::extensions
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto historical_state = extension->historical_state;
+      auto historical_state = extension->impl->historical_state;
       if (historical_state == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get state cache");
@@ -117,7 +134,7 @@ namespace ccf::js::extensions
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto historical_state = extension->historical_state;
+      auto historical_state = extension->impl->historical_state;
       if (historical_state == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get state cache");
@@ -272,8 +289,8 @@ namespace ccf::js::extensions
         return nullptr;
       }
 
-      auto it = extension->historical_handles.find(seqno);
-      if (it == extension->historical_handles.end())
+      auto it = extension->impl->historical_handles.find(seqno);
+      if (it == extension->impl->historical_handles.end())
       {
         LOG_FAIL_FMT(
           "Unable to retrieve any historical handles for state at {}", seqno);
@@ -335,6 +352,14 @@ namespace ccf::js::extensions
     }
   }
 
+  CcfHistoricalExtension::CcfHistoricalExtension(
+    ccf::historical::AbstractStateCache* hs)
+  {
+    impl = std::make_unique<CcfHistoricalExtension::Impl>(hs);
+  }
+
+  CcfHistoricalExtension::~CcfHistoricalExtension() = default;
+
   void CcfHistoricalExtension::install(js::core::Context& ctx)
   {
     auto historical = JS_NewObjectClass(ctx, historical_class_id);
@@ -383,7 +408,7 @@ namespace ccf::js::extensions
       auto tx = state->store->create_read_only_tx_ptr();
 
       // Extend lifetime of state and tx, by storing on this extension
-      historical_handles[transaction_id.seqno] = {state, std::move(tx)};
+      impl->historical_handles[transaction_id.seqno] = {state, std::move(tx)};
     }
     catch (const std::exception& e)
     {

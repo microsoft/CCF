@@ -3,14 +3,10 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
-#include "js/extensions/ccf/converters.h"
-#include "js/extensions/ccf/crypto.h"
+#include "js/common_context.h"
 #include "js/extensions/ccf/gov_effects.h"
-#include "js/extensions/ccf/kv.h"
 #include "js/extensions/ccf/network.h"
 #include "js/extensions/ccf/node.h"
-#include "js/extensions/console.h"
-#include "js/extensions/math/random.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 
@@ -155,22 +151,7 @@ namespace ccf::gov::endpoints
       // Evaluate ballots
       for (const auto& [mid, mb] : proposal_info.ballots)
       {
-        js::core::Context js_context(js::TxAccess::GOV_RO);
-
-        js_context.add_extension(
-          std::make_shared<ccf::js::extensions::MathRandomExtension>());
-
-        // console.[debug|log|...]
-        js_context.add_extension(
-          std::make_shared<ccf::js::extensions::CcfConsoleExtension>());
-
-        // ccf.[strToBuf|bufToStr|...]
-        js_context.add_extension(
-          std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
-
-        // ccf.kv.*
-        js_context.add_extension(
-          std::make_shared<ccf::js::extensions::CcfKvExtension>(&tx));
+        js::CommonContext js_context(js::TxAccess::GOV_RO, &tx);
 
         auto ballot_func = js_context.get_exported_function(
           mb,
@@ -212,22 +193,7 @@ namespace ccf::gov::endpoints
       // votes, there is no change to the proposal stored in the KV.
       {
         {
-          js::core::Context js_context(js::TxAccess::GOV_RO);
-
-          js_context.add_extension(
-            std::make_shared<ccf::js::extensions::MathRandomExtension>());
-
-          // console.[debug|log|...]
-          js_context.add_extension(
-            std::make_shared<ccf::js::extensions::CcfConsoleExtension>());
-
-          // ccf.[strToBuf|bufToStr|...]
-          js_context.add_extension(
-            std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
-
-          // ccf.kv.*
-          js_context.add_extension(
-            std::make_shared<ccf::js::extensions::CcfKvExtension>(&tx));
+          js::CommonContext js_context(js::TxAccess::GOV_RO, &tx);
 
           auto resolve_func = js_context.get_exported_function(
             constitution,
@@ -323,8 +289,6 @@ namespace ccf::gov::endpoints
           if (proposal_info.state == ProposalState::ACCEPTED)
           {
             // Evaluate apply function
-            js::core::Context js_context(js::TxAccess::GOV_RW);
-
             auto gov_effects =
               context.get_subsystem<AbstractGovernanceEffects>();
             if (gov_effects == nullptr)
@@ -333,16 +297,8 @@ namespace ccf::gov::endpoints
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
-            js_context.add_extension(
-              std::make_shared<ccf::js::extensions::MathRandomExtension>());
-            js_context.add_extension(
-              std::make_shared<ccf::js::extensions::CcfConsoleExtension>());
-            js_context.add_extension(
-              std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
-            js_context.add_extension(
-              std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
-            js_context.add_extension(
-              std::make_shared<ccf::js::extensions::CcfKvExtension>(&tx));
+            js::CommonContext js_context(js::TxAccess::GOV_RW, &tx);
+
             js_context.add_extension(
               std::make_shared<ccf::js::extensions::CcfNodeExtension>(
                 gov_effects.get(), &tx));
@@ -490,17 +446,7 @@ namespace ccf::gov::endpoints
               return;
             }
 
-            js::core::Context context(js::TxAccess::GOV_RO);
-            context.add_extension(
-              std::make_shared<ccf::js::extensions::MathRandomExtension>());
-            context.add_extension(
-              std::make_shared<ccf::js::extensions::CcfConsoleExtension>());
-            context.add_extension(
-              std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
-            context.add_extension(
-              std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
-            context.add_extension(
-              std::make_shared<ccf::js::extensions::CcfKvExtension>(&ctx.tx));
+            js::CommonContext context(js::TxAccess::GOV_RO, &ctx.tx);
 
             auto validate_func = context.get_exported_function(
               constitution.value(),

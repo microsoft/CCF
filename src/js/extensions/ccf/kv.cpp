@@ -19,15 +19,6 @@ namespace ccf::js::extensions
     kv::Tx* tx;
     std::unordered_map<std::string, kv::untyped::Map::Handle*> kv_handles = {};
 
-    struct HistoricalHandle
-    {
-      ccf::historical::StatePtr state;
-      std::unique_ptr<kv::ReadOnlyTx> tx;
-      std::unordered_map<std::string, kv::untyped::Map::ReadOnlyHandle*>
-        kv_handles = {};
-    };
-    std::unordered_map<ccf::SeqNo, HistoricalHandle> historical_handles;
-
     Impl(kv::Tx* t) : tx(t){};
   };
 
