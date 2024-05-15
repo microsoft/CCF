@@ -1600,7 +1600,6 @@ MembershipStateTransitionsProp ==
         \* Note that all other transitions between retirement phases are permitted
         \* For instance, a node could go from Active to RetirementCompleted in one step if it 
         \* receives an append entries with its retirement signed and committed
-        \* TODO: that is really too permissive, not all transitions are possible.
 
 PendingBecomesFollowerProp ==
     \* A pending node that becomes aware it is part of a configuration immediately transitions to Follower.
