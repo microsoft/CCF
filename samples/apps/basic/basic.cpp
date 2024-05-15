@@ -13,12 +13,16 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
-using namespace std;
+// Custom Endpoints
+#include "ccf/endpoints/authentication/js.h"
+#include "custom_endpoints/endpoint.h"
+#include "js/interpreter_cache_interface.h"
+
 using namespace nlohmann;
 
 namespace basicapp
 {
-  using RecordsMap = kv::Map<string, std::vector<uint8_t>>;
+  using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
   static constexpr auto PRIVATE_RECORDS = "records";
 
   class BasicHandlers : public ccf::UserEndpointRegistry
@@ -105,6 +109,73 @@ namespace basicapp
       };
       make_endpoint("/records", HTTP_POST, post, {ccf::user_cert_auth_policy})
         .install();
+    }
+
+    // Custom Endpoints
+
+    ccf::endpoints::EndpointDefinitionPtr find_endpoint(
+      kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
+    {
+      // Look up the endpoint definition
+      // First in the user-defined endpoints, and then fall-back to built-ins
+      const auto method = rpc_ctx.get_method();
+      const auto verb = rpc_ctx.get_request_verb();
+
+      auto endpoints =
+        tx.ro<ccf::endpoints::EndpointsMap>("custom_endpoints.metadata");
+      const auto key = ccf::endpoints::EndpointKey{method, verb};
+
+      // Look for a direct match of the given path
+      const auto it = endpoints->get(key);
+      if (it.has_value())
+      {
+        auto endpoint_def = std::make_shared<CustomJSEndpoint>();
+        endpoint_def->dispatch = key;
+        endpoint_def->properties = it.value();
+        endpoint_def->full_uri_path =
+          fmt::format("/{}{}", method_prefix, endpoint_def->dispatch.uri_path);
+        ccf::instantiate_authn_policies(*endpoint_def);
+        return endpoint_def;
+      }
+
+      // TBD: templated endpoints
+      return ccf::endpoints::EndpointRegistry::find_endpoint(tx, rpc_ctx);
+    }
+
+    using PreExecutionHook = std::function<void(ccf::js::core::Context&)>;
+
+    void do_execute_request(
+      const CustomJSEndpoint* endpoint,
+      ccf::endpoints::EndpointContext& endpoint_ctx,
+      const std::optional<PreExecutionHook>& pre_exec_hook = std::nullopt)
+    {
+      // TBD: interpreter re-use logic
+      // TBD: runtime options
+      const auto interpreter_cache =
+        context.get_subsystem<ccf::js::AbstractInterpreterCache>();
+    }
+
+    void execute_request(
+      const CustomJSEndpoint* endpoint,
+      ccf::endpoints::EndpointContext& endpoint_ctx)
+    {
+      // TBD: historical queries
+      do_execute_request(endpoint, endpoint_ctx);
+    }
+
+    void execute_endpoint(
+      ccf::endpoints::EndpointDefinitionPtr e,
+      ccf::endpoints::EndpointContext& endpoint_ctx) override
+    {
+      // Handle endpoint execution
+      auto endpoint = dynamic_cast<const CustomJSEndpoint*>(e.get());
+      if (endpoint != nullptr)
+      {
+        execute_request(endpoint, endpoint_ctx);
+        return;
+      }
+
+      ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
     }
   };
 }
