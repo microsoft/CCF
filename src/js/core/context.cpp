@@ -1,13 +1,16 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "js/core/context.h"
+
 #include "ccf/ds/hex.h"
 #include "ccf/pal/locking.h"
 #include "enclave/enclave_time.h"
 #include "js/core/runtime.h"
 #include "js/core/wrapped_value.h"
+#include "js/extensions/console.h"
+#include "js/ffi_plugins.h"
 #include "js/global_class_ids.h"
-#include "js/globals/init.h"
 #include "js/tx_access.h"
 
 #include <chrono>
@@ -28,7 +31,11 @@ namespace ccf::js::core
     }
     JS_SetContextOpaque(ctx, this);
 
-    globals::init_globals(*this);
+    for (auto& plugin : ffi_plugins)
+    {
+      LOG_DEBUG_FMT("Extending JS context with plugin {}", plugin.name);
+      plugin.extend(*this);
+    }
   }
 
   Context::~Context()
@@ -372,7 +379,7 @@ namespace ccf::js::core
       std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
     if (elapsed_ms.count() >= inter->max_execution_time.count())
     {
-      globals::log_info_with_tag(
+      extensions::CcfConsoleExtension::log_info_with_tag(
         inter->access,
         fmt::format(
           "JS execution has timed out after {}ms (max is {}ms)",

@@ -351,6 +351,8 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/core/context.cpp
     ${CCF_DIR}/src/js/no_plugins.cpp
     ${CCF_DIR}/src/js/ffi_plugins.cpp
+    ${CCF_DIR}/src/js/extensions/console.cpp
+    ${CCF_DIR}/src/js/extensions/math/random.cpp
     ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
     ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
     ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp

@@ -1,42 +1,17 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#pragma once
-#include "js/core/constants.h"
+
+#include "js/extensions/console.h"
+
 #include "js/core/context.h"
-#include "js/tx_access.h"
 #include "node/rpc/gov_logging.h"
 
-namespace ccf::js::globals
+#include <quickjs/quickjs.h>
+
+namespace ccf::js::extensions
 {
   namespace
   {
-    static void log_info_with_tag(
-      const ccf::js::TxAccess access, std::string_view s)
-    {
-      switch (access)
-      {
-        case (js::TxAccess::APP_RO):
-        case (js::TxAccess::APP_RW):
-        {
-          CCF_APP_INFO("{}", s);
-          break;
-        }
-
-        case (js::TxAccess::GOV_RO):
-        case (js::TxAccess::GOV_RW):
-        {
-          GOV_INFO_FMT("{}", s);
-          break;
-        }
-
-        default:
-        {
-          LOG_INFO_FMT("{}", s);
-          break;
-        }
-      }
-    }
-
     std::optional<std::stringstream> stringify_args(
       JSContext* ctx, int argc, JSValueConst* argv)
     {
@@ -79,7 +54,7 @@ namespace ccf::js::globals
       }
 
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
-      log_info_with_tag(jsctx.access, ss->str());
+      CcfConsoleExtension::log_info_with_tag(jsctx.access, ss->str());
       return ccf::js::core::constants::Undefined;
     }
 
@@ -164,9 +139,36 @@ namespace ccf::js::globals
     }
   }
 
-  void populate_global_console(js::core::Context& ctx)
+  void CcfConsoleExtension::install(js::core::Context& ctx)
   {
     auto global_obj = ctx.get_global_obj();
     global_obj.set("console", create_console_obj(ctx));
+  }
+
+  void CcfConsoleExtension::log_info_with_tag(
+    const ccf::js::TxAccess access, std::string_view s)
+  {
+    switch (access)
+    {
+      case (js::TxAccess::APP_RO):
+      case (js::TxAccess::APP_RW):
+      {
+        CCF_APP_INFO("{}", s);
+        break;
+      }
+
+      case (js::TxAccess::GOV_RO):
+      case (js::TxAccess::GOV_RW):
+      {
+        GOV_INFO_FMT("{}", s);
+        break;
+      }
+
+      default:
+      {
+        LOG_INFO_FMT("{}", s);
+        break;
+      }
+    }
   }
 }

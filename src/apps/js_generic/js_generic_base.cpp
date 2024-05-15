@@ -18,6 +18,8 @@
 #include "js/extensions/ccf/host.h"
 #include "js/extensions/ccf/kv.h"
 #include "js/extensions/ccf/rpc.h"
+#include "js/extensions/console.h"
+#include "js/extensions/math/random.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache_interface.h"
 #include "js/modules.h"
@@ -364,6 +366,13 @@ namespace ccfapp
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
       ctx.register_request_body_class();
+
+      ctx.add_extension(
+        std::make_shared<ccf::js::extensions::MathRandomExtension>());
+
+      // console.[debug|log|...]
+      ctx.add_extension(
+        std::make_shared<ccf::js::extensions::CcfConsoleExtension>());
 
       // ccf.[strToBuf|bufToStr|...]
       ctx.add_extension(

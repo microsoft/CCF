@@ -9,6 +9,8 @@
 #include "js/extensions/ccf/kv.h"
 #include "js/extensions/ccf/network.h"
 #include "js/extensions/ccf/node.h"
+#include "js/extensions/console.h"
+#include "js/extensions/math/random.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 
@@ -155,6 +157,13 @@ namespace ccf::gov::endpoints
       {
         js::core::Context js_context(js::TxAccess::GOV_RO);
 
+        js_context.add_extension(
+          std::make_shared<ccf::js::extensions::MathRandomExtension>());
+
+        // console.[debug|log|...]
+        js_context.add_extension(
+          std::make_shared<ccf::js::extensions::CcfConsoleExtension>());
+
         // ccf.[strToBuf|bufToStr|...]
         js_context.add_extension(
           std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
@@ -204,6 +213,13 @@ namespace ccf::gov::endpoints
       {
         {
           js::core::Context js_context(js::TxAccess::GOV_RO);
+
+          js_context.add_extension(
+            std::make_shared<ccf::js::extensions::MathRandomExtension>());
+
+          // console.[debug|log|...]
+          js_context.add_extension(
+            std::make_shared<ccf::js::extensions::CcfConsoleExtension>());
 
           // ccf.[strToBuf|bufToStr|...]
           js_context.add_extension(
@@ -317,6 +333,10 @@ namespace ccf::gov::endpoints
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
+            js_context.add_extension(
+              std::make_shared<ccf::js::extensions::MathRandomExtension>());
+            js_context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfConsoleExtension>());
             js_context.add_extension(
               std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
             js_context.add_extension(
@@ -471,6 +491,10 @@ namespace ccf::gov::endpoints
             }
 
             js::core::Context context(js::TxAccess::GOV_RO);
+            context.add_extension(
+              std::make_shared<ccf::js::extensions::MathRandomExtension>());
+            context.add_extension(
+              std::make_shared<ccf::js::extensions::CcfConsoleExtension>());
             context.add_extension(
               std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
             context.add_extension(
