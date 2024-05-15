@@ -438,7 +438,7 @@ namespace ccfapp
       // Clear globals (which potentially reference locals like txctx), from
       // this potentially reused interpreter
       invalidate_request_obj_body(ctx);
-      ctx.invalidate_globals();
+
       ctx.clear_extensions();
 
       const auto& rt = ctx.runtime();

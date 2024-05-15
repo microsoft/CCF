@@ -12,7 +12,7 @@ namespace ccf::js::extensions
 {
   class CcfHistoricalExtension : public IExtension
   {
-  protected:
+  public:
     struct HistoricalHandle
     {
       ccf::historical::StatePtr state;
@@ -22,7 +22,6 @@ namespace ccf::js::extensions
     };
     std::unordered_map<ccf::SeqNo, HistoricalHandle> historical_handles;
 
-  public:
     ccf::historical::AbstractStateCache* historical_state;
 
     CcfHistoricalExtension(ccf::historical::AbstractStateCache* hs) :

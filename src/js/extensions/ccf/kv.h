@@ -4,19 +4,20 @@
 
 #include "ccf/tx.h"
 #include "js/extensions/iextension.h"
-#include "kv/untyped_map.h"
 
-#include <map>
+#include <memory>
 
 namespace ccf::js::extensions
 {
   class CcfKvExtension : public IExtension
   {
   public:
-    kv::Tx* tx;
-    std::unordered_map<std::string, kv::untyped::Map::Handle*> kv_handles = {};
+    struct Impl;
 
-    CcfKvExtension(kv::Tx* t) : tx(t) {}
+    std::unique_ptr<Impl> impl;
+
+    CcfKvExtension(kv::Tx* t);
+    ~CcfKvExtension();
 
     void install(js::core::Context& ctx);
   };

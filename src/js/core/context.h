@@ -14,7 +14,6 @@
 
 // NB: Only required while globals is public
 #include "ccf/tx.h"
-#include "kv/untyped_map.h"
 
 // Forward declarations
 namespace ccf
@@ -67,18 +66,6 @@ namespace ccf::js::core
     // values.
     struct
     {
-      kv::Tx* tx = nullptr;
-      std::unordered_map<std::string, kv::untyped::Map::Handle*> kv_handles;
-
-      struct HistoricalHandle
-      {
-        ccf::historical::StatePtr state;
-        std::unique_ptr<kv::ReadOnlyTx> tx;
-        std::unordered_map<std::string, kv::untyped::Map::ReadOnlyHandle*>
-          kv_handles = {};
-      };
-      std::unordered_map<ccf::SeqNo, HistoricalHandle> historical_handles;
-
       const std::vector<uint8_t>* current_request_body = nullptr;
     } globals;
 
@@ -226,18 +213,8 @@ namespace ccf::js::core
       return nullptr;
     }
 
-    // Reset any state that has been stored on the ctx object to implement
-    // globals. This should be called at the end of any invocation where the
-    // globals may point to locally-scoped memory, and the Context itself (the
-    // interpreter) may live longer and be reused for future calls. Those calls
-    // must re-populate the globals appropriately, pointing to their own local
-    // instances of state as required.
-    // TODO: This can be stripped eventually?
-    void invalidate_globals();
-
     // TODO: All of these should be removed from here, only be added by some
     // extension
-
     void register_request_body_class();
   };
 }

@@ -7,6 +7,7 @@
 #include "ccf/historical_queries_interface.h"
 #include "js/checks.h"
 #include "js/core/context.h"
+#include "js/extensions/ccf/kv_helpers.h"
 #include "js/global_class_ids.h"
 
 namespace ccf::js::extensions
@@ -247,6 +248,91 @@ namespace ccf::js::extensions
       return js_receipt.take();
     }
 
+    static kvhelpers::KVMap::ReadOnlyHandle* get_map_handle_historical(
+      js::core::Context& jsctx, JSValueConst _this_val)
+    {
+      auto this_val = jsctx.duplicate_value(_this_val);
+      auto map_name_val = this_val["_map_name"];
+      auto map_name = jsctx.to_str(map_name_val);
+
+      if (!map_name.has_value())
+      {
+        LOG_FAIL_FMT("No map name stored on handle");
+        return nullptr;
+      }
+
+      const auto seqno = reinterpret_cast<ccf::SeqNo>(
+        JS_GetOpaque(_this_val, kv_map_handle_class_id));
+
+      // Handle to historical KV
+      auto extension = jsctx.get_extension<CcfHistoricalExtension>();
+      if (extension == nullptr)
+      {
+        LOG_FAIL_FMT("No historical extension available");
+        return nullptr;
+      }
+
+      auto it = extension->historical_handles.find(seqno);
+      if (it == extension->historical_handles.end())
+      {
+        LOG_FAIL_FMT(
+          "Unable to retrieve any historical handles for state at {}", seqno);
+        return nullptr;
+      }
+
+      auto& handles = it->second.kv_handles;
+      auto hit = handles.find(map_name.value());
+      if (hit == handles.end())
+      {
+        hit = handles.emplace_hint(hit, map_name.value(), nullptr);
+      }
+
+      if (hit->second == nullptr)
+      {
+        kv::ReadOnlyTx* tx = it->second.tx.get();
+        if (tx == nullptr)
+        {
+          LOG_FAIL_FMT("Can't rehydrate MapHandle - no transaction");
+          return nullptr;
+        }
+
+        hit->second = tx->ro<kvhelpers::KVMap>(map_name.value());
+      }
+
+      return hit->second;
+    }
+
+    static int js_historical_kv_lookup(
+      JSContext* ctx,
+      JSPropertyDescriptor* desc,
+      JSValueConst this_val,
+      JSAtom property)
+    {
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      const auto map_name = jsctx.to_str(property).value_or("");
+      auto seqno = reinterpret_cast<ccf::SeqNo>(
+        JS_GetOpaque(this_val, kv_historical_class_id));
+      LOG_TRACE_FMT(
+        "Looking for historical kv map '{}' at seqno {}", map_name, seqno);
+
+      // Ignore evaluated access permissions - all tables are read-only
+      const auto access_permission = MapAccessPermissions::READ_ONLY;
+      auto handle_val =
+        kvhelpers::create_kv_map_handle<get_map_handle_historical, nullptr>(
+          jsctx, map_name, access_permission);
+      if (JS_IsException(handle_val))
+      {
+        return -1;
+      }
+
+      // Copy seqno from kv to handle
+      JS_SetOpaque(handle_val, reinterpret_cast<void*>(seqno));
+
+      desc->flags = 0;
+      desc->value = handle_val;
+
+      return true;
+    }
   }
 
   void CcfHistoricalExtension::install(js::core::Context& ctx)
@@ -309,4 +395,13 @@ namespace ccf::js::extensions
 
     return js_state.take();
   }
+}
+
+namespace ccf::js
+{
+  JSClassExoticMethods kv_historical_exotic_methods = {
+    .get_own_property = extensions::js_historical_kv_lookup};
+  JSClassDef kv_historical_class_def = {
+    .class_name = "Read-only Historical KV Tables",
+    .exotic = &kv_historical_exotic_methods};
 }

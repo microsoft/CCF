@@ -516,16 +516,6 @@ namespace ccf::js::core
     extensions.clear();
   }
 
-  void Context::invalidate_globals()
-  {
-    // Any KV handles which have been created with reference to this tx should
-    // no longer be accessed. Any future calls on these JSValues will
-    // re-populate this map with fresh KVMap::Handle*s
-    globals.kv_handles.clear();
-
-    globals.historical_handles.clear();
-  }
-
   JSValue js_body_text(
     JSContext* ctx,
     JSValueConst this_val,
