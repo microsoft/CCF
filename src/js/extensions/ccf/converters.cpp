@@ -208,7 +208,6 @@ namespace ccf::js::extensions
       "bufToJsonCompatible",
       ctx.new_c_function(js_buf_to_json_compatible, "bufToJsonCompatible", 1));
 
-    // TODO: These don't belong here
     ccf.set(
       "enableUntrustedDateTime",
       ctx.new_c_function(

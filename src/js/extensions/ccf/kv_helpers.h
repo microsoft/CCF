@@ -368,7 +368,6 @@ namespace ccf::js::extensions::kvhelpers
     // restrictions could vary between invocations, then this object's
     // properties would need to be updated as well.
 
-    // TODO: Can these be in Opaque data, rather than templated?
     auto has_fn = js_kv_map_has<GetReadOnlyHandle>;
     auto get_fn = js_kv_map_get<GetReadOnlyHandle>;
     auto size_fn = js_kv_map_size_getter<GetReadOnlyHandle>;
