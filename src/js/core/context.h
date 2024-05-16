@@ -73,7 +73,6 @@ namespace ccf::js::core
     bool implement_untrusted_time = false;
     bool log_execution_metrics = true;
 
-    // TODO: TxAccess is (presumably) only needed by the KV extension?
     Context(TxAccess acc);
 
     virtual ~Context();
@@ -193,7 +192,7 @@ namespace ccf::js::core
     std::optional<std::string> to_str(const JSAtom& atom) const;
 
     void add_extension(const js::extensions::ExtensionPtr& extension);
-    void clear_extensions();
+    bool remove_extension(const js::extensions::ExtensionPtr& extension);
 
     template <typename TExtension>
     TExtension* get_extension()

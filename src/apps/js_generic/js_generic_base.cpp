@@ -367,41 +367,24 @@ namespace ccfapp
 
       ctx.register_request_body_class();
 
-      ctx.add_extension(
-        std::make_shared<ccf::js::extensions::MathRandomExtension>());
-
-      // console.[debug|log|...]
-      ctx.add_extension(
-        std::make_shared<ccf::js::extensions::CcfConsoleExtension>());
-
-      // ccf.[strToBuf|bufToStr|...]
-      ctx.add_extension(
-        std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
+      // Extensions with a dependency on this endpoint context (invocation),
+      // which must be removed after execution.
+      js::extensions::Extensions local_extensions;
 
       // ccf.kv.*
-      ctx.add_extension(std::make_shared<ccf::js::extensions::CcfKvExtension>(
-        &endpoint_ctx.tx));
-
-      // ccf.crypto.*
-      ctx.add_extension(
-        std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
+      local_extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::CcfKvExtension>(
+          &endpoint_ctx.tx));
 
       // ccf.rpc.*
-      ctx.add_extension(std::make_shared<ccf::js::extensions::CcfRpcExtension>(
-        endpoint_ctx.rpc_ctx.get()));
+      local_extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::CcfRpcExtension>(
+          endpoint_ctx.rpc_ctx.get()));
 
-      // ccf.host.*
-      ctx.add_extension(std::make_shared<ccf::js::extensions::CcfHostExtension>(
-        context.get_subsystem<ccf::AbstractHostProcesses>().get()));
-
-      // ccf.consensus.*
-      ctx.add_extension(
-        std::make_shared<ccf::js::extensions::CcfConsensusExtension>(this));
-
-      // ccf.historical.*
-      ctx.add_extension(
-        std::make_shared<ccf::js::extensions::CcfHistoricalExtension>(
-          &context.get_historical_state()));
+      for (auto extension : local_extensions)
+      {
+        ctx.add_extension(extension);
+      }
 
       if (pre_exec_hook.has_value())
       {
@@ -439,7 +422,10 @@ namespace ccfapp
       // this potentially reused interpreter
       invalidate_request_obj_body(ctx);
 
-      ctx.clear_extensions();
+      for (auto extension : local_extensions)
+      {
+        ctx.remove_extension(extension);
+      }
 
       const auto& rt = ctx.runtime();
 
@@ -709,6 +695,45 @@ namespace ccfapp
         throw std::logic_error(
           "Unexpected: Could not access AbstractInterpreterCache subsytem");
       }
+
+      // Install dependency-less (ie reusable) extensions on interpreters _at
+      // creation_, rather than on every run
+      js::extensions::Extensions extensions;
+      // override Math.random
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::MathRandomExtension>());
+      // add console.[debug|log|...]
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::CcfConsoleExtension>());
+      // add ccf.[strToBuf|bufToStr|...]
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
+      // add ccf.crypto.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
+      // add ccf.consensus.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::CcfConsensusExtension>(this));
+      // add ccf.host.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::CcfHostExtension>(
+          context.get_subsystem<ccf::AbstractHostProcesses>().get()));
+      // add ccf.historical.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::CcfHistoricalExtension>(
+          &context.get_historical_state()));
+
+      interpreter_cache->set_interpreter_factory(
+        [extensions](ccf::js::TxAccess access) {
+          auto interpreter = std::make_shared<js::core::Context>(access);
+
+          for (auto extension : extensions)
+          {
+            interpreter->add_extension(extension);
+          }
+
+          return interpreter;
+        });
     }
 
     void instantiate_authn_policies(ccf::js::JSDynamicEndpoint& endpoint)

@@ -511,9 +511,15 @@ namespace ccf::js::core
     extension->install(*this);
   }
 
-  void Context::clear_extensions()
+  bool Context::remove_extension(const js::extensions::ExtensionPtr& extension)
   {
-    extensions.clear();
+    auto it = std::find(extensions.begin(), extensions.end(), extension);
+    if (it != extensions.end())
+    {
+      extensions.erase(it);
+      return true;
+    }
+    return false;
   }
 
   JSValue js_body_text(
