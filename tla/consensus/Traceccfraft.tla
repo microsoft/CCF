@@ -226,7 +226,6 @@ IsRcvAppendEntriesRequest ==
               /\ IsAppendEntriesRequest(m, i, j, logline)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-    \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsSendAppendEntriesResponse ==
     \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
