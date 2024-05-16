@@ -170,7 +170,6 @@ InvalidNotObservedByCommittedInv ==
 \* In this model, every request execution observes itself
 \* This invariant ignores transaction IDs and whether transactions are committed
 \* This invariant only holds for a single node CCF service
-\* TODO: Fix this definition (and related) as I am not quite happy with them
 RwSerializableInv ==
     \A i,j \in DOMAIN history:
         /\ history[i].type = RwTxResponse
