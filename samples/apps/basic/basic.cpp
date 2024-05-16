@@ -14,11 +14,7 @@
 #include <fmt/format.h>
 
 // Custom Endpoints
-#include "ccf/bundle.h"
-#include "ccf/endpoints/authentication/js.h"
-#include "ccf/service/tables/modules.h"
-#include "custom_endpoints/endpoint.h"
-#include "js/interpreter_cache_interface.h"
+#include "custom_endpoints/registry.h"
 
 using namespace nlohmann;
 
@@ -27,11 +23,11 @@ namespace basicapp
   using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
   static constexpr auto PRIVATE_RECORDS = "records";
 
-  class BasicHandlers : public ccf::UserEndpointRegistry
+  class BasicHandlers : public basicapp::CustomJSEndpointRegistry
   {
   public:
     BasicHandlers(ccfapp::AbstractNodeContext& context) :
-      ccf::UserEndpointRegistry(context)
+      basicapp::CustomJSEndpointRegistry(context)
     {
       openapi_info.title = "CCF Basic App";
       openapi_info.description =
@@ -111,145 +107,6 @@ namespace basicapp
       };
       make_endpoint("/records", HTTP_POST, post, {ccf::user_cert_auth_policy})
         .install();
-
-      auto put_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
-        const auto& caller_identity =
-          ctx.template get_caller<ccf::UserCOSESign1AuthnIdentity>();
-
-        // Authorization Check
-        nlohmann::json user_data = nullptr;
-        auto result =
-          get_user_data_v1(ctx.tx, caller_identity.user_id, user_data);
-        if (result == ccf::ApiResult::InternalError)
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format(
-              "Failed to get user data for user {}: {}",
-              caller_identity.user_id,
-              ccf::api_result_to_str(result)));
-          return;
-        }
-        const auto is_admin_it = user_data.find("isAdmin");
-
-        // Not every user gets to define custom endpoints, only users with
-        // isAdmin
-        if (
-          !user_data.is_object() || is_admin_it == user_data.end() ||
-          !is_admin_it.value().get<bool>())
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Only admins may access this endpoint.");
-          return;
-        }
-        // End of Authorization Check
-
-        const auto j = nlohmann::json::parse(
-          caller_identity.content.begin(), caller_identity.content.end());
-        const auto wrapper = j.get<ccf::js::BundleWrapper>();
-
-        auto endpoints = ctx.tx.template rw<ccf::endpoints::EndpointsMap>(
-          "custom_endpoints.metadata");
-        // Similar to set_js_app
-        for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
-        {
-          for (const auto& [method, metadata] : methods)
-          {
-            std::string method_upper = method;
-            nonstd::to_upper(method_upper);
-            const auto key = ccf::endpoints::EndpointKey{url, method_upper};
-            endpoints->put(key, metadata);
-          }
-        }
-
-        auto modules =
-          ctx.tx.template rw<ccf::Modules>("custom_endpoints.modules");
-        for (const auto& [name, module] : wrapper.bundle.modules)
-        {
-          modules->put(name, module);
-        }
-        // TBD: Bytecode compilation support
-
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
-      };
-
-      make_endpoint(
-        "custom_endpoints",
-        HTTP_PUT,
-        put_custom_endpoints,
-        {ccf::user_cose_sign1_auth_policy})
-        .set_auto_schema<void, void>()
-        .install();
-    }
-
-    // Custom Endpoints
-
-    ccf::endpoints::EndpointDefinitionPtr find_endpoint(
-      kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
-    {
-      // Look up the endpoint definition
-      // First in the user-defined endpoints, and then fall-back to built-ins
-      const auto method = rpc_ctx.get_method();
-      const auto verb = rpc_ctx.get_request_verb();
-
-      auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>("custom_endpoints.metadata");
-      const auto key = ccf::endpoints::EndpointKey{method, verb};
-
-      // Look for a direct match of the given path
-      const auto it = endpoints->get(key);
-      if (it.has_value())
-      {
-        auto endpoint_def = std::make_shared<CustomJSEndpoint>();
-        endpoint_def->dispatch = key;
-        endpoint_def->properties = it.value();
-        endpoint_def->full_uri_path =
-          fmt::format("/{}{}", method_prefix, endpoint_def->dispatch.uri_path);
-        ccf::instantiate_authn_policies(*endpoint_def);
-        return endpoint_def;
-      }
-
-      // TBD: templated endpoints
-      return ccf::endpoints::EndpointRegistry::find_endpoint(tx, rpc_ctx);
-    }
-
-    using PreExecutionHook = std::function<void(ccf::js::core::Context&)>;
-
-    void do_execute_request(
-      const CustomJSEndpoint* endpoint,
-      ccf::endpoints::EndpointContext& endpoint_ctx,
-      const std::optional<PreExecutionHook>& pre_exec_hook = std::nullopt)
-    {
-      // TBD: interpreter re-use logic
-      // TBD: runtime options
-      const auto interpreter_cache =
-        context.get_subsystem<ccf::js::AbstractInterpreterCache>();
-    }
-
-    void execute_request(
-      const CustomJSEndpoint* endpoint,
-      ccf::endpoints::EndpointContext& endpoint_ctx)
-    {
-      // TBD: historical queries
-      do_execute_request(endpoint, endpoint_ctx);
-    }
-
-    void execute_endpoint(
-      ccf::endpoints::EndpointDefinitionPtr e,
-      ccf::endpoints::EndpointContext& endpoint_ctx) override
-    {
-      // Handle endpoint execution
-      auto endpoint = dynamic_cast<const CustomJSEndpoint*>(e.get());
-      if (endpoint != nullptr)
-      {
-        execute_request(endpoint, endpoint_ctx);
-        return;
-      }
-
-      ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
     }
   };
 }
