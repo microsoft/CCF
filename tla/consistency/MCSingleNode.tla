@@ -1,16 +1,14 @@
 ---- MODULE MCSingleNode ----
-\* Bounded version of SingleNode
+\* Bounded version of SingleNode for model checking
 
 EXTENDS SingleNode
 
+\* Capping the number of events in the history
 CONSTANT HistoryLimit
 
 MCRwTxRequestAction ==
     /\ Len(history) < HistoryLimit
     /\ RwTxRequestAction
-
-MCRwTxExecuteAction ==
-    RwTxExecuteAction
 
 MCRwTxResponseAction ==
     /\ Len(history) < HistoryLimit
@@ -22,7 +20,7 @@ MCStatusCommittedResponseAction ==
 
 MCNextSingleNodeAction ==
     \/ MCRwTxRequestAction
-    \/ MCRwTxExecuteAction
+    \/ RwTxExecuteAction
     \/ MCRwTxResponseAction
     \/ MCStatusCommittedResponseAction
 
