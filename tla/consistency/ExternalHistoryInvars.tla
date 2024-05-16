@@ -51,7 +51,6 @@ UniqueTxRequestsInv ==
         /\ i # j
         => history[i].tx # history[j].tx
 
-
 \* Each transaction has a unique transaction ID
 UniqueTxIdsInv ==
     \A i, j \in {x \in DOMAIN history : history[x].type \in {RwTxResponse, RoTxResponse}} :
