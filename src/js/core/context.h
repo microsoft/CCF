@@ -56,7 +56,6 @@ namespace ccf::js::core
     js::extensions::Extensions extensions;
 
   public:
-    // TODO: This should really be hidden as an implementation detail
     // State which may be set by calls to populate_global_ccf_*. Likely
     // references transaction-scoped entries, so should be cleared between
     // calls. Retained handles to these globals must not access the previous
@@ -92,10 +91,6 @@ namespace ccf::js::core
       return ctx;
     }
 
-    // TODO: Caching should be removed from here, inserted by a CRTP mixin?
-    // Need a virtual "load_module" on the context itself, that throws (or is
-    // unimplemented?), then a derivation that reads from the KV, from a table
-    // specified at constructor.
     std::optional<JSWrappedValue> get_module_from_cache(
       const std::string& module_name);
     void load_module_to_cache(
@@ -209,8 +204,6 @@ namespace ccf::js::core
       return nullptr;
     }
 
-    // TODO: All of these should be removed from here, only be added by some
-    // extension
     void register_request_body_class();
   };
 }
