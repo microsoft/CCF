@@ -88,7 +88,7 @@ OnceCommittedPrevCommittedInv ==
         /\ history[j].tx_id[2] <= history[i].tx_id[2]
         => history[j].status = CommittedStatus
 
-\* If a transaction is committed then all others from greater seqnums but smaller terms are invalid
+\* If a transaction is committed then all others from greater (or equal) seqnums but strictly smaller terms are invalid
 OnceCommittedNextInvalidInv ==
     \A i, j \in TxStatusReceivedEventIndexes:
         /\ history[i].status = CommittedStatus
