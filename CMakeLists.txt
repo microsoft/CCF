@@ -1418,6 +1418,11 @@ if(BUILD_TESTS)
                       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
 
+    add_e2e_test(
+      NAME programmability
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
+    )
+
     # This test uses large requests (so too slow for SAN)
     if(NOT SAN)
       add_e2e_test(

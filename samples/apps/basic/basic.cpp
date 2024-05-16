@@ -14,7 +14,9 @@
 #include <fmt/format.h>
 
 // Custom Endpoints
+#include "ccf/bundle.h"
 #include "ccf/endpoints/authentication/js.h"
+#include "ccf/service/tables/modules.h"
 #include "custom_endpoints/endpoint.h"
 #include "js/interpreter_cache_interface.h"
 
@@ -108,6 +110,78 @@ namespace basicapp
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       };
       make_endpoint("/records", HTTP_POST, post, {ccf::user_cert_auth_policy})
+        .install();
+
+      auto put_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
+        const auto& caller_identity =
+          ctx.template get_caller<ccf::UserCOSESign1AuthnIdentity>();
+
+        // Authorization Check
+        nlohmann::json user_data = nullptr;
+        auto result =
+          get_user_data_v1(ctx.tx, caller_identity.user_id, user_data);
+        if (result == ccf::ApiResult::InternalError)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to get user data for user {}: {}",
+              caller_identity.user_id,
+              ccf::api_result_to_str(result)));
+          return;
+        }
+        const auto is_admin_it = user_data.find("isAdmin");
+
+        // Not every user gets to define custom endpoints, only users with
+        // isAdmin
+        if (
+          !user_data.is_object() || is_admin_it == user_data.end() ||
+          !is_admin_it.value().get<bool>())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Only admins may access this endpoint.");
+          return;
+        }
+        // End of Authorization Check
+
+        const auto j = nlohmann::json::parse(
+          caller_identity.content.begin(), caller_identity.content.end());
+        const auto wrapper = j.get<ccf::js::BundleWrapper>();
+
+        auto endpoints = ctx.tx.template rw<ccf::endpoints::EndpointsMap>(
+          "custom_endpoints.metadata");
+        // Similar to set_js_app
+        for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
+        {
+          for (const auto& [method, metadata] : methods)
+          {
+            std::string method_upper = method;
+            nonstd::to_upper(method_upper);
+            const auto key = ccf::endpoints::EndpointKey{url, method_upper};
+            endpoints->put(key, metadata);
+          }
+        }
+
+        auto modules =
+          ctx.tx.template rw<ccf::Modules>("custom_endpoints.modules");
+        for (const auto& [name, module] : wrapper.bundle.modules)
+        {
+          modules->put(name, module);
+        }
+        // TBD: Bytecode compilation support
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+      };
+
+      make_endpoint(
+        "custom_endpoints",
+        HTTP_PUT,
+        put_custom_endpoints,
+        {ccf::user_cose_sign1_auth_policy})
+        .set_auto_schema<void, void>()
         .install();
     }
 
