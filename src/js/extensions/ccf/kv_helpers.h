@@ -10,10 +10,10 @@ namespace ccf::js::extensions::kvhelpers
 {
   using KVMap = ::kv::untyped::Map;
 
-  using ROHandleGetter = KVMap::ReadOnlyHandle* (*)(js::core::Context& jsctx,
-                                                    JSValueConst this_val);
-  using RWHandleGetter = KVMap::Handle* (*)(js::core::Context& jsctx,
-                                            JSValueConst this_val);
+  using ROHandleGetter =
+    KVMap::ReadOnlyHandle* (*)(js::core::Context& jsctx, JSValueConst this_val);
+  using RWHandleGetter =
+    KVMap::Handle* (*)(js::core::Context& jsctx, JSValueConst this_val);
 
   static constexpr char const* access_permissions_explanation_url =
     "https://microsoft.github.io/CCF/main/audit/read_write_restrictions.html";

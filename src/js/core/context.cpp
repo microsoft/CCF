@@ -235,13 +235,13 @@ namespace ccf::js::core
       JS_FreeAtom(ctx, export_name_atom);
       if (export_name.value_or("") == func)
       {
-        auto export_func = JS_GetModuleExportEntry(ctx, module_def, i);
-        if (!JS_IsFunction(ctx, export_func))
+        auto export_func = wrap(JS_GetModuleExportEntry(ctx, module_def, i));
+        if (!JS_IsFunction(ctx, export_func.val))
         {
           throw std::runtime_error(fmt::format(
             "Export '{}' of module '{}' is not a function", func, path));
         }
-        return wrap(export_func);
+        return export_func;
       }
     }
 

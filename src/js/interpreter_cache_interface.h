@@ -45,7 +45,7 @@ namespace ccf::js
     // underlying cache functions as an LRU, evicting the interpreter which has
     // been idle the longest when the cap is reached.
     virtual void set_max_cached_interpreters(size_t max) = 0;
-    
+
     virtual void set_interpreter_factory(const InterpreterFactory& ip) = 0;
   };
 }
