@@ -46,7 +46,6 @@ Txs == Nat
 \* The order of events in the history is the order in which they were observed by a client (according to some global clock)
 VARIABLES history
 
-\* HistoryTypeOK is included here for reference but is often not checked in practice for performance reasons
 HistoryTypeOK ==
     \A i \in DOMAIN history:
         \/  /\ history[i].type \in {RwTxRequest, RoTxRequest}
