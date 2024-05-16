@@ -15,7 +15,7 @@ VARIABLES ledgerBranches
 LedgerTypeOK ==
     \A view \in DOMAIN ledgerBranches:
         \A seqnum \in DOMAIN ledgerBranches[view]:
-            \* Each ledger entry is record containing a view and optionally a tx
+            \* Each ledger entry is a record containing a view and optionally a tx
             \* The ledger entry index is its sequence number
             /\ ledgerBranches[view][seqnum].view \in Views
             /\ "tx" \in DOMAIN ledgerBranches[view][seqnum] => ledgerBranches[view][seqnum].tx \in Txs
