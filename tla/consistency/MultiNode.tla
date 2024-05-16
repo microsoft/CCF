@@ -45,6 +45,7 @@ StatusInvalidResponseAction ==
             )
     /\ UNCHANGED ledgerBranches
 
+\* Compared to SingleNode, the multi-node model has two additional actions to simulate view change
 NextMultiNodeAction ==
     \/ NextSingleNodeAction
     \/ TruncateLedgerAction
