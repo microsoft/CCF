@@ -65,7 +65,7 @@ HistoryMonoProp ==
     [][IsPrefix(history, history')]_history
 
 ----
-\* The following are helper functions for handling histories
+\* The following are helper definitions for handling histories
 
 \* Indexes into history for events where a committed status is received
 CommittedEventIndexes == 
