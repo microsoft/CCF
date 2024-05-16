@@ -94,7 +94,7 @@ OnceCommittedNextInvalidInv ==
         /\ history[i].status = CommittedStatus
         /\ history[i].tx_id[2] <= history[j].tx_id[2]
         /\ history[j].tx_id[1] < history[i].tx_id[1]
-        => history[j].status = CommittedStatus
+        => history[j].status = InvalidStatus
 
 \* If a transaction is invalid then so are all others from the same term with greater seqnums
 OnceInvalidNextInvalidInv ==
