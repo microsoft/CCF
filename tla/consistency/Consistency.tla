@@ -271,7 +271,6 @@ RoTxRequestAction ==
 
 \* Response to a read-only transaction request
 \* Assumes read-only transactions are always forwarded
-\* TODO: Separate execution and response
 RoTxResponseAction(i) ==
 \* RoTxResponseAction ==
 \*     /\ \E i \in DOMAIN history :
