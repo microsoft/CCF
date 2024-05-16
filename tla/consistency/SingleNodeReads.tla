@@ -13,7 +13,7 @@ RoTxRequestAction ==
 
 \* Response to a read-only transaction request
 \* Assumes read-only transactions are always forwarded
-\* TODO: Separate execution and response
+\* Note that unlike rw transactions, executing the read and responding is handled in one action
 RoTxResponseAction ==
     /\ \E i \in DOMAIN history :
         \* Check request has been received but not yet responded to
