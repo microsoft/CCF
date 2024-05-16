@@ -69,7 +69,22 @@ CommittedEventIndexes ==
 \* Transaction IDs which received committed status messages
 CommittedTxIDs ==
     {history[i].tx_id: i \in CommittedEventIndexes}
-        
+
+TxIDStrictlyLessThan(x, y) ==
+    \/ x[1] < y[1]
+    \/ /\ x[1] = y[1]
+       /\ x[2] < y[2]
+
+CommittedTxIDsSorted == SetToSortSeq(CommittedTxIDs, TxIDStrictlyLessThan)
+
+GetResponseIndex(tx_id) ==
+    CHOOSE i \in DOMAIN history: 
+        /\ history[i].type = RwTxResponse
+        /\ history[i].tx_id = tx_id
+
+\* TODO: replace with history filter then sorted by tx_id
+CommittedObservedSorted == [ i \in DOMAIN CommittedTxIDsSorted |-> history[GetResponseIndex(CommittedTxIDsSorted)]]
+
 InvalidEventIndexes == 
     {i \in DOMAIN history: 
         /\ history[i].type = TxStatusReceived
