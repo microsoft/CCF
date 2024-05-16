@@ -12,7 +12,8 @@ AllRwReceivedIsFirstSentInv ==
             /\ history[j].tx = history[i].tx
 
 \* Read-only transaction responses always follow an associated request
-\* TODO: extend this to handle the fact that separate reads might get the same transaction ID
+\* Note that since multiple read requests can receive the same transaction ID this
+\* invariant specifies only that at least one request was sent before the responses.
 AllRoReceivedIsFirstSentInv ==
     \A i \in DOMAIN history :
         history[i].type = RoTxResponse
