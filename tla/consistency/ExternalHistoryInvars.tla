@@ -87,6 +87,14 @@ OnceCommittedPrevCommittedInv ==
         /\ history[j].tx_id[2] <= history[i].tx_id[2]
         => history[j].status = CommittedStatus
 
+\* If a transaction is committed then all others from greater (or equal) seqnums but strictly smaller terms are invalid
+OnceCommittedNextInvalidInv ==
+    \A i, j \in TxStatusReceivedEventIndexes:
+        /\ history[i].status = CommittedStatus
+        /\ history[i].tx_id[2] <= history[j].tx_id[2]
+        /\ history[j].tx_id[1] < history[i].tx_id[1]
+        => history[j].status = InvalidStatus
+
 \* If a transaction is invalid then so are all others from the same term with greater seqnums
 OnceInvalidNextInvalidInv ==
     \A i, j \in TxStatusReceivedEventIndexes:
@@ -98,6 +106,7 @@ OnceInvalidNextInvalidInv ==
 \* The following is strengthened variant of CommittedOrInvalidInv
 CommittedOrInvalidStrongInv ==
     /\ OnceCommittedPrevCommittedInv
+    /\ OnceCommittedNextInvalidInv
     /\ OnceInvalidNextInvalidInv
 
 
