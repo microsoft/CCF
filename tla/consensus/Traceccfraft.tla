@@ -225,7 +225,6 @@ IsRcvAppendEntriesRequest ==
                  \/ RAERRAER(m):: (UNCHANGED messages /\ HandleAppendEntriesRequest(i, j, m)) \cdot HandleAppendEntriesRequest(i, j, m)
               /\ IsAppendEntriesRequest(m, i, j, logline)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
-    \* TODO /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
