@@ -35,6 +35,7 @@ namespace ccf::js::extensions
    * - ccf.crypto.generateEddsaKeyPair
    * 
    * - ccf.crypto.unwrapKey
+   * - ccf.crypto.digest
    * 
    * - ccf.crypto.isValidX509CertBundle
    * - ccf.crypto.isValidX509CertChain
