@@ -175,7 +175,7 @@ IsClientRequest ==
     /\ IsEvent("replicate")
     /\ ClientRequest(logline.msg.state.node_id)
     /\ ~logline.msg.globally_committable
-    /\ logline.cmd_prefix # "cleanup_nodes"
+    /\ logline.cmd_prefix # "cleanup_nodes" 
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
