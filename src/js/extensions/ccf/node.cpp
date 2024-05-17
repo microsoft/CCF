@@ -9,24 +9,6 @@
 
 #include <quickjs/quickjs.h>
 
-#define LOAD_FROM_EXTENSION(JSCTX) \
-  auto extension = JSCTX.get_extension<NodeExtension>(); \
-  if (extension == nullptr) \
-  { \
-    return JS_ThrowInternalError(ctx, "Failed to get extension object"); \
-  } \
-  auto gov_effects = extension->gov_effects; \
-  if (gov_effects == nullptr) \
-  { \
-    return JS_ThrowInternalError( \
-      ctx, "Failed to get governance effects object"); \
-  } \
-  auto tx_ptr = extension->tx; \
-  if (tx_ptr == nullptr) \
-  { \
-    return JS_ThrowInternalError(ctx, "Failed to get tx object"); \
-  }
-
 namespace ccf::js::extensions
 {
   namespace
@@ -44,7 +26,24 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      LOAD_FROM_EXTENSION(jsctx);
+      auto extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto tx_ptr = extension->tx;
+      if (tx_ptr == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
+      }
 
       try
       {
@@ -78,7 +77,24 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected two", argc);
       }
 
-      LOAD_FROM_EXTENSION(jsctx);
+      auto extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto tx_ptr = extension->tx;
+      if (tx_ptr == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
+      }
 
       try
       {
@@ -143,7 +159,24 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      LOAD_FROM_EXTENSION(jsctx);
+      auto extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto tx_ptr = extension->tx;
+      if (tx_ptr == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
+      }
 
       try
       {
@@ -167,7 +200,24 @@ namespace ccf::js::extensions
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
-      LOAD_FROM_EXTENSION(jsctx);
+      auto extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto tx_ptr = extension->tx;
+      if (tx_ptr == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
+      }
 
       try
       {
@@ -191,7 +241,24 @@ namespace ccf::js::extensions
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
-      LOAD_FROM_EXTENSION(jsctx);
+      auto extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto tx_ptr = extension->tx;
+      if (tx_ptr == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
+      }
 
       try
       {
@@ -215,7 +282,24 @@ namespace ccf::js::extensions
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
-      LOAD_FROM_EXTENSION(jsctx);
+      auto extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto tx_ptr = extension->tx;
+      if (tx_ptr == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
+      }
 
       try
       {

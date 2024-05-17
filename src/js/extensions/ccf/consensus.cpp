@@ -10,19 +10,6 @@
 
 #include <quickjs/quickjs.h>
 
-#define GET_ENDPOINT_REGISTRY_EXTENSION(JSCTX) \
-  auto extension = JSCTX.get_extension<ConsensusExtension>(); \
-  if (extension == nullptr) \
-  { \
-    return JS_ThrowInternalError(ctx, "Failed to get extension object"); \
-  } \
-  auto endpoint_registry = extension->endpoint_registry; \
-  if (endpoint_registry == nullptr) \
-  { \
-    return JS_ThrowInternalError( \
-      ctx, "Failed to get endpoint registry object"); \
-  }
-
 namespace ccf::js::extensions
 {
   namespace
@@ -37,7 +24,19 @@ namespace ccf::js::extensions
       }
 
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
-      GET_ENDPOINT_REGISTRY_EXTENSION(jsctx);
+
+      auto extension = jsctx.get_extension<ConsensusExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto endpoint_registry = extension->endpoint_registry;
+      if (endpoint_registry == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get endpoint registry object");
+      }
 
       ccf::View view;
       ccf::SeqNo seqno;
@@ -81,7 +80,19 @@ namespace ccf::js::extensions
       }
 
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
-      GET_ENDPOINT_REGISTRY_EXTENSION(jsctx);
+      
+      auto extension = jsctx.get_extension<ConsensusExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto endpoint_registry = extension->endpoint_registry;
+      if (endpoint_registry == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get endpoint registry object");
+      }
 
       ccf::TxStatus status;
       auto result =
@@ -115,8 +126,19 @@ namespace ccf::js::extensions
       }
 
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
-      GET_ENDPOINT_REGISTRY_EXTENSION(jsctx);
 
+      auto extension = jsctx.get_extension<ConsensusExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto endpoint_registry = extension->endpoint_registry;
+      if (endpoint_registry == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get endpoint registry object");
+      }
       ccf::View view;
       auto result = endpoint_registry->get_view_for_seqno_v1(seqno, view);
       if (result == ccf::ApiResult::NotFound)
