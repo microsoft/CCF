@@ -197,31 +197,39 @@ CommittedRwLinearizableInv ==
     /\ AllCommittedObservedInv
     /\ AtMostOnceObservedInv
 
+----
+
+\* If a transaction response is received (event i) before another transaction is requested (event j), 
+\* then tx_id of the first transaction is strictly less than the tx_id of the second transaction.
+\* Note that this invariant is only considers committed read-write transactions.
 CommittedRwOrderedRealTimeInv == 
     \A i \in RwTxResponseCommittedEventIndexes :
         \A j \in RwTxRequestCommittedEventIndexes :
                 i < j => TxIDStrictlyLessThan(history[i].tx_id, history[j].tx_id)
 
+\* Each transaction observes the previous transaction in the TxID order and its own write
+\* Note that this invariant is only considers committed read-write transactions.
 CommittedRwOrderedSerializableInv ==
-    \A i \in DOMAIN CommittedObservedSorted \ Len(CommittedObservedSorted):
-        CommittedObservedSorted[i+1].observed = Append(CommittedObservedSorted[i], CommittedObservedSorted[i+1].tx)
+    \A i \in DOMAIN CommittedRwResponseSorted \ Len(CommittedRwResponseSorted):
+        CommittedRwResponseSorted[i+1].observed = Append(CommittedRwResponseSorted[i], CommittedRwResponseSorted[i+1].tx)
 
 \* TxID ordered speculative linearizability for committed read-write transactions is the primary consistency
 \* guarantee provided by CCF. Note that this invariant is stronger than traditional linearizability.
 \* TxID ordered speculative linearizability means that once a rw transaction is committed, it is linearizable
 \* and that the ordering of execution is consistent with the order of transaction IDs.
 \* In CCF, a client receives a response before it learns that the transaction is committed, the speculative 
-\* part of speculative linearizability means that time window for real-time ordering from the client's request 
+\* part of speculative linearizability means that the time window for real-time ordering from the client's request 
 \* to its initial response, instead of to when the client learns the transaction is committed. This time window 
 \* is smaller and thus the ordering is more strict. 
 \* We check TxID ordered speculative linearizability in two stages:
-\* 1) We check that the rw committed transactions are serializable using the TxID order
+\* 1) We check that the rw committed transactions are serializable w.r.t the TxID order
 \* 2) We check that the TxID order is consistent with the real-time order of client observations
 CommittedRwOrderedSpecLinearizableInv ==
     /\ CommittedRwOrderedSerializableInv
     /\ CommittedRwOrderedRealTimeInv
 
-\*Debugging invariants to check that specific states are reachable
+----
+\* Debugging invariants to check that specific states are reachable
 
 SomeCommittedTxDebugInv == 
     Cardinality(CommittedTxIDs) = 0

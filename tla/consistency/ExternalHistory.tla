@@ -82,8 +82,10 @@ GetResponseIndex(tx_id) ==
         /\ history[i].type = RwTxResponse
         /\ history[i].tx_id = tx_id
 
+\* CommittedRwResponseSorted is a subset of history containing only the responses to committed rx transactions
+\* and sorted by tx_id (instead of by event ordering)
 \* TODO: replace with history filter then sorted by tx_id
-CommittedObservedSorted == [ i \in DOMAIN CommittedTxIDsSorted |-> history[GetResponseIndex(CommittedTxIDsSorted)]]
+CommittedRwResponseSorted == [ i \in DOMAIN CommittedTxIDsSorted |-> history[GetResponseIndex(CommittedTxIDsSorted)]]
 
 InvalidEventIndexes == 
     {i \in DOMAIN history: 
