@@ -37,7 +37,7 @@ namespace ccf::js
       Base::add_extension(
         std::make_shared<ccf::js::extensions::CryptoExtension>());
 
-      // add kv.*
+      // add ccf.kv.*
       Base::add_extension(
         std::make_shared<ccf::js::extensions::KvExtension>(tx));
     }

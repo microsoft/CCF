@@ -6,6 +6,20 @@
 
 namespace ccf::js::extensions
 {
+  /**
+   * Adds the following functions:
+   *
+   * - ccf.strToBuf
+   * - ccf.bufToStr
+   * - ccf.jsonCompatibleToBuf
+   * - ccf.bufToJsonCompatible
+   *
+   * - ccf.pemToId
+   *
+   * - ccf.enableUntrustedDateTime
+   * - ccf.enableMetricsLogging
+   *
+   **/
   class ConvertersExtension : public ExtensionInterface
   {
   public:

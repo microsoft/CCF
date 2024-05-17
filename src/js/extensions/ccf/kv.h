@@ -9,6 +9,11 @@
 
 namespace ccf::js::extensions
 {
+  /**
+   * Adds ccf.kv object, containing an index[] operator to return views over
+   * single maps.
+   *
+   **/
   class KvExtension : public ExtensionInterface
   {
   public:

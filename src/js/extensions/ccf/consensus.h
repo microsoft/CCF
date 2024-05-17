@@ -7,6 +7,14 @@
 
 namespace ccf::js::extensions
 {
+  /**
+   * Adds the following functions:
+   *
+   * - ccf.consensus.getLastCommittedTxId
+   * - ccf.consensus.getStatusForTxId
+   * - ccf.consensus.getViewForSeqno
+   *
+   **/
   class ConsensusExtension : public ExtensionInterface
   {
   public:

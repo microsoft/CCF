@@ -9,6 +9,17 @@
 
 namespace ccf::js::extensions
 {
+  /** Adds the following functions to the global object:
+   *
+   * - console.log
+   * - console.info
+   * - console.warn
+   * - console.error
+   *
+   * These redirect to the CCF logging macros, based on the current TxAccess (ie
+   * - app vs gov)
+   **/
+
   class ConsoleExtension : public ExtensionInterface
   {
   public:

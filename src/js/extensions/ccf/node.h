@@ -7,6 +7,17 @@
 
 namespace ccf::js::extensions
 {
+  /**
+   * Adds the following functions:
+   *
+   * - ccf.node.triggerLedgerRekey
+   * - ccf.node.transitionServiceToOpen
+   * - ccf.node.triggerRecoverySharesRefresh
+   * - ccf.node.triggerLedgerChunk
+   * - ccf.node.triggerSnapshot
+   * - ccf.node.triggerACMERefresh
+   *
+   **/
   class NodeExtension : public ExtensionInterface
   {
   public:

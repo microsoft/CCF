@@ -9,6 +9,16 @@
 
 namespace ccf::js::extensions
 {
+  /**
+   * Adds the following functions:
+   *
+   * - ccf.historical.getStateRange
+   * - ccf.historical.dropCachedStates
+   *
+   * Also provides create_historical_state_object for requests operating in
+   * historical mode.
+   *
+   **/
   class HistoricalExtension : public ExtensionInterface
   {
   public:

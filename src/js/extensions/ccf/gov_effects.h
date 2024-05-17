@@ -7,6 +7,17 @@
 
 namespace ccf::js::extensions
 {
+  /**
+   * Adds the following functions:
+   *
+   * - ccf.refreshAppBytecodeCache
+   * - ccf.setJwtPublicSigningKeys
+   * - ccf.removeJwtPublicSigningKeys
+   *
+   * These should potentially be moved to a nested object, but are retained here
+   * for backwards compatibility.
+   * 
+   **/
   class GovEffectsExtension : public ExtensionInterface
   {
   public:

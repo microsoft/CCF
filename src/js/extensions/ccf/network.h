@@ -7,6 +7,14 @@
 
 namespace ccf::js::extensions
 {
+  /**
+   * Adds the following functions:
+   *
+   * - ccf.network.getLatestLedgerSecretSeqno
+   * - ccf.network.generateEndorsedCertificate
+   * - ccf.network.generateNetworkCertificate
+   *
+   **/
   class NetworkExtension : public ExtensionInterface
   {
   public:

@@ -7,6 +7,13 @@
 
 namespace ccf::js::extensions
 {
+  /**
+   * Adds the following functions:
+   *
+   * - ccf.rpc.setApplyWrites
+   * - ccf.rpc.setClaimsDigest
+   *
+   **/
   class RpcExtension : public ExtensionInterface
   {
   public:

@@ -7,6 +7,12 @@
 
 namespace ccf::js::extensions
 {
+  /**
+   * Adds the following functions:
+   *
+   * - ccf.host.triggerSubprocess
+   *
+   **/
   class HostExtension : public ExtensionInterface
   {
   public:
