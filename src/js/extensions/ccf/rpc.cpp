@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#pragma once
+
+#include "js/extensions/ccf/rpc.h"
 
 #include "ccf/rpc_context.h"
 #include "js/core/context.h"
@@ -8,7 +9,7 @@
 
 #include <quickjs/quickjs.h>
 
-namespace ccf::js
+namespace ccf::js::extensions
 {
   namespace
   {
@@ -23,7 +24,13 @@ namespace ccf::js
           ctx, "Passed %d arguments but expected 1", argc);
       }
 
-      auto rpc_ctx = jsctx.globals.rpc_ctx;
+      auto extension = jsctx.get_extension<RpcExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto rpc_ctx = extension->rpc_ctx;
       if (rpc_ctx == nullptr)
       {
         return JS_ThrowInternalError(ctx, "RPC context is not set");
@@ -50,7 +57,13 @@ namespace ccf::js
           ctx, "Passed %d arguments but expected 1", argc);
       }
 
-      auto rpc_ctx = jsctx.globals.rpc_ctx;
+      auto extension = jsctx.get_extension<RpcExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto rpc_ctx = extension->rpc_ctx;
       if (rpc_ctx == nullptr)
       {
         return JS_ThrowInternalError(ctx, "RPC context is not set");
@@ -81,9 +94,10 @@ namespace ccf::js
     }
   }
 
-  JSValue create_global_rpc_object(ccf::RpcContext* rpc_ctx, JSContext* ctx)
+  void RpcExtension::install(js::core::Context& ctx)
   {
-    auto rpc = JS_NewObjectClass(ctx, rpc_class_id);
+    auto rpc = JS_NewObject(ctx);
+
     JS_SetPropertyStr(
       ctx,
       rpc,
@@ -95,6 +109,7 @@ namespace ccf::js
       "setClaimsDigest",
       JS_NewCFunction(ctx, js_rpc_set_claims_digest, "setClaimsDigest", 1));
 
-    return rpc;
+    auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
+    ccf.set("rpc", std::move(rpc));
   }
 }

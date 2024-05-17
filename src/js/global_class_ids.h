@@ -19,9 +19,7 @@ namespace ccf::js
   extern JSClassID historical_state_class_id;
 
   extern JSClassDef kv_class_def;
-  extern JSClassExoticMethods kv_exotic_methods;
   extern JSClassDef kv_historical_class_def;
-  extern JSClassExoticMethods kv_historical_exotic_methods;
   extern JSClassDef kv_map_handle_class_def;
   extern JSClassDef kv_historical_map_handle_class_def;
   extern JSClassDef body_class_def;

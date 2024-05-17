@@ -16,6 +16,18 @@ namespace ccf::js
     LRU<std::string, std::shared_ptr<js::core::Context>> lru;
     size_t cache_build_marker;
 
+    InterpreterFactory interpreter_factory = nullptr;
+
+    std::shared_ptr<js::core::Context> make_interpreter(js::TxAccess access)
+    {
+      if (interpreter_factory != nullptr)
+      {
+        return interpreter_factory(access);
+      }
+
+      return std::make_shared<js::core::Context>(access);
+    }
+
   public:
     InterpreterCache(size_t max_cache_size) : lru(max_cache_size) {}
 
@@ -63,7 +75,7 @@ namespace ccf::js
             {
               LOG_TRACE_FMT(
                 "Inserting new interpreter into cache, with key {}", key);
-              it = lru.insert(key, std::make_shared<js::core::Context>(access));
+              it = lru.insert(key, make_interpreter(access));
             }
             else
             {
@@ -79,13 +91,18 @@ namespace ccf::js
 
       // Return a fresh interpreter, not stored in the cache
       LOG_TRACE_FMT("Returning freshly constructed interpreter");
-      return std::make_shared<js::core::Context>(access);
+      return make_interpreter(access);
     }
 
     void set_max_cached_interpreters(size_t max) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       lru.set_max_size(max);
+    }
+
+    void set_interpreter_factory(const InterpreterFactory& ip) override
+    {
+      interpreter_factory = ip;
     }
   };
 }
