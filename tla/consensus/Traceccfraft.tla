@@ -175,11 +175,7 @@ IsClientRequest ==
     /\ IsEvent("replicate")
     /\ ClientRequest(logline.msg.state.node_id)
     /\ ~logline.msg.globally_committable
-    /\ logline.cmd_prefix # "cleanup_nodes"
-    \* log'[logline.msg.state.node_id].request is not checked, because it would be necessary to extract all
-    \* the request values in advance, and provision them into the spec's state. The consensus spec is agnostic
-    \* to request payloads, see the consistency spec (tla/consistency/*) for a request-differentiating,
-    \* client's-perspective spec instead.
+    /\ logline.cmd_prefix # "cleanup_nodes" 
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
