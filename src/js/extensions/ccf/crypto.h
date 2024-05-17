@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "js/extensions/iextension.h"
+#include "js/extensions/extension_interface.h"
 
 namespace ccf::js::extensions
 {
-  class CcfCryptoExtension : public IExtension
+  class CcfCryptoExtension : public ExtensionInterface
   {
   public:
     CcfCryptoExtension() {}

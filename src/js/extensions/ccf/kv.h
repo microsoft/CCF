@@ -3,13 +3,13 @@
 #pragma once
 
 #include "ccf/tx.h"
-#include "js/extensions/iextension.h"
+#include "js/extensions/extension_interface.h"
 
 #include <memory>
 
 namespace ccf::js::extensions
 {
-  class CcfKvExtension : public IExtension
+  class CcfKvExtension : public ExtensionInterface
   {
   public:
     struct Impl;

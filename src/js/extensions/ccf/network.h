@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "js/extensions/iextension.h"
+#include "js/extensions/extension_interface.h"
 #include "node/network_state.h"
 
 namespace ccf::js::extensions
 {
-  class CcfNetworkExtension : public IExtension
+  class CcfNetworkExtension : public ExtensionInterface
   {
   public:
     ccf::NetworkState* network_state;

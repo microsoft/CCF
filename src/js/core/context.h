@@ -5,7 +5,7 @@
 #include "ccf/pal/locking.h"
 #include "js/core/runtime.h"
 #include "js/core/wrapped_value.h"
-#include "js/extensions/iextension.h"
+#include "js/extensions/extension_interface.h"
 #include "js/tx_access.h"
 
 #include <chrono>

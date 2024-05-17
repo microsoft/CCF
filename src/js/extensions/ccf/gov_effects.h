@@ -3,11 +3,11 @@
 #pragma once
 
 #include "ccf/tx.h"
-#include "js/extensions/iextension.h"
+#include "js/extensions/extension_interface.h"
 
 namespace ccf::js::extensions
 {
-  class CcfGovEffectsExtension : public IExtension
+  class CcfGovEffectsExtension : public ExtensionInterface
   {
   public:
     kv::Tx* tx;

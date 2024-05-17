@@ -3,11 +3,11 @@
 #pragma once
 
 #include "ccf/rpc_context.h"
-#include "js/extensions/iextension.h"
+#include "js/extensions/extension_interface.h"
 
 namespace ccf::js::extensions
 {
-  class CcfRpcExtension : public IExtension
+  class CcfRpcExtension : public ExtensionInterface
   {
   public:
     ccf::RpcContext* rpc_ctx;

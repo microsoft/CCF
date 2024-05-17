@@ -3,13 +3,13 @@
 #pragma once
 
 #include "ccf/historical_queries_interface.h"
-#include "js/extensions/iextension.h"
+#include "js/extensions/extension_interface.h"
 
 #include <quickjs/quickjs.h>
 
 namespace ccf::js::extensions
 {
-  class CcfHistoricalExtension : public IExtension
+  class CcfHistoricalExtension : public ExtensionInterface
   {
   public:
     struct Impl;

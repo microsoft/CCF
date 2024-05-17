@@ -3,11 +3,11 @@
 #pragma once
 
 #include "ccf/node/host_processes_interface.h"
-#include "js/extensions/iextension.h"
+#include "js/extensions/extension_interface.h"
 
 namespace ccf::js::extensions
 {
-  class CcfHostExtension : public IExtension
+  class CcfHostExtension : public ExtensionInterface
   {
   public:
     ccf::AbstractHostProcesses* host_processes;

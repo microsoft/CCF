@@ -12,14 +12,14 @@ namespace ccf::js::core
 
 namespace ccf::js::extensions
 {
-  class IExtension
+  class ExtensionInterface
   {
   public:
-    virtual ~IExtension() = default;
+    virtual ~ExtensionInterface() = default;
 
     virtual void install(js::core::Context& ctx) = 0;
   };
 
-  using ExtensionPtr = std::shared_ptr<IExtension>;
+  using ExtensionPtr = std::shared_ptr<ExtensionInterface>;
   using Extensions = std::vector<ExtensionPtr>;
 }

@@ -3,11 +3,11 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
-#include "js/extensions/iextension.h"
+#include "js/extensions/extension_interface.h"
 
 namespace ccf::js::extensions
 {
-  class CcfConsensusExtension : public IExtension
+  class CcfConsensusExtension : public ExtensionInterface
   {
   public:
     ccf::BaseEndpointRegistry* endpoint_registry;
