@@ -362,7 +362,7 @@ namespace ccf::js::extensions
 
   void HistoricalExtension::install(js::core::Context& ctx)
   {
-    auto historical = JS_NewObjectClass(ctx, historical_class_id);
+    auto historical = JS_NewObject(ctx);
 
     JS_SetPropertyStr(
       ctx,

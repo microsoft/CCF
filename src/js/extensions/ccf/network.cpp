@@ -178,7 +178,7 @@ namespace ccf::js::extensions
 
   void NetworkExtension::install(js::core::Context& ctx)
   {
-    auto network = JS_NewObjectClass(ctx, network_class_id);
+    auto network = JS_NewObject(ctx);
 
     JS_SetPropertyStr(
       ctx,

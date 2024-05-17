@@ -137,7 +137,7 @@ namespace ccf::js::extensions
 
   void ConsensusExtension::install(js::core::Context& ctx)
   {
-    auto consensus = JS_NewObjectClass(ctx, consensus_class_id);
+    auto consensus = JS_NewObject(ctx);
 
     JS_SetPropertyStr(
       ctx,

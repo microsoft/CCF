@@ -96,7 +96,7 @@ namespace ccf::js::extensions
 
   void RpcExtension::install(js::core::Context& ctx)
   {
-    auto rpc = JS_NewObjectClass(ctx, rpc_class_id);
+    auto rpc = JS_NewObject(ctx);
 
     JS_SetPropertyStr(
       ctx,

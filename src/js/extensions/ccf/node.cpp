@@ -249,7 +249,7 @@ namespace ccf::js::extensions
 
   void NodeExtension::install(js::core::Context& ctx)
   {
-    auto node = JS_NewObjectClass(ctx, node_class_id);
+    auto node = JS_NewObject(ctx);
 
     JS_SetPropertyStr(
       ctx,

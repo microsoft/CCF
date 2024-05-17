@@ -73,7 +73,7 @@ namespace ccf::js::extensions
 
   void HostExtension::install(js::core::Context& ctx)
   {
-    auto host = JS_NewObjectClass(ctx, host_class_id);
+    auto host = JS_NewObject(ctx);
 
     JS_SetPropertyStr(
       ctx,
