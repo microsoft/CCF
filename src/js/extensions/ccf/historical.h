@@ -9,15 +9,15 @@
 
 namespace ccf::js::extensions
 {
-  class CcfHistoricalExtension : public ExtensionInterface
+  class HistoricalExtension : public ExtensionInterface
   {
   public:
     struct Impl;
 
     std::unique_ptr<Impl> impl;
 
-    CcfHistoricalExtension(ccf::historical::AbstractStateCache* hs);
-    ~CcfHistoricalExtension();
+    HistoricalExtension(ccf::historical::AbstractStateCache* hs);
+    ~HistoricalExtension();
 
     void install(js::core::Context& ctx) override;
 

@@ -7,13 +7,13 @@
 
 namespace ccf::js::extensions
 {
-  class CcfNetworkExtension : public ExtensionInterface
+  class NetworkExtension : public ExtensionInterface
   {
   public:
     ccf::NetworkState* network_state;
     kv::Tx* tx;
 
-    CcfNetworkExtension(ccf::NetworkState* ns, kv::Tx* t) :
+    NetworkExtension(ccf::NetworkState* ns, kv::Tx* t) :
       network_state(ns),
       tx(t)
     {}

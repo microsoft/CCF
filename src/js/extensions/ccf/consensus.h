@@ -7,12 +7,12 @@
 
 namespace ccf::js::extensions
 {
-  class CcfConsensusExtension : public ExtensionInterface
+  class ConsensusExtension : public ExtensionInterface
   {
   public:
     ccf::BaseEndpointRegistry* endpoint_registry;
 
-    CcfConsensusExtension(ccf::BaseEndpointRegistry* er) : endpoint_registry(er)
+    ConsensusExtension(ccf::BaseEndpointRegistry* er) : endpoint_registry(er)
     {}
 
     void install(js::core::Context& ctx) override;

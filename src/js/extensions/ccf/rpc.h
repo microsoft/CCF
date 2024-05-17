@@ -7,12 +7,12 @@
 
 namespace ccf::js::extensions
 {
-  class CcfRpcExtension : public ExtensionInterface
+  class RpcExtension : public ExtensionInterface
   {
   public:
     ccf::RpcContext* rpc_ctx;
 
-    CcfRpcExtension(ccf::RpcContext* rc) : rpc_ctx(rc) {}
+    RpcExtension(ccf::RpcContext* rc) : rpc_ctx(rc) {}
 
     void install(js::core::Context& ctx) override;
   };

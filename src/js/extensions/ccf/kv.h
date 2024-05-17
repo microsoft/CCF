@@ -9,15 +9,15 @@
 
 namespace ccf::js::extensions
 {
-  class CcfKvExtension : public ExtensionInterface
+  class KvExtension : public ExtensionInterface
   {
   public:
     struct Impl;
 
     std::unique_ptr<Impl> impl;
 
-    CcfKvExtension(kv::Tx* t);
-    ~CcfKvExtension();
+    KvExtension(kv::Tx* t);
+    ~KvExtension();
 
     void install(js::core::Context& ctx);
   };

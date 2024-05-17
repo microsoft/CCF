@@ -285,7 +285,7 @@ namespace ccfapp
                 ctx.get_or_create_global_property("ccf", ctx.new_obj());
               auto extension =
                 ctx
-                  .get_extension<ccf::js::extensions::CcfHistoricalExtension>();
+                  .get_extension<ccf::js::extensions::HistoricalExtension>();
               if (extension != nullptr)
               {
                 auto val =
@@ -373,12 +373,12 @@ namespace ccfapp
 
       // ccf.kv.*
       local_extensions.emplace_back(
-        std::make_shared<ccf::js::extensions::CcfKvExtension>(
+        std::make_shared<ccf::js::extensions::KvExtension>(
           &endpoint_ctx.tx));
 
       // ccf.rpc.*
       local_extensions.emplace_back(
-        std::make_shared<ccf::js::extensions::CcfRpcExtension>(
+        std::make_shared<ccf::js::extensions::RpcExtension>(
           endpoint_ctx.rpc_ctx.get()));
 
       for (auto extension : local_extensions)
@@ -704,23 +704,23 @@ namespace ccfapp
         std::make_shared<ccf::js::extensions::MathRandomExtension>());
       // add console.[debug|log|...]
       extensions.emplace_back(
-        std::make_shared<ccf::js::extensions::CcfConsoleExtension>());
+        std::make_shared<ccf::js::extensions::ConsoleExtension>());
       // add ccf.[strToBuf|bufToStr|...]
       extensions.emplace_back(
-        std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
+        std::make_shared<ccf::js::extensions::ConvertersExtension>());
       // add ccf.crypto.*
       extensions.emplace_back(
-        std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
+        std::make_shared<ccf::js::extensions::CryptoExtension>());
       // add ccf.consensus.*
       extensions.emplace_back(
-        std::make_shared<ccf::js::extensions::CcfConsensusExtension>(this));
+        std::make_shared<ccf::js::extensions::ConsensusExtension>(this));
       // add ccf.host.*
       extensions.emplace_back(
-        std::make_shared<ccf::js::extensions::CcfHostExtension>(
+        std::make_shared<ccf::js::extensions::HostExtension>(
           context.get_subsystem<ccf::AbstractHostProcesses>().get()));
       // add ccf.historical.*
       extensions.emplace_back(
-        std::make_shared<ccf::js::extensions::CcfHistoricalExtension>(
+        std::make_shared<ccf::js::extensions::HistoricalExtension>(
           &context.get_historical_state()));
 
       interpreter_cache->set_interpreter_factory(

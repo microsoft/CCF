@@ -10,7 +10,7 @@
 #include <quickjs/quickjs.h>
 
 #define LOAD_FROM_EXTENSION(JSCTX) \
-  auto extension = JSCTX.get_extension<CcfNodeExtension>(); \
+  auto extension = JSCTX.get_extension<NodeExtension>(); \
   if (extension == nullptr) \
   { \
     return JS_ThrowInternalError(ctx, "Failed to get extension object"); \
@@ -247,7 +247,7 @@ namespace ccf::js::extensions
     }
   }
 
-  void CcfNodeExtension::install(js::core::Context& ctx)
+  void NodeExtension::install(js::core::Context& ctx)
   {
     auto node = JS_NewObjectClass(ctx, node_class_id);
 

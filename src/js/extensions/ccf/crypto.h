@@ -6,10 +6,10 @@
 
 namespace ccf::js::extensions
 {
-  class CcfCryptoExtension : public ExtensionInterface
+  class CryptoExtension : public ExtensionInterface
   {
   public:
-    CcfCryptoExtension() {}
+    CryptoExtension() {}
 
     void install(js::core::Context& ctx) override;
   };

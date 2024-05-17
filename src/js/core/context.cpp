@@ -379,7 +379,7 @@ namespace ccf::js::core
       std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_time);
     if (elapsed_ms.count() >= inter->max_execution_time.count())
     {
-      extensions::CcfConsoleExtension::log_info_with_tag(
+      extensions::ConsoleExtension::log_info_with_tag(
         inter->access,
         fmt::format(
           "JS execution has timed out after {}ms (max is {}ms)",

@@ -7,13 +7,13 @@
 
 namespace ccf::js::extensions
 {
-  class CcfNodeExtension : public ExtensionInterface
+  class NodeExtension : public ExtensionInterface
   {
   public:
     ccf::AbstractGovernanceEffects* gov_effects;
     kv::Tx* tx;
 
-    CcfNodeExtension(ccf::AbstractGovernanceEffects* ge, kv::Tx* t) :
+    NodeExtension(ccf::AbstractGovernanceEffects* ge, kv::Tx* t) :
       gov_effects(ge),
       tx(t)
     {}

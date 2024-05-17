@@ -14,7 +14,7 @@
 
 namespace ccf::js::extensions
 {
-  struct CcfKvExtension::Impl
+  struct KvExtension::Impl
   {
     kv::Tx* tx;
     std::unordered_map<std::string, kv::untyped::Map::Handle*> kv_handles = {};
@@ -37,7 +37,7 @@ namespace ccf::js::extensions
         return nullptr;
       }
 
-      auto extension = jsctx.get_extension<CcfKvExtension>();
+      auto extension = jsctx.get_extension<KvExtension>();
       if (extension == nullptr)
       {
         LOG_FAIL_FMT("No KV extension available");
@@ -102,14 +102,14 @@ namespace ccf::js::extensions
     }
   }
 
-  CcfKvExtension::CcfKvExtension(kv::Tx* t)
+  KvExtension::KvExtension(kv::Tx* t)
   {
-    impl = std::make_unique<CcfKvExtension::Impl>(t);
+    impl = std::make_unique<KvExtension::Impl>(t);
   }
 
-  CcfKvExtension::~CcfKvExtension() = default;
+  KvExtension::~KvExtension() = default;
 
-  void CcfKvExtension::install(js::core::Context& ctx)
+  void KvExtension::install(js::core::Context& ctx)
   {
     auto kv = ctx.new_obj_class(kv_class_id);
 

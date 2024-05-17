@@ -11,7 +11,7 @@
 #include <quickjs/quickjs.h>
 
 #define GET_ENDPOINT_REGISTRY_EXTENSION(JSCTX) \
-  auto extension = JSCTX.get_extension<CcfConsensusExtension>(); \
+  auto extension = JSCTX.get_extension<ConsensusExtension>(); \
   if (extension == nullptr) \
   { \
     return JS_ThrowInternalError(ctx, "Failed to get extension object"); \
@@ -135,7 +135,7 @@ namespace ccf::js::extensions
     }
   }
 
-  void CcfConsensusExtension::install(js::core::Context& ctx)
+  void ConsensusExtension::install(js::core::Context& ctx)
   {
     auto consensus = JS_NewObjectClass(ctx, consensus_class_id);
 

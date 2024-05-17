@@ -194,7 +194,7 @@ namespace ccf::js::extensions
     }
   }
 
-  void CcfConvertersExtension::install(js::core::Context& ctx)
+  void ConvertersExtension::install(js::core::Context& ctx)
   {
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
 

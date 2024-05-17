@@ -6,10 +6,10 @@
 
 namespace ccf::js::extensions
 {
-  class CcfConvertersExtension : public ExtensionInterface
+  class ConvertersExtension : public ExtensionInterface
   {
   public:
-    CcfConvertersExtension() {}
+    ConvertersExtension() {}
 
     void install(js::core::Context& ctx) override;
   };

@@ -7,12 +7,12 @@
 
 namespace ccf::js::extensions
 {
-  class CcfHostExtension : public ExtensionInterface
+  class HostExtension : public ExtensionInterface
   {
   public:
     ccf::AbstractHostProcesses* host_processes;
 
-    CcfHostExtension(ccf::AbstractHostProcesses* hp) : host_processes(hp) {}
+    HostExtension(ccf::AbstractHostProcesses* hp) : host_processes(hp) {}
 
     void install(js::core::Context& ctx) override;
   };

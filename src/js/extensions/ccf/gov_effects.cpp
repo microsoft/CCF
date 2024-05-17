@@ -29,7 +29,7 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      auto extension = jsctx.get_extension<CcfGovEffectsExtension>();
+      auto extension = jsctx.get_extension<GovEffectsExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
@@ -103,7 +103,7 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 3", argc);
       }
 
-      auto extension = jsctx.get_extension<CcfGovEffectsExtension>();
+      auto extension = jsctx.get_extension<GovEffectsExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
@@ -181,7 +181,7 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 1", argc);
       }
 
-      auto extension = jsctx.get_extension<CcfGovEffectsExtension>();
+      auto extension = jsctx.get_extension<GovEffectsExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
@@ -213,7 +213,7 @@ namespace ccf::js::extensions
     }
   }
 
-  void CcfGovEffectsExtension::install(js::core::Context& ctx)
+  void GovEffectsExtension::install(js::core::Context& ctx)
   {
     auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
 

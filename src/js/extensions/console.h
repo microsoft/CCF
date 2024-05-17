@@ -9,10 +9,10 @@
 
 namespace ccf::js::extensions
 {
-  class CcfConsoleExtension : public ExtensionInterface
+  class ConsoleExtension : public ExtensionInterface
   {
   public:
-    CcfConsoleExtension() {}
+    ConsoleExtension() {}
 
     void install(js::core::Context& ctx) override;
 

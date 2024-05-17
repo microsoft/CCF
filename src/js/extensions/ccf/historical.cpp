@@ -13,7 +13,7 @@
 
 namespace ccf::js::extensions
 {
-  struct CcfHistoricalExtension::Impl
+  struct HistoricalExtension::Impl
   {
     ccf::historical::AbstractStateCache* historical_state;
 
@@ -41,7 +41,7 @@ namespace ccf::js::extensions
       }
 
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
-      auto extension = jsctx.get_extension<CcfHistoricalExtension>();
+      auto extension = jsctx.get_extension<HistoricalExtension>();
 
       if (extension == nullptr)
       {
@@ -127,7 +127,7 @@ namespace ccf::js::extensions
       }
 
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
-      auto extension = jsctx.get_extension<CcfHistoricalExtension>();
+      auto extension = jsctx.get_extension<HistoricalExtension>();
 
       if (extension == nullptr)
       {
@@ -282,7 +282,7 @@ namespace ccf::js::extensions
         JS_GetOpaque(_this_val, kv_map_handle_class_id));
 
       // Handle to historical KV
-      auto extension = jsctx.get_extension<CcfHistoricalExtension>();
+      auto extension = jsctx.get_extension<HistoricalExtension>();
       if (extension == nullptr)
       {
         LOG_FAIL_FMT("No historical extension available");
@@ -352,15 +352,15 @@ namespace ccf::js::extensions
     }
   }
 
-  CcfHistoricalExtension::CcfHistoricalExtension(
+  HistoricalExtension::HistoricalExtension(
     ccf::historical::AbstractStateCache* hs)
   {
-    impl = std::make_unique<CcfHistoricalExtension::Impl>(hs);
+    impl = std::make_unique<HistoricalExtension::Impl>(hs);
   }
 
-  CcfHistoricalExtension::~CcfHistoricalExtension() = default;
+  HistoricalExtension::~HistoricalExtension() = default;
 
-  void CcfHistoricalExtension::install(js::core::Context& ctx)
+  void HistoricalExtension::install(js::core::Context& ctx)
   {
     auto historical = JS_NewObjectClass(ctx, historical_class_id);
 
@@ -380,7 +380,7 @@ namespace ccf::js::extensions
     ccf.set("historical", std::move(historical));
   }
 
-  JSValue CcfHistoricalExtension::create_historical_state_object(
+  JSValue HistoricalExtension::create_historical_state_object(
     js::core::Context& ctx, ccf::historical::StatePtr state)
   {
     auto js_state = ctx.new_obj_class(historical_state_class_id);

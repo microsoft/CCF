@@ -1046,7 +1046,7 @@ namespace ccf::js::extensions
     }
   }
 
-  void CcfCryptoExtension::install(js::core::Context& ctx)
+  void CryptoExtension::install(js::core::Context& ctx)
   {
     auto crypto = JS_NewObject(ctx);
 

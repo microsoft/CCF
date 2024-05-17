@@ -27,19 +27,19 @@ namespace ccf::js
 
       // add console.[debug|log|...]
       Base::add_extension(
-        std::make_shared<ccf::js::extensions::CcfConsoleExtension>());
+        std::make_shared<ccf::js::extensions::ConsoleExtension>());
 
       // add ccf.[strToBuf|bufToStr|...]
       Base::add_extension(
-        std::make_shared<ccf::js::extensions::CcfConvertersExtension>());
+        std::make_shared<ccf::js::extensions::ConvertersExtension>());
 
       // add ccf.crypto.*
       Base::add_extension(
-        std::make_shared<ccf::js::extensions::CcfCryptoExtension>());
+        std::make_shared<ccf::js::extensions::CryptoExtension>());
 
       // add kv.*
       Base::add_extension(
-        std::make_shared<ccf::js::extensions::CcfKvExtension>(tx));
+        std::make_shared<ccf::js::extensions::KvExtension>(tx));
     }
   };
 

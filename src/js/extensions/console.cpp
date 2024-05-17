@@ -54,7 +54,7 @@ namespace ccf::js::extensions
       }
 
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
-      CcfConsoleExtension::log_info_with_tag(jsctx.access, ss->str());
+      ConsoleExtension::log_info_with_tag(jsctx.access, ss->str());
       return ccf::js::core::constants::Undefined;
     }
 
@@ -139,13 +139,13 @@ namespace ccf::js::extensions
     }
   }
 
-  void CcfConsoleExtension::install(js::core::Context& ctx)
+  void ConsoleExtension::install(js::core::Context& ctx)
   {
     auto global_obj = ctx.get_global_obj();
     global_obj.set("console", create_console_obj(ctx));
   }
 
-  void CcfConsoleExtension::log_info_with_tag(
+  void ConsoleExtension::log_info_with_tag(
     const ccf::js::TxAccess access, std::string_view s)
   {
     switch (access)

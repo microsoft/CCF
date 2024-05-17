@@ -24,7 +24,7 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 1", argc);
       }
 
-      auto extension = jsctx.get_extension<CcfRpcExtension>();
+      auto extension = jsctx.get_extension<RpcExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
@@ -57,7 +57,7 @@ namespace ccf::js::extensions
           ctx, "Passed %d arguments but expected 1", argc);
       }
 
-      auto extension = jsctx.get_extension<CcfRpcExtension>();
+      auto extension = jsctx.get_extension<RpcExtension>();
       if (extension == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Failed to get extension object");
@@ -94,7 +94,7 @@ namespace ccf::js::extensions
     }
   }
 
-  void CcfRpcExtension::install(js::core::Context& ctx)
+  void RpcExtension::install(js::core::Context& ctx)
   {
     auto rpc = JS_NewObjectClass(ctx, rpc_class_id);
 
