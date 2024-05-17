@@ -316,8 +316,7 @@ namespace ccf
               std::make_shared<ccf::js::extensions::NetworkExtension>(
                 &network, &tx));
             apply_js_context.add_extension(
-              std::make_shared<ccf::js::extensions::GovEffectsExtension>(
-                &tx));
+              std::make_shared<ccf::js::extensions::GovEffectsExtension>(&tx));
 
             auto apply_func = apply_js_context.get_exported_function(
               constitution,

@@ -16,7 +16,7 @@ namespace ccf::js::extensions
    *
    * These should potentially be moved to a nested object, but are retained here
    * for backwards compatibility.
-   * 
+   *
    **/
   class GovEffectsExtension : public ExtensionInterface
   {

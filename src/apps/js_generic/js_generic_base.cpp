@@ -284,8 +284,7 @@ namespace ccfapp
               auto ccf =
                 ctx.get_or_create_global_property("ccf", ctx.new_obj());
               auto extension =
-                ctx
-                  .get_extension<ccf::js::extensions::HistoricalExtension>();
+                ctx.get_extension<ccf::js::extensions::HistoricalExtension>();
               if (extension != nullptr)
               {
                 auto val =
@@ -373,8 +372,7 @@ namespace ccfapp
 
       // ccf.kv.*
       local_extensions.emplace_back(
-        std::make_shared<ccf::js::extensions::KvExtension>(
-          &endpoint_ctx.tx));
+        std::make_shared<ccf::js::extensions::KvExtension>(&endpoint_ctx.tx));
 
       // ccf.rpc.*
       local_extensions.emplace_back(

@@ -80,7 +80,7 @@ namespace ccf::js::extensions
       }
 
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
-      
+
       auto extension = jsctx.get_extension<ConsensusExtension>();
       if (extension == nullptr)
       {

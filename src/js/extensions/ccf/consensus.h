@@ -20,8 +20,7 @@ namespace ccf::js::extensions
   public:
     ccf::BaseEndpointRegistry* endpoint_registry;
 
-    ConsensusExtension(ccf::BaseEndpointRegistry* er) : endpoint_registry(er)
-    {}
+    ConsensusExtension(ccf::BaseEndpointRegistry* er) : endpoint_registry(er) {}
 
     void install(js::core::Context& ctx) override;
   };
