@@ -236,7 +236,7 @@ CommittedRwOrderedRealTimeInv ==
 CommittedRwOrderedSerializableInv ==
     \/ Len(CommittedRwResponses) < 2
     \/ \A i \in 1..Len(CommittedRwResponses)-1:
-            CommittedRwResponses[i+1].observed = Append(CommittedRwResponses[i].observed, CommittedRwResponses[i+1].tx)
+        CommittedRwResponses[i+1].observed = Append(CommittedRwResponses[i].observed, CommittedRwResponses[i+1].tx)
 
 \* TxID ordered speculative linearizability for committed read-write transactions is the primary consistency
 \* guarantee provided by CCF. Note that this invariant is stronger than traditional linearizability.
