@@ -24,6 +24,7 @@ TxStatuses == {
 \* Although views start at 1 in the consistency spec, this constant allows increasing the first branch
 \* that can be appended to, to enable trace validation against the implementation, where view starts at 2
 CONSTANT FirstBranch
+ASSUME FirstBranch \in Nat \ {0}
 
 \* Views start at 1, 0 is used a null value
 Views == Nat
@@ -37,9 +38,12 @@ TxIDs == Views \X SeqNums
 \* This models uses a dummy application where read-write transactions 
 \* append an integer to a list and then reads the list
 \* Read-only transactions simply read the list
+\* Transactions themselves simply consist of a natural number
 Txs == Nat
 
-\* History of events visible to clients
+\* History of events visible externally
+\* There is a single shared history for all nodes. The events themselves do not include timestamps.
+\* The order of events in the history is the order in which they were observed by a client (according to some global clock)
 VARIABLES history
 
 HistoryTypeOK ==
@@ -59,6 +63,9 @@ HistoryTypeOK ==
 HistoryMonoProp ==
     [][IsPrefix(history, history')]_history
 
+----
+\* The following are helper definitions for handling histories
+
 \* Indexes into history for events where a committed status is received
 CommittedEventIndexes == 
     {i \in DOMAIN history: 
@@ -70,6 +77,7 @@ CommittedEventIndexes ==
 CommittedTxIDs ==
     {history[i].tx_id: i \in CommittedEventIndexes}
 
+\* Indexes into history for events where a invalid status is received
 InvalidEventIndexes == 
     {i \in DOMAIN history: 
         /\ history[i].type = TxStatusReceived
@@ -80,7 +88,7 @@ InvalidEventIndexes ==
 InvalidTxIDs ==
     {history[i].tx_id: i \in InvalidEventIndexes}
 
-\* Highest commit sequence number
+\* Highest committed sequence number
 CommitSeqNum == 
     Max({i[2]: i \in CommittedTxIDs} \cup {0})
 
@@ -90,11 +98,12 @@ RwTxResponseEventIndexes ==
 RoTxResponseEventIndexes ==
     {x \in DOMAIN history : history[x].type = RoTxResponse}
 
+\* Indexes into history for events where a transaction was responded to
 TxResponseEventIndexes ==
     RwTxResponseEventIndexes \union RoTxResponseEventIndexes
 
-
-\* Note these index are the events where the transaction was responded to
+\* Indexes into history for events where a committed rw transaction was responded to
+\* Note these index are the events where the transaction was responded to, not the events where the transaction was committed
 RwTxResponseCommittedEventIndexes ==
     {x \in DOMAIN history : 
         /\ history[x].type = RwTxResponse
