@@ -341,9 +341,7 @@ IsRcvRequestVoteRequest ==
                   \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteRequest(i, j, m)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
-    \*TODO/\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-    \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsExecuteAppendEntries ==
     \* Skip append because ccfraft!HandleRequestVoteRequest atomically handles the request, sends the response,
@@ -354,10 +352,8 @@ IsExecuteAppendEntries ==
        /\ UNCHANGED vars
        /\ leadershipState[logline.msg.state.node_id] = Follower
        /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
-       \* TODO: /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
        /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
        /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-       \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsRcvRequestVoteResponse ==
     /\ IsEvent("recv_request_vote_response")
@@ -375,7 +371,6 @@ IsRcvRequestVoteResponse ==
                \/ DropResponseWhenNotInState(i, j, m)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
-    \*TODO/\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
