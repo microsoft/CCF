@@ -199,19 +199,36 @@ CommittedRwLinearizableInv ==
 
 ----
 
+\* Ordering over txIDs, the form of which is <<view,seqnum>>
+TxIDStrictlyLessThan(x, y) ==
+    \/ x[1] < y[1]
+    \/ /\ x[1] = y[1]
+       /\ x[2] < y[2]
+
+\* CommittedRwResponseSorted is a subset of history containing only the responses to committed rx transactions
+\* and sorted by tx_id (instead of by event ordering)
+CommittedRwResponses == 
+    SetToSortSeq({history[i]: i \in RwTxResponseCommittedEventIndexes}, 
+    LAMBDA x,y : TxIDStrictlyLessThan(x.tx_id, y.tx_id))
+
+
 \* If a transaction response is received (event i) before another transaction is requested (event j), 
 \* then tx_id of the first transaction is strictly less than the tx_id of the second transaction.
 \* Note that this invariant is only considers committed read-write transactions.
 CommittedRwOrderedRealTimeInv == 
     \A i \in RwTxResponseCommittedEventIndexes :
         \A j \in RwTxRequestCommittedEventIndexes :
-                i < j => TxIDStrictlyLessThan(history[i].tx_id, history[j].tx_id)
+            \A k \in RoTxResponseCommittedEventIndexes :
+                /\ history[k].tx = history[j].tx
+                /\ i < j 
+                => TxIDStrictlyLessThan(history[i].tx_id, history[k].tx_id)
 
 \* Each transaction observes the previous transaction in the TxID order and its own write
 \* Note that this invariant is only considers committed read-write transactions.
 CommittedRwOrderedSerializableInv ==
-    \A i \in DOMAIN CommittedRwResponseSorted \ Len(CommittedRwResponseSorted):
-        CommittedRwResponseSorted[i+1].observed = Append(CommittedRwResponseSorted[i], CommittedRwResponseSorted[i+1].tx)
+    \/ Len(CommittedRwResponses) < 2
+    \/ \A i \in 1..Len(CommittedRwResponses)-1:
+            CommittedRwResponses[i+1].observed = Append(CommittedRwResponses[i].observed, CommittedRwResponses[i+1].tx)
 
 \* TxID ordered speculative linearizability for committed read-write transactions is the primary consistency
 \* guarantee provided by CCF. Note that this invariant is stronger than traditional linearizability.

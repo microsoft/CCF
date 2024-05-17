@@ -70,23 +70,6 @@ CommittedEventIndexes ==
 CommittedTxIDs ==
     {history[i].tx_id: i \in CommittedEventIndexes}
 
-TxIDStrictlyLessThan(x, y) ==
-    \/ x[1] < y[1]
-    \/ /\ x[1] = y[1]
-       /\ x[2] < y[2]
-
-CommittedTxIDsSorted == SetToSortSeq(CommittedTxIDs, TxIDStrictlyLessThan)
-
-GetResponseIndex(tx_id) ==
-    CHOOSE i \in DOMAIN history: 
-        /\ history[i].type = RwTxResponse
-        /\ history[i].tx_id = tx_id
-
-\* CommittedRwResponseSorted is a subset of history containing only the responses to committed rx transactions
-\* and sorted by tx_id (instead of by event ordering)
-\* TODO: replace with history filter then sorted by tx_id
-CommittedRwResponseSorted == [ i \in DOMAIN CommittedTxIDsSorted |-> history[GetResponseIndex(CommittedTxIDsSorted)]]
-
 InvalidEventIndexes == 
     {i \in DOMAIN history: 
         /\ history[i].type = TxStatusReceived
