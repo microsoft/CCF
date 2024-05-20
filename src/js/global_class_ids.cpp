@@ -10,7 +10,6 @@ namespace ccf::js
   JSClassID kv_class_id = 0;
   JSClassID kv_historical_class_id = 0;
   JSClassID kv_map_handle_class_id = 0;
-  JSClassID body_class_id = 0;
   JSClassID node_class_id = 0;
   JSClassID network_class_id = 0;
   JSClassID rpc_class_id = 0;
@@ -21,7 +20,6 @@ namespace ccf::js
 
   JSClassDef kv_map_handle_class_def = {};
   JSClassDef kv_historical_map_handle_class_def = {};
-  JSClassDef body_class_def = {};
   JSClassDef node_class_def = {};
   JSClassDef network_class_def = {};
   JSClassDef rpc_class_def = {};
@@ -38,9 +36,6 @@ namespace ccf::js
 
     JS_NewClassID(&kv_map_handle_class_id);
     kv_map_handle_class_def.class_name = "KV Map Handle";
-
-    JS_NewClassID(&body_class_id);
-    body_class_def.class_name = "Current Request Body";
 
     JS_NewClassID(&node_class_id);
     node_class_def.class_name = "Node";
