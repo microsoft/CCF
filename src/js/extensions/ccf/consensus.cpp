@@ -6,7 +6,6 @@
 #include "ccf/base_endpoint_registry.h"
 #include "js/checks.h"
 #include "js/core/context.h"
-#include "js/global_class_ids.h"
 
 #include <quickjs/quickjs.h>
 
