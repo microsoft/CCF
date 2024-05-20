@@ -4,7 +4,6 @@
 #include "js/global_class_ids.h"
 
 #include "js/core/context.h"
-#include "js/globals/ccf/kv.h"
 
 namespace ccf::js
 {
@@ -20,10 +19,6 @@ namespace ccf::js
   JSClassID historical_class_id = 0;
   JSClassID historical_state_class_id = 0;
 
-  JSClassDef kv_class_def = {};
-  JSClassExoticMethods kv_exotic_methods = {};
-  JSClassDef kv_historical_class_def = {};
-  JSClassExoticMethods kv_historical_exotic_methods = {};
   JSClassDef kv_map_handle_class_def = {};
   JSClassDef kv_historical_map_handle_class_def = {};
   JSClassDef body_class_def = {};
@@ -38,14 +33,8 @@ namespace ccf::js
   void register_class_ids()
   {
     JS_NewClassID(&kv_class_id);
-    kv_exotic_methods.get_own_property = js_kv_lookup;
-    kv_class_def.class_name = "KV Tables";
-    kv_class_def.exotic = &kv_exotic_methods;
 
     JS_NewClassID(&kv_historical_class_id);
-    kv_historical_exotic_methods.get_own_property = js_historical_kv_lookup;
-    kv_historical_class_def.class_name = "Read-only Historical KV Tables";
-    kv_historical_class_def.exotic = &kv_historical_exotic_methods;
 
     JS_NewClassID(&kv_map_handle_class_id);
     kv_map_handle_class_def.class_name = "KV Map Handle";

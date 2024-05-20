@@ -1,16 +1,21 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#pragma once
+
+#include "js/extensions/ccf/crypto.h"
+
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/eddsa_key_pair.h"
 #include "ccf/crypto/entropy.h"
+#include "ccf/crypto/hmac.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/sha256.h"
+#include "ccf/crypto/verifier.h"
+#include "js/checks.h"
 #include "js/core/context.h"
 #include "tls/ca.h"
 
-namespace ccf::js::globals
+namespace ccf::js::extensions
 {
   namespace
   {
@@ -1041,7 +1046,7 @@ namespace ccf::js::globals
     }
   }
 
-  void populate_global_ccf_crypto(js::core::Context& ctx)
+  void CryptoExtension::install(js::core::Context& ctx)
   {
     auto crypto = JS_NewObject(ctx);
 
@@ -1180,8 +1185,7 @@ namespace ccf::js::globals
       JS_NewCFunction(
         ctx, js_is_valid_x509_cert_chain, "isValidX509CertChain", 2));
 
-    auto ccf = ctx.get_global_property("ccf");
+    auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
     ccf.set("crypto", std::move(crypto));
   }
-
 }

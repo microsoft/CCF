@@ -3,6 +3,10 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "js/common_context.h"
+#include "js/extensions/ccf/gov_effects.h"
+#include "js/extensions/ccf/network.h"
+#include "js/extensions/ccf/node.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 
@@ -129,7 +133,7 @@ namespace ccf::gov::endpoints
       ccf::NetworkState& network,
       kv::Tx& tx,
       const ProposalId& proposal_id,
-      const std::span<const uint8_t>& proposal,
+      const std::span<const uint8_t>& proposal_bytes,
       ccf::jsgov::ProposalInfo& proposal_info,
       const std::string& constitution)
     {
@@ -138,15 +142,18 @@ namespace ccf::gov::endpoints
       ccf::jsgov::Votes votes = {};
       ccf::jsgov::VoteFailures vote_failures = {};
 
+      const std::string_view proposal{
+        (const char*)proposal_bytes.data(), proposal_bytes.size()};
+
       auto proposal_info_handle = tx.template rw<ccf::jsgov::ProposalInfoMap>(
         jsgov::Tables::PROPOSALS_INFO);
 
       // Evaluate ballots
       for (const auto& [mid, mb] : proposal_info.ballots)
       {
-        js::core::Context js_context(js::TxAccess::GOV_RO);
-        js_context.populate_global_ccf_kv(tx);
-        auto ballot_func = js_context.function(
+        js::CommonContext js_context(js::TxAccess::GOV_RO, &tx);
+
+        auto ballot_func = js_context.get_exported_function(
           mb,
           "vote",
           fmt::format(
@@ -156,11 +163,8 @@ namespace ccf::gov::endpoints
             mid));
 
         std::vector<js::core::JSWrappedValue> argv = {
-          js_context.new_string_len(
-            (const char*)proposal.data(), proposal.size()),
-          js_context.new_string_len(
-            proposal_info.proposer_id.data(),
-            proposal_info.proposer_id.size())};
+          js_context.new_string(proposal),
+          js_context.new_string(proposal_info.proposer_id.value())};
 
         auto val = js_context.call_with_rt_options(
           ballot_func,
@@ -189,20 +193,18 @@ namespace ccf::gov::endpoints
       // votes, there is no change to the proposal stored in the KV.
       {
         {
-          js::core::Context js_context(js::TxAccess::GOV_RO);
-          js_context.populate_global_ccf_kv(tx);
-          auto resolve_func = js_context.function(
+          js::CommonContext js_context(js::TxAccess::GOV_RO, &tx);
+
+          auto resolve_func = js_context.get_exported_function(
             constitution,
             "resolve",
             fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
           std::vector<js::core::JSWrappedValue> argv;
-          argv.push_back(js_context.new_string_len(
-            (const char*)proposal.data(), proposal.size()));
+          argv.push_back(js_context.new_string(proposal));
 
-          argv.push_back(js_context.new_string_len(
-            proposal_info.proposer_id.data(),
-            proposal_info.proposer_id.size()));
+          argv.push_back(
+            js_context.new_string(proposal_info.proposer_id.value()));
 
           auto vs = js_context.new_array();
           size_t index = 0;
@@ -224,8 +226,7 @@ namespace ccf::gov::endpoints
           // Also pass the proposal_id as a string. This is useful for proposals
           // that want to refer to themselves in the resolve function, for
           // example to examine/distinguish themselves other pending proposals.
-          argv.push_back(
-            js_context.new_string_len(proposal_id.data(), proposal_id.size()));
+          argv.push_back(js_context.new_string(proposal_id));
 
           auto val = js_context.call_with_rt_options(
             resolve_func,
@@ -288,8 +289,6 @@ namespace ccf::gov::endpoints
           if (proposal_info.state == ProposalState::ACCEPTED)
           {
             // Evaluate apply function
-            js::core::Context js_context(js::TxAccess::GOV_RW);
-
             auto gov_effects =
               context.get_subsystem<AbstractGovernanceEffects>();
             if (gov_effects == nullptr)
@@ -298,21 +297,25 @@ namespace ccf::gov::endpoints
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
-            js_context.populate_global_ccf_kv(tx);
-            js_context.populate_global_ccf_node(gov_effects.get());
-            js_context.populate_global_ccf_network(&network);
-            js_context.populate_global_ccf_gov_actions();
+            js::CommonContext js_context(js::TxAccess::GOV_RW, &tx);
 
-            auto apply_func = js_context.function(
+            js_context.add_extension(
+              std::make_shared<ccf::js::extensions::NodeExtension>(
+                gov_effects.get(), &tx));
+            js_context.add_extension(
+              std::make_shared<ccf::js::extensions::NetworkExtension>(
+                &network, &tx));
+            js_context.add_extension(
+              std::make_shared<ccf::js::extensions::GovEffectsExtension>(&tx));
+
+            auto apply_func = js_context.get_exported_function(
               constitution,
               "apply",
               fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
             std::vector<js::core::JSWrappedValue> argv = {
-              js_context.new_string_len(
-                (const char*)proposal.data(), proposal.size()),
-              js_context.new_string_len(
-                proposal_id.c_str(), proposal_id.size())};
+              js_context.new_string(proposal),
+              js_context.new_string(proposal_id)};
 
             auto val = js_context.call_with_rt_options(
               apply_func,
@@ -442,15 +445,14 @@ namespace ccf::gov::endpoints
               return;
             }
 
-            js::core::Context context(js::TxAccess::GOV_RO);
-            context.populate_global_ccf_kv(ctx.tx);
+            js::CommonContext context(js::TxAccess::GOV_RO, &ctx.tx);
 
-            auto validate_func = context.function(
+            auto validate_func = context.get_exported_function(
               constitution.value(),
               "validate",
               fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
-            auto proposal_arg = context.new_string_len(proposal_body);
+            auto proposal_arg = context.new_string_len(cose_ident.content);
             auto validate_result = context.call_with_rt_options(
               validate_func,
               {proposal_arg},

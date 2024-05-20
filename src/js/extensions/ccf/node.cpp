@@ -1,15 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#pragma once
+
+#include "js/extensions/ccf/node.h"
 
 #include "js/core/context.h"
 #include "js/global_class_ids.h"
-#include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/gov_logging.h"
 
 #include <quickjs/quickjs.h>
 
-namespace ccf::js
+namespace ccf::js::extensions
 {
   namespace
   {
@@ -26,15 +26,23 @@ namespace ccf::js
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
-        JS_GetOpaque(this_val, node_class_id));
+      auto extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
 
-      auto tx_ptr = jsctx.globals.tx;
-
-      if (tx_ptr == nullptr)
+      auto gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
       {
         return JS_ThrowInternalError(
-          ctx, "No transaction available to rekey ledger");
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto tx_ptr = extension->tx;
+      if (tx_ptr == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
       }
 
       try
@@ -69,20 +77,23 @@ namespace ccf::js
           ctx, "Passed %d arguments but expected two", argc);
       }
 
-      auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
-        JS_GetOpaque(this_val, node_class_id));
-
-      if (gov_effects == nullptr)
+      auto extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
       {
-        return JS_ThrowInternalError(ctx, "Node state is not set");
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
       }
 
-      auto tx_ptr = jsctx.globals.tx;
-
-      if (tx_ptr == nullptr)
+      auto gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
       {
         return JS_ThrowInternalError(
-          ctx, "No transaction available to open service");
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto tx_ptr = extension->tx;
+      if (tx_ptr == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
       }
 
       try
@@ -148,14 +159,23 @@ namespace ccf::js
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
-        JS_GetOpaque(this_val, node_class_id));
-      auto tx_ptr = jsctx.globals.tx;
+      auto extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
 
-      if (tx_ptr == nullptr)
+      auto gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
       {
         return JS_ThrowInternalError(
-          ctx, "No transaction available to open service");
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto tx_ptr = extension->tx;
+      if (tx_ptr == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
       }
 
       try
@@ -180,13 +200,23 @@ namespace ccf::js
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
-      auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
-        JS_GetOpaque(this_val, node_class_id));
-      auto tx_ptr = jsctx.globals.tx;
+      auto extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
 
+      auto gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto tx_ptr = extension->tx;
       if (tx_ptr == nullptr)
       {
-        return JS_ThrowInternalError(ctx, "No transaction available");
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
       }
 
       try
@@ -211,13 +241,23 @@ namespace ccf::js
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
-      auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
-        JS_GetOpaque(this_val, node_class_id));
-      auto tx_ptr = jsctx.globals.tx;
+      auto extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
 
+      auto gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto tx_ptr = extension->tx;
       if (tx_ptr == nullptr)
       {
-        return JS_ThrowInternalError(ctx, "No transaction available");
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
       }
 
       try
@@ -242,13 +282,23 @@ namespace ccf::js
     {
       js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
-      auto gov_effects = static_cast<ccf::AbstractGovernanceEffects*>(
-        JS_GetOpaque(this_val, node_class_id));
-      auto tx_ptr = jsctx.globals.tx;
+      auto extension = jsctx.get_extension<NodeExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
 
+      auto gov_effects = extension->gov_effects;
+      if (gov_effects == nullptr)
+      {
+        return JS_ThrowInternalError(
+          ctx, "Failed to get governance effects object");
+      }
+
+      auto tx_ptr = extension->tx;
       if (tx_ptr == nullptr)
       {
-        return JS_ThrowInternalError(ctx, "No transaction available");
+        return JS_ThrowInternalError(ctx, "Failed to get tx object");
       }
 
       try
@@ -258,7 +308,7 @@ namespace ccf::js
         if (argc > 0)
         {
           std::vector<std::string> interfaces;
-          JSValue r = jsctx.get_string_array(argv[0], interfaces);
+          JSValue r = jsctx.extract_string_array(argv[0], interfaces);
 
           if (!JS_IsUndefined(r))
           {
@@ -281,11 +331,10 @@ namespace ccf::js
     }
   }
 
-  JSValue create_global_node_object(
-    ccf::AbstractGovernanceEffects* gov_effects, JSContext* ctx)
+  void NodeExtension::install(js::core::Context& ctx)
   {
-    auto node = JS_NewObjectClass(ctx, node_class_id);
-    JS_SetOpaque(node, gov_effects);
+    auto node = JS_NewObject(ctx);
+
     JS_SetPropertyStr(
       ctx,
       node,
@@ -323,6 +372,7 @@ namespace ccf::js
       "triggerACMERefresh",
       JS_NewCFunction(ctx, js_trigger_acme_refresh, "triggerACMERefresh", 0));
 
-    return node;
+    auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
+    ccf.set("node", std::move(node));
   }
 }
