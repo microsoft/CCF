@@ -35,14 +35,7 @@ namespace ccf::js::core
       {kv_class_id, &kv_class_def},
       {kv_historical_class_id, &kv_historical_class_def},
       {kv_map_handle_class_id, &kv_map_handle_class_def},
-      {body_class_id, &body_class_def},
-      {node_class_id, &node_class_def},
-      {network_class_id, &network_class_def},
-      {rpc_class_id, &rpc_class_def},
-      {host_class_id, &host_class_def},
-      {consensus_class_id, &consensus_class_def},
-      {historical_class_id, &historical_class_def},
-      {historical_state_class_id, &historical_state_class_def}};
+      {body_class_id, &body_class_def}};
     for (auto [class_id, class_def] : classes)
     {
       auto ret = JS_NewClass(rt, class_id, class_def);
