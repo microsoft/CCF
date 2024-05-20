@@ -8,11 +8,6 @@
 #include "js/core/wrapped_value.h"
 #include "js/extensions/extension_interface.h"
 
-namespace ccf::js
-{
-  struct JSDynamicEndpoint;
-}
-
 namespace ccfapp
 {
   /**
@@ -27,9 +22,9 @@ namespace ccfapp
     void install(ccf::js::core::Context& ctx) override;
 
     ccf::js::core::JSWrappedValue create_request_obj(
-      const ccf::js::JSDynamicEndpoint* endpoint,
-      ccf::endpoints::EndpointContext& endpoint_ctx,
       ccf::js::core::Context& ctx,
+      std::string_view full_request_path,
+      ccf::endpoints::EndpointContext& endpoint_ctx,
       ccf::BaseEndpointRegistry* registry);
   };
 }

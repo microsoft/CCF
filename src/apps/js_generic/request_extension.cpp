@@ -10,7 +10,6 @@
 #include "ccf/endpoints/authentication/empty_auth.h"
 #include "ccf/endpoints/authentication/jwt_auth.h"
 #include "js/core/context.h"
-#include "js/interpreter_cache_interface.h" // For JSDynamicEndpoint!
 
 #include <quickjs/quickjs.h>
 
@@ -109,9 +108,9 @@ namespace ccfapp
     }
 
     ccf::js::core::JSWrappedValue create_caller_ident_obj(
+      ccf::js::core::Context& ctx,
       ccf::endpoints::EndpointContext& endpoint_ctx,
       const std::unique_ptr<ccf::AuthnIdentity>& ident,
-      ccf::js::core::Context& ctx,
       ccf::BaseEndpointRegistry* registry)
     {
       if (ident == nullptr)
@@ -160,7 +159,7 @@ namespace ccfapp
           policy.set_at_index(i++, ctx.new_string(name));
           caller.set(
             name,
-            create_caller_ident_obj(endpoint_ctx, sub_ident, ctx, registry));
+            create_caller_ident_obj(ctx, endpoint_ctx, sub_ident, registry));
         }
         caller.set("policy", std::move(policy));
         return caller;
@@ -251,12 +250,12 @@ namespace ccfapp
     }
 
     ccf::js::core::JSWrappedValue create_caller_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx,
       ccf::js::core::Context& ctx,
+      ccf::endpoints::EndpointContext& endpoint_ctx,
       ccf::BaseEndpointRegistry* registry)
     {
       return create_caller_ident_obj(
-        endpoint_ctx, endpoint_ctx.caller, ctx, registry);
+        ctx, endpoint_ctx, endpoint_ctx.caller, registry);
     }
   }
 
@@ -266,9 +265,9 @@ namespace ccfapp
   }
 
   ccf::js::core::JSWrappedValue RequestExtension::create_request_obj(
-    const ccf::js::JSDynamicEndpoint* endpoint,
-    ccf::endpoints::EndpointContext& endpoint_ctx,
     ccf::js::core::Context& ctx,
+    std::string_view full_request_path,
+    ccf::endpoints::EndpointContext& endpoint_ctx,
     ccf::BaseEndpointRegistry* registry)
   {
     auto request = ctx.new_obj();
@@ -305,8 +304,7 @@ namespace ccfapp
       request.set_null("hostname");
     }
 
-    const auto request_route = endpoint->full_uri_path;
-    auto route_str = ctx.new_string(request_route);
+    auto route_str = ctx.new_string(full_request_path);
     request.set("route", std::move(route_str));
 
     auto request_url = request_path;
@@ -337,7 +335,7 @@ namespace ccfapp
       JS_NewCFunction(ctx, js_body_array_buffer, "arrayBuffer", 0));
     request.set("body", std::move(body));
 
-    request.set("caller", create_caller_obj(endpoint_ctx, ctx, registry));
+    request.set("caller", create_caller_obj(ctx, endpoint_ctx, registry));
 
     return request;
   }

@@ -194,7 +194,7 @@ namespace ccfapp
 
       // Call exported function;
       auto request = request_extension->create_request_obj(
-        endpoint, endpoint_ctx, ctx, this);
+        ctx, endpoint->full_uri_path, endpoint_ctx, this);
 
       auto val = ctx.call_with_rt_options(
         export_func,
