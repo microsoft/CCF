@@ -590,10 +590,11 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
   set(JS_SNP_ATTESTATION_VIRTUAL js_snp_attestation.virtual)
 endif()
 
+set(JS_GENERIC_SOURCES ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
+                       ${CCF_DIR}/src/apps/js_generic/request_extension.cpp
+)
 if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library(
-    js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
-  )
+  add_enclave_library(js_generic_base.enclave ${JS_GENERIC_SOURCES})
   target_link_libraries(js_generic_base.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_generic_base.enclave)
   install(
@@ -602,10 +603,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
     DESTINATION lib
   )
 elseif(COMPILE_TARGET STREQUAL "snp")
-  add_library(
-    js_generic_base.snp STATIC
-    ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
-  )
+  add_library(js_generic_base.snp STATIC ${JS_GENERIC_SOURCES})
   add_san(js_generic_base.snp)
   add_warning_checks(js_generic_base.snp)
   target_link_libraries(js_generic_base.snp PUBLIC ccf.snp)
@@ -621,10 +619,7 @@ elseif(COMPILE_TARGET STREQUAL "snp")
     DESTINATION lib
   )
 elseif(COMPILE_TARGET STREQUAL "virtual")
-  add_library(
-    js_generic_base.virtual STATIC
-    ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
-  )
+  add_library(js_generic_base.virtual STATIC ${JS_GENERIC_SOURCES})
   add_san(js_generic_base.virtual)
   add_warning_checks(js_generic_base.virtual)
   target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)

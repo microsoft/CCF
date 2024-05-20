@@ -104,8 +104,8 @@ namespace ccf
     {
       auto sig = store.create_reserved_tx(txid);
       auto signatures =
-        sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      auto serialised_tree = sig.template rw<ccf::SerialisedMerkleTree>(
+        sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
       PrimarySignature sig_value(id, txid.version);
       signatures->put(sig_value);
@@ -330,8 +330,8 @@ namespace ccf
     {
       auto sig = store.create_reserved_tx(txid);
       auto signatures =
-        sig.template rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      auto serialised_tree = sig.template rw<ccf::SerialisedMerkleTree>(
+        sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
       crypto::Sha256Hash root = history.get_replicated_state_root();
 
