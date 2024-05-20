@@ -56,15 +56,6 @@ namespace ccf::js::core
     js::extensions::Extensions extensions;
 
   public:
-    // State which may be set by calls to populate_global_ccf_*. Likely
-    // references transaction-scoped entries, so should be cleared between
-    // calls. Retained handles to these globals must not access the previous
-    // values.
-    struct
-    {
-      const std::vector<uint8_t>* current_request_body = nullptr;
-    } globals;
-
     ccf::pal::Mutex lock;
 
     const TxAccess access;
@@ -203,7 +194,5 @@ namespace ccf::js::core
 
       return nullptr;
     }
-
-    void register_request_body_class();
   };
 }

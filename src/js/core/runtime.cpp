@@ -35,7 +35,6 @@ namespace ccf::js::core
       {kv_class_id, &kv_class_def},
       {kv_historical_class_id, &kv_historical_class_def},
       {kv_map_handle_class_id, &kv_map_handle_class_def},
-      {body_class_id, &body_class_def},
       {node_class_id, &node_class_def},
       {network_class_id, &network_class_def},
       {rpc_class_id, &rpc_class_def},
