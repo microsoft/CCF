@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "js/extensions/ccf/request.h"
+#include "apps/js_generic/request_extension.h"
 
 #include "apps/js_generic/named_auth_policies.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
@@ -14,7 +14,7 @@
 
 #include <quickjs/quickjs.h>
 
-namespace ccf::js::extensions
+namespace ccfapp
 {
   namespace
   {
@@ -28,7 +28,8 @@ namespace ccf::js::extensions
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected none", argc);
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      ccf::js::core::Context& jsctx =
+        *(ccf::js::core::Context*)JS_GetContextOpaque(ctx);
 
       auto extension = jsctx.get_extension<RequestExtension>();
       if (extension == nullptr)
@@ -57,7 +58,8 @@ namespace ccf::js::extensions
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected none", argc);
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      ccf::js::core::Context& jsctx =
+        *(ccf::js::core::Context*)JS_GetContextOpaque(ctx);
 
       auto extension = jsctx.get_extension<RequestExtension>();
       if (extension == nullptr)
@@ -87,7 +89,8 @@ namespace ccf::js::extensions
         return JS_ThrowTypeError(
           ctx, "Passed %d arguments, but expected none", argc);
 
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+      ccf::js::core::Context& jsctx =
+        *(ccf::js::core::Context*)JS_GetContextOpaque(ctx);
 
       auto extension = jsctx.get_extension<RequestExtension>();
       if (extension == nullptr)
@@ -105,10 +108,10 @@ namespace ccf::js::extensions
       return JS_NewArrayBufferCopy(ctx, body.data(), body.size());
     }
 
-    js::core::JSWrappedValue create_caller_ident_obj(
+    ccf::js::core::JSWrappedValue create_caller_ident_obj(
       ccf::endpoints::EndpointContext& endpoint_ctx,
       const std::unique_ptr<ccf::AuthnIdentity>& ident,
-      js::core::Context& ctx,
+      ccf::js::core::Context& ctx,
       ccf::BaseEndpointRegistry* registry)
     {
       if (ident == nullptr)
@@ -247,9 +250,9 @@ namespace ccf::js::extensions
       return caller;
     }
 
-    js::core::JSWrappedValue create_caller_obj(
+    ccf::js::core::JSWrappedValue create_caller_obj(
       ccf::endpoints::EndpointContext& endpoint_ctx,
-      js::core::Context& ctx,
+      ccf::js::core::Context& ctx,
       ccf::BaseEndpointRegistry* registry)
     {
       return create_caller_ident_obj(
@@ -257,15 +260,15 @@ namespace ccf::js::extensions
     }
   }
 
-  void RequestExtension::install(js::core::Context& ctx)
+  void RequestExtension::install(ccf::js::core::Context& ctx)
   {
     // Nothing to do - does not modify the global object.
   }
 
-  js::core::JSWrappedValue RequestExtension::create_request_obj(
+  ccf::js::core::JSWrappedValue RequestExtension::create_request_obj(
     const ccf::js::JSDynamicEndpoint* endpoint,
     ccf::endpoints::EndpointContext& endpoint_ctx,
-    js::core::Context& ctx,
+    ccf::js::core::Context& ctx,
     ccf::BaseEndpointRegistry* registry)
   {
     auto request = ctx.new_obj();
