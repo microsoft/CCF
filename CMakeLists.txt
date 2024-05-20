@@ -349,6 +349,7 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/extensions/ccf/kv.cpp
     ${CCF_DIR}/src/js/extensions/ccf/network.cpp
     ${CCF_DIR}/src/js/extensions/ccf/node.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/request.cpp
     ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
 )
 
