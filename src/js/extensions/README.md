@@ -1,0 +1,1 @@
+Files within this directory structure contain code which populate globals on the JS runtime environment. They should be named and nested to match the name of the global they insert. For instance `extensions/console.h` populates the object `console` in a JS env, and `extensions/ccf/crypto.h` populates `ccf.crypto`.

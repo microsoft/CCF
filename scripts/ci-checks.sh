@@ -36,8 +36,9 @@ group "Shell scripts"
 git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091,SC2181
 endgroup
 
+# No inline TODOs in the codebase, use tickets, with a pointer to the code if necessary.
 group "TODOs"
-"$SCRIPT_DIR"/check-todo.sh include src
+"$SCRIPT_DIR"/check-todo.sh .
 endgroup
 
 group "Public includes"

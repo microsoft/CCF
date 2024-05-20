@@ -11,6 +11,15 @@
 #include "enclave/enclave_time.h"
 #include "js/core/context.h"
 #include "js/core/wrapped_property_enum.h"
+#include "js/extensions/ccf/consensus.h"
+#include "js/extensions/ccf/converters.h"
+#include "js/extensions/ccf/crypto.h"
+#include "js/extensions/ccf/historical.h"
+#include "js/extensions/ccf/host.h"
+#include "js/extensions/ccf/kv.h"
+#include "js/extensions/ccf/rpc.h"
+#include "js/extensions/console.h"
+#include "js/extensions/math/random.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache_interface.h"
 #include "js/modules.h"
@@ -168,9 +177,9 @@ namespace ccfapp
       }
 
       caller.set("policy", ctx.new_string(policy_name));
-      caller.set("id", ctx.new_string_len(id.data(), id.size()));
+      caller.set("id", ctx.new_string(id));
       caller.set("data", ctx.parse_json(data));
-      caller.set("cert", ctx.new_string_len(cert.str().data(), cert.size()));
+      caller.set("cert", ctx.new_string(cert.str()));
 
       return caller;
     }
@@ -192,20 +201,16 @@ namespace ccfapp
       auto headers = ctx.new_obj();
       for (auto& [header_name, header_value] : r_headers)
       {
-        headers.set(
-          header_name,
-          ctx.new_string_len(header_value.c_str(), header_value.size()));
+        headers.set(header_name, ctx.new_string(header_value));
       }
       request.set("headers", std::move(headers));
 
       const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
-      auto query_str =
-        ctx.new_string_len(request_query.c_str(), request_query.size());
+      auto query_str = ctx.new_string(request_query);
       request.set("query", std::move(query_str));
 
       const auto& request_path = endpoint_ctx.rpc_ctx->get_request_path();
-      auto path_str =
-        ctx.new_string_len(request_path.c_str(), request_path.size());
+      auto path_str = ctx.new_string(request_path);
       request.set("path", std::move(path_str));
 
       const auto& request_method = endpoint_ctx.rpc_ctx->get_request_verb();
@@ -216,8 +221,7 @@ namespace ccfapp
       if (host_it != r_headers.end())
       {
         const auto& request_hostname = host_it->second;
-        auto hostname_str =
-          ctx.new_string_len(request_hostname.c_str(), request_hostname.size());
+        auto hostname_str = ctx.new_string(request_hostname);
         request.set("hostname", std::move(hostname_str));
       }
       else
@@ -226,8 +230,7 @@ namespace ccfapp
       }
 
       const auto request_route = endpoint->full_uri_path;
-      auto route_str =
-        ctx.new_string_len(request_route.c_str(), request_route.size());
+      auto route_str = ctx.new_string(request_route);
       request.set("route", std::move(route_str));
 
       auto request_url = request_path;
@@ -235,17 +238,14 @@ namespace ccfapp
       {
         request_url = fmt::format("{}?{}", request_url, request_query);
       }
-      auto url_str =
-        ctx.new_string_len(request_url.c_str(), request_url.size());
+      auto url_str = ctx.new_string(request_url);
       request.set("url", std::move(url_str));
 
       auto params = ctx.new_obj();
       for (auto& [param_name, param_value] :
            endpoint_ctx.rpc_ctx->get_request_path_params())
       {
-        params.set(
-          param_name,
-          ctx.new_string_len(param_value.c_str(), param_value.size()));
+        params.set(param_name, ctx.new_string(param_value));
       }
       request.set("params", std::move(params));
 
@@ -281,9 +281,22 @@ namespace ccfapp
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
             auto add_historical_globals = [&](js::core::Context& ctx) {
-              auto ccf = ctx.get_global_property("ccf");
-              auto val = ctx.create_historical_state_object(state);
-              ccf.set("historicalState", std::move(val));
+              auto ccf =
+                ctx.get_or_create_global_property("ccf", ctx.new_obj());
+              auto extension =
+                ctx.get_extension<ccf::js::extensions::HistoricalExtension>();
+              if (extension != nullptr)
+              {
+                auto val =
+                  extension->create_historical_state_object(ctx, state);
+                ccf.set("historicalState", std::move(val));
+              }
+              else
+              {
+                LOG_FAIL_FMT(
+                  "Error while inserting historicalState into JS interpreter - "
+                  "no extension found");
+              }
             };
             do_execute_request(endpoint, endpoint_ctx, add_historical_globals);
           },
@@ -352,13 +365,24 @@ namespace ccfapp
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
       ctx.register_request_body_class();
-      ctx.populate_global_ccf_kv(endpoint_ctx.tx);
 
-      ctx.populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get());
-      ctx.populate_global_ccf_host(
-        context.get_subsystem<ccf::AbstractHostProcesses>().get());
-      ctx.populate_global_ccf_consensus(this);
-      ctx.populate_global_ccf_historical(&context.get_historical_state());
+      // Extensions with a dependency on this endpoint context (invocation),
+      // which must be removed after execution.
+      js::extensions::Extensions local_extensions;
+
+      // ccf.kv.*
+      local_extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::KvExtension>(&endpoint_ctx.tx));
+
+      // ccf.rpc.*
+      local_extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::RpcExtension>(
+          endpoint_ctx.rpc_ctx.get()));
+
+      for (auto extension : local_extensions)
+      {
+        ctx.add_extension(extension);
+      }
 
       if (pre_exec_hook.has_value())
       {
@@ -371,8 +395,8 @@ namespace ccfapp
         const auto& props = endpoint->properties;
         auto module_val =
           js::load_app_module(ctx, props.js_module.c_str(), &endpoint_ctx.tx);
-        export_func =
-          ctx.function(module_val, props.js_function, props.js_module);
+        export_func = ctx.get_exported_function(
+          module_val, props.js_function, props.js_module);
       }
       catch (const std::exception& exc)
       {
@@ -395,7 +419,11 @@ namespace ccfapp
       // Clear globals (which potentially reference locals like txctx), from
       // this potentially reused interpreter
       invalidate_request_obj_body(ctx);
-      ctx.invalidate_globals();
+
+      for (auto extension : local_extensions)
+      {
+        ctx.remove_extension(extension);
+      }
 
       const auto& rt = ctx.runtime();
 
@@ -665,6 +693,45 @@ namespace ccfapp
         throw std::logic_error(
           "Unexpected: Could not access AbstractInterpreterCache subsytem");
       }
+
+      // Install dependency-less (ie reusable) extensions on interpreters _at
+      // creation_, rather than on every run
+      js::extensions::Extensions extensions;
+      // override Math.random
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::MathRandomExtension>());
+      // add console.[debug|log|...]
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::ConsoleExtension>());
+      // add ccf.[strToBuf|bufToStr|...]
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::ConvertersExtension>());
+      // add ccf.crypto.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::CryptoExtension>());
+      // add ccf.consensus.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::ConsensusExtension>(this));
+      // add ccf.host.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::HostExtension>(
+          context.get_subsystem<ccf::AbstractHostProcesses>().get()));
+      // add ccf.historical.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::HistoricalExtension>(
+          &context.get_historical_state()));
+
+      interpreter_cache->set_interpreter_factory(
+        [extensions](ccf::js::TxAccess access) {
+          auto interpreter = std::make_shared<js::core::Context>(access);
+
+          for (auto extension : extensions)
+          {
+            interpreter->add_extension(extension);
+          }
+
+          return interpreter;
+        });
     }
 
     void instantiate_authn_policies(ccf::js::JSDynamicEndpoint& endpoint)
