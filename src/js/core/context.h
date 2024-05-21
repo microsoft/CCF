@@ -6,6 +6,7 @@
 #include "js/core/runtime.h"
 #include "js/core/wrapped_value.h"
 #include "js/extensions/extension_interface.h"
+#include "js/modules/module_loader_interface.h"
 #include "js/tx_access.h"
 
 #include <chrono>
@@ -46,14 +47,8 @@ namespace ccf::js::core
     JSContext* ctx;
     Runtime rt;
 
-    // The interpreter can cache loaded modules so they do not need to be loaded
-    // from the KV for every execution, which is particularly useful when
-    // re-using interpreters. A module can only be loaded once per interpreter,
-    // and the entire interpreter should be thrown away if _any_ of its modules
-    // needs to be refreshed.
-    std::map<std::string, JSWrappedValue> loaded_modules_cache;
-
     js::extensions::Extensions extensions;
+    js::modules::ModuleLoaderPtr module_loader;
 
   public:
     // State which may be set by calls to populate_global_ccf_*. Likely
@@ -91,10 +86,12 @@ namespace ccf::js::core
       return ctx;
     }
 
-    std::optional<JSWrappedValue> get_module_from_cache(
-      const std::string& module_name);
-    void load_module_to_cache(
-      const std::string& module_name, const JSWrappedValue& module);
+    void set_module_loader(const modules::ModuleLoaderPtr& ml)
+    {
+      module_loader = ml;
+    }
+
+    virtual std::optional<JSWrappedValue> get_module(std::string_view module_name);
 
     // Construct RAII wrapper around raw QuickJS value
     JSWrappedValue wrap(JSValue&& val) const;

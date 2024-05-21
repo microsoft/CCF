@@ -22,6 +22,43 @@
 
 namespace ccf::js::core
 {
+  namespace
+  {
+    static inline JSModuleDef* load_module_via_context(
+      JSContext* ctx, const char* module_name, void* opaque)
+    {
+      auto context = (Context*)opaque;
+
+      try
+      {
+        auto opt_module = context->get_module(module_name);
+        if (!opt_module.has_value())
+        {
+          return nullptr;
+        }
+        return (JSModuleDef*)JS_VALUE_GET_PTR(opt_module->val);
+      }
+      catch (const std::exception& exc)
+      {
+        JS_ThrowReferenceError(ctx, "%s", exc.what());
+        js::core::Context& jsctx =
+          *(js::core::Context*)JS_GetContextOpaque(ctx);
+        auto [reason, trace] = jsctx.error_message();
+
+        auto& rt = jsctx.runtime();
+        if (rt.log_exception_details)
+        {
+          CCF_APP_FAIL(
+            "Failed to load module '{}': {} {}",
+            module_name,
+            reason,
+            trace.value_or("<no trace>"));
+        }
+        return nullptr;
+      }
+    }
+  }
+
   Context::Context(TxAccess acc) : access(acc)
   {
     ctx = JS_NewContext(rt);
@@ -36,6 +73,8 @@ namespace ccf::js::core
       LOG_DEBUG_FMT("Extending JS context with plugin {}", plugin.name);
       plugin.extend(*this);
     }
+
+    JS_SetModuleLoaderFunc(rt, nullptr, load_module_via_context, this);
   }
 
   Context::~Context()
@@ -44,27 +83,16 @@ namespace ccf::js::core
     JS_FreeContext(ctx);
   }
 
-  std::optional<JSWrappedValue> Context::get_module_from_cache(
-    const std::string& module_name)
+  std::optional<JSWrappedValue> Context::get_module(
+    std::string_view module_name)
   {
-    auto module = loaded_modules_cache.find(module_name);
-    if (module == loaded_modules_cache.end())
+    if (module_loader == nullptr)
     {
+      LOG_FAIL_FMT("Unable to load module: No module loader configured");
       return std::nullopt;
     }
 
-    return module->second;
-  }
-
-  void Context::load_module_to_cache(
-    const std::string& module_name, const JSWrappedValue& module)
-  {
-    if (get_module_from_cache(module_name).has_value())
-    {
-      throw std::logic_error(fmt::format(
-        "Module '{}' is already loaded in interpreter cache", module_name));
-    }
-    loaded_modules_cache[module_name] = module;
+    return module_loader->get_module(module_name, *this);
   }
 
   JSWrappedValue Context::wrap(JSValue&& val) const

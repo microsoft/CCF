@@ -10,6 +10,7 @@
 #include "js/core/context.h"
 #include "js/global_class_ids.h"
 #include "js/modules.h"
+#include "js/modules/kv_module_loader.h"
 #include "node/rpc/jwt_management.h"
 
 #include <quickjs/quickjs.h>
@@ -46,22 +47,27 @@ namespace ccf::js::extensions
       js::core::Context ctx2(js::TxAccess::APP_RW);
       ctx2.runtime().set_runtime_options(
         tx_ptr, js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
-      JS_SetModuleLoaderFunc(
-        ctx2.runtime(), nullptr, js::js_app_module_loader, &tx);
 
-      auto modules = tx.ro<ccf::Modules>(ccf::Tables::MODULES);
       auto quickjs_version =
         tx.wo<ccf::ModulesQuickJsVersion>(ccf::Tables::MODULES_QUICKJS_VERSION);
+      quickjs_version->put(ccf::quickjs_version);
+
       auto quickjs_bytecode = tx.wo<ccf::ModulesQuickJsBytecode>(
         ccf::Tables::MODULES_QUICKJS_BYTECODE);
-
-      quickjs_version->put(ccf::quickjs_version);
       quickjs_bytecode->clear();
 
       try
       {
+        auto modules = tx.ro<ccf::Modules>(ccf::Tables::MODULES);
+        ctx2.set_module_loader(
+          std::make_shared<ccf::js::modules::KvModuleLoader>(modules));
+
         modules->foreach([&](const auto& name, const auto& src) {
-          auto module_val = load_app_module(ctx2, name.c_str(), &tx);
+          auto module_val = ctx2.eval(
+            src.c_str(),
+            src.size(),
+            name.c_str(),
+            JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
 
           uint8_t* out_buf;
           size_t out_buf_len;
