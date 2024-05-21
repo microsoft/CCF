@@ -5,7 +5,6 @@
 
 #include "ccf/rpc_context.h"
 #include "js/core/context.h"
-#include "js/global_class_ids.h"
 
 #include <quickjs/quickjs.h>
 
