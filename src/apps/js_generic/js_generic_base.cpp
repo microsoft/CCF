@@ -123,7 +123,8 @@ namespace ccfapp
         js::TxAccess::APP_RW :
         js::TxAccess::APP_RO;
       std::shared_ptr<js::core::Context> interpreter =
-        interpreter_cache->get_interpreter(rw_access, *endpoint, flush_marker);
+        interpreter_cache->get_interpreter(
+          rw_access, endpoint->properties.interpreter_reuse, flush_marker);
       if (interpreter == nullptr)
       {
         throw std::logic_error("Cache failed to produce interpreter");

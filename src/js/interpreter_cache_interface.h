@@ -38,7 +38,8 @@ namespace ccf::js
     // execution, where some global initialisation may already be done.
     virtual std::shared_ptr<js::core::Context> get_interpreter(
       js::TxAccess access,
-      const JSDynamicEndpoint& endpoint,
+      const std::optional<ccf::endpoints::InterpreterReusePolicy>&
+        interpreter_reuse,
       size_t freshness_marker) = 0;
 
     // Cap the total number of interpreters which will be retained. The

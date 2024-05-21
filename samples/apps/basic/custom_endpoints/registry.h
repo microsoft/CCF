@@ -15,6 +15,7 @@
 
 // Custom Endpoints
 #include "ccf/bundle.h"
+#include "ccf/endpoint.h"
 #include "ccf/endpoints/authentication/js.h"
 #include "ccf/js/core/context.h"
 #include "ccf/js/extensions/ccf/consensus.h"
@@ -202,23 +203,45 @@ namespace basicapp
       ccf::endpoints::EndpointContext& endpoint_ctx,
       const std::optional<PreExecutionHook>& pre_exec_hook = std::nullopt)
     {
-      // TBD: interpreter re-use logic
-      // TBD: runtime options
+      // This KV Value should be updated by any governance actions which modify
+      // the JS app (including _any_ of its contained modules). We then use the
+      // version where it was last modified as a safe approximation of when an
+      // interpreter is unsafe to use. If this value is written to, the
+      // version_of_previous_write will advance, and all cached interpreters
+      // will be flushed.
+      const auto interpreter_flush = endpoint_ctx.tx.ro<ccf::InterpreterFlush>(
+        "custom_enpoints.interpreter_flush");
+      const auto flush_marker =
+        interpreter_flush->get_version_of_previous_write().value_or(0);
 
-      // TBD: private headers
-      //   const auto rw_access =
-      //     endpoint->properties.mode == ccf::endpoints::Mode::ReadWrite ?
-      //     js::TxAccess::APP_RW :
-      //     js::TxAccess::APP_RO;
+      const auto rw_access =
+        endpoint->properties.mode == ccf::endpoints::Mode::ReadWrite ?
+        ccf::js::TxAccess::APP_RW :
+        ccf::js::TxAccess::APP_RO;
+      std::optional<ccf::endpoints::InterpreterReusePolicy> reuse_policy =
+        endpoint->properties.interpreter_reuse;
+      std::shared_ptr<ccf::js::core::Context> interpreter =
+        interpreter_cache->get_interpreter(
+          rw_access, reuse_policy, flush_marker);
+      if (interpreter == nullptr)
+      {
+        throw std::logic_error("Cache failed to produce interpreter");
+      }
+      ccf::js::core::Context& ctx = *interpreter;
 
-      //   std::shared_ptr<js::core::Context> interpreter =
-      //     interpreter_cache->get_interpreter(rw_access, *endpoint,
-      //     flush_marker);
-      //   if (interpreter == nullptr)
-      //   {
-      //     throw std::logic_error("Cache failed to produce interpreter");
-      //   }
-      //   js::core::Context& ctx = *interpreter;
+      // Prevent any other thread modifying this interpreter, until this
+      // function completes. We could create interpreters per-thread, but then
+      // we would get no cross-thread caching benefit (and would need to either
+      // enforce, or share, caps across per-thread caches). We choose
+      // instead to allow interpreters to be maximally reused, even across
+      // threads, at the cost of locking (and potentially stalling another
+      // thread's request execution) here.
+      std::lock_guard<ccf::pal::Mutex> guard(ctx.lock);
+      // Update the top of the stack for the current thread, used by the stack
+      // guard Note this is only active outside SGX
+      JS_UpdateStackTop(ctx.runtime());
+      // Make the heap and stack limits safe while we init the runtime
+      ctx.runtime().reset_runtime_options();
 
       // TBD: Run fetched endpoint
       CCF_APP_INFO("CUSTOM ENDPOINT: {}", endpoint->dispatch.uri_path);
