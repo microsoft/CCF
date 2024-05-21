@@ -8,7 +8,6 @@
 
 #include "ccf/version.h"
 #include "js/core/context.h"
-#include "js/global_class_ids.h"
 #include "js/modules.h"
 #include "node/rpc/jwt_management.h"
 

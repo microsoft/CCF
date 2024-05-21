@@ -8,7 +8,6 @@
 #include "js/checks.h"
 #include "js/core/context.h"
 #include "js/extensions/ccf/kv_helpers.h"
-#include "js/global_class_ids.h"
 #include "kv/untyped_map.h"
 
 namespace ccf::js::extensions
