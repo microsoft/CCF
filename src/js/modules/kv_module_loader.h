@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/service/tables/modules.h"
+#include "ccf/tx.h"
 #include "js/modules/module_loader_interface.h"
 
 #include <string>
