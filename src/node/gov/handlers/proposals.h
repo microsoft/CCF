@@ -5,8 +5,8 @@
 #include "ccf/base_endpoint_registry.h"
 #include "js/common_context.h"
 #include "ccf/js/extensions/ccf/gov_effects.h"
-#include "ccf/js/extensions/ccf/network.h"
-#include "ccf/js/extensions/ccf/node.h"
+#include "js/extensions/ccf/network.h"
+#include "js/extensions/ccf/node.h"
 #include "node/gov/api_version.h"
 #include "node/gov/handlers/helpers.h"
 
