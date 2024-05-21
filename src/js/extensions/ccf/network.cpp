@@ -4,7 +4,6 @@
 #include "js/extensions/ccf/network.h"
 
 #include "ccf/js/core/context.h"
-#include "js/global_class_ids.h"
 #include "node/network_state.h"
 
 #include <quickjs/quickjs.h>

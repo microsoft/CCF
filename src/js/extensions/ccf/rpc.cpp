@@ -5,8 +5,6 @@
 
 #include "ccf/rpc_context.h"
 #include "ccf/js/core/context.h"
-#include "js/global_class_ids.h"
-
 #include <quickjs/quickjs.h>
 
 namespace ccf::js::extensions
