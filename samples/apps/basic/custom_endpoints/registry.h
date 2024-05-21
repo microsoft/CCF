@@ -26,6 +26,7 @@
 #include "ccf/js/extensions/ccf/kv.h"
 #include "ccf/js/extensions/ccf/rpc.h"
 #include "ccf/js/extensions/console.h"
+#include "ccf/js/extensions/ccf/request_extension.h"
 #include "ccf/js/extensions/math/random.h"
 #include "ccf/service/tables/modules.h"
 #include "endpoint.h"
@@ -242,6 +243,37 @@ namespace basicapp
       JS_UpdateStackTop(ctx.runtime());
       // Make the heap and stack limits safe while we init the runtime
       ctx.runtime().reset_runtime_options();
+
+      // TBD: module loader
+      // JS_SetModuleLoaderFunc(
+      //  ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
+
+      // Extensions with a dependency on this endpoint context (invocation),
+      // which must be removed after execution.
+      ccf::js::extensions::Extensions local_extensions;
+
+      // ccf.kv.*
+      local_extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::KvExtension>(&endpoint_ctx.tx));
+
+      // ccf.rpc.*
+      local_extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::RpcExtension>(
+          endpoint_ctx.rpc_ctx.get()));
+
+      auto request_extension =
+        std::make_shared<ccf::js::extensions::RequestExtension>(endpoint_ctx.rpc_ctx.get());
+      local_extensions.push_back(request_extension);
+
+      for (auto extension : local_extensions)
+      {
+        ctx.add_extension(extension);
+      }
+
+      if (pre_exec_hook.has_value())
+      {
+        pre_exec_hook.value()(ctx);
+      }
 
       // TBD: Run fetched endpoint
       CCF_APP_INFO("CUSTOM ENDPOINT: {}", endpoint->dispatch.uri_path);

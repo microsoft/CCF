@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "apps/js_generic/named_auth_policies.h"
-#include "apps/js_generic/request_extension.h"
+#include "ccf/js/named_auth_policies.h"
+#include "ccf/js/extensions/ccf/request_extension.h"
 #include "ccf/app_interface.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
@@ -162,7 +162,7 @@ namespace ccfapp
           endpoint_ctx.rpc_ctx.get()));
 
       auto request_extension =
-        std::make_shared<RequestExtension>(endpoint_ctx.rpc_ctx.get());
+        std::make_shared<ccf::js::extensions::RequestExtension>(endpoint_ctx.rpc_ctx.get());
       local_extensions.push_back(request_extension);
 
       for (auto extension : local_extensions)

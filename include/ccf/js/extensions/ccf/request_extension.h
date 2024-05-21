@@ -8,7 +8,7 @@
 #include "ccf/js/extensions/extension_interface.h"
 #include "ccf/rpc_context.h"
 
-namespace ccfapp
+namespace ccf::js::extensions
 {
   /**
    **/

@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "apps/js_generic/request_extension.h"
+#include "ccf/js/extensions/ccf/request_extension.h"
 
-#include "apps/js_generic/named_auth_policies.h"
+#include "ccf/js/named_auth_policies.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/endpoints/authentication/cert_auth.h"
 #include "ccf/endpoints/authentication/cose_auth.h"
@@ -13,7 +13,7 @@
 
 #include <quickjs/quickjs.h>
 
-namespace ccfapp
+namespace ccf::js::extensions
 {
   namespace
   {
