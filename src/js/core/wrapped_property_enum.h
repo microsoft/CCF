@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/js/core/context.h"
-#include "js/core/wrapped_value.h"
+#include "ccf/js/core/wrapped_value.h"
 
 #include <quickjs/quickjs.h>
 

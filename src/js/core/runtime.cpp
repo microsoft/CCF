@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "js/core/runtime.h"
+#include "ccf/js/core/runtime.h"
 
 #include "ccf/service/tables/jsengine.h"
 #include "ccf/tx.h"
