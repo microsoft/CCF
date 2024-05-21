@@ -13,7 +13,7 @@
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
-#include "js/core/context.h"
+#include "ccf/js/core/context.h"
 #include "js/ffi_plugins.h"
 #include "js/interpreter_cache.h"
 #include "node/acme_challenge_frontend.h"

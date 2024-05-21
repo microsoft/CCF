@@ -9,7 +9,7 @@
 #include "ccf/endpoints/authentication/cose_auth.h"
 #include "ccf/endpoints/authentication/empty_auth.h"
 #include "ccf/endpoints/authentication/jwt_auth.h"
-#include "js/core/context.h"
+#include "ccf/js/core/context.h"
 
 #include <quickjs/quickjs.h>
 

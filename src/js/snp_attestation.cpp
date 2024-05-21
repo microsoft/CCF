@@ -6,7 +6,7 @@
 #include "ccf/pal/attestation.h"
 #include "ccf/version.h"
 #include "js/checks.h"
-#include "js/core/context.h"
+#include "ccf/js/core/context.h"
 #include "node/uvm_endorsements.h"
 
 #include <algorithm>

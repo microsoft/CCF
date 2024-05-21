@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "js/extensions/ccf/kv.h"
+#include "ccf/js/extensions/ccf/kv.h"
 
 #include "js/checks.h"
-#include "js/core/context.h"
-#include "js/extensions/ccf/kv_helpers.h"
+#include "ccf/js/core/context.h"
+#include "ccf/js/extensions/ccf/kv_helpers.h"
 #include "js/global_class_ids.h"
 #include "js/map_access_permissions.h"
 

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/tx.h"
-#include "js/extensions/extension_interface.h"
+#include "ccf/js/extensions/extension_interface.h"
 
 #include <memory>
 

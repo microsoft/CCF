@@ -6,7 +6,7 @@
 #include "ccf/endpoint_context.h"
 #include "ccf/rpc_context.h"
 #include "js/core/wrapped_value.h"
-#include "js/extensions/extension_interface.h"
+#include "ccf/js/extensions/extension_interface.h"
 
 namespace ccfapp
 {

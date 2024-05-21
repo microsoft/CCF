@@ -4,7 +4,7 @@
 
 #include "ccf/endpoint.h"
 #include "ccf/node_subsystem_interface.h"
-#include "js/tx_access.h"
+#include "ccf/js/tx_access.h"
 
 namespace ccf::js
 {

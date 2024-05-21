@@ -20,16 +20,77 @@
 #include "endpoint.h"
 #include "js/interpreter_cache_interface.h"
 
+#include "ccf/js/core/context.h"
+#include "ccf/js/extensions/ccf/consensus.h"
+#include "ccf/js/extensions/ccf/converters.h"
+#include "ccf/js/extensions/ccf/crypto.h"
+#include "ccf/js/extensions/ccf/historical.h"
+#include "ccf/js/extensions/ccf/host.h"
+#include "ccf/js/extensions/ccf/kv.h"
+#include "ccf/js/extensions/ccf/rpc.h"
+#include "ccf/js/extensions/console.h"
+#include "ccf/js/extensions/math/random.h"
+
 using namespace nlohmann;
 
 namespace basicapp
 {
   class CustomJSEndpointRegistry : public ccf::UserEndpointRegistry
   {
+  private:
+    std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache = nullptr;
+
   public:
     CustomJSEndpointRegistry(ccfapp::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {
+      interpreter_cache =
+        context.get_subsystem<ccf::js::AbstractInterpreterCache>();
+      if (interpreter_cache == nullptr)
+      {
+        throw std::logic_error(
+          "Unexpected: Could not access AbstractInterpreterCache subsytem");
+      }
+
+      // Install dependency-less (ie reusable) extensions on interpreters _at
+      // creation_, rather than on every run
+      ccf::js::extensions::Extensions extensions;
+      // override Math.random
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::MathRandomExtension>());
+      // add console.[debug|log|...]
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::ConsoleExtension>());
+      // add ccf.[strToBuf|bufToStr|...]
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::ConvertersExtension>());
+      // add ccf.crypto.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::CryptoExtension>());
+      // add ccf.consensus.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::ConsensusExtension>(this));
+      // add ccf.host.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::HostExtension>(
+          context.get_subsystem<ccf::AbstractHostProcesses>().get()));
+      // add ccf.historical.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::HistoricalExtension>(
+          &context.get_historical_state()));
+
+      interpreter_cache->set_interpreter_factory(
+        [extensions](ccf::js::TxAccess access) {
+          auto interpreter = std::make_shared<ccf::js::core::Context>(access);
+
+          for (auto extension : extensions)
+          {
+            interpreter->add_extension(extension);
+          }
+
+          return interpreter;
+        });
+
       auto put_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
         const auto& caller_identity =
           ctx.template get_caller<ccf::UserCOSESign1AuthnIdentity>();
@@ -143,8 +204,6 @@ namespace basicapp
     {
       // TBD: interpreter re-use logic
       // TBD: runtime options
-      const auto interpreter_cache =
-        context.get_subsystem<ccf::js::AbstractInterpreterCache>();
 
       // TBD: private headers
       //   const auto rw_access =

@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "js/extensions/ccf/crypto.h"
+#include "ccf/js/extensions/ccf/crypto.h"
 
 #include "ccf/crypto/ecdsa.h"
 #include "ccf/crypto/eddsa_key_pair.h"
@@ -12,7 +12,7 @@
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/verifier.h"
 #include "js/checks.h"
-#include "js/core/context.h"
+#include "ccf/js/core/context.h"
 #include "tls/ca.h"
 
 namespace ccf::js::extensions

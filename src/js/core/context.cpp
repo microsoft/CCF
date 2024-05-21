@@ -1,17 +1,17 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "js/core/context.h"
+#include "ccf/js/core/context.h"
 
 #include "ccf/ds/hex.h"
 #include "ccf/pal/locking.h"
 #include "enclave/enclave_time.h"
 #include "js/core/runtime.h"
 #include "js/core/wrapped_value.h"
-#include "js/extensions/console.h"
+#include "ccf/js/extensions/console.h"
 #include "js/ffi_plugins.h"
 #include "js/global_class_ids.h"
-#include "js/tx_access.h"
+#include "ccf/js/tx_access.h"
 
 #include <chrono>
 #include <quickjs/quickjs.h>

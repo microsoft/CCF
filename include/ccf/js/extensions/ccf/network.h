@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "js/extensions/extension_interface.h"
+#include "ccf/js/extensions/extension_interface.h"
 #include "node/network_state.h"
 
 namespace ccf::js::extensions

@@ -25,7 +25,7 @@
 #include "history.h"
 #include "http/http_parser.h"
 #include "indexing/indexer.h"
-#include "js/core/context.h"
+#include "ccf/js/core/context.h"
 #include "js/global_class_ids.h"
 #include "network_state.h"
 #include "node/hooks.h"

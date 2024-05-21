@@ -6,7 +6,7 @@
 #include "ccf/js_plugin.h"
 #include "ccf/version.h"
 #include "js/checks.h"
-#include "js/core/context.h"
+#include "ccf/js/core/context.h"
 
 #include <algorithm>
 #include <openenclave/attestation/custom_claims.h>
