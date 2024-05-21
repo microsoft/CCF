@@ -82,7 +82,8 @@ namespace ccf::js::core
       module_loader = ml;
     }
 
-    virtual std::optional<JSWrappedValue> get_module(std::string_view module_name);
+    virtual std::optional<JSWrappedValue> get_module(
+      std::string_view module_name);
 
     // Construct RAII wrapper around raw QuickJS value
     JSWrappedValue wrap(JSValue&& val) const;
