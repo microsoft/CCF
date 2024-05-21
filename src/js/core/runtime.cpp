@@ -34,8 +34,7 @@ namespace ccf::js::core
     std::vector<std::pair<JSClassID, JSClassDef*>> classes{
       {kv_class_id, &kv_class_def},
       {kv_historical_class_id, &kv_historical_class_def},
-      {kv_map_handle_class_id, &kv_map_handle_class_def},
-      {body_class_id, &body_class_def}};
+      {kv_map_handle_class_id, &kv_map_handle_class_def}};
     for (auto [class_id, class_def] : classes)
     {
       auto ret = JS_NewClass(rt, class_id, class_def);

@@ -9,13 +9,11 @@ namespace ccf::js
   extern JSClassID kv_class_id;
   extern JSClassID kv_historical_class_id;
   extern JSClassID kv_map_handle_class_id;
-  extern JSClassID body_class_id;
   extern JSClassID historical_state_class_id;
 
   extern JSClassDef kv_class_def;
   extern JSClassDef kv_historical_class_def;
   extern JSClassDef kv_map_handle_class_def;
-  extern JSClassDef body_class_def;
   extern JSClassDef historical_state_class_def;
 
   // Not thread-safe, must happen exactly once
