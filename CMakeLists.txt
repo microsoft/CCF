@@ -350,7 +350,7 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/extensions/ccf/network.cpp
     ${CCF_DIR}/src/js/extensions/ccf/node.cpp
     ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
-    ${CCF_DIR}/src/js/extensions/ccf/request_extension.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/request.cpp
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")

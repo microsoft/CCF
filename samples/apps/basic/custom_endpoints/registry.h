@@ -24,9 +24,9 @@
 #include "ccf/js/extensions/ccf/historical.h"
 #include "ccf/js/extensions/ccf/host.h"
 #include "ccf/js/extensions/ccf/kv.h"
+#include "ccf/js/extensions/ccf/request.h"
 #include "ccf/js/extensions/ccf/rpc.h"
 #include "ccf/js/extensions/console.h"
-#include "ccf/js/extensions/ccf/request_extension.h"
 #include "ccf/js/extensions/math/random.h"
 #include "ccf/service/tables/modules.h"
 #include "endpoint.h"
@@ -262,7 +262,8 @@ namespace basicapp
           endpoint_ctx.rpc_ctx.get()));
 
       auto request_extension =
-        std::make_shared<ccf::js::extensions::RequestExtension>(endpoint_ctx.rpc_ctx.get());
+        std::make_shared<ccf::js::extensions::RequestExtension>(
+          endpoint_ctx.rpc_ctx.get());
       local_extensions.push_back(request_extension);
 
       for (auto extension : local_extensions)
