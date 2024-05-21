@@ -3,8 +3,9 @@
 
 #include "ccf/js/extensions/ccf/rpc.h"
 
-#include "ccf/rpc_context.h"
 #include "ccf/js/core/context.h"
+#include "ccf/rpc_context.h"
+
 #include <quickjs/quickjs.h>
 
 namespace ccf::js::extensions

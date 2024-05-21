@@ -5,9 +5,9 @@
 
 #include "ccf/ds/hex.h"
 #include "ccf/historical_queries_interface.h"
-#include "js/checks.h"
 #include "ccf/js/core/context.h"
-#include "ccf/js/extensions/ccf/kv_helpers.h"
+#include "js/checks.h"
+#include "js/extensions/ccf/kv_helpers.h"
 #include "kv/untyped_map.h"
 
 namespace ccf::js::extensions

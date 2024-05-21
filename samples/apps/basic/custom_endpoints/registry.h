@@ -16,10 +16,6 @@
 // Custom Endpoints
 #include "ccf/bundle.h"
 #include "ccf/endpoints/authentication/js.h"
-#include "ccf/service/tables/modules.h"
-#include "endpoint.h"
-#include "js/interpreter_cache_interface.h"
-
 #include "ccf/js/core/context.h"
 #include "ccf/js/extensions/ccf/consensus.h"
 #include "ccf/js/extensions/ccf/converters.h"
@@ -30,6 +26,9 @@
 #include "ccf/js/extensions/ccf/rpc.h"
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/extensions/math/random.h"
+#include "ccf/service/tables/modules.h"
+#include "endpoint.h"
+#include "js/interpreter_cache_interface.h"
 
 using namespace nlohmann;
 
@@ -38,7 +37,8 @@ namespace basicapp
   class CustomJSEndpointRegistry : public ccf::UserEndpointRegistry
   {
   private:
-    std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache = nullptr;
+    std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache =
+      nullptr;
 
   public:
     CustomJSEndpointRegistry(ccfapp::AbstractNodeContext& context) :

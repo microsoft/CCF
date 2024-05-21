@@ -11,8 +11,8 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/sha256.h"
 #include "ccf/crypto/verifier.h"
-#include "js/checks.h"
 #include "ccf/js/core/context.h"
+#include "js/checks.h"
 #include "tls/ca.h"
 
 namespace ccf::js::extensions

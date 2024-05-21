@@ -3,9 +3,9 @@
 
 #include "ccf/js/extensions/ccf/kv.h"
 
-#include "js/checks.h"
 #include "ccf/js/core/context.h"
-#include "ccf/js/extensions/ccf/kv_helpers.h"
+#include "js/checks.h"
+#include "js/extensions/ccf/kv_helpers.h"
 #include "js/global_class_ids.h"
 #include "js/map_access_permissions.h"
 

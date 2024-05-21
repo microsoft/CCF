@@ -4,8 +4,8 @@
 #include "ccf/js/extensions/ccf/consensus.h"
 
 #include "ccf/base_endpoint_registry.h"
-#include "js/checks.h"
 #include "ccf/js/core/context.h"
+#include "js/checks.h"
 
 #include <quickjs/quickjs.h>
 

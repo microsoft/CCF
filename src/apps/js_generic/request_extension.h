@@ -4,9 +4,9 @@
 
 #include "ccf/base_endpoint_registry.h"
 #include "ccf/endpoint_context.h"
-#include "ccf/rpc_context.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/extension_interface.h"
+#include "ccf/rpc_context.h"
 
 namespace ccfapp
 {

@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/endpoint.h"
-#include "ccf/node_subsystem_interface.h"
 #include "ccf/js/tx_access.h"
+#include "ccf/node_subsystem_interface.h"
 
 namespace ccf::js
 {

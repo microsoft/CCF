@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/node/host_processes_interface.h"
 #include "ccf/js/extensions/extension_interface.h"
+#include "ccf/node/host_processes_interface.h"
 
 namespace ccf::js::extensions
 {

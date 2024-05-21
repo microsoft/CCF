@@ -4,14 +4,14 @@
 #include "ccf/js/core/context.h"
 
 #include "ccf/ds/hex.h"
-#include "ccf/pal/locking.h"
-#include "enclave/enclave_time.h"
 #include "ccf/js/core/runtime.h"
 #include "ccf/js/core/wrapped_value.h"
 #include "ccf/js/extensions/console.h"
+#include "ccf/js/tx_access.h"
+#include "ccf/pal/locking.h"
+#include "enclave/enclave_time.h"
 #include "js/ffi_plugins.h"
 #include "js/global_class_ids.h"
-#include "ccf/js/tx_access.h"
 
 #include <chrono>
 #include <quickjs/quickjs.h>

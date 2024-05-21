@@ -6,8 +6,8 @@
 
 #include "ccf/js/extensions/ccf/gov_effects.h"
 
-#include "ccf/version.h"
 #include "ccf/js/core/context.h"
+#include "ccf/version.h"
 #include "js/modules.h"
 #include "node/rpc/jwt_management.h"
 
