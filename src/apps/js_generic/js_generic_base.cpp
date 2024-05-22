@@ -16,6 +16,7 @@
 #include "ccf/js/extensions/ccf/rpc.h"
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/extensions/math/random.h"
+#include "ccf/js/modules.h"
 #include "ccf/js/named_auth_policies.h"
 #include "ccf/node/host_processes_interface.h"
 #include "ccf/service/tables/jsengine.h"
@@ -24,7 +25,6 @@
 #include "js/core/wrapped_property_enum.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache_interface.h"
-#include "ccf/js/modules.h"
 #include "node/rpc/rpc_context_impl.h"
 #include "service/tables/endpoints.h"
 

@@ -246,7 +246,10 @@ namespace basicapp
       ctx.runtime().reset_runtime_options();
 
       JS_SetModuleLoaderFunc(
-       ctx.runtime(), nullptr, ccf::js::js_app_module_loader, &endpoint_ctx.tx);
+        ctx.runtime(),
+        nullptr,
+        ccf::js::js_app_module_loader,
+        &endpoint_ctx.tx);
 
       // Extensions with a dependency on this endpoint context (invocation),
       // which must be removed after execution.
@@ -280,8 +283,8 @@ namespace basicapp
       try
       {
         const auto& props = endpoint->properties;
-        auto module_val =
-          ccf::js::load_app_module(ctx, props.js_module.c_str(), &endpoint_ctx.tx);
+        auto module_val = ccf::js::load_app_module(
+          ctx, props.js_module.c_str(), &endpoint_ctx.tx);
         export_func = ctx.get_exported_function(
           module_val, props.js_function, props.js_module);
       }
