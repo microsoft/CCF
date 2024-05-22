@@ -24,7 +24,7 @@
 #include "js/core/wrapped_property_enum.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache_interface.h"
-#include "js/modules.h"
+#include "ccf/js/modules.h"
 #include "node/rpc/rpc_context_impl.h"
 #include "service/tables/endpoints.h"
 

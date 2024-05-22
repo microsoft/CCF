@@ -28,6 +28,7 @@
 #include "ccf/js/extensions/ccf/rpc.h"
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/extensions/math/random.h"
+#include "ccf/js/modules.h"
 #include "ccf/service/tables/modules.h"
 #include "endpoint.h"
 #include "js/interpreter_cache_interface.h"
@@ -244,9 +245,8 @@ namespace basicapp
       // Make the heap and stack limits safe while we init the runtime
       ctx.runtime().reset_runtime_options();
 
-      // TBD: module loader
-      // JS_SetModuleLoaderFunc(
-      //  ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
+      JS_SetModuleLoaderFunc(
+       ctx.runtime(), nullptr, ccf::js::js_app_module_loader, &endpoint_ctx.tx);
 
       // Extensions with a dependency on this endpoint context (invocation),
       // which must be removed after execution.
@@ -274,6 +274,24 @@ namespace basicapp
       if (pre_exec_hook.has_value())
       {
         pre_exec_hook.value()(ctx);
+      }
+
+      ccf::js::core::JSWrappedValue export_func;
+      try
+      {
+        const auto& props = endpoint->properties;
+        auto module_val =
+          ccf::js::load_app_module(ctx, props.js_module.c_str(), &endpoint_ctx.tx);
+        export_func = ctx.get_exported_function(
+          module_val, props.js_function, props.js_module);
+      }
+      catch (const std::exception& exc)
+      {
+        endpoint_ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          exc.what());
+        return;
       }
 
       // TBD: Run fetched endpoint

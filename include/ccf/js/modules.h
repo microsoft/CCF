@@ -26,7 +26,7 @@ namespace ccf::js
     auto loaded_module = jsctx.get_module_from_cache(module_name_quickjs);
     if (loaded_module.has_value())
     {
-      LOG_TRACE_FMT("Using module from interpreter cache '{}'", module_name_kv);
+      CCF_APP_TRACE("Using module from interpreter cache '{}'", module_name_kv);
       return loaded_module.value();
     }
 
@@ -48,7 +48,7 @@ namespace ccf::js
 
     if (!bytecode)
     {
-      LOG_TRACE_FMT("Loading module '{}'", module_name_kv);
+      CCF_APP_TRACE("Loading module '{}'", module_name_kv);
 
       auto module = modules->get(module_name_kv);
       auto& js = module.value();
@@ -76,7 +76,7 @@ namespace ccf::js
     }
     else
     {
-      LOG_TRACE_FMT("Loading module from bytecode cache '{}'", module_name_kv);
+      CCF_APP_TRACE("Loading module from bytecode cache '{}'", module_name_kv);
 
       module_val = jsctx.read_object(
         bytecode->data(), bytecode->size(), JS_READ_OBJ_BYTECODE);
@@ -112,7 +112,7 @@ namespace ccf::js
       }
     }
 
-    LOG_TRACE_FMT("Adding module to interpreter cache '{}'", module_name_kv);
+    CCF_APP_TRACE("Adding module to interpreter cache '{}'", module_name_kv);
     jsctx.load_module_to_cache(module_name_quickjs, module_val);
 
     return module_val;
