@@ -54,7 +54,7 @@ jobs:
           ./tlc.sh -workers auto consistency/MCMultiNodeReadsAlt.tla -dumpTrace json MCMultiNodeReadsAlt.json
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
           name: tlc
@@ -104,7 +104,7 @@ jobs:
           ./tlc.sh -workers auto -simulate num=500 -depth 50 consistency/MultiNodeReads.tla -dumpTrace json MultiNodeReads.json
 
       - name: Upload traces in TLA and JSON format
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
           name: tlc
