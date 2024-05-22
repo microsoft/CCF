@@ -134,7 +134,7 @@ namespace basicapp
         const auto wrapper = j.get<ccf::js::BundleWrapper>();
 
         auto endpoints = ctx.tx.template rw<ccf::endpoints::EndpointsMap>(
-          "custom_endpoints.metadata");
+          "public:custom_endpoints.metadata");
         // Similar to set_js_app
         for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
         {
@@ -148,7 +148,7 @@ namespace basicapp
         }
 
         auto modules =
-          ctx.tx.template rw<ccf::Modules>("custom_endpoints.modules");
+          ctx.tx.template rw<ccf::Modules>("public:custom_endpoints.modules");
         for (const auto& [name, module] : wrapper.bundle.modules)
         {
           modules->put(name, module);
@@ -178,7 +178,7 @@ namespace basicapp
       const auto verb = rpc_ctx.get_request_verb();
 
       auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>("custom_endpoints.metadata");
+        tx.ro<ccf::endpoints::EndpointsMap>("public:custom_endpoints.metadata");
       const auto key = ccf::endpoints::EndpointKey{method, verb};
 
       // Look for a direct match of the given path
@@ -212,7 +212,7 @@ namespace basicapp
       // version_of_previous_write will advance, and all cached interpreters
       // will be flushed.
       const auto interpreter_flush = endpoint_ctx.tx.ro<ccf::InterpreterFlush>(
-        "custom_enpoints.interpreter_flush");
+        "public:custom_enpoints.interpreter_flush");
       const auto flush_marker =
         interpreter_flush->get_version_of_previous_write().value_or(0);
 
@@ -284,10 +284,14 @@ namespace basicapp
       {
         const auto& props = endpoint->properties;
         // Needs #6199
-        // auto module_val = ccf::js::load_app_module(
-        //   ctx, props.js_module.c_str(), &endpoint_ctx.tx);
-        // export_func = ctx.get_exported_function(
-        //   module_val, props.js_function, props.js_module);
+        auto module_val = ccf::js::load_app_module(
+          ctx, props.js_module.c_str(), &endpoint_ctx.tx,
+          "public:custom_endpoints.modules",
+          "public:custom_endpoints.modules_quickjs_bytecode",
+          "public:custom_endpoints.modules_quickjs_version"
+          );
+        export_func = ctx.get_exported_function(
+          module_val, props.js_function, props.js_module);
       }
       catch (const std::exception& exc)
       {

@@ -46,7 +46,7 @@ def test_custom_endpoints(network, args):
                 },
             }
         },
-        "modules": {"test.js": TESTJS},
+        "modules": {"/test.js": TESTJS},
     }
 
     with primary.client(None, None, user.local_id) as c:

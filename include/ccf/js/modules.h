@@ -13,7 +13,10 @@
 namespace ccf::js
 {
   static inline js::core::JSWrappedValue load_app_module(
-    JSContext* ctx, const char* module_name, kv::Tx* tx)
+    JSContext* ctx, const char* module_name, kv::Tx* tx,
+    const std::string& modules_map = ccf::Tables::MODULES,
+    const std::string& modules_quickjs_bytecode_map = ccf::Tables::MODULES_QUICKJS_BYTECODE,
+    const std::string& modules_quickjs_version_map = ccf::Tables::MODULES_QUICKJS_VERSION)
   {
     js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
@@ -32,16 +35,16 @@ namespace ccf::js
       return loaded_module.value();
     }
 
-    const auto modules = tx->ro<ccf::Modules>(ccf::Tables::MODULES);
+    const auto modules = tx->ro<ccf::Modules>(modules_map);
 
     std::optional<std::vector<uint8_t>> bytecode;
     const auto modules_quickjs_bytecode = tx->ro<ccf::ModulesQuickJsBytecode>(
-      ccf::Tables::MODULES_QUICKJS_BYTECODE);
+      modules_quickjs_bytecode_map);
     bytecode = modules_quickjs_bytecode->get(module_name_kv);
     if (bytecode)
     {
       auto modules_quickjs_version = tx->ro<ccf::ModulesQuickJsVersion>(
-        ccf::Tables::MODULES_QUICKJS_VERSION);
+        modules_quickjs_version_map);
       if (modules_quickjs_version->get() != std::string(ccf::quickjs_version))
         bytecode = std::nullopt;
     }
