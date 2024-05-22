@@ -6,6 +6,8 @@
 #include "ccf/service/tables/modules.h"
 #include "ccf/tx.h"
 
+#include "ccf/version.h"
+
 #include <quickjs/quickjs.h>
 
 namespace ccf::js

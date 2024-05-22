@@ -283,10 +283,11 @@ namespace basicapp
       try
       {
         const auto& props = endpoint->properties;
-        auto module_val = ccf::js::load_app_module(
-          ctx, props.js_module.c_str(), &endpoint_ctx.tx);
-        export_func = ctx.get_exported_function(
-          module_val, props.js_function, props.js_module);
+        // Needs #6199
+        // auto module_val = ccf::js::load_app_module(
+        //   ctx, props.js_module.c_str(), &endpoint_ctx.tx);
+        // export_func = ctx.get_exported_function(
+        //   module_val, props.js_function, props.js_module);
       }
       catch (const std::exception& exc)
       {
