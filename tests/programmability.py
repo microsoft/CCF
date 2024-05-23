@@ -14,7 +14,7 @@ export function content(request) {
     return {
         statusCode: 200,
         body: {
-        error: "Test content",
+        payload: "Test content",
         },
     };
 }
@@ -60,6 +60,7 @@ def test_custom_endpoints(network, args):
     with primary.client() as c:
         r = c.get("/app/content")
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+        assert r.body.json()["payload"] == "Test content", r.body.json()
 
     return network
 

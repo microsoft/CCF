@@ -18,6 +18,7 @@
 #include "ccf/endpoint.h"
 #include "ccf/endpoints/authentication/js.h"
 #include "ccf/js/core/context.h"
+#include "ccf/js/core/wrapped_property_enum.h"
 #include "ccf/js/extensions/ccf/consensus.h"
 #include "ccf/js/extensions/ccf/converters.h"
 #include "ccf/js/extensions/ccf/crypto.h"
@@ -303,8 +304,249 @@ namespace basicapp
         return;
       }
 
-      // TBD: Run fetched endpoint
       CCF_APP_INFO("CUSTOM ENDPOINT: {}", endpoint->dispatch.uri_path);
+
+      // Call exported function;
+      auto request = request_extension->create_request_obj(
+        ctx, endpoint->full_uri_path, endpoint_ctx, this);
+
+      auto val = ctx.call_with_rt_options(
+        export_func,
+        {request},
+        &endpoint_ctx.tx,
+        ccf::js::core::RuntimeLimitsPolicy::NONE);
+
+      for (auto extension : local_extensions)
+      {
+        ctx.remove_extension(extension);
+      }
+
+      const auto& rt = ctx.runtime();
+
+      if (val.is_exception())
+      {
+        bool time_out = ctx.interrupt_data.request_timed_out;
+        std::string error_msg = "Exception thrown while executing.";
+        if (time_out)
+        {
+          error_msg = "Operation took too long to complete.";
+        }
+
+        auto [reason, trace] = ctx.error_message();
+
+        if (rt.log_exception_details)
+        {
+          CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
+        }
+
+        if (rt.return_exception_details)
+        {
+          std::vector<nlohmann::json> details = {ccf::ODataJSExceptionDetails{
+            ccf::errors::JSException, reason, trace}};
+          endpoint_ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            std::move(error_msg),
+            std::move(details));
+        }
+        else
+        {
+          endpoint_ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            std::move(error_msg));
+        }
+
+        return;
+      }
+
+      // Handle return value: {body, headers, statusCode}
+      if (!val.is_obj())
+      {
+        endpoint_ctx.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::InternalError,
+          "Invalid endpoint function return value (not an object).");
+        return;
+      }
+
+      // Response body (also sets a default response content-type header)
+      {
+        auto response_body_js = val["body"];
+        if (!response_body_js.is_undefined())
+        {
+          std::vector<uint8_t> response_body;
+          size_t buf_size;
+          size_t buf_offset;
+          auto typed_array_buffer = ctx.get_typed_array_buffer(
+            response_body_js, &buf_offset, &buf_size, nullptr);
+          uint8_t* array_buffer;
+          if (!typed_array_buffer.is_exception())
+          {
+            size_t buf_size_total;
+            array_buffer =
+              JS_GetArrayBuffer(ctx, &buf_size_total, typed_array_buffer.val);
+            array_buffer += buf_offset;
+          }
+          else
+          {
+            array_buffer =
+              JS_GetArrayBuffer(ctx, &buf_size, response_body_js.val);
+          }
+          if (array_buffer)
+          {
+            endpoint_ctx.rpc_ctx->set_response_header(
+              http::headers::CONTENT_TYPE,
+              http::headervalues::contenttype::OCTET_STREAM);
+            response_body =
+              std::vector<uint8_t>(array_buffer, array_buffer + buf_size);
+          }
+          else
+          {
+            std::optional<std::string> str;
+            if (response_body_js.is_str())
+            {
+              endpoint_ctx.rpc_ctx->set_response_header(
+                http::headers::CONTENT_TYPE,
+                http::headervalues::contenttype::TEXT);
+              str = ctx.to_str(response_body_js);
+            }
+            else
+            {
+              endpoint_ctx.rpc_ctx->set_response_header(
+                http::headers::CONTENT_TYPE,
+                http::headervalues::contenttype::JSON);
+              auto rval = ctx.json_stringify(response_body_js);
+              if (rval.is_exception())
+              {
+                auto [reason, trace] = ctx.error_message();
+
+                if (rt.log_exception_details)
+                {
+                  CCF_APP_FAIL(
+                    "Failed to convert return value to JSON:{} {}",
+                    reason,
+                    trace.value_or("<no trace>"));
+                }
+
+                if (rt.return_exception_details)
+                {
+                  std::vector<nlohmann::json> details = {
+                    ccf::ODataJSExceptionDetails{
+                      ccf::errors::JSException, reason, trace}};
+                  endpoint_ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    ccf::errors::InternalError,
+                    "Invalid endpoint function return value (error during JSON "
+                    "conversion of body)",
+                    std::move(details));
+                }
+                else
+                {
+                  endpoint_ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                    ccf::errors::InternalError,
+                    "Invalid endpoint function return value (error during JSON "
+                    "conversion of body).");
+                }
+                return;
+              }
+              str = ctx.to_str(rval);
+            }
+
+            if (!str)
+            {
+              auto [reason, trace] = ctx.error_message();
+
+              if (rt.log_exception_details)
+              {
+                CCF_APP_FAIL(
+                  "Failed to convert return value to JSON:{} {}",
+                  reason,
+                  trace.value_or("<no trace>"));
+              }
+
+              if (rt.return_exception_details)
+              {
+                std::vector<nlohmann::json> details = {
+                  ccf::ODataJSExceptionDetails{
+                    ccf::errors::JSException, reason, trace}};
+                endpoint_ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                  ccf::errors::InternalError,
+                  "Invalid endpoint function return value (error during string "
+                  "conversion of body).",
+                  std::move(details));
+              }
+              else
+              {
+                endpoint_ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                  ccf::errors::InternalError,
+                  "Invalid endpoint function return value (error during string "
+                  "conversion of body).");
+              }
+              return;
+            }
+
+            response_body = std::vector<uint8_t>(str->begin(), str->end());
+          }
+          endpoint_ctx.rpc_ctx->set_response_body(std::move(response_body));
+        }
+      }
+
+      // Response headers
+      {
+        auto response_headers_js = val["headers"];
+        if (response_headers_js.is_obj())
+        {
+          ccf::js::core::JSWrappedPropertyEnum prop_enum(
+            ctx, response_headers_js);
+          for (size_t i = 0; i < prop_enum.size(); i++)
+          {
+            auto prop_name = ctx.to_str(prop_enum[i]);
+            if (!prop_name)
+            {
+              endpoint_ctx.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Invalid endpoint function return value (header type).");
+              return;
+            }
+            auto prop_val = response_headers_js[*prop_name];
+            auto prop_val_str = ctx.to_str(prop_val);
+            if (!prop_val_str)
+            {
+              endpoint_ctx.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Invalid endpoint function return value (header value type).");
+              return;
+            }
+            endpoint_ctx.rpc_ctx->set_response_header(
+              *prop_name, *prop_val_str);
+          }
+        }
+      }
+
+      // Response status code
+      int response_status_code = HTTP_STATUS_OK;
+      {
+        auto status_code_js = val["statusCode"];
+        if (!status_code_js.is_undefined() && !JS_IsNull(status_code_js.val))
+        {
+          if (JS_VALUE_GET_TAG(status_code_js.val) != JS_TAG_INT)
+          {
+            endpoint_ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Invalid endpoint function return value (status code type).");
+            return;
+          }
+          response_status_code = JS_VALUE_GET_INT(status_code_js.val);
+        }
+        endpoint_ctx.rpc_ctx->set_response_status(response_status_code);
+      }
     }
 
     void execute_request(
