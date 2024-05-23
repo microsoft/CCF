@@ -65,15 +65,18 @@ jobs:
           sudo apt update
           sudo apt install -y ansible software-properties-common bsdmainutils dnsutils
           sudo ansible-playbook ccf-dev.yml --extra-vars "platform=virtual" --extra-vars "require_open_enclave=false"
+        name: Install dependencies
 
       - run: |
           mkdir build
           cd build
           cmake -DCOMPILE_TARGET=virtual -DREQUIRE_OPENENCLAVE=OFF -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DLVI_MITIGATIONS=OFF -DCMAKE_C_COMPILER=`which clang-11` -DCMAKE_CXX_COMPILER=`which clang++-11` ..
+        name: Run CMake
 
       - run: |
           cd build
           make
+        name: Run Make
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
