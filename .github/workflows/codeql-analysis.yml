@@ -14,7 +14,8 @@ permissions: read-all
 jobs:
   analyze:
     name: Analyze
-    runs-on: ubuntu-20.04
+    # Insufficient space to run on public runner, so use custom pool
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     permissions:
       security-events: write
 
