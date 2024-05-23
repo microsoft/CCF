@@ -12,6 +12,10 @@
   ansible.builtin.package_facts:
     manager: auto
 
+- name: Print the package facts
+  ansible.builtin.debug:
+    var: ansible_facts.packages
+
 - name: Add docker-ce repository key
   apt_key:
     url: "https://download.docker.com/linux/ubuntu/gpg"
