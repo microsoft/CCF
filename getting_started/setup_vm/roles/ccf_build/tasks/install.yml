@@ -21,7 +21,7 @@
     url: "https://download.docker.com/linux/ubuntu/gpg"
     state: present
   become: yes
-  when: "'moby-buildx' not in ansible_facts.packages"
+  when: "'docker-ce' not in ansible_facts.packages"
 
 - name: Add docker repository
   apt_repository:
@@ -29,14 +29,14 @@
     state: present
     update_cache: yes
   become: yes
-  when: "'moby-buildx' not in ansible_facts.packages"
+  when: "'docker-ce' not in ansible_facts.packages"
 
 - name: Install docker debs
   apt:
     name: "{{ docker_debs }}"
     update_cache: yes
   become: yes
-  when: "'moby-buildx' not in ansible_facts.packages"
+  when: "'docker-ce' not in ansible_facts.packages"
 
 - name: Remove doxygen debian package
   apt:
