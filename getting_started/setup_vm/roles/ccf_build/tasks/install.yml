@@ -7,21 +7,17 @@
     update_cache: yes
   become: yes
 
-# Note: Do not install docker CLI if moby-buildx is already installed
+# Note: Do not install docker CLI if docker-ce-cli is already installed
 - name: Gather the package facts
   ansible.builtin.package_facts:
     manager: auto
-
-- name: Print the package facts
-  ansible.builtin.debug:
-    var: ansible_facts.packages
 
 - name: Add docker-ce repository key
   apt_key:
     url: "https://download.docker.com/linux/ubuntu/gpg"
     state: present
   become: yes
-  when: "'docker-ce' not in ansible_facts.packages"
+  when: "'docker-ce-cli' not in ansible_facts.packages"
 
 - name: Add docker repository
   apt_repository:
@@ -29,14 +25,14 @@
     state: present
     update_cache: yes
   become: yes
-  when: "'docker-ce' not in ansible_facts.packages"
+  when: "'docker-ce-cli' not in ansible_facts.packages"
 
 - name: Install docker debs
   apt:
     name: "{{ docker_debs }}"
     update_cache: yes
   become: yes
-  when: "'docker-ce' not in ansible_facts.packages"
+  when: "'docker-ce-cli' not in ansible_facts.packages"
 
 - name: Remove doxygen debian package
   apt:
