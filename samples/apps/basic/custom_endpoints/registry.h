@@ -285,11 +285,12 @@ namespace basicapp
         const auto& props = endpoint->properties;
         // Needs #6199
         auto module_val = ccf::js::load_app_module(
-          ctx, props.js_module.c_str(), &endpoint_ctx.tx,
+          ctx,
+          props.js_module.c_str(),
+          &endpoint_ctx.tx,
           "public:custom_endpoints.modules",
           "public:custom_endpoints.modules_quickjs_bytecode",
-          "public:custom_endpoints.modules_quickjs_version"
-          );
+          "public:custom_endpoints.modules_quickjs_version");
         export_func = ctx.get_exported_function(
           module_val, props.js_function, props.js_module);
       }
