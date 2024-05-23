@@ -20,7 +20,6 @@ jobs:
     name: Analyze
     # Insufficient space to run on public runner, so use custom pool
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-    container: ccfmsrc.azurecr.io/ccf/ci:2024-04-25-virtual-clang15
 
     permissions:
       security-events: write
@@ -66,9 +65,14 @@ jobs:
       #- run: |
       #   make bootstrap
       #   make release
+      - run: |
+          cd getting_started/setup_vm
+          sudo apt update
+          sudo apt install -y ansible software-properties-common bsdmainutils dnsutils
+          sudo ansible-playbook ccf-dev.yml --extra-vars "platform=virtual" --extra-vars "require_open_enclave=false"
+        name: Install dependencies
 
       - run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           mkdir build
           cd build
           cmake -DCOMPILE_TARGET=virtual -DREQUIRE_OPENENCLAVE=OFF -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DLVI_MITIGATIONS=OFF -DCMAKE_C_COMPILER=`which clang-11` -DCMAKE_CXX_COMPILER=`which clang++-11` ..
