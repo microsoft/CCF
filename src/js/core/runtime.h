@@ -28,8 +28,8 @@ namespace ccf::js::core
     static constexpr size_t default_stack_size = 1024 * 1024;
     static constexpr size_t default_heap_size = 100 * 1024 * 1024;
 
-    bool log_exception_details = true;
-    bool return_exception_details = true;
+    bool log_exception_details = false;
+    bool return_exception_details = false;
 
     Runtime();
     ~Runtime();
