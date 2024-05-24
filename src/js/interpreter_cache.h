@@ -33,7 +33,8 @@ namespace ccf::js
 
     std::shared_ptr<js::core::Context> get_interpreter(
       js::TxAccess access,
-      const JSDynamicEndpoint& endpoint,
+      const std::optional<ccf::endpoints::InterpreterReusePolicy>&
+        interpreter_reuse,
       size_t freshness_marker) override
     {
       if (access != js::TxAccess::APP_RW && access != js::TxAccess::APP_RO)
@@ -55,13 +56,13 @@ namespace ccf::js
         cache_build_marker = freshness_marker;
       }
 
-      if (endpoint.properties.interpreter_reuse.has_value())
+      if (interpreter_reuse.has_value())
       {
-        switch (endpoint.properties.interpreter_reuse->kind)
+        switch (interpreter_reuse->kind)
         {
           case ccf::endpoints::InterpreterReusePolicy::KeyBased:
           {
-            auto key = endpoint.properties.interpreter_reuse->key;
+            auto key = interpreter_reuse->key;
             if (access == js::TxAccess::APP_RW)
             {
               key += " (rw)";

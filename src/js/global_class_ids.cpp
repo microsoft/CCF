@@ -3,7 +3,7 @@
 
 #include "js/global_class_ids.h"
 
-#include "js/core/context.h"
+#include "ccf/js/core/context.h"
 
 namespace ccf::js
 {

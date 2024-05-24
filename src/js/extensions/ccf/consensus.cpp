@@ -1,11 +1,11 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "js/extensions/ccf/consensus.h"
+#include "ccf/js/extensions/ccf/consensus.h"
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/js/core/context.h"
 #include "js/checks.h"
-#include "js/core/context.h"
 
 #include <quickjs/quickjs.h>
 
