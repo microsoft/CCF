@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/kv_types.h"
+#include "ccf/tx.h"
 
 #include <chrono>
 #include <quickjs/quickjs.h>

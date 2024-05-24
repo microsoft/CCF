@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/js/extensions/extension_interface.h"
 #include "ccf/rpc_context.h"
-#include "js/extensions/extension_interface.h"
 
 namespace ccf::js::extensions
 {

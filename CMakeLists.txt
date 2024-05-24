@@ -350,6 +350,7 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/extensions/ccf/network.cpp
     ${CCF_DIR}/src/js/extensions/ccf/node.cpp
     ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/request.cpp
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -590,9 +591,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
   set(JS_SNP_ATTESTATION_VIRTUAL js_snp_attestation.virtual)
 endif()
 
-set(JS_GENERIC_SOURCES ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
-                       ${CCF_DIR}/src/apps/js_generic/request_extension.cpp
-)
+set(JS_GENERIC_SOURCES ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp)
 if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(js_generic_base.enclave ${JS_GENERIC_SOURCES})
   target_link_libraries(js_generic_base.enclave PUBLIC ccf.enclave)
@@ -1422,6 +1421,11 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       ADDITIONAL_ARGS --js-app-bundle
                       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+    )
+
+    add_e2e_test(
+      NAME programmability
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
     )
 
     # This test uses large requests (so too slow for SAN)
