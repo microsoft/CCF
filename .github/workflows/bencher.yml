@@ -2,7 +2,7 @@ name: "Continous Benchmarking"
 
 on:
     push:
-      branches: bencher_experiment
+      branches: main
   
 jobs:
     benchmark_base_branch:
@@ -21,6 +21,8 @@ jobs:
             cd build
             cmake -GNinja -DCOMPILE_TARGET=virtual ..
             ninja
+            # Limited list of benchmarks for now, but should be extended to
+            # everything under a single label eventually
             ./tests.sh -VV -R pi_basic_virtual
             ./tests.sh -VV -R historical_query
             ./tests.sh -VV -R commit_latency
@@ -31,7 +33,7 @@ jobs:
             bencher run \
             --project ccf \
             --token '${{ secrets.BENCHER_API_TOKEN }}' \
-            --branch bencher_experiment \
+            --branch main \
             --testbed gha-virtual-ccf-sub \
             --adapter json \
             --err \
