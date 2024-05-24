@@ -44,10 +44,27 @@ namespace basicapp
   private:
     std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache =
       nullptr;
+    std::string install_endpoint_name;
+    std::string modules_map;
+    std::string metadata_map;
+    std::string interpreter_flush_map;
+    std::string modules_quickjs_version_map;
+    std::string modules_quickjs_bytecode_map;
 
   public:
-    CustomJSEndpointRegistry(ccfapp::AbstractNodeContext& context) :
-      ccf::UserEndpointRegistry(context)
+    CustomJSEndpointRegistry(
+      ccfapp::AbstractNodeContext& context,
+      const std::string& install_endpoint_name_ = "custom_endpoints",
+      const std::string& kv_prefix_ = "public:custom_endpoints") :
+      ccf::UserEndpointRegistry(context),
+      install_endpoint_name(install_endpoint_name_),
+      modules_map(fmt::format("{}.modules", kv_prefix_)),
+      metadata_map(fmt::format("{}.metadata", kv_prefix_)),
+      interpreter_flush_map(fmt::format("{}.interpreter_flush", kv_prefix_)),
+      modules_quickjs_version_map(
+        fmt::format("{}.modules_quickjs_version", kv_prefix_)),
+      modules_quickjs_bytecode_map(
+        fmt::format("{}.modules_quickjs_bytecode", kv_prefix_))
     {
       interpreter_cache =
         context.get_subsystem<ccf::js::AbstractInterpreterCache>();
@@ -135,8 +152,8 @@ namespace basicapp
           caller_identity.content.begin(), caller_identity.content.end());
         const auto wrapper = j.get<ccf::js::BundleWrapper>();
 
-        auto endpoints = ctx.tx.template rw<ccf::endpoints::EndpointsMap>(
-          "public:custom_endpoints.metadata");
+        auto endpoints =
+          ctx.tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
         // Similar to set_js_app
         endpoints->clear();
         for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
@@ -150,8 +167,7 @@ namespace basicapp
           }
         }
 
-        auto modules =
-          ctx.tx.template rw<ccf::Modules>("public:custom_endpoints.modules");
+        auto modules = ctx.tx.template rw<ccf::Modules>(modules_map);
         modules->clear();
         for (const auto& [name, module] : wrapper.bundle.modules)
         {
@@ -160,8 +176,8 @@ namespace basicapp
 
         // Trigger interpreter flush, in case interpreter reuse
         // is enabled for some endpoints
-        auto interpreter_flush = ctx.tx.template rw<ccf::InterpreterFlush>(
-          "public:custom_endpoints.interpreter_flush");
+        auto interpreter_flush =
+          ctx.tx.template rw<ccf::InterpreterFlush>(interpreter_flush_map);
         interpreter_flush->put(true);
 
         // Refresh app bytecode
@@ -171,10 +187,10 @@ namespace basicapp
         JS_SetModuleLoaderFunc(
           jsctx.runtime(), nullptr, ccf::js::js_app_module_loader, &ctx.tx);
 
-        auto quickjs_version = ctx.tx.wo<ccf::ModulesQuickJsVersion>(
-          "public:custom_endpoints.modules_quickjs_version");
-        auto quickjs_bytecode = ctx.tx.wo<ccf::ModulesQuickJsBytecode>(
-          "public:custom_endpoints.modules_quickjs_bytecode");
+        auto quickjs_version =
+          ctx.tx.wo<ccf::ModulesQuickJsVersion>(modules_quickjs_version_map);
+        auto quickjs_bytecode =
+          ctx.tx.wo<ccf::ModulesQuickJsBytecode>(modules_quickjs_bytecode_map);
 
         quickjs_version->put(ccf::quickjs_version);
         quickjs_bytecode->clear();
@@ -184,9 +200,9 @@ namespace basicapp
             jsctx,
             name.c_str(),
             &ctx.tx,
-            "public:custom_endpoints.modules",
-            "public:custom_endpoints.modules_quickjs_bytecode",
-            "public:custom_endpoints.modules_quickjs_version");
+            modules_map,
+            modules_quickjs_bytecode_map,
+            modules_quickjs_version_map);
 
           uint8_t* out_buf;
           size_t out_buf_len;
@@ -208,7 +224,7 @@ namespace basicapp
       };
 
       make_endpoint(
-        "custom_endpoints",
+        install_endpoint_name,
         HTTP_PUT,
         put_custom_endpoints,
         {ccf::user_cose_sign1_auth_policy})
@@ -226,8 +242,7 @@ namespace basicapp
       const auto method = rpc_ctx.get_method();
       const auto verb = rpc_ctx.get_request_verb();
 
-      auto endpoints =
-        tx.ro<ccf::endpoints::EndpointsMap>("public:custom_endpoints.metadata");
+      auto endpoints = tx.ro<ccf::endpoints::EndpointsMap>(metadata_map);
       const auto key = ccf::endpoints::EndpointKey{method, verb};
 
       // Look for a direct match of the given path
@@ -260,8 +275,8 @@ namespace basicapp
       // interpreter is unsafe to use. If this value is written to, the
       // version_of_previous_write will advance, and all cached interpreters
       // will be flushed.
-      const auto interpreter_flush = endpoint_ctx.tx.ro<ccf::InterpreterFlush>(
-        "public:custom_enpoints.interpreter_flush");
+      const auto interpreter_flush =
+        endpoint_ctx.tx.ro<ccf::InterpreterFlush>(interpreter_flush_map);
       const auto flush_marker =
         interpreter_flush->get_version_of_previous_write().value_or(0);
 
@@ -337,9 +352,9 @@ namespace basicapp
           ctx,
           props.js_module.c_str(),
           &endpoint_ctx.tx,
-          "public:custom_endpoints.modules",
-          "public:custom_endpoints.modules_quickjs_bytecode",
-          "public:custom_endpoints.modules_quickjs_version");
+          modules_map,
+          modules_quickjs_bytecode_map,
+          modules_quickjs_version_map);
         export_func = ctx.get_exported_function(
           module_val, props.js_function, props.js_module);
       }

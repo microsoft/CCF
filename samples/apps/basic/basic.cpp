@@ -27,7 +27,13 @@ namespace basicapp
   {
   public:
     BasicHandlers(ccfapp::AbstractNodeContext& context) :
-      basicapp::CustomJSEndpointRegistry(context)
+      basicapp::CustomJSEndpointRegistry(
+        context,
+        "custom_endpoints", // Custom JS endpoints can be install with PUT
+                            // /app/custom_endpoints
+        "public:custom_endpoints" // Internal KV space will be under
+                                  // public:custom_endpoints.*
+      )
     {
       openapi_info.title = "CCF Basic App";
       openapi_info.description =
