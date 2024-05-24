@@ -37,7 +37,9 @@ namespace basicapp
   // Known limitations:
   //
   // No auditability yet, COSE Sign1 auth is mandated, but the signature is not
-  // stored. No support for historical endpoints yet.
+  // stored.
+  // No support for historical endpoints yet.
+  // No support for import from external modules.
   //
   // Additional functionality compared to set_js_app:
   //
