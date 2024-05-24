@@ -23,6 +23,25 @@ namespace basicapp
   using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
   static constexpr auto PRIVATE_RECORDS = "records";
 
+  // By subclassing CustomJSEndpointRegistry, this application gains the ability
+  // to install and execute custom JavaScript endpoints.
+  // CustomJSEndpointRegistry adds a single built-in C++ endpoint installed at a
+  // parametrable path (second argument to the constructor) that enables a user
+  // for which with user_data["isAdmin"] is true to install custom JavaScript
+  // endpoints. The JavaScript code for these endpoints is stored in the
+  // internal KV store under a namespace configured in the second argument to
+  // the constructor. PUT /app/custom_endpoints (in this case) is logically
+  // equivalent to passing a set_js_app proposal in governance, except the
+  // application resides in the application space.
+  //
+  // Known limitations:
+  //
+  // No auditability yet, COSE Sign1 auth is mandated, but the signature is not
+  // stored. No support for historical endpoints.
+  //
+  // Additional functionality compared to set_js_app:
+  // The KV namespace can be private, to keep the application confidential if
+  // desired.
   class BasicHandlers : public basicapp::CustomJSEndpointRegistry
   {
   public:

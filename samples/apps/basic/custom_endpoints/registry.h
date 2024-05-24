@@ -30,6 +30,7 @@
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/extensions/math/random.h"
 #include "ccf/js/modules.h"
+#include "ccf/node/rpc_context_impl.h"
 #include "js/interpreter_cache_interface.h"
 
 using namespace nlohmann;
@@ -258,7 +259,72 @@ namespace basicapp
         return endpoint_def;
       }
 
-      // TBD: templated endpoints
+      // If that doesn't exist, look through _all_ the endpoints to find
+      // templated matches. If there is one, that's a match. More is an error,
+      // none means delegate to the base class.
+      {
+        std::vector<ccf::endpoints::EndpointDefinitionPtr> matches;
+
+        endpoints->foreach_key([this, &endpoints, &matches, &key, &rpc_ctx](
+                                 const auto& other_key) {
+          if (key.verb == other_key.verb)
+          {
+            const auto opt_spec =
+              ccf::endpoints::PathTemplateSpec::parse(other_key.uri_path);
+            if (opt_spec.has_value())
+            {
+              const auto& template_spec = opt_spec.value();
+              // This endpoint has templates in its path, and the correct verb
+              // - now check if template matches the current request's path
+              std::smatch match;
+              if (std::regex_match(
+                    key.uri_path, match, template_spec.template_regex))
+              {
+                if (matches.empty())
+                {
+                  auto ctx_impl = static_cast<ccf::RpcContextImpl*>(&rpc_ctx);
+                  if (ctx_impl == nullptr)
+                  {
+                    throw std::logic_error("Unexpected type of RpcContext");
+                  }
+                  // Populate the request_path_params while we have the match,
+                  // though this will be discarded on error if we later find
+                  // multiple matches
+                  auto& path_params = ctx_impl->path_params;
+                  for (size_t i = 0;
+                       i < template_spec.template_component_names.size();
+                       ++i)
+                  {
+                    const auto& template_name =
+                      template_spec.template_component_names[i];
+                    const auto& template_value = match[i + 1].str();
+                    path_params[template_name] = template_value;
+                  }
+                }
+
+                auto endpoint = std::make_shared<ccf::js::JSDynamicEndpoint>();
+                endpoint->dispatch = other_key;
+                endpoint->full_uri_path = fmt::format(
+                  "/{}{}", method_prefix, endpoint->dispatch.uri_path);
+                endpoint->properties = endpoints->get(other_key).value();
+                ccf::instantiate_authn_policies(*endpoint);
+                matches.push_back(endpoint);
+              }
+            }
+          }
+          return true;
+        });
+
+        if (matches.size() > 1)
+        {
+          report_ambiguous_templated_path(key.uri_path, matches);
+        }
+        else if (matches.size() == 1)
+        {
+          return matches[0];
+        }
+      }
+
       return ccf::endpoints::EndpointRegistry::find_endpoint(tx, rpc_ctx);
     }
 

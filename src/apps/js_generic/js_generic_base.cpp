@@ -20,12 +20,12 @@
 #include "ccf/js/modules.h"
 #include "ccf/js/named_auth_policies.h"
 #include "ccf/node/host_processes_interface.h"
+#include "ccf/node/rpc_context_impl.h"
 #include "ccf/service/tables/jsengine.h"
 #include "ccf/version.h"
 #include "enclave/enclave_time.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache_interface.h"
-#include "node/rpc/rpc_context_impl.h"
 #include "service/tables/endpoints.h"
 
 #include <memory>
