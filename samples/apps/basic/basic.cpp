@@ -13,19 +13,47 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
-using namespace std;
+// Custom Endpoints
+#include "custom_endpoints/registry.h"
+
 using namespace nlohmann;
 
 namespace basicapp
 {
-  using RecordsMap = kv::Map<string, std::vector<uint8_t>>;
+  using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
   static constexpr auto PRIVATE_RECORDS = "records";
 
-  class BasicHandlers : public ccf::UserEndpointRegistry
+  // By subclassing CustomJSEndpointRegistry, this application gains the ability
+  // execute custom JavaScript endpoints, and exposes the ability to install
+  // them via install_custom_endpoints().
+  // This sample also adds a PUT /app/custom_endpoints that enables a user
+  // for which user_data["isAdmin"] is true to install custom JavaScript
+  // endpoints. The JavaScript code for these endpoints is stored in the
+  // internal KV store under a namespace configured in the second argument to
+  // the constructor. PUT /app/custom_endpoints is logically
+  // equivalent to passing a set_js_app proposal in governance, except the
+  // application resides in the application space.
+  //
+  // Known limitations:
+  //
+  // No auditability yet, COSE Sign1 auth is mandated, but the signature is not
+  // stored.
+  // No support for historical endpoints yet.
+  // No support for import from external modules.
+  //
+  // Additional functionality compared to set_js_app:
+  //
+  // The KV namespace can be private, to keep the application confidential if
+  // desired.
+  class BasicHandlers : public basicapp::CustomJSEndpointRegistry
   {
   public:
     BasicHandlers(ccfapp::AbstractNodeContext& context) :
-      ccf::UserEndpointRegistry(context)
+      basicapp::CustomJSEndpointRegistry(
+        context,
+        "public:custom_endpoints" // Internal KV space will be under
+                                  // public:custom_endpoints.*
+      )
     {
       openapi_info.title = "CCF Basic App";
       openapi_info.description =
@@ -104,6 +132,57 @@ namespace basicapp
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       };
       make_endpoint("/records", HTTP_POST, post, {ccf::user_cert_auth_policy})
+        .install();
+
+      auto put_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
+        const auto& caller_identity =
+          ctx.template get_caller<ccf::UserCOSESign1AuthnIdentity>();
+
+        // Authorization Check
+        nlohmann::json user_data = nullptr;
+        auto result =
+          get_user_data_v1(ctx.tx, caller_identity.user_id, user_data);
+        if (result == ccf::ApiResult::InternalError)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to get user data for user {}: {}",
+              caller_identity.user_id,
+              ccf::api_result_to_str(result)));
+          return;
+        }
+        const auto is_admin_it = user_data.find("isAdmin");
+
+        // Not every user gets to define custom endpoints, only users with
+        // isAdmin
+        if (
+          !user_data.is_object() || is_admin_it == user_data.end() ||
+          !is_admin_it.value().get<bool>())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_FORBIDDEN,
+            ccf::errors::AuthorizationFailed,
+            "Only admins may access this endpoint.");
+          return;
+        }
+        // End of Authorization Check
+
+        const auto j = nlohmann::json::parse(
+          caller_identity.content.begin(), caller_identity.content.end());
+        const auto wrapper = j.get<ccf::js::BundleWrapper>();
+
+        install_custom_endpoints(ctx, wrapper);
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
+      };
+
+      make_endpoint(
+        "/custom_endpoints",
+        HTTP_PUT,
+        put_custom_endpoints,
+        {ccf::user_cose_sign1_auth_policy})
+        .set_auto_schema<ccf::js::BundleWrapper, void>()
         .install();
     }
   };

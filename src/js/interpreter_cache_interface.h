@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/endpoint.h"
+#include "ccf/js/tx_access.h"
 #include "ccf/node_subsystem_interface.h"
-#include "js/tx_access.h"
 
 namespace ccf::js
 {
@@ -15,6 +15,9 @@ namespace ccf::js
 
   struct JSDynamicEndpoint : public ccf::endpoints::EndpointDefinition
   {};
+
+  using InterpreterFactory =
+    std::function<std::shared_ptr<js::core::Context>(js::TxAccess)>;
 
   class AbstractInterpreterCache : public ccf::AbstractNodeSubSystem
   {
@@ -35,12 +38,15 @@ namespace ccf::js
     // execution, where some global initialisation may already be done.
     virtual std::shared_ptr<js::core::Context> get_interpreter(
       js::TxAccess access,
-      const JSDynamicEndpoint& endpoint,
+      const std::optional<ccf::endpoints::InterpreterReusePolicy>&
+        interpreter_reuse,
       size_t freshness_marker) = 0;
 
     // Cap the total number of interpreters which will be retained. The
     // underlying cache functions as an LRU, evicting the interpreter which has
     // been idle the longest when the cap is reached.
     virtual void set_max_cached_interpreters(size_t max) = 0;
+
+    virtual void set_interpreter_factory(const InterpreterFactory& ip) = 0;
   };
 }

@@ -128,8 +128,7 @@ Network == INSTANCE Network
 \* Helper function for checking the type safety of log entries
 EntryTypeOK(entry) ==
     /\ entry.term \in Nat \ {0}
-    /\ \/ /\ entry.contentType = TypeEntry
-          /\ entry.request \in Nat \ {0}
+    /\ \/ entry.contentType = TypeEntry
        \/ entry.contentType = TypeSignature
        \/ /\ entry.contentType = TypeReconfiguration
           /\ entry.configuration \subseteq Servers
@@ -739,14 +738,16 @@ BecomeLeader(i) ==
         IF @ = RetirementOrdered THEN Active ELSE @]
     /\ UNCHANGED <<messageVars, currentTerm, votedFor, isNewFollower, candidateVars, commitIndex, hasJoined, retirementCompleted>>
 
-\* Leader i receives a client request to add 42 to the log.
+\* Leader i receives a client request to add to the log. The consensus spec is agnostic to request payloads,
+\* and does not model or differentiate them. See the consistency spec (tla/consistency/*) for a specification
+\* from a client's perspective with differentiated payloads.
 ClientRequest(i) ==
     \* Only leaders receive client requests (and therefore they have not yet completed retirement)
     /\ leadershipState[i] = Leader
     \* See raft.h::can_replicate_unsafe()
     /\ membershipState[i] # RetiredCommitted
     \* Add new request to leader's log
-    /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], request |-> 42, contentType |-> TypeEntry]) ]
+    /\ log' = [log EXCEPT ![i] = Append(@, [term  |-> currentTerm[i], contentType |-> TypeEntry]) ]
     /\ UNCHANGED <<reconfigurationVars, messageVars, serverVars, candidateVars, leaderVars, commitIndex>>
 
 \* CCF: Signed commits
@@ -1600,7 +1601,6 @@ MembershipStateTransitionsProp ==
         \* Note that all other transitions between retirement phases are permitted
         \* For instance, a node could go from Active to RetirementCompleted in one step if it 
         \* receives an append entries with its retirement signed and committed
-        \* TODO: that is really too permissive, not all transitions are possible.
 
 PendingBecomesFollowerProp ==
     \* A pending node that becomes aware it is part of a configuration immediately transitions to Follower.

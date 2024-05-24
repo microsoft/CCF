@@ -5,17 +5,27 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/js/core/context.h"
+#include "ccf/js/core/wrapped_property_enum.h"
+#include "ccf/js/extensions/ccf/consensus.h"
+#include "ccf/js/extensions/ccf/converters.h"
+#include "ccf/js/extensions/ccf/crypto.h"
+#include "ccf/js/extensions/ccf/historical.h"
+#include "ccf/js/extensions/ccf/host.h"
+#include "ccf/js/extensions/ccf/kv.h"
+#include "ccf/js/extensions/ccf/request.h"
+#include "ccf/js/extensions/ccf/rpc.h"
+#include "ccf/js/extensions/console.h"
+#include "ccf/js/extensions/math/random.h"
+#include "ccf/js/modules.h"
+#include "ccf/js/named_auth_policies.h"
 #include "ccf/node/host_processes_interface.h"
+#include "ccf/node/rpc_context_impl.h"
 #include "ccf/service/tables/jsengine.h"
 #include "ccf/version.h"
 #include "enclave/enclave_time.h"
-#include "js/core/context.h"
-#include "js/core/wrapped_property_enum.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache_interface.h"
-#include "js/modules.h"
-#include "named_auth_policies.h"
-#include "node/rpc/rpc_context_impl.h"
 #include "service/tables/endpoints.h"
 
 #include <memory>
@@ -37,233 +47,6 @@ namespace ccfapp
     std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache =
       nullptr;
 
-    js::core::JSWrappedValue create_caller_ident_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx,
-      const std::unique_ptr<ccf::AuthnIdentity>& ident,
-      js::core::Context& ctx)
-    {
-      if (ident == nullptr)
-      {
-        return ctx.null();
-      }
-
-      auto caller = ctx.new_obj();
-
-      if (
-        auto jwt_ident =
-          dynamic_cast<const ccf::JwtAuthnIdentity*>(ident.get()))
-      {
-        caller.set(
-          "policy", ctx.new_string(get_policy_name_from_ident(jwt_ident)));
-
-        auto jwt = ctx.new_obj();
-        jwt.set(
-          "keyIssuer",
-          ctx.new_string_len(
-            jwt_ident->key_issuer.data(), jwt_ident->key_issuer.size()));
-        jwt.set("header", ctx.parse_json(jwt_ident->header));
-        jwt.set("payload", ctx.parse_json(jwt_ident->payload));
-        caller.set("jwt", std::move(jwt));
-
-        return caller;
-      }
-      if (
-        auto empty_ident =
-          dynamic_cast<const ccf::EmptyAuthnIdentity*>(ident.get()))
-      {
-        caller.set(
-          "policy", ctx.new_string(get_policy_name_from_ident(empty_ident)));
-        return caller;
-      }
-      if (
-        auto all_of_ident =
-          dynamic_cast<const ccf::AllOfAuthnIdentity*>(ident.get()))
-      {
-        auto policy = ctx.new_array();
-        uint32_t i = 0;
-        for (const auto& [name, sub_ident] : all_of_ident->identities)
-        {
-          policy.set_at_index(i++, ctx.new_string(name));
-          caller.set(
-            name, create_caller_ident_obj(endpoint_ctx, sub_ident, ctx));
-        }
-        caller.set("policy", std::move(policy));
-        return caller;
-      }
-
-      char const* policy_name = nullptr;
-      std::string id;
-      bool is_member = false;
-
-      if (
-        auto user_cert_ident =
-          dynamic_cast<const ccf::UserCertAuthnIdentity*>(ident.get()))
-      {
-        policy_name = get_policy_name_from_ident(user_cert_ident);
-        id = user_cert_ident->user_id;
-        is_member = false;
-      }
-      else if (
-        auto member_cert_ident =
-          dynamic_cast<const ccf::MemberCertAuthnIdentity*>(ident.get()))
-      {
-        policy_name = get_policy_name_from_ident(member_cert_ident);
-        id = member_cert_ident->member_id;
-        is_member = true;
-      }
-      else if (
-        auto user_cose_ident =
-          dynamic_cast<const ccf::UserCOSESign1AuthnIdentity*>(ident.get()))
-      {
-        policy_name = get_policy_name_from_ident(user_cose_ident);
-        id = user_cose_ident->user_id;
-        is_member = false;
-
-        auto cose = ctx.new_obj();
-        cose.set(
-          "content",
-          ctx.new_array_buffer_copy(
-            user_cose_ident->content.data(), user_cose_ident->content.size()));
-        caller.set("cose", std::move(cose));
-      }
-
-      if (policy_name == nullptr)
-      {
-        throw std::logic_error("Unable to convert caller info to JS object");
-      }
-
-      // Retrieve user/member data from authenticated caller id
-      nlohmann::json data = nullptr;
-      ccf::ApiResult result = ccf::ApiResult::OK;
-
-      if (is_member)
-      {
-        result = get_member_data_v1(endpoint_ctx.tx, id, data);
-      }
-      else
-      {
-        result = get_user_data_v1(endpoint_ctx.tx, id, data);
-      }
-
-      if (result == ccf::ApiResult::InternalError)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to get data for caller {}", id));
-      }
-
-      crypto::Pem cert;
-      if (is_member)
-      {
-        result = get_member_cert_v1(endpoint_ctx.tx, id, cert);
-      }
-      else
-      {
-        result = get_user_cert_v1(endpoint_ctx.tx, id, cert);
-      }
-
-      if (result == ccf::ApiResult::InternalError)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to get certificate for caller {}", id));
-      }
-
-      caller.set("policy", ctx.new_string(policy_name));
-      caller.set("id", ctx.new_string_len(id.data(), id.size()));
-      caller.set("data", ctx.parse_json(data));
-      caller.set("cert", ctx.new_string_len(cert.str().data(), cert.size()));
-
-      return caller;
-    }
-
-    js::core::JSWrappedValue create_caller_obj(
-      ccf::endpoints::EndpointContext& endpoint_ctx, js::core::Context& ctx)
-    {
-      return create_caller_ident_obj(endpoint_ctx, endpoint_ctx.caller, ctx);
-    }
-
-    js::core::JSWrappedValue create_request_obj(
-      const ccf::js::JSDynamicEndpoint* endpoint,
-      ccf::endpoints::EndpointContext& endpoint_ctx,
-      js::core::Context& ctx)
-    {
-      auto request = ctx.new_obj();
-
-      const auto& r_headers = endpoint_ctx.rpc_ctx->get_request_headers();
-      auto headers = ctx.new_obj();
-      for (auto& [header_name, header_value] : r_headers)
-      {
-        headers.set(
-          header_name,
-          ctx.new_string_len(header_value.c_str(), header_value.size()));
-      }
-      request.set("headers", std::move(headers));
-
-      const auto& request_query = endpoint_ctx.rpc_ctx->get_request_query();
-      auto query_str =
-        ctx.new_string_len(request_query.c_str(), request_query.size());
-      request.set("query", std::move(query_str));
-
-      const auto& request_path = endpoint_ctx.rpc_ctx->get_request_path();
-      auto path_str =
-        ctx.new_string_len(request_path.c_str(), request_path.size());
-      request.set("path", std::move(path_str));
-
-      const auto& request_method = endpoint_ctx.rpc_ctx->get_request_verb();
-      auto method_str = ctx.new_string(request_method.c_str());
-      request.set("method", std::move(method_str));
-
-      const auto host_it = r_headers.find(http::headers::HOST);
-      if (host_it != r_headers.end())
-      {
-        const auto& request_hostname = host_it->second;
-        auto hostname_str =
-          ctx.new_string_len(request_hostname.c_str(), request_hostname.size());
-        request.set("hostname", std::move(hostname_str));
-      }
-      else
-      {
-        request.set_null("hostname");
-      }
-
-      const auto request_route = endpoint->full_uri_path;
-      auto route_str =
-        ctx.new_string_len(request_route.c_str(), request_route.size());
-      request.set("route", std::move(route_str));
-
-      auto request_url = request_path;
-      if (!request_query.empty())
-      {
-        request_url = fmt::format("{}?{}", request_url, request_query);
-      }
-      auto url_str =
-        ctx.new_string_len(request_url.c_str(), request_url.size());
-      request.set("url", std::move(url_str));
-
-      auto params = ctx.new_obj();
-      for (auto& [param_name, param_value] :
-           endpoint_ctx.rpc_ctx->get_request_path_params())
-      {
-        params.set(
-          param_name,
-          ctx.new_string_len(param_value.c_str(), param_value.size()));
-      }
-      request.set("params", std::move(params));
-
-      auto body_ = ctx.new_obj_class(js::body_class_id);
-      ctx.globals.current_request_body =
-        &endpoint_ctx.rpc_ctx->get_request_body();
-      request.set("body", std::move(body_));
-
-      request.set("caller", create_caller_obj(endpoint_ctx, ctx));
-
-      return request;
-    }
-
-    void invalidate_request_obj_body(js::core::Context& ctx)
-    {
-      ctx.globals.current_request_body = nullptr;
-    }
-
     void execute_request(
       const ccf::js::JSDynamicEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx)
@@ -281,9 +64,22 @@ namespace ccfapp
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {
             auto add_historical_globals = [&](js::core::Context& ctx) {
-              auto ccf = ctx.get_global_property("ccf");
-              auto val = ctx.create_historical_state_object(state);
-              ccf.set("historicalState", std::move(val));
+              auto ccf =
+                ctx.get_or_create_global_property("ccf", ctx.new_obj());
+              auto extension =
+                ctx.get_extension<ccf::js::extensions::HistoricalExtension>();
+              if (extension != nullptr)
+              {
+                auto val =
+                  extension->create_historical_state_object(ctx, state);
+                ccf.set("historicalState", std::move(val));
+              }
+              else
+              {
+                LOG_FAIL_FMT(
+                  "Error while inserting historicalState into JS interpreter - "
+                  "no extension found");
+              }
             };
             do_execute_request(endpoint, endpoint_ctx, add_historical_globals);
           },
@@ -327,7 +123,8 @@ namespace ccfapp
         js::TxAccess::APP_RW :
         js::TxAccess::APP_RO;
       std::shared_ptr<js::core::Context> interpreter =
-        interpreter_cache->get_interpreter(rw_access, *endpoint, flush_marker);
+        interpreter_cache->get_interpreter(
+          rw_access, endpoint->properties.interpreter_reuse, flush_marker);
       if (interpreter == nullptr)
       {
         throw std::logic_error("Cache failed to produce interpreter");
@@ -351,14 +148,28 @@ namespace ccfapp
       JS_SetModuleLoaderFunc(
         ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
 
-      ctx.register_request_body_class();
-      ctx.populate_global_ccf_kv(endpoint_ctx.tx);
+      // Extensions with a dependency on this endpoint context (invocation),
+      // which must be removed after execution.
+      js::extensions::Extensions local_extensions;
 
-      ctx.populate_global_ccf_rpc(endpoint_ctx.rpc_ctx.get());
-      ctx.populate_global_ccf_host(
-        context.get_subsystem<ccf::AbstractHostProcesses>().get());
-      ctx.populate_global_ccf_consensus(this);
-      ctx.populate_global_ccf_historical(&context.get_historical_state());
+      // ccf.kv.*
+      local_extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::KvExtension>(&endpoint_ctx.tx));
+
+      // ccf.rpc.*
+      local_extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::RpcExtension>(
+          endpoint_ctx.rpc_ctx.get()));
+
+      auto request_extension =
+        std::make_shared<ccf::js::extensions::RequestExtension>(
+          endpoint_ctx.rpc_ctx.get());
+      local_extensions.push_back(request_extension);
+
+      for (auto extension : local_extensions)
+      {
+        ctx.add_extension(extension);
+      }
 
       if (pre_exec_hook.has_value())
       {
@@ -371,8 +182,8 @@ namespace ccfapp
         const auto& props = endpoint->properties;
         auto module_val =
           js::load_app_module(ctx, props.js_module.c_str(), &endpoint_ctx.tx);
-        export_func =
-          ctx.function(module_val, props.js_function, props.js_module);
+        export_func = ctx.get_exported_function(
+          module_val, props.js_function, props.js_module);
       }
       catch (const std::exception& exc)
       {
@@ -383,8 +194,9 @@ namespace ccfapp
         return;
       }
 
-      // Call exported function
-      auto request = create_request_obj(endpoint, endpoint_ctx, ctx);
+      // Call exported function;
+      auto request = request_extension->create_request_obj(
+        ctx, endpoint->full_uri_path, endpoint_ctx, this);
 
       auto val = ctx.call_with_rt_options(
         export_func,
@@ -392,10 +204,10 @@ namespace ccfapp
         &endpoint_ctx.tx,
         ccf::js::core::RuntimeLimitsPolicy::NONE);
 
-      // Clear globals (which potentially reference locals like txctx), from
-      // this potentially reused interpreter
-      invalidate_request_obj_body(ctx);
-      ctx.invalidate_globals();
+      for (auto extension : local_extensions)
+      {
+        ctx.remove_extension(extension);
+      }
 
       const auto& rt = ctx.runtime();
 
@@ -665,6 +477,45 @@ namespace ccfapp
         throw std::logic_error(
           "Unexpected: Could not access AbstractInterpreterCache subsytem");
       }
+
+      // Install dependency-less (ie reusable) extensions on interpreters _at
+      // creation_, rather than on every run
+      js::extensions::Extensions extensions;
+      // override Math.random
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::MathRandomExtension>());
+      // add console.[debug|log|...]
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::ConsoleExtension>());
+      // add ccf.[strToBuf|bufToStr|...]
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::ConvertersExtension>());
+      // add ccf.crypto.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::CryptoExtension>());
+      // add ccf.consensus.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::ConsensusExtension>(this));
+      // add ccf.host.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::HostExtension>(
+          context.get_subsystem<ccf::AbstractHostProcesses>().get()));
+      // add ccf.historical.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::HistoricalExtension>(
+          &context.get_historical_state()));
+
+      interpreter_cache->set_interpreter_factory(
+        [extensions](ccf::js::TxAccess access) {
+          auto interpreter = std::make_shared<js::core::Context>(access);
+
+          for (auto extension : extensions)
+          {
+            interpreter->add_extension(extension);
+          }
+
+          return interpreter;
+        });
     }
 
     void instantiate_authn_policies(ccf::js::JSDynamicEndpoint& endpoint)

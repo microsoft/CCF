@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "js/tx_access.h"
+#include "ccf/js/tx_access.h"
 #include "kv/kv_types.h"
 
 namespace ccf::js
