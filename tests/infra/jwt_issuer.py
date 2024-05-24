@@ -201,7 +201,7 @@ class JwtIssuer:
     def issue_jwt(self, kid=None, claims=None):
         claims = claims or {}
         kid_ = kid or self.default_kid
-        # JWT formats times as NumericDate, which is a JSON numeric value counting seconds sine the epoch
+        # JWT formats times as NumericDate, which is a JSON numeric value counting seconds since the epoch
         now = int(time.time())
         if "nbf" not in claims:
             # Insert default Not Before claim, valid from ~10 seconds ago

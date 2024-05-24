@@ -1145,7 +1145,7 @@ namespace aft
           "Previous term for {} should be {}", r.prev_idx, prev_term);
 
         // Reply false if the log doesn't contain an entry at r.prev_idx
-        // whose term is r.prev_term.
+        // whose term is r.prev_term. Rejects "future" entries.
         if (prev_term == 0)
         {
           RAFT_DEBUG_FMT(
@@ -1183,7 +1183,6 @@ namespace aft
       }
 
       // Third, check index consistency, making sure entries are not in the past
-      // or in the future
       if (r.prev_idx < state->commit_idx)
       {
         RAFT_DEBUG_FMT(
@@ -1195,9 +1194,13 @@ namespace aft
           state->commit_idx);
         return;
       }
+      // Redundant with check on get_term_internal() at line 1149
+      // Which captures this case in every situation, except r.prev_term == 0.
+      // That only happens if r.prev_idx == 0 however, see line 1033,
+      // in which case this path should not be taken either.
       else if (r.prev_idx > state->last_idx)
       {
-        RAFT_DEBUG_FMT(
+        RAFT_FAIL_FMT(
           "Recv append entries to {} from {} but prev_idx ({}) > last_idx ({})",
           state->node_id,
           from,

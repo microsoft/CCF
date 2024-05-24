@@ -39,7 +39,7 @@ namespace ccf::pal
   // SGX
   static constexpr size_t sgx_attestation_report_data_size = 32;
   using SgxAttestationReportData =
-    AttestationReportData<sgx_attestation_measurement_size>;
+    AttestationReportData<sgx_attestation_report_data_size>;
 
   // SNP
   static constexpr size_t snp_attestation_report_data_size = 64;

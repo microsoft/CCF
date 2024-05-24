@@ -7,29 +7,29 @@
 EXTENDS ExternalHistoryInvars, TLC
 
 
-\* Abstract ledgers that contains only client transactions (no signatures)
+\* Abstract ledgers that contain transactions
 \* Indexed by view, each ledger is the ledger associated with leader of that view 
 \* In practice, the ledger of every CCF node is one of these or a prefix for one of these
-\* This could be switched to a tree which can represent forks more elegantly
 VARIABLES ledgerBranches
 
 LedgerTypeOK ==
     \A view \in DOMAIN ledgerBranches:
         \A seqnum \in DOMAIN ledgerBranches[view]:
-            \* Each ledger entry is tuple containing a view and tx
-            \* The ledger entry index is the sequence number
+            \* Each ledger entry is a record containing a view and optionally a tx
+            \* The ledger entry index is its sequence number
             /\ ledgerBranches[view][seqnum].view \in Views
             /\ "tx" \in DOMAIN ledgerBranches[view][seqnum] => ledgerBranches[view][seqnum].tx \in Txs
-
-\* In this abstract version of CCF's consensus layer, each ledger is append-only
-LedgersMonoProp ==
-    [][\A view \in DOMAIN ledgerBranches: IsPrefix(ledgerBranches[view], ledgerBranches'[view])]_ledgerBranches
-
-vars == << history, ledgerBranches >>
 
 TypeOK ==
     /\ HistoryTypeOK
     /\ LedgerTypeOK
+
+\* In this abstract version of CCF's consensus layer, each ledger is append-only
+\* Each ledger branch is the log of a leader in a view and thus is not overwritten/rolled back
+LedgersMonoProp ==
+    [][\A view \in DOMAIN ledgerBranches: IsPrefix(ledgerBranches[view], ledgerBranches'[view])]_ledgerBranches
+
+vars == << history, ledgerBranches >>
 
 Init ==
     /\ history = <<>>

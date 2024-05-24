@@ -12,7 +12,8 @@ AllRwReceivedIsFirstSentInv ==
             /\ history[j].tx = history[i].tx
 
 \* Read-only transaction responses always follow an associated request
-\* TODO: extend this to handle the fact that separate reads might get the same transaction ID
+\* Note that since multiple read requests can receive the same transaction ID this
+\* invariant specifies only that at least one request was sent before the responses.
 AllRoReceivedIsFirstSentInv ==
     \A i \in DOMAIN history :
         history[i].type = RoTxResponse
@@ -51,7 +52,6 @@ UniqueTxRequestsInv ==
         /\ i # j
         => history[i].tx # history[j].tx
 
-
 \* Each transaction has a unique transaction ID
 UniqueTxIdsInv ==
     \A i, j \in {x \in DOMAIN history : history[x].type \in {RwTxResponse, RoTxResponse}} :
@@ -87,6 +87,14 @@ OnceCommittedPrevCommittedInv ==
         /\ history[j].tx_id[2] <= history[i].tx_id[2]
         => history[j].status = CommittedStatus
 
+\* If a transaction is committed then all others from greater (or equal) seqnums but strictly smaller terms are invalid
+OnceCommittedNextInvalidInv ==
+    \A i, j \in TxStatusReceivedEventIndexes:
+        /\ history[i].status = CommittedStatus
+        /\ history[i].tx_id[2] <= history[j].tx_id[2]
+        /\ history[j].tx_id[1] < history[i].tx_id[1]
+        => history[j].status = InvalidStatus
+
 \* If a transaction is invalid then so are all others from the same term with greater seqnums
 OnceInvalidNextInvalidInv ==
     \A i, j \in TxStatusReceivedEventIndexes:
@@ -98,6 +106,7 @@ OnceInvalidNextInvalidInv ==
 \* The following is strengthened variant of CommittedOrInvalidInv
 CommittedOrInvalidStrongInv ==
     /\ OnceCommittedPrevCommittedInv
+    /\ OnceCommittedNextInvalidInv
     /\ OnceInvalidNextInvalidInv
 
 
@@ -169,7 +178,6 @@ InvalidNotObservedByCommittedInv ==
 \* In this model, every request execution observes itself
 \* This invariant ignores transaction IDs and whether transactions are committed
 \* This invariant only holds for a single node CCF service
-\* TODO: Fix this definition (and related) as I am not quite happy with them
 RwSerializableInv ==
     \A i,j \in DOMAIN history:
         /\ history[i].type = RwTxResponse

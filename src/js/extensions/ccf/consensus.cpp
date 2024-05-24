@@ -1,15 +1,15 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#pragma once
+
+#include "js/extensions/ccf/consensus.h"
 
 #include "ccf/base_endpoint_registry.h"
 #include "js/checks.h"
 #include "js/core/context.h"
-#include "js/global_class_ids.h"
 
 #include <quickjs/quickjs.h>
 
-namespace ccf::js
+namespace ccf::js::extensions
 {
   namespace
   {
@@ -22,8 +22,15 @@ namespace ccf::js
           ctx, "Passed %d arguments, but expected 0", argc);
       }
 
-      auto endpoint_registry = static_cast<ccf::BaseEndpointRegistry*>(
-        JS_GetOpaque(this_val, consensus_class_id));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+
+      auto extension = jsctx.get_extension<ConsensusExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto endpoint_registry = extension->endpoint_registry;
       if (endpoint_registry == nullptr)
       {
         return JS_ThrowInternalError(
@@ -40,8 +47,6 @@ namespace ccf::js
           "Failed to get last committed txid: %s",
           ccf::api_result_to_str(result));
       }
-
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
       auto obj = jsctx.new_obj();
       JS_CHECK_EXC(obj);
@@ -73,8 +78,15 @@ namespace ccf::js
           ctx, "Invalid view or seqno: cannot be negative");
       }
 
-      auto endpoint_registry = static_cast<ccf::BaseEndpointRegistry*>(
-        JS_GetOpaque(this_val, consensus_class_id));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+
+      auto extension = jsctx.get_extension<ConsensusExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto endpoint_registry = extension->endpoint_registry;
       if (endpoint_registry == nullptr)
       {
         return JS_ThrowInternalError(
@@ -112,14 +124,20 @@ namespace ccf::js
         return JS_ThrowRangeError(ctx, "Invalid seqno: cannot be negative");
       }
 
-      auto endpoint_registry = static_cast<ccf::BaseEndpointRegistry*>(
-        JS_GetOpaque(this_val, consensus_class_id));
+      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
+
+      auto extension = jsctx.get_extension<ConsensusExtension>();
+      if (extension == nullptr)
+      {
+        return JS_ThrowInternalError(ctx, "Failed to get extension object");
+      }
+
+      auto endpoint_registry = extension->endpoint_registry;
       if (endpoint_registry == nullptr)
       {
         return JS_ThrowInternalError(
           ctx, "Failed to get endpoint registry object");
       }
-
       ccf::View view;
       auto result = endpoint_registry->get_view_for_seqno_v1(seqno, view);
       if (result == ccf::ApiResult::NotFound)
@@ -138,11 +156,9 @@ namespace ccf::js
     }
   }
 
-  JSValue create_global_consensus_object(
-    ccf::BaseEndpointRegistry* endpoint_registry, JSContext* ctx)
+  void ConsensusExtension::install(js::core::Context& ctx)
   {
-    auto consensus = JS_NewObjectClass(ctx, consensus_class_id);
-    JS_SetOpaque(consensus, endpoint_registry);
+    auto consensus = JS_NewObject(ctx);
 
     JS_SetPropertyStr(
       ctx,
@@ -163,6 +179,7 @@ namespace ccf::js
       JS_NewCFunction(
         ctx, js_consensus_get_view_for_seqno, "getViewForSeqno", 1));
 
-    return consensus;
+    auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
+    ccf.set("consensus", std::move(consensus));
   }
 }

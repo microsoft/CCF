@@ -1,14 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#pragma once
+
+#include "js/extensions/ccf/network.h"
 
 #include "js/core/context.h"
-#include "js/global_class_ids.h"
 #include "node/network_state.h"
 
 #include <quickjs/quickjs.h>
 
-namespace ccf::js
+namespace ccf::js::extensions
 {
   namespace
   {
@@ -26,15 +26,15 @@ namespace ccf::js
           ctx, "Passed %d arguments but expected none", argc);
       }
 
-      auto network = static_cast<ccf::NetworkState*>(
-        JS_GetOpaque(this_val, network_class_id));
+      auto extension = jsctx.get_extension<NetworkExtension>();
 
+      auto network = extension->network_state;
       if (network == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Network state is not set");
       }
 
-      auto tx_ptr = jsctx.globals.tx;
+      auto tx_ptr = extension->tx;
 
       if (tx_ptr == nullptr)
       {
@@ -72,8 +72,9 @@ namespace ccf::js
           ctx, "Passed %d arguments but expected 3", argc);
       }
 
-      auto network = static_cast<ccf::NetworkState*>(
-        JS_GetOpaque(this_val, network_class_id));
+      auto extension = jsctx.get_extension<NetworkExtension>();
+
+      auto network = extension->network_state;
       if (network == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Network state is not set");
@@ -139,8 +140,9 @@ namespace ccf::js
           ctx, "Passed %d arguments but expected 2", argc);
       }
 
-      auto network = static_cast<ccf::NetworkState*>(
-        JS_GetOpaque(this_val, network_class_id));
+      auto extension = jsctx.get_extension<NetworkExtension>();
+
+      auto network = extension->network_state;
       if (network == nullptr)
       {
         return JS_ThrowInternalError(ctx, "Network state is not set");
@@ -173,11 +175,9 @@ namespace ccf::js
     }
   }
 
-  JSValue create_global_network_object(
-    ccf::NetworkState* network_state, JSContext* ctx)
+  void NetworkExtension::install(js::core::Context& ctx)
   {
-    auto network = JS_NewObjectClass(ctx, network_class_id);
-    JS_SetOpaque(network, network_state);
+    auto network = JS_NewObject(ctx);
 
     JS_SetPropertyStr(
       ctx,
@@ -204,6 +204,7 @@ namespace ccf::js
       JS_NewCFunction(
         ctx, js_network_generate_certificate, "generateNetworkCertificate", 0));
 
-    return network;
+    auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
+    ccf.set("network", std::move(network));
   }
 }
