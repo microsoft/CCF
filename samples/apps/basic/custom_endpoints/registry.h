@@ -31,6 +31,7 @@
 #include "ccf/js/extensions/math/random.h"
 #include "ccf/js/modules.h"
 #include "ccf/service/tables/modules.h"
+// samples/apps/basic/custom_endpoints/registry.h
 #include "endpoint.h"
 #include "js/interpreter_cache_interface.h"
 
@@ -156,11 +157,52 @@ namespace basicapp
         {
           modules->put(fmt::format("/{}", name), module);
         }
-        // TBD: Bytecode compilation support
 
+        // Trigger interpreter flush, in case interpreter reuse
+        // is enabled for some endpoints
         auto interpreter_flush = ctx.tx.template rw<ccf::InterpreterFlush>(
           "public:custom_endpoints.interpreter_flush");
         interpreter_flush->put(true);
+
+        // Refresh app bytecode
+        ccf::js::core::Context jsctx(ccf::js::TxAccess::APP_RW);
+        jsctx.runtime().set_runtime_options(
+          &ctx.tx, ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+        JS_SetModuleLoaderFunc(
+          jsctx.runtime(), nullptr, ccf::js::js_app_module_loader, &ctx.tx);
+
+        auto quickjs_version = ctx.tx.wo<ccf::ModulesQuickJsVersion>(
+          "public:custom_endpoints.modules_quickjs_version");
+        auto quickjs_bytecode = ctx.tx.wo<ccf::ModulesQuickJsBytecode>(
+          "public:custom_endpoints.modules_quickjs_bytecode");
+
+        quickjs_version->put(ccf::quickjs_version);
+        quickjs_bytecode->clear();
+
+        modules->foreach([&](const auto& name, const auto& src) {
+          auto module_val = ccf::js::load_app_module(
+            jsctx,
+            name.c_str(),
+            &ctx.tx,
+            "public:custom_endpoints.modules",
+            "public:custom_endpoints.modules_quickjs_bytecode",
+            "public:custom_endpoints.modules_quickjs_version");
+
+          uint8_t* out_buf;
+          size_t out_buf_len;
+          int flags = JS_WRITE_OBJ_BYTECODE;
+          out_buf = JS_WriteObject(jsctx, &out_buf_len, module_val.val, flags);
+          if (!out_buf)
+          {
+            throw std::runtime_error(fmt::format(
+              "Unable to serialize bytecode for JS module '{}'", name));
+          }
+
+          quickjs_bytecode->put(name, {out_buf, out_buf + out_buf_len});
+          js_free(jsctx, out_buf);
+
+          return true;
+        });
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       };
