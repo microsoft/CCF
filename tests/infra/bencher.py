@@ -6,12 +6,13 @@ import json
 
 BENCHER_FILE = "bencher.json"
 
+
 class Bencher:
     def __init__(self):
         if not os.path.isfile(BENCHER_FILE):
             with open(BENCHER_FILE, "w+") as bf:
                 json.dump({}, bf)
-    
+
     def set(self, key, value):
         with open(BENCHER_FILE, "r") as bf:
             data = json.load(bf)
