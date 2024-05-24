@@ -127,13 +127,9 @@ def run(args):
     bf = infra.bencher.Bencher()
     bf.set(
         "commit_latency_ratio",
-        {
-            "latency": {
-                "value": statistics.mean(factors),
-                "high_value": max(factors),
-                "low_value": min(factors),
-            }
-        },
+        infra.bencher.Latency(
+            statistics.mean(factors), high_value=max(factors), low_value=min(factors)
+        ),
     )
 
 

@@ -194,7 +194,7 @@ def test_historical_query_range(network, args):
     bf = infra.bencher.Bencher()
     bf.set(
         "historical_queries",
-        {"throughput": {"value": average_fetch_rate}},
+        infra.bencher.Throughput(average_fetch_rate),
     )
 
     return network
