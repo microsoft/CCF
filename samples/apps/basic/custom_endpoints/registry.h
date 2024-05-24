@@ -45,7 +45,6 @@ namespace basicapp
   private:
     std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache =
       nullptr;
-    std::string install_endpoint_name;
     std::string modules_map;
     std::string metadata_map;
     std::string interpreter_flush_map;
@@ -55,10 +54,8 @@ namespace basicapp
   public:
     CustomJSEndpointRegistry(
       ccfapp::AbstractNodeContext& context,
-      const std::string& install_endpoint_name_ = "custom_endpoints",
       const std::string& kv_prefix_ = "public:custom_endpoints") :
       ccf::UserEndpointRegistry(context),
-      install_endpoint_name(install_endpoint_name_),
       modules_map(fmt::format("{}.modules", kv_prefix_)),
       metadata_map(fmt::format("{}.metadata", kv_prefix_)),
       interpreter_flush_map(fmt::format("{}.interpreter_flush", kv_prefix_)),
@@ -113,127 +110,79 @@ namespace basicapp
 
           return interpreter;
         });
-
-      auto put_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
-        const auto& caller_identity =
-          ctx.template get_caller<ccf::UserCOSESign1AuthnIdentity>();
-
-        // Authorization Check
-        nlohmann::json user_data = nullptr;
-        auto result =
-          get_user_data_v1(ctx.tx, caller_identity.user_id, user_data);
-        if (result == ccf::ApiResult::InternalError)
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            fmt::format(
-              "Failed to get user data for user {}: {}",
-              caller_identity.user_id,
-              ccf::api_result_to_str(result)));
-          return;
-        }
-        const auto is_admin_it = user_data.find("isAdmin");
-
-        // Not every user gets to define custom endpoints, only users with
-        // isAdmin
-        if (
-          !user_data.is_object() || is_admin_it == user_data.end() ||
-          !is_admin_it.value().get<bool>())
-        {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_FORBIDDEN,
-            ccf::errors::AuthorizationFailed,
-            "Only admins may access this endpoint.");
-          return;
-        }
-        // End of Authorization Check
-
-        const auto j = nlohmann::json::parse(
-          caller_identity.content.begin(), caller_identity.content.end());
-        const auto wrapper = j.get<ccf::js::BundleWrapper>();
-
-        auto endpoints =
-          ctx.tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
-        // Similar to set_js_app
-        endpoints->clear();
-        for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
-        {
-          for (const auto& [method, metadata] : methods)
-          {
-            std::string method_upper = method;
-            nonstd::to_upper(method_upper);
-            const auto key = ccf::endpoints::EndpointKey{url, method_upper};
-            endpoints->put(key, metadata);
-          }
-        }
-
-        auto modules = ctx.tx.template rw<ccf::Modules>(modules_map);
-        modules->clear();
-        for (const auto& [name, module] : wrapper.bundle.modules)
-        {
-          modules->put(fmt::format("/{}", name), module);
-        }
-
-        // Trigger interpreter flush, in case interpreter reuse
-        // is enabled for some endpoints
-        auto interpreter_flush =
-          ctx.tx.template rw<ccf::InterpreterFlush>(interpreter_flush_map);
-        interpreter_flush->put(true);
-
-        // Refresh app bytecode
-        ccf::js::core::Context jsctx(ccf::js::TxAccess::APP_RW);
-        jsctx.runtime().set_runtime_options(
-          &ctx.tx, ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
-        JS_SetModuleLoaderFunc(
-          jsctx.runtime(), nullptr, ccf::js::js_app_module_loader, &ctx.tx);
-
-        auto quickjs_version =
-          ctx.tx.wo<ccf::ModulesQuickJsVersion>(modules_quickjs_version_map);
-        auto quickjs_bytecode =
-          ctx.tx.wo<ccf::ModulesQuickJsBytecode>(modules_quickjs_bytecode_map);
-
-        quickjs_version->put(ccf::quickjs_version);
-        quickjs_bytecode->clear();
-
-        modules->foreach([&](const auto& name, const auto& src) {
-          auto module_val = ccf::js::load_app_module(
-            jsctx,
-            name.c_str(),
-            &ctx.tx,
-            modules_map,
-            modules_quickjs_bytecode_map,
-            modules_quickjs_version_map);
-
-          uint8_t* out_buf;
-          size_t out_buf_len;
-          int flags = JS_WRITE_OBJ_BYTECODE;
-          out_buf = JS_WriteObject(jsctx, &out_buf_len, module_val.val, flags);
-          if (!out_buf)
-          {
-            throw std::runtime_error(fmt::format(
-              "Unable to serialize bytecode for JS module '{}'", name));
-          }
-
-          quickjs_bytecode->put(name, {out_buf, out_buf + out_buf_len});
-          js_free(jsctx, out_buf);
-
-          return true;
-        });
-
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
-      };
-
-      make_endpoint(
-        install_endpoint_name,
-        HTTP_PUT,
-        put_custom_endpoints,
-        {ccf::user_cose_sign1_auth_policy})
-        .set_auto_schema<void, void>()
-        .install();
     }
 
-    // Custom Endpoints
+    void install_custom_endpoints(
+      ccf::endpoints::EndpointContext& ctx,
+      const ccf::js::BundleWrapper& wrapper)
+    {
+      auto endpoints =
+        ctx.tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
+      endpoints->clear();
+      for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
+      {
+        for (const auto& [method, metadata] : methods)
+        {
+          std::string method_upper = method;
+          nonstd::to_upper(method_upper);
+          const auto key = ccf::endpoints::EndpointKey{url, method_upper};
+          endpoints->put(key, metadata);
+        }
+      }
+
+      auto modules = ctx.tx.template rw<ccf::Modules>(modules_map);
+      modules->clear();
+      for (const auto& [name, module] : wrapper.bundle.modules)
+      {
+        modules->put(fmt::format("/{}", name), module);
+      }
+
+      // Trigger interpreter flush, in case interpreter reuse
+      // is enabled for some endpoints
+      auto interpreter_flush =
+        ctx.tx.template rw<ccf::InterpreterFlush>(interpreter_flush_map);
+      interpreter_flush->put(true);
+
+      // Refresh app bytecode
+      ccf::js::core::Context jsctx(ccf::js::TxAccess::APP_RW);
+      jsctx.runtime().set_runtime_options(
+        &ctx.tx, ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+      JS_SetModuleLoaderFunc(
+        jsctx.runtime(), nullptr, ccf::js::js_app_module_loader, &ctx.tx);
+
+      auto quickjs_version =
+        ctx.tx.wo<ccf::ModulesQuickJsVersion>(modules_quickjs_version_map);
+      auto quickjs_bytecode =
+        ctx.tx.wo<ccf::ModulesQuickJsBytecode>(modules_quickjs_bytecode_map);
+
+      quickjs_version->put(ccf::quickjs_version);
+      quickjs_bytecode->clear();
+
+      modules->foreach([&](const auto& name, const auto& src) {
+        auto module_val = ccf::js::load_app_module(
+          jsctx,
+          name.c_str(),
+          &ctx.tx,
+          modules_map,
+          modules_quickjs_bytecode_map,
+          modules_quickjs_version_map);
+
+        uint8_t* out_buf;
+        size_t out_buf_len;
+        int flags = JS_WRITE_OBJ_BYTECODE;
+        out_buf = JS_WriteObject(jsctx, &out_buf_len, module_val.val, flags);
+        if (!out_buf)
+        {
+          throw std::runtime_error(fmt::format(
+            "Unable to serialize bytecode for JS module '{}'", name));
+        }
+
+        quickjs_bytecode->put(name, {out_buf, out_buf + out_buf_len});
+        js_free(jsctx, out_buf);
+
+        return true;
+      });
+    }
 
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
       kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
@@ -413,7 +362,6 @@ namespace basicapp
       try
       {
         const auto& props = endpoint->properties;
-        // Needs #6199
         auto module_val = ccf::js::load_app_module(
           ctx,
           props.js_module.c_str(),
@@ -432,8 +380,6 @@ namespace basicapp
           exc.what());
         return;
       }
-
-      CCF_APP_INFO("CUSTOM ENDPOINT: {}", endpoint->dispatch.uri_path);
 
       // Call exported function;
       auto request = request_extension->create_request_obj(
@@ -682,7 +628,6 @@ namespace basicapp
       const CustomJSEndpoint* endpoint,
       ccf::endpoints::EndpointContext& endpoint_ctx)
     {
-      // TBD: historical queries
       do_execute_request(endpoint, endpoint_ctx);
     }
 
