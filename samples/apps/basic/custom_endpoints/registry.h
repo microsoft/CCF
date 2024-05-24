@@ -137,6 +137,7 @@ namespace basicapp
         auto endpoints = ctx.tx.template rw<ccf::endpoints::EndpointsMap>(
           "public:custom_endpoints.metadata");
         // Similar to set_js_app
+        endpoints->clear();
         for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
         {
           for (const auto& [method, metadata] : methods)
@@ -150,11 +151,16 @@ namespace basicapp
 
         auto modules =
           ctx.tx.template rw<ccf::Modules>("public:custom_endpoints.modules");
+        modules->clear();
         for (const auto& [name, module] : wrapper.bundle.modules)
         {
-          modules->put(name, module);
+          modules->put(fmt::format("/{}", name), module);
         }
         // TBD: Bytecode compilation support
+
+        auto interpreter_flush = ctx.tx.template rw<ccf::InterpreterFlush>(
+          "public:custom_endpoints.interpreter_flush");
+        interpreter_flush->put(true);
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       };
