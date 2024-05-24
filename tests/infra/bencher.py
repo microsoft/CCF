@@ -8,6 +8,8 @@ from typing import Optional, Union
 
 BENCHER_FILE = "bencher.json"
 
+# See https://bencher.dev/docs/reference/bencher-metric-format/
+
 
 @dataclasses.dataclass
 class Value:
@@ -17,7 +19,7 @@ class Value:
 
 
 @dataclasses.dataclass
-class LatencyValue:
+class Latency:
     latency: Value
 
     def __init__(
@@ -30,7 +32,7 @@ class LatencyValue:
 
 
 @dataclasses.dataclass
-class ThroughputValue:
+class Throughput:
     throughput: Value
 
     def __init__(
@@ -48,7 +50,7 @@ class Bencher:
             with open(BENCHER_FILE, "w+") as bf:
                 json.dump({}, bf)
 
-    def set(self, key: str, value: Union[LatencyValue, ThroughputValue]):
+    def set(self, key: str, value: Union[Latency, Throughput]):
         with open(BENCHER_FILE, "r") as bf:
             data = json.load(bf)
         data[key] = dataclasses.asdict(value)
