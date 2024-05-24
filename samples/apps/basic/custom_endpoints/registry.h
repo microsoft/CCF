@@ -30,15 +30,15 @@
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/extensions/math/random.h"
 #include "ccf/js/modules.h"
-#include "ccf/service/tables/modules.h"
-// samples/apps/basic/custom_endpoints/registry.h
-#include "endpoint.h"
 #include "js/interpreter_cache_interface.h"
 
 using namespace nlohmann;
 
 namespace basicapp
 {
+  struct CustomJSEndpoint : public ccf::endpoints::Endpoint
+  {};
+
   class CustomJSEndpointRegistry : public ccf::UserEndpointRegistry
   {
   private:
