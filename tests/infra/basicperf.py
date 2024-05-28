@@ -530,8 +530,8 @@ def run(args):
                         ).cast(pl.Int64)
                     )
                     .group_by("second")
-                    .count()
-                    .rename({"count": "sent"})
+                    .len()
+                    .rename({"len": "sent"})
                 )
                 recv_per_sec = (
                     agg.with_columns(
@@ -541,8 +541,8 @@ def run(args):
                         ).cast(pl.Int64)
                     )
                     .group_by("second")
-                    .count()
-                    .rename({"count": "rcvd"})
+                    .len()
+                    .rename({"len": "rcvd"})
                 )
                 errors_per_sec = (
                     agg.with_columns(
@@ -553,8 +553,8 @@ def run(args):
                     )
                     .filter(pl.col("responseStatus") >= 500)
                     .group_by("second")
-                    .count()
-                    .rename({"count": "errors"})
+                    .len()
+                    .rename({"len": "errors"})
                 )
 
                 per_sec = (
