@@ -1455,6 +1455,7 @@ def run(args):
         # to properly test the default values, which should not emit
         # error details on response (or in the log).
         network = test_js_exception_output(network, args)
+
         network = test_module_import(network, args)
         network = test_bytecode_cache(network, args)
         network = test_app_bundle(network, args)
@@ -1463,6 +1464,7 @@ def run(args):
 
         # Remaining tests all require this app, and its endpoints
         network = deploy_npm_app(network, args)
+
         network = test_npm_app(network, args)
         network = test_js_execution_time(network, args)
         network = test_user_cose_authentication(network, args)
