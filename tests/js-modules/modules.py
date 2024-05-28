@@ -485,6 +485,7 @@ def build_npm_app(network, args):
 
     return network
 
+
 @reqs.description("Deploy basic Node.js/npm app")
 def deploy_npm_app(network, args):
     primary, _ = network.find_nodes()
@@ -1346,7 +1347,7 @@ def test_js_execution_time(network, args):
 @reqs.description("Test JS exception output")
 def test_js_exception_output(network, args):
     network = deploy_npm_app(network, args)
-    
+
     primary, _ = network.find_nodes()
 
     with primary.client("user0") as c:
