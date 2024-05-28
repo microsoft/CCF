@@ -19,6 +19,7 @@ import shutil
 import datetime
 import ccf.ledger
 import plotext as plt
+import infra.bencher
 
 
 def configure_remote_client(args, client_id, client_host, common_dir):
@@ -595,9 +596,11 @@ def run(args):
                 #     for key, value in additional_metrics.items():
                 #         metrics.put(key, value)
 
-                metrics = {args.label: {"throughput": {"value": round(throughput, 1)}}}
-                with open("bencher.json", "w") as fd:
-                    json.dump(metrics, fd)
+                bf = infra.bencher.Bencher()
+                bf.set(
+                    args.label,
+                    infra.bencher.Throughput(round(throughput, 1)),
+                )
 
             except Exception as e:
                 LOG.error(f"Stopping clients due to exception: {e}")
