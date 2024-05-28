@@ -40,5 +40,4 @@ jobs:
           --testbed gha-virtual-ccf-sub \
           --adapter json \
           --err \
-          --file build/bencher.json \
-          --github-actions ${{ secrets.GITHUB_TOKEN }}
+          --file build/bencher.json
