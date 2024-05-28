@@ -595,6 +595,10 @@ def run(args):
                 #     for key, value in additional_metrics.items():
                 #         metrics.put(key, value)
 
+                metrics = {args.label: {"throughput": {"value": round(throughput, 1)}}}
+                with open("bencher.json", "w") as fd:
+                    json.dump(metrics, fd)
+
             except Exception as e:
                 LOG.error(f"Stopping clients due to exception: {e}")
                 for remote_client in clients:

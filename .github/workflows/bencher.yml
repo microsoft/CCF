@@ -1,0 +1,40 @@
+name: "Continous Benchmarking"
+
+on:
+  push:
+    branches: main
+
+jobs:
+  benchmark_base_branch:
+    name: Continuous Benchmarking with Bencher
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ccfmsrc.azurecr.io/ccf/ci:2024-04-25-virtual-clang15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual ..
+          ninja
+          # Limited list of benchmarks for now, but should be extended to
+          # everything under a single label eventually
+          ./tests.sh -VV -R pi_basic_virtual
+          ./tests.sh -VV -R historical_query
+          ./tests.sh -VV -R commit_latency
+
+      - uses: bencherdev/bencher@main
+      - name: Track base branch benchmarks with Bencher
+        run: |
+          bencher run \
+          --project ccf \
+          --token '${{ secrets.BENCHER_API_TOKEN }}' \
+          --branch main \
+          --testbed gha-virtual-ccf-sub \
+          --adapter json \
+          --err \
+          --file build/bencher.json
