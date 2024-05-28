@@ -3,8 +3,6 @@ name: "Continous Benchmarking"
 on:
   push:
     branches: main
-  pull_request:
-    branches: main
 
 jobs:
   benchmark_base_branch:
@@ -36,7 +34,7 @@ jobs:
           bencher run \
           --project ccf \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
-          --branch $GITHUB_REF_NAME \
+          --branch main \
           --testbed gha-virtual-ccf-sub \
           --adapter json \
           --err \
