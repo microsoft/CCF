@@ -3,7 +3,7 @@
 
 #include "js/extensions/ccf/network.h"
 
-#include "js/core/context.h"
+#include "ccf/js/core/context.h"
 #include "node/network_state.h"
 
 #include <quickjs/quickjs.h>

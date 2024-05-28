@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "js/extensions/extension_interface.h"
-#include "js/tx_access.h"
+#include "ccf/js/extensions/extension_interface.h"
+#include "ccf/js/tx_access.h"
 
 #include <string_view>
 

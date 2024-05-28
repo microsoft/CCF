@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "js/core/constants.h"
+#include "ccf/js/core/constants.h"
 
 #include <quickjs/quickjs.h>
 #include <string>

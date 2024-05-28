@@ -10,6 +10,7 @@
 #include "ccf/http_consts.h"
 #include "ccf/http_responder.h"
 #include "ccf/json_handler.h"
+#include "ccf/node/rpc_context_impl.h"
 #include "ccf/service/tables/nodes.h"
 #include "executor_auth_policy.h"
 #include "executor_code_id.h"
@@ -22,7 +23,6 @@
 #include "misc.pb.h"
 #include "node/endpoint_context_impl.h"
 #include "node/rpc/network_identity_subsystem.h"
-#include "node/rpc/rpc_context_impl.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
