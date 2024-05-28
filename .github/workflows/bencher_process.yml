@@ -10,7 +10,8 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     env:
-      BENCHMARK_RESULTS: benchmark_results.json
+      BENCHMARK_RESULTS_ARTIFACT: BenchmarkResults
+      BENCHMARK_RESULTS_FILE: bencher.json
       PR_EVENT: event.json
 
     steps:
@@ -39,12 +40,12 @@ jobs:
               let fs = require('fs');
               fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/${artifactName}.zip`, Buffer.from(download.data));
             }
-            await downloadArtifact(process.env.BENCHMARK_RESULTS);
+            await downloadArtifact(process.env.BENCHMARK_RESULTS_ARTIFACT);
             await downloadArtifact(process.env.PR_EVENT);
 
       - name: Unzip Benchmark Results
         run: |
-          unzip $BENCHMARK_RESULTS.zip
+          unzip $BENCHMARK_RESULTS_ARTIFACT.zip
           unzip $PR_EVENT.zip
 
       - name: Export PR Event Data
@@ -82,7 +83,7 @@ jobs:
             --err \
             --github-actions '${{ secrets.GITHUB_TOKEN }}' \
             --ci-number '${{ env.PR_NUMBER }}' \
-            --file "$BENCHMARK_RESULTS";
+            --file "$BENCHMARK_RESULTS_FILE";
           else
             echo "Uploading main benchmark results";
             bencher run \
@@ -92,5 +93,5 @@ jobs:
             --testbed gha-virtual-ccf-sub \
             --adapter json \
             --err \
-            --file "$BENCHMARK_RESULTS";
+            --file "$BENCHMARK_RESULTS_FILE";
           fi
