@@ -1,11 +1,13 @@
-name: "Continous Benchmarking"
+name: "Bencher: Run Benchmarks"
 
 on:
   push:
     branches: main
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
 
 jobs:
-  benchmark_base_branch:
+  run_benchmarks:
     name: Continuous Benchmarking with Bencher
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
@@ -39,3 +41,15 @@ jobs:
           --adapter json \
           --err \
           --file build/bencher.json
+
+      - name: Upload Benchmark Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark_results.json
+          path: ./build/bencher.json
+
+      - name: Upload GitHub Pull Request Event
+        uses: actions/upload-artifact@v4
+        with:
+          name: event.json
+          path: ${{ github.event_path }}
