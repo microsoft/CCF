@@ -10,7 +10,8 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     env:
-      BENCHMARK_RESULTS: benchmark_results.json
+      BENCHMARK_RESULTS_ARTIFACT: BenchmarkResults
+      BENCHMARK_RESULTS_FILE: bencher.json
       PR_EVENT: event.json
 
     steps:
@@ -39,38 +40,58 @@ jobs:
               let fs = require('fs');
               fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/${artifactName}.zip`, Buffer.from(download.data));
             }
-            await downloadArtifact(process.env.BENCHMARK_RESULTS);
+            await downloadArtifact(process.env.BENCHMARK_RESULTS_ARTIFACT);
             await downloadArtifact(process.env.PR_EVENT);
 
       - name: Unzip Benchmark Results
         run: |
-          unzip $BENCHMARK_RESULTS.zip
+          unzip $BENCHMARK_RESULTS_ARTIFACT.zip
           unzip $PR_EVENT.zip
 
       - name: Export PR Event Data
+        id: export
         uses: actions/github-script@v6
         with:
           script: |
             let fs = require('fs');
             let prEvent = JSON.parse(fs.readFileSync(process.env.PR_EVENT, {encoding: 'utf8'}));
-            core.exportVariable("PR_HEAD", `${prEvent.number}/merge`);
-            core.exportVariable("PR_BASE", prEvent.pull_request.base.ref);
-            core.exportVariable("PR_BASE_SHA", prEvent.pull_request.base.sha);
-            core.exportVariable("PR_NUMBER", prEvent.number);
+            if (prEvent.pull_request === undefined) {
+              core.setOutput("is_pr", false);
+            } else {
+              core.setOutput("is_pr", true);
+              core.exportVariable("PR_HEAD", `${prEvent.number}/merge`);
+              core.exportVariable("PR_BASE", prEvent.pull_request.base.ref);
+              core.exportVariable("PR_BASE_SHA", prEvent.pull_request.base.sha);
+              core.exportVariable("PR_NUMBER", prEvent.number);
+            }
 
       - uses: bencherdev/bencher@main
 
       - name: Track Benchmarks with Bencher
         run: |
-          bencher run \
-          --project ccf \
-          --token '${{ secrets.BENCHER_API_TOKEN }}' \
-          --branch '${{ env.PR_HEAD }}' \
-          --branch-start-point '${{ env.PR_BASE }}' \
-          --branch-start-point-hash '${{ env.PR_BASE_SHA }}' \
-          --testbed gha-virtual-ccf-sub \
-          --adapter json \
-          --err \
-          --github-actions '${{ secrets.GITHUB_TOKEN }}' \
-          --ci-number '${{ env.PR_NUMBER }}' \
-          --file "$BENCHMARK_RESULTS"
+          if [[ ${{ steps.export.outputs.is_pr }} == "true" ]];
+          then
+            echo "Uploading PR benchmark results";
+            bencher run \
+            --project ccf \
+            --token '${{ secrets.BENCHER_API_TOKEN }}' \
+            --branch '${{ env.PR_HEAD }}' \
+            --branch-start-point '${{ env.PR_BASE }}' \
+            --branch-start-point-hash '${{ env.PR_BASE_SHA }}' \
+            --testbed gha-virtual-ccf-sub \
+            --adapter json \
+            --err \
+            --github-actions '${{ secrets.GITHUB_TOKEN }}' \
+            --ci-number '${{ env.PR_NUMBER }}' \
+            --file "$BENCHMARK_RESULTS_FILE";
+          else
+            echo "Uploading main benchmark results";
+            bencher run \
+            --project ccf \
+            --token '${{ secrets.BENCHER_API_TOKEN }}' \
+            --branch main \
+            --testbed gha-virtual-ccf-sub \
+            --adapter json \
+            --err \
+            --file "$BENCHMARK_RESULTS_FILE";
+          fi
