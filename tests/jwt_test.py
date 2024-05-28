@@ -531,8 +531,8 @@ def test_jwt_key_auto_refresh_entries(network, args):
             for tx in chunk:
                 txid = TxID(tx.gcm_header.view, tx.gcm_header.seqno)
                 tables = tx.get_public_domain().get_tables()
-                if "public:ccf.gov.jwt.public_signing_keys" in tables:
-                    pub_keys = tables["public:ccf.gov.jwt.public_signing_keys"]
+                if "public:ccf.gov.jwt.public_signing_key_certs" in tables:
+                    pub_keys = tables["public:ccf.gov.jwt.public_signing_key_certs"]
                     if kid.encode() in pub_keys:
                         if last_key_refresh is None:
                             LOG.info(f"Refresh found for kid: {kid} at {txid}")

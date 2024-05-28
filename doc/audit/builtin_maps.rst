@@ -363,7 +363,7 @@ JWT issuers.
    :project: CCF
    :members:
 
-``jwt.public_signing_keys``
+``jwt.public_signing_key_certs``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 JWT signing keys.
@@ -372,14 +372,16 @@ JWT signing keys.
 
 **Value** JWT public key or certificate, represented as a DER-encoded string.
 
-``jwt.public_signing_key_issuer``
+``jwt.public_signing_key_issuers``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-JWT signing key to Issuer mapping.
+JWT signing key to Issuers and Constraints mapping.
 
 **Key** JWT Key ID, represented as a string.
 
-**Value** JWT issuer URL, represented as a string.
+**Value** List of Issuers and Constraints used to validate the Issuer during authorization. represented as JSON.
+
+See :cpp:struct:`ccf::JwtIssuerWithConstraint`.
 
 ``constitution``
 ~~~~~~~~~~~~~~~~

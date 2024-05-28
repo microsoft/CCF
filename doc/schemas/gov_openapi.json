@@ -394,6 +394,26 @@
         ],
         "type": "object"
       },
+      "JwtIssuerWithConstraint": {
+        "properties": {
+          "constraint": {
+            "$ref": "#/components/schemas/string"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "issuer"
+        ],
+        "type": "object"
+      },
+      "JwtIssuerWithConstraint_array": {
+        "items": {
+          "$ref": "#/components/schemas/JwtIssuerWithConstraint"
+        },
+        "type": "array"
+      },
       "KeyIdInfo": {
         "properties": {
           "cert": {
@@ -1262,6 +1282,12 @@
         },
         "type": "object"
       },
+      "string_to_JwtIssuerWithConstraint_array": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JwtIssuerWithConstraint_array"
+        },
+        "type": "object"
+      },
       "string_to_KeyIdInfo": {
         "additionalProperties": {
           "$ref": "#/components/schemas/KeyIdInfo"
@@ -1335,7 +1361,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.1.6"
+    "version": "4.1.7"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1562,7 +1588,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/jwt/public_signing_keys, /gov/kv/jwt/public_signing_key_issue, and /gov/kv/jwt/issuers endpoints.",
+        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/jwt/public_signing_key_certs, /gov/kv/jwt/public_signing_key_issuers, and /gov/kv/jwt/issuers endpoints.",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -1744,14 +1770,14 @@
         }
       }
     },
-    "/gov/kv/jwt/public_signing_key_issuer": {
+    "/gov/kv/jwt/public_signing_key_certs": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string_to_string"
+                  "$ref": "#/components/schemas/string_to_base64string"
                 }
               }
             },
@@ -1766,14 +1792,14 @@
         }
       }
     },
-    "/gov/kv/jwt/public_signing_keys": {
+    "/gov/kv/jwt/public_signing_key_issuers": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string_to_base64string"
+                  "$ref": "#/components/schemas/string_to_JwtIssuerWithConstraint_array"
                 }
               }
             },

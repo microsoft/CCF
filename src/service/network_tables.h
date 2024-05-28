@@ -156,9 +156,10 @@ namespace ccf
     const CACertBundlePEMs ca_cert_bundles = {Tables::CA_CERT_BUNDLE_PEMS};
     const JwtIssuers jwt_issuers = {Tables::JWT_ISSUERS};
     const JwtPublicSigningKeys jwt_public_signing_keys = {
-      Tables::JWT_PUBLIC_SIGNING_KEYS};
-    const JwtPublicSigningKeyIssuer jwt_public_signing_key_issuer = {
-      Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER};
+      Tables::JWT_PUBLIC_SIGNING_KEY_CERTS};
+
+    const JwtPublicSigningKeyIssuers jwt_public_signing_key_issuers = {
+      Tables::JWT_PUBLIC_SIGNING_KEY_ISSUERS};
 
     inline auto get_all_jwt_tables() const
     {
@@ -166,7 +167,7 @@ namespace ccf
         ca_cert_bundles,
         jwt_issuers,
         jwt_public_signing_keys,
-        jwt_public_signing_key_issuer);
+        jwt_public_signing_key_issuers);
     }
 
     //

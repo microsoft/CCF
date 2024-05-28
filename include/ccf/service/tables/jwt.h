@@ -58,18 +58,36 @@ namespace ccf
   using JwtKeyId = std::string;
   using Cert = std::vector<uint8_t>;
 
+  struct JwtIssuerWithConstraint
+  {
+    JwtIssuer issuer;
+    std::optional<JwtIssuer> constraint;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtIssuerWithConstraint);
+  DECLARE_JSON_REQUIRED_FIELDS(JwtIssuerWithConstraint, issuer);
+  DECLARE_JSON_OPTIONAL_FIELDS(JwtIssuerWithConstraint, constraint);
+
   using JwtIssuers = ServiceMap<JwtIssuer, JwtIssuerMetadata>;
   using JwtPublicSigningKeys = kv::RawCopySerialisedMap<JwtKeyId, Cert>;
-  using JwtPublicSigningKeyIssuer =
-    kv::RawCopySerialisedMap<JwtKeyId, JwtIssuer>;
+  using JwtPublicSigningKeyIssuers =
+    ServiceMap<JwtKeyId, std::vector<JwtIssuerWithConstraint>>;
 
   namespace Tables
   {
     static constexpr auto JWT_ISSUERS = "public:ccf.gov.jwt.issuers";
-    static constexpr auto JWT_PUBLIC_SIGNING_KEYS =
-      "public:ccf.gov.jwt.public_signing_keys";
-    static constexpr auto JWT_PUBLIC_SIGNING_KEY_ISSUER =
-      "public:ccf.gov.jwt.public_signing_key_issuer";
+
+    namespace Legacy
+    {
+      static constexpr auto JWT_PUBLIC_SIGNING_KEYS =
+        "public:ccf.gov.jwt.public_signing_key";
+      static constexpr auto JWT_PUBLIC_SIGNING_KEY_ISSUER =
+        "public:ccf.gov.jwt.public_signing_key_issuer";
+    }
+
+    static constexpr auto JWT_PUBLIC_SIGNING_KEY_CERTS =
+      "public:ccf.gov.jwt.public_signing_key_certs";
+    static constexpr auto JWT_PUBLIC_SIGNING_KEY_ISSUERS =
+      "public:ccf.gov.jwt.public_signing_key_issuers";
   }
 
   struct JsonWebKeySet

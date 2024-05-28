@@ -466,10 +466,10 @@ namespace ccf::gov::endpoints
 
             auto jwt_keys_handle =
               ctx.tx.template ro<ccf::JwtPublicSigningKeys>(
-                ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
+                ccf::Tables::JWT_PUBLIC_SIGNING_KEY_CERTS);
             auto jwt_key_issuers_handle =
-              ctx.tx.template ro<ccf::JwtPublicSigningKeyIssuer>(
-                ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
+              ctx.tx.template ro<ccf::JwtPublicSigningKeyIssuers>(
+                ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUERS);
 
             jwt_keys_handle->foreach(
               [&keys, jwt_key_issuers_handle](
@@ -480,10 +480,10 @@ namespace ccf::gov::endpoints
                 const auto cert_pem = crypto::cert_der_to_pem(cert);
                 key_info["certificate"] = cert_pem.str();
 
-                const auto issuer = jwt_key_issuers_handle->get(kid);
-                if (issuer.has_value())
+                const auto issuers = jwt_key_issuers_handle->get(kid);
+                if (issuers && !issuers->empty())
                 {
-                  key_info["issuer"] = issuer.value();
+                  key_info["issuer"] = issuers->front().issuer;
                 }
                 else
                 {

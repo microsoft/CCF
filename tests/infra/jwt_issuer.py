@@ -134,6 +134,13 @@ class JwtIssuer:
         else:
             self.cert_pem = cert
 
+    @property
+    def issuer_url(self):
+        name = f"{self.name}"
+        if self.server:
+            name += f":{self.server.bind_port}"
+        return name
+
     def refresh_keys(self, kid=None):
         if not kid:
             self.default_kid = f"{uuid.uuid4()}"
@@ -148,7 +155,7 @@ class JwtIssuer:
             if not test_invalid_is_key
             else infra.crypto.pub_key_pem_to_der(self.key_pub_pem)
         ).decode("ascii")
-        return {"kty": "RSA", "kid": kid, "x5c": [der_b64]}
+        return {"kty": "RSA", "kid": kid, "x5c": [der_b64], "issuer": self.name}
 
     def create_jwks(self, kid=None, test_invalid_is_key=False):
         kid_ = kid or self.default_kid
@@ -175,9 +182,8 @@ class JwtIssuer:
                     primary, ca_bundle_name, ca_cert_bundle_fp.name
                 )
 
-        full_name = f"{self.name}:{self.server.bind_port}" if self.server else self.name
         with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-            issuer = {"issuer": full_name, "auto_refresh": self.auto_refresh}
+            issuer = {"issuer": self.issuer_url, "auto_refresh": self.auto_refresh}
             if self.auto_refresh:
                 issuer.update({"ca_cert_bundle_name": ca_bundle_name})
             json.dump(issuer, metadata_fp)
@@ -188,7 +194,7 @@ class JwtIssuer:
             json.dump(self.create_jwks(kid_), jwks_fp)
             jwks_fp.flush()
             network.consortium.set_jwt_public_signing_keys(
-                primary, full_name, jwks_fp.name
+                primary, self.issuer_url, jwks_fp.name
             )
 
     def start_openid_server(self, port=0, kid=None):
@@ -209,6 +215,8 @@ class JwtIssuer:
         if "exp" not in claims:
             # Insert default Expiration Time claim, valid for ~1hr
             claims["exp"] = now + 3600
+        if "iss" not in claims:
+            claims["iss"] = self.name
         return infra.crypto.create_jwt(claims, self.key_priv_pem, kid_)
 
     def wait_for_refresh(self, network, args, kid=None):

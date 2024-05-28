@@ -3,12 +3,93 @@
 
 #include "ccf/endpoints/authentication/jwt_auth.h"
 
+#include "ccf/ds/nonstd.h"
 #include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/jwt.h"
 #include "ds/lru.h"
 #include "enclave/enclave_time.h"
 #include "http/http_jwt.h"
+
+namespace
+{
+  static const std::string multitenancy_indicator{"{tenantid}"};
+  static const std::string microsoft_entra_domain{"login.microsoftonline.com"};
+
+  std::optional<std::string_view> first_non_empty_chunk(
+    const std::vector<std::string_view>& chunks)
+  {
+    for (auto chunk : chunks)
+    {
+      if (!chunk.empty())
+      {
+        return chunk;
+      }
+    }
+    return std::nullopt;
+  }
+
+  bool validate_issuer(
+    const http::JwtVerifier::Token& token, std::string issuer)
+  {
+    LOG_INFO_FMT(
+      "Verify token.iss {} and token.tid {} against published key issuer {}",
+      token.payload_typed.iss,
+      token.payload_typed.tid,
+      issuer);
+
+    const bool is_microsoft_entra =
+      issuer.find(microsoft_entra_domain) != std::string::npos;
+    if (!is_microsoft_entra)
+    {
+      return token.payload_typed.iss == issuer;
+    }
+
+    // Specify tenant if working with multi-tenant endpoint.
+    const auto pos = issuer.find(multitenancy_indicator);
+    if (pos != std::string::npos && token.payload_typed.tid)
+    {
+      issuer.replace(
+        pos, multitenancy_indicator.size(), *token.payload_typed.tid);
+    }
+
+    // Step 1. Verify the token issuer against the key issuer.
+    if (token.payload_typed.iss != issuer)
+    {
+      return false;
+    }
+
+    // Step 2. Verify that token.tid is served as a part of token.iss. According
+    // to the documentation, we only accept this format:
+    //
+    // https://domain.com/tenant_id/something_else
+    //
+    // Here url.path == "/tenant_id/something_else".
+
+    const auto url = http::parse_url_full(token.payload_typed.iss);
+    const auto tenant_id = first_non_empty_chunk(nonstd::split(url.path, "/"));
+
+    return (
+      tenant_id && token.payload_typed.tid &&
+      *token.payload_typed.tid == *tenant_id);
+  }
+
+  bool validate_issuers(
+    const http::JwtVerifier::Token& token,
+    const std::vector<ccf::JwtIssuerWithConstraint>& issuers,
+    std::string& validated_issuer)
+  {
+    return std::any_of(issuers.begin(), issuers.end(), [&](const auto& issuer) {
+      if (issuer.constraint && validate_issuer(token, *issuer.constraint))
+      {
+        validated_issuer = issuer.issuer;
+        return true;
+      }
+      return false;
+    });
+  }
+
+}
 
 namespace ccf
 {
@@ -58,11 +139,20 @@ namespace ccf
     {
       auto& token = token_opt.value();
       auto keys =
-        tx.ro<JwtPublicSigningKeys>(ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
-      auto key_issuers = tx.ro<JwtPublicSigningKeyIssuer>(
-        ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
+        tx.ro<JwtPublicSigningKeys>(ccf::Tables::JWT_PUBLIC_SIGNING_KEY_CERTS);
+      auto key_issuers = tx.ro<JwtPublicSigningKeyIssuers>(
+        ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUERS);
       const auto key_id = token.header_typed.kid;
-      const auto token_key = keys->get(key_id);
+      auto token_key = keys->get(key_id);
+      const auto issuers = key_issuers->get(key_id);
+      std::string validated_issuer{};
+
+      if (!token_key.has_value())
+      {
+        auto fallback_keys = tx.ro<JwtPublicSigningKeys>(
+          ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS);
+        token_key = fallback_keys->get(key_id);
+      }
 
       if (!token_key.has_value())
       {
@@ -96,10 +186,17 @@ namespace ccf
               time_now,
               token.payload_typed.exp);
           }
+          else if (
+            issuers &&
+            !validate_issuers(token, *issuers, std::ref(validated_issuer)))
+          {
+            error_reason =
+              fmt::format("Kid {} failed issuer validation", key_id);
+          }
           else
           {
             auto identity = std::make_unique<JwtAuthnIdentity>();
-            identity->key_issuer = key_issuers->get(key_id).value();
+            identity->key_issuer = validated_issuer;
             identity->header = std::move(token.header);
             identity->payload = std::move(token.payload);
             return identity;
