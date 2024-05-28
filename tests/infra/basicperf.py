@@ -378,7 +378,7 @@ def run(args):
                 for remote_client in clients:
                     remote_client.stop()
 
-                additional_metrics = {}
+                metrics = []
                 if not args.stop_primary_after_s:
                     primary, _ = network.find_primary()
                     with primary.client() as nc:
@@ -386,16 +386,17 @@ def run(args):
                         assert r.status_code == http.HTTPStatus.OK.value
 
                         results = r.body.json()
+                        current_value = results["current_allocated_heap_size"]
                         peak_value = results["peak_allocated_heap_size"]
 
                         # Do not upload empty metrics (virtual doesn't report memory use)
-                        if peak_value != 0:
-                            # Construct name for heap metric, removing ^ suffix if present
-                            heap_peak_metric = args.label
-                            if heap_peak_metric.endswith("^"):
-                                heap_peak_metric = heap_peak_metric[:-1]
-                            heap_peak_metric += "_mem"
-                            additional_metrics[heap_peak_metric] = peak_value
+                        if current_value != 0 and peak_value != 0:
+                            metrics.append(
+                                infra.bencher.Memory(
+                                    value=current_value,
+                                    high_value=peak_value,
+                                )
+                            )
 
                 network.stop_all_nodes()
 
@@ -588,19 +589,13 @@ def run(args):
                         f"Errors: {number_of_errors} ({number_of_errors / total_number_of_requests * 100:.2f}%)"
                     )
 
-                # https://github.com/microsoft/CCF/issues/6126
-                # with cimetrics.upload.metrics(complete=False) as metrics:
-                #     LOG.success("Uploading results")
-                #     metrics.put(args.label, round(throughput, 1))
-
-                #     for key, value in additional_metrics.items():
-                #         metrics.put(key, value)
-
                 bf = infra.bencher.Bencher()
-                bf.set(
-                    args.label,
-                    infra.bencher.Throughput(round(throughput, 1)),
-                )
+                metrics.append(infra.bencher.Throughput(round(throughput, 1)))
+                for metric in metrics:
+                    bf.set(
+                        args.label,
+                        metric,
+                    )
 
             except Exception as e:
                 LOG.error(f"Stopping clients due to exception: {e}")
