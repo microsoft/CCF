@@ -92,5 +92,5 @@ jobs:
             --testbed gha-virtual-ccf-sub \
             --adapter json \
             --err \
-            --file build/bencher.json
+            --file "$BENCHMARK_RESULTS";
           fi
