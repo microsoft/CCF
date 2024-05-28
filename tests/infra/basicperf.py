@@ -530,8 +530,8 @@ def run(args):
                         ).cast(pl.Int64)
                     )
                     .group_by("second")
-                    .count()
-                    .rename({"count": "sent"})
+                    .len()
+                    .rename({"len": "sent"})
                 )
                 recv_per_sec = (
                     agg.with_columns(
@@ -541,8 +541,8 @@ def run(args):
                         ).cast(pl.Int64)
                     )
                     .group_by("second")
-                    .count()
-                    .rename({"count": "rcvd"})
+                    .len()
+                    .rename({"len": "rcvd"})
                 )
                 errors_per_sec = (
                     agg.with_columns(
@@ -553,8 +553,8 @@ def run(args):
                     )
                     .filter(pl.col("responseStatus") >= 500)
                     .group_by("second")
-                    .count()
-                    .rename({"count": "errors"})
+                    .len()
+                    .rename({"len": "errors"})
                 )
 
                 per_sec = (
@@ -594,6 +594,10 @@ def run(args):
 
                 #     for key, value in additional_metrics.items():
                 #         metrics.put(key, value)
+
+                metrics = {args.label: {"throughput": {"value": round(throughput, 1)}}}
+                with open("bencher.json", "w") as fd:
+                    json.dump(metrics, fd)
 
             except Exception as e:
                 LOG.error(f"Stopping clients due to exception: {e}")
