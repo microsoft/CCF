@@ -44,13 +44,26 @@ class Throughput:
         self.throughput = Value(value, high_value, low_value)
 
 
+@dataclasses.dataclass
+class Memory:
+    memory: Value
+
+    def __init__(
+        self,
+        value: float,
+        high_value: Optional[float] = None,
+        low_value: Optional[float] = None,
+    ):
+        self.memory = Value(value, high_value, low_value)
+
+
 class Bencher:
     def __init__(self):
         if not os.path.isfile(BENCHER_FILE):
             with open(BENCHER_FILE, "w+") as bf:
                 json.dump({}, bf)
 
-    def set(self, key: str, metric: Union[Latency, Throughput]):
+    def set(self, key: str, metric: Union[Latency, Throughput, Memory]):
         with open(BENCHER_FILE, "r") as bf:
             data = json.load(bf)
         metric_val = dataclasses.asdict(metric)
