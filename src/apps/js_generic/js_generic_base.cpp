@@ -24,7 +24,7 @@
 #include "js/extensions/math/random.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache_interface.h"
-#include "js/modules/caching_module_loader.h"
+#include "js/modules/chained_module_loader.h"
 #include "js/modules/kv_bytecode_module_loader.h"
 #include "js/modules/kv_module_loader.h"
 #include "node/rpc/rpc_context_impl.h"
@@ -146,11 +146,6 @@ namespace ccfapp
       // Make the heap and stack limits safe while we init the runtime
       ctx.runtime().reset_runtime_options();
 
-      // Module loading order:
-      // - Prefer already loaded modules in memory cache
-      // - If not in cache, look first in the Bytecode table, then in the raw
-      // source table
-      // - If found in either of those, add it to the cache
       ccf::js::modules::ModuleLoaders sub_loaders = {
         std::make_shared<js::modules::KvBytecodeModuleLoader>(
           endpoint_ctx.tx.ro<ccf::ModulesQuickJsBytecode>(
@@ -159,9 +154,9 @@ namespace ccfapp
             ccf::Tables::MODULES_QUICKJS_VERSION)),
         std::make_shared<js::modules::KvModuleLoader>(
           endpoint_ctx.tx.ro<ccf::Modules>(ccf::Tables::MODULES))};
-      auto module_loader = std::make_shared<js::modules::CachingModuleLoader>(
+      auto module_loader = std::make_shared<js::modules::ChainedModuleLoader>(
         std::move(sub_loaders));
-      ctx.set_module_loader(module_loader);
+      ctx.set_module_loader(std::move(module_loader));
 
       // Extensions with a dependency on this endpoint context (invocation),
       // which must be removed after execution.

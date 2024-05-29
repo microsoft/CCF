@@ -86,13 +86,33 @@ namespace ccf::js::core
   std::optional<JSWrappedValue> Context::get_module(
     std::string_view module_name)
   {
-    if (module_loader == nullptr)
+    auto it = loaded_modules_cache.find(module_name);
+    if (it == loaded_modules_cache.end())
     {
-      LOG_FAIL_FMT("Unable to load module: No module loader configured");
-      return std::nullopt;
+      LOG_TRACE_FMT("Module cache miss for '{}'", module_name);
+
+      // If not currently in cache, ask configured loader
+      if (module_loader == nullptr)
+      {
+        LOG_FAIL_FMT("Unable to load module: No module loader configured");
+        return std::nullopt;
+      }
+
+      auto module_val = module_loader->get_module(module_name, *this);
+      if (module_val.has_value())
+      {
+        // If returned a new module, store it in cache
+        loaded_modules_cache.emplace_hint(it, module_name, *module_val);
+      }
+
+      return module_val;
+    }
+    else
+    {
+      LOG_TRACE_FMT("Module cache hit for '{}'", module_name);
     }
 
-    return module_loader->get_module(module_name, *this);
+    return it->second;
   }
 
   JSWrappedValue Context::wrap(JSValue&& val) const

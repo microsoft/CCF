@@ -50,6 +50,14 @@ namespace ccf::js::core
     js::extensions::Extensions extensions;
     js::modules::ModuleLoaderPtr module_loader;
 
+    // The interpreter can cache loaded modules so they do not need to be loaded
+    // from the KV for every execution, which is particularly useful when
+    // re-using interpreters. A module can only be loaded once per interpreter,
+    // and the entire interpreter should be thrown away if _any_ of its modules
+    // needs to be refreshed.
+    std::map<std::string, js::core::JSWrappedValue, std::less<>>
+      loaded_modules_cache;
+
   public:
     ccf::pal::Mutex lock;
 
