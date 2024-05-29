@@ -30,8 +30,8 @@ namespace ccf::js
   //
   // Known limitations:
   //
-  // No auditability yet, COSE Sign1 auth is recommended, but the signature is not
-  // stored.
+  // No auditability yet, COSE Sign1 auth is recommended, but the signature is
+  // not stored.
   // No support for historical endpoints yet.
   // No support for import from external modules.
   //
