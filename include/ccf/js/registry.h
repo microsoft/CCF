@@ -19,6 +19,26 @@ namespace ccf::js
   struct CustomJSEndpoint : public ccf::endpoints::Endpoint
   {};
 
+  // By subclassing DynamicJSEndpointRegistry, an application gains the
+  // ability to execute custom JavaScript endpoints, and exposes the ability to
+  // install them via install_custom_endpoints(). The JavaScript code for these
+  // endpoints is stored in the internal KV store under a namespace configured
+  // in the second argument to the constructor. Calling
+  // install_custom_endpoints() is logically equivalent to passing a set_js_app
+  // proposal in governance, and the payload format is currently identical,
+  // except the controlling logic resides in the application space.
+  //
+  // Known limitations:
+  //
+  // No auditability yet, COSE Sign1 auth is recommended, but the signature is not
+  // stored.
+  // No support for historical endpoints yet.
+  // No support for import from external modules.
+  //
+  // Additional functionality compared to set_js_app:
+  //
+  // The KV namespace can be private, to keep the application confidential if
+  // desired.
   class DynamicJSEndpointRegistry : public ccf::UserEndpointRegistry
   {
   private:
