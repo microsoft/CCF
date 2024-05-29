@@ -108,7 +108,7 @@ class OpenIDProviderServer(AbstractContextManager):
 
 
 class JwtIssuer:
-    TEST_JWT_ISSUER_NAME = "test_jwt_issuer"
+    TEST_JWT_ISSUER_NAME = "https://example.issuer"
     TEST_CA_BUNDLE_NAME = "test_ca_bundle_name"
 
     def _generate_cert(self, cn=None):
@@ -155,7 +155,7 @@ class JwtIssuer:
             if not test_invalid_is_key
             else infra.crypto.pub_key_pem_to_der(self.key_pub_pem)
         ).decode("ascii")
-        return {"kty": "RSA", "kid": kid, "x5c": [der_b64], "issuer": self.name}
+        return {"kty": "RSA", "kid": kid, "x5c": [der_b64], "issuer": self.name[::]}
 
     def create_jwks(self, kid=None, test_invalid_is_key=False):
         kid_ = kid or self.default_kid

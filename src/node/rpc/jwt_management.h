@@ -7,6 +7,7 @@
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/proposals.h"
 #include "ccf/tx.h"
+#include "http/http_jwt.h"
 
 #ifdef SGX_ATTESTATION_VERIFICATION
 #  include <openenclave/attestation/verifier.h>
@@ -22,6 +23,34 @@
 
 namespace ccf
 {
+  static bool check_issuer(
+    const std::string& issuer, const std::string& constraint)
+  {
+    const auto issuer_domain = http::parse_url_full(issuer).host;
+    const auto constraint_domain = http::parse_url_full(constraint).host;
+
+    if (constraint_domain.empty())
+    {
+      return false;
+    }
+
+    // Either constraint's domain == issuer's domain or it is a subdomain, e.g.:
+    // limited.facebok.com
+    //        .facebok.com
+    if (issuer_domain != constraint_domain)
+    {
+      const auto start_seek =
+        issuer_domain.size() - (constraint_domain.size() + 1);
+      const auto count_seek = constraint_domain.size() + 1;
+      const auto pattern = "." + constraint_domain;
+
+      return start_seek > 0 // at least one letter preceeds .issuer.domain
+        && issuer_domain.substr(start_seek, count_seek) == pattern;
+    }
+
+    return true;
+  }
+
   static void remove_jwt_public_signing_keys(kv::Tx& tx, std::string issuer)
   {
     auto keys =
@@ -216,11 +245,24 @@ namespace ccf
       LOG_INFO_FMT("{}: Storing JWT signing key with kid {}", log_prefix, kid);
       new_keys.emplace(kid, der);
 
-      if (jwk.issuer.has_value())
+      if (jwk.issuer)
       {
-        issuer_constraints.emplace(kid, jwk.issuer.value());
+        if (!check_issuer(issuer, *jwk.issuer))
+        {
+          LOG_FAIL_FMT(
+            "{}: JWKS kid {} with issuer constraint {} fails validation "
+            "against issuer {}",
+            log_prefix,
+            kid,
+            *jwk.issuer,
+            issuer);
+          return false;
+        }
+
+        issuer_constraints.emplace(kid, *jwk.issuer);
       }
     }
+
     if (new_keys.empty())
     {
       LOG_FAIL_FMT("{}: no keys left after applying filter", log_prefix);
