@@ -83,7 +83,6 @@ jobs:
             --testbed gha-virtual-ccf-sub \
             --adapter json \
             --err \
-            --ci-number '${{ env.PR_NUMBER }}' \
             --hash '${{ env.PR_HEAD_SHA }}' \
             --file "$BENCHMARK_RESULTS_FILE";
           else
