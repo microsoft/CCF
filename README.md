@@ -12,6 +12,8 @@ and performant applications that focus on multi-party compute and data.
 
 ## Get Started with CCF
 
+TODO: Don't merge me
+
 - Read the [CCF overview](https://ccf.microsoft.com/) and get familiar with [CCF's core concepts](https://microsoft.github.io/CCF/main/overview/what_is_ccf.html)
 - [Install](https://microsoft.github.io/CCF/main/build_apps/install_bin.html) CCF on Linux
 - Get familiar with CCF core developer API with the [template CCF app](https://github.com/microsoft/ccf-app-template)
