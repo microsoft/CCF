@@ -6,15 +6,13 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/ds/hash.h"
 #include "ccf/http_query.h"
+#include "ccf/js/registry.h"
 #include "ccf/json_handler.h"
 #include "ccf/version.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
-
-// Custom Endpoints
-#include "custom_endpoints/registry.h"
 
 using namespace nlohmann;
 
@@ -23,16 +21,15 @@ namespace basicapp
   using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
   static constexpr auto PRIVATE_RECORDS = "records";
 
-  // By subclassing CustomJSEndpointRegistry, this application gains the ability
-  // execute custom JavaScript endpoints, and exposes the ability to install
-  // them via install_custom_endpoints().
-  // This sample also adds a PUT /app/custom_endpoints that enables a user
-  // for which user_data["isAdmin"] is true to install custom JavaScript
-  // endpoints. The JavaScript code for these endpoints is stored in the
-  // internal KV store under a namespace configured in the second argument to
-  // the constructor. PUT /app/custom_endpoints is logically
-  // equivalent to passing a set_js_app proposal in governance, except the
-  // application resides in the application space.
+  // By subclassing DynamicJSEndpointRegistry, this application gains the
+  // ability execute custom JavaScript endpoints, and exposes the ability to
+  // install them via install_custom_endpoints(). This sample also adds a PUT
+  // /app/custom_endpoints that enables a user for which user_data["isAdmin"] is
+  // true to install custom JavaScript endpoints. The JavaScript code for these
+  // endpoints is stored in the internal KV store under a namespace configured
+  // in the second argument to the constructor. PUT /app/custom_endpoints is
+  // logically equivalent to passing a set_js_app proposal in governance, except
+  // the application resides in the application space.
   //
   // Known limitations:
   //
@@ -45,11 +42,11 @@ namespace basicapp
   //
   // The KV namespace can be private, to keep the application confidential if
   // desired.
-  class BasicHandlers : public basicapp::CustomJSEndpointRegistry
+  class BasicHandlers : public ccf::js::DynamicJSEndpointRegistry
   {
   public:
     BasicHandlers(ccfapp::AbstractNodeContext& context) :
-      basicapp::CustomJSEndpointRegistry(
+      ccf::js::DynamicJSEndpointRegistry(
         context,
         "public:custom_endpoints" // Internal KV space will be under
                                   // public:custom_endpoints.*
