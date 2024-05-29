@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "js/modules/module_loader_interface.h"
+#include "ccf/js/modules/module_loader_interface.h"
 
 namespace ccf::js::modules
 {
