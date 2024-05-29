@@ -85,7 +85,7 @@ jobs:
             --err \
             --github-actions '${{ secrets.GITHUB_TOKEN }}' \
             --ci-number '${{ env.PR_NUMBER }}' \
-            --hash '${{ env.PR_HEAD_SHA }}'
+            --hash '${{ env.PR_HEAD_SHA }}' \
             --file "$BENCHMARK_RESULTS_FILE";
           else
             echo "Uploading main benchmark results";
@@ -96,6 +96,6 @@ jobs:
             --testbed gha-virtual-ccf-sub \
             --adapter json \
             --err \
-            --hash '${{ env.MAIN_HEAD_SHA }}'
+            --hash '${{ env.MAIN_HEAD_SHA }}' \
             --file "$BENCHMARK_RESULTS_FILE";
           fi
