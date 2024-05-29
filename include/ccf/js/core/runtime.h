@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "kv/kv_types.h"
+#include "ccf/tx.h"
 
 #include <chrono>
 #include <quickjs/quickjs.h>
@@ -28,8 +28,8 @@ namespace ccf::js::core
     static constexpr size_t default_stack_size = 1024 * 1024;
     static constexpr size_t default_heap_size = 100 * 1024 * 1024;
 
-    bool log_exception_details = true;
-    bool return_exception_details = true;
+    bool log_exception_details = false;
+    bool return_exception_details = false;
 
     Runtime();
     ~Runtime();

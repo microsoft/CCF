@@ -2,12 +2,12 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/js/core/runtime.h"
+#include "ccf/js/core/wrapped_value.h"
+#include "ccf/js/extensions/extension_interface.h"
+#include "ccf/js/tx_access.h"
 #include "ccf/pal/locking.h"
-#include "js/core/runtime.h"
-#include "js/core/wrapped_value.h"
-#include "js/extensions/extension_interface.h"
-#include "js/modules/module_loader_interface.h"
-#include "js/tx_access.h"
+#include "js/modules/module_loader_interface.h" // TODO: Move to public
 
 #include <chrono>
 #include <quickjs/quickjs-exports.h>

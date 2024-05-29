@@ -1,0 +1,43 @@
+name: "Bencher: Run Benchmarks"
+
+on:
+  push:
+    branches: main
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+
+jobs:
+  run_benchmarks:
+    name: Continuous Benchmarking with Bencher
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ccfmsrc.azurecr.io/ccf/ci:2024-04-25-virtual-clang15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build and run virtual perf tests
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual ..
+          ninja
+          # Limited list of benchmarks for now, but should be extended to
+          # everything under a single label eventually
+          ./tests.sh -VV -R pi_basic_
+          ./tests.sh -VV -R historical_query
+          ./tests.sh -VV -R commit_latency
+
+      - name: Upload Benchmark Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: BenchmarkResults
+          path: ./build/bencher.json
+
+      - name: Upload GitHub Pull Request Event
+        uses: actions/upload-artifact@v4
+        with:
+          name: event.json
+          path: ${{ github.event_path }}

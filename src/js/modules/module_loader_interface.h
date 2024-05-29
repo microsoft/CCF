@@ -2,7 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "js/core/wrapped_value.h"
+#include "ccf/js/core/wrapped_value.h"
+
+#include <memory>
+#include <optional>
+#include <vector>
 
 namespace ccf::js
 {

@@ -3,7 +3,7 @@
 
 #include "js/extensions/ccf/node.h"
 
-#include "js/core/context.h"
+#include "ccf/js/core/context.h"
 #include "node/rpc/gov_logging.h"
 
 #include <quickjs/quickjs.h>

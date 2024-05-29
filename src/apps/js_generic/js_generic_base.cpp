@@ -1,33 +1,33 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "apps/js_generic/named_auth_policies.h"
-#include "apps/js_generic/request_extension.h"
 #include "ccf/app_interface.h"
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/historical_queries_adapter.h"
+#include "ccf/js/core/context.h"
+#include "ccf/js/core/wrapped_property_enum.h"
+#include "ccf/js/extensions/ccf/consensus.h"
+#include "ccf/js/extensions/ccf/converters.h"
+#include "ccf/js/extensions/ccf/crypto.h"
+#include "ccf/js/extensions/ccf/historical.h"
+#include "ccf/js/extensions/ccf/host.h"
+#include "ccf/js/extensions/ccf/kv.h"
+#include "ccf/js/extensions/ccf/request.h"
+#include "ccf/js/extensions/ccf/rpc.h"
+#include "ccf/js/extensions/console.h"
+#include "ccf/js/extensions/math/random.h"
+#include "ccf/js/named_auth_policies.h"
 #include "ccf/node/host_processes_interface.h"
+#include "ccf/node/rpc_context_impl.h"
 #include "ccf/service/tables/jsengine.h"
 #include "ccf/version.h"
 #include "enclave/enclave_time.h"
-#include "js/core/context.h"
-#include "js/core/wrapped_property_enum.h"
-#include "js/extensions/ccf/consensus.h"
-#include "js/extensions/ccf/converters.h"
-#include "js/extensions/ccf/crypto.h"
-#include "js/extensions/ccf/historical.h"
-#include "js/extensions/ccf/host.h"
-#include "js/extensions/ccf/kv.h"
-#include "js/extensions/ccf/rpc.h"
-#include "js/extensions/console.h"
-#include "js/extensions/math/random.h"
 #include "js/global_class_ids.h"
 #include "js/interpreter_cache_interface.h"
 #include "js/modules/chained_module_loader.h"
 #include "js/modules/kv_bytecode_module_loader.h"
 #include "js/modules/kv_module_loader.h"
-#include "node/rpc/rpc_context_impl.h"
 #include "service/tables/endpoints.h"
 
 #include <memory>
@@ -125,7 +125,8 @@ namespace ccfapp
         js::TxAccess::APP_RW :
         js::TxAccess::APP_RO;
       std::shared_ptr<js::core::Context> interpreter =
-        interpreter_cache->get_interpreter(rw_access, *endpoint, flush_marker);
+        interpreter_cache->get_interpreter(
+          rw_access, endpoint->properties.interpreter_reuse, flush_marker);
       if (interpreter == nullptr)
       {
         throw std::logic_error("Cache failed to produce interpreter");
@@ -172,7 +173,8 @@ namespace ccfapp
           endpoint_ctx.rpc_ctx.get()));
 
       auto request_extension =
-        std::make_shared<RequestExtension>(endpoint_ctx.rpc_ctx.get());
+        std::make_shared<ccf::js::extensions::RequestExtension>(
+          endpoint_ctx.rpc_ctx.get());
       local_extensions.push_back(request_extension);
 
       for (auto extension : local_extensions)

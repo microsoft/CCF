@@ -27,7 +27,7 @@ namespace ccf::js::modules
       const auto version_in_binary = std::string(ccf::quickjs_version);
       if (version_in_kv != version_in_binary)
       {
-        LOG_INFO_FMT(
+        CCF_APP_INFO(
           "Ignoring bytecode table, which was written for QuickJS {} (this "
           "node is running QuickJS {})",
           version_in_kv,
@@ -54,12 +54,12 @@ namespace ccf::js::modules
         module_name_kv.insert(0, "/");
       }
 
-      LOG_TRACE_FMT("Looking for module '{}' bytecode in KV", module_name_kv);
+      CCF_APP_TRACE("Looking for module '{}' bytecode in KV", module_name_kv);
 
       auto module_bytecode = modules_bytecode_handle->get(module_name_kv);
       if (!module_bytecode.has_value())
       {
-        LOG_TRACE_FMT("Module '{}' not found", module_name_kv);
+        CCF_APP_TRACE("Module '{}' not found", module_name_kv);
         return std::nullopt;
       }
 
@@ -96,7 +96,7 @@ namespace ccf::js::modules
         }
       }
 
-      LOG_TRACE_FMT(
+      CCF_APP_TRACE(
         "Module '{}' bytecode found in KV (table: {})",
         module_name_kv,
         modules_bytecode_handle->get_name_of_map());

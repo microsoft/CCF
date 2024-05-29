@@ -27,12 +27,12 @@ namespace ccf::js::modules
         module_name_kv.insert(0, "/");
       }
 
-      LOG_TRACE_FMT("Looking for module '{}' in KV", module_name_kv);
+      CCF_APP_TRACE("Looking for module '{}' in KV", module_name_kv);
 
       auto module_str = modules_handle->get(module_name_kv);
       if (!module_str.has_value())
       {
-        LOG_TRACE_FMT("Module '{}' not found", module_name_kv);
+        CCF_APP_TRACE("Module '{}' not found", module_name_kv);
         return std::nullopt;
       }
 
@@ -58,7 +58,7 @@ namespace ccf::js::modules
           "Failed to compile module '{}': {}", module_name, reason));
       }
 
-      LOG_TRACE_FMT(
+      CCF_APP_TRACE(
         "Module '{}' found in KV (table: {})",
         module_name_kv,
         modules_handle->get_name_of_map());
