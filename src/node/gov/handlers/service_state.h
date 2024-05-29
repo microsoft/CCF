@@ -483,11 +483,17 @@ namespace ccf::gov::endpoints
                 const auto issuers = jwt_key_issuers_handle->get(kid);
                 if (issuers && !issuers->empty())
                 {
-                  key_info["issuer"] = issuers->front().issuer;
+                  auto issuers_with_constraints = nlohmann::json::object();
+                  for (const auto& issuer_with_constraint : *issuers)
+                  {
+                    issuers_with_constraints[issuer_with_constraint.issuer] =
+                      issuer_with_constraint.constraint;
+                  }
+                  key_info["issuers"] = issuers_with_constraints;
                 }
                 else
                 {
-                  GOV_INFO_FMT("JWT kid '{}' has no associated issuer", kid);
+                  GOV_INFO_FMT("JWT kid '{}' has no associated issuers", kid);
                 }
 
                 keys[kid] = key_info;

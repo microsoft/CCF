@@ -379,7 +379,7 @@ JWT signing key to Issuers and Constraints mapping.
 
 **Key** JWT Key ID, represented as a string.
 
-**Value** List of Issuers and Constraints used to validate the Issuer during authorization. represented as JSON.
+**Value** List of Issuers and Constraints used to validate the Issuer during authorization, represented as JSON.
 
 See :cpp:struct:`ccf::JwtIssuerWithConstraint`.
 

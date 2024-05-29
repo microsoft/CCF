@@ -31,10 +31,25 @@ namespace ccf
 
     key_issuers->foreach(
       [&issuer, &keys, &key_issuers](const auto& k, const auto& v) {
-        if (v.front().issuer == issuer)
+        auto it =
+          find_if(v.begin(), v.end(), [&](const auto& issuer_with_constraint) {
+            return issuer_with_constraint.issuer == issuer;
+          });
+
+        if (it != v.end())
         {
-          keys->remove(k);
-          key_issuers->remove(k);
+          std::vector<JwtIssuerWithConstraint> updated(v.begin(), it);
+          updated.insert(updated.end(), ++it, v.end());
+
+          if (!updated.empty())
+          {
+            key_issuers->put(k, updated);
+          }
+          else
+          {
+            keys->remove(k);
+            key_issuers->remove(k);
+          }
         }
         return true;
       });
@@ -87,19 +102,6 @@ namespace ccf
         LOG_FAIL_FMT("No kid for JWT signing key");
         return false;
       }
-      auto const& kid = jwk.kid.value();
-      if (keys->has(kid))
-      {
-        const auto issuers = key_issuers->get(kid);
-        if (issuers && !issuers->empty() && issuers->front().issuer != issuer)
-        {
-          LOG_FAIL_FMT(
-            "{}: key id {} already added for different issuer",
-            log_prefix,
-            kid);
-          return false;
-        }
-      }
 
       if (!jwk.x5c.has_value() && jwk.x5c->empty())
       {
@@ -109,6 +111,7 @@ namespace ccf
 
       auto& der_base64 = jwk.x5c.value()[0];
       ccf::Cert der;
+      auto const& kid = jwk.kid.value();
       try
       {
         der = crypto::raw_from_b64(der_base64);
@@ -120,6 +123,16 @@ namespace ccf
           log_prefix,
           kid,
           e.what());
+        return false;
+      }
+
+      if (keys->has(kid) && der != keys->get(kid))
+      {
+        LOG_FAIL_FMT(
+          "{}: key id {} has been added before with a different pem",
+          log_prefix,
+          kid,
+          issuer);
         return false;
       }
 
@@ -215,25 +228,43 @@ namespace ccf
     }
 
     std::set<std::string> existing_kids;
-    key_issuers->foreach(
-      [&existing_kids, &issuer](const auto& kid, const auto& issuers) {
-        for (const auto& issuer_with_constraint : issuers)
+    std::set<std::string> kids_with_new_constraints;
+    key_issuers->foreach([&existing_kids,
+                          &issuer_constraints,
+                          &kids_with_new_constraints,
+                          &issuer](const auto& kid, const auto& issuers) {
+      for (const auto& issuer_with_constraint : issuers)
+      {
+        if (issuer == issuer_with_constraint.issuer)
         {
-          if (issuer == issuer_with_constraint.issuer)
+          existing_kids.insert(kid);
+
+          const auto it = issuer_constraints.find(kid);
+          if (
+            it != issuer_constraints.end() &&
+            it->second == issuer_with_constraint.constraint)
           {
-            existing_kids.insert(kid);
+            kids_with_new_constraints.insert(kid);
           }
+
+          break; // 1 issuer <-> 1 kid
         }
-        return true;
-      });
+      }
+      return true;
+    });
 
     for (auto& [kid, der] : new_keys)
     {
-      if (!existing_kids.contains(kid))
+      const bool new_kid = !existing_kids.contains(kid);
+      const bool new_constraint = !kids_with_new_constraints.contains(kid);
+
+      if (new_kid)
       {
         keys->put(kid, der);
+      }
 
-        // Find the constraint
+      if (new_kid || new_constraint)
+      {
         JwtIssuerWithConstraint value{issuer, std::nullopt};
         const auto it = issuer_constraints.find(kid);
         if (it != issuer_constraints.end())
@@ -247,7 +278,30 @@ namespace ccf
           value.issuer,
           value.constraint);
 
-        key_issuers->put(kid, std::vector<JwtIssuerWithConstraint>{value});
+        auto existing_issuers = key_issuers->get(kid);
+        if (existing_issuers)
+        {
+          const auto prev = find_if(
+            existing_issuers->begin(),
+            existing_issuers->end(),
+            [&](const auto& issuer_with_constraint) {
+              return issuer_with_constraint.issuer == issuer;
+            });
+
+          if (prev != existing_issuers->end())
+          {
+            *prev = value;
+          }
+          else
+          {
+            existing_issuers->push_back(std::move(value));
+          }
+          key_issuers->put(kid, *existing_issuers);
+        }
+        else
+        {
+          key_issuers->put(kid, std::vector<JwtIssuerWithConstraint>{value});
+        }
       }
     }
 
@@ -255,8 +309,25 @@ namespace ccf
     {
       if (!new_keys.contains(kid))
       {
-        keys->remove(kid);
-        key_issuers->remove(kid);
+        auto updated = key_issuers->get(kid);
+        updated->erase(
+          std::remove_if(
+            updated->begin(),
+            updated->end(),
+            [&](const auto& issuer_with_constraint) {
+              return issuer_with_constraint.issuer == issuer;
+            }),
+          updated->end());
+
+        if (updated->empty())
+        {
+          keys->remove(kid);
+          key_issuers->remove(kid);
+        }
+        else
+        {
+          key_issuers->put(kid, *updated);
+        }
       }
     }
 

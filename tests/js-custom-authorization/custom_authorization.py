@@ -369,8 +369,23 @@ def test_jwt_auth(network, args):
     return network
 
 
+def try_auth(primary, issuer, kid, iss, tid):
+    with primary.client("user0") as c:
+        LOG.info("Calling JWT with kid from issuer for tenant")
+        r = c.get(
+            "/app/jwt",
+            headers=infra.jwt_issuer.make_bearer_header(
+                issuer.issue_jwt(kid, claims={"iss": iss, "tid": tid})
+            ),
+        )
+        assert r.status_code
+        return r.status_code
+
+
 @reqs.description("JWT authentication as by MSFT Entra (single tenant)")
 def test_jwt_auth_msft_single_tenant(network, args):
+    """For a specific tenant, only tokens with this issuer+tenant can auth."""
+
     primary, _ = network.find_nodes()
 
     TENANT_ID = "9188050d-6c67-4c5b-b112-36a304b66da"
@@ -379,8 +394,8 @@ def test_jwt_auth_msft_single_tenant(network, args):
     )
 
     issuer = infra.jwt_issuer.JwtIssuer(name="https://login.microsoftonline.com")
-
     jwt_kid = "my_key_id"
+
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
         jwt_cert_der = infra.crypto.cert_pem_to_der(issuer.cert_pem)
         der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
@@ -402,55 +417,33 @@ def test_jwt_auth_msft_single_tenant(network, args):
         metadata_fp.flush()
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
-    with primary.client("user0") as c:
-        LOG.info("Calling JWT for single-tenancy with garbage tenant")
-        r = c.get(
-            "/app/jwt",
-            headers=infra.jwt_issuer.make_bearer_header(
-                issuer.issue_jwt(
-                    jwt_kid, claims={"iss": ISSUER_TENANT, "tid": "garbage_tenant"}
-                )
-            ),
-        )
-        assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
-
-    with primary.client("user0") as c:
-        LOG.info(
-            "Calling JWT for single-tenancy with {tenantid} must fail because we only can use common tenant as pattern in published key, not in the token"
-        )
-        r = c.get(
-            "/app/jwt",
-            headers=infra.jwt_issuer.make_bearer_header(
-                issuer.issue_jwt(
-                    jwt_kid, claims={"iss": ISSUER_TENANT, "tid": "{tenantid}"}
-                )
-            ),
-        )
-        assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
-
-    with primary.client("user0") as c:
-        LOG.info("Calling JWT for single-tenancy with microsoft tenant")
-        r = c.get(
-            "/app/jwt",
-            headers=infra.jwt_issuer.make_bearer_header(
-                issuer.issue_jwt(
-                    jwt_kid, claims={"iss": ISSUER_TENANT, "tid": TENANT_ID}
-                )
-            ),
-        )
-        assert r.status_code == HTTPStatus.OK, r.status_code
+    assert (
+        try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, "garbage_tenant")
+        == HTTPStatus.UNAUTHORIZED
+    )
+    assert (
+        try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, "{tenantid}")
+        == HTTPStatus.UNAUTHORIZED
+    )
+    assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
 
     network.consortium.remove_jwt_issuer(primary, issuer.name)
+
+    assert (
+        try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
+        == HTTPStatus.UNAUTHORIZED
+    )
+
     return network
 
 
 @reqs.description("JWT authentication as by MSFT Entra (multiple tenants)")
 def test_jwt_auth_msft_multitenancy(network, args):
+    """For a common tenant, all tokens from this issuer can auth,
+    no matter which tenant is specified."""
+
     primary, _ = network.find_nodes()
 
-    # Here we verify kid1 can be used by both tenants, because it's added with
-    # {tenant_id} issuer. Kid2, however, can only be used with the tenant it
-    # was assigned.
     COMMNON_ISSUER = "https://login.microsoftonline.com/{tenantid}/v2.0"
     TENANT_ID = "9188050d-6c67-4c5b-b112-36a304b66da"
     ISSUER_TENANT = f"https://login.microsoftonline.com/{TENANT_ID}/v2.0"
@@ -489,67 +482,222 @@ def test_jwt_auth_msft_multitenancy(network, args):
         metadata_fp.flush()
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
-    with primary.client("user0") as c:
-        LOG.info("Calling JWT with kid1 from issuer for tenant")
-        r = c.get(
-            "/app/jwt",
-            headers=infra.jwt_issuer.make_bearer_header(
-                issuer.issue_jwt(
-                    jwt_kid_1, claims={"iss": ISSUER_TENANT, "tid": TENANT_ID}
-                )
-            ),
-        )
-        assert r.status_code == HTTPStatus.OK, r.status_code
+    assert (
+        try_auth(primary, issuer, jwt_kid_1, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
+    )
+    assert (
+        try_auth(primary, issuer, jwt_kid_1, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+        == HTTPStatus.OK
+    )
+    assert (
+        try_auth(primary, issuer, jwt_kid_1, ISSUER_TENANT, ANOTHER_TENANT_ID)
+        == HTTPStatus.UNAUTHORIZED
+    )
 
-    with primary.client("user0") as c:
-        LOG.info("Calling JWT with kid1 from another issuer for another tenant")
-        r = c.get(
-            "/app/jwt",
-            headers=infra.jwt_issuer.make_bearer_header(
-                issuer.issue_jwt(
-                    jwt_kid_1, claims={"iss": ISSUER_ANOTHER, "tid": ANOTHER_TENANT_ID}
-                )
-            ),
-        )
-        assert r.status_code == HTTPStatus.OK, r.status_code
-
-    with primary.client("user0") as c:
-        LOG.info("Calling JWT with kid1 with mismatching issuer and tenant")
-        r = c.get(
-            "/app/jwt",
-            headers=infra.jwt_issuer.make_bearer_header(
-                issuer.issue_jwt(
-                    jwt_kid_1, claims={"iss": ISSUER_TENANT, "tid": ANOTHER_TENANT_ID}
-                )
-            ),
-        )
-        assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
-
-    with primary.client("user0") as c:
-        LOG.info("Calling JWT with kid2 from issuer for tenant")
-        r = c.get(
-            "/app/jwt",
-            headers=infra.jwt_issuer.make_bearer_header(
-                issuer.issue_jwt(
-                    jwt_kid_2, claims={"iss": ISSUER_TENANT, "tid": TENANT_ID}
-                )
-            ),
-        )
-        assert r.status_code == HTTPStatus.OK, r.status_code
-
-    with primary.client("user0") as c:
-        LOG.info("Calling JWT with kid2 from another issuer for another tenant")
-        r = c.get(
-            "/app/jwt",
-            headers=infra.jwt_issuer.make_bearer_header(
-                issuer.issue_jwt(
-                    jwt_kid_2, claims={"iss": ISSUER_ANOTHER, "tid": ANOTHER_TENANT_ID}
-                )
-            ),
-        )
-        assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
+    assert (
+        try_auth(primary, issuer, jwt_kid_2, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
+    )
+    assert (
+        try_auth(primary, issuer, jwt_kid_2, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+        == HTTPStatus.UNAUTHORIZED
+    )
 
     network.consortium.remove_jwt_issuer(primary, issuer.name)
+
+    assert (
+        try_auth(primary, issuer, jwt_kid_1, ISSUER_TENANT, TENANT_ID)
+        == HTTPStatus.UNAUTHORIZED
+    )
+    assert (
+        try_auth(primary, issuer, jwt_kid_2, ISSUER_TENANT, TENANT_ID)
+        == HTTPStatus.UNAUTHORIZED
+    )
+
+    return network
+
+
+@reqs.description("JWT authentication with same kids for different issuers")
+def test_jwt_auth_msft_same_kids_different_issuers(network, args):
+    """Multiple issuer can share same kid with their own constraints specified.
+    So when issuer1 adds it with constraint1, and issuer2 added it with constraint2,
+    then tokens from both issuer1 and issuer2 can go.
+    However, when issuer1 is removed, issuer2 has to remain capable of
+    authenticating with their tokens."""
+
+    primary, _ = network.find_nodes()
+
+    TENANT_ID = "9188050d-6c67-4c5b-b112-36a304b66da"
+    ISSUER_TENANT = f"https://login.microsoftonline.com/{TENANT_ID}/v2.0"
+    ANOTHER_TENANT_ID = "ANOTHER-6c67-4c5b-b112-36a304b66da"
+    ISSUER_ANOTHER = f"https://login.microsoftonline.com/{ANOTHER_TENANT_ID}/v2.0"
+
+    issuer = infra.jwt_issuer.JwtIssuer(name=ISSUER_TENANT)
+    another = infra.jwt_issuer.JwtIssuer(name=ISSUER_ANOTHER)
+
+    jwt_kid = "my_key_id"
+
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        jwt_cert_der = infra.crypto.cert_pem_to_der(issuer.cert_pem)
+        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+        data = {
+            "issuer": issuer.issuer_url,
+            "auto_refresh": False,
+            "jwks": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": jwt_kid,
+                        "x5c": [der_b64],
+                        "issuer": ISSUER_TENANT,
+                    }
+                ]
+            },
+        }
+        json.dump(data, metadata_fp)
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+    assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
+    assert (
+        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+        == HTTPStatus.UNAUTHORIZED
+    )
+
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        jwt_cert_der = infra.crypto.cert_pem_to_der(issuer.cert_pem)
+        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+        data = {
+            "issuer": another.issuer_url,
+            "auto_refresh": False,
+            "jwks": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": jwt_kid,
+                        "x5c": [der_b64],
+                        "issuer": ISSUER_ANOTHER,
+                    }
+                ]
+            },
+        }
+        json.dump(data, metadata_fp)
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+    assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
+    assert (
+        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+        == HTTPStatus.OK
+    )
+
+    network.consortium.remove_jwt_issuer(primary, issuer.name)
+
+    assert (
+        try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
+        == HTTPStatus.UNAUTHORIZED
+    )
+    assert (
+        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+        == HTTPStatus.OK
+    )
+
+    network.consortium.remove_jwt_issuer(primary, another.name)
+
+    assert (
+        try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
+        == HTTPStatus.UNAUTHORIZED
+    )
+    assert (
+        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+        == HTTPStatus.UNAUTHORIZED
+    )
+
+    return network
+
+
+@reqs.description("JWT authentication with same kid with constraint overwrite")
+def test_jwt_auth_msft_same_kids_overwrite_constraint(network, args):
+    """If issuer sets the same kid with different constraint we have to
+    overwrite it. Test exists because this was found as a bug during feature
+    development and was very easy to miss updating the constraint for
+    existing kids."""
+
+    primary, _ = network.find_nodes()
+
+    COMMNON_ISSUER = "https://login.microsoftonline.com/{tenantid}/v2.0"
+    TENANT_ID = "9188050d-6c67-4c5b-b112-36a304b66da"
+    ISSUER_TENANT = f"https://login.microsoftonline.com/{TENANT_ID}/v2.0"
+    ANOTHER_TENANT_ID = "ANOTHER-6c67-4c5b-b112-36a304b66da"
+    ISSUER_ANOTHER = f"https://login.microsoftonline.com/{ANOTHER_TENANT_ID}/v2.0"
+
+    issuer = infra.jwt_issuer.JwtIssuer(name=ISSUER_TENANT)
+    jwt_kid = "my_key_id"
+
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        jwt_cert_der = infra.crypto.cert_pem_to_der(issuer.cert_pem)
+        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+        data = {
+            "issuer": issuer.issuer_url,
+            "auto_refresh": False,
+            "jwks": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": jwt_kid,
+                        "x5c": [der_b64],
+                        "issuer": COMMNON_ISSUER,
+                    }
+                ]
+            },
+        }
+        json.dump(data, metadata_fp)
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+    assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
+    assert (
+        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+        == HTTPStatus.OK
+    )
+
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        jwt_cert_der = infra.crypto.cert_pem_to_der(issuer.cert_pem)
+        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+        data = {
+            "issuer": issuer.issuer_url,
+            "auto_refresh": False,
+            "jwks": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": jwt_kid,
+                        "x5c": [der_b64],
+                        "issuer": ISSUER_TENANT,
+                    }
+                ]
+            },
+        }
+        json.dump(data, metadata_fp)
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+    assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
+    assert (
+        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+        == HTTPStatus.UNAUTHORIZED
+    )
+
+    network.consortium.remove_jwt_issuer(primary, issuer.name)
+
+    assert (
+        try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
+        == HTTPStatus.UNAUTHORIZED
+    )
+    assert (
+        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+        == HTTPStatus.UNAUTHORIZED
+    )
+
     return network
 
 
@@ -648,6 +796,8 @@ def run_authn(args):
         network = test_jwt_auth(network, args)
         network = test_jwt_auth_msft_single_tenant(network, args)
         network = test_jwt_auth_msft_multitenancy(network, args)
+        network = test_jwt_auth_msft_same_kids_different_issuers(network, args)
+        network = test_jwt_auth_msft_same_kids_overwrite_constraint(network, args)
         network = test_role_based_access(network, args)
 
 
