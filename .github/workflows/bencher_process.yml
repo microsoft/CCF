@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Download Benchmark Results
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             async function downloadArtifact(artifactName) {
@@ -50,7 +50,7 @@ jobs:
 
       - name: Export PR Event Data
         id: export
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             let fs = require('fs');
@@ -83,7 +83,6 @@ jobs:
             --testbed gha-virtual-ccf-sub \
             --adapter json \
             --err \
-            --github-actions '${{ secrets.GITHUB_TOKEN }}' \
             --ci-number '${{ env.PR_NUMBER }}' \
             --hash '${{ env.PR_HEAD_SHA }}' \
             --file "$BENCHMARK_RESULTS_FILE";
