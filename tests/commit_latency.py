@@ -102,13 +102,13 @@ def run(args):
     for sig_interval in (
         1,
         2,
-        4,
-        8,
-        16,
-        32,
-        64,
-        128,
-        256,
+        # 4,
+        # 8,
+        # 16,
+        # 32,
+        # 64,
+        # 128,
+        # 256,
     ):
         all_stats[sig_interval] = measure_commit_latency(
             args, sig_interval=sig_interval
