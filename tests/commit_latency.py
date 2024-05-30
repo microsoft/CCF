@@ -114,6 +114,7 @@ def run(args):
             args, sig_interval=sig_interval
         )
 
+
     factors = []
     for sig_interval, stats in all_stats.items():
         factor = stats.mean() / sig_interval
