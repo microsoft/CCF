@@ -8,8 +8,8 @@ on:
 jobs:
   process_benchmarks:
     name: Process benchmarks
-    permissions: 
-      pull-requests: write 
+    permissions:
+      pull-requests: write
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     env:
