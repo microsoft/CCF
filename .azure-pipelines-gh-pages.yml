@@ -11,7 +11,7 @@ jobs:
     variables:
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
-    container: ccfmsrc.azurecr.io/ccf/ci:2024-04-03-virtual-clang15
+    container: ccfmsrc.azurecr.io/ccf/ci:2024-05-29-virtual-clang15
     pool:
       vmImage: ubuntu-20.04
 
