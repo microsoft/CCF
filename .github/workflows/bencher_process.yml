@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Download Benchmark Results
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             async function downloadArtifact(artifactName) {
@@ -50,18 +50,20 @@ jobs:
 
       - name: Export PR Event Data
         id: export
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             let fs = require('fs');
             let prEvent = JSON.parse(fs.readFileSync(process.env.PR_EVENT, {encoding: 'utf8'}));
             if (prEvent.pull_request === undefined) {
               core.setOutput("is_pr", false);
+              core.exportVariable("MAIN_HEAD_SHA", prEvent.after);
             } else {
               core.setOutput("is_pr", true);
               core.exportVariable("PR_HEAD", `${prEvent.number}/merge`);
               core.exportVariable("PR_BASE", prEvent.pull_request.base.ref);
               core.exportVariable("PR_BASE_SHA", prEvent.pull_request.base.sha);
+              core.exportVariable("PR_HEAD_SHA", prEvent.pull_request.head.sha);
               core.exportVariable("PR_NUMBER", prEvent.number);
             }
 
@@ -81,8 +83,7 @@ jobs:
             --testbed gha-virtual-ccf-sub \
             --adapter json \
             --err \
-            --github-actions '${{ secrets.GITHUB_TOKEN }}' \
-            --ci-number '${{ env.PR_NUMBER }}' \
+            --hash '${{ env.PR_HEAD_SHA }}' \
             --file "$BENCHMARK_RESULTS_FILE";
           else
             echo "Uploading main benchmark results";
@@ -93,5 +94,6 @@ jobs:
             --testbed gha-virtual-ccf-sub \
             --adapter json \
             --err \
+            --hash '${{ env.MAIN_HEAD_SHA }}' \
             --file "$BENCHMARK_RESULTS_FILE";
           fi
