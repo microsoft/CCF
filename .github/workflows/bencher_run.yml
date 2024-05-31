@@ -17,10 +17,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check sgxinfo
-        run: |
-          samples/scripts/sgxinfo.sh
-
       - name: Build and run virtual perf tests
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
