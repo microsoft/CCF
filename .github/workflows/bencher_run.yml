@@ -47,6 +47,7 @@ jobs:
     runs-on: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
     container:
       image: ccfmsrc.azurecr.io/ccf/ci:2024-05-29-sgx
+      options: --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx
     steps:
       - uses: actions/checkout@v4
         with:
