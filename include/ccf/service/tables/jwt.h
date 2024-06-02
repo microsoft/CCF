@@ -82,6 +82,9 @@ namespace ccf
         "public:ccf.gov.jwt.public_signing_key";
       static constexpr auto JWT_PUBLIC_SIGNING_KEY_ISSUER =
         "public:ccf.gov.jwt.public_signing_key_issuer";
+
+      using JwtPublicSigningKeyIssuer =
+        kv::RawCopySerialisedMap<JwtKeyId, JwtIssuer>;
     }
 
     static constexpr auto JWT_PUBLIC_SIGNING_KEY_CERTS =

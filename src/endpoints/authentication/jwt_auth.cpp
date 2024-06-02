@@ -32,7 +32,7 @@ namespace
   bool validate_issuer(
     const http::JwtVerifier::Token& token, std::string issuer)
   {
-    LOG_INFO_FMT(
+    LOG_DEBUG_FMT(
       "Verify token.iss {} and token.tid {} against published key issuer {}",
       token.payload_typed.iss,
       token.payload_typed.tid,
@@ -196,6 +196,19 @@ namespace ccf
           else
           {
             auto identity = std::make_unique<JwtAuthnIdentity>();
+
+            if (validated_issuer.empty())
+            {
+              auto fallback_issuers =
+                tx.ro<ccf::Tables::Legacy::JwtPublicSigningKeyIssuer>(
+                  ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEY_ISSUER);
+              const auto& issuer = fallback_issuers->get(key_id);
+              if (issuer)
+              {
+                validated_issuer = *issuer;
+              }
+            }
+
             identity->key_issuer = validated_issuer;
             identity->header = std::move(token.header);
             identity->payload = std::move(token.payload);

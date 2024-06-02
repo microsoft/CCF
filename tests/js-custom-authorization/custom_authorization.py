@@ -79,6 +79,42 @@ def temporary_js_limits(network, primary, **kwargs):
     network.consortium.set_js_runtime_options(primary, **default_kwargs)
 
 
+def set_issuer_with_a_key(primary, network, issuer, kid, constraint):
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        jwt_cert_der = infra.crypto.cert_pem_to_der(issuer.cert_pem)
+        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
+        data = {
+            "issuer": issuer.issuer_url,
+            "auto_refresh": False,
+            "jwks": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": kid,
+                        "x5c": [der_b64],
+                        "issuer": constraint,
+                    }
+                ]
+            },
+        }
+        json.dump(data, metadata_fp)
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+
+def try_auth(primary, issuer, kid, iss, tid):
+    with primary.client("user0") as c:
+        LOG.info(f"Creating JWT with kid={kid} iss={iss} tenant={tid}")
+        r = c.get(
+            "/app/jwt",
+            headers=infra.jwt_issuer.make_bearer_header(
+                issuer.issue_jwt(kid, claims={"iss": iss, "tid": tid})
+            ),
+        )
+        assert r.status_code
+        return r.status_code
+
+
 @reqs.description("Test stack size limit")
 def test_stack_size_limit(network, args):
     primary, _ = network.find_nodes()
@@ -311,25 +347,8 @@ def test_jwt_auth(network, args):
     jwt_kid = "my_key_id"
 
     LOG.info("Add JWT issuer with initial keys")
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        jwt_cert_der = infra.crypto.cert_pem_to_der(issuer.cert_pem)
-        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
-        data = {
-            "issuer": issuer.name,
-            "jwks": {
-                "keys": [
-                    {
-                        "kty": "RSA",
-                        "kid": jwt_kid,
-                        "x5c": [der_b64],
-                        "issuer": issuer.name,
-                    }
-                ]
-            },
-        }
-        json.dump(data, metadata_fp)
-        metadata_fp.flush()
-        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+    set_issuer_with_a_key(primary, network, issuer, jwt_kid, issuer.name)
 
     LOG.info("Calling jwt endpoint after storing keys")
     with primary.client("user0") as c:
@@ -369,19 +388,6 @@ def test_jwt_auth(network, args):
     return network
 
 
-def try_auth(primary, issuer, kid, iss, tid):
-    with primary.client("user0") as c:
-        LOG.info("Calling JWT with kid from issuer for tenant")
-        r = c.get(
-            "/app/jwt",
-            headers=infra.jwt_issuer.make_bearer_header(
-                issuer.issue_jwt(kid, claims={"iss": iss, "tid": tid})
-            ),
-        )
-        assert r.status_code
-        return r.status_code
-
-
 @reqs.description("JWT authentication as by MSFT Entra (single tenant)")
 def test_jwt_auth_msft_single_tenant(network, args):
     """For a specific tenant, only tokens with this issuer+tenant can auth."""
@@ -396,26 +402,7 @@ def test_jwt_auth_msft_single_tenant(network, args):
     issuer = infra.jwt_issuer.JwtIssuer(name="https://login.microsoftonline.com")
     jwt_kid = "my_key_id"
 
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        jwt_cert_der = infra.crypto.cert_pem_to_der(issuer.cert_pem)
-        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
-        data = {
-            "issuer": issuer.name,
-            "auto_refresh": False,
-            "jwks": {
-                "keys": [
-                    {
-                        "kty": "RSA",
-                        "kid": jwt_kid,
-                        "x5c": [der_b64],
-                        "issuer": ISSUER_TENANT,
-                    }
-                ]
-            },
-        }
-        json.dump(data, metadata_fp)
-        metadata_fp.flush()
-        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+    set_issuer_with_a_key(primary, network, issuer, jwt_kid, ISSUER_TENANT)
 
     assert (
         try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, "garbage_tenant")
@@ -447,7 +434,7 @@ def test_jwt_auth_msft_multitenancy(network, args):
     COMMNON_ISSUER = "https://login.microsoftonline.com/{tenantid}/v2.0"
     TENANT_ID = "9188050d-6c67-4c5b-b112-36a304b66da"
     ISSUER_TENANT = f"https://login.microsoftonline.com/{TENANT_ID}/v2.0"
-    ANOTHER_TENANT_ID = "ANOTHER-6c67-4c5b-b112-36a304b66da"
+    ANOTHER_TENANT_ID = "deadbeef-6c67-4c5b-b112-36a304b66da"
     ISSUER_ANOTHER = f"https://login.microsoftonline.com/{ANOTHER_TENANT_ID}/v2.0"
 
     issuer = infra.jwt_issuer.JwtIssuer(name="https://login.microsoftonline.com")
@@ -528,65 +515,30 @@ def test_jwt_auth_msft_same_kids_different_issuers(network, args):
 
     TENANT_ID = "9188050d-6c67-4c5b-b112-36a304b66da"
     ISSUER_TENANT = f"https://login.microsoftonline.com/{TENANT_ID}/v2.0"
-    ANOTHER_TENANT_ID = "ANOTHER-6c67-4c5b-b112-36a304b66da"
+    ANOTHER_TENANT_ID = "deadbeef-6c67-4c5b-b112-36a304b66da"
     ISSUER_ANOTHER = f"https://login.microsoftonline.com/{ANOTHER_TENANT_ID}/v2.0"
 
     issuer = infra.jwt_issuer.JwtIssuer(name=ISSUER_TENANT)
     another = infra.jwt_issuer.JwtIssuer(name=ISSUER_ANOTHER)
 
+    # Immitate same key sharing
+    another.cert_pem, another.key_priv_pem = issuer.cert_pem, issuer.key_priv_pem
+
     jwt_kid = "my_key_id"
 
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        jwt_cert_der = infra.crypto.cert_pem_to_der(issuer.cert_pem)
-        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
-        data = {
-            "issuer": issuer.issuer_url,
-            "auto_refresh": False,
-            "jwks": {
-                "keys": [
-                    {
-                        "kty": "RSA",
-                        "kid": jwt_kid,
-                        "x5c": [der_b64],
-                        "issuer": ISSUER_TENANT,
-                    }
-                ]
-            },
-        }
-        json.dump(data, metadata_fp)
-        metadata_fp.flush()
-        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+    set_issuer_with_a_key(primary, network, issuer, jwt_kid, ISSUER_TENANT)
 
     assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
     assert (
-        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+        try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
         == HTTPStatus.UNAUTHORIZED
     )
 
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        jwt_cert_der = infra.crypto.cert_pem_to_der(issuer.cert_pem)
-        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
-        data = {
-            "issuer": another.issuer_url,
-            "auto_refresh": False,
-            "jwks": {
-                "keys": [
-                    {
-                        "kty": "RSA",
-                        "kid": jwt_kid,
-                        "x5c": [der_b64],
-                        "issuer": ISSUER_ANOTHER,
-                    }
-                ]
-            },
-        }
-        json.dump(data, metadata_fp)
-        metadata_fp.flush()
-        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+    set_issuer_with_a_key(primary, network, another, jwt_kid, ISSUER_ANOTHER)
 
     assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
     assert (
-        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+        try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
         == HTTPStatus.OK
     )
 
@@ -597,7 +549,7 @@ def test_jwt_auth_msft_same_kids_different_issuers(network, args):
         == HTTPStatus.UNAUTHORIZED
     )
     assert (
-        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+        try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
         == HTTPStatus.OK
     )
 
@@ -608,7 +560,7 @@ def test_jwt_auth_msft_same_kids_different_issuers(network, args):
         == HTTPStatus.UNAUTHORIZED
     )
     assert (
-        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+        try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
         == HTTPStatus.UNAUTHORIZED
     )
 
@@ -627,32 +579,13 @@ def test_jwt_auth_msft_same_kids_overwrite_constraint(network, args):
     COMMNON_ISSUER = "https://login.microsoftonline.com/{tenantid}/v2.0"
     TENANT_ID = "9188050d-6c67-4c5b-b112-36a304b66da"
     ISSUER_TENANT = f"https://login.microsoftonline.com/{TENANT_ID}/v2.0"
-    ANOTHER_TENANT_ID = "ANOTHER-6c67-4c5b-b112-36a304b66da"
+    ANOTHER_TENANT_ID = "deadbeef-6c67-4c5b-b112-36a304b66da"
     ISSUER_ANOTHER = f"https://login.microsoftonline.com/{ANOTHER_TENANT_ID}/v2.0"
 
     issuer = infra.jwt_issuer.JwtIssuer(name=ISSUER_TENANT)
     jwt_kid = "my_key_id"
 
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        jwt_cert_der = infra.crypto.cert_pem_to_der(issuer.cert_pem)
-        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
-        data = {
-            "issuer": issuer.issuer_url,
-            "auto_refresh": False,
-            "jwks": {
-                "keys": [
-                    {
-                        "kty": "RSA",
-                        "kid": jwt_kid,
-                        "x5c": [der_b64],
-                        "issuer": COMMNON_ISSUER,
-                    }
-                ]
-            },
-        }
-        json.dump(data, metadata_fp)
-        metadata_fp.flush()
-        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+    set_issuer_with_a_key(primary, network, issuer, jwt_kid, COMMNON_ISSUER)
 
     assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
     assert (
@@ -660,26 +593,7 @@ def test_jwt_auth_msft_same_kids_overwrite_constraint(network, args):
         == HTTPStatus.OK
     )
 
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        jwt_cert_der = infra.crypto.cert_pem_to_der(issuer.cert_pem)
-        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
-        data = {
-            "issuer": issuer.issuer_url,
-            "auto_refresh": False,
-            "jwks": {
-                "keys": [
-                    {
-                        "kty": "RSA",
-                        "kid": jwt_kid,
-                        "x5c": [der_b64],
-                        "issuer": ISSUER_TENANT,
-                    }
-                ]
-            },
-        }
-        json.dump(data, metadata_fp)
-        metadata_fp.flush()
-        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+    set_issuer_with_a_key(primary, network, issuer, jwt_kid, ISSUER_TENANT)
 
     assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
     assert (

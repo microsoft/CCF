@@ -187,6 +187,8 @@ def test_jwt_issuer_domain_match(network, args):
             else:
                 assert False, f"Constraint {constraint} must not be allowed"
 
+    network.consortium.remove_jwt_issuer(primary, issuer.name)
+
 
 @reqs.description("Multiple JWT issuers registered at once")
 def test_jwt_endpoint(network, args):
