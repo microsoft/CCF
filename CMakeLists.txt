@@ -351,6 +351,7 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/extensions/ccf/node.cpp
     ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
     ${CCF_DIR}/src/js/extensions/ccf/request.cpp
+    ${CCF_DIR}/src/js/registry.cpp
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -753,10 +754,10 @@ if(COMPILE_TARGET STREQUAL "sgx")
     ccf.enclave
     PUBLIC http_parser.enclave
            sss.enclave
+           ccf_js.enclave
            ccf_endpoints.enclave
            ccfcrypto.enclave
            ccf_kv.enclave
-           ccf_js.enclave
            nghttp2.enclave
   )
 
@@ -801,10 +802,10 @@ elseif(COMPILE_TARGET STREQUAL "snp")
            -lgcc
            http_parser.snp
            sss.snp
+           ccf_js.snp
            ccf_endpoints.snp
            ccfcrypto.snp
            ccf_kv.snp
-           ccf_js.snp
            nghttp2.snp
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -852,10 +853,10 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            -lgcc
            http_parser.host
            sss.host
+           ccf_js.host
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
-           ccf_js.host
            nghttp2.host
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -1134,10 +1135,10 @@ if(BUILD_TESTS)
       PRIVATE ${CMAKE_THREAD_LIBS_INIT}
               http_parser.host
               sss.host
+              ccf_js.host
               ccf_endpoints.host
               ccfcrypto.host
               ccf_kv.host
-              ccf_js.host
     )
 
     add_unit_test(
@@ -1161,10 +1162,10 @@ if(BUILD_TESTS)
       PRIVATE ${CMAKE_THREAD_LIBS_INIT}
               http_parser.host
               sss.host
+              ccf_js.host
               ccf_endpoints.host
               ccfcrypto.host
               ccf_kv.host
-              ccf_js.host
     )
 
     add_unit_test(
