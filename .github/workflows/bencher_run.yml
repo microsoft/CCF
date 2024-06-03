@@ -30,14 +30,14 @@ jobs:
           ./tests.sh -VV -R historical_query
           ./tests.sh -VV -R commit_latency
 
-      - name: Upload Benchmark Results
-        uses: actions/upload-artifact@v4
-        with:
-          name: BenchmarkResults
-          path: ./build/bencher.json
-
-      - name: Upload GitHub Pull Request Event
-        uses: actions/upload-artifact@v4
-        with:
-          name: event.json
-          path: ${{ github.event_path }}
+      - uses: bencherdev/bencher@main
+      - name: Track base branch benchmarks with Bencher
+        run: |
+          bencher run \
+          --project ccf \
+          --token '${{ secrets.BENCHER_API_TOKEN }}' \
+          --branch main \
+          --testbed gha-virtual-ccf-sub \
+          --adapter json \
+          --err \
+          --file build/bencher.json
