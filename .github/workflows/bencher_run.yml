@@ -3,8 +3,7 @@ name: "Bencher: Run Benchmarks"
 on:
   push:
     branches: main
-  pull_request:
-    types: [opened, reopened, edited, synchronize]
+  workflow_dispatch:
 
 jobs:
   run_benchmarks:
