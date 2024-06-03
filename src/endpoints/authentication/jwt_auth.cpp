@@ -38,9 +38,8 @@ namespace
       token.payload_typed.tid,
       issuer);
 
-    const bool is_microsoft_entra =
-      issuer.find(microsoft_entra_domain) != std::string::npos;
-    if (!is_microsoft_entra)
+    const auto issuer_url = http::parse_url_full(issuer);
+    if (issuer_url.host != microsoft_entra_domain)
     {
       return token.payload_typed.iss == issuer;
     }
