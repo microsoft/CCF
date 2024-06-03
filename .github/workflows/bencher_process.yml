@@ -7,6 +7,9 @@ on:
 
 jobs:
   process_benchmarks:
+    name: Process benchmarks
+    permissions:
+      pull-requests: write
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     env:
@@ -16,7 +19,7 @@ jobs:
 
     steps:
       - name: Download Benchmark Results
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             async function downloadArtifact(artifactName) {
@@ -50,7 +53,7 @@ jobs:
 
       - name: Export PR Event Data
         id: export
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             let fs = require('fs');
