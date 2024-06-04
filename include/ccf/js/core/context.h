@@ -12,6 +12,7 @@
 #include <chrono>
 #include <quickjs/quickjs-exports.h>
 #include <quickjs/quickjs.h>
+#include <span>
 
 // Forward declarations
 namespace ccf
@@ -161,7 +162,7 @@ namespace ccf::js::core
     JSWrappedValue call_with_rt_options(
       const JSWrappedValue& f,
       const std::vector<JSWrappedValue>& argv,
-      kv::Tx* tx,
+      const std::optional<ccf::JSRuntimeOptions>& options,
       RuntimeLimitsPolicy policy);
 
     // Call a JS function _without_ any stack, heap or execution time limits.

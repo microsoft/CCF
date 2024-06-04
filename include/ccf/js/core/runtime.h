@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/tx.h"
+#include "ccf/service/tables/jsengine.h"
 
 #include <chrono>
 #include <quickjs/quickjs.h>
@@ -19,17 +19,16 @@ namespace ccf::js::core
   {
     JSRuntime* rt = nullptr;
 
-    std::chrono::milliseconds max_exec_time = default_max_execution_time;
+    std::chrono::milliseconds max_exec_time{
+      ccf::JSRuntimeOptions::Defaults::max_execution_time_ms};
 
     void add_ccf_classdefs();
 
   public:
-    static constexpr std::chrono::milliseconds default_max_execution_time{1000};
-    static constexpr size_t default_stack_size = 1024 * 1024;
-    static constexpr size_t default_heap_size = 100 * 1024 * 1024;
-
-    bool log_exception_details = false;
-    bool return_exception_details = false;
+    bool log_exception_details =
+      ccf::JSRuntimeOptions::Defaults::log_exception_details;
+    bool return_exception_details =
+      ccf::JSRuntimeOptions::Defaults::return_exception_details;
 
     Runtime();
     ~Runtime();
@@ -40,7 +39,9 @@ namespace ccf::js::core
     }
 
     void reset_runtime_options();
-    void set_runtime_options(kv::Tx* tx, RuntimeLimitsPolicy policy);
+    void set_runtime_options(
+      const std::optional<ccf::JSRuntimeOptions>& options_opt,
+      RuntimeLimitsPolicy policy);
 
     std::chrono::milliseconds get_max_exec_time() const
     {
