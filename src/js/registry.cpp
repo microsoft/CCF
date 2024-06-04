@@ -146,10 +146,14 @@ namespace ccf::js
     auto request = request_extension->create_request_obj(
       ctx, endpoint->full_uri_path, endpoint_ctx, this);
 
+    auto options = endpoint_ctx.tx.ro<ccf::JSEngine>(runtime_options_map)
+                     ->get()
+                     .value_or(ccf::JSRuntimeOptions());
+
     auto val = ctx.call_with_rt_options(
       export_func,
       {request},
-      endpoint_ctx.tx.ro<ccf::JSEngine>(runtime_options_map)->get(),
+      options,
       ccf::js::core::RuntimeLimitsPolicy::NONE);
 
     for (auto extension : local_extensions)
@@ -170,12 +174,12 @@ namespace ccf::js
 
       auto [reason, trace] = ctx.error_message();
 
-      if (rt.log_exception_details)
+      if (options.log_exception_details)
       {
         CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
       }
 
-      if (rt.return_exception_details)
+      if (options.return_exception_details)
       {
         std::vector<nlohmann::json> details = {ccf::ODataJSExceptionDetails{
           ccf::errors::JSException, reason, trace}};
@@ -257,7 +261,7 @@ namespace ccf::js
             {
               auto [reason, trace] = ctx.error_message();
 
-              if (rt.log_exception_details)
+              if (options.log_exception_details)
               {
                 CCF_APP_FAIL(
                   "Failed to convert return value to JSON:{} {}",
@@ -265,7 +269,7 @@ namespace ccf::js
                   trace.value_or("<no trace>"));
               }
 
-              if (rt.return_exception_details)
+              if (options.return_exception_details)
               {
                 std::vector<nlohmann::json> details = {
                   ccf::ODataJSExceptionDetails{
@@ -294,7 +298,7 @@ namespace ccf::js
           {
             auto [reason, trace] = ctx.error_message();
 
-            if (rt.log_exception_details)
+            if (options.log_exception_details)
             {
               CCF_APP_FAIL(
                 "Failed to convert return value to JSON:{} {}",
@@ -302,7 +306,7 @@ namespace ccf::js
                 trace.value_or("<no trace>"));
             }
 
-            if (rt.return_exception_details)
+            if (options.return_exception_details)
             {
               std::vector<nlohmann::json> details = {
                 ccf::ODataJSExceptionDetails{

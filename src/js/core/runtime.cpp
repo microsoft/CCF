@@ -51,9 +51,6 @@ namespace ccf::js::core
 
     this->max_exec_time =
       std::chrono::milliseconds{Defaults::max_execution_time_ms};
-
-    this->log_exception_details = Defaults::log_exception_details;
-    this->return_exception_details = Defaults::return_exception_details;
   }
 
   void Runtime::set_runtime_options(
