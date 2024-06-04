@@ -9,7 +9,6 @@ import git
 import urllib
 import shutil
 import requests
-import cimetrics.env
 
 from setuptools.extern.packaging.version import Version  # type: ignore
 
@@ -222,7 +221,7 @@ class Repository:
         return tags[first_release_tag_idx + 1 :]
 
     def get_latest_dev_tag(self):
-        local_branch = cimetrics.env.get_env().branch
+        local_branch = GitEnv.local_branch()
         major_version = get_major_version_from_branch_name(local_branch)
         tags = self.get_tags_for_major_version(major_version)
         # Only consider tags that have releases as a release might be in progress
