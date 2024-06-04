@@ -177,7 +177,7 @@ endforeach()
 set(CCF_TEST_UTILITIES
     tests.sh
     cimetrics_env.sh
-    upload_pico_metrics.py
+    convert_pico_to_bencher.py
     test_install.sh
     docker_wrap.sh
     config.jinja

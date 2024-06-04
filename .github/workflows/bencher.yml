@@ -30,7 +30,7 @@ jobs:
           ./tests.sh -VV -L perf
           # Convert microbenchmark output to bencher json
           source env/bin/activate
-          PYTHONPATH=../tests python upload_pico_metrics.py
+          PYTHONPATH=../tests python convert_pico_to_bencher.py
         shell: bash
 
       - uses: bencherdev/bencher@main
