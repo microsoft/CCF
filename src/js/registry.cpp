@@ -554,7 +554,36 @@ namespace ccf::js
   {
     try
     {
-      // TODO
+      auto endpoints_handle =
+        tx.template ro<ccf::endpoints::EndpointsMap>(metadata_map);
+      endpoints_handle->foreach(
+        [&endpoints = wrapper.bundle.metadata.endpoints](
+          const auto& endpoint_key, const auto& properties) {
+          using PropertiesMap =
+            std::map<std::string, ccf::endpoints::EndpointProperties>;
+
+          auto it = endpoints.find(endpoint_key.uri_path);
+          if (it == endpoints.end())
+          {
+            it = endpoints.emplace_hint(
+              it, endpoint_key.uri_path, PropertiesMap{});
+          }
+
+          PropertiesMap& method_properties = it->second;
+          method_properties.emplace_hint(
+            method_properties.end(), endpoint_key.verb.c_str(), properties);
+
+          return true;
+        });
+
+      auto modules_handle = tx.template ro<ccf::Modules>(modules_map);
+      modules_handle->foreach(
+        [&modules = wrapper.bundle.modules](
+          const auto& module_name, const auto& module_src) {
+          modules.emplace_hint(modules.end(), module_name, module_src);
+          return true;
+        });
+
       return ApiResult::OK;
     }
     catch (const std::exception& e)
