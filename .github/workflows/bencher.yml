@@ -21,13 +21,9 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=1 ..
           ninja
-          # Limited list of benchmarks for now, but should be extended to
-          # everything under a single label eventually
-          ./tests.sh -VV -R pi_basic_
-          ./tests.sh -VV -R historical_query
-          ./tests.sh -VV -R commit_latency
+          ./tests.sh -VV -L perf
 
       - uses: bencherdev/bencher@main
       - name: Track base branch benchmarks with Bencher
