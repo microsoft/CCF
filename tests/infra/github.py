@@ -187,9 +187,15 @@ class GitEnv:
 
     @staticmethod
     def local_branch():
-        # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
-        # current branch on any environment (either local checkout or CI run)
-        return cimetrics.env.get_env().branch
+        repo = git.Repo(os.getcwd(), search_parent_directories=True)
+
+        if not repo.head.is_detached:
+            return repo.active_branch.name
+        tag_or_none = next(
+            (tag.name for tag in repo.tags if tag.commit == repo.head.commit),
+            None,
+        )
+        return tag_or_none
 
 
 class Repository:
