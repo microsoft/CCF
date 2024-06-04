@@ -458,73 +458,81 @@ namespace ccf::js
       });
   }
 
-  void DynamicJSEndpointRegistry::install_custom_endpoints(
+  ccf::ApiResult DynamicJSEndpointRegistry::install_custom_endpoints_v1(
     ccf::endpoints::EndpointContext& ctx, const ccf::js::BundleWrapper& wrapper)
   {
-    auto endpoints =
-      ctx.tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
-    endpoints->clear();
-    for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
+    try
     {
-      for (const auto& [method, metadata] : methods)
+      auto endpoints =
+        ctx.tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
+      endpoints->clear();
+      for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
       {
-        std::string method_upper = method;
-        nonstd::to_upper(method_upper);
-        const auto key = ccf::endpoints::EndpointKey{url, method_upper};
-        endpoints->put(key, metadata);
-      }
-    }
-
-    auto modules = ctx.tx.template rw<ccf::Modules>(modules_map);
-    modules->clear();
-    for (const auto& [name, module] : wrapper.bundle.modules)
-    {
-      modules->put(fmt::format("/{}", name), module);
-    }
-
-    // Trigger interpreter flush, in case interpreter reuse
-    // is enabled for some endpoints
-    auto interpreter_flush =
-      ctx.tx.template rw<ccf::InterpreterFlush>(interpreter_flush_map);
-    interpreter_flush->put(true);
-
-    // Refresh app bytecode
-    ccf::js::core::Context jsctx(ccf::js::TxAccess::APP_RW);
-    jsctx.runtime().set_runtime_options(
-      &ctx.tx, ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
-
-    auto quickjs_version =
-      ctx.tx.wo<ccf::ModulesQuickJsVersion>(modules_quickjs_version_map);
-    auto quickjs_bytecode =
-      ctx.tx.wo<ccf::ModulesQuickJsBytecode>(modules_quickjs_bytecode_map);
-
-    quickjs_version->put(ccf::quickjs_version);
-    quickjs_bytecode->clear();
-    jsctx.set_module_loader(
-      std::make_shared<ccf::js::modules::KvModuleLoader>(modules));
-
-    modules->foreach([&](const auto& name, const auto& src) {
-      auto module_val = jsctx.eval(
-        src.c_str(),
-        src.size(),
-        name.c_str(),
-        JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-
-      uint8_t* out_buf;
-      size_t out_buf_len;
-      int flags = JS_WRITE_OBJ_BYTECODE;
-      out_buf = JS_WriteObject(jsctx, &out_buf_len, module_val.val, flags);
-      if (!out_buf)
-      {
-        throw std::runtime_error(
-          fmt::format("Unable to serialize bytecode for JS module '{}'", name));
+        for (const auto& [method, metadata] : methods)
+        {
+          std::string method_upper = method;
+          nonstd::to_upper(method_upper);
+          const auto key = ccf::endpoints::EndpointKey{url, method_upper};
+          endpoints->put(key, metadata);
+        }
       }
 
-      quickjs_bytecode->put(name, {out_buf, out_buf + out_buf_len});
-      js_free(jsctx, out_buf);
+      auto modules = ctx.tx.template rw<ccf::Modules>(modules_map);
+      modules->clear();
+      for (const auto& [name, module] : wrapper.bundle.modules)
+      {
+        modules->put(fmt::format("/{}", name), module);
+      }
 
-      return true;
-    });
+      // Trigger interpreter flush, in case interpreter reuse
+      // is enabled for some endpoints
+      auto interpreter_flush =
+        ctx.tx.template rw<ccf::InterpreterFlush>(interpreter_flush_map);
+      interpreter_flush->put(true);
+
+      // Refresh app bytecode
+      ccf::js::core::Context jsctx(ccf::js::TxAccess::APP_RW);
+      jsctx.runtime().set_runtime_options(
+        &ctx.tx, ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+
+      auto quickjs_version =
+        ctx.tx.wo<ccf::ModulesQuickJsVersion>(modules_quickjs_version_map);
+      auto quickjs_bytecode =
+        ctx.tx.wo<ccf::ModulesQuickJsBytecode>(modules_quickjs_bytecode_map);
+
+      quickjs_version->put(ccf::quickjs_version);
+      quickjs_bytecode->clear();
+      jsctx.set_module_loader(
+        std::make_shared<ccf::js::modules::KvModuleLoader>(modules));
+
+      modules->foreach([&](const auto& name, const auto& src) {
+        auto module_val = jsctx.eval(
+          src.c_str(),
+          src.size(),
+          name.c_str(),
+          JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+
+        uint8_t* out_buf;
+        size_t out_buf_len;
+        int flags = JS_WRITE_OBJ_BYTECODE;
+        out_buf = JS_WriteObject(jsctx, &out_buf_len, module_val.val, flags);
+        if (!out_buf)
+        {
+          throw std::runtime_error(fmt::format(
+            "Unable to serialize bytecode for JS module '{}'", name));
+        }
+
+        quickjs_bytecode->put(name, {out_buf, out_buf + out_buf_len});
+        js_free(jsctx, out_buf);
+
+        return true;
+      });
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
   }
 
   ccf::endpoints::EndpointDefinitionPtr DynamicJSEndpointRegistry::

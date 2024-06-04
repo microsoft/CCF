@@ -75,7 +75,7 @@ namespace ccf::js
      * Call this to populate the KV with JS endpoint definitions, so they can
      * later be dispatched to.
      */
-    void install_custom_endpoints(
+    ccf::ApiResult install_custom_endpoints_v1(
       ccf::endpoints::EndpointContext& ctx,
       const ccf::js::BundleWrapper& wrapper);
 

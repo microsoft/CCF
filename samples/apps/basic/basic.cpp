@@ -156,7 +156,7 @@ namespace basicapp
           caller_identity.content.begin(), caller_identity.content.end());
         const auto wrapper = j.get<ccf::js::BundleWrapper>();
 
-        install_custom_endpoints(ctx, wrapper);
+        install_custom_endpoints_v1(ctx, wrapper);
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       };
 
