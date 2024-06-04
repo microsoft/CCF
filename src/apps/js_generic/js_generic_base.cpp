@@ -216,7 +216,7 @@ namespace ccfapp
       auto val = ctx.call_with_rt_options(
         export_func,
         {request},
-        &endpoint_ctx.tx,
+        endpoint_ctx.tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
         ccf::js::core::RuntimeLimitsPolicy::NONE);
 
       for (auto extension : local_extensions)

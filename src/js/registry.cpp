@@ -149,7 +149,7 @@ namespace ccf::js
     auto val = ctx.call_with_rt_options(
       export_func,
       {request},
-      &endpoint_ctx.tx,
+      endpoint_ctx.tx.ro<ccf::JSEngine>(runtime_options_map)->get(),
       ccf::js::core::RuntimeLimitsPolicy::NONE);
 
     for (auto extension : local_extensions)
@@ -408,7 +408,8 @@ namespace ccf::js
     modules_quickjs_version_map(
       fmt::format("{}.modules_quickjs_version", kv_prefix)),
     modules_quickjs_bytecode_map(
-      fmt::format("{}.modules_quickjs_bytecode", kv_prefix))
+      fmt::format("{}.modules_quickjs_bytecode", kv_prefix)),
+    runtime_options_map(fmt::format("{}.runtime_options", kv_prefix))
   {
     interpreter_cache =
       context.get_subsystem<ccf::js::AbstractInterpreterCache>();
@@ -491,7 +492,8 @@ namespace ccf::js
     // Refresh app bytecode
     ccf::js::core::Context jsctx(ccf::js::TxAccess::APP_RW);
     jsctx.runtime().set_runtime_options(
-      &ctx.tx, ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+      ctx.tx.ro<ccf::JSEngine>(runtime_options_map)->get(),
+      ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
     auto quickjs_version =
       ctx.tx.wo<ccf::ModulesQuickJsVersion>(modules_quickjs_version_map);

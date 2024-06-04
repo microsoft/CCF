@@ -445,10 +445,10 @@ namespace ccf::js::core
   JSWrappedValue Context::call_with_rt_options(
     const JSWrappedValue& f,
     const std::vector<JSWrappedValue>& argv,
-    kv::Tx* tx,
+    const std::optional<ccf::JSRuntimeOptions>& options,
     RuntimeLimitsPolicy policy)
   {
-    rt.set_runtime_options(tx, policy);
+    rt.set_runtime_options(options, policy);
     const auto curr_time = ccf::get_enclave_time();
     interrupt_data.start_time = curr_time;
     interrupt_data.max_execution_time = rt.get_max_exec_time();
@@ -456,6 +456,7 @@ namespace ccf::js::core
 
     auto rv = inner_call(f, argv);
 
+    JS_SetInterruptHandler(rt, NULL, NULL);
     rt.reset_runtime_options();
 
     return rv;
