@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - more_perf_tests_on_bencher
   workflow_dispatch:
 
 jobs:
@@ -25,8 +24,11 @@ jobs:
           cd build
           cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=1 ..
           ninja
+          # Microbenchmarks
           ./tests.sh -VV -L benchmark
+          # End to end performance tests
           ./tests.sh -VV -L perf
+          # Convert microbenchmark output to bencher json
           source env/bin/activate
           PYTHONPATH=../tests python upload_pico_metrics.py
         shell: bash
