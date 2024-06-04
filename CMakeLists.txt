@@ -1585,7 +1585,7 @@ if(BUILD_TESTS)
       )
     endif()
 
-    add_perf_test(
+    add_piccolo_test(
       NAME pi_ls
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
       CLIENT_BIN ./submit
@@ -1619,7 +1619,7 @@ if(BUILD_TESTS)
       )
     endif()
 
-    add_perf_test(
+    add_piccolo_test(
       NAME pi_ls_jwt
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
       CLIENT_BIN ./submit
