@@ -175,7 +175,7 @@ namespace ccf
         auto val = context.call_with_rt_options(
           ballot_func,
           argv,
-          &tx,
+          tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
           js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
         if (!val.is_exception())
@@ -231,7 +231,7 @@ namespace ccf
         auto val = js_context.call_with_rt_options(
           resolve_func,
           argv,
-          &tx,
+          tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
           js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
         std::optional<jsgov::Failure> failure = std::nullopt;
@@ -330,7 +330,7 @@ namespace ccf
             auto apply_val = apply_js_context.call_with_rt_options(
               apply_func,
               apply_argv,
-              &tx,
+              tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
               js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
             if (apply_val.is_exception())
@@ -1189,7 +1189,7 @@ namespace ccf
         auto val = context.call_with_rt_options(
           validate_func,
           {proposal},
-          &ctx.tx,
+          ctx.tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
           js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
         if (val.is_exception())
@@ -1698,8 +1698,11 @@ namespace ccf
 
         {
           js::core::Context context(js::TxAccess::GOV_RO);
+          const auto options_handle =
+            ctx.tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
           context.runtime().set_runtime_options(
-            &ctx.tx, js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+            options_handle->get(),
+            js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
           auto ballot_func = context.get_exported_function(
             params["ballot"], "vote", "body[\"ballot\"]");
         }
