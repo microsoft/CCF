@@ -9,6 +9,7 @@
 #include "ccf/ds/hash.h"
 #include "ccf/http_query.h"
 #include "ccf/json_handler.h"
+#include "ccf/service/tables/modules.h"
 #include "ccf/version.h"
 
 #include <charconv>
@@ -32,7 +33,9 @@
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/extensions/math/random.h"
 #include "ccf/js/interpreter_cache_interface.h"
-#include "ccf/js/modules.h"
+#include "ccf/js/modules/chained_module_loader.h"
+#include "ccf/js/modules/kv_bytecode_module_loader.h"
+#include "ccf/js/modules/kv_module_loader.h"
 #include "ccf/node/rpc_context_impl.h"
 
 namespace ccf::js
@@ -81,8 +84,18 @@ namespace ccf::js
     // Make the heap and stack limits safe while we init the runtime
     ctx.runtime().reset_runtime_options();
 
-    JS_SetModuleLoaderFunc(
-      ctx.runtime(), nullptr, ccf::js::js_app_module_loader, &endpoint_ctx.tx);
+    ccf::js::modules::ModuleLoaders sub_loaders = {
+      std::make_shared<ccf::js::modules::KvBytecodeModuleLoader>(
+        endpoint_ctx.tx.ro<ccf::ModulesQuickJsBytecode>(
+          modules_quickjs_bytecode_map),
+        endpoint_ctx.tx.ro<ccf::ModulesQuickJsVersion>(
+          modules_quickjs_version_map)),
+      std::make_shared<ccf::js::modules::KvModuleLoader>(
+        endpoint_ctx.tx.ro<ccf::Modules>(modules_map))};
+    auto module_loader =
+      std::make_shared<ccf::js::modules::ChainedModuleLoader>(
+        std::move(sub_loaders));
+    ctx.set_module_loader(std::move(module_loader));
 
     // Extensions with a dependency on this endpoint context (invocation),
     // which must be removed after execution.
@@ -116,15 +129,9 @@ namespace ccf::js
     try
     {
       const auto& props = endpoint->properties;
-      auto module_val = ccf::js::load_app_module(
-        ctx,
-        props.js_module.c_str(),
-        &endpoint_ctx.tx,
-        modules_map,
-        modules_quickjs_bytecode_map,
-        modules_quickjs_version_map);
+      auto module_val = ctx.get_module(props.js_module);
       export_func = ctx.get_exported_function(
-        module_val, props.js_function, props.js_module);
+        *module_val, props.js_function, props.js_module);
     }
     catch (const std::exception& exc)
     {
@@ -485,8 +492,6 @@ namespace ccf::js
     ccf::js::core::Context jsctx(ccf::js::TxAccess::APP_RW);
     jsctx.runtime().set_runtime_options(
       &ctx.tx, ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
-    JS_SetModuleLoaderFunc(
-      jsctx.runtime(), nullptr, ccf::js::js_app_module_loader, &ctx.tx);
 
     auto quickjs_version =
       ctx.tx.wo<ccf::ModulesQuickJsVersion>(modules_quickjs_version_map);
@@ -495,15 +500,15 @@ namespace ccf::js
 
     quickjs_version->put(ccf::quickjs_version);
     quickjs_bytecode->clear();
+    jsctx.set_module_loader(
+      std::make_shared<ccf::js::modules::KvModuleLoader>(modules));
 
     modules->foreach([&](const auto& name, const auto& src) {
-      auto module_val = ccf::js::load_app_module(
-        jsctx,
+      auto module_val = jsctx.eval(
+        src.c_str(),
+        src.size(),
         name.c_str(),
-        &ctx.tx,
-        modules_map,
-        modules_quickjs_bytecode_map,
-        modules_quickjs_version_map);
+        JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
 
       uint8_t* out_buf;
       size_t out_buf_len;

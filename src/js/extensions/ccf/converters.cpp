@@ -7,7 +7,6 @@
 #include "ccf/js/extensions/ccf/converters.h"
 
 #include "ccf/js/core/context.h"
-#include "ccf/js/modules.h"
 #include "ccf/version.h"
 #include "js/checks.h"
 #include "node/rpc/jwt_management.h"

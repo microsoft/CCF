@@ -6,6 +6,7 @@
 #include "ccf/ds/hex.h"
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/proposals.h"
+#include "ccf/tx.h"
 
 #ifdef SGX_ATTESTATION_VERIFICATION
 #  include <openenclave/attestation/verifier.h>

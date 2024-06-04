@@ -18,7 +18,9 @@
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/extensions/math/random.h"
 #include "ccf/js/interpreter_cache_interface.h"
-#include "ccf/js/modules.h"
+#include "ccf/js/modules/chained_module_loader.h"
+#include "ccf/js/modules/kv_bytecode_module_loader.h"
+#include "ccf/js/modules/kv_module_loader.h"
 #include "ccf/js/named_auth_policies.h"
 #include "ccf/node/host_processes_interface.h"
 #include "ccf/node/rpc_context_impl.h"
@@ -145,8 +147,17 @@ namespace ccfapp
       // Make the heap and stack limits safe while we init the runtime
       ctx.runtime().reset_runtime_options();
 
-      JS_SetModuleLoaderFunc(
-        ctx.runtime(), nullptr, js::js_app_module_loader, &endpoint_ctx.tx);
+      ccf::js::modules::ModuleLoaders sub_loaders = {
+        std::make_shared<js::modules::KvBytecodeModuleLoader>(
+          endpoint_ctx.tx.ro<ccf::ModulesQuickJsBytecode>(
+            ccf::Tables::MODULES_QUICKJS_BYTECODE),
+          endpoint_ctx.tx.ro<ccf::ModulesQuickJsVersion>(
+            ccf::Tables::MODULES_QUICKJS_VERSION)),
+        std::make_shared<js::modules::KvModuleLoader>(
+          endpoint_ctx.tx.ro<ccf::Modules>(ccf::Tables::MODULES))};
+      auto module_loader = std::make_shared<js::modules::ChainedModuleLoader>(
+        std::move(sub_loaders));
+      ctx.set_module_loader(std::move(module_loader));
 
       // Extensions with a dependency on this endpoint context (invocation),
       // which must be removed after execution.
@@ -180,10 +191,14 @@ namespace ccfapp
       try
       {
         const auto& props = endpoint->properties;
-        auto module_val =
-          js::load_app_module(ctx, props.js_module.c_str(), &endpoint_ctx.tx);
+        auto module_val = ctx.get_module(props.js_module);
+        if (!module_val.has_value())
+        {
+          throw std::runtime_error(
+            fmt::format("Unable to load module: {}", props.js_module));
+        }
         export_func = ctx.get_exported_function(
-          module_val, props.js_function, props.js_module);
+          *module_val, props.js_function, props.js_module);
       }
       catch (const std::exception& exc)
       {
@@ -208,6 +223,8 @@ namespace ccfapp
       {
         ctx.remove_extension(extension);
       }
+
+      ctx.set_module_loader(nullptr);
 
       const auto& rt = ctx.runtime();
 

@@ -1380,7 +1380,7 @@ def test_js_exception_output(network, args):
         assert body["error"]["details"][0]["message"] == "Error: test error: 42"
         assert (
             body["error"]["details"][0]["trace"]
-            == "    at nested (endpoints/rpc.js:27)\n    at throwError (endpoints/rpc.js:29)\n"
+            == "    at nested (/endpoints/rpc.js:27)\n    at throwError (/endpoints/rpc.js:29)\n"
         )
 
         network.consortium.set_js_runtime_options(
