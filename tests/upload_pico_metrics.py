@@ -8,25 +8,25 @@ from loguru import logger as LOG
 benchmark_specs = {
     "kv_bench.csv": [
         {
-            "_name": "KV ser (/s)^",
+            "_name": "KV ser (/s)",
             "Suite": "serialise",
             "Benchmark": "serialise<SD::PUBLIC>",
             "D": "10",
         },
         {
-            "_name": "KV deser (/s)^",
+            "_name": "KV deser (/s)",
             "Suite": "deserialise",
             "Benchmark": "deserialise<SD::PUBLIC>",
             "D": "10",
         },
         {
-            "_name": "KV snap ser (/s)^",
+            "_name": "KV snap ser (/s)",
             "Suite": "serialise_snapshot",
             "Benchmark": "ser_snap<1000>",
             "D": "100",
         },
         {
-            "_name": "KV snap deser (/s)^",
+            "_name": "KV snap deser (/s)",
             "Suite": "deserialise_snapshot",
             "Benchmark": "des_snap<1000>",
             "D": "100",
@@ -34,25 +34,25 @@ benchmark_specs = {
     ],
     "map_bench.csv": [
         {
-            "_name": "CHAMP put (/s)^",
+            "_name": "CHAMP put (/s)",
             "Suite": "put",
             "Benchmark": "bench_champ_map_put",
             "D": "2048",
         },
         {
-            "_name": "CHAMP get (/s)^",
+            "_name": "CHAMP get (/s)",
             "Suite": "get",
             "Benchmark": "bench_champ_map_get",
             "D": "2048",
         },
         {
-            "_name": "RB put (/s)^",
+            "_name": "RB put (/s)",
             "Suite": "put",
             "Benchmark": "bench_rb_map_put",
             "D": "2048",
         },
         {
-            "_name": "RB get (/s)^",
+            "_name": "RB get (/s)",
             "Suite": "get",
             "Benchmark": "bench_rb_map_get",
             "D": "2048",
