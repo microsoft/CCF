@@ -4,6 +4,7 @@ import collections
 import csv
 import os
 from loguru import logger as LOG
+import infra.bencher
 
 benchmark_specs = {
     "kv_bench.csv": [
@@ -94,12 +95,12 @@ if __name__ == "__main__":
                 f"Could not find file {filename}: skipping metrics publishing for this file"
             )
 
-    # https://github.com/microsoft/CCF/issues/6126
-    # if found_metrics:
-    #     with cimetrics.upload.metrics(complete=False) as metrics:
-    #         for name, results in found_metrics.items():
-    #             many_results = len(results) > 1
-    #             for i, result in enumerate(results):
-    #                 upload_name = f"{name}_{i}" if many_results else name
-    #                 LOG.debug(f"Uploading metric: {upload_name} = {result}")
-    #                 metrics.put(upload_name, result)
+    bf = infra.bencher.Bencher()
+    for name, results in found_metrics.items():
+        many_results = len(results) > 1
+        for i, result in enumerate(results):
+            upload_name = f"{name}_{i}" if many_results else name
+            bf.set(
+                upload_name,
+                infra.bencher.Throughput(result),
+            )

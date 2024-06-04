@@ -389,14 +389,14 @@ def run(args):
                         current_value = results["current_allocated_heap_size"]
                         peak_value = results["peak_allocated_heap_size"]
 
-                        # Do not upload empty metrics (virtual doesn't report memory use)
-                        if current_value != 0 and peak_value != 0:
-                            metrics.append(
-                                infra.bencher.Memory(
-                                    value=current_value,
-                                    high_value=peak_value,
-                                )
-                            )
+                        bf = infra.bencher.Bencher()
+                        bf.set(
+                            f"{args.label}_mem",
+                            infra.bencher.Memory(
+                                current_value,
+                                high_value=peak_value,
+                            ),
+                        )
 
                 network.stop_all_nodes()
 

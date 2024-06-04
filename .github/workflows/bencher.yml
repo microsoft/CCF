@@ -25,7 +25,10 @@ jobs:
           cd build
           cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=1 ..
           ninja
+          ./tests.sh -VV -L benchmark
           ./tests.sh -VV -L perf
+          source env/bin/activate
+          PYTHONPATH=../tests python upload_pico_metrics.py
 
       - uses: bencherdev/bencher@main
       - name: Track base branch benchmarks with Bencher

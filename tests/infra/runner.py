@@ -15,6 +15,7 @@ from typing import List
 import sys
 import better_exceptions
 import re
+import infra.bencher
 
 from loguru import logger as LOG
 
@@ -166,19 +167,14 @@ def run(get_command, args):
                         assert r.status_code == http.HTTPStatus.OK.value
 
                         results = r.body.json()
-
+                        current_value = results["current_allocated_heap_size"]
                         peak_value = results["peak_allocated_heap_size"]
 
-                        # Do not upload empty metrics (virtual doesn't report memory use)
-                        if peak_value != 0:
-                            # Construct name for heap metric, removing ^ suffix if present
-                            heap_peak_metric = args.label
-                            if heap_peak_metric.endswith("^"):
-                                heap_peak_metric = heap_peak_metric[:-1]
-                            heap_peak_metric += "_mem"
-
-                            # https://github.com/microsoft/CCF/issues/6126
-                            # metrics.put(heap_peak_metric, peak_value)
+                        bf = infra.bencher.Bencher()
+                        bf.set(
+                            f"{args.label}_mem",
+                            infra.bencher.Memory(current_value, high_value=peak_value),
+                        )
 
                     for remote_client in clients:
                         remote_client.stop()
