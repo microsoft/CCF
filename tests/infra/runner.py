@@ -135,49 +135,46 @@ def run(get_command, args):
             format_width = len(str(hard_stop_timeout)) + 3
 
             try:
-                # https://github.com/microsoft/CCF/issues/6126
-                # with cimetrics.upload.metrics(complete=False) as metrics:
-                if True:  # Avoiding dedent
-                    start_time = time.time()
-                    while True:
-                        stop_waiting = True
-                        for i, remote_client in enumerate(clients):
-                            done = remote_client.check_done()
-                            # all the clients need to be done
-                            LOG.info(
-                                f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {hard_stop_timeout}s)"
-                            )
-                            stop_waiting = stop_waiting and done
-                        if stop_waiting:
-                            break
-                        if time.time() > start_time + hard_stop_timeout:
-                            raise TimeoutError(
-                                f"Client still running after {hard_stop_timeout}s"
-                            )
-
-                        time.sleep(5)
-
-                    for remote_client in clients:
-                        perf_result = remote_client.get_result()
-                        LOG.success(f"{args.label}/{remote_client.name}: {perf_result}")
-
-                    primary, _ = network.find_primary()
-                    with primary.client() as nc:
-                        r = nc.get("/node/memory")
-                        assert r.status_code == http.HTTPStatus.OK.value
-
-                        results = r.body.json()
-                        current_value = results["current_allocated_heap_size"]
-                        peak_value = results["peak_allocated_heap_size"]
-
-                        bf = infra.bencher.Bencher()
-                        bf.set(
-                            f"{args.label}_mem",
-                            infra.bencher.Memory(current_value, high_value=peak_value),
+                start_time = time.time()
+                while True:
+                    stop_waiting = True
+                    for i, remote_client in enumerate(clients):
+                        done = remote_client.check_done()
+                        # all the clients need to be done
+                        LOG.info(
+                            f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {hard_stop_timeout}s)"
+                        )
+                        stop_waiting = stop_waiting and done
+                    if stop_waiting:
+                        break
+                    if time.time() > start_time + hard_stop_timeout:
+                        raise TimeoutError(
+                            f"Client still running after {hard_stop_timeout}s"
                         )
 
-                    for remote_client in clients:
-                        remote_client.stop()
+                    time.sleep(5)
+
+                for remote_client in clients:
+                    perf_result = remote_client.get_result()
+                    LOG.success(f"{args.label}/{remote_client.name}: {perf_result}")
+
+                primary, _ = network.find_primary()
+                with primary.client() as nc:
+                    r = nc.get("/node/memory")
+                    assert r.status_code == http.HTTPStatus.OK.value
+
+                    results = r.body.json()
+                    current_value = results["current_allocated_heap_size"]
+                    peak_value = results["peak_allocated_heap_size"]
+
+                    bf = infra.bencher.Bencher()
+                    bf.set(
+                        f"{args.label}_mem",
+                        infra.bencher.Memory(current_value, high_value=peak_value),
+                    )
+
+                for remote_client in clients:
+                    remote_client.stop()
 
             except Exception:
                 LOG.error("Stopping clients due to exception")
