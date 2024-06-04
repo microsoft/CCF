@@ -76,8 +76,19 @@ namespace ccf::js
      * later be dispatched to.
      */
     ccf::ApiResult install_custom_endpoints_v1(
-      ccf::endpoints::EndpointContext& ctx,
-      const ccf::js::BundleWrapper& wrapper);
+      kv::Tx& tx, const ccf::js::BundleWrapper& wrapper);
+
+    ccf::ApiResult get_custom_endpoints_v1(
+      ccf::js::BundleWrapper& wrapper, kv::ReadOnlyTx& tx);
+
+    ccf::ApiResult get_custom_endpoint_properties_v1(
+      ccf::endpoints::EndpointProperties& properties,
+      kv::ReadOnlyTx& tx,
+      const ccf::RESTVerb& verb,
+      const ccf::endpoints::URI& uri);
+
+    ccf::ApiResult get_custom_endpoint_module_v1(
+      std::string& code, kv::ReadOnlyTx& tx, const std::string& module_name);
 
     /// \defgroup Overrides for base EndpointRegistry functions, looking up JS
     /// endpoints before delegating to base implementation.

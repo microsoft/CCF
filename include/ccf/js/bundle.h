@@ -12,8 +12,9 @@ namespace ccf::js
 {
   struct Metadata
   {
+    // Path -> {HTTP Method -> Properties}
     std::map<
-      std::string,
+      ccf::endpoints::URI,
       std::map<std::string, ccf::endpoints::EndpointProperties>>
       endpoints;
   };
@@ -22,6 +23,7 @@ namespace ccf::js
 
   struct Bundle
   {
+    // Module name -> content (JS source code)
     std::map<std::string, std::string> modules;
     Metadata metadata;
   };

@@ -156,7 +156,18 @@ namespace basicapp
           caller_identity.content.begin(), caller_identity.content.end());
         const auto wrapper = j.get<ccf::js::BundleWrapper>();
 
-        install_custom_endpoints_v1(ctx, wrapper);
+        result = install_custom_endpoints_v1(ctx.tx, wrapper);
+        if (result != ccf::ApiResult::OK)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to get install endpoints: {}",
+              ccf::api_result_to_str(result)));
+          return;
+        }
+
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       };
 

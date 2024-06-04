@@ -40,6 +40,18 @@
 
 namespace ccf::js
 {
+  std::string normalised_module_name(std::string_view sv)
+  {
+    if (sv.starts_with("/"))
+    {
+      return std::string(sv);
+    }
+    else
+    {
+      return fmt::format("/{}", sv);
+    }
+  }
+
   void DynamicJSEndpointRegistry::do_execute_request(
     const CustomJSEndpoint* endpoint,
     ccf::endpoints::EndpointContext& endpoint_ctx,
@@ -459,12 +471,12 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::install_custom_endpoints_v1(
-    ccf::endpoints::EndpointContext& ctx, const ccf::js::BundleWrapper& wrapper)
+    kv::Tx& tx, const ccf::js::BundleWrapper& wrapper)
   {
     try
     {
       auto endpoints =
-        ctx.tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
+        tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
       endpoints->clear();
       for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
       {
@@ -477,28 +489,28 @@ namespace ccf::js
         }
       }
 
-      auto modules = ctx.tx.template rw<ccf::Modules>(modules_map);
+      auto modules = tx.template rw<ccf::Modules>(modules_map);
       modules->clear();
       for (const auto& [name, module] : wrapper.bundle.modules)
       {
-        modules->put(fmt::format("/{}", name), module);
+        modules->put(normalised_module_name(name), module);
       }
 
       // Trigger interpreter flush, in case interpreter reuse
       // is enabled for some endpoints
       auto interpreter_flush =
-        ctx.tx.template rw<ccf::InterpreterFlush>(interpreter_flush_map);
+        tx.template rw<ccf::InterpreterFlush>(interpreter_flush_map);
       interpreter_flush->put(true);
 
       // Refresh app bytecode
       ccf::js::core::Context jsctx(ccf::js::TxAccess::APP_RW);
       jsctx.runtime().set_runtime_options(
-        &ctx.tx, ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+        &tx, ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
       auto quickjs_version =
-        ctx.tx.wo<ccf::ModulesQuickJsVersion>(modules_quickjs_version_map);
+        tx.wo<ccf::ModulesQuickJsVersion>(modules_quickjs_version_map);
       auto quickjs_bytecode =
-        ctx.tx.wo<ccf::ModulesQuickJsBytecode>(modules_quickjs_bytecode_map);
+        tx.wo<ccf::ModulesQuickJsBytecode>(modules_quickjs_bytecode_map);
 
       quickjs_version->put(ccf::quickjs_version);
       quickjs_bytecode->clear();
@@ -527,6 +539,77 @@ namespace ccf::js
 
         return true;
       });
+
+      return ccf::ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
+  ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoints_v1(
+    ccf::js::BundleWrapper& wrapper, kv::ReadOnlyTx& tx)
+  {
+    try
+    {
+      // TODO
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
+  ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoint_properties_v1(
+    ccf::endpoints::EndpointProperties& properties,
+    kv::ReadOnlyTx& tx,
+    const ccf::RESTVerb& verb,
+    const ccf::endpoints::URI& uri)
+  {
+    try
+    {
+      auto endpoints = tx.ro<ccf::endpoints::EndpointsMap>(metadata_map);
+      const auto key = ccf::endpoints::EndpointKey{uri, verb};
+
+      auto it = endpoints->get(key);
+      if (it.has_value())
+      {
+        properties = it.value();
+        return ApiResult::OK;
+      }
+      else
+      {
+        return ApiResult::NotFound;
+      }
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
+  ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoint_module_v1(
+    std::string& code, kv::ReadOnlyTx& tx, const std::string& module_name)
+  {
+    try
+    {
+      auto modules = tx.template ro<ccf::Modules>(modules_map);
+
+      auto it = modules->get(normalised_module_name(module_name));
+      if (it.has_value())
+      {
+        code = it.value();
+        return ApiResult::OK;
+      }
+      else
+      {
+        return ApiResult::NotFound;
+      }
     }
     catch (const std::exception& e)
     {
