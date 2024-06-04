@@ -53,8 +53,16 @@ def test_custom_endpoints(network, args):
     }
 
     with primary.client(None, None, user.local_id) as c:
-        r = c.put("/app/custom_endpoints", body={"bundle": bundle_with_content})
+        body = {"bundle": bundle_with_content}
+        r = c.put("/app/custom_endpoints", body=body)
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
+        r = c.get("/app/custom_endpoints")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert (
+            r.body.json() == body
+        ), f"Hmm. Mismatch. Expected:\n{body}\n\n\nActual:\n{r.body.json()}"
+        # TODO
 
     with primary.client() as c:
         r = c.get("/app/not_content")
@@ -67,6 +75,10 @@ def test_custom_endpoints(network, args):
     with primary.client(None, None, user.local_id) as c:
         r = c.put("/app/custom_endpoints", body={"bundle": bundle_with_other_content})
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
+        r = c.get("/app/custom_endpoints")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() == body
 
     with primary.client() as c:
         r = c.get("/app/other_content")

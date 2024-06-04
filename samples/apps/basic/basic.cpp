@@ -163,7 +163,7 @@ namespace basicapp
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
             ccf::errors::InternalError,
             fmt::format(
-              "Failed to get install endpoints: {}",
+              "Failed to install endpoints: {}",
               ccf::api_result_to_str(result)));
           return;
         }
@@ -177,6 +177,34 @@ namespace basicapp
         put_custom_endpoints,
         {ccf::user_cose_sign1_auth_policy})
         .set_auto_schema<ccf::js::BundleWrapper, void>()
+        .install();
+
+      auto get_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
+        ccf::js::BundleWrapper wrapper;
+
+        auto result = get_custom_endpoints_v1(wrapper, ctx.tx);
+        if (result != ccf::ApiResult::OK)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to get endpoints: {}", ccf::api_result_to_str(result)));
+          return;
+        }
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ctx.rpc_ctx->set_response_body(nlohmann::json(wrapper).dump(2));
+      };
+
+      make_endpoint(
+        "/custom_endpoints",
+        HTTP_GET,
+        get_custom_endpoints,
+        {ccf::empty_auth_policy})
+        .set_auto_schema<void, ccf::js::BundleWrapper>()
         .install();
     }
   };
