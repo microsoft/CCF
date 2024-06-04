@@ -2,7 +2,9 @@ name: "Bencher: Run Benchmarks"
 
 on:
   push:
-    branches: main
+    branches:
+      - main
+      - more_perf_tests_on_bencher
   workflow_dispatch:
 
 jobs:
