@@ -47,14 +47,16 @@ def test_custom_endpoints(network, args):
         }
     }
 
+    modules = [{"name": "test.js", "module": TESTJS}]
+
     bundle_with_content = {
         "metadata": {"endpoints": {"/content": content_endpoint_def}},
-        "modules": {"test.js": TESTJS},
+        "modules": modules,
     }
 
     bundle_with_other_content = {
         "metadata": {"endpoints": {"/other_content": content_endpoint_def}},
-        "modules": {"test.js": TESTJS},
+        "modules": modules,
     }
 
     with primary.client(None, None, user.local_id) as c:

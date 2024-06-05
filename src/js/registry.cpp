@@ -482,9 +482,9 @@ namespace ccf::js
 
     auto modules = ctx.tx.template rw<ccf::Modules>(modules_map);
     modules->clear();
-    for (const auto& [name, module] : wrapper.bundle.modules)
+    for (const auto& module_def : wrapper.bundle.modules)
     {
-      modules->put(fmt::format("/{}", name), module);
+      modules->put(fmt::format("/{}", module_def.name), module_def.module);
     }
 
     // Trigger interpreter flush, in case interpreter reuse

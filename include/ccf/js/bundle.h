@@ -20,9 +20,17 @@ namespace ccf::js
   DECLARE_JSON_TYPE(Metadata);
   DECLARE_JSON_REQUIRED_FIELDS(Metadata, endpoints);
 
+  struct ModuleDef
+  {
+    std::string name;
+    std::string module;
+  };
+  DECLARE_JSON_TYPE(ModuleDef);
+  DECLARE_JSON_REQUIRED_FIELDS(ModuleDef, name, module);
+
   struct Bundle
   {
-    std::map<std::string, std::string> modules;
+    std::vector<ModuleDef> modules;
     Metadata metadata;
   };
 
