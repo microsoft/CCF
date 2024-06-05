@@ -169,7 +169,7 @@ namespace ccf::gov::endpoints
         auto val = js_context.call_with_rt_options(
           ballot_func,
           argv,
-          &tx,
+          tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
           js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
         if (!val.is_exception())
@@ -231,7 +231,7 @@ namespace ccf::gov::endpoints
           auto val = js_context.call_with_rt_options(
             resolve_func,
             argv,
-            &tx,
+            tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
             js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
           if (val.is_exception())
@@ -320,7 +320,7 @@ namespace ccf::gov::endpoints
             auto val = js_context.call_with_rt_options(
               apply_func,
               argv,
-              &tx,
+              tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
               js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
             if (val.is_exception())
@@ -456,7 +456,7 @@ namespace ccf::gov::endpoints
             auto validate_result = context.call_with_rt_options(
               validate_func,
               {proposal_arg},
-              &ctx.tx,
+              ctx.tx.template ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
               js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
             // Handle error cases of validation

@@ -43,8 +43,10 @@ namespace ccf::js::extensions
       auto& tx = *tx_ptr;
 
       js::core::Context ctx2(js::TxAccess::APP_RW);
+      const auto options_handle = tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
       ctx2.runtime().set_runtime_options(
-        tx_ptr, js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+        options_handle->get(),
+        js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
       auto quickjs_version =
         tx.wo<ccf::ModulesQuickJsVersion>(ccf::Tables::MODULES_QUICKJS_VERSION);

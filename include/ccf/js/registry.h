@@ -49,6 +49,7 @@ namespace ccf::js
     std::string interpreter_flush_map;
     std::string modules_quickjs_version_map;
     std::string modules_quickjs_bytecode_map;
+    std::string runtime_options_map;
 
     using PreExecutionHook = std::function<void(ccf::js::core::Context&)>;
 

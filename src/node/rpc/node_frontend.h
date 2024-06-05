@@ -1431,19 +1431,11 @@ namespace ccf
         m.bytecode_used =
           version_val->get() == std::string(ccf::quickjs_version);
 
-        auto js_engine_options = js_engine_map->get();
-        m.max_stack_size = js::core::Runtime::default_stack_size;
-        m.max_heap_size = js::core::Runtime::default_heap_size;
-        m.max_execution_time =
-          js::core::Runtime::default_max_execution_time.count();
-        if (js_engine_options.has_value())
-        {
-          auto& options = js_engine_options.value();
-          m.max_stack_size = options.max_stack_bytes;
-          m.max_heap_size = options.max_heap_bytes;
-          m.max_execution_time = options.max_execution_time_ms;
-          m.max_cached_interpreters = options.max_cached_interpreters;
-        }
+        auto options = js_engine_map->get().value_or(ccf::JSRuntimeOptions{});
+        m.max_stack_size = options.max_stack_bytes;
+        m.max_heap_size = options.max_heap_bytes;
+        m.max_execution_time = options.max_execution_time_ms;
+        m.max_cached_interpreters = options.max_cached_interpreters;
 
         return m;
       };

@@ -213,10 +213,14 @@ namespace ccfapp
       auto request = request_extension->create_request_obj(
         ctx, endpoint->full_uri_path, endpoint_ctx, this);
 
+      auto options = endpoint_ctx.tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)
+                       ->get()
+                       .value_or(ccf::JSRuntimeOptions());
+
       auto val = ctx.call_with_rt_options(
         export_func,
         {request},
-        &endpoint_ctx.tx,
+        options,
         ccf::js::core::RuntimeLimitsPolicy::NONE);
 
       for (auto extension : local_extensions)
@@ -239,12 +243,12 @@ namespace ccfapp
 
         auto [reason, trace] = ctx.error_message();
 
-        if (rt.log_exception_details)
+        if (options.log_exception_details)
         {
           CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
         }
 
-        if (rt.return_exception_details)
+        if (options.return_exception_details)
         {
           std::vector<nlohmann::json> details = {
             ODataJSExceptionDetails{ccf::errors::JSException, reason, trace}};
@@ -326,7 +330,7 @@ namespace ccfapp
               {
                 auto [reason, trace] = ctx.error_message();
 
-                if (rt.log_exception_details)
+                if (options.log_exception_details)
                 {
                   CCF_APP_FAIL(
                     "Failed to convert return value to JSON:{} {}",
@@ -334,7 +338,7 @@ namespace ccfapp
                     trace.value_or("<no trace>"));
                 }
 
-                if (rt.return_exception_details)
+                if (options.return_exception_details)
                 {
                   std::vector<nlohmann::json> details = {
                     ODataJSExceptionDetails{
@@ -363,7 +367,7 @@ namespace ccfapp
             {
               auto [reason, trace] = ctx.error_message();
 
-              if (rt.log_exception_details)
+              if (options.log_exception_details)
               {
                 CCF_APP_FAIL(
                   "Failed to convert return value to JSON:{} {}",
@@ -371,7 +375,7 @@ namespace ccfapp
                   trace.value_or("<no trace>"));
               }
 
-              if (rt.return_exception_details)
+              if (options.return_exception_details)
               {
                 std::vector<nlohmann::json> details = {ODataJSExceptionDetails{
                   ccf::errors::JSException, reason, trace}};
