@@ -60,7 +60,7 @@ def test_custom_endpoints(network, args):
     }
 
     with primary.client(None, None, user.local_id) as c:
-        r = c.put("/app/custom_endpoints", body={"bundle": bundle_with_content})
+        r = c.put("/app/custom_endpoints", body=bundle_with_content)
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
     with primary.client() as c:
@@ -72,7 +72,7 @@ def test_custom_endpoints(network, args):
         assert r.body.json()["payload"] == "Test content", r.body.json()
 
     with primary.client(None, None, user.local_id) as c:
-        r = c.put("/app/custom_endpoints", body={"bundle": bundle_with_other_content})
+        r = c.put("/app/custom_endpoints", body=bundle_with_other_content)
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
     with primary.client() as c:
@@ -105,7 +105,7 @@ def deploy_npm_app_custom(network, args):
     with primary.client(None, None, user.local_id) as c:
         r = c.put(
             "/app/custom_endpoints",
-            body={"bundle": json.load(open(bundle_path))},
+            body=json.load(open(bundle_path)),
         )
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 

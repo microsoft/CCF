@@ -464,12 +464,12 @@ namespace ccf::js
   }
 
   void DynamicJSEndpointRegistry::install_custom_endpoints(
-    ccf::endpoints::EndpointContext& ctx, const ccf::js::BundleWrapper& wrapper)
+    ccf::endpoints::EndpointContext& ctx, const ccf::js::Bundle& bundle)
   {
     auto endpoints =
       ctx.tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
     endpoints->clear();
-    for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
+    for (const auto& [url, methods] : bundle.metadata.endpoints)
     {
       for (const auto& [method, metadata] : methods)
       {
@@ -482,7 +482,7 @@ namespace ccf::js
 
     auto modules = ctx.tx.template rw<ccf::Modules>(modules_map);
     modules->clear();
-    for (const auto& module_def : wrapper.bundle.modules)
+    for (const auto& module_def : bundle.modules)
     {
       modules->put(fmt::format("/{}", module_def.name), module_def.module);
     }

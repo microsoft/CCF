@@ -36,12 +36,4 @@ namespace ccf::js
 
   DECLARE_JSON_TYPE(Bundle);
   DECLARE_JSON_REQUIRED_FIELDS(Bundle, modules, metadata);
-
-  struct BundleWrapper
-  {
-    Bundle bundle;
-  };
-
-  DECLARE_JSON_TYPE(BundleWrapper);
-  DECLARE_JSON_REQUIRED_FIELDS(BundleWrapper, bundle);
 }
