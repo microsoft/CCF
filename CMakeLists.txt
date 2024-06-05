@@ -488,7 +488,6 @@ set(CCF_NETWORK_TEST_ARGS
     ${TEST_LOGGING_LEVEL} --worker-threads ${WORKER_THREADS}
 )
 
-
 set(JS_GENERIC_SOURCES ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp)
 if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(js_generic_base.enclave ${JS_GENERIC_SOURCES})
