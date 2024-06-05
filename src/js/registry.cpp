@@ -89,9 +89,10 @@ namespace ccf::js
         endpoint_ctx.tx.ro<ccf::ModulesQuickJsBytecode>(
           modules_quickjs_bytecode_map),
         endpoint_ctx.tx.ro<ccf::ModulesQuickJsVersion>(
-          modules_quickjs_version_map)),
+          modules_quickjs_version_map),
+        false),
       std::make_shared<ccf::js::modules::KvModuleLoader>(
-        endpoint_ctx.tx.ro<ccf::Modules>(modules_map))};
+        endpoint_ctx.tx.ro<ccf::Modules>(modules_map), false)};
     auto module_loader =
       std::make_shared<ccf::js::modules::ChainedModuleLoader>(
         std::move(sub_loaders));
@@ -484,7 +485,7 @@ namespace ccf::js
     modules->clear();
     for (const auto& [name, module] : wrapper.bundle.modules)
     {
-      modules->put(fmt::format("/{}", name), module);
+      modules->put(name, module);
     }
 
     // Trigger interpreter flush, in case interpreter reuse

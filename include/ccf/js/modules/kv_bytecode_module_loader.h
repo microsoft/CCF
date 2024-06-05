@@ -18,11 +18,15 @@ namespace ccf::js::modules
 
     bool version_ok;
 
+    const bool legacy_module_prefixing;
+
   public:
     KvBytecodeModuleLoader(
       ccf::ModulesQuickJsBytecode::ReadOnlyHandle* mbh,
-      ccf::ModulesQuickJsVersion::ReadOnlyHandle* modules_version_handle) :
-      modules_bytecode_handle(mbh)
+      ccf::ModulesQuickJsVersion::ReadOnlyHandle* modules_version_handle,
+      bool lmp = true) :
+      modules_bytecode_handle(mbh),
+      legacy_module_prefixing(lmp)
     {
       const auto version_in_kv = modules_version_handle->get();
       const auto version_in_binary = std::string(ccf::quickjs_version);
@@ -42,25 +46,26 @@ namespace ccf::js::modules
     }
 
     virtual std::optional<js::core::JSWrappedValue> get_module(
-      std::string_view module_name, js::core::Context& ctx) override
+      std::string_view module_name_, js::core::Context& ctx) override
     {
       if (!version_ok)
       {
         return std::nullopt;
       }
 
-      std::string module_name_kv(module_name);
-      if (module_name_kv[0] != '/')
+      std::string module_name(module_name_);
+
+      if (legacy_module_prefixing && module_name[0] != '/')
       {
-        module_name_kv.insert(0, "/");
+        module_name.insert(0, "/");
       }
 
-      CCF_APP_TRACE("Looking for module '{}' bytecode in KV", module_name_kv);
+      CCF_APP_TRACE("Looking for module '{}' bytecode in KV", module_name);
 
-      auto module_bytecode = modules_bytecode_handle->get(module_name_kv);
+      auto module_bytecode = modules_bytecode_handle->get(module_name);
       if (!module_bytecode.has_value())
       {
-        CCF_APP_TRACE("Module '{}' not found", module_name_kv);
+        CCF_APP_TRACE("Module '{}' not found", module_name);
         return std::nullopt;
       }
 
@@ -99,7 +104,7 @@ namespace ccf::js::modules
 
       CCF_APP_TRACE(
         "Module '{}' bytecode found in KV (table: {})",
-        module_name_kv,
+        module_name,
         modules_bytecode_handle->get_name_of_map());
       return module_val;
     }

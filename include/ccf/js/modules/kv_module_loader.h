@@ -15,34 +15,42 @@ namespace ccf::js::modules
   protected:
     ccf::Modules::ReadOnlyHandle* modules_handle;
 
+    const bool legacy_module_prefixing;
+
   public:
-    KvModuleLoader(ccf::Modules::ReadOnlyHandle* mh) : modules_handle(mh) {}
+    KvModuleLoader(ccf::Modules::ReadOnlyHandle* mh, bool lmp = true) :
+      modules_handle(mh),
+      legacy_module_prefixing(lmp)
+    {}
 
     virtual std::optional<js::core::JSWrappedValue> get_module(
-      std::string_view module_name, js::core::Context& ctx) override
+      std::string_view module_name_, js::core::Context& ctx) override
     {
-      std::string module_name_kv(module_name);
-      if (module_name_kv[0] != '/')
+      std::string module_name(module_name_);
+
+      if (legacy_module_prefixing && module_name[0] != '/')
       {
-        module_name_kv.insert(0, "/");
+        module_name.insert(0, "/");
       }
 
-      CCF_APP_TRACE("Looking for module '{}' in KV", module_name_kv);
+      CCF_APP_TRACE("Looking for module '{}' in KV", module_name);
 
-      auto module_str = modules_handle->get(module_name_kv);
+      auto module_str = modules_handle->get(module_name);
       if (!module_str.has_value())
       {
-        CCF_APP_TRACE("Module '{}' not found", module_name_kv);
+        CCF_APP_TRACE("Module '{}' not found", module_name);
         return std::nullopt;
       }
 
-      auto module_name_quickjs = module_name_kv.c_str() + 1;
+      auto module_name_quickjs =
+        legacy_module_prefixing ? module_name.c_str() + 1 : module_name.c_str();
+
       const char* buf = module_str->c_str();
       size_t buf_len = module_str->size();
       auto parsed_module = ctx.eval(
         buf,
         buf_len,
-        module_name_quickjs,
+        module_name.c_str(),
         JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
       if (parsed_module.is_exception())
       {
@@ -60,7 +68,7 @@ namespace ccf::js::modules
 
       CCF_APP_TRACE(
         "Module '{}' found in KV (table: {})",
-        module_name_kv,
+        module_name,
         modules_handle->get_name_of_map());
       return parsed_module;
     }
