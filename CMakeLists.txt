@@ -939,11 +939,6 @@ add_custom_target(
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
 
-# Add external_executor app
-if(LONG_TESTS)
-  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/external_executor)
-endif()
-
 if(BUILD_TESTS)
   enable_testing()
 
@@ -1638,20 +1633,6 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
       LABEL perf
     )
-
-    if(LONG_TESTS)
-      add_e2e_test(
-        NAME external_executor_test
-        PYTHON_SCRIPT
-          ${CMAKE_SOURCE_DIR}/tests/external_executor/external_executor.py
-      )
-
-      add_e2e_test(
-        NAME external_indexer_test
-        PYTHON_SCRIPT
-          ${CMAKE_SOURCE_DIR}/tests/external_executor/external_indexer.py
-      )
-    endif()
   endif()
 endif()
 
