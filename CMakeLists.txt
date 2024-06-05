@@ -174,14 +174,8 @@ foreach(UTILITY ${CCF_UTILITIES})
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES
-    tests.sh
-    cimetrics_env.sh
-    upload_pico_metrics.py
-    test_install.sh
-    docker_wrap.sh
-    config.jinja
-    recovery_benchmark.sh
+set(CCF_TEST_UTILITIES tests.sh convert_pico_to_bencher.py test_install.sh
+                       docker_wrap.sh config.jinja recovery_benchmark.sh
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
@@ -1580,7 +1574,7 @@ if(BUILD_TESTS)
       )
     endif()
 
-    add_perf_test(
+    add_piccolo_test(
       NAME pi_ls
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
       CLIENT_BIN ./submit
@@ -1614,7 +1608,7 @@ if(BUILD_TESTS)
       )
     endif()
 
-    add_perf_test(
+    add_piccolo_test(
       NAME pi_ls_jwt
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
       CLIENT_BIN ./submit

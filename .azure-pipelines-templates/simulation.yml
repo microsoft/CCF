@@ -26,14 +26,6 @@ jobs:
         workingDirectory: tla
         displayName: Simulation
 
-      # Temporarily disabled, until cimetrics supports auth other than connection-string
-      # - ${{ if eq(parameters.metrics, true) }}:
-      #     - script: |
-      #         set -ex
-      #         ./cimetrics_env.sh python upload_tlc_stats.py sim ../tla/SIMccfraft_stats.json
-      #       workingDirectory: tests
-      #       displayName: Uploading TLC stats to cimetrics
-
       - task: PublishPipelineArtifact@1
         inputs:
           artifactName: "Simulation Traces"
