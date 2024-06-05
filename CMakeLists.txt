@@ -337,8 +337,21 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/core/runtime.cpp
     ${CCF_DIR}/src/js/core/context.cpp
     ${CCF_DIR}/src/js/no_plugins.cpp
-    ${CCF_DIR}/src/js/globals/ccf.cpp
     ${CCF_DIR}/src/js/ffi_plugins.cpp
+    ${CCF_DIR}/src/js/extensions/console.cpp
+    ${CCF_DIR}/src/js/extensions/math/random.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/gov_effects.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/historical.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/host.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/kv.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/network.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/node.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/rpc.cpp
+    ${CCF_DIR}/src/js/extensions/ccf/request.cpp
+    ${CCF_DIR}/src/js/registry.cpp
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -579,10 +592,9 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
   set(JS_SNP_ATTESTATION_VIRTUAL js_snp_attestation.virtual)
 endif()
 
+set(JS_GENERIC_SOURCES ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp)
 if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library(
-    js_generic_base.enclave ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
-  )
+  add_enclave_library(js_generic_base.enclave ${JS_GENERIC_SOURCES})
   target_link_libraries(js_generic_base.enclave PUBLIC ccf.enclave)
   add_lvi_mitigations(js_generic_base.enclave)
   install(
@@ -591,10 +603,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
     DESTINATION lib
   )
 elseif(COMPILE_TARGET STREQUAL "snp")
-  add_library(
-    js_generic_base.snp STATIC
-    ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
-  )
+  add_library(js_generic_base.snp STATIC ${JS_GENERIC_SOURCES})
   add_san(js_generic_base.snp)
   add_warning_checks(js_generic_base.snp)
   target_link_libraries(js_generic_base.snp PUBLIC ccf.snp)
@@ -610,10 +619,7 @@ elseif(COMPILE_TARGET STREQUAL "snp")
     DESTINATION lib
   )
 elseif(COMPILE_TARGET STREQUAL "virtual")
-  add_library(
-    js_generic_base.virtual STATIC
-    ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp
-  )
+  add_library(js_generic_base.virtual STATIC ${JS_GENERIC_SOURCES})
   add_san(js_generic_base.virtual)
   add_warning_checks(js_generic_base.virtual)
   target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
@@ -748,10 +754,10 @@ if(COMPILE_TARGET STREQUAL "sgx")
     ccf.enclave
     PUBLIC http_parser.enclave
            sss.enclave
+           ccf_js.enclave
            ccf_endpoints.enclave
            ccfcrypto.enclave
            ccf_kv.enclave
-           ccf_js.enclave
            nghttp2.enclave
   )
 
@@ -796,10 +802,10 @@ elseif(COMPILE_TARGET STREQUAL "snp")
            -lgcc
            http_parser.snp
            sss.snp
+           ccf_js.snp
            ccf_endpoints.snp
            ccfcrypto.snp
            ccf_kv.snp
-           ccf_js.snp
            nghttp2.snp
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -847,10 +853,10 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            -lgcc
            http_parser.host
            sss.host
+           ccf_js.host
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
-           ccf_js.host
            nghttp2.host
            ${CMAKE_THREAD_LIBS_INIT}
   )
@@ -932,11 +938,6 @@ add_custom_target(
 
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
-
-# Add external_executor app
-if(LONG_TESTS)
-  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/external_executor)
-endif()
 
 if(BUILD_TESTS)
   enable_testing()
@@ -1129,10 +1130,10 @@ if(BUILD_TESTS)
       PRIVATE ${CMAKE_THREAD_LIBS_INIT}
               http_parser.host
               sss.host
+              ccf_js.host
               ccf_endpoints.host
               ccfcrypto.host
               ccf_kv.host
-              ccf_js.host
     )
 
     add_unit_test(
@@ -1156,10 +1157,10 @@ if(BUILD_TESTS)
       PRIVATE ${CMAKE_THREAD_LIBS_INIT}
               http_parser.host
               sss.host
+              ccf_js.host
               ccf_endpoints.host
               ccfcrypto.host
               ccf_kv.host
-              ccf_js.host
     )
 
     add_unit_test(
@@ -1383,7 +1384,9 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME jwt_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
+      NAME jwt_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
+      LABEL snp_flaky
     )
 
     add_e2e_test(
@@ -1416,6 +1419,11 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
       ADDITIONAL_ARGS --js-app-bundle
                       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+    )
+
+    add_e2e_test(
+      NAME programmability
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
     )
 
     # This test uses large requests (so too slow for SAN)
@@ -1475,6 +1483,7 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME consistency_trace_validation
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
+      LABEL snp_flaky
     )
 
     add_e2e_test(
@@ -1624,20 +1633,6 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
       LABEL perf
     )
-
-    if(LONG_TESTS)
-      add_e2e_test(
-        NAME external_executor_test
-        PYTHON_SCRIPT
-          ${CMAKE_SOURCE_DIR}/tests/external_executor/external_executor.py
-      )
-
-      add_e2e_test(
-        NAME external_indexer_test
-        PYTHON_SCRIPT
-          ${CMAKE_SOURCE_DIR}/tests/external_executor/external_indexer.py
-      )
-    endif()
   endif()
 endif()
 

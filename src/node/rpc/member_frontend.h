@@ -15,7 +15,9 @@
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "frontend.h"
-#include "js/core/context.h"
+#include "js/common_context.h"
+#include "js/extensions/ccf/network.h"
+#include "js/extensions/ccf/node.h"
 #include "node/gov/gov_endpoint_registry.h"
 #include "node/rpc/call_types.h"
 #include "node/rpc/gov_effects_interface.h"
@@ -136,21 +138,24 @@ namespace ccf
     ccf::jsgov::ProposalInfoSummary resolve_proposal(
       kv::Tx& tx,
       const ProposalId& proposal_id,
-      const std::vector<uint8_t>& proposal,
+      const std::span<const uint8_t>& proposal_bytes,
       const std::string& constitution)
     {
       auto pi =
         tx.rw<ccf::jsgov::ProposalInfoMap>(jsgov::Tables::PROPOSALS_INFO);
       auto pi_ = pi->get(proposal_id);
 
+      const std::string_view proposal{
+        (const char*)proposal_bytes.data(), proposal_bytes.size()};
+
       std::vector<std::pair<MemberId, bool>> votes;
       std::optional<ccf::jsgov::Votes> final_votes = std::nullopt;
       std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
       for (const auto& [mid, mb] : pi_->ballots)
       {
-        js::core::Context context(js::TxAccess::GOV_RO);
-        context.populate_global_ccf_kv(tx);
-        auto ballot_func = context.function(
+        js::CommonContext context(js::TxAccess::GOV_RO, &tx);
+
+        auto ballot_func = context.get_exported_function(
           mb,
           "vote",
           fmt::format(
@@ -160,18 +165,17 @@ namespace ccf
             mid));
 
         std::vector<js::core::JSWrappedValue> argv = {
-          context.new_string_len((const char*)proposal.data(), proposal.size()),
-          context.new_string_len(
-            pi_->proposer_id.data(), pi_->proposer_id.size()),
+          context.new_string(proposal),
+          context.new_string(pi_->proposer_id.value()),
           // Also pass the proposal_id as a string. This is useful for proposals
           // that want to refer to themselves in the resolve function, for
           // example to examine/distinguish themselves other pending proposals.
-          context.new_string_len(proposal_id.data(), proposal_id.size())};
+          context.new_string(proposal_id)};
 
         auto val = context.call_with_rt_options(
           ballot_func,
           argv,
-          &tx,
+          tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
           js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
         if (!val.is_exception())
@@ -196,19 +200,17 @@ namespace ccf
       }
 
       {
-        js::core::Context js_context(js::TxAccess::GOV_RO);
-        js_context.populate_global_ccf_kv(tx);
-        auto resolve_func = js_context.function(
+        js::CommonContext js_context(js::TxAccess::GOV_RO, &tx);
+
+        auto resolve_func = js_context.get_exported_function(
           constitution,
           "resolve",
           fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
         std::vector<js::core::JSWrappedValue> argv;
-        argv.push_back(js_context.new_string_len(
-          (const char*)proposal.data(), proposal.size()));
+        argv.push_back(js_context.new_string(proposal));
 
-        argv.push_back(js_context.new_string_len(
-          pi_->proposer_id.data(), pi_->proposer_id.size()));
+        argv.push_back(js_context.new_string(pi_->proposer_id.value()));
 
         auto vs = js_context.new_array();
         size_t index = 0;
@@ -229,7 +231,7 @@ namespace ccf
         auto val = js_context.call_with_rt_options(
           resolve_func,
           argv,
-          &tx,
+          tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
           js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
         std::optional<jsgov::Failure> failure = std::nullopt;
@@ -297,8 +299,6 @@ namespace ccf
           }
           if (pi_.value().state == ProposalState::ACCEPTED)
           {
-            js::core::Context apply_js_context(js::TxAccess::GOV_RW);
-
             auto gov_effects =
               context.get_subsystem<AbstractGovernanceEffects>();
             if (gov_effects == nullptr)
@@ -307,26 +307,30 @@ namespace ccf
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
-            apply_js_context.populate_global_ccf_kv(tx);
-            apply_js_context.populate_global_ccf_node(gov_effects.get());
-            apply_js_context.populate_global_ccf_network(&network);
-            apply_js_context.populate_global_ccf_gov_actions();
+            js::CommonContext apply_js_context(js::TxAccess::GOV_RW, &tx);
 
-            auto apply_func = apply_js_context.function(
+            apply_js_context.add_extension(
+              std::make_shared<ccf::js::extensions::NodeExtension>(
+                gov_effects.get(), &tx));
+            apply_js_context.add_extension(
+              std::make_shared<ccf::js::extensions::NetworkExtension>(
+                &network, &tx));
+            apply_js_context.add_extension(
+              std::make_shared<ccf::js::extensions::GovEffectsExtension>(&tx));
+
+            auto apply_func = apply_js_context.get_exported_function(
               constitution,
               "apply",
               fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
 
             std::vector<js::core::JSWrappedValue> apply_argv = {
-              apply_js_context.new_string_len(
-                (const char*)proposal.data(), proposal.size()),
-              apply_js_context.new_string_len(
-                proposal_id.c_str(), proposal_id.size())};
+              apply_js_context.new_string(proposal),
+              apply_js_context.new_string(proposal_id)};
 
             auto apply_val = apply_js_context.call_with_rt_options(
               apply_func,
               apply_argv,
-              &tx,
+              tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
               js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
             if (apply_val.is_exception())
@@ -1167,10 +1171,9 @@ namespace ccf
 
         auto validate_script = constitution.value();
 
-        js::core::Context context(js::TxAccess::GOV_RO);
-        context.populate_global_ccf_kv(ctx.tx);
+        js::CommonContext context(js::TxAccess::GOV_RO, &ctx.tx);
 
-        auto validate_func = context.function(
+        auto validate_func = context.get_exported_function(
           validate_script,
           "validate",
           fmt::format("{}[0]", ccf::Tables::CONSTITUTION));
@@ -1186,7 +1189,7 @@ namespace ccf
         auto val = context.call_with_rt_options(
           validate_func,
           {proposal},
-          &ctx.tx,
+          ctx.tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE)->get(),
           js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
         if (val.is_exception())
@@ -1322,10 +1325,7 @@ namespace ccf
         }
 
         auto rv = resolve_proposal(
-          ctx.tx,
-          proposal_id,
-          {proposal_body.begin(), proposal_body.end()},
-          constitution.value());
+          ctx.tx, proposal_id, proposal_body, constitution.value());
 
         if (rv.state == ProposalState::FAILED)
         {
@@ -1698,10 +1698,13 @@ namespace ccf
 
         {
           js::core::Context context(js::TxAccess::GOV_RO);
+          const auto options_handle =
+            ctx.tx.ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
           context.runtime().set_runtime_options(
-            &ctx.tx, js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
-          auto ballot_func =
-            context.function(params["ballot"], "vote", "body[\"ballot\"]");
+            options_handle->get(),
+            js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+          auto ballot_func = context.get_exported_function(
+            params["ballot"], "vote", "body[\"ballot\"]");
         }
 
         pi_->ballots[member_id.value()] = params["ballot"];

@@ -65,4 +65,11 @@ namespace ccf
   {
     ds::json::fill_schema<ClaimsDigest::Digest>(schema);
   }
+
+  static ClaimsDigest empty_claims()
+  {
+    ClaimsDigest cd;
+    cd.set(ClaimsDigest::Digest::Representation());
+    return cd;
+  }
 }

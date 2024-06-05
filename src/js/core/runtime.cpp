@@ -1,10 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "js/core/runtime.h"
+#include "ccf/js/core/runtime.h"
 
-#include "ccf/service/tables/jsengine.h"
-#include "ccf/tx.h"
 #include "js/global_class_ids.h"
 
 #include <vector>
@@ -34,15 +32,7 @@ namespace ccf::js::core
     std::vector<std::pair<JSClassID, JSClassDef*>> classes{
       {kv_class_id, &kv_class_def},
       {kv_historical_class_id, &kv_historical_class_def},
-      {kv_map_handle_class_id, &kv_map_handle_class_def},
-      {body_class_id, &body_class_def},
-      {node_class_id, &node_class_def},
-      {network_class_id, &network_class_def},
-      {rpc_class_id, &rpc_class_def},
-      {host_class_id, &host_class_def},
-      {consensus_class_id, &consensus_class_def},
-      {historical_class_id, &historical_class_def},
-      {historical_state_class_id, &historical_state_class_def}};
+      {kv_map_handle_class_id, &kv_map_handle_class_def}};
     for (auto [class_id, class_def] : classes)
     {
       auto ret = JS_NewClass(rt, class_id, class_def);
@@ -54,41 +44,43 @@ namespace ccf::js::core
 
   void Runtime::reset_runtime_options()
   {
-    JS_SetMaxStackSize(rt, 0);
+    using Defaults = ccf::JSRuntimeOptions::Defaults;
+
     JS_SetMemoryLimit(rt, -1);
-    JS_SetInterruptHandler(rt, NULL, NULL);
+    JS_SetMaxStackSize(rt, 0);
+
+    this->max_exec_time =
+      std::chrono::milliseconds{Defaults::max_execution_time_ms};
   }
 
-  void Runtime::set_runtime_options(kv::Tx* tx, RuntimeLimitsPolicy policy)
+  void Runtime::set_runtime_options(
+    const std::optional<ccf::JSRuntimeOptions>& options_opt,
+    RuntimeLimitsPolicy policy)
   {
-    size_t stack_size = default_stack_size;
-    size_t heap_size = default_heap_size;
+    using Defaults = ccf::JSRuntimeOptions::Defaults;
 
-    const auto jsengine = tx->ro<ccf::JSEngine>(ccf::Tables::JSENGINE);
-    const std::optional<JSRuntimeOptions> js_runtime_options = jsengine->get();
+    ccf::JSRuntimeOptions js_runtime_options =
+      options_opt.value_or(ccf::JSRuntimeOptions{});
 
-    if (js_runtime_options.has_value())
-    {
-      bool no_lower_than_defaults =
-        policy == RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS;
+    bool no_lower_than_defaults =
+      policy == RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS;
 
-      heap_size = std::max(
-        js_runtime_options.value().max_heap_bytes,
-        no_lower_than_defaults ? default_heap_size : 0);
-      stack_size = std::max(
-        js_runtime_options.value().max_stack_bytes,
-        no_lower_than_defaults ? default_stack_size : 0);
-      max_exec_time = std::max(
-        std::chrono::milliseconds{
-          js_runtime_options.value().max_execution_time_ms},
-        no_lower_than_defaults ? default_max_execution_time :
-                                 std::chrono::milliseconds{0});
-      log_exception_details = js_runtime_options.value().log_exception_details;
-      return_exception_details =
-        js_runtime_options.value().return_exception_details;
-    }
-
-    JS_SetMaxStackSize(rt, stack_size);
+    auto heap_size = std::max(
+      js_runtime_options.max_heap_bytes,
+      no_lower_than_defaults ? Defaults::max_heap_bytes : 0);
     JS_SetMemoryLimit(rt, heap_size);
+
+    auto stack_size = std::max(
+      js_runtime_options.max_stack_bytes,
+      no_lower_than_defaults ? Defaults::max_stack_bytes : 0);
+    JS_SetMaxStackSize(rt, stack_size);
+
+    this->max_exec_time = std::chrono::milliseconds{std::max(
+      js_runtime_options.max_execution_time_ms,
+      no_lower_than_defaults ? Defaults::max_execution_time_ms : 0)};
+
+    this->log_exception_details = js_runtime_options.log_exception_details;
+    this->return_exception_details =
+      js_runtime_options.return_exception_details;
   }
 }

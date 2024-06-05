@@ -464,8 +464,8 @@ def rand_bytes(n):
     return bytes(random.getrandbits(8) for _ in range(n))
 
 
-@reqs.description("Test basic Node.js/npm app")
-def build_and_deploy_npm_app(network, args):
+@reqs.description("Build basic Node.js/npm app")
+def build_npm_app(network, args):
     primary, _ = network.find_nodes()
 
     LOG.info("Building ccf-app npm package (dependency)")
@@ -482,6 +482,15 @@ def build_and_deploy_npm_app(network, args):
         infra.proc.ccall("npm", "run", "build", "--verbose", path=app_dir).returncode
         == 0
     )
+
+    return network
+
+
+@reqs.description("Deploy basic Node.js/npm app")
+def deploy_npm_app(network, args):
+    primary, _ = network.find_nodes()
+
+    app_dir = os.path.join(PARENT_DIR, "npm-app")
 
     LOG.info("Deploying npm app")
     bundle_path = os.path.join(
@@ -1337,6 +1346,8 @@ def test_js_execution_time(network, args):
 
 @reqs.description("Test JS exception output")
 def test_js_exception_output(network, args):
+    network = deploy_npm_app(network, args)
+
     primary, _ = network.find_nodes()
 
     with primary.client("user0") as c:
@@ -1369,7 +1380,7 @@ def test_js_exception_output(network, args):
         assert body["error"]["details"][0]["message"] == "Error: test error: 42"
         assert (
             body["error"]["details"][0]["trace"]
-            == "    at nested (endpoints/rpc.js:27)\n    at throwError (endpoints/rpc.js:29)\n"
+            == "    at nested (/endpoints/rpc.js:27)\n    at throwError (/endpoints/rpc.js:29)\n"
         )
 
         network.consortium.set_js_runtime_options(
@@ -1436,15 +1447,26 @@ def run(args):
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
         network.start_and_open(args)
+
+        # Needs to happen early, so later tests can deploy it if they want to
+        network = build_npm_app(network, args)
+
+        # Needs to happen before any other call to set_js_runtime_options
+        # to properly test the default values, which should not emit
+        # error details on response (or in the log).
+        network = test_js_exception_output(network, args)
+
         network = test_module_import(network, args)
         network = test_bytecode_cache(network, args)
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)
         network = test_set_js_runtime(network, args)
-        network = build_and_deploy_npm_app(network, args)
+
+        # Remaining tests all require this app, and its endpoints
+        network = deploy_npm_app(network, args)
+
         network = test_npm_app(network, args)
         network = test_js_execution_time(network, args)
-        network = test_js_exception_output(network, args)
         network = test_user_cose_authentication(network, args)
         network = test_multi_auth(network, args)
 
