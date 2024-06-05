@@ -498,7 +498,7 @@ namespace ccf::js
       // Refresh app bytecode
       ccf::js::core::Context jsctx(ccf::js::TxAccess::APP_RW);
       jsctx.runtime().set_runtime_options(
-        ctx.tx.ro<ccf::JSEngine>(runtime_options_map)->get(),
+        tx.ro<ccf::JSEngine>(runtime_options_map)->get(),
         ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
 
       auto quickjs_version =
