@@ -50,9 +50,28 @@ export interface KvMap {
 }
 
 /**
+ * A set in the Key Value Store.
+ *
+ * `KVSet` is modelled after JavaScript's `Set` object,
+ * except that keys must be of type `ArrayBuffer`
+ * and no guarantees on iteration order are provided.
+ */
+export interface KvSet {
+  has(key: ArrayBuffer): boolean;
+  getVersionOfPreviousWrite(key: ArrayBuffer): number | undefined;
+  add(key: ArrayBuffer): KvSet;
+  delete(key: ArrayBuffer): void;
+  clear(): void;
+  forEach(
+    callback: (value: ArrayBuffer, kvset: KvSet) => void,
+  ): void;
+  size: number;
+}
+
+/**
  * @inheritDoc CCF.kv
  */
-export type KvMaps = { [key: string]: KvMap };
+export type KvMaps = { [key: string]: KvMap | KvSet };
 
 export interface ProofElement {
   /**
@@ -137,7 +156,7 @@ export interface HistoricalState {
   /**
    * An object that provides access to the maps of the Key-Value Store
    * associated with the historic transaction.
-   * Fields are map names and values are {@linkcode KvMap} objects.
+   * Fields are map names and values are {@linkcode KvMap} or {@linkcode KvSet}  objects.
    */
   kv: KvMaps;
 }
@@ -689,7 +708,7 @@ export interface CCF {
 
   /**
    * An object that provides access to the maps of the Key-Value Store of CCF.
-   * Fields are map names and values are {@linkcode KvMap} objects.
+   * Fields are map names and values are {@linkcode KvMap} or {@linkcode KvSet} objects.
    */
   kv: KvMaps;
 
