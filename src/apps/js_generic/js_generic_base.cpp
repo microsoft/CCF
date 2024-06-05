@@ -17,6 +17,8 @@
 #include "ccf/js/extensions/ccf/rpc.h"
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/extensions/math/random.h"
+#include "ccf/js/extensions/openenclave.h"
+#include "ccf/js/extensions/snp_attestation.h"
 #include "ccf/js/interpreter_cache_interface.h"
 #include "ccf/js/modules/chained_module_loader.h"
 #include "ccf/js/modules/kv_bytecode_module_loader.h"
@@ -525,6 +527,12 @@ namespace ccfapp
       extensions.emplace_back(
         std::make_shared<ccf::js::extensions::HistoricalExtension>(
           &context.get_historical_state()));
+      // add openenclave.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::OpenEnclaveExtension>());
+      // add snp_attestation.*
+      extensions.emplace_back(
+        std::make_shared<ccf::js::extensions::SnpAttestationExtension>());
 
       interpreter_cache->set_interpreter_factory(
         [extensions](ccf::js::TxAccess access) {
