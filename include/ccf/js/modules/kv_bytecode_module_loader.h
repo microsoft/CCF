@@ -11,22 +11,19 @@
 
 namespace ccf::js::modules
 {
-  class KvBytecodeModuleLoader : public ModuleLoaderInterface
+  template <bool LegacyModulePrefixing>
+  class TKvBytecodeModuleLoader : public ModuleLoaderInterface
   {
   protected:
     ccf::ModulesQuickJsBytecode::ReadOnlyHandle* modules_bytecode_handle;
 
     bool version_ok;
 
-    const bool legacy_module_prefixing;
-
   public:
-    KvBytecodeModuleLoader(
+    TKvBytecodeModuleLoader(
       ccf::ModulesQuickJsBytecode::ReadOnlyHandle* mbh,
-      ccf::ModulesQuickJsVersion::ReadOnlyHandle* modules_version_handle,
-      bool lmp = true) :
-      modules_bytecode_handle(mbh),
-      legacy_module_prefixing(lmp)
+      ccf::ModulesQuickJsVersion::ReadOnlyHandle* modules_version_handle) :
+      modules_bytecode_handle(mbh)
     {
       const auto version_in_kv = modules_version_handle->get();
       const auto version_in_binary = std::string(ccf::quickjs_version);
@@ -55,9 +52,12 @@ namespace ccf::js::modules
 
       std::string module_name(module_name_);
 
-      if (legacy_module_prefixing && module_name[0] != '/')
+      if constexpr (LegacyModulePrefixing)
       {
-        module_name.insert(0, "/");
+        if (module_name[0] != '/')
+        {
+          module_name.insert(0, "/");
+        }
       }
 
       CCF_APP_TRACE("Looking for module '{}' bytecode in KV", module_name);
@@ -109,4 +109,7 @@ namespace ccf::js::modules
       return module_val;
     }
   };
+
+  using KvBytecodeModuleLoader = TKvBytecodeModuleLoader<true>;
+  using KvBytecodeModuleLoader_NoPrefixing = TKvBytecodeModuleLoader<false>;
 }

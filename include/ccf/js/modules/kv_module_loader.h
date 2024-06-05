@@ -10,27 +10,26 @@
 
 namespace ccf::js::modules
 {
-  class KvModuleLoader : public ModuleLoaderInterface
+  template <bool LegacyModulePrefixing>
+  class TKvModuleLoader : public ModuleLoaderInterface
   {
   protected:
     ccf::Modules::ReadOnlyHandle* modules_handle;
 
-    const bool legacy_module_prefixing;
-
   public:
-    KvModuleLoader(ccf::Modules::ReadOnlyHandle* mh, bool lmp = true) :
-      modules_handle(mh),
-      legacy_module_prefixing(lmp)
-    {}
+    TKvModuleLoader(ccf::Modules::ReadOnlyHandle* mh) : modules_handle(mh) {}
 
     virtual std::optional<js::core::JSWrappedValue> get_module(
       std::string_view module_name_, js::core::Context& ctx) override
     {
       std::string module_name(module_name_);
 
-      if (legacy_module_prefixing && module_name[0] != '/')
+      if constexpr (LegacyModulePrefixing)
       {
-        module_name.insert(0, "/");
+        if (module_name[0] != '/')
+        {
+          module_name.insert(0, "/");
+        }
       }
 
       CCF_APP_TRACE("Looking for module '{}' in KV", module_name);
@@ -43,7 +42,7 @@ namespace ccf::js::modules
       }
 
       auto module_name_quickjs =
-        legacy_module_prefixing ? module_name.c_str() + 1 : module_name.c_str();
+        LegacyModulePrefixing ? module_name.c_str() + 1 : module_name.c_str();
 
       const char* buf = module_str->c_str();
       size_t buf_len = module_str->size();
@@ -73,4 +72,7 @@ namespace ccf::js::modules
       return parsed_module;
     }
   };
+
+  using KvModuleLoader = TKvModuleLoader<true>;
+  using KvModuleLoader_NoPrefixing = TKvModuleLoader<false>;
 }

@@ -85,14 +85,13 @@ namespace ccf::js
     ctx.runtime().reset_runtime_options();
 
     ccf::js::modules::ModuleLoaders sub_loaders = {
-      std::make_shared<ccf::js::modules::KvBytecodeModuleLoader>(
+      std::make_shared<ccf::js::modules::KvBytecodeModuleLoader_NoPrefixing>(
         endpoint_ctx.tx.ro<ccf::ModulesQuickJsBytecode>(
           modules_quickjs_bytecode_map),
         endpoint_ctx.tx.ro<ccf::ModulesQuickJsVersion>(
-          modules_quickjs_version_map),
-        false),
-      std::make_shared<ccf::js::modules::KvModuleLoader>(
-        endpoint_ctx.tx.ro<ccf::Modules>(modules_map), false)};
+          modules_quickjs_version_map)),
+      std::make_shared<ccf::js::modules::KvModuleLoader_NoPrefixing>(
+        endpoint_ctx.tx.ro<ccf::Modules>(modules_map))};
     auto module_loader =
       std::make_shared<ccf::js::modules::ChainedModuleLoader>(
         std::move(sub_loaders));
@@ -508,7 +507,7 @@ namespace ccf::js
     quickjs_version->put(ccf::quickjs_version);
     quickjs_bytecode->clear();
     jsctx.set_module_loader(
-      std::make_shared<ccf::js::modules::KvModuleLoader>(modules));
+      std::make_shared<ccf::js::modules::KvModuleLoader_NoPrefixing>(modules));
 
     modules->foreach([&](const auto& name, const auto& src) {
       auto module_val = jsctx.eval(
