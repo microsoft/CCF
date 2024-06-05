@@ -6,8 +6,13 @@ import infra.checker
 import infra.jwt_issuer
 import infra.proc
 import http
+import os
+import json
 from infra.runner import ConcurrentRunner
 
+import npm_tests
+
+from loguru import logger as LOG
 
 TESTJS = """
 export function content(request) {
@@ -79,6 +84,32 @@ def test_custom_endpoints(network, args):
     return network
 
 
+def deploy_npm_app_custom(network, args):
+    primary, _ = network.find_nodes()
+
+    # Make user0 admin, so it can install custom endpoints
+    user = network.users[0]
+    network.consortium.set_user_data(
+        primary, user.service_id, user_data={"isAdmin": True}
+    )
+
+    app_dir = os.path.join(npm_tests.THIS_DIR, "npm-app")
+
+    LOG.info("Deploying npm app")
+    bundle_path = os.path.join(
+        app_dir, "dist", "bundle.json"
+    )  # Produced by build_npm_app
+
+    with primary.client(None, None, user.local_id) as c:
+        r = c.put(
+            "/app/custom_endpoints",
+            body={"bundle": json.load(open(bundle_path))},
+        )
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes,
@@ -89,7 +120,11 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_custom_endpoints(network, args)
+        network = test_custom_endpoints(network, args)
+
+        network = npm_tests.build_npm_app(network, args)
+        network = deploy_npm_app_custom(network, args)
+        network = npm_tests.test_npm_app(network, args)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 #
 from base64 import b64encode
-import tempfile
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -18,6 +17,7 @@ import os
 import random
 import subprocess
 import suite.test_requirements as reqs
+import tempfile
 
 from loguru import logger as LOG
 
@@ -250,7 +250,7 @@ def deploy_npm_app(network, args):
     LOG.info("Deploying npm app")
     bundle_path = os.path.join(
         app_dir, "dist", "bundle.json"
-    )  # Produced by build step of test npm-app
+    )  # Produced by build_npm_app
     bundle = infra.consortium.slurp_json(bundle_path)
     network.consortium.set_js_app_from_bundle(primary, bundle)
 
