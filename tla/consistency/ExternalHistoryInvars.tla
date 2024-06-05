@@ -207,11 +207,15 @@ CommittedRwLinearizableInv ==
 
 ----
 
-\* Ordering over txIDs, the form of which is <<view,seqnum>>
+\* TxIDs are of the form <<view,seqnum>>
+View(tx_id) == tx_id[1]
+SeqNum(tx_id) == tx_id[2]
+
+\* Ordering over txIDs
 TxIDStrictlyLessThan(x, y) ==
-    \/ x[1] < y[1]
-    \/ /\ x[1] = y[1]
-       /\ x[2] < y[2]
+    \/ View(x) < View(y)
+    \/ /\ View(x) = View(y)
+       /\ SeqNum(x) < SeqNum(y)
 
 \* CommittedRwResponseSorted is a subset of history containing only the responses to committed rx transactions
 \* and sorted by tx_id (instead of by event ordering)
