@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/js/extensions/openenclave.h"
+
 #include "ccf/ds/hex.h"
 #include "ccf/js/core/context.h"
-#include "ccf/js_openenclave_plugin.h"
-#include "ccf/js_plugin.h"
 #include "ccf/version.h"
 #include "js/checks.h"
 
@@ -21,7 +21,7 @@
 #  include <openenclave/host_verify.h>
 #endif
 
-namespace ccf::js
+namespace ccf::js::extensions
 {
   struct Claims
   {
@@ -200,14 +200,11 @@ namespace ccf::js
     return openenclave;
   }
 
-  static void populate_global_openenclave(js::core::Context& ctx)
+  void OpenEnclaveExtension::install(js::core::Context& ctx)
   {
+#ifdef SGX_ATTESTATION_VERIFICATION
     auto global_obj = ctx.get_global_obj();
     global_obj.set("openenclave", create_openenclave_obj(ctx));
+#endif
   }
-
-  FFIPlugin openenclave_plugin = {
-    .name = "Open Enclave",
-    .ccf_version = ccf::ccf_version,
-    .extend = populate_global_openenclave};
 }
