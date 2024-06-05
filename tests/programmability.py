@@ -7,6 +7,7 @@ import infra.jwt_issuer
 import infra.proc
 import http
 from infra.runner import ConcurrentRunner
+from governance_js import action, proposal, ballot_yes
 
 
 TESTJS = """
@@ -78,6 +79,15 @@ def test_custom_endpoints(network, args):
 
     return network
 
+def test_custom_role_definitions(network, args):
+    primary, _ = network.find_primary()
+    member = network.consortium.get_any_active_member()
+
+    prop = member.propose(primary, proposal(action("set_role_definition", role="ContentGetter", actions=["/content"])))
+    member.vote(primary, prop, ballot_yes)
+
+    return network
+
 
 def run(args):
     with infra.network.network(
@@ -90,6 +100,8 @@ def run(args):
         network.start_and_open(args)
 
         test_custom_endpoints(network, args)
+
+        test_custom_role_definitions(network, args)
 
 
 if __name__ == "__main__":
