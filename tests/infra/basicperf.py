@@ -391,7 +391,7 @@ def run(args):
 
                         bf = infra.bencher.Bencher()
                         bf.set(
-                            f"{args.label}_mem",
+                            args.label,
                             infra.bencher.Memory(
                                 current_value,
                                 high_value=peak_value,
