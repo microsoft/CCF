@@ -206,6 +206,56 @@ namespace basicapp
         {ccf::empty_auth_policy})
         .set_auto_schema<void, ccf::js::BundleWrapper>()
         .install();
+
+      auto get_custom_endpoints_module =
+        [this](ccf::endpoints::EndpointContext& ctx) {
+          std::string module_name;
+
+          {
+            std::string error;
+            if (!get_path_param(
+                  ctx.rpc_ctx->get_request_path_params(),
+                  "module",
+                  module_name,
+                  error))
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidResourceName,
+                "Missing 'module' path parameter'");
+              return;
+            }
+          }
+
+          std::string code;
+
+          auto result =
+            get_custom_endpoint_module_v1(code, ctx.tx, module_name);
+          if (result != ccf::ApiResult::OK)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "Failed to get module: {}", ccf::api_result_to_str(result)));
+            return;
+          }
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE,
+            http::headervalues::contenttype::JAVASCRIPT);
+          ctx.rpc_ctx->set_response_body(std::move(code));
+        };
+
+      make_endpoint(
+        // TODO: Should be query param, so it can be escaped, because it might
+        // be a path
+        "/custom_endpoints/modules/{module}",
+        HTTP_GET,
+        get_custom_endpoints_module,
+        {ccf::empty_auth_policy})
+        .install();
     }
   };
 }

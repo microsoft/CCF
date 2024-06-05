@@ -62,14 +62,24 @@ def test_custom_endpoints(network, args):
         "modules": modules,
     }
 
+    def test_getters(c, expected_body):
+        r = c.get("/app/custom_endpoints")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert r.body.json() == body, f"Expected:\n{body}\n\n\nActual:\n{r.body.json()}"
+
+        for module_name, module_content in modules.items():
+            r = c.get(f"/app/custom_endpoints/modules/{module_name}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert (
+                r.body.text() == module_content
+            ), f"Expected:\n{module_content}\n\n\nActual:\n{r.body.text()}"
+
     with primary.client(None, None, user.local_id) as c:
         body = {"bundle": bundle_with_content}
         r = c.put("/app/custom_endpoints", body=body)
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
-        r = c.get("/app/custom_endpoints")
-        assert r.status_code == http.HTTPStatus.OK, r
-        assert r.body.json() == body, f"Expected:\n{body}\n\n\nActual:\n{r.body.json()}"
+        test_getters(c, body)
 
     with primary.client() as c:
         r = c.get("/app/not_content")
@@ -84,9 +94,7 @@ def test_custom_endpoints(network, args):
         r = c.put("/app/custom_endpoints", body=body)
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
-        r = c.get("/app/custom_endpoints")
-        assert r.status_code == http.HTTPStatus.OK, r
-        assert r.body.json() == body, f"Expected:\n{body}\n\n\nActual:\n{r.body.json()}"
+        test_getters(c, body)
 
     with primary.client() as c:
         r = c.get("/app/other_content")
