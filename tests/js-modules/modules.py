@@ -269,7 +269,7 @@ def test_js_execution_time(network, args):
     app_dir = os.path.join(PARENT_DIR, "npm-app")
     bundle_path = os.path.join(
         app_dir, "dist", "bundle.json"
-    )  # Produced by build step of test npm-app in the previous test_npm_app
+    )  # Produced by build_npm_app
     bundle = infra.consortium.slurp_json(bundle_path)
     network.consortium.set_js_app_from_bundle(primary, bundle)
 
