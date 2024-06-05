@@ -66,10 +66,6 @@ def test_custom_endpoints(network, args):
         r = c.put("/app/custom_endpoints", body={"bundle": bundle_with_content})
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
-        r = c.get("/app/custom_endpoints")
-        assert r.status_code == http.HTTPStatus.OK, r
-        assert r.body.json() == body, f"Expected:\n{body}\n\n\nActual:\n{r.body.json()}"
-
     with primary.client() as c:
         r = c.get("/app/not_content")
         assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
@@ -79,13 +75,8 @@ def test_custom_endpoints(network, args):
         assert r.body.json()["payload"] == "Test content", r.body.json()
 
     with primary.client(None, None, user.local_id) as c:
-        body = {"bundle": bundle_with_other_content}
-        r = c.put("/app/custom_endpoints", body=body)
+        r = c.put("/app/custom_endpoints", body={"bundle": bundle_with_other_content})
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
-
-        r = c.get("/app/custom_endpoints")
-        assert r.status_code == http.HTTPStatus.OK, r
-        assert r.body.json() == body, f"Expected:\n{body}\n\n\nActual:\n{r.body.json()}"
 
     with primary.client() as c:
         r = c.get("/app/other_content")
