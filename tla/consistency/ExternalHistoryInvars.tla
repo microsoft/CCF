@@ -242,15 +242,17 @@ CommittedRwOrderedSerializableInv ==
     \/ \A i \in 1..Len(CommittedRwResponses)-1:
         CommittedRwResponses[i+1].observed = Append(CommittedRwResponses[i].observed, CommittedRwResponses[i+1].tx)
 
-\* TxID ordered speculative linearizability for committed read-write transactions is the primary consistency
+\* Ordered speculative linearizability for committed read-write transactions is the primary consistency
 \* guarantee provided by CCF. Note that this invariant is stronger than traditional linearizability.
-\* TxID ordered speculative linearizability means that once a rw transaction is committed, it is linearizable
-\* and that the ordering of execution is consistent with the order of transaction IDs.
-\* In CCF, a client receives a response before it learns that the transaction is committed, the speculative 
-\* part of speculative linearizability means that the time window for real-time ordering from the client's request 
-\* to its initial response, instead of to when the client learns the transaction is committed. This time window 
-\* is smaller and thus the ordering is more strict. 
-\* We check TxID ordered speculative linearizability in two stages:
+\* Ordered speculative linearizability means that once a rw transaction is committed, it is linearizable
+\* and that the ordering of execution is consistent with the transaction IDs.
+\* In CCF, a client receives a response before it learns that the transaction is committed.
+\* The speculative 
+\* part of speculative linearizability means that the time window for real-time ordering is from the client's request 
+\* to its initial response.
+\* This differs from linearizability where the time window is from the request to when the client learns that the transaction is committed. 
+\* This time window is smaller and thus the ordering is more strict. 
+\* We check ordered speculative linearizability in two stages:
 \* 1) We check that the rw committed transactions are serializable w.r.t the TxID order
 \* 2) We check that the TxID order is consistent with the real-time order of client observations
 CommittedRwOrderedSpecLinearizableInv ==
