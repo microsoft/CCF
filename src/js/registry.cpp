@@ -40,18 +40,6 @@
 
 namespace ccf::js
 {
-  std::string normalised_module_name(std::string_view sv)
-  {
-    if (sv.starts_with("/"))
-    {
-      return std::string(sv);
-    }
-    else
-    {
-      return fmt::format("/{}", sv);
-    }
-  }
-
   void DynamicJSEndpointRegistry::do_execute_request(
     const CustomJSEndpoint* endpoint,
     ccf::endpoints::EndpointContext& endpoint_ctx,
@@ -493,7 +481,7 @@ namespace ccf::js
       modules->clear();
       for (const auto& [name, module] : wrapper.bundle.modules)
       {
-        modules->put(normalised_module_name(name), module);
+        modules->put(name, module);
       }
 
       // Trigger interpreter flush, in case interpreter reuse
@@ -570,8 +558,11 @@ namespace ccf::js
           }
 
           PropertiesMap& method_properties = it->second;
+
+          std::string method_lower = endpoint_key.verb.c_str();
+          nonstd::to_lower(method_lower);
           method_properties.emplace_hint(
-            method_properties.end(), endpoint_key.verb.c_str(), properties);
+            method_properties.end(), method_lower, properties);
 
           return true;
         });
@@ -629,7 +620,7 @@ namespace ccf::js
     {
       auto modules = tx.template ro<ccf::Modules>(modules_map);
 
-      auto it = modules->get(normalised_module_name(module_name));
+      auto it = modules->get(module_name);
       if (it.has_value())
       {
         code = it.value();
