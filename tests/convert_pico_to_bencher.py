@@ -4,29 +4,30 @@ import collections
 import csv
 import os
 from loguru import logger as LOG
+import infra.bencher
 
 benchmark_specs = {
     "kv_bench.csv": [
         {
-            "_name": "KV ser (/s)^",
+            "_name": "KV ser (/s)",
             "Suite": "serialise",
             "Benchmark": "serialise<SD::PUBLIC>",
             "D": "10",
         },
         {
-            "_name": "KV deser (/s)^",
+            "_name": "KV deser (/s)",
             "Suite": "deserialise",
             "Benchmark": "deserialise<SD::PUBLIC>",
             "D": "10",
         },
         {
-            "_name": "KV snap ser (/s)^",
+            "_name": "KV snap ser (/s)",
             "Suite": "serialise_snapshot",
             "Benchmark": "ser_snap<1000>",
             "D": "100",
         },
         {
-            "_name": "KV snap deser (/s)^",
+            "_name": "KV snap deser (/s)",
             "Suite": "deserialise_snapshot",
             "Benchmark": "des_snap<1000>",
             "D": "100",
@@ -34,25 +35,25 @@ benchmark_specs = {
     ],
     "map_bench.csv": [
         {
-            "_name": "CHAMP put (/s)^",
+            "_name": "CHAMP put (/s)",
             "Suite": "put",
             "Benchmark": "bench_champ_map_put",
             "D": "2048",
         },
         {
-            "_name": "CHAMP get (/s)^",
+            "_name": "CHAMP get (/s)",
             "Suite": "get",
             "Benchmark": "bench_champ_map_get",
             "D": "2048",
         },
         {
-            "_name": "RB put (/s)^",
+            "_name": "RB put (/s)",
             "Suite": "put",
             "Benchmark": "bench_rb_map_put",
             "D": "2048",
         },
         {
-            "_name": "RB get (/s)^",
+            "_name": "RB get (/s)",
             "Suite": "get",
             "Benchmark": "bench_rb_map_get",
             "D": "2048",
@@ -94,12 +95,12 @@ if __name__ == "__main__":
                 f"Could not find file {filename}: skipping metrics publishing for this file"
             )
 
-    # https://github.com/microsoft/CCF/issues/6126
-    # if found_metrics:
-    #     with cimetrics.upload.metrics(complete=False) as metrics:
-    #         for name, results in found_metrics.items():
-    #             many_results = len(results) > 1
-    #             for i, result in enumerate(results):
-    #                 upload_name = f"{name}_{i}" if many_results else name
-    #                 LOG.debug(f"Uploading metric: {upload_name} = {result}")
-    #                 metrics.put(upload_name, result)
+    bf = infra.bencher.Bencher()
+    for name, results in found_metrics.items():
+        many_results = len(results) > 1
+        for i, result in enumerate(results):
+            upload_name = f"{name}_{i}" if many_results else name
+            bf.set(
+                upload_name,
+                infra.bencher.Throughput(result),
+            )

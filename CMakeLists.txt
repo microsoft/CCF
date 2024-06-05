@@ -174,14 +174,8 @@ foreach(UTILITY ${CCF_UTILITIES})
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES
-    tests.sh
-    cimetrics_env.sh
-    upload_pico_metrics.py
-    test_install.sh
-    docker_wrap.sh
-    config.jinja
-    recovery_benchmark.sh
+set(CCF_TEST_UTILITIES tests.sh convert_pico_to_bencher.py test_install.sh
+                       docker_wrap.sh config.jinja recovery_benchmark.sh
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
@@ -939,11 +933,6 @@ add_custom_target(
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
 
-# Add external_executor app
-if(LONG_TESTS)
-  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/external_executor)
-endif()
-
 if(BUILD_TESTS)
   enable_testing()
 
@@ -1585,7 +1574,7 @@ if(BUILD_TESTS)
       )
     endif()
 
-    add_perf_test(
+    add_piccolo_test(
       NAME pi_ls
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
       CLIENT_BIN ./submit
@@ -1619,7 +1608,7 @@ if(BUILD_TESTS)
       )
     endif()
 
-    add_perf_test(
+    add_piccolo_test(
       NAME pi_ls_jwt
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
       CLIENT_BIN ./submit
@@ -1638,20 +1627,6 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
       LABEL perf
     )
-
-    if(LONG_TESTS)
-      add_e2e_test(
-        NAME external_executor_test
-        PYTHON_SCRIPT
-          ${CMAKE_SOURCE_DIR}/tests/external_executor/external_executor.py
-      )
-
-      add_e2e_test(
-        NAME external_indexer_test
-        PYTHON_SCRIPT
-          ${CMAKE_SOURCE_DIR}/tests/external_executor/external_indexer.py
-      )
-    endif()
   endif()
 endif()
 

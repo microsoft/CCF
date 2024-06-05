@@ -252,11 +252,6 @@ function(add_perf_test)
   set_property(
     TEST ${TEST_NAME}
     APPEND
-    PROPERTY LABELS cft
-  )
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
     PROPERTY ENVIRONMENT
              "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
@@ -323,11 +318,6 @@ function(add_piccolo_test)
     TEST ${TEST_NAME}
     APPEND
     PROPERTY LABELS perf
-  )
-  set_property(
-    TEST ${TEST_NAME}
-    APPEND
-    PROPERTY LABELS cft
   )
   set_property(
     TEST ${TEST_NAME}

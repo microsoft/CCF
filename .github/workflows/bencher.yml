@@ -2,7 +2,8 @@ name: "Bencher: Run Benchmarks"
 
 on:
   push:
-    branches: main
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -21,13 +22,16 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=1 ..
           ninja
-          # Limited list of benchmarks for now, but should be extended to
-          # everything under a single label eventually
-          ./tests.sh -VV -R pi_basic_
-          ./tests.sh -VV -R historical_query
-          ./tests.sh -VV -R commit_latency
+          # Microbenchmarks
+          ./tests.sh -VV -L benchmark
+          # End to end performance tests
+          ./tests.sh -VV -L perf
+          # Convert microbenchmark output to bencher json
+          source env/bin/activate
+          PYTHONPATH=../tests python convert_pico_to_bencher.py
+        shell: bash
 
       - uses: bencherdev/bencher@main
       - name: Track base branch benchmarks with Bencher
