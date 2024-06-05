@@ -186,15 +186,29 @@ class GitEnv:
 
     @staticmethod
     def local_branch():
+        # Git
         repo = git.Repo(os.getcwd(), search_parent_directories=True)
-
         if not repo.head.is_detached:
             return repo.active_branch.name
         tag_or_none = next(
             (tag.name for tag in repo.tags if tag.commit == repo.head.commit),
             None,
         )
-        return tag_or_none
+        if tag_or_none:
+            return tag_or_none
+
+        # ADO
+        short = None
+        if "SYSTEM_PULLREQUEST_SOURCEBRANCH" in os.environ:
+            short = os.environ["SYSTEM_PULLREQUEST_SOURCEBRANCH"]
+        else:
+            ref = os.environ["BUILD_SOURCEBRANCH"]
+            for prefix in ["refs/heads/", "refs/tags/", "refs/pull/"]:
+                if ref.startswith(prefix):
+                    short = ref[len(prefix) :]
+                    break
+            assert short, f"Unsupported ref type: {ref}"
+        return short
 
 
 class Repository:
