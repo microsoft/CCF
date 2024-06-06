@@ -1,55 +1,5 @@
 {
   "endpoints": {
-    "/jwt": {
-      "get": {
-        "js_module": "endpoints/jwt.js",
-        "js_function": "jwt",
-        "forwarding_required": "sometimes",
-        "redirection_strategy": "none",
-        "authn_policies": [],
-        "mode": "readonly",
-        "openapi": {
-          "responses": {
-            "200": {
-              "description": "Ok",
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "properties": {
-                      "userId": {
-                        "type": "string"
-                      }
-                    },
-                    "required": ["userId"],
-                    "type": "object",
-                    "additionalProperties": false
-                  }
-                }
-              }
-            },
-            "401": {
-              "description": "Unauthorized",
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "properties": {
-                      "msg": {
-                        "type": "string"
-                      }
-                    },
-                    "required": ["msg"],
-                    "type": "object",
-                    "additionalProperties": false
-                  }
-                }
-              }
-            }
-          },
-          "security": [],
-          "parameters": []
-        }
-      }
-    },
     "/crypto": {
       "get": {
         "js_module": "endpoints/crypto.js",
@@ -1713,6 +1663,45 @@
               "description": "Success",
               "content": {
                 "application/json": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/spin": {
+      "post": {
+        "js_module": "endpoints/spin.js",
+        "js_function": "spin",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "none",
+        "authn_policies": ["user_cert"],
+        "mode": "readonly",
+        "openapi": {
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "iterations": {
+                      "type": "number"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Ok",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "boolean"
+                  }
+                }
               }
             }
           }
