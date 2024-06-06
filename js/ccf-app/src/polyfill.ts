@@ -30,7 +30,6 @@ import {
   WrapAlgoParams,
   DigestAlgorithm,
   EvidenceClaims,
-  OpenEnclave,
   SnpAttestation,
   SnpAttestationResult,
   SigningAlgorithm,
@@ -629,18 +628,6 @@ class CCFPolyfill implements CCF {
 }
 
 (<any>globalThis).ccf = new CCFPolyfill();
-
-class OpenEnclavePolyfill implements OpenEnclave {
-  verifyOpenEnclaveEvidence(
-    format: string | undefined,
-    evidence: ArrayBuffer,
-    endorsements?: ArrayBuffer,
-  ): EvidenceClaims {
-    throw new Error("Method not implemented.");
-  }
-}
-
-(<any>globalThis).openenclave = new OpenEnclavePolyfill();
 
 class SnpAttestationPolyfill implements SnpAttestation {
   verifySnpAttestation(
