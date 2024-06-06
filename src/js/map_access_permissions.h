@@ -5,6 +5,8 @@
 #include "ccf/js/tx_access.h"
 #include "kv/kv_types.h"
 
+#include <regex>
+
 namespace ccf::js
 {
   enum class MapAccessPermissions
@@ -98,5 +100,36 @@ namespace ccf::js
           "Unexpected security domain (max) for table {}", table_name));
       }
     }
+  }
+
+  struct NamespaceRestriction
+  {
+    std::regex regex;
+    MapAccessPermissions permission;
+  };
+
+  using NamespaceRestrictions = std::vector<NamespaceRestriction>;
+
+  static MapAccessPermissions calculate_namespace_restrictions(
+    MapAccessPermissions current,
+    const NamespaceRestrictions& restrictions,
+    const std::string& map_name)
+  {
+    for (const auto& restriction : restrictions)
+    {
+      if (std::regex_match(map_name, restriction.regex))
+      {
+        current = std::max(current, restriction.permission);
+      }
+
+      // If we reach maximally restricted permission (ILLEGAL), then we cannot
+      // get _more_ restricted, so safe to break
+      if (current == MapAccessPermissions::ILLEGAL)
+      {
+        break;
+      }
+    }
+
+    return current;
   }
 }
