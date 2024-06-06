@@ -29,7 +29,6 @@ import {
   CryptoKeyPair,
   WrapAlgoParams,
   DigestAlgorithm,
-  EvidenceClaims,
   SnpAttestation,
   SnpAttestationResult,
   SigningAlgorithm,
