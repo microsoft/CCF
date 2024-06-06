@@ -77,8 +77,7 @@ namespace ccf::js
      * later be dispatched to.
      */
     void install_custom_endpoints(
-      ccf::endpoints::EndpointContext& ctx,
-      const ccf::js::BundleWrapper& wrapper);
+      ccf::endpoints::EndpointContext& ctx, const ccf::js::Bundle& bundle);
 
     /// \defgroup Overrides for base EndpointRegistry functions, looking up JS
     /// endpoints before delegating to base implementation.

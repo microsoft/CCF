@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/js/extensions/snp_attestation.h"
+
 #include "ccf/js/core/context.h"
-#include "ccf/js_plugin.h"
-#include "ccf/js_snp_attestation_plugin.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/version.h"
 #include "js/checks.h"
@@ -14,10 +14,9 @@
 #include <regex>
 #include <vector>
 
-namespace ccf::js
+namespace ccf::js::extensions
 {
 #pragma clang diagnostic push
-
   static JSValue make_js_tcb_version(
     js::core::Context& jsctx, pal::snp::TcbVersion tcb)
   {
@@ -40,9 +39,11 @@ namespace ccf::js
   static JSValue js_verify_snp_attestation(
     JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
   {
-    if (argc < 2 && argc > 4)
+    if (argc < 2 || argc > 4)
+    {
       return JS_ThrowTypeError(
         ctx, "Passed %d arguments, but expected between 2 and 4", argc);
+    }
     js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     size_t evidence_size;
@@ -287,14 +288,9 @@ namespace ccf::js
     return snp_attestation;
   }
 
-  static void populate_global_snp_attestation(js::core::Context& ctx)
+  void SnpAttestationExtension::install(js::core::Context& ctx)
   {
     auto global_obj = ctx.get_global_obj();
     global_obj.set("snp_attestation", create_snp_attestation_obj(ctx));
   }
-
-  FFIPlugin snp_attestation_plugin = {
-    .name = "SNP Attestation",
-    .ccf_version = ccf::ccf_version,
-    .extend = populate_global_snp_attestation};
 }

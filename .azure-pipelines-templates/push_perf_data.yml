@@ -1,4 +1,0 @@
-steps:
-  - script: ./cimetrics_env.sh python upload_pico_metrics.py
-    workingDirectory: build
-    displayName: "Upload picobench metrics"
