@@ -212,17 +212,17 @@ namespace basicapp
           std::string module_name;
 
           {
+            const auto parsed_query =
+              http::parse_query(ctx.rpc_ctx->get_request_query());
+
             std::string error;
-            if (!get_path_param(
-                  ctx.rpc_ctx->get_request_path_params(),
-                  "module",
-                  module_name,
-                  error))
+            if (!http::get_query_value(
+                  parsed_query, "module_name", module_name, error))
             {
               ctx.rpc_ctx->set_error(
                 HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidResourceName,
-                "Missing 'module' path parameter'");
+                ccf::errors::InvalidQueryParameterValue,
+                std::move(error));
               return;
             }
           }
@@ -249,12 +249,11 @@ namespace basicapp
         };
 
       make_endpoint(
-        // TODO: Should be query param, so it can be escaped, because it might
-        // be a path
-        "/custom_endpoints/modules/{module}",
+        "/custom_endpoints/modules",
         HTTP_GET,
         get_custom_endpoints_module,
         {ccf::empty_auth_policy})
+        .add_query_parameter<std::string>("module_name")
         .install();
     }
   };

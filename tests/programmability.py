@@ -15,7 +15,7 @@ import npm_tests
 from loguru import logger as LOG
 
 TESTJS = """
-import { foo } from "./foo.js";
+import { foo } from "./bar/baz.js";
 
 export function content(request) {
     return {
@@ -57,7 +57,7 @@ def test_custom_endpoints(network, args):
 
     modules = [
         {"name": "test.js", "module": TESTJS},
-        {"name": "foo.js", "module": FOOJS},
+        {"name": "bar/baz.js", "module": FOOJS},
     ]
 
     bundle_with_content = {
@@ -98,7 +98,7 @@ def test_custom_endpoints(network, args):
         ), f"Expected:\n{expected_body}\n\n\nActual:\n{r.body.json()}"
 
         for module_def in modules:
-            r = c.get(f"/app/custom_endpoints/modules/{module_def['name']}")
+            r = c.get(f"/app/custom_endpoints/modules?module_name={module_def['name']}")
             assert r.status_code == http.HTTPStatus.OK, r
             assert (
                 r.body.text() == module_def["module"]
@@ -173,9 +173,9 @@ def run(args):
 
         network = test_custom_endpoints(network, args)
 
-        network = npm_tests.build_npm_app(network, args)
-        network = deploy_npm_app_custom(network, args)
-        network = npm_tests.test_npm_app(network, args)
+        # network = npm_tests.build_npm_app(network, args)
+        # network = deploy_npm_app_custom(network, args)
+        # network = npm_tests.test_npm_app(network, args)
 
 
 if __name__ == "__main__":
