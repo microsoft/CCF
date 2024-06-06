@@ -217,7 +217,7 @@ TxIDStrictlyLessThan(x, y) ==
     \/ /\ View(x) = View(y)
        /\ SeqNum(x) < SeqNum(y)
 
-\* CommittedRwResponseSorted is a subset of history containing only the responses to committed rx transactions
+\* CommittedRwResponse is a subsequence of history containing only the responses to committed rx transactions
 \* and sorted by tx_id (instead of by event ordering)
 CommittedRwResponses == 
     SetToSortSeq({history[i]: i \in RwTxResponseCommittedEventIndexes}, 
