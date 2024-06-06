@@ -142,7 +142,7 @@ def test_custom_role_definitions(network, args):
 
     bundle_with_auth = {
         "metadata": {"endpoints": {"/content": content_endpoint_def}},
-        "modules": [{"test.js": TESTJS_ROLE}],
+        "modules": [{"name": "test.js", "module": TESTJS_ROLE}],
     }
 
     # Install app with auth/role support
@@ -212,7 +212,7 @@ def test_custom_role_definitions(network, args):
                 "/other_content": content_endpoint_def,
             }
         },
-        "modules": [{"test.js": TESTJS_ROLE}],
+        "modules": [{"name": "test.js", "module": TESTJS_ROLE}],
     }
 
     # Install two endpoints with role auth
