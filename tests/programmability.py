@@ -70,17 +70,39 @@ def test_custom_endpoints(network, args):
         "modules": modules,
     }
 
+    def upper_cased_keys(obj):
+        return {k.upper(): v for k, v in obj.items()}
+
+    def prefixed_module_name(module_def):
+        if module_def["name"].startswith("/"):
+            return module_def
+        else:
+            return {**module_def, "name": f"/{module_def['name']}"}
+
+    def same_modulo_normalisation(expected, actual):
+        # Normalise expected (in the same way that CCF will) so we can do direct comparison
+        expected["metadata"]["endpoints"] = {
+            path: upper_cased_keys(op)
+            for path, op in expected["metadata"]["endpoints"].items()
+        }
+        expected["modules"] = [
+            prefixed_module_name(module_def) for module_def in expected["modules"]
+        ]
+        return expected == actual
+
     def test_getters(c, expected_body):
         r = c.get("/app/custom_endpoints")
         assert r.status_code == http.HTTPStatus.OK, r
-        assert r.body.json() == body, f"Expected:\n{body}\n\n\nActual:\n{r.body.json()}"
+        assert same_modulo_normalisation(
+            expected_body, r.body.json()
+        ), f"Expected:\n{expected_body}\n\n\nActual:\n{r.body.json()}"
 
-        for module_name, module_content in modules.items():
-            r = c.get(f"/app/custom_endpoints/modules/{module_name}")
+        for module_def in modules:
+            r = c.get(f"/app/custom_endpoints/modules/{module_def['name']}")
             assert r.status_code == http.HTTPStatus.OK, r
             assert (
-                r.body.text() == module_content
-            ), f"Expected:\n{module_content}\n\n\nActual:\n{r.body.text()}"
+                r.body.text() == module_def["module"]
+            ), f"Expected:\n{module_def['module']}\n\n\nActual:\n{r.body.text()}"
 
     with primary.client(None, None, user.local_id) as c:
         r = c.put("/app/custom_endpoints", body=bundle_with_content)
