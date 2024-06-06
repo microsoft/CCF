@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/base_endpoint_registry.h"
+#include "ccf/js/common_context.h"
 #include "ccf/js/extensions/ccf/gov_effects.h"
-#include "js/common_context.h"
 #include "js/extensions/ccf/network.h"
 #include "js/extensions/ccf/node.h"
 #include "node/gov/api_version.h"
@@ -151,7 +151,7 @@ namespace ccf::gov::endpoints
       // Evaluate ballots
       for (const auto& [mid, mb] : proposal_info.ballots)
       {
-        js::CommonContext js_context(js::TxAccess::GOV_RO, &tx);
+        js::CommonContextWithLocalTx js_context(js::TxAccess::GOV_RO, &tx);
 
         auto ballot_func = js_context.get_exported_function(
           mb,
@@ -193,7 +193,7 @@ namespace ccf::gov::endpoints
       // votes, there is no change to the proposal stored in the KV.
       {
         {
-          js::CommonContext js_context(js::TxAccess::GOV_RO, &tx);
+          js::CommonContextWithLocalTx js_context(js::TxAccess::GOV_RO, &tx);
 
           auto resolve_func = js_context.get_exported_function(
             constitution,
@@ -297,7 +297,7 @@ namespace ccf::gov::endpoints
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
-            js::CommonContext js_context(js::TxAccess::GOV_RW, &tx);
+            js::CommonContextWithLocalTx js_context(js::TxAccess::GOV_RW, &tx);
 
             js_context.add_extension(
               std::make_shared<ccf::js::extensions::NodeExtension>(
@@ -445,7 +445,7 @@ namespace ccf::gov::endpoints
               return;
             }
 
-            js::CommonContext context(js::TxAccess::GOV_RO, &ctx.tx);
+            js::CommonContextWithLocalTx context(js::TxAccess::GOV_RO, &ctx.tx);
 
             auto validate_func = context.get_exported_function(
               constitution.value(),

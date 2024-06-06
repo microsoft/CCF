@@ -15,13 +15,13 @@ namespace ccf::js
 {
   // This is intended to extend a js::core::Context with various CCF-specific
   // extensions, expected to be accessible in every execution context (eg -
-  // ccf.bufToStr converters, ccf.crypto helpers, kv access). This is
+  // ccf.bufToStr converters, ccf.crypto helpers). This is
   // implemented as a CRTP mixin so that you could build your own hierarchy.
   template <typename Base>
   class WithCommonExtensions : public Base
   {
   public:
-    WithCommonExtensions(TxAccess acc, kv::Tx* tx) : Base(acc)
+    WithCommonExtensions(TxAccess acc) : Base(acc)
     {
       // override Math.random
       Base::add_extension(
@@ -39,6 +39,22 @@ namespace ccf::js
       Base::add_extension(
         std::make_shared<ccf::js::extensions::CryptoExtension>());
 
+      // add openenclave.*
+      Base::add_extension(
+        std::make_shared<ccf::js::extensions::OpenEnclaveExtension>());
+
+      // add snp_attestation.*
+      Base::add_extension(
+        std::make_shared<ccf::js::extensions::SnpAttestationExtension>());
+    }
+  };
+
+  template <typename Base>
+  class WithKVExtension : public Base
+  {
+  public:
+    WithKVExtension(TxAccess acc, kv::Tx* tx) : Base(acc)
+    {
       // add ccf.kv.*
       Base::add_extension(
         std::make_shared<ccf::js::extensions::KvExtension>(tx));
@@ -46,4 +62,5 @@ namespace ccf::js
   };
 
   using CommonContext = WithCommonExtensions<js::core::Context>;
+  using CommonContextWithLocalTx = WithKVExtension<CommonContext>;
 }
