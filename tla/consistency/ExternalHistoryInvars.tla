@@ -226,7 +226,7 @@ CommittedRwResponses ==
 
 \* If a transaction response is received (event i) before another transaction is requested (event j), 
 \* then tx_id of the first transaction is strictly less than the tx_id of the second transaction.
-\* Note that this invariant is only considers committed read-write transactions.
+\* Note that this invariant only considers committed read-write transactions.
 CommittedRwOrderedRealTimeInv == 
     \A i \in RwTxResponseCommittedEventIndexes :
         \A j \in RwTxRequestCommittedEventIndexes :
