@@ -37,7 +37,7 @@
  * @module
  */
 
-import { KvMap, ccf } from "./global.js";
+import { KvMap, KvSet, ccf } from "./global.js";
 import { DataConverter } from "./converters.js";
 
 export class TypedKvMap<K, V> {
@@ -91,6 +91,50 @@ export class TypedKvMap<K, V> {
   }
 }
 
+export class TypedKvSet<K> {
+  constructor(
+    private kv: KvMap,
+    private kt: DataConverter<K>,
+  ) {}
+
+  has(key: K): boolean {
+    return this.kv.has(this.kt.encode(key));
+  }
+
+  getVersionOfPreviousWrite(key: K): number | undefined {
+    return this.kv.getVersionOfPreviousWrite(this.kt.encode(key));
+  }
+
+  add(key: K): TypedKvSet<K> {
+    this.kv.set(this.kt.encode(key), new ArrayBuffer(8));
+    return this;
+  }
+
+  delete(key: K): void {
+    this.kv.delete(this.kt.encode(key));
+  }
+
+  clear(): void {
+    this.kv.clear();
+  }
+
+  forEach(callback: (key: K, table: TypedKvSet<K>) => void): void {
+    let kt = this.kt;
+    let typedSet = this;
+    this.kv.forEach(function (
+      raw_v: ArrayBuffer,
+      raw_k: ArrayBuffer,
+      table: KvMap,
+    ) {
+      callback(kt.decode(raw_k), typedSet);
+    });
+  }
+
+  get size(): number {
+    return this.kv.size;
+  }
+}
+
 /**
  * Returns a typed view of a map in the Key-Value Store,
  * where keys and values are automatically converted
@@ -114,8 +158,28 @@ export function typedKv<K, V>(
 }
 
 /**
+ * Returns a typed view of a set in the Key-Value Store,
+ * where keys are automatically converted
+ * to and from ``ArrayBuffer`` based on the given key
+ * converter.
+ *
+ * See the {@linkcode converters} module for available converters.
+ *
+ * @param nameOrMap Either the map name in the Key-Value Store,
+ *    or a ``KvMap`` object.
+ * @param kt The converter to use for map keys.
+ */
+export function typedKvSet<K, V>(
+  nameOrMap: string | KvMap,
+  kt: DataConverter<K>,
+) {
+  const kvMap = typeof nameOrMap === "string" ? ccf.kv[nameOrMap] : nameOrMap;
+  return new TypedKvSet(kvMap, kt);
+}
+
+/**
  * @inheritDoc global!CCF.kv
  */
 export const rawKv = ccf.kv;
 
-export { KvMap, KvMaps } from "./global";
+export { KvMap, KvSet, KvMaps } from "./global";

@@ -20,18 +20,15 @@
 #include "ccf/endpoint.h"
 #include "ccf/endpoints/authentication/js.h"
 #include "ccf/js/bundle.h"
+#include "ccf/js/common_context.h"
 #include "ccf/js/core/context.h"
 #include "ccf/js/core/wrapped_property_enum.h"
 #include "ccf/js/extensions/ccf/consensus.h"
-#include "ccf/js/extensions/ccf/converters.h"
-#include "ccf/js/extensions/ccf/crypto.h"
 #include "ccf/js/extensions/ccf/historical.h"
 #include "ccf/js/extensions/ccf/host.h"
 #include "ccf/js/extensions/ccf/kv.h"
 #include "ccf/js/extensions/ccf/request.h"
 #include "ccf/js/extensions/ccf/rpc.h"
-#include "ccf/js/extensions/console.h"
-#include "ccf/js/extensions/math/random.h"
 #include "ccf/js/interpreter_cache_interface.h"
 #include "ccf/js/modules/chained_module_loader.h"
 #include "ccf/js/modules/kv_bytecode_module_loader.h"
@@ -426,18 +423,7 @@ namespace ccf::js
     // Install dependency-less (ie reusable) extensions on interpreters _at
     // creation_, rather than on every run
     ccf::js::extensions::Extensions extensions;
-    // override Math.random
-    extensions.emplace_back(
-      std::make_shared<ccf::js::extensions::MathRandomExtension>());
-    // add console.[debug|log|...]
-    extensions.emplace_back(
-      std::make_shared<ccf::js::extensions::ConsoleExtension>());
-    // add ccf.[strToBuf|bufToStr|...]
-    extensions.emplace_back(
-      std::make_shared<ccf::js::extensions::ConvertersExtension>());
-    // add ccf.crypto.*
-    extensions.emplace_back(
-      std::make_shared<ccf::js::extensions::CryptoExtension>());
+
     // add ccf.consensus.*
     extensions.emplace_back(
       std::make_shared<ccf::js::extensions::ConsensusExtension>(this));
@@ -452,7 +438,8 @@ namespace ccf::js
 
     interpreter_cache->set_interpreter_factory(
       [extensions](ccf::js::TxAccess access) {
-        auto interpreter = std::make_shared<ccf::js::core::Context>(access);
+        // CommonContext also adds many extensions
+        auto interpreter = std::make_shared<ccf::js::CommonContext>(access);
 
         for (auto extension : extensions)
         {
@@ -464,12 +451,12 @@ namespace ccf::js
   }
 
   void DynamicJSEndpointRegistry::install_custom_endpoints(
-    ccf::endpoints::EndpointContext& ctx, const ccf::js::BundleWrapper& wrapper)
+    ccf::endpoints::EndpointContext& ctx, const ccf::js::Bundle& bundle)
   {
     auto endpoints =
       ctx.tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
     endpoints->clear();
-    for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
+    for (const auto& [url, methods] : bundle.metadata.endpoints)
     {
       for (const auto& [method, metadata] : methods)
       {
@@ -482,9 +469,9 @@ namespace ccf::js
 
     auto modules = ctx.tx.template rw<ccf::Modules>(modules_map);
     modules->clear();
-    for (const auto& [name, module] : wrapper.bundle.modules)
+    for (const auto& module_def : bundle.modules)
     {
-      modules->put(fmt::format("/{}", name), module);
+      modules->put(fmt::format("/{}", module_def.name), module_def.module);
     }
 
     // Trigger interpreter flush, in case interpreter reuse
