@@ -45,6 +45,10 @@ namespace ccf
   static bool check_issuer(
     const std::string& issuer, const std::string& constraint)
   {
+    // Only accept key constraints for the same (sub)domain. This is to avoid
+    // setting keys from issuer A which will be used to validate iss claims for
+    // issuer B, so this doesn't make sense (at least for now).
+
     const auto issuer_domain = http::parse_url_full(issuer).host;
     const auto constraint_domain = http::parse_url_full(constraint).host;
 
@@ -73,34 +77,29 @@ namespace ccf
     legacy_remove_jwt_public_signing_keys(tx, issuer);
 
     auto keys =
-      tx.rw<JwtPublicSigningKeys>(Tables::JWT_PUBLIC_SIGNING_KEY_CERTS);
-    auto key_issuers =
-      tx.rw<JwtPublicSigningKeyIssuers>(Tables::JWT_PUBLIC_SIGNING_KEY_ISSUERS);
+      tx.rw<JwtPublicSigningKeys>(Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
 
-    key_issuers->foreach(
-      [&issuer, &keys, &key_issuers](const auto& k, const auto& v) {
-        auto it =
-          find_if(v.begin(), v.end(), [&](const auto& issuer_with_constraint) {
-            return issuer_with_constraint.issuer == issuer;
-          });
-
-        if (it != v.end())
-        {
-          std::vector<JwtIssuerWithConstraint> updated(v.begin(), it);
-          updated.insert(updated.end(), ++it, v.end());
-
-          if (!updated.empty())
-          {
-            key_issuers->put(k, updated);
-          }
-          else
-          {
-            keys->remove(k);
-            key_issuers->remove(k);
-          }
-        }
-        return true;
+    keys->foreach([&issuer, &keys](const auto& k, const auto& v) {
+      auto it = find_if(v.begin(), v.end(), [&](const auto& metadata) {
+        return metadata.issuer == issuer;
       });
+
+      if (it != v.end())
+      {
+        std::vector<KeyMetadata> updated(v.begin(), it);
+        updated.insert(updated.end(), ++it, v.end());
+
+        if (!updated.empty())
+        {
+          keys->put(k, updated);
+        }
+        else
+        {
+          keys->remove(k);
+        }
+      }
+      return true;
+    });
   }
 
 #ifdef SGX_ATTESTATION_VERIFICATION
@@ -127,9 +126,7 @@ namespace ccf
     const JsonWebKeySet& jwks)
   {
     auto keys =
-      tx.rw<JwtPublicSigningKeys>(Tables::JWT_PUBLIC_SIGNING_KEY_CERTS);
-    auto key_issuers =
-      tx.rw<JwtPublicSigningKeyIssuers>(Tables::JWT_PUBLIC_SIGNING_KEY_ISSUERS);
+      tx.rw<JwtPublicSigningKeys>(Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
 
     auto log_prefix = proposal_id.empty() ?
       "JWT key auto-refresh" :
@@ -171,16 +168,6 @@ namespace ccf
           log_prefix,
           kid,
           e.what());
-        return false;
-      }
-
-      if (keys->has(kid) && der != keys->get(kid))
-      {
-        LOG_FAIL_FMT(
-          "{}: key id {} has been added before with a different pem",
-          log_prefix,
-          kid,
-          issuer);
         return false;
       }
 
@@ -289,80 +276,74 @@ namespace ccf
     }
 
     std::set<std::string> existing_kids;
-    std::set<std::string> kids_with_new_constraints;
-    key_issuers->foreach([&existing_kids,
-                          &issuer_constraints,
-                          &kids_with_new_constraints,
-                          &issuer](const auto& kid, const auto& issuers) {
-      for (const auto& issuer_with_constraint : issuers)
+    keys->foreach([&existing_kids, &issuer_constraints, &issuer](
+                    const auto& k, const auto& v) {
+      if (find_if(v.begin(), v.end(), [&](const auto& metadata) {
+            return metadata.issuer == issuer;
+          }) != v.end())
       {
-        if (issuer == issuer_with_constraint.issuer)
-        {
-          existing_kids.insert(kid);
-
-          const auto it = issuer_constraints.find(kid);
-          if (
-            it != issuer_constraints.end() &&
-            it->second == issuer_with_constraint.constraint)
-          {
-            kids_with_new_constraints.insert(kid);
-          }
-
-          break; // 1 issuer <-> 1 kid
-        }
+        existing_kids.insert(k);
       }
+
       return true;
     });
 
     for (auto& [kid, der] : new_keys)
     {
-      const bool new_kid = !existing_kids.contains(kid);
-      const bool new_constraint = !kids_with_new_constraints.contains(kid);
-
-      if (new_kid)
+      KeyMetadata value{der, issuer, std::nullopt};
+      const auto it = issuer_constraints.find(kid);
+      if (it != issuer_constraints.end())
       {
-        keys->put(kid, der);
+        value.constraint = it->second;
       }
 
-      if (new_kid || new_constraint)
+      if (existing_kids.count(kid))
       {
-        JwtIssuerWithConstraint value{issuer, std::nullopt};
-        const auto it = issuer_constraints.find(kid);
-        if (it != issuer_constraints.end())
+        const auto& keys_for_kid = keys->get(kid);
+        if (
+          find_if(
+            keys_for_kid->begin(),
+            keys_for_kid->end(),
+            [&value](const auto& metadata) {
+              return metadata.cert == value.cert &&
+                metadata.issuer == value.issuer &&
+                metadata.constraint == value.constraint;
+            }) != keys_for_kid->end())
         {
-          value.constraint = it->second;
+          // Avoid redundant writes. Thus, preserve the behaviour from #5027.
+          continue;
         }
+      }
 
-        LOG_DEBUG_FMT(
-          "Save JWT issuer for kid {} where issuer: {}, issuer constraint: {}",
-          kid,
-          value.issuer,
-          value.constraint);
+      LOG_DEBUG_FMT(
+        "Save JWT key kid={} issuer={}, constraint={}",
+        kid,
+        value.issuer,
+        value.constraint);
 
-        auto existing_issuers = key_issuers->get(kid);
-        if (existing_issuers)
+      auto existing_keys = keys->get(kid);
+      if (existing_keys)
+      {
+        const auto prev = find_if(
+          existing_keys->begin(),
+          existing_keys->end(),
+          [&](const auto& issuer_with_constraint) {
+            return issuer_with_constraint.issuer == issuer;
+          });
+
+        if (prev != existing_keys->end())
         {
-          const auto prev = find_if(
-            existing_issuers->begin(),
-            existing_issuers->end(),
-            [&](const auto& issuer_with_constraint) {
-              return issuer_with_constraint.issuer == issuer;
-            });
-
-          if (prev != existing_issuers->end())
-          {
-            *prev = value;
-          }
-          else
-          {
-            existing_issuers->push_back(std::move(value));
-          }
-          key_issuers->put(kid, *existing_issuers);
+          *prev = value;
         }
         else
         {
-          key_issuers->put(kid, std::vector<JwtIssuerWithConstraint>{value});
+          existing_keys->push_back(std::move(value));
         }
+        keys->put(kid, *existing_keys);
+      }
+      else
+      {
+        keys->put(kid, std::vector<KeyMetadata>{value});
       }
     }
 
@@ -370,24 +351,21 @@ namespace ccf
     {
       if (!new_keys.contains(kid))
       {
-        auto updated = key_issuers->get(kid);
+        auto updated = keys->get(kid);
         updated->erase(
           std::remove_if(
             updated->begin(),
             updated->end(),
-            [&](const auto& issuer_with_constraint) {
-              return issuer_with_constraint.issuer == issuer;
-            }),
+            [&](const auto& metadata) { return metadata.issuer == issuer; }),
           updated->end());
 
         if (updated->empty())
         {
           keys->remove(kid);
-          key_issuers->remove(kid);
         }
         else
         {
-          key_issuers->put(kid, *updated);
+          keys->put(kid, *updated);
         }
       }
     }

@@ -73,13 +73,7 @@ def test_jwt_mulitple_issuers_same_kids_different_pem(network, args):
     issuer2 = infra.jwt_issuer.JwtIssuer("https://example.issuer2")
 
     set_issuer_with_keys(network, primary, issuer1, ["kid1"])
-
-    try:
-        set_issuer_with_keys(network, primary, issuer2, ["kid1"])
-    except infra.proposal.ProposalNotAccepted:
-        pass
-    else:
-        assert False, "Issuer 2 has same kid but different pem"
+    set_issuer_with_keys(network, primary, issuer2, ["kid1"])
 
     network.consortium.remove_jwt_issuer(primary, issuer1.name)
     network.consortium.remove_jwt_issuer(primary, issuer2.name)
@@ -121,7 +115,7 @@ def test_jwt_same_issuer_constraint_overwritten(network, args):
         )
 
     service_keys = get_jwt_keys(args, primary)
-    assert service_keys["kid1"]["issuers"][issuer.name] == issuer.name
+    assert service_keys["kid1"][0]["constraint"] == issuer.name
 
     new_constraint = "https://example.issuer/very/specific"
     keys["keys"][0]["issuer"] = new_constraint
@@ -133,7 +127,7 @@ def test_jwt_same_issuer_constraint_overwritten(network, args):
         )
 
     service_keys = get_jwt_keys(args, primary)
-    assert service_keys["kid1"]["issuers"][issuer.name] == new_constraint
+    assert service_keys["kid1"][0]["constraint"] == new_constraint
 
     network.consortium.remove_jwt_issuer(primary, issuer.name)
 
@@ -161,7 +155,7 @@ def test_jwt_issuer_domain_match(network, args):
         )
 
     service_keys = get_jwt_keys(args, primary)
-    assert service_keys["kid1"]["issuers"][issuer.name] == issuer.name
+    assert service_keys["kid1"][0]["issuer"] == issuer.name
 
     keys["keys"][0]["issuer"] = "https://issuer.com"
 
@@ -217,10 +211,9 @@ def test_jwt_endpoint(network, args):
         assert issuer.name in service_issuers, service_issuers
         for kid in kids:
             assert kid in service_keys, service_keys
-            assert (
-                service_keys[kid]["issuers"][issuer.name] == issuer.name
-            )  # issuer == constraint
-            assert service_keys[kid]["certificate"] == issuer.cert_pem
+            assert service_keys[kid][0]["issuer"] == issuer.name
+            assert service_keys[kid][0]["constraint"] == issuer.name
+            assert service_keys[kid][0]["certificate"] == issuer.cert_pem
 
 
 @reqs.description("JWT without key policy")
@@ -273,7 +266,7 @@ def test_jwt_without_key_policy(network, args):
         )
 
         keys = get_jwt_keys(args, primary)
-        stored_cert = keys[kid]["certificate"]
+        stored_cert = keys[kid][0]["certificate"]
 
         assert stored_cert == issuer.cert_pem, "input cert is not equal to stored cert"
 
@@ -292,7 +285,7 @@ def test_jwt_without_key_policy(network, args):
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
         keys = get_jwt_keys(args, primary)
-        stored_cert = keys[kid]["certificate"]
+        stored_cert = keys[kid][0]["certificate"]
 
         assert stored_cert == issuer.cert_pem, "input cert is not equal to stored cert"
 
@@ -478,7 +471,7 @@ def check_kv_jwt_key_matches(args, network, kid, cert_pem):
         # Necessary to get an AssertionError if the key is not found yet,
         # when used from with_timeout()
         assert kid in latest_jwt_signing_keys
-        stored_cert = latest_jwt_signing_keys[kid]["certificate"]
+        stored_cert = latest_jwt_signing_keys[kid][0]["certificate"]
         assert stored_cert == cert_pem, "input cert is not equal to stored cert"
 
 
@@ -487,8 +480,9 @@ def check_kv_jwt_keys_not_empty(args, network, issuer):
     latest_jwt_signing_keys = get_jwt_keys(args, primary)
 
     for _, data in latest_jwt_signing_keys.items():
-        if issuer in data["issuers"]:
-            return
+        for key in data:
+            if key["issuer"] == issuer:
+                return
 
     assert False, "No keys for issuer"
 
@@ -674,8 +668,8 @@ def test_jwt_key_auto_refresh_entries(network, args):
             for tx in chunk:
                 txid = TxID(tx.gcm_header.view, tx.gcm_header.seqno)
                 tables = tx.get_public_domain().get_tables()
-                if "public:ccf.gov.jwt.public_signing_key_certs" in tables:
-                    pub_keys = tables["public:ccf.gov.jwt.public_signing_key_certs"]
+                if "public:ccf.gov.jwt.public_signing_keys_metadata" in tables:
+                    pub_keys = tables["public:ccf.gov.jwt.public_signing_keys_metadata"]
                     if kid.encode() in pub_keys:
                         if last_key_refresh is None:
                             LOG.info(f"Refresh found for kid: {kid} at {txid}")

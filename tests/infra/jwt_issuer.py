@@ -237,7 +237,7 @@ class JwtIssuer:
                     LOG.warning(body)
                     keys = body["keys"]
                     if kid_ in keys:
-                        stored_cert = keys[kid_]["certificate"]
+                        stored_cert = keys[kid_][0]["certificate"]
                         if self.cert_pem == stored_cert:
                             flush_info(logs)
                             return

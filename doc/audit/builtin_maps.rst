@@ -381,25 +381,14 @@ JWT signing key to Issuer mapping, used until 5.0.
 
 **Value** JWT issuer URL, represented as a string.
 
-``jwt.public_signing_key_certs``
+``jwt.public_signing_keys_metadata``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 JWT signing keys.
 
 **Key** JWT Key ID, represented as a string.
 
-**Value** JWT public key or certificate, represented as a DER-encoded string.
-
-``jwt.public_signing_key_issuers``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-JWT signing key to Issuers and Constraints mapping.
-
-**Key** JWT Key ID, represented as a string.
-
-**Value** List of Issuers and Constraints used to validate the Issuer during authorization, represented as JSON.
-
-See :cpp:struct:`ccf::JwtIssuerWithConstraint`.
+**Value** List of (DER-encoded key/certificate, issuer, constraint) used to validate the Issuer during authorization, represented as JSON.
 
 ``constitution``
 ~~~~~~~~~~~~~~~~

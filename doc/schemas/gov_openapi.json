@@ -394,26 +394,6 @@
         ],
         "type": "object"
       },
-      "JwtIssuerWithConstraint": {
-        "properties": {
-          "constraint": {
-            "$ref": "#/components/schemas/string"
-          },
-          "issuer": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "issuer"
-        ],
-        "type": "object"
-      },
-      "JwtIssuerWithConstraint_array": {
-        "items": {
-          "$ref": "#/components/schemas/JwtIssuerWithConstraint"
-        },
-        "type": "array"
-      },
       "KeyIdInfo": {
         "properties": {
           "cert": {
@@ -428,6 +408,36 @@
           "cert"
         ],
         "type": "object"
+      },
+      "KeyIdInfo_array": {
+        "items": {
+          "$ref": "#/components/schemas/KeyIdInfo"
+        },
+        "type": "array"
+      },
+      "KeyMetadata": {
+        "properties": {
+          "cert": {
+            "$ref": "#/components/schemas/base64string"
+          },
+          "constraint": {
+            "$ref": "#/components/schemas/string"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "cert",
+          "issuer"
+        ],
+        "type": "object"
+      },
+      "KeyMetadata_array": {
+        "items": {
+          "$ref": "#/components/schemas/KeyMetadata"
+        },
+        "type": "array"
       },
       "MDType": {
         "enum": [
@@ -1282,15 +1292,15 @@
         },
         "type": "object"
       },
-      "string_to_JwtIssuerWithConstraint_array": {
+      "string_to_KeyIdInfo_array": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/JwtIssuerWithConstraint_array"
+          "$ref": "#/components/schemas/KeyIdInfo_array"
         },
         "type": "object"
       },
-      "string_to_KeyIdInfo": {
+      "string_to_KeyMetadata_array": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/KeyIdInfo"
+          "$ref": "#/components/schemas/KeyMetadata_array"
         },
         "type": "object"
       },
@@ -1578,7 +1588,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string_to_KeyIdInfo"
+                  "$ref": "#/components/schemas/string_to_KeyIdInfo_array"
                 }
               }
             },
@@ -1588,7 +1598,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/jwt/public_signing_key_certs, /gov/kv/jwt/public_signing_key_issuers, and /gov/kv/jwt/issuers endpoints.",
+        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/jwt/public_signing_keys_metadata and /gov/kv/jwt/issuers endpoints.",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -1770,7 +1780,7 @@
         }
       }
     },
-    "/gov/kv/jwt/public_signing_key_certs": {
+    "/gov/kv/jwt/public_signing_key": {
       "get": {
         "responses": {
           "200": {
@@ -1792,14 +1802,36 @@
         }
       }
     },
-    "/gov/kv/jwt/public_signing_key_issuers": {
+    "/gov/kv/jwt/public_signing_key_issuer": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string_to_JwtIssuerWithConstraint_array"
+                  "$ref": "#/components/schemas/string_to_string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/jwt/public_signing_keys_metadata": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_KeyMetadata_array"
                 }
               }
             },

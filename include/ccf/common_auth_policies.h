@@ -32,8 +32,7 @@ namespace ccf
     std::make_shared<MemberCertAuthnPolicy>();
 
   /** Authenticate using JWT, validating the token using the
-   * @c public:ccf.gov.jwt.public_signing_key_issuers and
-   * @c public:ccf.gov.jwt.public_signing_key_certs tables */
+   * @c public:ccf.gov.jwt.public_signing_keys_metadata table */
   static std::shared_ptr<JwtAuthnPolicy> jwt_auth_policy =
     std::make_shared<JwtAuthnPolicy>();
 
