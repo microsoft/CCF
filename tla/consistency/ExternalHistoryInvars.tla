@@ -238,8 +238,7 @@ CommittedRwOrderedRealTimeInv ==
 \* Each transaction observes the previous transaction in the TxID order and its own write
 \* Note that this invariant is only considers committed read-write transactions.
 CommittedRwOrderedSerializableInv ==
-    \/ Len(CommittedRwResponses) < 2
-    \/ \A i \in 1..Len(CommittedRwResponses)-1:
+    \A i \in 1..Len(CommittedRwResponses)-1:
         CommittedRwResponses[i+1].observed = Append(CommittedRwResponses[i].observed, CommittedRwResponses[i+1].tx)
 
 \* Ordered speculative linearizability for committed read-write transactions is the primary consistency
