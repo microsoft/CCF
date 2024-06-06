@@ -8,6 +8,7 @@
 #include "ccf/crypto/sha256.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/http_query.h"
+#include "ccf/js/common_context.h"
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"
 #include "ccf/service/tables/gov.h"
@@ -15,7 +16,6 @@
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "frontend.h"
-#include "js/common_context.h"
 #include "js/extensions/ccf/network.h"
 #include "js/extensions/ccf/node.h"
 #include "node/gov/gov_endpoint_registry.h"
@@ -153,7 +153,7 @@ namespace ccf
       std::optional<ccf::jsgov::VoteFailures> vote_failures = std::nullopt;
       for (const auto& [mid, mb] : pi_->ballots)
       {
-        js::CommonContext context(js::TxAccess::GOV_RO, &tx);
+        js::CommonContextWithLocalTx context(js::TxAccess::GOV_RO, &tx);
 
         auto ballot_func = context.get_exported_function(
           mb,
@@ -200,7 +200,7 @@ namespace ccf
       }
 
       {
-        js::CommonContext js_context(js::TxAccess::GOV_RO, &tx);
+        js::CommonContextWithLocalTx js_context(js::TxAccess::GOV_RO, &tx);
 
         auto resolve_func = js_context.get_exported_function(
           constitution,
@@ -307,7 +307,8 @@ namespace ccf
                 "Unexpected: Could not access GovEffects subsytem");
             }
 
-            js::CommonContext apply_js_context(js::TxAccess::GOV_RW, &tx);
+            js::CommonContextWithLocalTx apply_js_context(
+              js::TxAccess::GOV_RW, &tx);
 
             apply_js_context.add_extension(
               std::make_shared<ccf::js::extensions::NodeExtension>(
@@ -1171,7 +1172,7 @@ namespace ccf
 
         auto validate_script = constitution.value();
 
-        js::CommonContext context(js::TxAccess::GOV_RO, &ctx.tx);
+        js::CommonContextWithLocalTx context(js::TxAccess::GOV_RO, &ctx.tx);
 
         auto validate_func = context.get_exported_function(
           validate_script,
