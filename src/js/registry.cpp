@@ -42,6 +42,16 @@
 
 namespace ccf::js
 {
+  std::string normalised_module_path(std::string_view sv)
+  {
+    if (!sv.starts_with("/"))
+    {
+      return fmt::format("/{}", sv);
+    }
+
+    return std::string(sv);
+  }
+
   void DynamicJSEndpointRegistry::do_execute_request(
     const CustomJSEndpoint* endpoint,
     ccf::endpoints::EndpointContext& endpoint_ctx,
@@ -472,14 +482,14 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::install_custom_endpoints_v1(
-    kv::Tx& tx, const const ccf::js::Bundle& bundle)
+    kv::Tx& tx, const ccf::js::Bundle& bundle)
   {
     try
     {
       auto endpoints =
         tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
       endpoints->clear();
-      for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
+      for (const auto& [url, methods] : bundle.metadata.endpoints)
       {
         for (const auto& [method, metadata] : methods)
         {
@@ -492,9 +502,9 @@ namespace ccf::js
 
       auto modules = tx.template rw<ccf::Modules>(modules_map);
       modules->clear();
-      for (const auto& [name, module] : wrapper.bundle.modules)
+      for (const auto& moduledef : bundle.modules)
       {
-        modules->put(name, module);
+        modules->put(normalised_module_path(moduledef.name), moduledef.module);
       }
 
       // Trigger interpreter flush, in case interpreter reuse
@@ -552,40 +562,38 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoints_v1(
-    ccf::js::BundleWrapper& wrapper, kv::ReadOnlyTx& tx)
+    ccf::js::Bundle& bundle, kv::ReadOnlyTx& tx)
   {
     try
     {
       auto endpoints_handle =
         tx.template ro<ccf::endpoints::EndpointsMap>(metadata_map);
-      endpoints_handle->foreach(
-        [&endpoints = wrapper.bundle.metadata.endpoints](
-          const auto& endpoint_key, const auto& properties) {
-          using PropertiesMap =
-            std::map<std::string, ccf::endpoints::EndpointProperties>;
+      endpoints_handle->foreach([&endpoints = bundle.metadata.endpoints](
+                                  const auto& endpoint_key,
+                                  const auto& properties) {
+        using PropertiesMap =
+          std::map<std::string, ccf::endpoints::EndpointProperties>;
 
-          auto it = endpoints.find(endpoint_key.uri_path);
-          if (it == endpoints.end())
-          {
-            it = endpoints.emplace_hint(
-              it, endpoint_key.uri_path, PropertiesMap{});
-          }
+        auto it = endpoints.find(endpoint_key.uri_path);
+        if (it == endpoints.end())
+        {
+          it =
+            endpoints.emplace_hint(it, endpoint_key.uri_path, PropertiesMap{});
+        }
 
-          PropertiesMap& method_properties = it->second;
+        PropertiesMap& method_properties = it->second;
 
-          std::string method_lower = endpoint_key.verb.c_str();
-          nonstd::to_lower(method_lower);
-          method_properties.emplace_hint(
-            method_properties.end(), method_lower, properties);
+        method_properties.emplace_hint(
+          method_properties.end(), endpoint_key.verb.c_str(), properties);
 
-          return true;
-        });
+        return true;
+      });
 
       auto modules_handle = tx.template ro<ccf::Modules>(modules_map);
       modules_handle->foreach(
-        [&modules = wrapper.bundle.modules](
-          const auto& module_name, const auto& module_src) {
-          modules.emplace_back({module_name, module_src});
+        [&modules =
+           bundle.modules](const auto& module_name, const auto& module_src) {
+          modules.push_back({module_name, module_src});
           return true;
         });
 
@@ -634,7 +642,7 @@ namespace ccf::js
     {
       auto modules = tx.template ro<ccf::Modules>(modules_map);
 
-      auto it = modules->get(module_name);
+      auto it = modules->get(normalised_module_path(module_name));
       if (it.has_value())
       {
         code = it.value();
