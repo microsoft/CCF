@@ -334,7 +334,6 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/ffi_plugins.cpp
     ${CCF_DIR}/src/js/extensions/console.cpp
     ${CCF_DIR}/src/js/extensions/math/random.cpp
-    ${CCF_DIR}/src/js/extensions/openenclave.cpp
     ${CCF_DIR}/src/js/extensions/snp_attestation.cpp
     ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
     ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
@@ -614,6 +613,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
 
   # PLATFORM_SGX to initialise Open Enclave SGX enclave creation and
   # SGX_ATTESTATION_VERIFICATION to verify SGX attestation reports.
+  # TODO: Revisit SGX_ATTESTATION_VERIFICATION, is it still encessary?
   target_compile_definitions(
     ccf.enclave PUBLIC PLATFORM_SGX SGX_ATTESTATION_VERIFICATION
   )
