@@ -20,9 +20,7 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "userId"
-                    ],
+                    "required": ["userId"],
                     "type": "object",
                     "additionalProperties": false
                   }
@@ -39,9 +37,7 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "msg"
-                    ],
+                    "required": ["msg"],
                     "type": "object",
                     "additionalProperties": false
                   }
@@ -60,9 +56,7 @@
         "js_function": "crypto",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "responses": {
@@ -76,9 +70,7 @@
                         "type": "boolean"
                       }
                     },
-                    "required": [
-                      "available"
-                    ],
+                    "required": ["available"],
                     "type": "object",
                     "additionalProperties": false
                   }
@@ -97,9 +89,7 @@
         "js_function": "generateAesKey",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -134,9 +124,7 @@
         "js_function": "generateRsaKeyPair",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -152,9 +140,7 @@
                       "type": "number"
                     }
                   },
-                  "required": [
-                    "size"
-                  ],
+                  "required": ["size"],
                   "type": "object"
                 }
               }
@@ -174,10 +160,7 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "privateKey",
-                      "publicKey"
-                    ],
+                    "required": ["privateKey", "publicKey"],
                     "type": "object"
                   }
                 }
@@ -193,9 +176,7 @@
         "js_function": "generateEcdsaKeyPair",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -208,9 +189,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "curve"
-                  ],
+                  "required": ["curve"],
                   "type": "object"
                 }
               }
@@ -230,10 +209,7 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "privateKey",
-                      "publicKey"
-                    ],
+                    "required": ["privateKey", "publicKey"],
                     "type": "object"
                   }
                 }
@@ -249,9 +225,7 @@
         "js_function": "generateEddsaKeyPair",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -264,9 +238,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "curve"
-                  ],
+                  "required": ["curve"],
                   "type": "object"
                 }
               }
@@ -286,10 +258,7 @@
                         "type": "string"
                       }
                     },
-                    "required": [
-                      "privateKey",
-                      "publicKey"
-                    ],
+                    "required": ["privateKey", "publicKey"],
                     "type": "object"
                   }
                 }
@@ -305,9 +274,7 @@
         "js_function": "wrapKey",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -348,9 +315,7 @@
         "js_function": "unwrapKey",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -391,9 +356,7 @@
         "js_function": "sign",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -442,9 +405,7 @@
         "js_function": "verifySignature",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -496,9 +457,7 @@
         "js_function": "digest",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -536,9 +495,7 @@
         "js_function": "isValidX509CertBundle",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -568,9 +525,7 @@
         "js_function": "isValidX509CertChain",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -612,9 +567,7 @@
         "js_function": "partition",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "responses": {
@@ -653,9 +606,7 @@
         "js_function": "proto",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -681,9 +632,7 @@
         "js_function": "verifySnpAttestation",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -938,9 +887,7 @@
         "js_function": "getLogItem",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "responses": {
@@ -970,9 +917,7 @@
         "js_function": "setLogItem",
         "forwarding_required": "always",
         "redirection_strategy": "to_primary",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readwrite",
         "openapi": {
           "responses": {
@@ -1009,9 +954,7 @@
         "js_function": "getAllLogItems",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "responses": {
@@ -1046,9 +989,7 @@
         "js_function": "getLogItemVersion",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "responses": {
@@ -1080,9 +1021,7 @@
         "js_function": "postApplyWrites",
         "forwarding_required": "always",
         "redirection_strategy": "to_primary",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readwrite",
         "openapi": {
           "responses": {
@@ -1097,9 +1036,7 @@
         "js_function": "getApplyWrites",
         "forwarding_required": "always",
         "redirection_strategy": "to_primary",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readwrite",
         "openapi": {
           "responses": {
@@ -1116,9 +1053,7 @@
         "js_function": "pubPemToJwk",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -1160,9 +1095,7 @@
         "js_function": "pemToJwk",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -1204,9 +1137,7 @@
         "js_function": "pubRsaPemToJwk",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -1248,9 +1179,7 @@
         "js_function": "rsaPemToJwk",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -1292,9 +1221,7 @@
         "js_function": "pubEddsaPemToJwk",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -1336,9 +1263,7 @@
         "js_function": "eddsaPemToJwk",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -1380,9 +1305,7 @@
         "js_function": "pubJwkToPem",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -1426,9 +1349,7 @@
         "js_function": "jwkToPem",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -1472,9 +1393,7 @@
         "js_function": "rsaJwkToPem",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -1518,9 +1437,7 @@
         "js_function": "pubRsaJwkToPem",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -1564,9 +1481,7 @@
         "js_function": "eddsaJwkToPem",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -1610,9 +1525,7 @@
         "js_function": "pubEddsaJwkToPem",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -1656,9 +1569,7 @@
         "js_function": "throwError",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cert"
-        ],
+        "authn_policies": ["user_cert"],
         "mode": "readonly",
         "openapi": {
           "requestBody": {
@@ -1688,9 +1599,7 @@
         "js_function": "checkUserCOSESign1Auth",
         "forwarding_required": "sometimes",
         "redirection_strategy": "none",
-        "authn_policies": [
-          "user_cose_sign1"
-        ],
+        "authn_policies": ["user_cose_sign1"],
         "mode": "readwrite",
         "openapi": {
           "requestBody": {
@@ -1722,11 +1631,7 @@
         "redirection_strategy": "none",
         "authn_policies": [
           {
-            "all_of": [
-              "user_cert",
-              "jwt",
-              "user_cose_sign1"
-            ]
+            "all_of": ["user_cert", "jwt", "user_cose_sign1"]
           },
           "user_cert",
           "member_cert",
