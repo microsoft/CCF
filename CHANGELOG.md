@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added TypeScript `TypedKvSet` and `ccfapp.typedKv<K>` to facilitate set handling from application code.
 
+### Removed
+
+- Removed unused `openenclave.verifyOpenEnclaveEvidence` API from JS/TS.
+
 ## [5.0.0-dev17]
 
 [5.0.0-dev17]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev17
