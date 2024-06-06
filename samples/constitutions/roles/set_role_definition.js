@@ -22,9 +22,9 @@ class KVSet {
     this.#map.clear();
   }
 
-  asSet() {
+  asSetOfStrings() {
     let set = new Set();
-    this.#map.forEach((_, key) => set.add(key));
+    this.#map.forEach((_, key) => set.add(ccf.bufToStr(key)));
     return set;
   }
 }
@@ -43,14 +43,17 @@ actions.set(
       let roleDefinition = new KVSet(
         ccf.kv[`public:ccf.gov.roles.${args.role}`],
       );
-      let oldValues = roleDefinition.asSet();
+      let oldValues = roleDefinition.asSetOfStrings();
       let newValues = new Set(args.actions);
-      // Can't do that in QuickJS
-      for (const action of oldValues.difference(newValues)) {
-        roleDefinition.delete(action);
+      for (const action of oldValues) {
+        if (!newValues.has(action)) {
+          roleDefinition.delete(ccf.strToBuf(action));
+        }
       }
-      for (const action of newValues.difference(oldValues)) {
-        roleDefinition.add(action);
+      for (const action of newValues) {
+        if (!oldValues.has(action)) {
+          roleDefinition.add(ccf.strToBuf(action));
+        }
       }
     },
   ),

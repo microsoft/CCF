@@ -79,11 +79,43 @@ def test_custom_endpoints(network, args):
 
     return network
 
+
 def test_custom_role_definitions(network, args):
     primary, _ = network.find_primary()
     member = network.consortium.get_any_active_member()
 
-    prop = member.propose(primary, proposal(action("set_role_definition", role="ContentGetter", actions=["/content"])))
+    # Add role definition
+    prop = member.propose(
+        primary,
+        proposal(
+            action(
+                "set_role_definition", role="ContentGetter", actions=["/content/read"]
+            )
+        ),
+    )
+    member.vote(primary, prop, ballot_yes)
+
+    # Delete role definition
+    prop = member.propose(
+        primary,
+        proposal(action("set_role_definition", role="ContentGetter", actions=[])),
+    )
+    member.vote(primary, prop, ballot_yes)
+
+    # Multiple definitions
+    prop = member.propose(
+        primary,
+        proposal(
+            action(
+                "set_role_definition", role="ContentGetter", actions=["/content/read"]
+            ),
+            action(
+                "set_role_definition",
+                role="AllContentGetter",
+                actions=["/content/read", "/other_content/read"],
+            ),
+        ),
+    )
     member.vote(primary, prop, ballot_yes)
 
     return network
