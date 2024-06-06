@@ -289,7 +289,9 @@ def test_js_execution_time(network, args):
             max_execution_time_ms=1,
         )
 
-        r = c.post("/app/spin", {"iterations": 123456789})
+        surely_will_time_out = 123456789
+        r = c.post("/app/spin", {"iterations": surely_will_time_out})
+
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
         body = r.body.json()
         assert body["error"]["message"] == "Operation took too long to complete."
@@ -303,6 +305,7 @@ def test_js_execution_time(network, args):
         )
 
         r = c.post("/app/spin", {"iterations": 1})
+
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
     return network
