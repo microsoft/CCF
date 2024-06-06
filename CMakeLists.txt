@@ -613,7 +613,6 @@ if(COMPILE_TARGET STREQUAL "sgx")
 
   # PLATFORM_SGX to initialise Open Enclave SGX enclave creation and
   # SGX_ATTESTATION_VERIFICATION to verify SGX attestation reports.
-  # TODO: Revisit SGX_ATTESTATION_VERIFICATION, is it still encessary?
   target_compile_definitions(
     ccf.enclave PUBLIC PLATFORM_SGX SGX_ATTESTATION_VERIFICATION
   )
