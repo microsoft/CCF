@@ -760,36 +760,7 @@ def test_npm_app(network, args):
 
         r = c.get("/node/quotes/self")
         primary_quote_info = r.body.json()
-        if args.enclave_platform == "sgx":
-            LOG.info("SGX: Test verifyOpenEnclaveEvidence")
-            # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
-            OE_FORMAT_UUID_SGX_ECDSA = "a3a21e87-1b4d-4014-b70a-a125d2fbcd8c"
-            r = c.post(
-                "/app/verifyOpenEnclaveEvidence",
-                {
-                    "format": OE_FORMAT_UUID_SGX_ECDSA,
-                    "evidence": primary_quote_info["raw"],
-                    "endorsements": primary_quote_info["endorsements"],
-                },
-            )
-            assert r.status_code == http.HTTPStatus.OK, r.status_code
-            body = r.body.json()
-            assert body["claims"]["unique_id"] == primary_quote_info["mrenclave"], body
-            assert "sgx_report_data" in body["customClaims"], body
-
-            # again but without endorsements
-            r = c.post(
-                "/app/verifyOpenEnclaveEvidence",
-                {
-                    "format": OE_FORMAT_UUID_SGX_ECDSA,
-                    "evidence": primary_quote_info["raw"],
-                },
-            )
-            assert r.status_code == http.HTTPStatus.OK, r.status_code
-            body = r.body.json()
-            assert body["claims"]["unique_id"] == primary_quote_info["mrenclave"], body
-            assert "sgx_report_data" in body["customClaims"], body
-        elif args.enclave_platform == "snp":
+        if args.enclave_platform == "snp":
             LOG.info("SNP: Test verifySnpAttestation")
 
             def corrupt_value(value: str):

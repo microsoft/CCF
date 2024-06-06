@@ -1,6 +1,5 @@
 export * from "./jwt";
 export * from "./crypto";
-export * from "./oe";
 export * from "./snp_attestation";
 export * from "./partition";
 export * from "./proto";
