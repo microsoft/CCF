@@ -32,6 +32,8 @@
 #include "ccf/js/extensions/ccf/rpc.h"
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/extensions/math/random.h"
+#include "ccf/js/extensions/openenclave.h"
+#include "ccf/js/extensions/snp_attestation.h"
 #include "ccf/js/interpreter_cache_interface.h"
 #include "ccf/js/modules/chained_module_loader.h"
 #include "ccf/js/modules/kv_bytecode_module_loader.h"
@@ -449,6 +451,12 @@ namespace ccf::js
     extensions.emplace_back(
       std::make_shared<ccf::js::extensions::HistoricalExtension>(
         &context.get_historical_state()));
+    // add openenclave.*
+    extensions.emplace_back(
+      std::make_shared<ccf::js::extensions::OpenEnclaveExtension>());
+    // add snp_attestation.*
+    extensions.emplace_back(
+      std::make_shared<ccf::js::extensions::SnpAttestationExtension>());
 
     interpreter_cache->set_interpreter_factory(
       [extensions](ccf::js::TxAccess access) {
@@ -464,12 +472,12 @@ namespace ccf::js
   }
 
   void DynamicJSEndpointRegistry::install_custom_endpoints(
-    ccf::endpoints::EndpointContext& ctx, const ccf::js::BundleWrapper& wrapper)
+    ccf::endpoints::EndpointContext& ctx, const ccf::js::Bundle& bundle)
   {
     auto endpoints =
       ctx.tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
     endpoints->clear();
-    for (const auto& [url, methods] : wrapper.bundle.metadata.endpoints)
+    for (const auto& [url, methods] : bundle.metadata.endpoints)
     {
       for (const auto& [method, metadata] : methods)
       {
@@ -482,9 +490,9 @@ namespace ccf::js
 
     auto modules = ctx.tx.template rw<ccf::Modules>(modules_map);
     modules->clear();
-    for (const auto& [name, module] : wrapper.bundle.modules)
+    for (const auto& module_def : bundle.modules)
     {
-      modules->put(fmt::format("/{}", name), module);
+      modules->put(fmt::format("/{}", module_def.name), module_def.module);
     }
 
     // Trigger interpreter flush, in case interpreter reuse
