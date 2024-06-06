@@ -80,7 +80,7 @@ namespace ccf::js
       kv::Tx& tx, const ccf::js::Bundle& bundle);
 
     ccf::ApiResult get_custom_endpoints_v1(
-      ccf::js::BundleWrapper& wrapper, kv::ReadOnlyTx& tx);
+      ccf::js::Bundle& bundle, kv::ReadOnlyTx& tx);
 
     ccf::ApiResult get_custom_endpoint_properties_v1(
       ccf::endpoints::EndpointProperties& properties,

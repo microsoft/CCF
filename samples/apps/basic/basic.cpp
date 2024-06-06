@@ -180,9 +180,9 @@ namespace basicapp
         .install();
 
       auto get_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
-        ccf::js::BundleWrapper wrapper;
+        ccf::js::Bundle bundle;
 
-        auto result = get_custom_endpoints_v1(wrapper, ctx.tx);
+        auto result = get_custom_endpoints_v1(bundle, ctx.tx);
         if (result != ccf::ApiResult::OK)
         {
           ctx.rpc_ctx->set_error(
@@ -196,7 +196,7 @@ namespace basicapp
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
           http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-        ctx.rpc_ctx->set_response_body(nlohmann::json(wrapper).dump(2));
+        ctx.rpc_ctx->set_response_body(nlohmann::json(bundle).dump(2));
       };
 
       make_endpoint(
@@ -204,7 +204,7 @@ namespace basicapp
         HTTP_GET,
         get_custom_endpoints,
         {ccf::empty_auth_policy})
-        .set_auto_schema<void, ccf::js::BundleWrapper>()
+        .set_auto_schema<void, ccf::js::Bundle>()
         .install();
 
       auto get_custom_endpoints_module =
