@@ -2,7 +2,6 @@ wheel
 paramiko
 loguru
 psutil
-cimetrics>=0.2.1
 openapi-spec-validator
 PyJWT
 docutils
@@ -21,6 +20,7 @@ JWCrypto>=1.5.1 # x25519 support
 pycose
 rich
 gelidum
+matplotlib
 # Piccolo dependencies
 fastparquet==2023.*
 prettytable==3.*

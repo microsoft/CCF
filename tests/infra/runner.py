@@ -15,6 +15,7 @@ from typing import List
 import sys
 import better_exceptions
 import re
+import infra.bencher
 
 from loguru import logger as LOG
 
@@ -134,54 +135,46 @@ def run(get_command, args):
             format_width = len(str(hard_stop_timeout)) + 3
 
             try:
-                # https://github.com/microsoft/CCF/issues/6126
-                # with cimetrics.upload.metrics(complete=False) as metrics:
-                if True:  # Avoiding dedent
-                    start_time = time.time()
-                    while True:
-                        stop_waiting = True
-                        for i, remote_client in enumerate(clients):
-                            done = remote_client.check_done()
-                            # all the clients need to be done
-                            LOG.info(
-                                f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {hard_stop_timeout}s)"
-                            )
-                            stop_waiting = stop_waiting and done
-                        if stop_waiting:
-                            break
-                        if time.time() > start_time + hard_stop_timeout:
-                            raise TimeoutError(
-                                f"Client still running after {hard_stop_timeout}s"
-                            )
+                start_time = time.time()
+                while True:
+                    stop_waiting = True
+                    for i, remote_client in enumerate(clients):
+                        done = remote_client.check_done()
+                        # all the clients need to be done
+                        LOG.info(
+                            f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {hard_stop_timeout}s)"
+                        )
+                        stop_waiting = stop_waiting and done
+                    if stop_waiting:
+                        break
+                    if time.time() > start_time + hard_stop_timeout:
+                        raise TimeoutError(
+                            f"Client still running after {hard_stop_timeout}s"
+                        )
 
-                        time.sleep(5)
+                    time.sleep(5)
 
-                    for remote_client in clients:
-                        perf_result = remote_client.get_result()
-                        LOG.success(f"{args.label}/{remote_client.name}: {perf_result}")
+                for remote_client in clients:
+                    perf_result = remote_client.get_result()
+                    LOG.success(f"{args.label}/{remote_client.name}: {perf_result}")
 
-                    primary, _ = network.find_primary()
-                    with primary.client() as nc:
-                        r = nc.get("/node/memory")
-                        assert r.status_code == http.HTTPStatus.OK.value
+                primary, _ = network.find_primary()
+                with primary.client() as nc:
+                    r = nc.get("/node/memory")
+                    assert r.status_code == http.HTTPStatus.OK.value
 
-                        results = r.body.json()
+                    results = r.body.json()
+                    current_value = results["current_allocated_heap_size"]
+                    peak_value = results["peak_allocated_heap_size"]
 
-                        peak_value = results["peak_allocated_heap_size"]
+                    bf = infra.bencher.Bencher()
+                    bf.set(
+                        args.label,
+                        infra.bencher.Memory(current_value, high_value=peak_value),
+                    )
 
-                        # Do not upload empty metrics (virtual doesn't report memory use)
-                        if peak_value != 0:
-                            # Construct name for heap metric, removing ^ suffix if present
-                            heap_peak_metric = args.label
-                            if heap_peak_metric.endswith("^"):
-                                heap_peak_metric = heap_peak_metric[:-1]
-                            heap_peak_metric += "_mem"
-
-                            # https://github.com/microsoft/CCF/issues/6126
-                            # metrics.put(heap_peak_metric, peak_value)
-
-                    for remote_client in clients:
-                        remote_client.stop()
+                for remote_client in clients:
+                    remote_client.stop()
 
             except Exception:
                 LOG.error("Stopping clients due to exception")

@@ -8,6 +8,8 @@
 #include "ccf/js/extensions/ccf/kv.h"
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/extensions/math/random.h"
+#include "ccf/js/extensions/openenclave.h"
+#include "ccf/js/extensions/snp_attestation.h"
 
 namespace ccf::js
 {

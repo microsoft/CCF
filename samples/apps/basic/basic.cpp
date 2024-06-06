@@ -154,7 +154,7 @@ namespace basicapp
 
         const auto j = nlohmann::json::parse(
           caller_identity.content.begin(), caller_identity.content.end());
-        const auto wrapper = j.get<ccf::js::BundleWrapper>();
+        const auto wrapper = j.get<ccf::js::Bundle>();
 
         result = install_custom_endpoints_v1(ctx.tx, wrapper);
         if (result != ccf::ApiResult::OK)
@@ -176,7 +176,7 @@ namespace basicapp
         HTTP_PUT,
         put_custom_endpoints,
         {ccf::user_cose_sign1_auth_policy})
-        .set_auto_schema<ccf::js::BundleWrapper, void>()
+        .set_auto_schema<ccf::js::Bundle, void>()
         .install();
 
       auto get_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {

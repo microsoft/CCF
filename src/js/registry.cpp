@@ -32,6 +32,8 @@
 #include "ccf/js/extensions/ccf/rpc.h"
 #include "ccf/js/extensions/console.h"
 #include "ccf/js/extensions/math/random.h"
+#include "ccf/js/extensions/openenclave.h"
+#include "ccf/js/extensions/snp_attestation.h"
 #include "ccf/js/interpreter_cache_interface.h"
 #include "ccf/js/modules/chained_module_loader.h"
 #include "ccf/js/modules/kv_bytecode_module_loader.h"
@@ -449,6 +451,12 @@ namespace ccf::js
     extensions.emplace_back(
       std::make_shared<ccf::js::extensions::HistoricalExtension>(
         &context.get_historical_state()));
+    // add openenclave.*
+    extensions.emplace_back(
+      std::make_shared<ccf::js::extensions::OpenEnclaveExtension>());
+    // add snp_attestation.*
+    extensions.emplace_back(
+      std::make_shared<ccf::js::extensions::SnpAttestationExtension>());
 
     interpreter_cache->set_interpreter_factory(
       [extensions](ccf::js::TxAccess access) {
@@ -464,7 +472,7 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::install_custom_endpoints_v1(
-    kv::Tx& tx, const ccf::js::BundleWrapper& wrapper)
+    kv::Tx& tx, const const ccf::js::Bundle& bundle)
   {
     try
     {
@@ -577,7 +585,7 @@ namespace ccf::js
       modules_handle->foreach(
         [&modules = wrapper.bundle.modules](
           const auto& module_name, const auto& module_src) {
-          modules.emplace_hint(modules.end(), module_name, module_src);
+          modules.emplace_back({module_name, module_src});
           return true;
         });
 

@@ -9,7 +9,6 @@ import git
 import urllib
 import shutil
 import requests
-import cimetrics.env
 
 from setuptools.extern.packaging.version import Version  # type: ignore
 
@@ -187,9 +186,29 @@ class GitEnv:
 
     @staticmethod
     def local_branch():
-        # Cheeky! We reuse cimetrics env as a reliable way to retrieve the
-        # current branch on any environment (either local checkout or CI run)
-        return cimetrics.env.get_env().branch
+        # Git
+        repo = git.Repo(os.getcwd(), search_parent_directories=True)
+        if not repo.head.is_detached:
+            return repo.active_branch.name
+        tag_or_none = next(
+            (tag.name for tag in repo.tags if tag.commit == repo.head.commit),
+            None,
+        )
+        if tag_or_none:
+            return tag_or_none
+
+        # ADO
+        short = None
+        if "SYSTEM_PULLREQUEST_SOURCEBRANCH" in os.environ:
+            short = os.environ["SYSTEM_PULLREQUEST_SOURCEBRANCH"]
+        else:
+            ref = os.environ["BUILD_SOURCEBRANCH"]
+            for prefix in ["refs/heads/", "refs/tags/", "refs/pull/"]:
+                if ref.startswith(prefix):
+                    short = ref[len(prefix) :]
+                    break
+            assert short, f"Unsupported ref type: {ref}"
+        return short
 
 
 class Repository:
@@ -216,7 +235,7 @@ class Repository:
         return tags[first_release_tag_idx + 1 :]
 
     def get_latest_dev_tag(self):
-        local_branch = cimetrics.env.get_env().branch
+        local_branch = GitEnv.local_branch()
         major_version = get_major_version_from_branch_name(local_branch)
         tags = self.get_tags_for_major_version(major_version)
         # Only consider tags that have releases as a release might be in progress

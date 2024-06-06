@@ -77,7 +77,7 @@ namespace ccf::js
      * later be dispatched to.
      */
     ccf::ApiResult install_custom_endpoints_v1(
-      kv::Tx& tx, const ccf::js::BundleWrapper& wrapper);
+      kv::Tx& tx, const ccf::js::Bundle& bundle);
 
     ccf::ApiResult get_custom_endpoints_v1(
       ccf::js::BundleWrapper& wrapper, kv::ReadOnlyTx& tx);

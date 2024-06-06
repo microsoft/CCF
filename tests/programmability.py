@@ -6,8 +6,13 @@ import infra.checker
 import infra.jwt_issuer
 import infra.proc
 import http
+import os
+import json
 from infra.runner import ConcurrentRunner
 
+import npm_tests
+
+from loguru import logger as LOG
 
 TESTJS = """
 import { foo } from "./foo.js";
@@ -50,7 +55,10 @@ def test_custom_endpoints(network, args):
         }
     }
 
-    modules = {"test.js": TESTJS, "foo.js": FOOJS}
+    modules = [
+        {"name": "test.js", "module": TESTJS},
+        {"name": "foo.js", "module": FOOJS},
+    ]
 
     bundle_with_content = {
         "metadata": {"endpoints": {"/content": content_endpoint_def}},
@@ -75,11 +83,10 @@ def test_custom_endpoints(network, args):
             ), f"Expected:\n{module_content}\n\n\nActual:\n{r.body.text()}"
 
     with primary.client(None, None, user.local_id) as c:
-        body = {"bundle": bundle_with_content}
-        r = c.put("/app/custom_endpoints", body=body)
+        r = c.put("/app/custom_endpoints", body=bundle_with_content)
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
-        test_getters(c, body)
+        test_getters(c, bundle_with_content)
 
     with primary.client() as c:
         r = c.get("/app/not_content")
@@ -90,11 +97,10 @@ def test_custom_endpoints(network, args):
         assert r.body.json()["payload"] == "Test content", r.body.json()
 
     with primary.client(None, None, user.local_id) as c:
-        body = {"bundle": bundle_with_other_content}
-        r = c.put("/app/custom_endpoints", body=body)
+        r = c.put("/app/custom_endpoints", body=bundle_with_other_content)
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
-        test_getters(c, body)
+        test_getters(c, bundle_with_other_content)
 
     with primary.client() as c:
         r = c.get("/app/other_content")
@@ -103,6 +109,32 @@ def test_custom_endpoints(network, args):
 
         r = c.get("/app/content")
         assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
+
+    return network
+
+
+def deploy_npm_app_custom(network, args):
+    primary, _ = network.find_nodes()
+
+    # Make user0 admin, so it can install custom endpoints
+    user = network.users[0]
+    network.consortium.set_user_data(
+        primary, user.service_id, user_data={"isAdmin": True}
+    )
+
+    app_dir = os.path.join(npm_tests.THIS_DIR, "npm-app")
+
+    LOG.info("Deploying npm app")
+    bundle_path = os.path.join(
+        app_dir, "dist", "bundle.json"
+    )  # Produced by build_npm_app
+
+    with primary.client(None, None, user.local_id) as c:
+        r = c.put(
+            "/app/custom_endpoints",
+            body=json.load(open(bundle_path)),
+        )
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
     return network
 
@@ -117,7 +149,11 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_custom_endpoints(network, args)
+        network = test_custom_endpoints(network, args)
+
+        network = npm_tests.build_npm_app(network, args)
+        network = deploy_npm_app_custom(network, args)
+        network = npm_tests.test_npm_app(network, args)
 
 
 if __name__ == "__main__":
