@@ -64,6 +64,56 @@ describe("typedKv", function () {
   });
 });
 
+describe("typedKvSet", function () {
+  const foo = kv.typedKvSet("foo:set", conv.string);
+  const key = "bar";
+  const key2 = "baz";
+
+  it("basic", function () {
+    assert.isFalse(foo.has(key));
+    assert.isFalse(foo.has(key2));
+    foo.add(key);
+    assert.isTrue(foo.has(key));
+    assert.isFalse(foo.has(key2));
+    let found = false;
+    foo.forEach((k) => {
+      if (k == key) {
+        found = true;
+      }
+    });
+    assert.isTrue(found);
+    foo.delete(key);
+    assert.isFalse(foo.has(key));
+    assert.isFalse(foo.has(key2));
+  });
+
+  it("clear", function () {
+    foo.add(key);
+    foo.add(key2);
+    assert.isTrue(foo.has(key));
+    assert.isTrue(foo.has(key2));
+    foo.clear();
+    assert.isNotTrue(foo.has(key));
+    assert.isNotTrue(foo.has(key2));
+  });
+
+  it("size", function () {
+    assert.equal(foo.size, 0);
+    foo.add(key);
+    assert.equal(foo.size, 1);
+    foo.add(key2);
+    assert.equal(foo.size, 2);
+    foo.add(key2);
+    assert.equal(foo.size, 2);
+    foo.delete(key);
+    assert.equal(foo.size, 1);
+    foo.add(key);
+    assert.equal(foo.size, 2);
+    foo.clear();
+    assert.equal(foo.size, 0);
+  });
+});
+
 class TypeErasedKvMap<K, V> {
   constructor(private map: kv.TypedKvMap<K, V>) {}
 

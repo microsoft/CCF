@@ -174,14 +174,8 @@ foreach(UTILITY ${CCF_UTILITIES})
 endforeach()
 
 # Copy utilities from tests directory
-set(CCF_TEST_UTILITIES
-    tests.sh
-    cimetrics_env.sh
-    upload_pico_metrics.py
-    test_install.sh
-    docker_wrap.sh
-    config.jinja
-    recovery_benchmark.sh
+set(CCF_TEST_UTILITIES tests.sh convert_pico_to_bencher.py test_install.sh
+                       docker_wrap.sh config.jinja recovery_benchmark.sh
 )
 foreach(UTILITY ${CCF_TEST_UTILITIES})
   configure_file(
@@ -340,6 +334,8 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/ffi_plugins.cpp
     ${CCF_DIR}/src/js/extensions/console.cpp
     ${CCF_DIR}/src/js/extensions/math/random.cpp
+    ${CCF_DIR}/src/js/extensions/openenclave.cpp
+    ${CCF_DIR}/src/js/extensions/snp_attestation.cpp
     ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
     ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
     ${CCF_DIR}/src/js/extensions/ccf/crypto.cpp
@@ -492,106 +488,6 @@ set(CCF_NETWORK_TEST_ARGS
     ${TEST_LOGGING_LEVEL} --worker-threads ${WORKER_THREADS}
 )
 
-if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library(js_openenclave.enclave ${CCF_DIR}/src/js/openenclave.cpp)
-  target_link_libraries(js_openenclave.enclave PUBLIC ccf.enclave)
-  add_lvi_mitigations(js_openenclave.enclave)
-  install(
-    TARGETS js_openenclave.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-
-  add_enclave_library(
-    js_snp_attestation.enclave ${CCF_DIR}/src/js/snp_attestation.cpp
-  )
-  target_link_libraries(js_snp_attestation.enclave PUBLIC ccf.enclave)
-  add_lvi_mitigations(js_snp_attestation.enclave)
-  install(
-    TARGETS js_snp_attestation.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "snp" AND REQUIRE_OPENENCLAVE)
-  add_library(js_openenclave.snp STATIC ${CCF_DIR}/src/js/openenclave.cpp)
-  add_san(js_openenclave.snp)
-  target_link_libraries(js_openenclave.snp PUBLIC ccf.snp)
-  target_compile_options(js_openenclave.snp PRIVATE ${COMPILE_LIBCXX})
-  target_compile_definitions(
-    js_openenclave.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                              _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
-  )
-  set_property(TARGET js_openenclave.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
-  install(
-    TARGETS js_openenclave.snp
-    EXPORT ccf
-    DESTINATION lib
-  )
-  set(JS_OPENENCLAVE_SNP js_openenclave.snp)
-elseif(COMPILE_TARGET STREQUAL "virtual" AND REQUIRE_OPENENCLAVE)
-  add_library(js_openenclave.virtual STATIC ${CCF_DIR}/src/js/openenclave.cpp)
-  add_san(js_openenclave.virtual)
-  target_link_libraries(js_openenclave.virtual PUBLIC ccf.virtual)
-  target_compile_options(js_openenclave.virtual PRIVATE ${COMPILE_LIBCXX})
-  target_compile_definitions(
-    js_openenclave.virtual
-    PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-           PLATFORM_VIRTUAL
-  )
-  set_property(
-    TARGET js_openenclave.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-  )
-  install(
-    TARGETS js_openenclave.virtual
-    EXPORT ccf
-    DESTINATION lib
-  )
-  set(JS_OPENENCLAVE_VIRTUAL js_openenclave.virtual)
-endif()
-
-if(COMPILE_TARGET STREQUAL "snp")
-  add_library(
-    js_snp_attestation.snp STATIC ${CCF_DIR}/src/js/snp_attestation.cpp
-  )
-  add_san(js_snp_attestation.snp)
-  target_link_libraries(js_snp_attestation.snp PUBLIC ccf.snp)
-  target_compile_options(js_snp_attestation.snp PRIVATE ${COMPILE_LIBCXX})
-  target_compile_definitions(
-    js_snp_attestation.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                                  _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
-  )
-  set_property(
-    TARGET js_snp_attestation.snp PROPERTY POSITION_INDEPENDENT_CODE ON
-  )
-  install(
-    TARGETS js_snp_attestation.snp
-    EXPORT ccf
-    DESTINATION lib
-  )
-  set(JS_SNP_ATTESTATION_SNP js_snp_attestation.snp)
-elseif(COMPILE_TARGET STREQUAL "virtual")
-  add_library(
-    js_snp_attestation.virtual STATIC ${CCF_DIR}/src/js/snp_attestation.cpp
-  )
-  add_san(js_snp_attestation.virtual)
-  target_link_libraries(js_snp_attestation.virtual PUBLIC ccf.virtual)
-  target_compile_options(js_snp_attestation.virtual PRIVATE ${COMPILE_LIBCXX})
-  target_compile_definitions(
-    js_snp_attestation.virtual
-    PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-           PLATFORM_VIRTUAL
-  )
-  set_property(
-    TARGET js_snp_attestation.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-  )
-  install(
-    TARGETS js_snp_attestation.virtual
-    EXPORT ccf
-    DESTINATION lib
-  )
-  set(JS_SNP_ATTESTATION_VIRTUAL js_snp_attestation.virtual)
-endif()
-
 set(JS_GENERIC_SOURCES ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp)
 if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(js_generic_base.enclave ${JS_GENERIC_SOURCES})
@@ -624,18 +520,6 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
   add_warning_checks(js_generic_base.virtual)
   target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
   target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
-  if(REQUIRE_OPENENCLAVE)
-    target_compile_definitions(
-      js_openenclave.virtual
-      PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-             PLATFORM_VIRTUAL
-    )
-  endif()
-  target_compile_definitions(
-    js_snp_attestation.virtual
-    PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-           PLATFORM_VIRTUAL
-  )
   set_property(
     TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
   )
@@ -649,12 +533,9 @@ endif()
 add_ccf_app(
   js_generic
   SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
-  LINK_LIBS_ENCLAVE js_generic_base.enclave js_openenclave.enclave
-                    js_snp_attestation.enclave
-  LINK_LIBS_VIRTUAL js_generic_base.virtual ${JS_OPENENCLAVE_VIRTUAL}
-                    ${JS_SNP_ATTESTATION_VIRTUAL}
-  LINK_LIBS_SNP js_generic_base.snp ${JS_OPENENCLAVE_SNP}
-                ${JS_SNP_ATTESTATION_SNP} INSTALL_LIBS ON
+  LINK_LIBS_ENCLAVE js_generic_base.enclave
+  LINK_LIBS_VIRTUAL js_generic_base.virtual
+  LINK_LIBS_SNP js_generic_base.snp INSTALL_LIBS ON
 )
 sign_app_library(
   js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
@@ -1580,7 +1461,7 @@ if(BUILD_TESTS)
       )
     endif()
 
-    add_perf_test(
+    add_piccolo_test(
       NAME pi_ls
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
       CLIENT_BIN ./submit
@@ -1614,7 +1495,7 @@ if(BUILD_TESTS)
       )
     endif()
 
-    add_perf_test(
+    add_piccolo_test(
       NAME pi_ls_jwt
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
       CLIENT_BIN ./submit
