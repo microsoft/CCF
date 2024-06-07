@@ -47,8 +47,9 @@ namespace ccf
     const auto issuer_url = http::parse_url_full(constraint);
     if (issuer_url.host != microsoft_entra_domain)
     {
-      return iss == constraint && !tid; // tid is a MSFT-specific claim and
-                                        // shoudn't be set for a non-AAD issuer.
+      return iss == constraint &&
+        !tid; // tid is a MSFT-specific claim and
+              // shoudn't be set for a non-Entra issuer.
     }
 
     // Specify tenant if working with multi-tenant endpoint.
@@ -70,6 +71,9 @@ namespace ccf
     // https://domain.com/tenant_id/something_else
     //
     // Here url.path == "/tenant_id/something_else".
+    //
+    // Check for details here:
+    // https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens#validate-the-issuer.
 
     const auto url = http::parse_url_full(iss);
     const auto tenant_id = first_non_empty_chunk(nonstd::split(url.path, "/"));
@@ -141,7 +145,7 @@ namespace ccf
       auto fallback_key = fallback_keys->get(key_id);
       if (fallback_key)
       {
-        token_keys = std::vector<KeyMetadata>{KeyMetadata{
+        token_keys = std::vector<OpenIDJWKMetadata>{OpenIDJWKMetadata{
           .cert = *fallback_key,
           .issuer = *fallback_issuers->get(key_id),
           .constraint = std::nullopt}};

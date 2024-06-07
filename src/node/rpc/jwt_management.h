@@ -86,7 +86,7 @@ namespace ccf
 
       if (it != v.end())
       {
-        std::vector<KeyMetadata> updated(v.begin(), it);
+        std::vector<OpenIDJWKMetadata> updated(v.begin(), it);
         updated.insert(updated.end(), ++it, v.end());
 
         if (!updated.empty())
@@ -290,7 +290,7 @@ namespace ccf
 
     for (auto& [kid, der] : new_keys)
     {
-      KeyMetadata value{der, issuer, std::nullopt};
+      OpenIDJWKMetadata value{der, issuer, std::nullopt};
       const auto it = issuer_constraints.find(kid);
       if (it != issuer_constraints.end())
       {
@@ -343,7 +343,7 @@ namespace ccf
       }
       else
       {
-        keys->put(kid, std::vector<KeyMetadata>{value});
+        keys->put(kid, std::vector<OpenIDJWKMetadata>{value});
       }
     }
 

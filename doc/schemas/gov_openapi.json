@@ -415,7 +415,7 @@
         },
         "type": "array"
       },
-      "KeyMetadata": {
+      "OpenIDJWKMetadata": {
         "properties": {
           "cert": {
             "$ref": "#/components/schemas/base64string"
@@ -433,9 +433,9 @@
         ],
         "type": "object"
       },
-      "KeyMetadata_array": {
+      "OpenIDJWKMetadata_array": {
         "items": {
-          "$ref": "#/components/schemas/KeyMetadata"
+          "$ref": "#/components/schemas/OpenIDJWKMetadata"
         },
         "type": "array"
       },
@@ -1298,9 +1298,9 @@
         },
         "type": "object"
       },
-      "string_to_KeyMetadata_array": {
+      "string_to_OpenIDJWKMetadata_array": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/KeyMetadata_array"
+          "$ref": "#/components/schemas/OpenIDJWKMetadata_array"
         },
         "type": "object"
       },
@@ -1831,7 +1831,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string_to_KeyMetadata_array"
+                  "$ref": "#/components/schemas/string_to_OpenIDJWKMetadata_array"
                 }
               }
             },

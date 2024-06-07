@@ -470,7 +470,8 @@ namespace ccf::gov::endpoints
 
             jwt_keys_handle->foreach(
               [&keys](
-                const ccf::JwtKeyId& k, const std::vector<KeyMetadata>& v) {
+                const ccf::JwtKeyId& k,
+                const std::vector<OpenIDJWKMetadata>& v) {
                 auto keys_info = nlohmann::json::array();
                 for (const auto& metadata : v)
                 {

@@ -58,18 +58,19 @@ namespace ccf
   using JwtKeyId = std::string;
   using Cert = std::vector<uint8_t>;
 
-  struct KeyMetadata
+  struct OpenIDJWKMetadata
   {
     Cert cert;
     JwtIssuer issuer;
     std::optional<JwtIssuer> constraint;
   };
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(KeyMetadata);
-  DECLARE_JSON_REQUIRED_FIELDS(KeyMetadata, cert, issuer);
-  DECLARE_JSON_OPTIONAL_FIELDS(KeyMetadata, constraint);
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(OpenIDJWKMetadata);
+  DECLARE_JSON_REQUIRED_FIELDS(OpenIDJWKMetadata, cert, issuer);
+  DECLARE_JSON_OPTIONAL_FIELDS(OpenIDJWKMetadata, constraint);
 
   using JwtIssuers = ServiceMap<JwtIssuer, JwtIssuerMetadata>;
-  using JwtPublicSigningKeys = ServiceMap<JwtKeyId, std::vector<KeyMetadata>>;
+  using JwtPublicSigningKeys =
+    ServiceMap<JwtKeyId, std::vector<OpenIDJWKMetadata>>;
 
   namespace Tables
   {
