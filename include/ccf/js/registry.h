@@ -83,7 +83,7 @@ namespace ccf::js
       ccf::endpoints::EndpointContext& ctx, const ccf::js::Bundle& bundle);
 
     /**
-     * TODO
+     * Pass a function to control which tables can be accessed by JS endpoints.
      */
     void set_js_kv_namespace_restriction(
       const ccf::js::NamespaceRestriction& restriction);
