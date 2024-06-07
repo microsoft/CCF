@@ -1124,19 +1124,6 @@ if(BUILD_TESTS)
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
 
-    set(CONSTITUTION_ARGS
-        --constitution
-        ${CCF_DIR}/samples/constitutions/default/actions.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/test/test_actions.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/default/validate.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/test/resolve.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/default/apply.js
-    )
-
     if(LONG_TESTS)
       set(ADDITIONAL_RECOVERY_ARGS --with-load)
     endif()
@@ -1254,6 +1241,19 @@ if(BUILD_TESTS)
                       ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
     )
 
+    set(CONSTITUTION_ARGS
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/actions.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/test/test_actions.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/validate.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/test/resolve.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/apply.js
+    )
+
     add_e2e_test(
       NAME governance_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
@@ -1301,8 +1301,22 @@ if(BUILD_TESTS)
                       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
 
+    set(RBAC_CONSTITUTION_ARGS
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/actions.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/roles/set_role_definition.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/validate.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/resolve.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/apply.js
+    )
+
     add_e2e_test(
       NAME programmability
+      CONSTITUTION ${RBAC_CONSTITUTION_ARGS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
     )
 
