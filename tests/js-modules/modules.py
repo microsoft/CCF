@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import base64
 import tempfile
 import http
 import os
@@ -273,23 +272,6 @@ def test_js_execution_time(network, args):
     bundle = infra.consortium.slurp_json(bundle_path)
     network.consortium.set_js_app_from_bundle(primary, bundle)
 
-    LOG.info("Store JWT signing keys")
-    jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-    jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
-    jwt_kid = "my_other_key_id"
-    issuer = "https://example.issuer"
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
-        der_b64 = base64.b64encode(jwt_cert_der).decode("ascii")
-        data = {
-            "issuer": issuer,
-            "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]},
-        }
-        json.dump(data, metadata_fp)
-        metadata_fp.flush()
-        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
-
-    LOG.info("Calling jwt endpoint after storing keys")
     with primary.client("user0") as c:
         # fetch defaults from js_metrics endpoint
         r = c.get("/node/js_metrics")
@@ -306,10 +288,10 @@ def test_js_execution_time(network, args):
             max_stack_bytes=1024 * 512,
             max_execution_time_ms=1,
         )
-        user_id = "user0"
-        jwt = infra.crypto.create_jwt({"sub": user_id}, jwt_key_priv_pem, jwt_kid)
 
-        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+        surely_will_time_out = 123456789
+        r = c.post("/app/spin", {"iterations": surely_will_time_out})
+
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r.status_code
         body = r.body.json()
         assert body["error"]["message"] == "Operation took too long to complete."
@@ -321,10 +303,10 @@ def test_js_execution_time(network, args):
             max_stack_bytes=default_max_stack_size,
             max_execution_time_ms=default_max_execution_time,
         )
-        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
+
+        r = c.post("/app/spin", {"iterations": 1})
+
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        body = r.body.json()
-        assert body["userId"] == user_id, r.body
 
     return network
 

@@ -1,4 +1,3 @@
-export * from "./jwt";
 export * from "./crypto";
 export * from "./snp_attestation";
 export * from "./partition";
@@ -7,3 +6,4 @@ export * from "./log";
 export * from "./rpc";
 export * from "./auth";
 export * from "./converters";
+export * from "./spin";
