@@ -2,20 +2,13 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/js/map_access_permissions.h"
+#include "ccf/js/namespace_restrictions.h"
 #include "ccf/js/tx_access.h"
 #include "kv/kv_types.h"
 
-#include <regex>
-
 namespace ccf::js
 {
-  enum class MapAccessPermissions
-  {
-    READ_WRITE,
-    READ_ONLY,
-    ILLEGAL
-  };
-
   static MapAccessPermissions check_kv_map_access(
     TxAccess execution_context, const std::string& table_name)
   {
@@ -102,14 +95,6 @@ namespace ccf::js
     }
   }
 
-  struct NamespaceRestriction
-  {
-    std::regex regex;
-    MapAccessPermissions permission;
-  };
-
-  using NamespaceRestrictions = std::vector<NamespaceRestriction>;
-
   static MapAccessPermissions calculate_namespace_restrictions(
     MapAccessPermissions current,
     const NamespaceRestrictions& restrictions,
@@ -131,5 +116,15 @@ namespace ccf::js
     }
 
     return current;
+  }
+
+  static MapAccessPermissions check_kv_map_access_with_namespace_restrictions(
+    TxAccess execution_context,
+    const NamespaceRestrictions& restrictions,
+    const std::string& table_name)
+  {
+    auto access = check_kv_map_access(execution_context, table_name);
+    access = calculate_namespace_restrictions(access, restrictions, table_name);
+    return access;
   }
 }

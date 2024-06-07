@@ -3,7 +3,7 @@
 #pragma once
 
 #include "js/global_class_ids.h"
-#include "js/map_access_permissions.h"
+#include "js/permissions_checks.h"
 #include "kv/untyped_map.h"
 
 namespace ccf::js::extensions::kvhelpers
@@ -30,8 +30,18 @@ namespace ccf::js::extensions::kvhelpers
     { \
       return JS_ThrowTypeError(ctx, "Internal: No map name stored on handle"); \
     } \
+    /* auto extension = jsctx.get_extension<KvExtension>(); \
+    if (extension == nullptr) \
+    { \
+      return JS_ThrowTypeError(ctx, "No KV extension available"); \
+    } */ \
     const auto permission = \
       ccf::js::check_kv_map_access(jsctx.access, table_name); \
+    /* const auto permission = \
+       ccf::js::check_kv_map_access_with_namespace_restrictions( \
+         jsctx.access, \
+         extension->impl->table_namespace_restrictions, \
+         table_name); */ \
     char const* table_kind = permission == MapAccessPermissions::READ_ONLY ? \
       "read-only" : \
       "inaccessible"; \

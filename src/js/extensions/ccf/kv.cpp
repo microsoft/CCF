@@ -4,10 +4,11 @@
 #include "ccf/js/extensions/ccf/kv.h"
 
 #include "ccf/js/core/context.h"
+#include "ccf/tx.h"
 #include "js/checks.h"
 #include "js/extensions/ccf/kv_helpers.h"
 #include "js/global_class_ids.h"
-#include "js/map_access_permissions.h"
+#include "js/permissions_checks.h"
 
 #include <map>
 #include <quickjs/quickjs.h>
@@ -85,8 +86,17 @@ namespace ccf::js::extensions
       const auto map_name = jsctx.to_str(property).value_or("");
       LOG_TRACE_FMT("Looking for kv map '{}'", map_name);
 
+      auto extension = jsctx.get_extension<KvExtension>();
+      if (extension == nullptr)
+      {
+        LOG_FAIL_FMT("No KV extension available");
+        return -1;
+      }
+
       const auto access_permission =
-        ccf::js::check_kv_map_access(jsctx.access, map_name);
+        ccf::js::check_kv_map_access_with_namespace_restrictions(
+          jsctx.access, extension->restrictions, map_name);
+
       auto handle_val =
         kvhelpers::create_kv_map_handle<get_ro_map_handle, get_map_handle>(
           jsctx, map_name, access_permission);
@@ -102,7 +112,9 @@ namespace ccf::js::extensions
     }
   }
 
-  KvExtension::KvExtension(kv::Tx* t)
+  KvExtension::KvExtension(
+    kv::Tx* t, const ccf::js::NamespaceRestrictions& nr) :
+    restrictions(nr)
   {
     impl = std::make_unique<KvExtension::Impl>(t);
   }

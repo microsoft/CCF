@@ -3,9 +3,14 @@
 #pragma once
 
 #include "ccf/js/extensions/extension_interface.h"
-#include "ccf/tx.h"
+#include "ccf/js/namespace_restrictions.h"
 
 #include <memory>
+
+namespace kv
+{
+  class Tx;
+}
 
 namespace ccf::js::extensions
 {
@@ -21,7 +26,9 @@ namespace ccf::js::extensions
 
     std::unique_ptr<Impl> impl;
 
-    KvExtension(kv::Tx* t);
+    ccf::js::NamespaceRestrictions restrictions;
+
+    KvExtension(kv::Tx* t, const ccf::js::NamespaceRestrictions& nr = {});
     ~KvExtension();
 
     void install(js::core::Context& ctx);
