@@ -100,7 +100,8 @@ namespace ccf::js
 
     // ccf.kv.*
     local_extensions.emplace_back(
-      std::make_shared<ccf::js::extensions::KvExtension>(&endpoint_ctx.tx));
+      std::make_shared<ccf::js::extensions::KvExtension>(
+        &endpoint_ctx.tx, restrictions));
 
     // ccf.rpc.*
     local_extensions.emplace_back(
