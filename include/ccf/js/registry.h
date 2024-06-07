@@ -82,6 +82,10 @@ namespace ccf::js
     void install_custom_endpoints(
       ccf::endpoints::EndpointContext& ctx, const ccf::js::Bundle& bundle);
 
+    /**
+     * Set a collection of regex-based restrictions on which KV tables can be
+     * accessed during JS execution.
+     */
     void set_js_kv_namespace_restrictions(
       const ccf::js::NamespaceRestrictions& restrictions);
 

@@ -18,6 +18,31 @@ namespace ccf::js::extensions::kvhelpers
   static constexpr char const* access_permissions_explanation_url =
     "https://microsoft.github.io/CCF/main/audit/read_write_restrictions.html";
 
+  static inline char const* exec_context_str(ccf::js::TxAccess access)
+  {
+    switch (access)
+    {
+      case (TxAccess::APP_RW):
+      {
+        return "application";
+      }
+      case (TxAccess::APP_RO):
+      {
+        return "read-only application";
+      }
+      case (TxAccess::GOV_RO):
+      {
+        return "read-only governance";
+      }
+      case (TxAccess::GOV_RW):
+      {
+        return "read-write governance";
+      }
+    }
+
+    return "unknown";
+  }
+
 #define JS_KV_PERMISSION_ERROR_HELPER(C_FUNC_NAME, JS_METHOD_NAME) \
   static JSValue C_FUNC_NAME( \
     JSContext* ctx, JSValueConst this_val, int, JSValueConst*) \
@@ -30,64 +55,27 @@ namespace ccf::js::extensions::kvhelpers
     { \
       return JS_ThrowTypeError(ctx, "Internal: No map name stored on handle"); \
     } \
-    /* auto extension = jsctx.get_extension<KvExtension>(); \
-    if (extension == nullptr) \
+    const auto func = JS_GetPropertyStr(jsctx, this_val, JS_METHOD_NAME); \
+    const auto error_msg = JS_GetPropertyStr(jsctx, func, "_error_msg"); \
+    if (!JS_IsUndefined(error_msg)) \
     { \
-      return JS_ThrowTypeError(ctx, "No KV extension available"); \
-    } */ \
-    const auto permission = \
-      ccf::js::check_kv_map_access(jsctx.access, table_name); \
-    /* const auto permission = \
-       ccf::js::check_kv_map_access_with_namespace_restrictions( \
-         jsctx.access, \
-         extension->impl->table_namespace_restrictions, \
-         table_name); */ \
-    char const* table_kind = permission == MapAccessPermissions::READ_ONLY ? \
-      "read-only" : \
-      "inaccessible"; \
-    char const* exec_context = "unknown"; \
-    switch (jsctx.access) \
-    { \
-      case (TxAccess::APP_RW): \
-      { \
-        exec_context = "application"; \
-        break; \
-      } \
-      case (TxAccess::APP_RO): \
-      { \
-        exec_context = "read-only application"; \
-        break; \
-      } \
-      case (TxAccess::GOV_RO): \
-      { \
-        exec_context = "read-only governance"; \
-        break; \
-      } \
-      case (TxAccess::GOV_RW): \
-      { \
-        exec_context = "read-write governance"; \
-        break; \
-      } \
+      return JS_ThrowTypeError(ctx, "%s", JS_ToCString(jsctx, error_msg)); \
     } \
     return JS_ThrowTypeError( \
       ctx, \
-      "Cannot call " #JS_METHOD_NAME \
-      " on %s table named %s in %s execution context. See %s for more " \
-      "detail.", \
-      table_kind, \
-      table_name.c_str(), \
-      exec_context, \
-      access_permissions_explanation_url); \
+      "Cannot call " #JS_METHOD_NAME " on table named %s.", \
+      table_name.c_str()); \
   }
 
   JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_has_denied, "has")
   JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_get_denied, "get")
-  JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_size_denied, "size")
+  JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_size_getter_denied, "size")
   JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_set_denied, "set")
   JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_delete_denied, "delete")
   JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_clear_denied, "clear")
-  JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_foreach_denied, "foreach")
-  JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_get_version_denied, "get_version")
+  JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_foreach_denied, "forEach")
+  JS_KV_PERMISSION_ERROR_HELPER(
+    js_kv_get_version_of_previous_write_denied, "getVersionOfPreviousWrite")
 #undef JS_KV_PERMISSION_ERROR_HELPER
 
 #define JS_CHECK_HANDLE(h) \
@@ -355,11 +343,31 @@ namespace ccf::js::extensions::kvhelpers
   }
 #undef JS_CHECK_HANDLE
 
+  static std::string default_exec_context_permission_denied_describer(
+    js::core::Context& ctx,
+    const std::string& function,
+    const std::string& map_name,
+    MapAccessPermissions permission)
+  {
+    char const* table_kind = permission == MapAccessPermissions::READ_ONLY ?
+      "read-only" :
+      "inaccessible";
+    return fmt::format(
+      "Cannot call .{}() on {} table named {} in {} execution context. See {} "
+      "for more detail.",
+      function,
+      table_kind,
+      map_name,
+      exec_context_str(ctx.access),
+      access_permissions_explanation_url);
+  }
+
   template <ROHandleGetter GetReadOnlyHandle, RWHandleGetter GetWriteHandle>
   static JSValue create_kv_map_handle(
     js::core::Context& ctx,
     const std::string& map_name,
-    MapAccessPermissions access_permission)
+    MapAccessPermissions access_permission,
+    const PermissionDeniedDescriber& mk_error_str = nullptr)
   {
     // This follows the interface of Map:
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
@@ -378,67 +386,72 @@ namespace ccf::js::extensions::kvhelpers
     // restrictions could vary between invocations, then this object's
     // properties would need to be updated as well.
 
-    auto has_fn = js_kv_map_has<GetReadOnlyHandle>;
-    auto get_fn = js_kv_map_get<GetReadOnlyHandle>;
-    auto size_fn = js_kv_map_size_getter<GetReadOnlyHandle>;
-    auto set_fn = js_kv_map_set<GetWriteHandle>;
-    auto delete_fn = js_kv_map_delete<GetWriteHandle>;
-    auto clear_fn = js_kv_map_clear<GetWriteHandle>;
-    auto foreach_fn = js_kv_map_foreach<GetReadOnlyHandle>;
-    auto get_version_fn =
-      js_kv_get_version_of_previous_write<GetReadOnlyHandle>;
+#define MAKE_FUNCTION( \
+  C_FUNC_NAME, \
+  JS_METHOD_NAME, \
+  ARG_COUNT, \
+  FUNC_FACTORY_METHOD, \
+  PERMISSION_ERROR_MIN, \
+  HANDLE_GETTER) \
+  do \
+  { \
+    auto fn_val = ctx.FUNC_FACTORY_METHOD( \
+      access_permission >= PERMISSION_ERROR_MIN ? C_FUNC_NAME##_denied : \
+                                                  C_FUNC_NAME<HANDLE_GETTER>, \
+      JS_METHOD_NAME, \
+      ARG_COUNT); \
+    JS_CHECK_EXC(fn_val); \
+    if (mk_error_str && access_permission >= PERMISSION_ERROR_MIN) \
+    { \
+      JS_CHECK_SET(fn_val.set( \
+        "_error_msg", \
+        ctx.new_string( \
+          mk_error_str(ctx, JS_METHOD_NAME, map_name, access_permission)))); \
+    } \
+    JS_CHECK_SET(view_val.set(JS_METHOD_NAME, std::move(fn_val))); \
+  } while (0)
 
-    if (access_permission == MapAccessPermissions::ILLEGAL)
-    {
-      has_fn = js_kv_map_has_denied;
-      get_fn = js_kv_map_get_denied;
-      size_fn = js_kv_map_size_denied;
-      set_fn = js_kv_map_set_denied;
-      delete_fn = js_kv_map_delete_denied;
-      clear_fn = js_kv_map_clear_denied;
-      foreach_fn = js_kv_map_foreach_denied;
-      get_version_fn = js_kv_map_get_version_denied;
-    }
-    else if (access_permission == MapAccessPermissions::READ_ONLY)
-    {
-      set_fn = js_kv_map_set_denied;
-      delete_fn = js_kv_map_delete_denied;
-      clear_fn = js_kv_map_clear_denied;
-    }
+#define MAKE_RO_FUNCTION(C_FUNC_NAME, JS_METHOD_NAME, ARG_COUNT) \
+  MAKE_FUNCTION( \
+    C_FUNC_NAME, \
+    JS_METHOD_NAME, \
+    ARG_COUNT, \
+    new_c_function, \
+    MapAccessPermissions::ILLEGAL, \
+    GetReadOnlyHandle)
 
-    auto has_fn_val = ctx.new_c_function(has_fn, "has", 1);
-    JS_CHECK_EXC(has_fn_val);
-    JS_CHECK_SET(view_val.set("has", std::move(has_fn_val)));
+#define MAKE_RW_FUNCTION(C_FUNC_NAME, JS_METHOD_NAME, ARG_COUNT) \
+  MAKE_FUNCTION( \
+    C_FUNC_NAME, \
+    JS_METHOD_NAME, \
+    ARG_COUNT, \
+    new_c_function, \
+    MapAccessPermissions::READ_ONLY, \
+    GetWriteHandle)
 
-    auto get_fn_val = ctx.new_c_function(get_fn, "get", 1);
-    JS_CHECK_EXC(get_fn_val);
-    JS_CHECK_SET(view_val.set("get", std::move(get_fn_val)));
+    MAKE_RO_FUNCTION(js_kv_map_has, "has", 1);
+    MAKE_RO_FUNCTION(js_kv_map_get, "get", 1);
 
-    auto get_size_fn_val = ctx.new_getter_c_function(size_fn, "size");
-    JS_CHECK_EXC(get_size_fn_val);
-    JS_CHECK_SET(view_val.set_getter("size", std::move(get_size_fn_val)));
+    MAKE_RO_FUNCTION(js_kv_map_foreach, "forEach", 1);
+    MAKE_RO_FUNCTION(
+      js_kv_get_version_of_previous_write, "getVersionOfPreviousWrite", 1);
 
-    auto set_fn_val = ctx.new_c_function(set_fn, "set", 2);
-    JS_CHECK_EXC(set_fn_val);
-    JS_CHECK_SET(view_val.set("set", std::move(set_fn_val)));
+    MAKE_RW_FUNCTION(js_kv_map_set, "set", 2);
+    MAKE_RW_FUNCTION(js_kv_map_delete, "delete", 1);
+    MAKE_RW_FUNCTION(js_kv_map_clear, "clear", 0);
 
-    auto delete_fn_val = ctx.new_c_function(delete_fn, "delete", 1);
-    JS_CHECK_EXC(delete_fn_val);
-    JS_CHECK_SET(view_val.set("delete", std::move(delete_fn_val)));
+    // This is a _getter_, subtly different from a read-only function
+    MAKE_FUNCTION(
+      js_kv_map_size_getter,
+      "size",
+      0,
+      new_getter_c_function,
+      MapAccessPermissions::ILLEGAL,
+      GetReadOnlyHandle);
 
-    auto clear_fn_val = ctx.new_c_function(clear_fn, "clear", 0);
-    JS_CHECK_EXC(clear_fn_val);
-    JS_CHECK_SET(view_val.set("clear", std::move(clear_fn_val)));
-
-    auto foreach_fn_val = ctx.new_c_function(foreach_fn, "forEach", 1);
-    JS_CHECK_EXC(foreach_fn_val);
-    JS_CHECK_SET(view_val.set("forEach", std::move(foreach_fn_val)));
-
-    auto get_version_fn_val =
-      ctx.new_c_function(get_version_fn, "getVersionOfPreviousWrite", 1);
-    JS_CHECK_EXC(get_version_fn_val);
-    JS_CHECK_SET(
-      view_val.set("getVersionOfPreviousWrite", std::move(get_version_fn_val)));
+#undef MAKE_RW_FUNCTION
+#undef MAKE_RO_FUNCTION
+#undef MAKE_FUNCTION
 
     return view_val.take();
   }

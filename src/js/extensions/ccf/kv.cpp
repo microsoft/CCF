@@ -99,7 +99,11 @@ namespace ccf::js::extensions
 
       auto handle_val =
         kvhelpers::create_kv_map_handle<get_ro_map_handle, get_map_handle>(
-          jsctx, map_name, access_permission);
+          jsctx,
+          map_name,
+          access_permission,
+          kvhelpers::default_exec_context_permission_denied_describer);
+
       if (JS_IsException(handle_val))
       {
         return -1;
