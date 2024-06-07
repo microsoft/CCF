@@ -156,7 +156,18 @@ namespace basicapp
           caller_identity.content.begin(), caller_identity.content.end());
         const auto wrapper = j.get<ccf::js::Bundle>();
 
-        install_custom_endpoints(ctx, wrapper);
+        result = install_custom_endpoints_v1(ctx.tx, wrapper);
+        if (result != ccf::ApiResult::OK)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to install endpoints: {}",
+              ccf::api_result_to_str(result)));
+          return;
+        }
+
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       };
 
@@ -166,6 +177,83 @@ namespace basicapp
         put_custom_endpoints,
         {ccf::user_cose_sign1_auth_policy})
         .set_auto_schema<ccf::js::Bundle, void>()
+        .install();
+
+      auto get_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
+        ccf::js::Bundle bundle;
+
+        auto result = get_custom_endpoints_v1(bundle, ctx.tx);
+        if (result != ccf::ApiResult::OK)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to get endpoints: {}", ccf::api_result_to_str(result)));
+          return;
+        }
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ctx.rpc_ctx->set_response_body(nlohmann::json(bundle).dump(2));
+      };
+
+      make_endpoint(
+        "/custom_endpoints",
+        HTTP_GET,
+        get_custom_endpoints,
+        {ccf::empty_auth_policy})
+        .set_auto_schema<void, ccf::js::Bundle>()
+        .install();
+
+      auto get_custom_endpoints_module =
+        [this](ccf::endpoints::EndpointContext& ctx) {
+          std::string module_name;
+
+          {
+            const auto parsed_query =
+              http::parse_query(ctx.rpc_ctx->get_request_query());
+
+            std::string error;
+            if (!http::get_query_value(
+                  parsed_query, "module_name", module_name, error))
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidQueryParameterValue,
+                std::move(error));
+              return;
+            }
+          }
+
+          std::string code;
+
+          auto result =
+            get_custom_endpoint_module_v1(code, ctx.tx, module_name);
+          if (result != ccf::ApiResult::OK)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "Failed to get module: {}", ccf::api_result_to_str(result)));
+            return;
+          }
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE,
+            http::headervalues::contenttype::JAVASCRIPT);
+          ctx.rpc_ctx->set_response_body(std::move(code));
+        };
+
+      make_endpoint(
+        "/custom_endpoints/modules",
+        HTTP_GET,
+        get_custom_endpoints_module,
+        {ccf::empty_auth_policy})
+        .add_query_parameter<std::string>("module_name")
         .install();
     }
   };
