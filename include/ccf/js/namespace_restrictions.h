@@ -4,16 +4,14 @@
 
 #include "ccf/js/map_access_permissions.h"
 
-#include <regex>
-#include <vector>
+#include <functional>
+#include <string>
 
 namespace ccf::js
 {
-  struct NamespaceRestriction
-  {
-    std::regex regex;
-    MapAccessPermissions permission;
-  };
-
-  using NamespaceRestrictions = std::vector<NamespaceRestriction>;
+  // A function which calculates some access permission based on the given map
+  // name. Should also populate an explanation, which can be included in error
+  // messages if disallowed methods are accessed.
+  using NamespaceRestriction = std::function<MapAccessPermissions(
+    const std::string& map_name, std::string& explanation)>;
 }

@@ -52,7 +52,7 @@ namespace ccf::js
     std::string modules_quickjs_bytecode_map;
     std::string runtime_options_map;
 
-    ccf::js::NamespaceRestrictions restrictions;
+    ccf::js::NamespaceRestriction namespace_restriction;
 
     using PreExecutionHook = std::function<void(ccf::js::core::Context&)>;
 
@@ -83,11 +83,10 @@ namespace ccf::js
       ccf::endpoints::EndpointContext& ctx, const ccf::js::Bundle& bundle);
 
     /**
-     * Set a collection of regex-based restrictions on which KV tables can be
-     * accessed during JS execution.
+     * TODO
      */
-    void set_js_kv_namespace_restrictions(
-      const ccf::js::NamespaceRestrictions& restrictions);
+    void set_js_kv_namespace_restriction(
+      const ccf::js::NamespaceRestriction& restriction);
 
     /// \defgroup Overrides for base EndpointRegistry functions, looking up JS
     /// endpoints before delegating to base implementation.

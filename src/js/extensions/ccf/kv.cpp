@@ -76,6 +76,50 @@ namespace ccf::js::extensions
       return get_map_handle(jsctx, this_val);
     }
 
+    static std::string exec_level_restriction_explainer(
+      ccf::js::MapAccessPermissions permission, ccf::js::TxAccess access)
+    {
+      char const* table_kind = permission == MapAccessPermissions::READ_ONLY ?
+        "read-only" :
+        "inaccessible";
+
+      char const* exec_context = "unknown";
+      switch (access)
+      {
+        case (TxAccess::APP_RW):
+        {
+          exec_context = "application";
+          break;
+        }
+        case (TxAccess::APP_RO):
+        {
+          exec_context = "read-only application";
+          break;
+        }
+        case (TxAccess::GOV_RO):
+        {
+          exec_context = "read-only governance";
+          break;
+        }
+        case (TxAccess::GOV_RW):
+        {
+          exec_context = "read-write governance";
+          break;
+        }
+      }
+
+      static constexpr char const* access_permissions_explanation_url =
+        "https://microsoft.github.io/CCF/main/audit/"
+        "read_write_restrictions.html";
+
+      return fmt::format(
+        "This table is {} in current ({}) execution context. See {} for more "
+        "detail.",
+        table_kind,
+        exec_context,
+        access_permissions_explanation_url);
+    }
+
     static int js_kv_lookup(
       JSContext* ctx,
       JSPropertyDescriptor* desc,
@@ -93,16 +137,29 @@ namespace ccf::js::extensions
         return -1;
       }
 
-      const auto access_permission =
-        ccf::js::check_kv_map_access_with_namespace_restrictions(
-          jsctx.access, extension->restrictions, map_name);
+      auto access_permission =
+        ccf::js::check_kv_map_access(jsctx.access, map_name);
+      std::string explanation =
+        exec_level_restriction_explainer(access_permission, jsctx.access);
+
+      if (extension->namespace_restriction != nullptr)
+      {
+        std::string proposed_explanation;
+        const auto proposed_permission =
+          extension->namespace_restriction(map_name, proposed_explanation);
+
+        // Name-based policy cannot grant more access (eg - cannot change
+        // Read-Only to Read-Write), can only make it more restricted
+        if (proposed_permission > access_permission)
+        {
+          access_permission = proposed_permission;
+          explanation = proposed_explanation;
+        }
+      }
 
       auto handle_val =
         kvhelpers::create_kv_map_handle<get_ro_map_handle, get_map_handle>(
-          jsctx,
-          map_name,
-          access_permission,
-          kvhelpers::default_exec_context_permission_denied_describer);
+          jsctx, map_name, access_permission, explanation);
 
       if (JS_IsException(handle_val))
       {
@@ -116,9 +173,8 @@ namespace ccf::js::extensions
     }
   }
 
-  KvExtension::KvExtension(
-    kv::Tx* t, const ccf::js::NamespaceRestrictions& nr) :
-    restrictions(nr)
+  KvExtension::KvExtension(kv::Tx* t, const ccf::js::NamespaceRestriction& nr) :
+    namespace_restriction(nr)
   {
     impl = std::make_unique<KvExtension::Impl>(t);
   }

@@ -15,34 +15,6 @@ namespace ccf::js::extensions::kvhelpers
   using RWHandleGetter =
     KVMap::Handle* (*)(js::core::Context& jsctx, JSValueConst this_val);
 
-  static constexpr char const* access_permissions_explanation_url =
-    "https://microsoft.github.io/CCF/main/audit/read_write_restrictions.html";
-
-  static inline char const* exec_context_str(ccf::js::TxAccess access)
-  {
-    switch (access)
-    {
-      case (TxAccess::APP_RW):
-      {
-        return "application";
-      }
-      case (TxAccess::APP_RO):
-      {
-        return "read-only application";
-      }
-      case (TxAccess::GOV_RO):
-      {
-        return "read-only governance";
-      }
-      case (TxAccess::GOV_RW):
-      {
-        return "read-write governance";
-      }
-    }
-
-    return "unknown";
-  }
-
 #define JS_KV_PERMISSION_ERROR_HELPER(C_FUNC_NAME, JS_METHOD_NAME) \
   static JSValue C_FUNC_NAME( \
     JSContext* ctx, JSValueConst this_val, int, JSValueConst*) \
@@ -56,15 +28,17 @@ namespace ccf::js::extensions::kvhelpers
       return JS_ThrowTypeError(ctx, "Internal: No map name stored on handle"); \
     } \
     const auto func = JS_GetPropertyStr(jsctx, this_val, JS_METHOD_NAME); \
+    std::string explanation; \
     const auto error_msg = JS_GetPropertyStr(jsctx, func, "_error_msg"); \
     if (!JS_IsUndefined(error_msg)) \
     { \
-      return JS_ThrowTypeError(ctx, "%s", JS_ToCString(jsctx, error_msg)); \
+      explanation = JS_ToCString(jsctx, error_msg); \
     } \
     return JS_ThrowTypeError( \
       ctx, \
-      "Cannot call " #JS_METHOD_NAME " on table named %s.", \
-      table_name.c_str()); \
+      "Cannot call " #JS_METHOD_NAME " on table named %s. %s", \
+      table_name.c_str(), \
+      explanation.c_str()); \
   }
 
   JS_KV_PERMISSION_ERROR_HELPER(js_kv_map_has_denied, "has")
@@ -343,31 +317,12 @@ namespace ccf::js::extensions::kvhelpers
   }
 #undef JS_CHECK_HANDLE
 
-  static std::string default_exec_context_permission_denied_describer(
-    js::core::Context& ctx,
-    const std::string& function,
-    const std::string& map_name,
-    MapAccessPermissions permission)
-  {
-    char const* table_kind = permission == MapAccessPermissions::READ_ONLY ?
-      "read-only" :
-      "inaccessible";
-    return fmt::format(
-      "Cannot call .{}() on {} table named {} in {} execution context. See {} "
-      "for more detail.",
-      function,
-      table_kind,
-      map_name,
-      exec_context_str(ctx.access),
-      access_permissions_explanation_url);
-  }
-
   template <ROHandleGetter GetReadOnlyHandle, RWHandleGetter GetWriteHandle>
   static JSValue create_kv_map_handle(
     js::core::Context& ctx,
     const std::string& map_name,
     MapAccessPermissions access_permission,
-    const PermissionDeniedDescriber& mk_error_str = nullptr)
+    const std::string& permission_explanation = "")
   {
     // This follows the interface of Map:
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
@@ -401,12 +356,10 @@ namespace ccf::js::extensions::kvhelpers
       JS_METHOD_NAME, \
       ARG_COUNT); \
     JS_CHECK_EXC(fn_val); \
-    if (mk_error_str && access_permission >= PERMISSION_ERROR_MIN) \
+    if (access_permission >= PERMISSION_ERROR_MIN) \
     { \
-      JS_CHECK_SET(fn_val.set( \
-        "_error_msg", \
-        ctx.new_string( \
-          mk_error_str(ctx, JS_METHOD_NAME, map_name, access_permission)))); \
+      JS_CHECK_SET( \
+        fn_val.set("_error_msg", ctx.new_string(permission_explanation))); \
     } \
     JS_CHECK_SET(view_val.set(JS_METHOD_NAME, std::move(fn_val))); \
   } while (0)

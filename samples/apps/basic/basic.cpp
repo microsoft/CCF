@@ -122,18 +122,30 @@ namespace basicapp
       // read-only for JS code. Additionally, we reserve any table beginning
       // with "basic." (public or private) as inaccessible for the JS code, in
       // case we want to use it for the C++ app in future.
-      ccf::js::NamespaceRestriction private_records_is_read_only{
-        std::regex(PRIVATE_RECORDS), ccf::js::MapAccessPermissions::READ_ONLY};
-      ccf::js::NamespaceRestriction reserve_basic_tables_public{
-        std::regex(R"(public:basic\..*)"),
-        ccf::js::MapAccessPermissions::ILLEGAL};
-      ccf::js::NamespaceRestriction reserve_basic_tables_private{
-        std::regex(R"(basic\..*)"), ccf::js::MapAccessPermissions::ILLEGAL};
-      ccf::js::NamespaceRestrictions restrictions{
-        private_records_is_read_only,
-        reserve_basic_tables_public,
-        reserve_basic_tables_private};
-      set_js_kv_namespace_restrictions(restrictions);
+      set_js_kv_namespace_restriction(
+        [](const std::string& map_name, std::string& explanation)
+          -> ccf::js::MapAccessPermissions {
+          if (map_name == PRIVATE_RECORDS)
+          {
+            explanation = fmt::format(
+              "The {} table is managed by C++ endpoints, so is read-only in "
+              "JS.",
+              PRIVATE_RECORDS);
+            return ccf::js::MapAccessPermissions::READ_ONLY;
+          }
+
+          if (
+            map_name.starts_with("public:basic.") ||
+            map_name.starts_with("basic."))
+          {
+            explanation =
+              "The 'basic.' prefix is reserved by the C++ endpoints for future "
+              "use.";
+            return ccf::js::MapAccessPermissions::ILLEGAL;
+          }
+
+          return ccf::js::MapAccessPermissions::READ_WRITE;
+        });
 
       auto put_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
         const auto& caller_identity =

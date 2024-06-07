@@ -94,37 +94,4 @@ namespace ccf::js
       }
     }
   }
-
-  static MapAccessPermissions calculate_namespace_restrictions(
-    MapAccessPermissions current,
-    const NamespaceRestrictions& restrictions,
-    const std::string& map_name)
-  {
-    for (const auto& restriction : restrictions)
-    {
-      if (std::regex_match(map_name, restriction.regex))
-      {
-        current = std::max(current, restriction.permission);
-      }
-
-      // If we reach maximally restricted permission (ILLEGAL), then we cannot
-      // get _more_ restricted, so safe to break
-      if (current == MapAccessPermissions::ILLEGAL)
-      {
-        break;
-      }
-    }
-
-    return current;
-  }
-
-  static MapAccessPermissions check_kv_map_access_with_namespace_restrictions(
-    TxAccess execution_context,
-    const NamespaceRestrictions& restrictions,
-    const std::string& table_name)
-  {
-    auto access = check_kv_map_access(execution_context, table_name);
-    access = calculate_namespace_restrictions(access, restrictions, table_name);
-    return access;
-  }
 }

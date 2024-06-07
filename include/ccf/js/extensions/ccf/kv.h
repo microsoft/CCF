@@ -26,9 +26,9 @@ namespace ccf::js::extensions
 
     std::unique_ptr<Impl> impl;
 
-    ccf::js::NamespaceRestrictions restrictions;
+    ccf::js::NamespaceRestriction namespace_restriction;
 
-    KvExtension(kv::Tx* t, const ccf::js::NamespaceRestrictions& nr = {});
+    KvExtension(kv::Tx* t, const ccf::js::NamespaceRestriction& nr = {});
     ~KvExtension();
 
     void install(js::core::Context& ctx);

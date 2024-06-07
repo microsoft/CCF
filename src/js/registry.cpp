@@ -101,7 +101,7 @@ namespace ccf::js
     // ccf.kv.*
     local_extensions.emplace_back(
       std::make_shared<ccf::js::extensions::KvExtension>(
-        &endpoint_ctx.tx, restrictions));
+        &endpoint_ctx.tx, namespace_restriction));
 
     // ccf.rpc.*
     local_extensions.emplace_back(
@@ -521,10 +521,10 @@ namespace ccf::js
     });
   }
 
-  void DynamicJSEndpointRegistry::set_js_kv_namespace_restrictions(
-    const ccf::js::NamespaceRestrictions& nr)
+  void DynamicJSEndpointRegistry::set_js_kv_namespace_restriction(
+    const ccf::js::NamespaceRestriction& nr)
   {
-    restrictions = nr;
+    namespace_restriction = nr;
   }
 
   ccf::endpoints::EndpointDefinitionPtr DynamicJSEndpointRegistry::
