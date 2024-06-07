@@ -76,50 +76,6 @@ namespace ccf::js::extensions
       return get_map_handle(jsctx, this_val);
     }
 
-    static std::string exec_level_restriction_explainer(
-      ccf::js::MapAccessPermissions permission, ccf::js::TxAccess access)
-    {
-      char const* table_kind = permission == MapAccessPermissions::READ_ONLY ?
-        "read-only" :
-        "inaccessible";
-
-      char const* exec_context = "unknown";
-      switch (access)
-      {
-        case (TxAccess::APP_RW):
-        {
-          exec_context = "application";
-          break;
-        }
-        case (TxAccess::APP_RO):
-        {
-          exec_context = "read-only application";
-          break;
-        }
-        case (TxAccess::GOV_RO):
-        {
-          exec_context = "read-only governance";
-          break;
-        }
-        case (TxAccess::GOV_RW):
-        {
-          exec_context = "read-write governance";
-          break;
-        }
-      }
-
-      static constexpr char const* access_permissions_explanation_url =
-        "https://microsoft.github.io/CCF/main/audit/"
-        "read_write_restrictions.html";
-
-      return fmt::format(
-        "This table is {} in current ({}) execution context. See {} for more "
-        "detail.",
-        table_kind,
-        exec_context,
-        access_permissions_explanation_url);
-    }
-
     static int js_kv_lookup(
       JSContext* ctx,
       JSPropertyDescriptor* desc,
@@ -140,7 +96,7 @@ namespace ccf::js::extensions
       auto access_permission =
         ccf::js::check_kv_map_access(jsctx.access, map_name);
       std::string explanation =
-        exec_level_restriction_explainer(access_permission, jsctx.access);
+        ccf::js::explain_kv_map_access(access_permission, jsctx.access);
 
       if (extension->namespace_restriction != nullptr)
       {

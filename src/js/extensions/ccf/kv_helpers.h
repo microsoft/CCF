@@ -322,7 +322,7 @@ namespace ccf::js::extensions::kvhelpers
     js::core::Context& ctx,
     const std::string& map_name,
     MapAccessPermissions access_permission,
-    const std::string& permission_explanation = "")
+    const std::string& permission_explanation)
   {
     // This follows the interface of Map:
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
