@@ -520,6 +520,12 @@ namespace ccf::js
     });
   }
 
+  void DynamicJSEndpointRegistry::set_js_kv_namespace_restrictions(
+    const ccf::js::NamespaceRestrictions& nr)
+  {
+    restrictions = nr;
+  }
+
   ccf::endpoints::EndpointDefinitionPtr DynamicJSEndpointRegistry::
     find_endpoint(kv::Tx& tx, ccf::RpcContext& rpc_ctx)
   {

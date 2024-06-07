@@ -7,6 +7,7 @@
 #include "ccf/js/bundle.h"
 #include "ccf/js/core/context.h"
 #include "ccf/js/interpreter_cache_interface.h"
+#include "ccf/js/namespace_restrictions.h"
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"
 
@@ -51,6 +52,8 @@ namespace ccf::js
     std::string modules_quickjs_bytecode_map;
     std::string runtime_options_map;
 
+    ccf::js::NamespaceRestrictions restrictions;
+
     using PreExecutionHook = std::function<void(ccf::js::core::Context&)>;
 
     void do_execute_request(
@@ -78,6 +81,9 @@ namespace ccf::js
      */
     void install_custom_endpoints(
       ccf::endpoints::EndpointContext& ctx, const ccf::js::Bundle& bundle);
+
+    void set_js_kv_namespace_restrictions(
+      const ccf::js::NamespaceRestrictions& restrictions);
 
     /// \defgroup Overrides for base EndpointRegistry functions, looking up JS
     /// endpoints before delegating to base implementation.

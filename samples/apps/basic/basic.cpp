@@ -117,6 +117,24 @@ namespace basicapp
       make_endpoint("/records", HTTP_POST, post, {ccf::user_cert_auth_policy})
         .install();
 
+      // Restrict what KV tables the JS code can access. Here we make the
+      // PRIVATE_RECORDS table, written by the hardcoded C++ endpoints,
+      // read-only for JS code. Additionally, we reserve any table beginning
+      // with "basic." (public or private) as inaccessible for the JS code, in
+      // case we want to use it for the C++ app in future.
+      ccf::js::NamespaceRestriction private_records_is_read_only{
+        std::regex(PRIVATE_RECORDS), ccf::js::MapAccessPermissions::READ_ONLY};
+      ccf::js::NamespaceRestriction reserve_basic_tables_public{
+        std::regex(R"(public:basic\..*)"),
+        ccf::js::MapAccessPermissions::ILLEGAL};
+      ccf::js::NamespaceRestriction reserve_basic_tables_private{
+        std::regex(R"(basic\..*)"), ccf::js::MapAccessPermissions::ILLEGAL};
+      ccf::js::NamespaceRestrictions restrictions{
+        private_records_is_read_only,
+        reserve_basic_tables_public,
+        reserve_basic_tables_private};
+      set_js_kv_namespace_restrictions(restrictions);
+
       auto put_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
         const auto& caller_identity =
           ctx.template get_caller<ccf::UserCOSESign1AuthnIdentity>();
