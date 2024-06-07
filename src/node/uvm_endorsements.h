@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/base64.h"
 #include "ccf/ds/json.h"
+#include "ccf/pal/measurement.h"
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "node/cose_common.h"
@@ -248,10 +249,10 @@ namespace ccf
   }
 
   static std::span<const uint8_t> verify_uvm_endorsements_signature(
-    const crypto::RSAPublicKeyPtr& leef_cert_pub_key,
+    const crypto::RSAPublicKeyPtr& leaf_cert_pub_key,
     const std::vector<uint8_t>& uvm_endorsements_raw)
   {
-    auto verifier = crypto::make_cose_verifier(leef_cert_pub_key);
+    auto verifier = crypto::make_cose_verifier(leaf_cert_pub_key);
 
     std::span<uint8_t> payload;
     if (!verifier->verify(uvm_endorsements_raw, payload))
