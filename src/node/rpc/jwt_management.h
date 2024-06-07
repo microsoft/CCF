@@ -42,7 +42,7 @@ namespace ccf
       });
   }
 
-  static bool check_issuer(
+  static bool check_issuer_constraint(
     const std::string& issuer, const std::string& constraint)
   {
     // Only accept key constraints for the same (sub)domain. This is to avoid
@@ -60,6 +60,10 @@ namespace ccf
     // Either constraint's domain == issuer's domain or it is a subdomain, e.g.:
     // limited.facebook.com
     //        .facebook.com
+    //
+    // It may make sense to support vice-versa too, but we haven't found any
+    // instances of that so far, so leaveing it only-way only for facebook-like
+    // cases.
     if (issuer_domain != constraint_domain)
     {
       const auto pattern = "." + constraint_domain;
@@ -253,7 +257,7 @@ namespace ccf
 
       if (jwk.issuer)
       {
-        if (!check_issuer(issuer, *jwk.issuer))
+        if (!check_issuer_constraint(issuer, *jwk.issuer))
         {
           LOG_FAIL_FMT(
             "{}: JWKS kid {} with issuer constraint {} fails validation "
