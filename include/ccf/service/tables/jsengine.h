@@ -38,14 +38,82 @@ namespace ccf
     size_t max_cached_interpreters = Defaults::max_cached_interpreters;
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JSRuntimeOptions)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    JSRuntimeOptions, max_heap_bytes, max_stack_bytes, max_execution_time_ms)
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    JSRuntimeOptions,
-    log_exception_details,
-    return_exception_details,
-    max_cached_interpreters);
+  // Manually implemented to_json and from_json, so that we are maximally
+  // permissive in deserialisation (use defaults), but maximally verbose in
+  // serialisation (describe all fields)
+  inline void to_json(nlohmann::json& j, const JSRuntimeOptions& options)
+  {
+    j = nlohmann::json::object();
+    j["max_heap_bytes"] = options.max_heap_bytes;
+    j["max_stack_bytes"] = options.max_stack_bytes;
+    j["max_execution_time_ms"] = options.max_execution_time_ms;
+    j["log_exception_details"] = options.log_exception_details;
+    j["return_exception_details"] = options.return_exception_details;
+    j["max_cached_interpreters"] = options.max_cached_interpreters;
+  }
+
+  inline void from_json(const nlohmann::json& j, JSRuntimeOptions& options)
+  {
+    {
+      const auto it = j.find("max_heap_bytes");
+      if (it != j.end())
+      {
+        options.max_heap_bytes =
+          it->get<decltype(JSRuntimeOptions::max_heap_bytes)>();
+      }
+    }
+
+    {
+      const auto it = j.find("max_stack_bytes");
+      if (it != j.end())
+      {
+        options.max_stack_bytes =
+          it->get<decltype(JSRuntimeOptions::max_stack_bytes)>();
+      }
+    }
+    {
+      const auto it = j.find("max_execution_time_ms");
+      if (it != j.end())
+      {
+        options.max_execution_time_ms =
+          it->get<decltype(JSRuntimeOptions::max_execution_time_ms)>();
+      }
+    }
+    {
+      const auto it = j.find("log_exception_details");
+      if (it != j.end())
+      {
+        options.log_exception_details =
+          it->get<decltype(JSRuntimeOptions::log_exception_details)>();
+      }
+    }
+    {
+      const auto it = j.find("return_exception_details");
+      if (it != j.end())
+      {
+        options.return_exception_details =
+          it->get<decltype(JSRuntimeOptions::return_exception_details)>();
+      }
+    }
+    {
+      const auto it = j.find("max_cached_interpreters");
+      if (it != j.end())
+      {
+        options.max_cached_interpreters =
+          it->get<decltype(JSRuntimeOptions::max_cached_interpreters)>();
+      }
+    }
+  }
+
+  inline std::string schema_name(const JSRuntimeOptions*)
+  {
+    return "JSRuntimeOptions";
+  }
+
+  inline void fill_json_schema(nlohmann::json& schema, const JSRuntimeOptions*)
+  {
+    // TODO
+  }
 
   using JSEngine = ServiceValue<JSRuntimeOptions>;
 

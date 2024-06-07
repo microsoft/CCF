@@ -541,13 +541,10 @@ namespace ccf::js
   {
     try
     {
-      auto options_opt = tx.ro<ccf::JSEngine>(runtime_options_map)->get();
-      if (!options_opt.has_value())
-      {
-        return ccf::ApiResult::NotFound;
-      }
+      options = tx.ro<ccf::JSEngine>(runtime_options_map)
+                  ->get()
+                  .value_or(ccf::JSRuntimeOptions());
 
-      options = options_opt.value();
       return ccf::ApiResult::OK;
     }
     catch (const std::exception& e)

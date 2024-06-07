@@ -80,16 +80,16 @@ namespace ccf::js
       ccf::endpoints::EndpointContext& ctx, const ccf::js::Bundle& bundle);
 
     /**
-     * Set options to control JS execution. Note that some hard limits may be
-     * applied to bound any values specified here.
+     * Set options to control JS execution. Some hard limits may be applied to
+     * bound any values specified here.
      */
     ccf::ApiResult set_js_runtime_options_v1(
       kv::Tx& tx, const ccf::JSRuntimeOptions& options);
 
     /**
-     * Get the options which currently control JS execution. Note that if no
-     * value has been populated in the KV, this will return NotFound, but some
-     * default runtime limits may still be used.
+     * Get the options which currently control JS execution. If no value has
+     * been populated in the KV, this will return the default runtime options
+     * which will be applied instead.
      */
     ccf::ApiResult get_js_runtime_options_v1(
       ccf::JSRuntimeOptions& options, kv::ReadOnlyTx& tx);
