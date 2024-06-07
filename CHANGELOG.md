@@ -15,7 +15,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 
-- Removed unused `openenclave.verifyOpenEnclaveEvidence` API from JS/TS.
+- Removed unused `openenclave.verifyOpenEnclaveEvidence` API from JS/TS
+
+### Changed
+
+- Added token.iss claim validation to JWT authentication, as well as saving issuer constraint to the KV on hey-autorefresh (#5809).
 
 ## [5.0.0-dev17]
 
