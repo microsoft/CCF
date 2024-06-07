@@ -173,9 +173,9 @@ def run(args):
 
         network = test_custom_endpoints(network, args)
 
-        # network = npm_tests.build_npm_app(network, args)
-        # network = deploy_npm_app_custom(network, args)
-        # network = npm_tests.test_npm_app(network, args)
+        network = npm_tests.build_npm_app(network, args)
+        network = deploy_npm_app_custom(network, args)
+        network = npm_tests.test_npm_app(network, args)
 
 
 if __name__ == "__main__":
