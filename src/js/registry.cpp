@@ -520,6 +520,42 @@ namespace ccf::js
     });
   }
 
+  ccf::ApiResult DynamicJSEndpointRegistry::set_js_runtime_options_v1(
+    kv::Tx& tx, const ccf::JSRuntimeOptions& options)
+  {
+    try
+    {
+      // TODO: Any validation to add here? Exec time shouldn't exceed consensus
+      // election time?
+      tx.wo<ccf::JSEngine>(runtime_options_map)->put(options);
+      return ccf::ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      return ccf::ApiResult::InternalError;
+    }
+  }
+
+  ccf::ApiResult DynamicJSEndpointRegistry::get_js_runtime_options_v1(
+    ccf::JSRuntimeOptions& options, kv::ReadOnlyTx& tx)
+  {
+    try
+    {
+      auto options_opt = tx.ro<ccf::JSEngine>(runtime_options_map)->get();
+      if (!options_opt.has_value())
+      {
+        return ccf::ApiResult::NotFound;
+      }
+
+      options = options_opt.value();
+      return ccf::ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      return ccf::ApiResult::InternalError;
+    }
+  }
+
   ccf::endpoints::EndpointDefinitionPtr DynamicJSEndpointRegistry::
     find_endpoint(kv::Tx& tx, ccf::RpcContext& rpc_ctx)
   {

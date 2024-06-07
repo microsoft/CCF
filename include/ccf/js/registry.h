@@ -79,6 +79,21 @@ namespace ccf::js
     void install_custom_endpoints(
       ccf::endpoints::EndpointContext& ctx, const ccf::js::Bundle& bundle);
 
+    /**
+     * Set options to control JS execution. Note that some hard limits may be
+     * applied to bound any values specified here.
+     */
+    ccf::ApiResult set_js_runtime_options_v1(
+      kv::Tx& tx, const ccf::JSRuntimeOptions& options);
+
+    /**
+     * Get the options which currently control JS execution. Note that if no
+     * value has been populated in the KV, this will return NotFound, but some
+     * default runtime limits may still be used.
+     */
+    ccf::ApiResult get_js_runtime_options_v1(
+      ccf::JSRuntimeOptions& options, kv::ReadOnlyTx& tx);
+
     /// \defgroup Overrides for base EndpointRegistry functions, looking up JS
     /// endpoints before delegating to base implementation.
     ///@{
