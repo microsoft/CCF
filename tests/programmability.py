@@ -192,6 +192,28 @@ def test_custom_endpoints_kv_restrictions(network, args):
         r = c.post("/app/try_write", {"table": "public:basic.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
+        LOG.info("Cannot grant access to gov/internal tables")
+        r = c.post("/app/try_read", {"table": "public:ccf.gov.foo"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+        r = c.post("/app/try_write", {"table": "public:ccf.gov.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        r = c.post("/app/try_read", {"table": "public:ccf.internal.foo"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+        r = c.post("/app/try_write", {"table": "public:ccf.internal.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        LOG.info("Cannot grant access to (hypothetical) private gov/internal tables")
+        r = c.post("/app/try_read", {"table": "ccf.gov.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+        r = c.post("/app/try_write", {"table": "ccf.gov.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        r = c.post("/app/try_read", {"table": "ccf.internal.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+        r = c.post("/app/try_write", {"table": "ccf.internal.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
 
 def test_custom_role_definitions(network, args):
     primary, _ = network.find_primary()
