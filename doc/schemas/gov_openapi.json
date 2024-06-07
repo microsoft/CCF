@@ -415,30 +415,6 @@
         },
         "type": "array"
       },
-      "OpenIDJWKMetadata": {
-        "properties": {
-          "cert": {
-            "$ref": "#/components/schemas/base64string"
-          },
-          "constraint": {
-            "$ref": "#/components/schemas/string"
-          },
-          "issuer": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "cert",
-          "issuer"
-        ],
-        "type": "object"
-      },
-      "OpenIDJWKMetadata_array": {
-        "items": {
-          "$ref": "#/components/schemas/OpenIDJWKMetadata"
-        },
-        "type": "array"
-      },
       "MDType": {
         "enum": [
           "NONE",
@@ -892,6 +868,30 @@
           "Retired"
         ],
         "type": "string"
+      },
+      "OpenIDJWKMetadata": {
+        "properties": {
+          "cert": {
+            "$ref": "#/components/schemas/base64string"
+          },
+          "constraint": {
+            "$ref": "#/components/schemas/string"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "cert",
+          "issuer"
+        ],
+        "type": "object"
+      },
+      "OpenIDJWKMetadata_array": {
+        "items": {
+          "$ref": "#/components/schemas/OpenIDJWKMetadata"
+        },
+        "type": "array"
       },
       "Pem": {
         "type": "string"
