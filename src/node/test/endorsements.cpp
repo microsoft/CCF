@@ -24,6 +24,13 @@ TEST_CASE("Check RSA Production endorsement")
   ccf::pal::PlatformAttestationMeasurement uvm_measurement(measurement);
   auto endorsements =
     ccf::verify_uvm_endorsements(endorsement, uvm_measurement);
+  REQUIRE(
+    endorsements ==
+    ccf::UVMEndorsements{
+      "did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3."
+      "6.1.4.1.311.76.59.1.2",
+      "ContainerPlat-AMD-UVM",
+      "100"});
 }
 
 TEST_CASE("Check ECDSA Test endorsement")
@@ -38,8 +45,24 @@ TEST_CASE("Check ECDSA Test endorsement")
     "5a84c66e9c8dd1a991e6d8b43a8aaae488940f87ce25ef6a62ad180cc3c73554ed7e4ccd10"
     "13456602758778d9d65c48");
   ccf::pal::PlatformAttestationMeasurement uvm_measurement(measurement);
-  auto endorsements =
-    ccf::verify_uvm_endorsements(endorsement, uvm_measurement);
+  REQUIRE_THROWS_WITH_AS(
+    ccf::verify_uvm_endorsements(endorsement, uvm_measurement),
+    "UVM endorsements did "
+    "did:x509:0:sha256:VFsRLNBh5Zy1HRtVl2IIXAl0lUs-xobEbskZ3XRDpCY::subject:CN:"
+    "Test%20Leaf%20%28DO%20NOT%20TRUST%29, feed ConfAKS-AMD-UVM-Test, svn 0 do "
+    "not match any of the known UVM roots of trust",
+    std::logic_error);
+
+  std::vector<ccf::UVMEndorsements> custom_roots_of_trust = {
+    ccf::UVMEndorsements{
+      "did:x509:0:sha256:VFsRLNBh5Zy1HRtVl2IIXAl0lUs-xobEbskZ3XRDpCY::subject:"
+      "CN:Test%20Leaf%20%28DO%20NOT%20TRUST%29",
+      "ConfAKS-AMD-UVM-Test",
+      "0"}};
+
+  auto endorsements = ccf::verify_uvm_endorsements(
+    endorsement, uvm_measurement, custom_roots_of_trust);
+  REQUIRE(endorsements == custom_roots_of_trust[0]);
 }
 
 int main(int argc, char** argv)

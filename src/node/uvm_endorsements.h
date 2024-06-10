@@ -53,19 +53,21 @@ namespace ccf
   };
 
   // Roots of trust for UVM endorsements/measurement in AMD SEV-SNP attestations
-  static std::vector<UVMEndorsements> uvm_roots_of_trust = {
+  static std::vector<UVMEndorsements> default_uvm_roots_of_trust = {
     // Confidential Azure Kubertnetes Service (AKS)
     {"did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
      "1.4.1.311.76.59.1.2",
      "ContainerPlat-AMD-UVM",
-     "0"},
+     "100"},
     // Confidential Azure Container Instances (ACI)
     {"did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
      "1.4.1.311.76.59.1.5",
      "ConfAKS-AMD-UVM",
      "0"}};
 
-  bool inline matches_uvm_roots_of_trust(const UVMEndorsements& endorsements)
+  bool inline matches_uvm_roots_of_trust(
+    const UVMEndorsements& endorsements,
+    const std::vector<UVMEndorsements>& uvm_roots_of_trust)
   {
     for (const auto& uvm_root_of_trust : uvm_roots_of_trust)
     {
@@ -265,7 +267,9 @@ namespace ccf
 
   static UVMEndorsements verify_uvm_endorsements(
     const std::vector<uint8_t>& uvm_endorsements_raw,
-    const pal::PlatformAttestationMeasurement& uvm_measurement)
+    const pal::PlatformAttestationMeasurement& uvm_measurement,
+    const std::vector<UVMEndorsements>& uvm_roots_of_trust =
+      default_uvm_roots_of_trust)
   {
     auto phdr = cose::decode_protected_header(uvm_endorsements_raw);
 
@@ -362,7 +366,7 @@ namespace ccf
 
     UVMEndorsements end{did, phdr.feed, payload.sevsnpvm_guest_svn};
 
-    if (!matches_uvm_roots_of_trust(end))
+    if (!matches_uvm_roots_of_trust(end, uvm_roots_of_trust))
     {
       throw std::logic_error(fmt::format(
         "UVM endorsements did {}, feed {}, svn {} "
