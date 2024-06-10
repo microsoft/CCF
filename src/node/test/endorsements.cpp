@@ -18,7 +18,9 @@ TEST_CASE("Check RSA Production endorsement")
   auto endorsement = files::slurp(fmt::format("{}/rsa_test1.cose", end_path));
   REQUIRE(!endorsement.empty());
 
-  ccf::pal::SnpAttestationMeasurement measurement("02c3b0d5bf1d256fa4e3b5deefc07b55ff2f7029085ed350f60959140a1a51f1310753ba5ab2c03a0536b1c0c193af47");
+  ccf::pal::SnpAttestationMeasurement measurement(
+    "02c3b0d5bf1d256fa4e3b5deefc07b55ff2f7029085ed350f60959140a1a51f1310753ba5a"
+    "b2c03a0536b1c0c193af47");
   ccf::pal::PlatformAttestationMeasurement uvm_measurement(measurement);
   auto endorsements =
     ccf::verify_uvm_endorsements(endorsement, uvm_measurement);
@@ -32,7 +34,9 @@ TEST_CASE("Check ECDSA Test endorsement")
   auto endorsement = files::slurp(fmt::format("{}/ecdsa_test1.cose", end_path));
   REQUIRE(!endorsement.empty());
 
-  ccf::pal::SnpAttestationMeasurement measurement("5a84c66e9c8dd1a991e6d8b43a8aaae488940f87ce25ef6a62ad180cc3c73554ed7e4ccd1013456602758778d9d65c48");
+  ccf::pal::SnpAttestationMeasurement measurement(
+    "5a84c66e9c8dd1a991e6d8b43a8aaae488940f87ce25ef6a62ad180cc3c73554ed7e4ccd10"
+    "13456602758778d9d65c48");
   ccf::pal::PlatformAttestationMeasurement uvm_measurement(measurement);
   auto endorsements =
     ccf::verify_uvm_endorsements(endorsement, uvm_measurement);

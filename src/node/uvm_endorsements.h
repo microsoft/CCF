@@ -269,10 +269,10 @@ namespace ccf
   {
     auto phdr = cose::decode_protected_header(uvm_endorsements_raw);
 
-    if (!cose::is_rsa_alg(phdr.alg))
+    if (!(cose::is_rsa_alg(phdr.alg) || cose::is_ecdsa_alg(phdr.alg)))
     {
-      throw std::logic_error(
-        fmt::format("Signature algorithm {} is not expected RSA", phdr.alg));
+      throw std::logic_error(fmt::format(
+        "Signature algorithm {} is not one of expected: RSA, ECDSA", phdr.alg));
     }
 
     std::string pem_chain;
@@ -298,9 +298,28 @@ namespace ccf
     {
       if (vm.controller == did && vm.public_key_jwk.has_value())
       {
-        auto rsa_jwk = vm.public_key_jwk->get<crypto::JsonWebKeyRSAPublic>();
-        pubk = crypto::make_rsa_public_key(rsa_jwk)->public_key_pem();
-        break;
+        auto jwk = vm.public_key_jwk.value().get<crypto::JsonWebKey>();
+        switch (jwk.kty)
+        {
+          case crypto::JsonWebKeyType::RSA:
+          {
+            auto rsa_jwk =
+              vm.public_key_jwk->get<crypto::JsonWebKeyRSAPublic>();
+            pubk = crypto::make_rsa_public_key(rsa_jwk)->public_key_pem();
+            break;
+          }
+          case crypto::JsonWebKeyType::EC:
+          {
+            auto ec_jwk = vm.public_key_jwk->get<crypto::JsonWebKeyECPublic>();
+            pubk = crypto::make_public_key(ec_jwk)->public_key_pem();
+            break;
+          }
+          default:
+          {
+            throw std::logic_error(fmt::format(
+              "Unsupported public key type ({}) for DID {}", jwk.kty, did));
+          }
+        }
       }
     }
 
