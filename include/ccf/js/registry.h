@@ -76,8 +76,32 @@ namespace ccf::js
      * Call this to populate the KV with JS endpoint definitions, so they can
      * later be dispatched to.
      */
-    void install_custom_endpoints(
-      ccf::endpoints::EndpointContext& ctx, const ccf::js::Bundle& bundle);
+    ccf::ApiResult install_custom_endpoints_v1(
+      kv::Tx& tx, const ccf::js::Bundle& bundle);
+
+    /**
+     * Retrieve all endpoint definitions currently in-use. This returns the same
+     * bundle written by a recent call to install_custom_endpoints. Note that
+     * some values (module paths, casing of HTTP methods) may differ slightly
+     * due to internal normalisation.
+     */
+    ccf::ApiResult get_custom_endpoints_v1(
+      ccf::js::Bundle& bundle, kv::ReadOnlyTx& tx);
+
+    /**
+     * Retrieve property definition for a single JS endpoint.
+     */
+    ccf::ApiResult get_custom_endpoint_properties_v1(
+      ccf::endpoints::EndpointProperties& properties,
+      kv::ReadOnlyTx& tx,
+      const ccf::RESTVerb& verb,
+      const ccf::endpoints::URI& uri);
+
+    /**
+     * Retrieve content of a single JS module.
+     */
+    ccf::ApiResult get_custom_endpoint_module_v1(
+      std::string& code, kv::ReadOnlyTx& tx, const std::string& module_name);
 
     /**
      * Set options to control JS execution. Some hard limits may be applied to

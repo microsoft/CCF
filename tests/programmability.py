@@ -16,13 +16,21 @@ import npm_tests
 from loguru import logger as LOG
 
 TESTJS = """
+import { foo } from "./bar/baz.js";
+
 export function content(request) {
     return {
         statusCode: 200,
         body: {
-        payload: "Test content",
+            payload: foo(),
         },
     };
+}
+"""
+
+FOOJS = """
+export function foo() {
+    return "Test content";
 }
 """
 
@@ -77,7 +85,10 @@ def test_custom_endpoints(network, args):
         }
     }
 
-    modules = [{"name": "test.js", "module": TESTJS}]
+    modules = [
+        {"name": "test.js", "module": TESTJS},
+        {"name": "bar/baz.js", "module": FOOJS},
+    ]
 
     bundle_with_content = {
         "metadata": {"endpoints": {"/content": content_endpoint_def}},
@@ -89,9 +100,45 @@ def test_custom_endpoints(network, args):
         "modules": modules,
     }
 
+    def upper_cased_keys(obj):
+        return {k.upper(): v for k, v in obj.items()}
+
+    def prefixed_module_name(module_def):
+        if module_def["name"].startswith("/"):
+            return module_def
+        else:
+            return {**module_def, "name": f"/{module_def['name']}"}
+
+    def same_modulo_normalisation(expected, actual):
+        # Normalise expected (in the same way that CCF will) so we can do direct comparison
+        expected["metadata"]["endpoints"] = {
+            path: upper_cased_keys(op)
+            for path, op in expected["metadata"]["endpoints"].items()
+        }
+        expected["modules"] = [
+            prefixed_module_name(module_def) for module_def in expected["modules"]
+        ]
+        return expected == actual
+
+    def test_getters(c, expected_body):
+        r = c.get("/app/custom_endpoints")
+        assert r.status_code == http.HTTPStatus.OK, r
+        assert same_modulo_normalisation(
+            expected_body, r.body.json()
+        ), f"Expected:\n{expected_body}\n\n\nActual:\n{r.body.json()}"
+
+        for module_def in modules:
+            r = c.get(f"/app/custom_endpoints/modules?module_name={module_def['name']}")
+            assert r.status_code == http.HTTPStatus.OK, r
+            assert (
+                r.body.text() == module_def["module"]
+            ), f"Expected:\n{module_def['module']}\n\n\nActual:\n{r.body.text()}"
+
     with primary.client(None, None, user.local_id) as c:
         r = c.put("/app/custom_endpoints", body=bundle_with_content)
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
+        test_getters(c, bundle_with_content)
 
     with primary.client() as c:
         r = c.get("/app/not_content")
@@ -104,6 +151,8 @@ def test_custom_endpoints(network, args):
     with primary.client(None, None, user.local_id) as c:
         r = c.put("/app/custom_endpoints", body=bundle_with_other_content)
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
+        test_getters(c, bundle_with_other_content)
 
     with primary.client() as c:
         r = c.get("/app/other_content")
