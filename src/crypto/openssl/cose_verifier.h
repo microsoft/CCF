@@ -15,15 +15,25 @@ namespace crypto
 {
   class COSEVerifier_OpenSSL : public COSEVerifier
   {
-  private:
+  protected:
     std::shared_ptr<PublicKey_OpenSSL> public_key;
 
   public:
-    COSEVerifier_OpenSSL(const std::vector<uint8_t>& certificate);
-    COSEVerifier_OpenSSL(const RSAPublicKeyPtr& pubk_ptr);
     virtual ~COSEVerifier_OpenSSL() override;
     virtual bool verify(
       const std::span<const uint8_t>& buf,
       std::span<uint8_t>& authned_content) const override;
+  };
+
+  class COSECertVerifier_OpenSSL : public COSEVerifier_OpenSSL
+  {
+  public:
+    COSECertVerifier_OpenSSL(const std::vector<uint8_t>& certificate);
+  };
+
+  class COSEKeyVerifier_OpenSSL : public COSEVerifier_OpenSSL
+  {
+  public:
+    COSEKeyVerifier_OpenSSL(const std::vector<uint8_t>& public_key);
   };
 }

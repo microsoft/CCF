@@ -252,7 +252,8 @@ namespace ccf
     const crypto::RSAPublicKeyPtr& leaf_cert_pub_key,
     const std::vector<uint8_t>& uvm_endorsements_raw)
   {
-    auto verifier = crypto::make_cose_verifier(leaf_cert_pub_key);
+    auto verifier = crypto::make_cose_verifier_from_key(
+      leaf_cert_pub_key->public_key_pem().raw());
 
     std::span<uint8_t> payload;
     if (!verifier->verify(uvm_endorsements_raw, payload))
@@ -298,7 +299,8 @@ namespace ccf
     {
       if (vm.controller == did && vm.public_key_jwk.has_value())
       {
-        pubk = crypto::make_rsa_public_key(vm.public_key_jwk.value());
+        auto rsa_jwk = vm.public_key_jwk->get<crypto::JsonWebKeyRSAPublic>();
+        pubk = crypto::make_rsa_public_key(rsa_jwk);
         break;
       }
     }
