@@ -27,12 +27,12 @@ namespace ccf::js::extensions::kvhelpers
     { \
       return JS_ThrowTypeError(ctx, "Internal: No map name stored on handle"); \
     } \
-    const auto func = JS_GetPropertyStr(jsctx, this_val, JS_METHOD_NAME); \
+    auto func = jsctx.get_property(this_val, JS_METHOD_NAME); \
     std::string explanation; \
-    const auto error_msg = JS_GetPropertyStr(jsctx, func, "_error_msg"); \
-    if (!JS_IsUndefined(error_msg)) \
+    auto error_msg = func["_error_msg"]; \
+    if (!error_msg.is_undefined()) \
     { \
-      explanation = JS_ToCString(jsctx, error_msg); \
+      explanation = jsctx.to_str(error_msg).value_or(""); \
     } \
     return JS_ThrowTypeError( \
       ctx, \
