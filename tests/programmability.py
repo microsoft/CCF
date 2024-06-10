@@ -165,6 +165,73 @@ def test_custom_endpoints(network, args):
     return network
 
 
+def test_custom_endpoints_js_options(network, args):
+    primary, _ = network.find_primary()
+
+    # Make user0 admin, so it can install custom endpoints
+    user = network.users[0]
+    network.consortium.set_user_data(
+        primary, user.service_id, user_data={"isAdmin": True}
+    )
+
+    def test_options_patch(c, **kwargs):
+        r = c.call(
+            "/app/custom_endpoints/runtime_options", {**kwargs}, http_verb="PATCH"
+        )
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+        new_options = r.body.json()
+
+        # Check get returns same updated options
+        get_r = c.get("/app/custom_endpoints/runtime_options")
+        assert get_r.status_code == http.HTTPStatus.OK.value, get_r.status_code
+        get_options = get_r.body.json()
+
+        assert new_options == get_options, f"{new_options} != {get_options}"
+        return new_options
+
+    with primary.client(None, None, user.local_id) as c:
+        r = c.get("/app/custom_endpoints/runtime_options")
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+
+        defaults = r.body.json()
+
+        same = test_options_patch(c)
+        assert same == defaults
+
+        reduced_heap = test_options_patch(c, max_heap_bytes=42)
+        assert reduced_heap == {**defaults, "max_heap_bytes": 42}
+
+        multiple_changes = test_options_patch(
+            c, max_execution_time_ms=5000, max_cached_interpreters=15
+        )
+        assert multiple_changes == {
+            **defaults,
+            "max_heap_bytes": 42,
+            "max_execution_time_ms": 5000,
+            "max_cached_interpreters": 15,
+        }
+
+        assign_and_reset = test_options_patch(
+            c, return_exception_details=True, max_execution_time_ms=None
+        )
+        assert assign_and_reset == {
+            **defaults,
+            "max_heap_bytes": 42,
+            "max_cached_interpreters": 15,
+            "return_exception_details": True,
+        }
+
+        reset_all = test_options_patch(
+            c,
+            max_cached_interpreters=None,
+            return_exception_details=None,
+            max_heap_bytes=None,
+        )
+        assert reset_all == defaults
+
+    return network
+
+
 def test_custom_role_definitions(network, args):
     primary, _ = network.find_primary()
     member = network.consortium.get_any_active_member()

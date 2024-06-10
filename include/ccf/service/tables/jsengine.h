@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/ds/openapi.h"
 #include "ccf/service/map.h"
 
 namespace ccf
@@ -38,14 +39,69 @@ namespace ccf
     size_t max_cached_interpreters = Defaults::max_cached_interpreters;
   };
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JSRuntimeOptions)
-  DECLARE_JSON_REQUIRED_FIELDS(
-    JSRuntimeOptions, max_heap_bytes, max_stack_bytes, max_execution_time_ms)
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    JSRuntimeOptions,
-    log_exception_details,
-    return_exception_details,
-    max_cached_interpreters);
+#define FOREACH_JSENGINE_FIELD(XX) \
+  XX(max_heap_bytes, decltype(JSRuntimeOptions::max_heap_bytes)) \
+  XX(max_stack_bytes, decltype(JSRuntimeOptions::max_stack_bytes)) \
+  XX(max_execution_time_ms, decltype(JSRuntimeOptions::max_execution_time_ms)) \
+  XX(log_exception_details, decltype(JSRuntimeOptions::log_exception_details)) \
+  XX( \
+    return_exception_details, \
+    decltype(JSRuntimeOptions::return_exception_details)) \
+  XX( \
+    max_cached_interpreters, \
+    decltype(JSRuntimeOptions::max_cached_interpreters))
+
+  // Manually implemented to_json and from_json, so that we are maximally
+  // permissive in deserialisation (use defaults), but maximally verbose in
+  // serialisation (describe all fields)
+  inline void to_json(nlohmann::json& j, const JSRuntimeOptions& options)
+  {
+    j = nlohmann::json::object();
+#define XX(field, field_type) j[#field] = options.field;
+
+    FOREACH_JSENGINE_FIELD(XX)
+#undef XX
+  }
+
+  inline void from_json(const nlohmann::json& j, JSRuntimeOptions& options)
+  {
+#define XX(field, field_type) \
+  { \
+    const auto it = j.find(#field); \
+    if (it != j.end()) \
+    { \
+      options.field = it->get<field_type>(); \
+    } \
+  }
+
+    FOREACH_JSENGINE_FIELD(XX)
+#undef XX
+  }
+
+  inline std::string schema_name(const JSRuntimeOptions*)
+  {
+    return "JSRuntimeOptions";
+  }
+
+  inline void fill_json_schema(nlohmann::json& schema, const JSRuntimeOptions*)
+  {
+    schema = nlohmann::json::object();
+    schema["type"] = "object";
+
+    auto properties = nlohmann::json::object();
+    {
+#define XX(field, field_type) \
+  properties[#field] = \
+    ds::openapi::components_ref_object(ds::json::schema_name<field_type>());
+
+      FOREACH_JSENGINE_FIELD(XX)
+#undef XX
+    }
+
+    schema["properties"] = properties;
+  }
+
+#undef FOREACH_JSENGINE_FIELD
 
   using JSEngine = ServiceValue<JSRuntimeOptions>;
 
