@@ -156,7 +156,18 @@ namespace basicapp
           caller_identity.content.begin(), caller_identity.content.end());
         const auto wrapper = j.get<ccf::js::Bundle>();
 
-        install_custom_endpoints(ctx, wrapper);
+        result = install_custom_endpoints_v1(ctx.tx, wrapper);
+        if (result != ccf::ApiResult::OK)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to install endpoints: {}",
+              ccf::api_result_to_str(result)));
+          return;
+        }
+
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_NO_CONTENT);
       };
 
@@ -166,6 +177,190 @@ namespace basicapp
         put_custom_endpoints,
         {ccf::user_cose_sign1_auth_policy})
         .set_auto_schema<ccf::js::Bundle, void>()
+        .install();
+
+      auto get_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
+        ccf::js::Bundle bundle;
+
+        auto result = get_custom_endpoints_v1(bundle, ctx.tx);
+        if (result != ccf::ApiResult::OK)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to get endpoints: {}", ccf::api_result_to_str(result)));
+          return;
+        }
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ctx.rpc_ctx->set_response_body(nlohmann::json(bundle).dump(2));
+      };
+
+      make_endpoint(
+        "/custom_endpoints",
+        HTTP_GET,
+        get_custom_endpoints,
+        {ccf::empty_auth_policy})
+        .set_auto_schema<void, ccf::js::Bundle>()
+        .install();
+
+      auto get_custom_endpoints_module =
+        [this](ccf::endpoints::EndpointContext& ctx) {
+          std::string module_name;
+
+          {
+            const auto parsed_query =
+              http::parse_query(ctx.rpc_ctx->get_request_query());
+
+            std::string error;
+            if (!http::get_query_value(
+                  parsed_query, "module_name", module_name, error))
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidQueryParameterValue,
+                std::move(error));
+              return;
+            }
+          }
+
+          std::string code;
+
+          auto result =
+            get_custom_endpoint_module_v1(code, ctx.tx, module_name);
+          if (result != ccf::ApiResult::OK)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "Failed to get module: {}", ccf::api_result_to_str(result)));
+            return;
+          }
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE,
+            http::headervalues::contenttype::JAVASCRIPT);
+          ctx.rpc_ctx->set_response_body(std::move(code));
+        };
+
+      make_endpoint(
+        "/custom_endpoints/modules",
+        HTTP_GET,
+        get_custom_endpoints_module,
+        {ccf::empty_auth_policy})
+        .add_query_parameter<std::string>("module_name")
+        .install();
+
+      auto patch_runtime_options =
+        [this](ccf::endpoints::EndpointContext& ctx) {
+          const auto& caller_identity =
+            ctx.template get_caller<ccf::UserCOSESign1AuthnIdentity>();
+
+          // Authorization Check
+          nlohmann::json user_data = nullptr;
+          auto result =
+            get_user_data_v1(ctx.tx, caller_identity.user_id, user_data);
+          if (result == ccf::ApiResult::InternalError)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "Failed to get user data for user {}: {}",
+                caller_identity.user_id,
+                ccf::api_result_to_str(result)));
+            return;
+          }
+          const auto is_admin_it = user_data.find("isAdmin");
+
+          // Not every user gets to define custom endpoints, only users with
+          // isAdmin
+          if (
+            !user_data.is_object() || is_admin_it == user_data.end() ||
+            !is_admin_it.value().get<bool>())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Only admins may access this endpoint.");
+            return;
+          }
+          // End of Authorization Check
+
+          // Implement patch semantics.
+          // - Fetch current options
+          ccf::JSRuntimeOptions options;
+          get_js_runtime_options_v1(options, ctx.tx);
+
+          // - Convert current options to JSON
+          auto j_options = nlohmann::json(options);
+
+          // - Parse argument as JSON body
+          const auto arg_body = nlohmann::json::parse(
+            caller_identity.content.begin(), caller_identity.content.end());
+
+          // - Merge, to overwrite current options with anything from body. Note
+          // that nulls mean deletions, which results in resetting to a default
+          // value
+          j_options.merge_patch(arg_body);
+
+          // - Parse patched options from JSON
+          options = j_options.get<ccf::JSRuntimeOptions>();
+
+          result = set_js_runtime_options_v1(ctx.tx, options);
+          if (result != ccf::ApiResult::OK)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "Failed to set options: {}", ccf::api_result_to_str(result)));
+            return;
+          }
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(nlohmann::json(options).dump(2));
+        };
+      make_endpoint(
+        "/custom_endpoints/runtime_options",
+        HTTP_PATCH,
+        patch_runtime_options,
+        {ccf::user_cose_sign1_auth_policy})
+        .install();
+
+      auto get_runtime_options = [this](ccf::endpoints::EndpointContext& ctx) {
+        ccf::JSRuntimeOptions options;
+
+        auto result = get_js_runtime_options_v1(options, ctx.tx);
+        if (result != ccf::ApiResult::OK)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to get runtime options: {}",
+              ccf::api_result_to_str(result)));
+          return;
+        }
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ctx.rpc_ctx->set_response_body(nlohmann::json(options).dump(2));
+      };
+      make_endpoint(
+        "/custom_endpoints/runtime_options",
+        HTTP_GET,
+        get_runtime_options,
+        {ccf::empty_auth_policy})
+        .set_auto_schema<void, ccf::JSRuntimeOptions>()
         .install();
     }
   };

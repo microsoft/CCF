@@ -349,11 +349,6 @@
             "$ref": "#/components/schemas/boolean"
           }
         },
-        "required": [
-          "max_heap_bytes",
-          "max_stack_bytes",
-          "max_execution_time_ms"
-        ],
         "type": "object"
       },
       "JwtIssuerKeyFilter": {
@@ -1335,7 +1330,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.1.6"
+    "version": "4.1.7"
   },
   "openapi": "3.0.0",
   "paths": {
