@@ -37,6 +37,16 @@
 
 namespace ccf::js
 {
+  std::string normalised_module_path(std::string_view sv)
+  {
+    if (!sv.starts_with("/"))
+    {
+      return fmt::format("/{}", sv);
+    }
+
+    return std::string(sv);
+  }
+
   void DynamicJSEndpointRegistry::do_execute_request(
     const CustomJSEndpoint* endpoint,
     ccf::endpoints::EndpointContext& endpoint_ctx,
@@ -451,74 +461,183 @@ namespace ccf::js
       });
   }
 
-  void DynamicJSEndpointRegistry::install_custom_endpoints(
-    ccf::endpoints::EndpointContext& ctx, const ccf::js::Bundle& bundle)
+  ccf::ApiResult DynamicJSEndpointRegistry::install_custom_endpoints_v1(
+    kv::Tx& tx, const ccf::js::Bundle& bundle)
   {
-    auto endpoints =
-      ctx.tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
-    endpoints->clear();
-    for (const auto& [url, methods] : bundle.metadata.endpoints)
+    try
     {
-      for (const auto& [method, metadata] : methods)
+      auto endpoints =
+        tx.template rw<ccf::endpoints::EndpointsMap>(metadata_map);
+      endpoints->clear();
+      for (const auto& [url, methods] : bundle.metadata.endpoints)
       {
-        std::string method_upper = method;
-        nonstd::to_upper(method_upper);
-        const auto key = ccf::endpoints::EndpointKey{url, method_upper};
-        endpoints->put(key, metadata);
-      }
-    }
-
-    auto modules = ctx.tx.template rw<ccf::Modules>(modules_map);
-    modules->clear();
-    for (const auto& module_def : bundle.modules)
-    {
-      modules->put(fmt::format("/{}", module_def.name), module_def.module);
-    }
-
-    // Trigger interpreter flush, in case interpreter reuse
-    // is enabled for some endpoints
-    auto interpreter_flush =
-      ctx.tx.template rw<ccf::InterpreterFlush>(interpreter_flush_map);
-    interpreter_flush->put(true);
-
-    // Refresh app bytecode
-    ccf::js::core::Context jsctx(ccf::js::TxAccess::APP_RW);
-    jsctx.runtime().set_runtime_options(
-      ctx.tx.ro<ccf::JSEngine>(runtime_options_map)->get(),
-      ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
-
-    auto quickjs_version =
-      ctx.tx.wo<ccf::ModulesQuickJsVersion>(modules_quickjs_version_map);
-    auto quickjs_bytecode =
-      ctx.tx.wo<ccf::ModulesQuickJsBytecode>(modules_quickjs_bytecode_map);
-
-    quickjs_version->put(ccf::quickjs_version);
-    quickjs_bytecode->clear();
-    jsctx.set_module_loader(
-      std::make_shared<ccf::js::modules::KvModuleLoader>(modules));
-
-    modules->foreach([&](const auto& name, const auto& src) {
-      auto module_val = jsctx.eval(
-        src.c_str(),
-        src.size(),
-        name.c_str(),
-        JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-
-      uint8_t* out_buf;
-      size_t out_buf_len;
-      int flags = JS_WRITE_OBJ_BYTECODE;
-      out_buf = JS_WriteObject(jsctx, &out_buf_len, module_val.val, flags);
-      if (!out_buf)
-      {
-        throw std::runtime_error(
-          fmt::format("Unable to serialize bytecode for JS module '{}'", name));
+        for (const auto& [method, metadata] : methods)
+        {
+          std::string method_upper = method;
+          nonstd::to_upper(method_upper);
+          const auto key = ccf::endpoints::EndpointKey{url, method_upper};
+          endpoints->put(key, metadata);
+        }
       }
 
-      quickjs_bytecode->put(name, {out_buf, out_buf + out_buf_len});
-      js_free(jsctx, out_buf);
+      auto modules = tx.template rw<ccf::Modules>(modules_map);
+      modules->clear();
+      for (const auto& moduledef : bundle.modules)
+      {
+        modules->put(normalised_module_path(moduledef.name), moduledef.module);
+      }
 
-      return true;
-    });
+      // Trigger interpreter flush, in case interpreter reuse
+      // is enabled for some endpoints
+      auto interpreter_flush =
+        tx.template rw<ccf::InterpreterFlush>(interpreter_flush_map);
+      interpreter_flush->put(true);
+
+      // Refresh app bytecode
+      ccf::js::core::Context jsctx(ccf::js::TxAccess::APP_RW);
+      jsctx.runtime().set_runtime_options(
+        tx.ro<ccf::JSEngine>(runtime_options_map)->get(),
+        ccf::js::core::RuntimeLimitsPolicy::NO_LOWER_THAN_DEFAULTS);
+
+      auto quickjs_version =
+        tx.wo<ccf::ModulesQuickJsVersion>(modules_quickjs_version_map);
+      auto quickjs_bytecode =
+        tx.wo<ccf::ModulesQuickJsBytecode>(modules_quickjs_bytecode_map);
+
+      quickjs_version->put(ccf::quickjs_version);
+      quickjs_bytecode->clear();
+      jsctx.set_module_loader(
+        std::make_shared<ccf::js::modules::KvModuleLoader>(modules));
+
+      modules->foreach([&](const auto& name, const auto& src) {
+        auto module_val = jsctx.eval(
+          src.c_str(),
+          src.size(),
+          name.c_str(),
+          JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+
+        uint8_t* out_buf;
+        size_t out_buf_len;
+        int flags = JS_WRITE_OBJ_BYTECODE;
+        out_buf = JS_WriteObject(jsctx, &out_buf_len, module_val.val, flags);
+        if (!out_buf)
+        {
+          throw std::runtime_error(fmt::format(
+            "Unable to serialize bytecode for JS module '{}'", name));
+        }
+
+        quickjs_bytecode->put(name, {out_buf, out_buf + out_buf_len});
+        js_free(jsctx, out_buf);
+
+        return true;
+      });
+
+      return ccf::ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
+  ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoints_v1(
+    ccf::js::Bundle& bundle, kv::ReadOnlyTx& tx)
+  {
+    try
+    {
+      auto endpoints_handle =
+        tx.template ro<ccf::endpoints::EndpointsMap>(metadata_map);
+      endpoints_handle->foreach([&endpoints = bundle.metadata.endpoints](
+                                  const auto& endpoint_key,
+                                  const auto& properties) {
+        using PropertiesMap =
+          std::map<std::string, ccf::endpoints::EndpointProperties>;
+
+        auto it = endpoints.find(endpoint_key.uri_path);
+        if (it == endpoints.end())
+        {
+          it =
+            endpoints.emplace_hint(it, endpoint_key.uri_path, PropertiesMap{});
+        }
+
+        PropertiesMap& method_properties = it->second;
+
+        method_properties.emplace_hint(
+          method_properties.end(), endpoint_key.verb.c_str(), properties);
+
+        return true;
+      });
+
+      auto modules_handle = tx.template ro<ccf::Modules>(modules_map);
+      modules_handle->foreach(
+        [&modules =
+           bundle.modules](const auto& module_name, const auto& module_src) {
+          modules.push_back({module_name, module_src});
+          return true;
+        });
+
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
+  ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoint_properties_v1(
+    ccf::endpoints::EndpointProperties& properties,
+    kv::ReadOnlyTx& tx,
+    const ccf::RESTVerb& verb,
+    const ccf::endpoints::URI& uri)
+  {
+    try
+    {
+      auto endpoints = tx.ro<ccf::endpoints::EndpointsMap>(metadata_map);
+      const auto key = ccf::endpoints::EndpointKey{uri, verb};
+
+      auto it = endpoints->get(key);
+      if (it.has_value())
+      {
+        properties = it.value();
+        return ApiResult::OK;
+      }
+      else
+      {
+        return ApiResult::NotFound;
+      }
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
+  ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoint_module_v1(
+    std::string& code, kv::ReadOnlyTx& tx, const std::string& module_name)
+  {
+    try
+    {
+      auto modules = tx.template ro<ccf::Modules>(modules_map);
+
+      auto it = modules->get(normalised_module_path(module_name));
+      if (it.has_value())
+      {
+        code = it.value();
+        return ApiResult::OK;
+      }
+      else
+      {
+        return ApiResult::NotFound;
+      }
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
   }
 
   void DynamicJSEndpointRegistry::set_js_kv_namespace_restriction(
