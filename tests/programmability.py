@@ -263,6 +263,8 @@ def test_custom_endpoints_kv_restrictions(network, args):
         r = c.post("/app/try_write", {"table": "ccf.internal.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
+    return network
+
 
 def test_custom_endpoints_js_options(network, args):
     primary, _ = network.find_primary()
