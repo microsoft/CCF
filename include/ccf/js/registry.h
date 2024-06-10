@@ -107,7 +107,7 @@ namespace ccf::js
       std::string& code, kv::ReadOnlyTx& tx, const std::string& module_name);
 
     /**
-     * Pass a function to control which tables can be accessed by JS endpoints.
+     * Pass a function to control which maps can be accessed by JS endpoints.
      */
     void set_js_kv_namespace_restriction(
       const ccf::js::NamespaceRestriction& restriction);
