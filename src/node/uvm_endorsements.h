@@ -249,11 +249,10 @@ namespace ccf
   }
 
   static std::span<const uint8_t> verify_uvm_endorsements_signature(
-    const crypto::RSAPublicKeyPtr& leaf_cert_pub_key,
+    const std::vector<uint8_t>& leaf_cert_pub_key,
     const std::vector<uint8_t>& uvm_endorsements_raw)
   {
-    auto verifier = crypto::make_cose_verifier_from_key(
-      leaf_cert_pub_key->public_key_pem().raw());
+    auto verifier = crypto::make_cose_verifier_from_key(leaf_cert_pub_key);
 
     std::span<uint8_t> payload;
     if (!verifier->verify(uvm_endorsements_raw, payload))
@@ -294,18 +293,18 @@ namespace ccf
         did_document_str));
     }
 
-    crypto::RSAPublicKeyPtr pubk = nullptr;
+    std::vector<uint8_t> pubk_pem;
     for (auto const& vm : did_document.verification_method)
     {
       if (vm.controller == did && vm.public_key_jwk.has_value())
       {
         auto rsa_jwk = vm.public_key_jwk->get<crypto::JsonWebKeyRSAPublic>();
-        pubk = crypto::make_rsa_public_key(rsa_jwk);
+        pubk_pem = crypto::make_rsa_public_key(rsa_jwk)->public_key_pem().raw();
         break;
       }
     }
 
-    if (pubk == nullptr)
+    if (pubk_pem.empty())
     {
       throw std::logic_error(fmt::format(
         "Could not find matching public key for DID {} in {}",
@@ -314,7 +313,7 @@ namespace ccf
     }
 
     auto raw_payload =
-      verify_uvm_endorsements_signature(pubk, uvm_endorsements_raw);
+      verify_uvm_endorsements_signature(pubk_pem, uvm_endorsements_raw);
 
     if (phdr.content_type != cose::headers::CONTENT_TYPE_APPLICATION_JSON_VALUE)
     {
