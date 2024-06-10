@@ -103,6 +103,21 @@ namespace ccf::js
     ccf::ApiResult get_custom_endpoint_module_v1(
       std::string& code, kv::ReadOnlyTx& tx, const std::string& module_name);
 
+    /**
+     * Set options to control JS execution. Some hard limits may be applied to
+     * bound any values specified here.
+     */
+    ccf::ApiResult set_js_runtime_options_v1(
+      kv::Tx& tx, const ccf::JSRuntimeOptions& options);
+
+    /**
+     * Get the options which currently control JS execution. If no value has
+     * been populated in the KV, this will return the default runtime options
+     * which will be applied instead.
+     */
+    ccf::ApiResult get_js_runtime_options_v1(
+      ccf::JSRuntimeOptions& options, kv::ReadOnlyTx& tx);
+
     /// \defgroup Overrides for base EndpointRegistry functions, looking up JS
     /// endpoints before delegating to base implementation.
     ///@{
