@@ -644,8 +644,6 @@ namespace ccf::js
   {
     try
     {
-      // TODO: Any validation to add here? Exec time shouldn't exceed consensus
-      // election time?
       tx.wo<ccf::JSEngine>(runtime_options_map)->put(options);
       return ccf::ApiResult::OK;
     }

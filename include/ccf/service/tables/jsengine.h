@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/ds/openapi.h"
 #include "ccf/service/map.h"
 
 namespace ccf
@@ -38,71 +39,43 @@ namespace ccf
     size_t max_cached_interpreters = Defaults::max_cached_interpreters;
   };
 
+#define FOREACH_JSENGINE_FIELD(XX) \
+  XX(max_heap_bytes, decltype(JSRuntimeOptions::max_heap_bytes)) \
+  XX(max_stack_bytes, decltype(JSRuntimeOptions::max_stack_bytes)) \
+  XX(max_execution_time_ms, decltype(JSRuntimeOptions::max_execution_time_ms)) \
+  XX(log_exception_details, decltype(JSRuntimeOptions::log_exception_details)) \
+  XX( \
+    return_exception_details, \
+    decltype(JSRuntimeOptions::return_exception_details)) \
+  XX( \
+    max_cached_interpreters, \
+    decltype(JSRuntimeOptions::max_cached_interpreters))
+
   // Manually implemented to_json and from_json, so that we are maximally
   // permissive in deserialisation (use defaults), but maximally verbose in
   // serialisation (describe all fields)
   inline void to_json(nlohmann::json& j, const JSRuntimeOptions& options)
   {
     j = nlohmann::json::object();
-    j["max_heap_bytes"] = options.max_heap_bytes;
-    j["max_stack_bytes"] = options.max_stack_bytes;
-    j["max_execution_time_ms"] = options.max_execution_time_ms;
-    j["log_exception_details"] = options.log_exception_details;
-    j["return_exception_details"] = options.return_exception_details;
-    j["max_cached_interpreters"] = options.max_cached_interpreters;
+#define XX(field, field_type) j[#field] = options.field;
+
+    FOREACH_JSENGINE_FIELD(XX)
+#undef XX
   }
 
   inline void from_json(const nlohmann::json& j, JSRuntimeOptions& options)
   {
-    {
-      const auto it = j.find("max_heap_bytes");
-      if (it != j.end())
-      {
-        options.max_heap_bytes =
-          it->get<decltype(JSRuntimeOptions::max_heap_bytes)>();
-      }
-    }
+#define XX(field, field_type) \
+  { \
+    const auto it = j.find(#field); \
+    if (it != j.end()) \
+    { \
+      options.field = it->get<field_type>(); \
+    } \
+  }
 
-    {
-      const auto it = j.find("max_stack_bytes");
-      if (it != j.end())
-      {
-        options.max_stack_bytes =
-          it->get<decltype(JSRuntimeOptions::max_stack_bytes)>();
-      }
-    }
-    {
-      const auto it = j.find("max_execution_time_ms");
-      if (it != j.end())
-      {
-        options.max_execution_time_ms =
-          it->get<decltype(JSRuntimeOptions::max_execution_time_ms)>();
-      }
-    }
-    {
-      const auto it = j.find("log_exception_details");
-      if (it != j.end())
-      {
-        options.log_exception_details =
-          it->get<decltype(JSRuntimeOptions::log_exception_details)>();
-      }
-    }
-    {
-      const auto it = j.find("return_exception_details");
-      if (it != j.end())
-      {
-        options.return_exception_details =
-          it->get<decltype(JSRuntimeOptions::return_exception_details)>();
-      }
-    }
-    {
-      const auto it = j.find("max_cached_interpreters");
-      if (it != j.end())
-      {
-        options.max_cached_interpreters =
-          it->get<decltype(JSRuntimeOptions::max_cached_interpreters)>();
-      }
-    }
+    FOREACH_JSENGINE_FIELD(XX)
+#undef XX
   }
 
   inline std::string schema_name(const JSRuntimeOptions*)
@@ -112,8 +85,23 @@ namespace ccf
 
   inline void fill_json_schema(nlohmann::json& schema, const JSRuntimeOptions*)
   {
-    // TODO
+    schema = nlohmann::json::object();
+    schema["type"] = "object";
+
+    auto properties = nlohmann::json::object();
+    {
+#define XX(field, field_type) \
+  properties[#field] = \
+    ds::openapi::components_ref_object(ds::json::schema_name<field_type>());
+
+      FOREACH_JSENGINE_FIELD(XX)
+#undef XX
+    }
+
+    schema["properties"] = properties;
   }
+
+#undef FOREACH_JSENGINE_FIELD
 
   using JSEngine = ServiceValue<JSRuntimeOptions>;
 
