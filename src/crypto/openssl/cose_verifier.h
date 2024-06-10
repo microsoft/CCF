@@ -34,6 +34,6 @@ namespace crypto
   class COSEKeyVerifier_OpenSSL : public COSEVerifier_OpenSSL
   {
   public:
-    COSEKeyVerifier_OpenSSL(const std::vector<uint8_t>& public_key);
+    COSEKeyVerifier_OpenSSL(const Pem& public_key);
   };
 }

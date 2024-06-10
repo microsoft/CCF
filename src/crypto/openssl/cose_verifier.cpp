@@ -54,7 +54,7 @@ namespace crypto
   }
 
   COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(
-    const std::vector<uint8_t>& public_key_)
+    const Pem& public_key_)
   {
     public_key = std::make_shared<PublicKey_OpenSSL>(public_key_);
   }
@@ -99,7 +99,7 @@ namespace crypto
   }
 
   COSEVerifierUniquePtr make_cose_verifier_from_key(
-    const std::vector<uint8_t>& public_key)
+    const Pem& public_key)
   {
     return std::make_unique<COSEKeyVerifier_OpenSSL>(public_key);
   }
