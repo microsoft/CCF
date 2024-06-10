@@ -18,8 +18,7 @@ namespace ccf::did
     std::string id;
     std::string type;
     std::string controller;
-    std::optional<crypto::JsonWebKeyRSAPublic> public_key_jwk =
-      std::nullopt; // Note: Only supports RSA for now
+    std::optional<nlohmann::json> public_key_jwk = std::nullopt;
 
     bool operator==(const DIDDocumentVerificationMethod&) const = default;
   };
