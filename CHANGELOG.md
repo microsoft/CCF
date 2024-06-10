@@ -19,7 +19,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Added token.iss claim validation to JWT authentication, as well as saving issuer constraint to the KV on hey-autorefresh (#5809).
+- Added token.iss claim validation to JWT authentication (#5809). Must-knows:
+  - Supports both the [OpenID requirements](https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation) and the [Entra specification](https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens#validate-the-issuer) of it.
+  - All keys fetched after the upgrade will not work against tokens missing the 'iss' claim if the issuer has been specified in the .well-known/openid-configuration/.
+  - Because of the schema change, nodes that delay the upgrade once it starts happening on the system may keep stale keys (if key auto-refresh happens until all nodes are upgraded).
+  - [#6222](https://github.com/microsoft/CCF/issues/6222) will get rid of all tables completely in on of the following releases.
 
 ## [5.0.0-dev17]
 
