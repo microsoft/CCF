@@ -337,11 +337,11 @@ namespace ccf::js::extensions
         ccf::js::explain_kv_map_access(access_permission, jsctx.access);
 
       // If it's illegal, it stays illegal in historical lookup
-      if (access_permission != MapAccessPermissions::ILLEGAL)
+      if (access_permission != KVAccessPermissions::ILLEGAL)
       {
         // But otherwise, ignore evaluated access permissions - all tables are
         // read-only in historical KV
-        access_permission = MapAccessPermissions::READ_ONLY;
+        access_permission = KVAccessPermissions::READ_ONLY;
         explanation = "All tables are read-only during historical transaction.";
       }
 

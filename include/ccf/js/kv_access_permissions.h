@@ -6,7 +6,7 @@
 
 namespace ccf::js
 {
-  enum class MapAccessPermissions
+  enum class KVAccessPermissions
   {
     READ_WRITE,
     READ_ONLY,

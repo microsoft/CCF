@@ -124,14 +124,14 @@ namespace basicapp
       // case we want to use it for the C++ app in future.
       set_js_kv_namespace_restriction(
         [](const std::string& map_name, std::string& explanation)
-          -> ccf::js::MapAccessPermissions {
+          -> ccf::js::KVAccessPermissions {
           if (map_name == PRIVATE_RECORDS)
           {
             explanation = fmt::format(
               "The {} table is managed by C++ endpoints, so is read-only in "
               "JS.",
               PRIVATE_RECORDS);
-            return ccf::js::MapAccessPermissions::READ_ONLY;
+            return ccf::js::KVAccessPermissions::READ_ONLY;
           }
 
           if (
@@ -141,10 +141,10 @@ namespace basicapp
             explanation =
               "The 'basic.' prefix is reserved by the C++ endpoints for future "
               "use.";
-            return ccf::js::MapAccessPermissions::ILLEGAL;
+            return ccf::js::KVAccessPermissions::ILLEGAL;
           }
 
-          return ccf::js::MapAccessPermissions::READ_WRITE;
+          return ccf::js::KVAccessPermissions::READ_WRITE;
         });
 
       auto put_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {

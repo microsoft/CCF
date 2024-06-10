@@ -2,14 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/js/map_access_permissions.h"
+#include "ccf/js/kv_access_permissions.h"
 #include "ccf/js/namespace_restrictions.h"
 #include "ccf/js/tx_access.h"
 #include "kv/kv_types.h"
 
 namespace ccf::js
 {
-  static MapAccessPermissions check_kv_map_access(
+  static KVAccessPermissions check_kv_map_access(
     TxAccess execution_context, const std::string& table_name)
   {
     // Enforce the restrictions described in the read_write_restrictions page in
@@ -31,17 +31,17 @@ namespace ccf::js
           execution_context == TxAccess::APP_RW &&
           namespace_of_table == kv::AccessCategory::APPLICATION)
         {
-          return MapAccessPermissions::READ_WRITE;
+          return KVAccessPermissions::READ_WRITE;
         }
         else if (
           execution_context == TxAccess::APP_RO &&
           namespace_of_table == kv::AccessCategory::APPLICATION)
         {
-          return MapAccessPermissions::READ_ONLY;
+          return KVAccessPermissions::READ_ONLY;
         }
         else
         {
-          return MapAccessPermissions::ILLEGAL;
+          return KVAccessPermissions::ILLEGAL;
         }
       }
 
@@ -51,18 +51,18 @@ namespace ccf::js
         {
           case kv::AccessCategory::INTERNAL:
           {
-            return MapAccessPermissions::READ_ONLY;
+            return KVAccessPermissions::READ_ONLY;
           }
 
           case kv::AccessCategory::GOVERNANCE:
           {
             if (execution_context == TxAccess::GOV_RW)
             {
-              return MapAccessPermissions::READ_WRITE;
+              return KVAccessPermissions::READ_WRITE;
             }
             else
             {
-              return MapAccessPermissions::READ_ONLY;
+              return KVAccessPermissions::READ_ONLY;
             }
           }
 
@@ -72,15 +72,15 @@ namespace ccf::js
             {
               case (TxAccess::APP_RW):
               {
-                return MapAccessPermissions::READ_WRITE;
+                return KVAccessPermissions::READ_WRITE;
               }
               case (TxAccess::APP_RO):
               {
-                return MapAccessPermissions::READ_ONLY;
+                return KVAccessPermissions::READ_ONLY;
               }
               default:
               {
-                return MapAccessPermissions::ILLEGAL;
+                return KVAccessPermissions::ILLEGAL;
               }
             }
           }
@@ -95,9 +95,9 @@ namespace ccf::js
     }
   }
   static std::string explain_kv_map_access(
-    ccf::js::MapAccessPermissions permission, ccf::js::TxAccess access)
+    ccf::js::KVAccessPermissions permission, ccf::js::TxAccess access)
   {
-    char const* table_kind = permission == MapAccessPermissions::READ_ONLY ?
+    char const* table_kind = permission == KVAccessPermissions::READ_ONLY ?
       "read-only" :
       "inaccessible";
 

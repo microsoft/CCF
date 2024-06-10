@@ -321,7 +321,7 @@ namespace ccf::js::extensions::kvhelpers
   static JSValue create_kv_map_handle(
     js::core::Context& ctx,
     const std::string& map_name,
-    MapAccessPermissions access_permission,
+    KVAccessPermissions access_permission,
     const std::string& permission_explanation)
   {
     // This follows the interface of Map:
@@ -370,7 +370,7 @@ namespace ccf::js::extensions::kvhelpers
     JS_METHOD_NAME, \
     ARG_COUNT, \
     new_c_function, \
-    MapAccessPermissions::ILLEGAL, \
+    KVAccessPermissions::ILLEGAL, \
     GetReadOnlyHandle)
 
 #define MAKE_RW_FUNCTION(C_FUNC_NAME, JS_METHOD_NAME, ARG_COUNT) \
@@ -379,7 +379,7 @@ namespace ccf::js::extensions::kvhelpers
     JS_METHOD_NAME, \
     ARG_COUNT, \
     new_c_function, \
-    MapAccessPermissions::READ_ONLY, \
+    KVAccessPermissions::READ_ONLY, \
     GetWriteHandle)
 
     MAKE_RO_FUNCTION(js_kv_map_has, "has", 1);
@@ -399,7 +399,7 @@ namespace ccf::js::extensions::kvhelpers
       "size",
       0,
       new_getter_c_function,
-      MapAccessPermissions::ILLEGAL,
+      KVAccessPermissions::ILLEGAL,
       GetReadOnlyHandle);
 
 #undef MAKE_RW_FUNCTION
