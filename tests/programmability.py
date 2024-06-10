@@ -196,7 +196,7 @@ def test_custom_endpoints_js_options(network, args):
         defaults = r.body.json()
 
         same = test_options_patch(c)
-        assert same == defaults, f"Expected empty patch to retain default values"
+        assert same == defaults
 
         reduced_heap = test_options_patch(c, max_heap_bytes=42)
         assert reduced_heap == {**defaults, "max_heap_bytes": 42}
