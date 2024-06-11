@@ -19,7 +19,7 @@ namespace crypto
 {
   using namespace OpenSSL;
 
-  COSEVerifier_OpenSSL::COSEVerifier_OpenSSL(
+  COSECertVerifier_OpenSSL::COSECertVerifier_OpenSSL(
     const std::vector<uint8_t>& certificate)
   {
     Unique_BIO certbio(certificate);
@@ -53,10 +53,9 @@ namespace crypto
     }
   }
 
-  COSEVerifier_OpenSSL::COSEVerifier_OpenSSL(const RSAPublicKeyPtr& pubk_ptr)
+  COSEKeyVerifier_OpenSSL::COSEKeyVerifier_OpenSSL(const Pem& public_key_)
   {
-    public_key =
-      std::make_shared<PublicKey_OpenSSL>(pubk_ptr->public_key_pem());
+    public_key = std::make_shared<PublicKey_OpenSSL>(public_key_);
   }
 
   COSEVerifier_OpenSSL::~COSEVerifier_OpenSSL() = default;
@@ -92,13 +91,14 @@ namespace crypto
     return false;
   }
 
-  COSEVerifierUniquePtr make_cose_verifier(const std::vector<uint8_t>& cert)
+  COSEVerifierUniquePtr make_cose_verifier_from_cert(
+    const std::vector<uint8_t>& cert)
   {
-    return std::make_unique<COSEVerifier_OpenSSL>(cert);
+    return std::make_unique<COSECertVerifier_OpenSSL>(cert);
   }
 
-  COSEVerifierUniquePtr make_cose_verifier(const RSAPublicKeyPtr& pubk_ptr)
+  COSEVerifierUniquePtr make_cose_verifier_from_key(const Pem& public_key)
   {
-    return std::make_unique<COSEVerifier_OpenSSL>(pubk_ptr);
+    return std::make_unique<COSEKeyVerifier_OpenSSL>(public_key);
   }
 }
