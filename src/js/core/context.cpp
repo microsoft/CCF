@@ -392,10 +392,10 @@ namespace ccf::js::core
   }
 
   JSWrappedValue Context::new_getter_c_function(
-    JSCFunction* func, const char* name) const
+    JSCFunction* func, const char* name, size_t arg_count) const
   {
     return wrap(JS_NewCFunction2(
-      ctx, func, name, 0, JS_CFUNC_getter, JS_CFUNC_getter_magic));
+      ctx, func, name, arg_count, JS_CFUNC_getter, JS_CFUNC_getter_magic));
   }
 
   JSWrappedValue Context::duplicate_value(JSValueConst original) const
