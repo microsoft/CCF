@@ -405,14 +405,11 @@ def test_remove(network, args):
         _, log_id = network.txs.get_log_id(txid)
         network.txs.delete(log_id, priv=priv)
         r = network.txs.request(log_id, priv=priv)
-        if args.package in ["libjs_generic"]:
-            check(r, result={"error": "No such key"})
-        else:
-            check(
-                r,
-                error=lambda status, msg: status == http.HTTPStatus.NOT_FOUND.value
-                and msg.json()["error"]["code"] == "ResourceNotFound",
-            )
+        check(
+            r,
+            error=lambda status, msg: status == http.HTTPStatus.NOT_FOUND.value
+            and msg.json()["error"]["code"] == "ResourceNotFound",
+        )
 
     return network
 
@@ -446,17 +443,11 @@ def test_clear(network, args):
                 )
                 for log_id in log_ids:
                     get_r = c.get(f"{resource}?id={log_id}")
-                    if args.package in ["libjs_generic"]:
-                        check(
-                            get_r,
-                            result={"error": "No such key"},
-                        )
-                    else:
-                        check(
-                            get_r,
-                            error=lambda status, msg: status
-                            == http.HTTPStatus.NOT_FOUND.value,
-                        )
+                    check(
+                        get_r,
+                        error=lambda status, msg: status
+                        == http.HTTPStatus.NOT_FOUND.value,
+                    )
 
     # Make sure no-one else is still looking for these
     network.txs.clear()
