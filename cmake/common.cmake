@@ -67,7 +67,8 @@ endfunction()
 # Helper for building end-to-end function tests using the python infrastructure
 function(add_e2e_test)
   cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS "" "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;"
+    PARSE_ARGV 0 PARSED_ARGS ""
+    "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;TEST_LABEL"
     "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS;CONTAINER_NODES"
   )
 
@@ -99,12 +100,17 @@ function(add_e2e_test)
       set(NODE_TICK_MS 1)
     endif()
 
+    if(NOT PARSED_ARGS_TEST_LABEL)
+      set(PARSED_ARGS_TEST_LABEL ${PARSED_ARGS_NAME})
+    endif()
+
     add_test(
       NAME ${PARSED_ARGS_NAME}
       COMMAND
         ${PYTHON_WRAPPER} ${PARSED_ARGS_PYTHON_SCRIPT} -b . --label
-        ${PARSED_ARGS_NAME} ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION}
-        ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms ${NODE_TICK_MS}
+        ${PARSED_ARGS_TEST_LABEL} ${CCF_NETWORK_TEST_ARGS}
+        ${PARSED_ARGS_CONSTITUTION} ${PARSED_ARGS_ADDITIONAL_ARGS} --tick-ms
+        ${NODE_TICK_MS}
       CONFIGURATIONS ${PARSED_ARGS_CONFIGURATIONS}
     )
 
@@ -282,8 +288,8 @@ function(add_piccolo_test)
 
   set(TEST_NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}")
 
-  if(NOT LABEL)
-    set(LABEL ${TEST_NAME})
+  if(NOT PARSED_ARGS_LABEL)
+    set(PARSED_ARGS_LABEL ${TEST_NAME})
   endif()
 
   add_test(
@@ -291,7 +297,7 @@ function(add_piccolo_test)
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
       ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} ${VERIFICATION_ARG}
-      --label ${LABEL} --snapshot-tx-interval 10000
+      --label ${PARSED_ARGS_LABEL} --snapshot-tx-interval 10000
       ${PARSED_ARGS_ADDITIONAL_ARGS} -e ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM}
       ${NODES}
   )
