@@ -4,10 +4,11 @@
 #include "ccf/js/extensions/ccf/kv.h"
 
 #include "ccf/js/core/context.h"
+#include "ccf/tx.h"
 #include "js/checks.h"
 #include "js/extensions/ccf/kv_helpers.h"
 #include "js/global_class_ids.h"
-#include "js/map_access_permissions.h"
+#include "js/permissions_checks.h"
 
 #include <map>
 #include <quickjs/quickjs.h>
@@ -85,11 +86,37 @@ namespace ccf::js::extensions
       const auto map_name = jsctx.to_str(property).value_or("");
       LOG_TRACE_FMT("Looking for kv map '{}'", map_name);
 
-      const auto access_permission =
+      auto extension = jsctx.get_extension<KvExtension>();
+      if (extension == nullptr)
+      {
+        LOG_FAIL_FMT("No KV extension available");
+        return -1;
+      }
+
+      auto access_permission =
         ccf::js::check_kv_map_access(jsctx.access, map_name);
+      std::string explanation =
+        ccf::js::explain_kv_map_access(access_permission, jsctx.access);
+
+      if (extension->namespace_restriction != nullptr)
+      {
+        std::string proposed_explanation;
+        const auto proposed_permission =
+          extension->namespace_restriction(map_name, proposed_explanation);
+
+        // Name-based policy cannot grant more access (eg - cannot change
+        // Read-Only to Read-Write), can only make it more restricted
+        if (proposed_permission > access_permission)
+        {
+          access_permission = proposed_permission;
+          explanation = proposed_explanation;
+        }
+      }
+
       auto handle_val =
         kvhelpers::create_kv_map_handle<get_ro_map_handle, get_map_handle>(
-          jsctx, map_name, access_permission);
+          jsctx, map_name, access_permission, explanation);
+
       if (JS_IsException(handle_val))
       {
         return -1;
@@ -102,7 +129,8 @@ namespace ccf::js::extensions
     }
   }
 
-  KvExtension::KvExtension(kv::Tx* t)
+  KvExtension::KvExtension(kv::Tx* t, const ccf::js::NamespaceRestriction& nr) :
+    namespace_restriction(nr)
   {
     impl = std::make_unique<KvExtension::Impl>(t);
   }
