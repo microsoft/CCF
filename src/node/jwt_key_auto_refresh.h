@@ -137,6 +137,7 @@ namespace ccf
 
     void handle_jwt_jwks_response(
       const std::string& issuer,
+      const std::optional<std::string>& issuer_constraint,
       http_status status,
       std::vector<uint8_t>&& data)
     {
@@ -173,6 +174,20 @@ namespace ccf
 
       // call internal endpoint to update keys
       auto msg = SetJwtPublicSigningKeys{issuer, jwks};
+
+      // For each key we leave the specified issuer constraint or set a common
+      // one otherwise (if present).
+      if (issuer_constraint.has_value())
+      {
+        for (auto& key : jwks.keys)
+        {
+          if (!key.issuer.has_value())
+          {
+            key.issuer = issuer_constraint;
+          }
+        }
+      }
+
       send_refresh_jwt_keys(msg);
     }
 
@@ -201,9 +216,10 @@ namespace ccf
         issuer);
 
       std::string jwks_url_str;
+      nlohmann::json metadata;
       try
       {
-        auto metadata = nlohmann::json::parse(data);
+        metadata = nlohmann::json::parse(data);
         jwks_url_str = metadata.at("jwks_uri").get<std::string>();
       }
       catch (const std::exception& e)
@@ -235,6 +251,13 @@ namespace ccf
       auto ca_cert = std::make_shared<tls::Cert>(
         ca, std::nullopt, std::nullopt, jwks_url.host);
 
+      std::optional<std::string> issuer_constraint{std::nullopt};
+      const auto constraint = metadata.find("issuer");
+      if (constraint != metadata.end())
+      {
+        issuer_constraint = *constraint;
+      }
+
       LOG_DEBUG_FMT(
         "JWT key auto-refresh: Requesting JWKS at https://{}:{}{}",
         jwks_url.host,
@@ -246,9 +269,10 @@ namespace ccf
       http_client->connect(
         std::string(jwks_url.host),
         std::string(jwks_url_port),
-        [this, issuer](
+        [this, issuer, issuer_constraint](
           http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
-          handle_jwt_jwks_response(issuer, status, std::move(data));
+          handle_jwt_jwks_response(
+            issuer, issuer_constraint, status, std::move(data));
           return true;
         });
       http::Request r(jwks_url.path, HTTP_GET);
