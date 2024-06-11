@@ -466,31 +466,28 @@ namespace ccf::gov::endpoints
 
             auto jwt_keys_handle =
               ctx.tx.template ro<ccf::JwtPublicSigningKeys>(
-                ccf::Tables::JWT_PUBLIC_SIGNING_KEYS);
-            auto jwt_key_issuers_handle =
-              ctx.tx.template ro<ccf::JwtPublicSigningKeyIssuer>(
-                ccf::Tables::JWT_PUBLIC_SIGNING_KEY_ISSUER);
+                ccf::Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
 
             jwt_keys_handle->foreach(
-              [&keys, jwt_key_issuers_handle](
-                const ccf::JwtKeyId& kid, const ccf::Cert& cert) {
-                auto key_info = nlohmann::json::object();
-
-                // cert is stored as DER - convert to PEM for API
-                const auto cert_pem = crypto::cert_der_to_pem(cert);
-                key_info["certificate"] = cert_pem.str();
-
-                const auto issuer = jwt_key_issuers_handle->get(kid);
-                if (issuer.has_value())
+              [&keys](
+                const ccf::JwtKeyId& k,
+                const std::vector<OpenIDJWKMetadata>& v) {
+                auto keys_info = nlohmann::json::array();
+                for (const auto& metadata : v)
                 {
-                  key_info["issuer"] = issuer.value();
-                }
-                else
-                {
-                  GOV_INFO_FMT("JWT kid '{}' has no associated issuer", kid);
+                  auto info = nlohmann::json::object();
+
+                  // cert is stored as DER - convert to PEM for API
+                  const auto cert_pem = crypto::cert_der_to_pem(metadata.cert);
+                  info["certificate"] = cert_pem.str();
+
+                  info["issuer"] = metadata.issuer;
+                  info["constraint"] = metadata.constraint;
+
+                  keys_info.push_back(info);
                 }
 
-                keys[kid] = key_info;
+                keys[k] = keys_info;
                 return true;
               });
 
