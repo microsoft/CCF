@@ -27,12 +27,13 @@ namespace crypto
     JsonWebKeyType kty;
     std::optional<std::string> kid = std::nullopt;
     std::optional<std::vector<std::string>> x5c = std::nullopt;
+    std::optional<std::string> issuer = std::nullopt;
 
     bool operator==(const JsonWebKey&) const = default;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, kty);
-  DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c);
+  DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c, issuer);
 
   enum class JsonWebKeyECCurve
   {

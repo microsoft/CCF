@@ -117,6 +117,36 @@ namespace basicapp
       make_endpoint("/records", HTTP_POST, post, {ccf::user_cert_auth_policy})
         .install();
 
+      // Restrict what KV maps the JS code can access. Here we make the
+      // PRIVATE_RECORDS map, written by the hardcoded C++ endpoints,
+      // read-only for JS code. Additionally, we reserve any map beginning
+      // with "basic." (public or private) as inaccessible for the JS code, in
+      // case we want to use it for the C++ app in future.
+      set_js_kv_namespace_restriction(
+        [](const std::string& map_name, std::string& explanation)
+          -> ccf::js::KVAccessPermissions {
+          if (map_name == PRIVATE_RECORDS)
+          {
+            explanation = fmt::format(
+              "The {} map is managed by C++ endpoints, so is read-only in "
+              "JS.",
+              PRIVATE_RECORDS);
+            return ccf::js::KVAccessPermissions::READ_ONLY;
+          }
+
+          if (
+            map_name.starts_with("public:basic.") ||
+            map_name.starts_with("basic."))
+          {
+            explanation =
+              "The 'basic.' prefix is reserved by the C++ endpoints for future "
+              "use.";
+            return ccf::js::KVAccessPermissions::ILLEGAL;
+          }
+
+          return ccf::js::KVAccessPermissions::READ_WRITE;
+        });
+
       auto put_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
         const auto& caller_identity =
           ctx.template get_caller<ccf::UserCOSESign1AuthnIdentity>();
@@ -254,6 +284,113 @@ namespace basicapp
         get_custom_endpoints_module,
         {ccf::empty_auth_policy})
         .add_query_parameter<std::string>("module_name")
+        .install();
+
+      auto patch_runtime_options =
+        [this](ccf::endpoints::EndpointContext& ctx) {
+          const auto& caller_identity =
+            ctx.template get_caller<ccf::UserCOSESign1AuthnIdentity>();
+
+          // Authorization Check
+          nlohmann::json user_data = nullptr;
+          auto result =
+            get_user_data_v1(ctx.tx, caller_identity.user_id, user_data);
+          if (result == ccf::ApiResult::InternalError)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "Failed to get user data for user {}: {}",
+                caller_identity.user_id,
+                ccf::api_result_to_str(result)));
+            return;
+          }
+          const auto is_admin_it = user_data.find("isAdmin");
+
+          // Not every user gets to define custom endpoints, only users with
+          // isAdmin
+          if (
+            !user_data.is_object() || is_admin_it == user_data.end() ||
+            !is_admin_it.value().get<bool>())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_FORBIDDEN,
+              ccf::errors::AuthorizationFailed,
+              "Only admins may access this endpoint.");
+            return;
+          }
+          // End of Authorization Check
+
+          // Implement patch semantics.
+          // - Fetch current options
+          ccf::JSRuntimeOptions options;
+          get_js_runtime_options_v1(options, ctx.tx);
+
+          // - Convert current options to JSON
+          auto j_options = nlohmann::json(options);
+
+          // - Parse argument as JSON body
+          const auto arg_body = nlohmann::json::parse(
+            caller_identity.content.begin(), caller_identity.content.end());
+
+          // - Merge, to overwrite current options with anything from body. Note
+          // that nulls mean deletions, which results in resetting to a default
+          // value
+          j_options.merge_patch(arg_body);
+
+          // - Parse patched options from JSON
+          options = j_options.get<ccf::JSRuntimeOptions>();
+
+          result = set_js_runtime_options_v1(ctx.tx, options);
+          if (result != ccf::ApiResult::OK)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              fmt::format(
+                "Failed to set options: {}", ccf::api_result_to_str(result)));
+            return;
+          }
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_header(
+            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(nlohmann::json(options).dump(2));
+        };
+      make_endpoint(
+        "/custom_endpoints/runtime_options",
+        HTTP_PATCH,
+        patch_runtime_options,
+        {ccf::user_cose_sign1_auth_policy})
+        .install();
+
+      auto get_runtime_options = [this](ccf::endpoints::EndpointContext& ctx) {
+        ccf::JSRuntimeOptions options;
+
+        auto result = get_js_runtime_options_v1(options, ctx.tx);
+        if (result != ccf::ApiResult::OK)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            fmt::format(
+              "Failed to get runtime options: {}",
+              ccf::api_result_to_str(result)));
+          return;
+        }
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ctx.rpc_ctx->set_response_body(nlohmann::json(options).dump(2));
+      };
+      make_endpoint(
+        "/custom_endpoints/runtime_options",
+        HTTP_GET,
+        get_runtime_options,
+        {ccf::empty_auth_policy})
+        .set_auto_schema<void, ccf::JSRuntimeOptions>()
         .install();
     }
   };

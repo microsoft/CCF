@@ -110,7 +110,8 @@ namespace ccf::js
 
     // ccf.kv.*
     local_extensions.emplace_back(
-      std::make_shared<ccf::js::extensions::KvExtension>(&endpoint_ctx.tx));
+      std::make_shared<ccf::js::extensions::KvExtension>(
+        &endpoint_ctx.tx, namespace_restriction));
 
     // ccf.rpc.*
     local_extensions.emplace_back(
@@ -636,6 +637,43 @@ namespace ccf::js
     {
       LOG_FAIL_FMT("{}", e.what());
       return ApiResult::InternalError;
+    }
+  }
+
+  void DynamicJSEndpointRegistry::set_js_kv_namespace_restriction(
+    const ccf::js::NamespaceRestriction& nr)
+  {
+    namespace_restriction = nr;
+  }
+
+  ccf::ApiResult DynamicJSEndpointRegistry::set_js_runtime_options_v1(
+    kv::Tx& tx, const ccf::JSRuntimeOptions& options)
+  {
+    try
+    {
+      tx.wo<ccf::JSEngine>(runtime_options_map)->put(options);
+      return ccf::ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      return ccf::ApiResult::InternalError;
+    }
+  }
+
+  ccf::ApiResult DynamicJSEndpointRegistry::get_js_runtime_options_v1(
+    ccf::JSRuntimeOptions& options, kv::ReadOnlyTx& tx)
+  {
+    try
+    {
+      options = tx.ro<ccf::JSEngine>(runtime_options_map)
+                  ->get()
+                  .value_or(ccf::JSRuntimeOptions());
+
+      return ccf::ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      return ccf::ApiResult::InternalError;
     }
   }
 

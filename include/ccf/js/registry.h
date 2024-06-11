@@ -7,6 +7,7 @@
 #include "ccf/js/bundle.h"
 #include "ccf/js/core/context.h"
 #include "ccf/js/interpreter_cache_interface.h"
+#include "ccf/js/namespace_restrictions.h"
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"
 
@@ -50,6 +51,8 @@ namespace ccf::js
     std::string modules_quickjs_version_map;
     std::string modules_quickjs_bytecode_map;
     std::string runtime_options_map;
+
+    ccf::js::NamespaceRestriction namespace_restriction;
 
     using PreExecutionHook = std::function<void(ccf::js::core::Context&)>;
 
@@ -102,6 +105,27 @@ namespace ccf::js
      */
     ccf::ApiResult get_custom_endpoint_module_v1(
       std::string& code, kv::ReadOnlyTx& tx, const std::string& module_name);
+
+    /**
+     * Pass a function to control which maps can be accessed by JS endpoints.
+     */
+    void set_js_kv_namespace_restriction(
+      const ccf::js::NamespaceRestriction& restriction);
+
+    /**
+     * Set options to control JS execution. Some hard limits may be applied to
+     * bound any values specified here.
+     */
+    ccf::ApiResult set_js_runtime_options_v1(
+      kv::Tx& tx, const ccf::JSRuntimeOptions& options);
+
+    /**
+     * Get the options which currently control JS execution. If no value has
+     * been populated in the KV, this will return the default runtime options
+     * which will be applied instead.
+     */
+    ccf::ApiResult get_js_runtime_options_v1(
+      ccf::JSRuntimeOptions& options, kv::ReadOnlyTx& tx);
 
     /// \defgroup Overrides for base EndpointRegistry functions, looking up JS
     /// endpoints before delegating to base implementation.

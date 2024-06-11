@@ -64,25 +64,30 @@ export function content(request) {
 """
 
 
+def endpoint_properties(
+    js_module,
+    js_function,
+    forwarding_required="never",
+    redirection_strategy="none",
+    mode="readonly",
+):
+    return {
+        "js_module": js_module,
+        "js_function": js_function,
+        "forwarding_required": forwarding_required,
+        "redirection_strategy": redirection_strategy,
+        "authn_policies": ["no_auth"],
+        "mode": mode,
+        "openapi": {},
+    }
+
+
 def test_custom_endpoints(network, args):
     primary, _ = network.find_primary()
-
-    # Make user0 admin, so it can install custom endpoints
     user = network.users[0]
-    network.consortium.set_user_data(
-        primary, user.service_id, user_data={"isAdmin": True}
-    )
 
     content_endpoint_def = {
-        "get": {
-            "js_module": "test.js",
-            "js_function": "content",
-            "forwarding_required": "never",
-            "redirection_strategy": "none",
-            "authn_policies": ["no_auth"],
-            "mode": "readonly",
-            "openapi": {},
-        }
+        "get": endpoint_properties(js_module="test.js", js_function="content")
     }
 
     modules = [
@@ -161,6 +166,169 @@ def test_custom_endpoints(network, args):
 
         r = c.get("/app/content")
         assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
+
+    return network
+
+
+def test_custom_endpoints_kv_restrictions(network, args):
+    primary, _ = network.find_primary()
+    user = network.users[0]
+
+    module_name = "restrictions.js"
+
+    endpoints = {
+        "/try_read": {
+            "post": endpoint_properties(
+                js_module=module_name,
+                js_function="try_read",
+            )
+        },
+        "/try_write": {
+            "post": endpoint_properties(
+                js_module=module_name,
+                js_function="try_write",
+                mode="readwrite",
+            )
+        },
+    }
+
+    modules = [
+        {
+            "name": module_name,
+            "module": open(
+                os.path.join(
+                    os.path.dirname(__file__), "programmability", "restrictions.js"
+                )
+            ).read(),
+        }
+    ]
+
+    bundle_with_content = {
+        "metadata": {"endpoints": endpoints},
+        "modules": modules,
+    }
+
+    with primary.client(None, None, user.local_id) as c:
+        r = c.put("/app/custom_endpoints", body=bundle_with_content)
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
+    with primary.client() as c:
+        LOG.info("Custom table names can be read to and written from")
+        r = c.post("/app/try_read", {"table": "my_js_table"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+        r = c.post("/app/try_write", {"table": "my_js_table"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+
+        r = c.post("/app/try_read", {"table": "public:my_js_table"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+        r = c.post("/app/try_write", {"table": "public:my_js_table"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+
+        LOG.info("'records' is a read-only table")
+        r = c.post("/app/try_read", {"table": "records"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+        r = c.post("/app/try_write", {"table": "records"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        LOG.info("'basic.' is a forbidden namespace")
+        r = c.post("/app/try_read", {"table": "basic.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+        r = c.post("/app/try_write", {"table": "basic.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        r = c.post("/app/try_read", {"table": "public:basic.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+        r = c.post("/app/try_write", {"table": "public:basic.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        LOG.info("Cannot grant access to gov/internal tables")
+        r = c.post("/app/try_read", {"table": "public:ccf.gov.foo"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+        r = c.post("/app/try_write", {"table": "public:ccf.gov.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        r = c.post("/app/try_read", {"table": "public:ccf.internal.foo"})
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+        r = c.post("/app/try_write", {"table": "public:ccf.internal.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        LOG.info("Cannot grant access to (hypothetical) private gov/internal tables")
+        r = c.post("/app/try_read", {"table": "ccf.gov.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+        r = c.post("/app/try_write", {"table": "ccf.gov.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+        r = c.post("/app/try_read", {"table": "ccf.internal.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+        r = c.post("/app/try_write", {"table": "ccf.internal.foo"})
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
+
+    return network
+
+
+def test_custom_endpoints_js_options(network, args):
+    primary, _ = network.find_primary()
+
+    # Make user0 admin, so it can install custom endpoints
+    user = network.users[0]
+    network.consortium.set_user_data(
+        primary, user.service_id, user_data={"isAdmin": True}
+    )
+
+    def test_options_patch(c, **kwargs):
+        r = c.call(
+            "/app/custom_endpoints/runtime_options", {**kwargs}, http_verb="PATCH"
+        )
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+        new_options = r.body.json()
+
+        # Check get returns same updated options
+        get_r = c.get("/app/custom_endpoints/runtime_options")
+        assert get_r.status_code == http.HTTPStatus.OK.value, get_r.status_code
+        get_options = get_r.body.json()
+
+        assert new_options == get_options, f"{new_options} != {get_options}"
+        return new_options
+
+    with primary.client(None, None, user.local_id) as c:
+        r = c.get("/app/custom_endpoints/runtime_options")
+        assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+
+        defaults = r.body.json()
+
+        same = test_options_patch(c)
+        assert same == defaults
+
+        reduced_heap = test_options_patch(c, max_heap_bytes=42)
+        assert reduced_heap == {**defaults, "max_heap_bytes": 42}
+
+        multiple_changes = test_options_patch(
+            c, max_execution_time_ms=5000, max_cached_interpreters=15
+        )
+        assert multiple_changes == {
+            **defaults,
+            "max_heap_bytes": 42,
+            "max_execution_time_ms": 5000,
+            "max_cached_interpreters": 15,
+        }
+
+        assign_and_reset = test_options_patch(
+            c, return_exception_details=True, max_execution_time_ms=None
+        )
+        assert assign_and_reset == {
+            **defaults,
+            "max_heap_bytes": 42,
+            "max_cached_interpreters": 15,
+            "return_exception_details": True,
+        }
+
+        reset_all = test_options_patch(
+            c,
+            max_cached_interpreters=None,
+            return_exception_details=None,
+            max_heap_bytes=None,
+        )
+        assert reset_all == defaults
 
     return network
 
@@ -291,12 +459,7 @@ def test_custom_role_definitions(network, args):
 
 def deploy_npm_app_custom(network, args):
     primary, _ = network.find_nodes()
-
-    # Make user0 admin, so it can install custom endpoints
     user = network.users[0]
-    network.consortium.set_user_data(
-        primary, user.service_id, user_data={"isAdmin": True}
-    )
 
     app_dir = os.path.join(npm_tests.THIS_DIR, "npm-app")
 
@@ -325,7 +488,15 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
+        # Make user0 admin, so it can install custom endpoints
+        primary, _ = network.find_nodes()
+        user = network.users[0]
+        network.consortium.set_user_data(
+            primary, user.service_id, user_data={"isAdmin": True}
+        )
+
         network = test_custom_endpoints(network, args)
+        network = test_custom_endpoints_kv_restrictions(network, args)
         network = test_custom_role_definitions(network, args)
 
         network = npm_tests.build_npm_app(network, args)

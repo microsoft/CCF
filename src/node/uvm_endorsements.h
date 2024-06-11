@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/base64.h"
 #include "ccf/ds/json.h"
+#include "ccf/pal/measurement.h"
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "node/cose_common.h"
@@ -52,19 +53,21 @@ namespace ccf
   };
 
   // Roots of trust for UVM endorsements/measurement in AMD SEV-SNP attestations
-  static std::vector<UVMEndorsements> uvm_roots_of_trust = {
+  static std::vector<UVMEndorsements> default_uvm_roots_of_trust = {
     // Confidential Azure Kubertnetes Service (AKS)
     {"did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
      "1.4.1.311.76.59.1.2",
      "ContainerPlat-AMD-UVM",
-     "0"},
+     "100"},
     // Confidential Azure Container Instances (ACI)
     {"did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
      "1.4.1.311.76.59.1.5",
      "ConfAKS-AMD-UVM",
      "0"}};
 
-  bool inline matches_uvm_roots_of_trust(const UVMEndorsements& endorsements)
+  bool inline matches_uvm_roots_of_trust(
+    const UVMEndorsements& endorsements,
+    const std::vector<UVMEndorsements>& uvm_roots_of_trust)
   {
     for (const auto& uvm_root_of_trust : uvm_roots_of_trust)
     {
@@ -248,10 +251,10 @@ namespace ccf
   }
 
   static std::span<const uint8_t> verify_uvm_endorsements_signature(
-    const crypto::RSAPublicKeyPtr& leef_cert_pub_key,
+    const crypto::Pem& leaf_cert_pub_key,
     const std::vector<uint8_t>& uvm_endorsements_raw)
   {
-    auto verifier = crypto::make_cose_verifier(leef_cert_pub_key);
+    auto verifier = crypto::make_cose_verifier_from_key(leaf_cert_pub_key);
 
     std::span<uint8_t> payload;
     if (!verifier->verify(uvm_endorsements_raw, payload))
@@ -264,14 +267,16 @@ namespace ccf
 
   static UVMEndorsements verify_uvm_endorsements(
     const std::vector<uint8_t>& uvm_endorsements_raw,
-    const pal::PlatformAttestationMeasurement& uvm_measurement)
+    const pal::PlatformAttestationMeasurement& uvm_measurement,
+    const std::vector<UVMEndorsements>& uvm_roots_of_trust =
+      default_uvm_roots_of_trust)
   {
     auto phdr = cose::decode_protected_header(uvm_endorsements_raw);
 
-    if (!cose::is_rsa_alg(phdr.alg))
+    if (!(cose::is_rsa_alg(phdr.alg) || cose::is_ecdsa_alg(phdr.alg)))
     {
-      throw std::logic_error(
-        fmt::format("Signature algorithm {} is not expected RSA", phdr.alg));
+      throw std::logic_error(fmt::format(
+        "Signature algorithm {} is not one of expected: RSA, ECDSA", phdr.alg));
     }
 
     std::string pem_chain;
@@ -292,17 +297,37 @@ namespace ccf
         did_document_str));
     }
 
-    crypto::RSAPublicKeyPtr pubk = nullptr;
+    crypto::Pem pubk;
     for (auto const& vm : did_document.verification_method)
     {
       if (vm.controller == did && vm.public_key_jwk.has_value())
       {
-        pubk = crypto::make_rsa_public_key(vm.public_key_jwk.value());
-        break;
+        auto jwk = vm.public_key_jwk.value().get<crypto::JsonWebKey>();
+        switch (jwk.kty)
+        {
+          case crypto::JsonWebKeyType::RSA:
+          {
+            auto rsa_jwk =
+              vm.public_key_jwk->get<crypto::JsonWebKeyRSAPublic>();
+            pubk = crypto::make_rsa_public_key(rsa_jwk)->public_key_pem();
+            break;
+          }
+          case crypto::JsonWebKeyType::EC:
+          {
+            auto ec_jwk = vm.public_key_jwk->get<crypto::JsonWebKeyECPublic>();
+            pubk = crypto::make_public_key(ec_jwk)->public_key_pem();
+            break;
+          }
+          default:
+          {
+            throw std::logic_error(fmt::format(
+              "Unsupported public key type ({}) for DID {}", jwk.kty, did));
+          }
+        }
       }
     }
 
-    if (pubk == nullptr)
+    if (pubk.empty())
     {
       throw std::logic_error(fmt::format(
         "Could not find matching public key for DID {} in {}",
@@ -341,7 +366,7 @@ namespace ccf
 
     UVMEndorsements end{did, phdr.feed, payload.sevsnpvm_guest_svn};
 
-    if (!matches_uvm_roots_of_trust(end))
+    if (!matches_uvm_roots_of_trust(end, uvm_roots_of_trust))
     {
       throw std::logic_error(fmt::format(
         "UVM endorsements did {}, feed {}, svn {} "

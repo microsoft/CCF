@@ -19,6 +19,11 @@ namespace ccf
 
   struct VerifiersCache;
 
+  bool validate_issuer(
+    const std::string& iss,
+    const std::optional<std::string>& tid,
+    std::string constraint);
+
   class JwtAuthnPolicy : public AuthnPolicy
   {
   protected:

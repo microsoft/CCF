@@ -302,7 +302,7 @@ namespace ccf
     auto member_cert = member_certs->get(phdr.kid);
     if (member_cert.has_value())
     {
-      auto verifier = crypto::make_cose_verifier(member_cert->raw());
+      auto verifier = crypto::make_cose_verifier_from_cert(member_cert->raw());
 
       std::span<const uint8_t> body = {
         ctx->get_request_body().data(), ctx->get_request_body().size()};
@@ -441,7 +441,7 @@ namespace ccf
     auto user_cert = user_certs->get(phdr.kid);
     if (user_cert.has_value())
     {
-      auto verifier = crypto::make_cose_verifier(user_cert->raw());
+      auto verifier = crypto::make_cose_verifier_from_cert(user_cert->raw());
 
       std::span<const uint8_t> body = {
         ctx->get_request_body().data(), ctx->get_request_body().size()};
