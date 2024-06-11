@@ -59,7 +59,7 @@ function(message)
 endfunction()
 
 option(PROFILE_TESTS "Profile tests" OFF)
-set(PYTHON unbuffer python3)
+set(PYTHON python3)
 
 set(DISTRIBUTE_PERF_TESTS
     ""
