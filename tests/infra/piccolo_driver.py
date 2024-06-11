@@ -214,7 +214,7 @@ def run(get_command, args):
                     # see basicperf.py for a better, cross-client approach.
                     bf = infra.bencher.Bencher()
                     bf.set(
-                        args.label,
+                        args.perf_label,
                         infra.bencher.Throughput(perf_result),
                     )
 
@@ -228,7 +228,7 @@ def run(get_command, args):
 
                     bf = infra.bencher.Bencher()
                     bf.set(
-                        args.label,
+                        args.perf_label,
                         infra.bencher.Memory(current_value, high_value=peak_value),
                     )
 

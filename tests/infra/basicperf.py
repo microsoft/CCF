@@ -390,7 +390,7 @@ def run(args):
 
                         bf = infra.bencher.Bencher()
                         bf.set(
-                            args.label,
+                            args.perf_label,
                             infra.bencher.Memory(
                                 current_value,
                                 high_value=peak_value,
@@ -590,7 +590,7 @@ def run(args):
 
                 bf = infra.bencher.Bencher()
                 bf.set(
-                    args.label,
+                    args.perf_label,
                     infra.bencher.Throughput(round(throughput, 1)),
                 )
 
