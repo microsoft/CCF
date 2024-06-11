@@ -187,7 +187,7 @@ int main(int argc, char** argv)
 
   LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
 
-  LOG_INFO_FMT("CLI args: {}", fmt::join(argv, argv + argc, " "));
+  LOG_INFO_FMT("CLI args: \"{}\"", fmt::join(argv, argv + argc, "\" \""));
 
   if (check_config_only)
   {
