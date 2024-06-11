@@ -262,8 +262,7 @@ function(add_piccolo_test)
 
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;LABEL"
-    "ADDITIONAL_ARGS"
+    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;LABEL" "ADDITIONAL_ARGS"
   )
 
   if(NOT PARSED_ARGS_CONSTITUTION)
@@ -283,12 +282,16 @@ function(add_piccolo_test)
 
   set(TEST_NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}")
 
+  if(NOT LABEL)
+    set(LABEL ${TEST_NAME})
+  endif()
+
   add_test(
     NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
       ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} ${VERIFICATION_ARG}
-      --label ${TEST_NAME} --snapshot-tx-interval 10000
+      --label ${LABEL} --snapshot-tx-interval 10000
       ${PARSED_ARGS_ADDITIONAL_ARGS} -e ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM}
       ${NODES}
   )

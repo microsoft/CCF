@@ -63,6 +63,12 @@ class Stats:
     def mean(self):
         return self.stats["mean"]
 
+    def max(self):
+        return self.stats["max"]
+
+    def min(self):
+        return self.stats["min"]
+
 
 @reqs.description("Measure commit latency")
 def measure_commit_latency(args, sig_interval=100):

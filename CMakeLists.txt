@@ -1500,6 +1500,7 @@ if(BUILD_TESTS)
       CLIENT_BIN ./submit
       ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
                       "1,write,100000,primary"
+      LABEL "Basic"
     )
 
     add_piccolo_test(
