@@ -102,5 +102,5 @@ if __name__ == "__main__":
             upload_name = f"{name}_{i}" if many_results else name
             bf.set(
                 upload_name,
-                infra.bencher.Throughput(result),
+                infra.bencher.Rate(result),
             )
