@@ -69,6 +69,7 @@ class Rate:
     ):
         self.rate = Value(value, high_value, low_value)
 
+
 class Bencher:
     def __init__(self):
         if not os.path.isfile(BENCHER_FILE):
