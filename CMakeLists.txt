@@ -937,6 +937,18 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      endorsements_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/endorsements.cpp
+    )
+    set_property(
+      TEST endorsements_test
+      APPEND
+      PROPERTY
+        ENVIRONMENT
+        "TEST_ENDORSEMENTS_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/uvm_endorsements"
+    )
+
+    add_unit_test(
       historical_queries_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/receipt.cpp
@@ -1021,6 +1033,12 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/endpoint_registry.cpp
     )
     target_link_libraries(endpoint_registry_test PRIVATE ccf_endpoints.host)
+
+    add_unit_test(
+      jwt_auth_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/test_jwt_auth.cpp
+    )
+    target_link_libraries(jwt_auth_test PRIVATE ccf_endpoints.host)
 
     add_unit_test(
       tx_status_test
