@@ -19,7 +19,6 @@ namespace ccf::js::extensions::kvhelpers
   static JSValue C_FUNC_NAME( \
     JSContext* ctx, JSValueConst this_val, int, JSValueConst*) \
   { \
-    LOG_INFO_FMT("!!! In " JS_METHOD_NAME "_denied, aka error path!!!"); \
     js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx); \
     const auto table_name = \
       jsctx.to_str(JS_GetPropertyStr(jsctx, this_val, "_map_name")) \
@@ -165,7 +164,6 @@ namespace ccf::js::extensions::kvhelpers
   static JSValue js_kv_map_size_getter(
     JSContext* ctx, JSValueConst this_val, int argc, JSValueConst*)
   {
-    LOG_INFO_FMT("!!! In js_kv_map_size_getter");
     js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
 
     auto handle = GetReadOnlyHandle(jsctx, this_val);
@@ -178,7 +176,6 @@ namespace ccf::js::extensions::kvhelpers
         ctx, "Map size (%lu) is too large to represent in int64", size);
     }
 
-    LOG_INFO_FMT("!!! In js_kv_map_size_getter, about to return {}", size);
     return JS_NewInt64(ctx, (int64_t)size);
   }
 
@@ -327,11 +324,6 @@ namespace ccf::js::extensions::kvhelpers
     KVAccessPermissions access_permission,
     const std::string& permission_explanation)
   {
-    LOG_INFO_FMT(
-      "!!! Creating handle for {}, at permission {}",
-      map_name,
-      (size_t)access_permission);
-
     // This follows the interface of Map:
     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map
     // Keys and values are ArrayBuffers. Keys are matched based on their
