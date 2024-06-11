@@ -147,7 +147,7 @@ namespace ccf::js::core
     JSWrappedValue new_c_function(
       JSCFunction* func, const char* name, int length) const;
     JSWrappedValue new_getter_c_function(
-      JSCFunction* func, const char* name) const;
+      JSCFunction* func, const char* name, size_t arg_count = 0) const;
 
     JSWrappedValue duplicate_value(JSValueConst original) const;
 
