@@ -188,7 +188,7 @@ namespace basicapp
         // Make operation auditable by writing user-supplied COSE sign1
         // document to the ledger
         auto audit = ctx.tx.template rw<AuditValue>(
-          fmt::format("{}.audit", CUSTOM_ENDPOINTS_NAMESPACE));
+          fmt::format("{}.cose_audit", CUSTOM_ENDPOINTS_NAMESPACE));
         audit->put(ctx.rpc_ctx->get_request_body());
 
         const auto j = nlohmann::json::parse(
@@ -334,7 +334,7 @@ namespace basicapp
           // Make operation auditable by writing user-supplied COSE sign1
           // document to the ledger
           auto audit = ctx.tx.template rw<AuditValue>(
-            fmt::format("{}.audit", CUSTOM_ENDPOINTS_NAMESPACE));
+            fmt::format("{}.cose_audit", CUSTOM_ENDPOINTS_NAMESPACE));
           audit->put(ctx.rpc_ctx->get_request_body());
 
           // Implement patch semantics.
