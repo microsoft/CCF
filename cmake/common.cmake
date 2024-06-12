@@ -191,8 +191,11 @@ endfunction()
 function(add_perf_test)
 
   cmake_parse_arguments(
-    PARSE_ARGV 0 PARSED_ARGS ""
-    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;LABEL"
+    PARSE_ARGV
+    0
+    PARSED_ARGS
+    ""
+    "NAME;PYTHON_SCRIPT;CONSTITUTION;CLIENT_BIN;VERIFICATION_FILE;LABEL,PERF_LABEL"
     "ADDITIONAL_ARGS"
   )
 
@@ -219,14 +222,18 @@ function(add_perf_test)
 
   set(TEST_NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}")
 
+  if(NOT PARSED_ARGS_PERF_LABEL)
+    set(PARSED_ARGS_PERF_LABEL ${TEST_NAME})
+  endif()
+
   add_test(
     NAME "${PARSED_ARGS_NAME}${TESTS_SUFFIX}"
     COMMAND
       ${PYTHON} ${PARSED_ARGS_PYTHON_SCRIPT} -b . -c ${PARSED_ARGS_CLIENT_BIN}
       ${CCF_NETWORK_TEST_ARGS} ${PARSED_ARGS_CONSTITUTION} --write-tx-times
       ${VERIFICATION_ARG} --label ${TEST_NAME} --snapshot-tx-interval 10000
-      ${PARSED_ARGS_ADDITIONAL_ARGS} -e ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM}
-      ${NODES}
+      --perf-label ${PARSED_ARGS_PERF_LABEL} ${PARSED_ARGS_ADDITIONAL_ARGS} -e
+      ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM} ${NODES}
   )
 
   # Make python test client framework importable

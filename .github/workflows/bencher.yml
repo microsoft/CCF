@@ -23,7 +23,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=4 -DBUILD_TPCC=ON ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DBUILD_TPCC=ON ..
           ninja
           # Microbenchmarks
           ./tests.sh -VV -L benchmark
