@@ -224,10 +224,10 @@ def test_custom_endpoints_kv_restrictions(network, args):
         r = c.post("/app/try_write", {"table": "public:my_js_table"})
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
-        LOG.info("'records' is a read-only table")
-        r = c.post("/app/try_read", {"table": "records"})
+        LOG.info("'basic.records' is a read-only table")
+        r = c.post("/app/try_read", {"table": "basic.records"})
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
-        r = c.post("/app/try_write", {"table": "records"})
+        r = c.post("/app/try_write", {"table": "basic.records"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
         LOG.info("'basic.' is a forbidden namespace")
