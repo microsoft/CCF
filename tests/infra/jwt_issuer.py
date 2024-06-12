@@ -250,8 +250,14 @@ class JwtIssuer:
                     logs = []
                     r = c.get("/gov/jwt_keys/all", log_capture=logs)
                     assert r.status_code == 200, r
-                    if kid_ in r.body.json():
-                        stored_cert = r.body.json()[kid_]["cert"]
+                    keys = r.body.json()
+                    if kid_ in keys:
+                        kid_vals = keys[kid_]
+                        if primary.version_after("ccf-5.0.0-dev17"):
+                            assert len(kid_vals) == 1
+                            stored_cert = kid_vals[0]["cert"]
+                        else:
+                            stored_cert = kid_vals["cert"]
                         if self.cert_pem == stored_cert:
                             flush_info(logs)
                             return
