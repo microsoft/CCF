@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - further_bencher_tweaks
   workflow_dispatch:
 
 jobs:
