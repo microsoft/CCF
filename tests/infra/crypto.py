@@ -87,7 +87,7 @@ def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
 
 def generate_ec_keypair(curve: ec.EllipticCurve = ec.SECP256R1) -> Tuple[str, str]:
     priv = ec.generate_private_key(
-        curve=curve,
+        curve=curve(),
         backend=default_backend(),
     )
     pub = priv.public_key()
