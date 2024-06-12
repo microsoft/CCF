@@ -145,6 +145,12 @@ def test_custom_endpoints(network, args):
 
         test_getters(c, bundle_with_content)
 
+    # Install also works with cert authentication, at the expense of potential offline
+    # auditability, since the ledger will not contain a signature
+    with primary.client(user.local_id, None, None) as c:
+        r = c.put("/app/custom_endpoints", body=bundle_with_content)
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
     with primary.client() as c:
         r = c.get("/app/not_content")
         assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
