@@ -6,7 +6,7 @@ from enum import Enum, auto
 import infra.crypto
 import infra.remote
 import infra.docker_remote
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import infra.net
 import infra.path
 import infra.interfaces
@@ -749,7 +749,7 @@ class Node:
         if ignore_proposal_valid_from or self.certificate_valid_from is None:
             # If the node certificate has not been renewed, assume that certificate has
             # been issued within this test run
-            expected_valid_from = datetime.utcnow() - timedelta(hours=1)
+            expected_valid_from = datetime.now(timezone.utc) - timedelta(hours=1)
             if valid_from < expected_valid_from:
                 raise ValueError(
                     f'Node {self.local_node_id} certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
