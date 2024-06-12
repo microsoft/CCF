@@ -19,7 +19,10 @@ using namespace nlohmann;
 namespace basicapp
 {
   using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
+  using AuditValue = kv::Value<std::vector<uint8_t>>;
+
   static constexpr auto PRIVATE_RECORDS = "records";
+  static constexpr auto CUSTOM_ENDPOINTS_NAMESPACE = "public:custom_endpoints";
 
   // This sample shows the features of DynamicJSEndpointRegistry. This sample
   // adds a PUT /app/custom_endpoints, which calls install_custom_endpoints(),
@@ -34,8 +37,8 @@ namespace basicapp
     BasicHandlers(ccfapp::AbstractNodeContext& context) :
       ccf::js::DynamicJSEndpointRegistry(
         context,
-        "public:custom_endpoints" // Internal KV space will be under
-                                  // public:custom_endpoints.*
+        CUSTOM_ENDPOINTS_NAMESPACE // Internal KV space will be under
+                                   // public:custom_endpoints.*
       )
     {
       openapi_info.title = "CCF Basic App";
@@ -182,11 +185,17 @@ namespace basicapp
         }
         // End of Authorization Check
 
+        // Make operation auditable by writing user-supplied COSE sign1
+        // document to the ledger
+        auto audit = ctx.tx.template rw<AuditValue>(
+          fmt::format("{}.audit", CUSTOM_ENDPOINTS_NAMESPACE));
+        audit->put(ctx.rpc_ctx->get_request_body());
+
         const auto j = nlohmann::json::parse(
           caller_identity.content.begin(), caller_identity.content.end());
-        const auto wrapper = j.get<ccf::js::Bundle>();
+        const auto bundle = j.get<ccf::js::Bundle>();
 
-        result = install_custom_endpoints_v1(ctx.tx, wrapper);
+        result = install_custom_endpoints_v1(ctx.tx, bundle);
         if (result != ccf::ApiResult::OK)
         {
           ctx.rpc_ctx->set_error(
@@ -321,6 +330,12 @@ namespace basicapp
             return;
           }
           // End of Authorization Check
+
+          // Make operation auditable by writing user-supplied COSE sign1
+          // document to the ledger
+          auto audit = ctx.tx.template rw<AuditValue>(
+            fmt::format("{}.audit", CUSTOM_ENDPOINTS_NAMESPACE));
+          audit->put(ctx.rpc_ctx->get_request_body());
 
           // Implement patch semantics.
           // - Fetch current options
