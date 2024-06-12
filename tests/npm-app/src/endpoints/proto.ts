@@ -1,5 +1,4 @@
-// Importing the browser bundle works around https://github.com/protobufjs/protobuf.js/issues/1402.
-import protobuf from "protobufjs/dist/protobuf.js";
+import * as protobuf from "protobufjs/light";
 
 import * as ccfapp from "@microsoft/ccf-app";
 
