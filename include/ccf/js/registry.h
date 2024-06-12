@@ -141,6 +141,8 @@ namespace ccf::js
       ccf::endpoints::EndpointDefinitionPtr e,
       ccf::endpoints::CommandEndpointContext& endpoint_ctx,
       const ccf::TxID& tx_id) override;
+
+    void build_api(nlohmann::json& document, kv::ReadOnlyTx& tx) override;
     ///@}
   };
 }
