@@ -1079,24 +1079,21 @@ namespace ccf
           "recovery")
         .install();
 
-      using JWTKeyMap = std::map<JwtKeyId, KeyIdInfo>;
+      using JWTKeyMap = std::map<JwtKeyId, std::vector<KeyIdInfo>>;
 
       auto get_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
-        auto keys = ctx.tx.ro(network.jwt_public_signing_keys);
-        auto keys_to_issuer = ctx.tx.ro(network.jwt_public_signing_key_issuer);
-
+        auto keys = ctx.tx.ro(network.jwt_public_signing_keys_metadata);
         JWTKeyMap kmap;
-        keys->foreach(
-          [&kmap, &keys_to_issuer](const auto& kid, const auto& kpem) {
-            auto issuer = keys_to_issuer->get(kid);
-            if (!issuer.has_value())
-            {
-              throw std::logic_error(fmt::format("kid {} has no issuer", kid));
-            }
-            kmap.emplace(
-              kid, KeyIdInfo{issuer.value(), crypto::cert_der_to_pem(kpem)});
-            return true;
-          });
+        keys->foreach([&kmap](const auto& k, const auto& v) {
+          std::vector<KeyIdInfo> info;
+          for (const auto& metadata : v)
+          {
+            info.push_back(KeyIdInfo{
+              metadata.issuer, crypto::cert_der_to_pem(metadata.cert)});
+          }
+          kmap.emplace(k, std::move(info));
+          return true;
+        });
 
         return make_success(kmap);
       };
@@ -1106,8 +1103,7 @@ namespace ccf
         .set_openapi_deprecated(true)
         .set_openapi_summary(
           "This endpoint is deprecated. It is replaced by "
-          "/gov/kv/jwt/public_signing_keys, "
-          "/gov/kv/jwt/public_signing_key_issue, and /gov/kv/jwt/issuers "
+          "/gov/kv/jwt/public_signing_keys_metadata and /gov/kv/jwt/issuers "
           "endpoints.")
         .install();
 

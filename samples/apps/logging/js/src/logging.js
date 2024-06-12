@@ -28,14 +28,14 @@ function private_records(store, scope) {
 function get_record(map, id) {
   const msg = map.get(id);
   if (msg === undefined) {
-    return { body: { error: "No such key" } };
+    return { statusCode: 404, body: { error: { code: "ResourceNotFound" } } };
   }
   return { body: { msg: ccf.bufToStr(msg) } };
 }
 
 function delete_record(map, id) {
   if (!map.has(id)) {
-    return { body: { error: "No such key" } };
+    return { statusCode: 404, body: { error: { code: "ResourceNotFound" } } };
   }
   map.delete(id);
   return { body: true };

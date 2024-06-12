@@ -16,7 +16,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 
-- Removed unused `openenclave.verifyOpenEnclaveEvidence` API from JS/TS.
+- Removed unused `openenclave.verifyOpenEnclaveEvidence` API from JS/TS
+
+### Changed
+
+- Added token.iss claim validation to JWT authentication (#5809). Must-knows:
+  - Supports both the [OpenID requirements](https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation) and the [Entra specification](https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens#validate-the-issuer) of it.
+  - All keys fetched after the upgrade will not work against tokens missing the 'iss' claim if the issuer has been specified in the .well-known/openid-configuration/.
+  - Due to an internal schema change, networks that are in the process of upgrading to this version may see inconsistent authorization behaviour while the network contains nodes of different versions (depending which node executes the auto-refresh, any nodes on the other version will not use any newly provided keys). We recommend a full upgrade to this version, removing any nodes on prior versions, followed by a key and issuer refresh.
+  - A future release will remove the old tables entirely. Until then, some redundant state will be retained in the ledger. This is tracked in [#6222](https://github.com/microsoft/CCF/issues/6222).
 
 ## [5.0.0-dev17]
 

@@ -59,7 +59,7 @@ function(message)
 endfunction()
 
 option(PROFILE_TESTS "Profile tests" OFF)
-set(PYTHON unbuffer python3)
+set(PYTHON python3)
 
 set(DISTRIBUTE_PERF_TESTS
     ""
@@ -1033,6 +1033,12 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/endpoint_registry.cpp
     )
     target_link_libraries(endpoint_registry_test PRIVATE ccf_endpoints.host)
+
+    add_unit_test(
+      jwt_auth_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/test_jwt_auth.cpp
+    )
+    target_link_libraries(jwt_auth_test PRIVATE ccf_endpoints.host)
 
     add_unit_test(
       tx_status_test

@@ -110,7 +110,8 @@ namespace ccf::js
 
     // ccf.kv.*
     local_extensions.emplace_back(
-      std::make_shared<ccf::js::extensions::KvExtension>(&endpoint_ctx.tx));
+      std::make_shared<ccf::js::extensions::KvExtension>(
+        &endpoint_ctx.tx, namespace_restriction));
 
     // ccf.rpc.*
     local_extensions.emplace_back(
@@ -639,6 +640,12 @@ namespace ccf::js
     }
   }
 
+  void DynamicJSEndpointRegistry::set_js_kv_namespace_restriction(
+    const ccf::js::NamespaceRestriction& nr)
+  {
+    namespace_restriction = nr;
+  }
+
   ccf::ApiResult DynamicJSEndpointRegistry::set_js_runtime_options_v1(
     kv::Tx& tx, const ccf::JSRuntimeOptions& options)
   {
@@ -792,5 +799,43 @@ namespace ccf::js
 
     ccf::endpoints::EndpointRegistry::execute_endpoint_locally_committed(
       e, endpoint_ctx, tx_id);
+  }
+
+  // Since we do our own dispatch (overriding find_endpoint), make sure we
+  // describe those operations in the auto-generated OpenAPI
+  void DynamicJSEndpointRegistry::build_api(
+    nlohmann::json& document, kv::ReadOnlyTx& tx)
+  {
+    ccf::UserEndpointRegistry::build_api(document, tx);
+
+    auto endpoints = tx.ro<ccf::endpoints::EndpointsMap>(metadata_map);
+
+    endpoints->foreach([&document](const auto& key, const auto& properties) {
+      const auto http_verb = key.verb.get_http_method();
+      if (!http_verb.has_value())
+      {
+        return true;
+      }
+
+      if (!properties.openapi_hidden)
+      {
+        auto& path_op = ds::openapi::path_operation(
+          ds::openapi::path(
+            document,
+            fmt::format(
+              "/{}{}",
+              ccf::get_actor_prefix(ccf::ActorsType::users),
+              key.uri_path)),
+          http_verb.value(),
+          false);
+        if (!properties.openapi.empty())
+        {
+          path_op.insert(
+            properties.openapi.cbegin(), properties.openapi.cend());
+        }
+      }
+
+      return true;
+    });
   }
 }

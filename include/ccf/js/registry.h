@@ -7,6 +7,7 @@
 #include "ccf/js/bundle.h"
 #include "ccf/js/core/context.h"
 #include "ccf/js/interpreter_cache_interface.h"
+#include "ccf/js/namespace_restrictions.h"
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"
 
@@ -50,6 +51,8 @@ namespace ccf::js
     std::string modules_quickjs_version_map;
     std::string modules_quickjs_bytecode_map;
     std::string runtime_options_map;
+
+    ccf::js::NamespaceRestriction namespace_restriction;
 
     using PreExecutionHook = std::function<void(ccf::js::core::Context&)>;
 
@@ -104,6 +107,12 @@ namespace ccf::js
       std::string& code, kv::ReadOnlyTx& tx, const std::string& module_name);
 
     /**
+     * Pass a function to control which maps can be accessed by JS endpoints.
+     */
+    void set_js_kv_namespace_restriction(
+      const ccf::js::NamespaceRestriction& restriction);
+
+    /**
      * Set options to control JS execution. Some hard limits may be applied to
      * bound any values specified here.
      */
@@ -132,6 +141,8 @@ namespace ccf::js
       ccf::endpoints::EndpointDefinitionPtr e,
       ccf::endpoints::CommandEndpointContext& endpoint_ctx,
       const ccf::TxID& tx_id) override;
+
+    void build_api(nlohmann::json& document, kv::ReadOnlyTx& tx) override;
     ///@}
   };
 }

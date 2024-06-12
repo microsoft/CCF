@@ -117,6 +117,36 @@ namespace basicapp
       make_endpoint("/records", HTTP_POST, post, {ccf::user_cert_auth_policy})
         .install();
 
+      // Restrict what KV maps the JS code can access. Here we make the
+      // PRIVATE_RECORDS map, written by the hardcoded C++ endpoints,
+      // read-only for JS code. Additionally, we reserve any map beginning
+      // with "basic." (public or private) as inaccessible for the JS code, in
+      // case we want to use it for the C++ app in future.
+      set_js_kv_namespace_restriction(
+        [](const std::string& map_name, std::string& explanation)
+          -> ccf::js::KVAccessPermissions {
+          if (map_name == PRIVATE_RECORDS)
+          {
+            explanation = fmt::format(
+              "The {} map is managed by C++ endpoints, so is read-only in "
+              "JS.",
+              PRIVATE_RECORDS);
+            return ccf::js::KVAccessPermissions::READ_ONLY;
+          }
+
+          if (
+            map_name.starts_with("public:basic.") ||
+            map_name.starts_with("basic."))
+          {
+            explanation =
+              "The 'basic.' prefix is reserved by the C++ endpoints for future "
+              "use.";
+            return ccf::js::KVAccessPermissions::ILLEGAL;
+          }
+
+          return ccf::js::KVAccessPermissions::READ_WRITE;
+        });
+
       auto put_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
         const auto& caller_identity =
           ctx.template get_caller<ccf::UserCOSESign1AuthnIdentity>();

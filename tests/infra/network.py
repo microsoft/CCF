@@ -21,7 +21,7 @@ from dataclasses import dataclass
 import http
 import pprint
 import functools
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from infra.consortium import slurp_file
 from infra.snp import IS_SNP
 from collections import deque
@@ -948,7 +948,7 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                valid_from = valid_from or datetime.utcnow()
+                valid_from = valid_from or datetime.now(timezone.utc)
                 # Note: Timeout is function of the ledger size here since
                 # the commit of the trust_node proposal may rely on the new node
                 # catching up (e.g. adding 1 node to a 1-node network).
@@ -1023,7 +1023,7 @@ class Network:
         primary, _ = self.find_primary()
         try:
             if self.status is ServiceStatus.OPEN:
-                valid_from = valid_from or datetime.utcnow()
+                valid_from = valid_from or datetime.now(timezone.utc)
                 # Note: Timeout is function of the ledger size here since
                 # the commit of the trust_node proposal may rely on the new node
                 # catching up (e.g. adding 1 node to a 1-node network).
@@ -1602,7 +1602,7 @@ class Network:
         if self.service_certificate_valid_from is None:
             # If the service certificate has not been renewed, assume that certificate has
             # been issued within this test run
-            expected_valid_from = datetime.utcnow() - timedelta(hours=1)
+            expected_valid_from = datetime.now(timezone.utc) - timedelta(hours=1)
             if valid_from < expected_valid_from:
                 raise ValueError(
                     f'Service certificate is too old: valid from "{valid_from}" older than expected "{expected_valid_from}"'
