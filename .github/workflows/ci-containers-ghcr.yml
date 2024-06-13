@@ -34,6 +34,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/ci
+          flavor: |
+            latest=false
 
       - name: Build and push Virtual container
         id: push_virtual
