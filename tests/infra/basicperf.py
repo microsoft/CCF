@@ -378,7 +378,6 @@ def run(args):
                 for remote_client in clients:
                     remote_client.stop()
 
-                metrics = []
                 if not args.stop_primary_after_s:
                     primary, _ = network.find_primary()
                     with primary.client() as nc:
@@ -391,7 +390,7 @@ def run(args):
 
                         bf = infra.bencher.Bencher()
                         bf.set(
-                            args.label,
+                            args.perf_label,
                             infra.bencher.Memory(
                                 current_value,
                                 high_value=peak_value,
@@ -594,12 +593,10 @@ def run(args):
                     )
 
                 bf = infra.bencher.Bencher()
-                metrics.append(infra.bencher.Throughput(round(throughput, 1)))
-                for metric in metrics:
-                    bf.set(
-                        args.label,
-                        metric,
-                    )
+                bf.set(
+                    args.perf_label,
+                    infra.bencher.Throughput(round(throughput, 1)),
+                )
 
             except Exception as e:
                 LOG.error(f"Stopping clients due to exception: {e}")
