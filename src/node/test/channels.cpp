@@ -1554,14 +1554,14 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   constexpr int wait_finish_attempts = 100;
   for (int attempt = 0; attempt < wait_finish_attempts; attempt++)
   {
-    bool skip_waiting{false};
+    bool skip_waiting{true};
     {
       std::lock_guard<std::mutex> guard(sent_by_1.lock);
-      skip_waiting |= sent_by_1.to_send.empty();
+      skip_waiting &= sent_by_1.to_send.empty();
     }
     {
       std::lock_guard<std::mutex> guard(sent_by_2.lock);
-      skip_waiting |= sent_by_2.to_send.empty();
+      skip_waiting &= sent_by_2.to_send.empty();
     }
     if (skip_waiting)
     {
