@@ -1495,7 +1495,7 @@ if(BUILD_TESTS)
     add_piccolo_test(
       NAME pi_ls
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-      CLIENT_BIN ./submit
+      CLIENT_BIN ./submit PERF_LABEL "Logging"
       ADDITIONAL_ARGS --package "samples/apps/logging/liblogging"
                       --max-writes-ahead 1000 --repetitions 10000
     )
@@ -1503,7 +1503,7 @@ if(BUILD_TESTS)
     add_piccolo_test(
       NAME pi_basic
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-      CLIENT_BIN ./submit
+      CLIENT_BIN ./submit PERF_LABEL "Basic"
       ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
                       "1,write,100000,primary"
     )
@@ -1511,7 +1511,7 @@ if(BUILD_TESTS)
     add_piccolo_test(
       NAME pi_basic_js
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-      CLIENT_BIN ./submit
+      CLIENT_BIN ./submit PERF_LABEL "Basic JS"
       ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
                       --client-def "1,write,100000,primary"
     )
@@ -1520,7 +1520,7 @@ if(BUILD_TESTS)
       add_piccolo_test(
         NAME pi_basic_mt
         PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-        CLIENT_BIN ./submit
+        CLIENT_BIN ./submit PERF_LABEL "Basic Multi-Threaded"
         ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
                         "${WORKER_THREADS},write,100000,primary"
       )
@@ -1529,7 +1529,7 @@ if(BUILD_TESTS)
     add_piccolo_test(
       NAME pi_ls_jwt
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-      CLIENT_BIN ./submit
+      CLIENT_BIN ./submit PERF_LABEL "Logging JWT"
       ADDITIONAL_ARGS
         --package
         "samples/apps/logging/liblogging"
@@ -1543,7 +1543,7 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME historical_query_perf_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
-      LABEL perf
+      LABEL perf PERF_LABEL "Historical Queries"
     )
   endif()
 endif()
