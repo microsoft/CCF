@@ -19,7 +19,7 @@ using namespace nlohmann;
 namespace basicapp
 {
   using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
-  static constexpr auto PRIVATE_RECORDS = "records";
+  static constexpr auto PRIVATE_RECORDS = "basic.records";
 
   // This sample shows the features of DynamicJSEndpointRegistry. This sample
   // adds a PUT /app/custom_endpoints, which calls install_custom_endpoints(),
@@ -30,6 +30,39 @@ namespace basicapp
   // space.
   class BasicHandlers : public ccf::js::DynamicJSEndpointRegistry
   {
+  private:
+    std::optional<ccf::UserId> try_get_user_id(
+      ccf::endpoints::EndpointContext& ctx)
+    {
+      if (
+        const auto* cose_ident =
+          ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
+      {
+        return cose_ident->user_id;
+      }
+      else if (
+        const auto* cert_ident =
+          ctx.try_get_caller<ccf::UserCertAuthnIdentity>())
+      {
+        return cert_ident->user_id;
+      }
+      return std::nullopt;
+    }
+
+    std::span<const uint8_t> get_body(ccf::endpoints::EndpointContext& ctx)
+    {
+      if (
+        const auto* cose_ident =
+          ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
+      {
+        return cose_ident->content;
+      }
+      else
+      {
+        return ctx.rpc_ctx->get_request_body();
+      }
+    }
+
   public:
     BasicHandlers(ccfapp::AbstractNodeContext& context) :
       ccf::js::DynamicJSEndpointRegistry(
@@ -148,13 +181,18 @@ namespace basicapp
         });
 
       auto put_custom_endpoints = [this](ccf::endpoints::EndpointContext& ctx) {
-        const auto& caller_identity =
-          ctx.template get_caller<ccf::UserCOSESign1AuthnIdentity>();
-
+        const auto user_id = try_get_user_id(ctx);
+        if (!user_id.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_UNAUTHORIZED,
+            ccf::errors::InternalError,
+            "Failed to get user id");
+          return;
+        }
         // Authorization Check
         nlohmann::json user_data = nullptr;
-        auto result =
-          get_user_data_v1(ctx.tx, caller_identity.user_id, user_data);
+        auto result = get_user_data_v1(ctx.tx, user_id.value(), user_data);
         if (result == ccf::ApiResult::InternalError)
         {
           ctx.rpc_ctx->set_error(
@@ -162,7 +200,7 @@ namespace basicapp
             ccf::errors::InternalError,
             fmt::format(
               "Failed to get user data for user {}: {}",
-              caller_identity.user_id,
+              user_id.value(),
               ccf::api_result_to_str(result)));
           return;
         }
@@ -182,11 +220,11 @@ namespace basicapp
         }
         // End of Authorization Check
 
-        const auto j = nlohmann::json::parse(
-          caller_identity.content.begin(), caller_identity.content.end());
-        const auto wrapper = j.get<ccf::js::Bundle>();
+        const auto bundle = get_body(ctx);
+        const auto j = nlohmann::json::parse(bundle.begin(), bundle.end());
+        const auto parsed_bundle = j.get<ccf::js::Bundle>();
 
-        result = install_custom_endpoints_v1(ctx.tx, wrapper);
+        result = install_custom_endpoints_v1(ctx.tx, parsed_bundle);
         if (result != ccf::ApiResult::OK)
         {
           ctx.rpc_ctx->set_error(
@@ -205,7 +243,7 @@ namespace basicapp
         "/custom_endpoints",
         HTTP_PUT,
         put_custom_endpoints,
-        {ccf::user_cose_sign1_auth_policy})
+        {ccf::user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
         .set_auto_schema<ccf::js::Bundle, void>()
         .install();
 
@@ -288,13 +326,19 @@ namespace basicapp
 
       auto patch_runtime_options =
         [this](ccf::endpoints::EndpointContext& ctx) {
-          const auto& caller_identity =
-            ctx.template get_caller<ccf::UserCOSESign1AuthnIdentity>();
+          const auto user_id = try_get_user_id(ctx);
+          if (!user_id.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_UNAUTHORIZED,
+              ccf::errors::InternalError,
+              "Failed to get user id");
+            return;
+          }
 
           // Authorization Check
           nlohmann::json user_data = nullptr;
-          auto result =
-            get_user_data_v1(ctx.tx, caller_identity.user_id, user_data);
+          auto result = get_user_data_v1(ctx.tx, user_id.value(), user_data);
           if (result == ccf::ApiResult::InternalError)
           {
             ctx.rpc_ctx->set_error(
@@ -302,7 +346,7 @@ namespace basicapp
               ccf::errors::InternalError,
               fmt::format(
                 "Failed to get user data for user {}: {}",
-                caller_identity.user_id,
+                user_id.value(),
                 ccf::api_result_to_str(result)));
             return;
           }
@@ -330,9 +374,9 @@ namespace basicapp
           // - Convert current options to JSON
           auto j_options = nlohmann::json(options);
 
+          const auto body = get_body(ctx);
           // - Parse argument as JSON body
-          const auto arg_body = nlohmann::json::parse(
-            caller_identity.content.begin(), caller_identity.content.end());
+          const auto arg_body = nlohmann::json::parse(body.begin(), body.end());
 
           // - Merge, to overwrite current options with anything from body. Note
           // that nulls mean deletions, which results in resetting to a default
@@ -362,7 +406,7 @@ namespace basicapp
         "/custom_endpoints/runtime_options",
         HTTP_PATCH,
         patch_runtime_options,
-        {ccf::user_cose_sign1_auth_policy})
+        {ccf::user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
         .install();
 
       auto get_runtime_options = [this](ccf::endpoints::EndpointContext& ctx) {

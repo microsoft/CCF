@@ -145,6 +145,12 @@ def test_custom_endpoints(network, args):
 
         test_getters(c, bundle_with_content)
 
+    # Install also works with cert authentication, at the expense of potential offline
+    # auditability, since the ledger will not contain a signature
+    with primary.client(user.local_id, None, None) as c:
+        r = c.put("/app/custom_endpoints", body=bundle_with_content)
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
     with primary.client() as c:
         r = c.get("/app/not_content")
         assert r.status_code == http.HTTPStatus.NOT_FOUND.value, r.status_code
@@ -224,10 +230,10 @@ def test_custom_endpoints_kv_restrictions(network, args):
         r = c.post("/app/try_write", {"table": "public:my_js_table"})
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
-        LOG.info("'records' is a read-only table")
-        r = c.post("/app/try_read", {"table": "records"})
+        LOG.info("'basic.records' is a read-only table")
+        r = c.post("/app/try_read", {"table": "basic.records"})
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
-        r = c.post("/app/try_write", {"table": "records"})
+        r = c.post("/app/try_write", {"table": "basic.records"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
         LOG.info("'basic.' is a forbidden namespace")
