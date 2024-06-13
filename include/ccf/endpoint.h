@@ -101,7 +101,10 @@ namespace ccf::endpoints
        a primary, it should attempt to redirect to the primary, or else return
        an error. Any write operations must be executed on a primary, so should
        be marked as ToPrimary. */
-    ToPrimary
+    ToPrimary,
+
+    /** TODO: Document  */
+    ToBackup,
   };
 
   enum class Mode
@@ -126,7 +129,8 @@ namespace ccf::endpoints
   DECLARE_JSON_ENUM(
     RedirectionStrategy,
     {{RedirectionStrategy::None, "none"},
-     {RedirectionStrategy::ToPrimary, "to_primary"}});
+     {RedirectionStrategy::ToPrimary, "to_primary"},
+     {RedirectionStrategy::ToBackup, "to_backup"}});
 
   DECLARE_JSON_ENUM(
     Mode,
