@@ -420,8 +420,12 @@ def run(args):
                         overall = rcvd.join(overall, on="messageID")
                         overall = overall.with_columns(
                             client=pl.lit(remote_client.name),
-                            requestSize=pl.col("request").len(),
-                            responseSize=pl.col("rawResponse").len(),
+                            requestSize=pl.col("request").map_elements(
+                                len, return_dtype=pl.Int64
+                            ),
+                            responseSize=pl.col("rawResponse").map_elements(
+                                len, return_dtype=pl.Int64
+                            ),
                         )
 
                         number_of_errors = overall.filter(
