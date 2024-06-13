@@ -210,6 +210,14 @@ def run(get_command, args):
                     perf_result = round(len(df_sends.index) / time_spent, 1)
                     LOG.success(f"{args.label}/{remote_client.name}: {perf_result}")
 
+                    # Throughput from only one client, preserved for legacy reason
+                    # see basicperf.py for a better, cross-client approach.
+                    bf = infra.bencher.Bencher()
+                    bf.set(
+                        args.perf_label,
+                        infra.bencher.Throughput(perf_result),
+                    )
+
                 primary, _ = network.find_primary()
                 with primary.client() as nc:
                     r = nc.get("/node/memory")
@@ -220,7 +228,7 @@ def run(get_command, args):
 
                     bf = infra.bencher.Bencher()
                     bf.set(
-                        args.label,
+                        args.perf_label,
                         infra.bencher.Memory(current_value, high_value=peak_value),
                     )
 

@@ -33,7 +33,7 @@ if(BUILD_TESTS)
   add_perf_test(
     NAME tpcc
     PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/tpcc.py
-    CLIENT_BIN ./tpcc_client
+    CLIENT_BIN ./tpcc_client PERF_LABEL TPCC
     ADDITIONAL_ARGS --transactions ${TPCC_ITERATIONS} --max-writes-ahead 250
   )
 endif()
