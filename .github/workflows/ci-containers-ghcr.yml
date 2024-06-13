@@ -22,10 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Truncate ref
-        run: echo "tag=${GITHUB_REF#refs/tags/ccf_ci_image/}" >> $GITHUB_OUTPUT
-        id: tref
-
       - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
@@ -49,7 +45,7 @@ jobs:
             platform=virtual
             clang_version=15
           push: true
-          tags: ${{steps.tref.outputs.tag}}-virtual-clang15
+          tags: ${{ steps.meta.outputs.tags }}-virtual-clang15
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Generate artifact attestation
