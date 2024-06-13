@@ -2124,7 +2124,7 @@ if __name__ == "__main__":
     cr.add(
         "app_space_js",
         run_app_space_js,
-        package="samples/apps/basic/libbasic",
+        package="samples/apps/programmability/libprogrammability",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,
