@@ -1,4 +1,4 @@
-let records_table = ccf.kv["records"];
+let records_table = ccf.kv["basic.records"];
 
 export function put_record(request) {
   const key = request.params.key;

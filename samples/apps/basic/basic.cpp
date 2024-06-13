@@ -19,7 +19,7 @@ using namespace nlohmann;
 namespace basicapp
 {
   using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
-  static constexpr auto PRIVATE_RECORDS = "records";
+  static constexpr auto PRIVATE_RECORDS = "basic.records";
 
   // This sample shows the features of DynamicJSEndpointRegistry. This sample
   // adds a PUT /app/custom_endpoints, which calls install_custom_endpoints(),

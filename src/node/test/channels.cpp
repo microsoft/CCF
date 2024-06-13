@@ -1550,12 +1550,39 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
   }
 
-  // Assume this sleep is long enough for channel threads to fully catch up
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  // Wait for channel threads to fully catch up.
+  constexpr int wait_finish_attempts = 100;
+  for (int attempt = 0; attempt < wait_finish_attempts; attempt++)
+  {
+    bool skip_waiting{false};
+    {
+      std::lock_guard<std::mutex> guard(sent_by_1.lock);
+      skip_waiting |= sent_by_1.to_send.empty();
+    }
+    {
+      std::lock_guard<std::mutex> guard(sent_by_2.lock);
+      skip_waiting |= sent_by_2.to_send.empty();
+    }
+    if (skip_waiting)
+    {
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+
   finished.store(true);
 
   channels1.join();
   channels2.join();
+
+  {
+    std::lock_guard<std::mutex> guard(sent_by_1.lock);
+    REQUIRE(sent_by_1.to_send.empty());
+  }
+  {
+    std::lock_guard<std::mutex> guard(sent_by_2.lock);
+    REQUIRE(sent_by_2.to_send.empty());
+  }
 
   // Validate results
   REQUIRE(received_by_1 == expected_received_by_1);
