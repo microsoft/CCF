@@ -180,7 +180,6 @@ def test_historical_query_range(network, args):
 
         c.get("/node/memory")
 
-    # https://github.com/microsoft/CCF/issues/6126
     id_a_fetch_rate = len(entries[id_a]) / duration_a
     id_b_fetch_rate = len(entries[id_b]) / duration_b
     id_c_fetch_rate = len(entries[id_c]) / duration_c
@@ -193,7 +192,7 @@ def test_historical_query_range(network, args):
 
     bf = infra.bencher.Bencher()
     bf.set(
-        "historical_queries",
+        "Historical Queries",
         infra.bencher.Throughput(average_fetch_rate),
     )
 

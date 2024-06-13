@@ -11,7 +11,7 @@ jobs:
     name: Continuous Benchmarking with Bencher
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ccfmsrc.azurecr.io/ccf/ci:2024-05-29-virtual-clang15
+      image: ccfmsrc.azurecr.io/ccf/ci:oe-0.19.6-0-virtual-clang15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,7 +22,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=1 ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DBUILD_TPCC=ON ..
           ninja
           # Microbenchmarks
           ./tests.sh -VV -L benchmark

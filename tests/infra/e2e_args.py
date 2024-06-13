@@ -208,7 +208,13 @@ def cli_args(
 
     default_label = os.path.splitext(os.path.basename(sys.argv[0]))[0]
     parser.add_argument(
-        "--label", help="Unique identifier for the test", default=default_label
+        "--label",
+        help="Unique identifier for the test. Must be a valid directory name.",
+        default=default_label,
+    )
+    parser.add_argument(
+        "--perf-label",
+        help="Performance test label, not necessarily unique, nor a valid directory name.",
     )
     parser.add_argument(
         "--throws-if-reqs-not-met",

@@ -19,6 +19,7 @@
 // Custom Endpoints
 #include "ccf/endpoint.h"
 #include "ccf/endpoints/authentication/js.h"
+#include "ccf/historical_queries_adapter.h"
 #include "ccf/js/bundle.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/core/context.h"
@@ -400,7 +401,43 @@ namespace ccf::js
     const CustomJSEndpoint* endpoint,
     ccf::endpoints::EndpointContext& endpoint_ctx)
   {
-    do_execute_request(endpoint, endpoint_ctx);
+    if (endpoint->properties.mode == ccf::endpoints::Mode::Historical)
+    {
+      auto is_tx_committed =
+        [this](ccf::View view, ccf::SeqNo seqno, std::string& error_reason) {
+          return ccf::historical::is_tx_committed_v2(
+            consensus, view, seqno, error_reason);
+        };
+
+      ccf::historical::adapter_v3(
+        [this, endpoint](
+          ccf::endpoints::EndpointContext& endpoint_ctx,
+          ccf::historical::StatePtr state) {
+          auto add_historical_globals = [&](js::core::Context& ctx) {
+            auto ccf = ctx.get_or_create_global_property("ccf", ctx.new_obj());
+            auto extension =
+              ctx.get_extension<ccf::js::extensions::HistoricalExtension>();
+            if (extension != nullptr)
+            {
+              auto val = extension->create_historical_state_object(ctx, state);
+              ccf.set("historicalState", std::move(val));
+            }
+            else
+            {
+              LOG_FAIL_FMT(
+                "Error while inserting historicalState into JS interpreter - "
+                "no extension found");
+            }
+          };
+          do_execute_request(endpoint, endpoint_ctx, add_historical_globals);
+        },
+        context,
+        is_tx_committed)(endpoint_ctx);
+    }
+    else
+    {
+      do_execute_request(endpoint, endpoint_ctx);
+    }
   }
 
   void DynamicJSEndpointRegistry::execute_request_locally_committed(
