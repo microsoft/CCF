@@ -1551,8 +1551,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   }
 
   // Wait for channel threads to fully catch up.
-  constexpr int wait_finish_attemtps = 100;
-  for (int attempt = 0; attempt < wait_finish_attemtps; attempt++)
+  constexpr int wait_finish_attempts = 100;
+  for (int attempt = 0; attempt < wait_finish_attempts; attempt++)
   {
     bool skip_waiting{false};
     {
