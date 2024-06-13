@@ -1,16 +1,16 @@
-name: "Build and Publish CI Containers to GHCR"
+name: "Build and Publish Build Containers to GHCR"
 
 on:
   push:
     tags:
-      - "test_build/*"
+      - "build/*"
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
   build:
-    name: "Build and Publish CI Containers"
+    name: "Build and Publish Build Containers"
     runs-on: ubuntu-latest
 
     permissions:
