@@ -57,6 +57,19 @@ class Memory:
         self.memory = Value(value, high_value, low_value)
 
 
+@dataclasses.dataclass
+class Rate:
+    rate: Value
+
+    def __init__(
+        self,
+        value: float,
+        high_value: Optional[float] = None,
+        low_value: Optional[float] = None,
+    ):
+        self.rate = Value(value, high_value, low_value)
+
+
 class Bencher:
     def __init__(self):
         if not os.path.isfile(BENCHER_FILE):
