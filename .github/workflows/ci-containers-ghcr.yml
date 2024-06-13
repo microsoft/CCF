@@ -33,7 +33,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/ccf/ci
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/ci
 
       - name: Build and push Virtual container
         id: push
@@ -51,6 +51,6 @@ jobs:
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v1
         with:
-          subject-name: ${{ env.REGISTRY }}/microsoft/ccf/ci
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/ci
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
