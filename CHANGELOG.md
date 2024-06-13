@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added TypeScript `TypedKvSet` and `ccfapp.typedKv<K>` to facilitate set handling from application code.
 - Added support for UVM endorsements signed with EC keys (#6231).
+- Updated Open Enclave to [0.19.6](https://github.com/openenclave/openenclave/releases/tag/v0.19.6).
 
 ### Removed
 

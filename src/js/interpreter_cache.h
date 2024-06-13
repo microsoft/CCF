@@ -14,7 +14,7 @@ namespace ccf::js
     // Locks access to all internal fields
     ccf::pal::Mutex lock;
     LRU<std::string, std::shared_ptr<js::core::Context>> lru;
-    size_t cache_build_marker;
+    size_t cache_build_marker = 0;
 
     InterpreterFactory interpreter_factory = nullptr;
 
