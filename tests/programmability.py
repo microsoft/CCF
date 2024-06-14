@@ -176,6 +176,55 @@ def test_custom_endpoints(network, args):
     return network
 
 
+def test_custom_endpoints_circular_includes(network, args):
+    primary, _ = network.find_primary()
+    user = network.users[0]
+
+    MODULE_A_NAME = "a.js"
+    MODULE_B_NAME = "b.js"
+    modules = [
+        {
+            "name": MODULE_A_NAME,
+            "module": """
+import "b.js";
+
+export function do_op(request) {
+    return {
+        statusCode: 204
+    };
+}
+""",
+        },
+        {
+            "name": MODULE_B_NAME,
+            "module": """import "a.js";""",
+        },
+    ]
+
+    recursive_bundle = {
+        "metadata": {
+            "endpoints": {
+                "/do_op": {
+                    "get": endpoint_properties(
+                        js_module=MODULE_A_NAME, js_function="do_op"
+                    )
+                }
+            }
+        },
+        "modules": modules,
+    }
+
+    with primary.client(None, None, user.local_id) as c:
+        r = c.put("/app/custom_endpoints", body=recursive_bundle)
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
+    with primary.client() as c:
+        r = c.get("/app/do_op")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
+    return network
+
+
 def test_custom_endpoints_kv_restrictions(network, args):
     primary, _ = network.find_primary()
     user = network.users[0]
@@ -230,21 +279,21 @@ def test_custom_endpoints_kv_restrictions(network, args):
         r = c.post("/app/try_write", {"table": "public:my_js_table"})
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
-        LOG.info("'basic.records' is a read-only table")
-        r = c.post("/app/try_read", {"table": "basic.records"})
+        LOG.info("'programmability.records' is a read-only table")
+        r = c.post("/app/try_read", {"table": "programmability.records"})
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
-        r = c.post("/app/try_write", {"table": "basic.records"})
+        r = c.post("/app/try_write", {"table": "programmability.records"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
-        LOG.info("'basic.' is a forbidden namespace")
-        r = c.post("/app/try_read", {"table": "basic.foo"})
+        LOG.info("'programmability.' is a forbidden namespace")
+        r = c.post("/app/try_read", {"table": "programmability.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-        r = c.post("/app/try_write", {"table": "basic.foo"})
+        r = c.post("/app/try_write", {"table": "programmability.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
-        r = c.post("/app/try_read", {"table": "public:basic.foo"})
+        r = c.post("/app/try_read", {"table": "public:programmability.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
-        r = c.post("/app/try_write", {"table": "public:basic.foo"})
+        r = c.post("/app/try_write", {"table": "public:programmability.foo"})
         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r.status_code
 
         LOG.info("Cannot grant access to gov/internal tables")
@@ -502,6 +551,7 @@ def run(args):
         )
 
         network = test_custom_endpoints(network, args)
+        network = test_custom_endpoints_circular_includes(network, args)
         network = test_custom_endpoints_kv_restrictions(network, args)
         network = test_custom_role_definitions(network, args)
 
@@ -514,9 +564,9 @@ if __name__ == "__main__":
     cr = ConcurrentRunner()
 
     cr.add(
-        "basic",
+        "programmability",
         run,
-        package="samples/apps/basic/libbasic",
+        package="samples/apps/programmability/libprogrammability",
         js_app_bundle=None,
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),
         initial_user_count=2,

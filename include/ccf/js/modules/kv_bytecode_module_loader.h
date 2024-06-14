@@ -68,10 +68,8 @@ namespace ccf::js::modules
         module_bytecode->data(), module_bytecode->size(), JS_READ_OBJ_BYTECODE);
 
       const bool failed_deser = module_val.is_exception();
-      const bool failed_resolve =
-        !failed_deser && (JS_ResolveModule(ctx, module_val.val) < 0);
 
-      if (failed_deser || failed_resolve)
+      if (failed_deser)
       {
         auto [reason, trace] = ctx.error_message();
 
@@ -81,20 +79,10 @@ namespace ccf::js::modules
           CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
         }
 
-        if (failed_deser)
-        {
-          throw std::runtime_error(fmt::format(
-            "Failed to deserialize bytecode for module '{}': {}",
-            module_name,
-            reason));
-        }
-        else
-        {
-          throw std::runtime_error(fmt::format(
-            "Failed to resolve dependencies for module '{}': {}",
-            module_name,
-            reason));
-        }
+        throw std::runtime_error(fmt::format(
+          "Failed to deserialize bytecode for module '{}': {}",
+          module_name,
+          reason));
       }
 
       CCF_APP_TRACE(
