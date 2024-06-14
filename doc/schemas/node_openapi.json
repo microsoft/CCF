@@ -596,6 +596,9 @@
       },
       "NodeInfoNetwork_v2__NetInterface__Redirections": {
         "properties": {
+          "to_backup": {
+            "$ref": "#/components/schemas/RedirectionResolverConfig"
+          },
           "to_primary": {
             "$ref": "#/components/schemas/RedirectionResolverConfig"
           }
@@ -937,7 +940,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "4.9.1"
+    "version": "4.9.2"
   },
   "openapi": "3.0.0",
   "paths": {
