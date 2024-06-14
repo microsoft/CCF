@@ -176,6 +176,55 @@ def test_custom_endpoints(network, args):
     return network
 
 
+def test_custom_endpoints_circular_includes(network, args):
+    primary, _ = network.find_primary()
+    user = network.users[0]
+
+    MODULE_A_NAME = "a.js"
+    MODULE_B_NAME = "b.js"
+    modules = [
+        {
+            "name": MODULE_A_NAME,
+            "module": """
+import "b.js";
+
+export function do_op(request) {
+    return {
+        statusCode: 204
+    };
+}
+""",
+        },
+        {
+            "name": MODULE_B_NAME,
+            "module": """import "a.js";""",
+        },
+    ]
+
+    recursive_bundle = {
+        "metadata": {
+            "endpoints": {
+                "/do_op": {
+                    "get": endpoint_properties(
+                        js_module=MODULE_A_NAME, js_function="do_op"
+                    )
+                }
+            }
+        },
+        "modules": modules,
+    }
+
+    with primary.client(None, None, user.local_id) as c:
+        r = c.put("/app/custom_endpoints", body=recursive_bundle)
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
+    with primary.client() as c:
+        r = c.get("/app/do_op")
+        assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
+    return network
+
+
 def test_custom_endpoints_kv_restrictions(network, args):
     primary, _ = network.find_primary()
     user = network.users[0]
@@ -502,6 +551,7 @@ def run(args):
         )
 
         network = test_custom_endpoints(network, args)
+        network = test_custom_endpoints_circular_includes(network, args)
         network = test_custom_endpoints_kv_restrictions(network, args)
         network = test_custom_role_definitions(network, args)
 

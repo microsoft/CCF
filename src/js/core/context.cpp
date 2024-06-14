@@ -101,8 +101,25 @@ namespace ccf::js::core
       auto module_val = module_loader->get_module(module_name, *this);
       if (module_val.has_value())
       {
-        // If returned a new module, store it in cache
+        // If returned a new module:
+        // - store it in cache
         loaded_modules_cache.emplace_hint(it, module_name, *module_val);
+
+        // - ensure its dependencies are resolved
+        if (JS_ResolveModule(ctx, module_val->val) < 0)
+        {
+          auto [reason, trace] = error_message();
+
+          if (rt.log_exception_details)
+          {
+            CCF_APP_FAIL("{}: {}", reason, trace.value_or("<no trace>"));
+          }
+
+          throw std::runtime_error(fmt::format(
+            "Failed to resolve dependencies for module '{}': {}",
+            module_name,
+            reason));
+        }
       }
 
       return module_val;
