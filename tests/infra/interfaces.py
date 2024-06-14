@@ -1,8 +1,8 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from dataclasses import dataclass, asdict
-from typing import Optional, Dict
+from dataclasses import dataclass, asdict, field
+from typing import Optional, Dict, Union
 from enum import Enum, auto
 import urllib.parse
 
@@ -75,14 +75,28 @@ class Interface:
     port: int = 0
 
 
-class RedirectionResolver:
-    pass
+class NodeRole(str, Enum):
+    primary = "primary"
+    backup = "backup"
 
 
 @dataclass
-class NodeByRoleResolver(RedirectionResolver):
+class TargetRole:
+    role: NodeRole
+
+    @staticmethod
+    def to_json(tr):
+        return asdict(tr)
+
+    @staticmethod
+    def from_json(json):
+        return TargetRole(role=NodeRole(json["role"]))
+
+
+@dataclass
+class NodeByRoleResolver:
+    target: TargetRole = TargetRole(role=NodeRole.primary)
     kind: str = "NodeByRole"
-    target = {"role": "primary"}
 
     @staticmethod
     def to_json(nbrr):
@@ -91,16 +105,14 @@ class NodeByRoleResolver(RedirectionResolver):
     @staticmethod
     def from_json(json):
         nbrr = NodeByRoleResolver()
-        nbrr.target = json["target"]
+        nbrr.target = TargetRole.from_json(json["target"])
         return nbrr
 
 
-class StaticAddressResolver(RedirectionResolver):
-    kind: str = "StaticAddress"
+@dataclass
+class StaticAddressResolver:
     target_address: str
-
-    def __init__(self, address):
-        self.target_address = address
+    kind: str = "StaticAddress"
 
     @staticmethod
     def to_json(sar):
@@ -111,25 +123,45 @@ class StaticAddressResolver(RedirectionResolver):
 
     @staticmethod
     def from_json(json):
-        sar = StaticAddressResolver()
-        sar.target_address = json["target"]["address"]
-        return sar
+        return StaticAddressResolver(target_address=json["target"]["address"])
+
+
+RedirectionResolver = Union[NodeByRoleResolver, StaticAddressResolver]
 
 
 @dataclass
 class RedirectionConfig:
     to_primary: RedirectionResolver = NodeByRoleResolver()
+    to_backup: RedirectionResolver = NodeByRoleResolver(
+        target=TargetRole(role=NodeRole.backup)
+    )
 
     @staticmethod
     def to_json(rc):
-        return {"to_primary": rc.to_primary.to_json(rc.to_primary)}
+        return {
+            "to_primary": rc.to_primary.to_json(rc.to_primary),
+            "to_backup": rc.to_backup.to_json(rc.to_backup),
+        }
 
     @staticmethod
     def from_json(json):
-        if json["kind"] == "NodeByRole":
-            return NodeByRoleResolver.from_json(json)
-        elif json["kind"] == "StaticAddress":
-            return StaticAddressResolver.from_json(json)
+        def resolver_from_json(obj):
+            if obj["kind"] == "NodeByRole":
+                return NodeByRoleResolver.from_json(obj)
+            elif obj["kind"] == "StaticAddress":
+                return StaticAddressResolver.from_json(obj)
+
+        rc = RedirectionConfig()
+
+        tp = json.get("to_primary", None)
+        if tp:
+            rc.to_primary = resolver_from_json(tp)
+
+        tb = json.get("to_backup", None)
+        if tb:
+            rc.to_backup = resolver_from_json(tb)
+
+        return rc
 
 
 @dataclass
@@ -256,7 +288,9 @@ def make_secondary_interface(transport="tcp", interface_name=SECONDARY_RPC_INTER
 
 @dataclass
 class HostSpec:
-    rpc_interfaces: Dict[str, RPCInterface] = RPCInterface()
+    rpc_interfaces: Dict[str, RPCInterface] = field(
+        default_factory=lambda: {PRIMARY_RPC_INTERFACE: RPCInterface()}
+    )
     acme_challenge_server_interface: Optional[str] = None
 
     def get_primary_interface(self):
@@ -277,3 +311,20 @@ class HostSpec:
                 for name, rpc_interface in rpc_interfaces_json.items()
             }
         )
+
+
+if __name__ == "__main__":
+    # Test some roundtrip conversions
+    def test_roundtrip(before):
+        j = before.to_json(before)
+        after = before.from_json(j)
+        assert before == after, f"Inaccurate JSON roundtrip:\n {before}\n!=\n {after}"
+
+    rc = RedirectionConfig()
+    test_roundtrip(rc)
+
+    rc.to_primary = StaticAddressResolver("1.2.3.4")
+    test_roundtrip(rc)
+
+    rc.to_backup = NodeByRoleResolver(target=TargetRole(NodeRole.backup))
+    test_roundtrip(rc)
