@@ -10,6 +10,8 @@
 #include "ccf/json_handler.h"
 #include "ccf/version.h"
 
+#include "audit_info.h"
+
 #include <charconv>
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
@@ -19,7 +21,8 @@ using namespace nlohmann;
 namespace programmabilityapp
 {
   using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
-  using AuditInput = kv::Value<std::vector<uint8_t>>;
+  using AuditInputValue = kv::Value<std::vector<uint8_t>>;
+  using AuditInfoValue = kv::Value<AuditInfo>;
   static constexpr auto PRIVATE_RECORDS = "programmability.records";
   static constexpr auto CUSTOM_ENDPOINTS_NAMESPACE = "public:custom_endpoints";
 
@@ -51,17 +54,17 @@ namespace programmabilityapp
       return std::nullopt;
     }
 
-    std::span<const uint8_t> get_body(ccf::endpoints::EndpointContext& ctx)
+    std::pair<AuditInputFormat, std::span<const uint8_t>> get_body(ccf::endpoints::EndpointContext& ctx)
     {
       if (
         const auto* cose_ident =
           ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
       {
-        return cose_ident->content;
+        return {AuditInputFormat::COSE, cose_ident->content};
       }
       else
       {
-        return ctx.rpc_ctx->get_request_body();
+        return {AuditInputFormat::JSON, ctx.rpc_ctx->get_request_body()};
       }
     }
 
@@ -225,15 +228,18 @@ namespace programmabilityapp
         }
         // End of Authorization Check
 
-        // Make operation auditable by writing user-supplied
-        // document to the ledger
-        auto audit = ctx.tx.template rw<AuditInput>(
-          fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
-        audit->put(ctx.rpc_ctx->get_request_body());
-
-        const auto bundle = get_body(ctx);
+        const auto [format, bundle] = get_body(ctx);
         const auto j = nlohmann::json::parse(bundle.begin(), bundle.end());
         const auto parsed_bundle = j.get<ccf::js::Bundle>();
+
+        // Make operation auditable by writing user-supplied
+        // document to the ledger
+        auto audit_input = ctx.tx.template rw<AuditInputValue>(
+          fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
+        audit_input->put(ctx.rpc_ctx->get_request_body());
+        auto audit_info = ctx.tx.template rw<AuditInfoValue>(
+          fmt::format("{}.audit.info", CUSTOM_ENDPOINTS_NAMESPACE));
+        audit_info->put({format, AuditInputContent::BUNDLE, user_id.value()});
 
         result = install_custom_endpoints_v1(ctx.tx, parsed_bundle);
         if (result != ccf::ApiResult::OK)
@@ -377,12 +383,6 @@ namespace programmabilityapp
           }
           // End of Authorization Check
 
-          // Make operation auditable by writing user-supplied
-          // document to the ledger
-          auto audit = ctx.tx.template rw<AuditInput>(
-            fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
-          audit->put(ctx.rpc_ctx->get_request_body());
-
           // Implement patch semantics.
           // - Fetch current options
           ccf::JSRuntimeOptions options;
@@ -391,7 +391,7 @@ namespace programmabilityapp
           // - Convert current options to JSON
           auto j_options = nlohmann::json(options);
 
-          const auto body = get_body(ctx);
+          const auto [format, body] = get_body(ctx);
           // - Parse argument as JSON body
           const auto arg_body = nlohmann::json::parse(body.begin(), body.end());
 
@@ -402,6 +402,15 @@ namespace programmabilityapp
 
           // - Parse patched options from JSON
           options = j_options.get<ccf::JSRuntimeOptions>();
+
+          // Make operation auditable by writing user-supplied
+          // document to the ledger
+          auto audit = ctx.tx.template rw<AuditInputValue>(
+            fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
+          audit->put(ctx.rpc_ctx->get_request_body());
+          auto audit_info = ctx.tx.template rw<AuditInfoValue>(
+          fmt::format("{}.audit.info", CUSTOM_ENDPOINTS_NAMESPACE));
+          audit_info->put({format, AuditInputContent::BUNDLE, user_id.value()});
 
           result = set_js_runtime_options_v1(ctx.tx, options);
           if (result != ccf::ApiResult::OK)
