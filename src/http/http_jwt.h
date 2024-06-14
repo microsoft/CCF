@@ -32,9 +32,12 @@ namespace http
   {
     size_t nbf;
     size_t exp;
+    std::string iss;
+    std::optional<std::string> tid;
   };
-  DECLARE_JSON_TYPE(JwtPayload)
-  DECLARE_JSON_REQUIRED_FIELDS(JwtPayload, nbf, exp)
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtPayload)
+  DECLARE_JSON_REQUIRED_FIELDS(JwtPayload, nbf, exp, iss);
+  DECLARE_JSON_OPTIONAL_FIELDS(JwtPayload, tid)
 
   class JwtVerifier
   {

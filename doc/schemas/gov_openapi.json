@@ -349,11 +349,6 @@
             "$ref": "#/components/schemas/boolean"
           }
         },
-        "required": [
-          "max_heap_bytes",
-          "max_stack_bytes",
-          "max_execution_time_ms"
-        ],
         "type": "object"
       },
       "JwtIssuerKeyFilter": {
@@ -408,6 +403,12 @@
           "cert"
         ],
         "type": "object"
+      },
+      "KeyIdInfo_array": {
+        "items": {
+          "$ref": "#/components/schemas/KeyIdInfo"
+        },
+        "type": "array"
       },
       "MDType": {
         "enum": [
@@ -863,6 +864,30 @@
         ],
         "type": "string"
       },
+      "OpenIDJWKMetadata": {
+        "properties": {
+          "cert": {
+            "$ref": "#/components/schemas/base64string"
+          },
+          "constraint": {
+            "$ref": "#/components/schemas/string"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/string"
+          }
+        },
+        "required": [
+          "cert",
+          "issuer"
+        ],
+        "type": "object"
+      },
+      "OpenIDJWKMetadata_array": {
+        "items": {
+          "$ref": "#/components/schemas/OpenIDJWKMetadata"
+        },
+        "type": "array"
+      },
       "Pem": {
         "type": "string"
       },
@@ -1262,9 +1287,15 @@
         },
         "type": "object"
       },
-      "string_to_KeyIdInfo": {
+      "string_to_KeyIdInfo_array": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/KeyIdInfo"
+          "$ref": "#/components/schemas/KeyIdInfo_array"
+        },
+        "type": "object"
+      },
+      "string_to_OpenIDJWKMetadata_array": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/OpenIDJWKMetadata_array"
         },
         "type": "object"
       },
@@ -1335,7 +1366,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.1.6"
+    "version": "4.1.7"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1552,7 +1583,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string_to_KeyIdInfo"
+                  "$ref": "#/components/schemas/string_to_KeyIdInfo_array"
                 }
               }
             },
@@ -1562,7 +1593,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/jwt/public_signing_keys, /gov/kv/jwt/public_signing_key_issue, and /gov/kv/jwt/issuers endpoints.",
+        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/jwt/public_signing_keys_metadata and /gov/kv/jwt/issuers endpoints.",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/always"
         }
@@ -1744,6 +1775,28 @@
         }
       }
     },
+    "/gov/kv/jwt/public_signing_key": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_base64string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
     "/gov/kv/jwt/public_signing_key_issuer": {
       "get": {
         "responses": {
@@ -1766,14 +1819,14 @@
         }
       }
     },
-    "/gov/kv/jwt/public_signing_keys": {
+    "/gov/kv/jwt/public_signing_keys_metadata": {
       "get": {
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/string_to_base64string"
+                  "$ref": "#/components/schemas/string_to_OpenIDJWKMetadata_array"
                 }
               }
             },

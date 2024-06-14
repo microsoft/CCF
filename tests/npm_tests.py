@@ -17,7 +17,6 @@ import os
 import random
 import subprocess
 import suite.test_requirements as reqs
-import tempfile
 
 from loguru import logger as LOG
 
@@ -696,26 +695,6 @@ def test_npm_app(network, args):
 
         test_apply_writes(c)
 
-        r = c.get("/app/jwt")
-        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-        body = r.body.json()
-        assert body["msg"] == "authorization header missing", r.body
-
-        r = c.get("/app/jwt", headers={"authorization": "Bearer not-a-jwt"})
-        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-        body = r.body.json()
-        assert body["msg"].startswith("malformed jwt:"), r.body
-
-        jwt_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-        jwt_cert_pem = infra.crypto.generate_cert(jwt_key_priv_pem)
-
-        jwt_kid = "my_key_id"
-        jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
-        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
-        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-        body = r.body.json()
-        assert body["msg"].startswith("token signing key not found"), r.body
-
         priv_key_pem, _ = infra.crypto.generate_rsa_keypair(2048)
         pem = infra.crypto.generate_cert(priv_key_pem)
         r = c.post("/app/isValidX509CertBundle", pem)
@@ -760,36 +739,7 @@ def test_npm_app(network, args):
 
         r = c.get("/node/quotes/self")
         primary_quote_info = r.body.json()
-        if args.enclave_platform == "sgx":
-            LOG.info("SGX: Test verifyOpenEnclaveEvidence")
-            # See /opt/openenclave/include/openenclave/attestation/sgx/evidence.h
-            OE_FORMAT_UUID_SGX_ECDSA = "a3a21e87-1b4d-4014-b70a-a125d2fbcd8c"
-            r = c.post(
-                "/app/verifyOpenEnclaveEvidence",
-                {
-                    "format": OE_FORMAT_UUID_SGX_ECDSA,
-                    "evidence": primary_quote_info["raw"],
-                    "endorsements": primary_quote_info["endorsements"],
-                },
-            )
-            assert r.status_code == http.HTTPStatus.OK, r.status_code
-            body = r.body.json()
-            assert body["claims"]["unique_id"] == primary_quote_info["mrenclave"], body
-            assert "sgx_report_data" in body["customClaims"], body
-
-            # again but without endorsements
-            r = c.post(
-                "/app/verifyOpenEnclaveEvidence",
-                {
-                    "format": OE_FORMAT_UUID_SGX_ECDSA,
-                    "evidence": primary_quote_info["raw"],
-                },
-            )
-            assert r.status_code == http.HTTPStatus.OK, r.status_code
-            body = r.body.json()
-            assert body["claims"]["unique_id"] == primary_quote_info["mrenclave"], body
-            assert "sgx_report_data" in body["customClaims"], body
-        elif args.enclave_platform == "snp":
+        if args.enclave_platform == "snp":
             LOG.info("SNP: Test verifySnpAttestation")
 
             def corrupt_value(value: str):
@@ -991,41 +941,5 @@ def test_npm_app(network, args):
 
         validate_openapi(c)
         generate_and_verify_jwk(c)
-
-    LOG.info("Store JWT signing keys")
-
-    issuer = "https://example.issuer"
-    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        jwt_cert_der = infra.crypto.cert_pem_to_der(jwt_cert_pem)
-        der_b64 = b64encode(jwt_cert_der).decode("ascii")
-        data = {
-            "issuer": issuer,
-            "jwks": {"keys": [{"kty": "RSA", "kid": jwt_kid, "x5c": [der_b64]}]},
-        }
-        json.dump(data, metadata_fp)
-        metadata_fp.flush()
-        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
-
-    LOG.info("Calling jwt endpoint after storing keys")
-    with primary.client("user0") as c:
-        jwt_mismatching_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
-        jwt = infra.crypto.create_jwt({}, jwt_mismatching_key_priv_pem, jwt_kid)
-        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
-        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-        body = r.body.json()
-        assert body["msg"] == "jwt validation failed", r.body
-
-        jwt = infra.crypto.create_jwt({}, jwt_key_priv_pem, jwt_kid)
-        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
-        assert r.status_code == http.HTTPStatus.UNAUTHORIZED, r.status_code
-        body = r.body.json()
-        assert body["msg"] == "jwt invalid, sub claim missing", r.body
-
-        user_id = "user0"
-        jwt = infra.crypto.create_jwt({"sub": user_id}, jwt_key_priv_pem, jwt_kid)
-        r = c.get("/app/jwt", headers={"authorization": "Bearer " + jwt})
-        assert r.status_code == http.HTTPStatus.OK, r.status_code
-        body = r.body.json()
-        assert body["userId"] == user_id, r.body
 
     return network

@@ -331,11 +331,23 @@ namespace ccf::js::extensions
       LOG_TRACE_FMT(
         "Looking for historical kv map '{}' at seqno {}", map_name, seqno);
 
-      // Ignore evaluated access permissions - all tables are read-only
-      const auto access_permission = MapAccessPermissions::READ_ONLY;
+      auto access_permission =
+        ccf::js::check_kv_map_access(jsctx.access, map_name);
+      std::string explanation =
+        ccf::js::explain_kv_map_access(access_permission, jsctx.access);
+
+      // If it's illegal, it stays illegal in historical lookup
+      if (access_permission != KVAccessPermissions::ILLEGAL)
+      {
+        // But otherwise, ignore evaluated access permissions - all tables are
+        // read-only in historical KV
+        access_permission = KVAccessPermissions::READ_ONLY;
+        explanation = "All tables are read-only during historical transaction.";
+      }
+
       auto handle_val =
         kvhelpers::create_kv_map_handle<get_map_handle_historical, nullptr>(
-          jsctx, map_name, access_permission);
+          jsctx, map_name, access_permission, explanation);
       if (JS_IsException(handle_val))
       {
         return -1;

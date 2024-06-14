@@ -59,7 +59,7 @@ function(message)
 endfunction()
 
 option(PROFILE_TESTS "Profile tests" OFF)
-set(PYTHON unbuffer python3)
+set(PYTHON python3)
 
 set(DISTRIBUTE_PERF_TESTS
     ""
@@ -334,7 +334,6 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/ffi_plugins.cpp
     ${CCF_DIR}/src/js/extensions/console.cpp
     ${CCF_DIR}/src/js/extensions/math/random.cpp
-    ${CCF_DIR}/src/js/extensions/openenclave.cpp
     ${CCF_DIR}/src/js/extensions/snp_attestation.cpp
     ${CCF_DIR}/src/js/extensions/ccf/consensus.cpp
     ${CCF_DIR}/src/js/extensions/ccf/converters.cpp
@@ -938,6 +937,18 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
+      endorsements_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/endorsements.cpp
+    )
+    set_property(
+      TEST endorsements_test
+      APPEND
+      PROPERTY
+        ENVIRONMENT
+        "TEST_ENDORSEMENTS_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/uvm_endorsements"
+    )
+
+    add_unit_test(
       historical_queries_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/historical_queries.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/receipt.cpp
@@ -1022,6 +1033,12 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/endpoint_registry.cpp
     )
     target_link_libraries(endpoint_registry_test PRIVATE ccf_endpoints.host)
+
+    add_unit_test(
+      jwt_auth_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/test_jwt_auth.cpp
+    )
+    target_link_libraries(jwt_auth_test PRIVATE ccf_endpoints.host)
 
     add_unit_test(
       tx_status_test
@@ -1124,19 +1141,6 @@ if(BUILD_TESTS)
     )
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
-
-    set(CONSTITUTION_ARGS
-        --constitution
-        ${CCF_DIR}/samples/constitutions/default/actions.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/test/test_actions.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/default/validate.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/test/resolve.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/default/apply.js
-    )
 
     if(LONG_TESTS)
       set(ADDITIONAL_RECOVERY_ARGS --with-load)
@@ -1255,6 +1259,19 @@ if(BUILD_TESTS)
                       ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
     )
 
+    set(CONSTITUTION_ARGS
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/actions.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/test/test_actions.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/validate.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/test/resolve.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/apply.js
+    )
+
     add_e2e_test(
       NAME governance_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
@@ -1302,8 +1319,22 @@ if(BUILD_TESTS)
                       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
     )
 
+    set(RBAC_CONSTITUTION_ARGS
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/actions.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/roles/set_role_definition.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/validate.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/resolve.js
+        --constitution
+        ${CCF_DIR}/samples/constitutions/default/apply.js
+    )
+
     add_e2e_test(
       NAME programmability
+      CONSTITUTION ${RBAC_CONSTITUTION_ARGS}
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
     )
 
@@ -1464,7 +1495,7 @@ if(BUILD_TESTS)
     add_piccolo_test(
       NAME pi_ls
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-      CLIENT_BIN ./submit
+      CLIENT_BIN ./submit PERF_LABEL "Logging"
       ADDITIONAL_ARGS --package "samples/apps/logging/liblogging"
                       --max-writes-ahead 1000 --repetitions 10000
     )
@@ -1472,7 +1503,7 @@ if(BUILD_TESTS)
     add_piccolo_test(
       NAME pi_basic
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-      CLIENT_BIN ./submit
+      CLIENT_BIN ./submit PERF_LABEL "Basic"
       ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
                       "1,write,100000,primary"
     )
@@ -1480,7 +1511,7 @@ if(BUILD_TESTS)
     add_piccolo_test(
       NAME pi_basic_js
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-      CLIENT_BIN ./submit
+      CLIENT_BIN ./submit PERF_LABEL "Basic JS"
       ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
                       --client-def "1,write,100000,primary"
     )
@@ -1489,7 +1520,7 @@ if(BUILD_TESTS)
       add_piccolo_test(
         NAME pi_basic_mt
         PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-        CLIENT_BIN ./submit
+        CLIENT_BIN ./submit PERF_LABEL "Basic Multi-Threaded"
         ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
                         "${WORKER_THREADS},write,100000,primary"
       )
@@ -1498,7 +1529,7 @@ if(BUILD_TESTS)
     add_piccolo_test(
       NAME pi_ls_jwt
       PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-      CLIENT_BIN ./submit
+      CLIENT_BIN ./submit PERF_LABEL "Logging JWT"
       ADDITIONAL_ARGS
         --package
         "samples/apps/logging/liblogging"
@@ -1512,7 +1543,7 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME historical_query_perf_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
-      LABEL perf
+      LABEL perf PERF_LABEL "Historical Queries"
     )
   endif()
 endif()

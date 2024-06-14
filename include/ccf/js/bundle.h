@@ -12,8 +12,9 @@ namespace ccf::js
 {
   struct Metadata
   {
+    // Path -> {HTTP Method -> Properties}
     std::map<
-      std::string,
+      ccf::endpoints::URI,
       std::map<std::string, ccf::endpoints::EndpointProperties>>
       endpoints;
   };

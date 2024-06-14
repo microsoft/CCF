@@ -366,7 +366,7 @@ JWT issuers.
 ``jwt.public_signing_keys``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-JWT signing keys.
+JWT signing keys, used until 5.0.
 
 **Key** JWT Key ID, represented as a string.
 
@@ -375,11 +375,20 @@ JWT signing keys.
 ``jwt.public_signing_key_issuer``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-JWT signing key to Issuer mapping.
+JWT signing key to Issuer mapping, used until 5.0.
 
 **Key** JWT Key ID, represented as a string.
 
 **Value** JWT issuer URL, represented as a string.
+
+``jwt.public_signing_keys_metadata``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+JWT signing keys.
+
+**Key** JWT Key ID, represented as a string.
+
+**Value** List of (DER-encoded key/certificate, issuer, constraint) used to validate the Issuer during authorization, represented as JSON.
 
 ``constitution``
 ~~~~~~~~~~~~~~~~

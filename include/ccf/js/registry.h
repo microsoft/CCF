@@ -7,6 +7,7 @@
 #include "ccf/js/bundle.h"
 #include "ccf/js/core/context.h"
 #include "ccf/js/interpreter_cache_interface.h"
+#include "ccf/js/namespace_restrictions.h"
 #include "ccf/tx.h"
 #include "ccf/tx_id.h"
 
@@ -51,6 +52,8 @@ namespace ccf::js
     std::string modules_quickjs_bytecode_map;
     std::string runtime_options_map;
 
+    ccf::js::NamespaceRestriction namespace_restriction;
+
     using PreExecutionHook = std::function<void(ccf::js::core::Context&)>;
 
     void do_execute_request(
@@ -76,8 +79,53 @@ namespace ccf::js
      * Call this to populate the KV with JS endpoint definitions, so they can
      * later be dispatched to.
      */
-    void install_custom_endpoints(
-      ccf::endpoints::EndpointContext& ctx, const ccf::js::Bundle& bundle);
+    ccf::ApiResult install_custom_endpoints_v1(
+      kv::Tx& tx, const ccf::js::Bundle& bundle);
+
+    /**
+     * Retrieve all endpoint definitions currently in-use. This returns the same
+     * bundle written by a recent call to install_custom_endpoints. Note that
+     * some values (module paths, casing of HTTP methods) may differ slightly
+     * due to internal normalisation.
+     */
+    ccf::ApiResult get_custom_endpoints_v1(
+      ccf::js::Bundle& bundle, kv::ReadOnlyTx& tx);
+
+    /**
+     * Retrieve property definition for a single JS endpoint.
+     */
+    ccf::ApiResult get_custom_endpoint_properties_v1(
+      ccf::endpoints::EndpointProperties& properties,
+      kv::ReadOnlyTx& tx,
+      const ccf::RESTVerb& verb,
+      const ccf::endpoints::URI& uri);
+
+    /**
+     * Retrieve content of a single JS module.
+     */
+    ccf::ApiResult get_custom_endpoint_module_v1(
+      std::string& code, kv::ReadOnlyTx& tx, const std::string& module_name);
+
+    /**
+     * Pass a function to control which maps can be accessed by JS endpoints.
+     */
+    void set_js_kv_namespace_restriction(
+      const ccf::js::NamespaceRestriction& restriction);
+
+    /**
+     * Set options to control JS execution. Some hard limits may be applied to
+     * bound any values specified here.
+     */
+    ccf::ApiResult set_js_runtime_options_v1(
+      kv::Tx& tx, const ccf::JSRuntimeOptions& options);
+
+    /**
+     * Get the options which currently control JS execution. If no value has
+     * been populated in the KV, this will return the default runtime options
+     * which will be applied instead.
+     */
+    ccf::ApiResult get_js_runtime_options_v1(
+      ccf::JSRuntimeOptions& options, kv::ReadOnlyTx& tx);
 
     /// \defgroup Overrides for base EndpointRegistry functions, looking up JS
     /// endpoints before delegating to base implementation.
@@ -93,6 +141,8 @@ namespace ccf::js
       ccf::endpoints::EndpointDefinitionPtr e,
       ccf::endpoints::CommandEndpointContext& endpoint_ctx,
       const ccf::TxID& tx_id) override;
+
+    void build_api(nlohmann::json& document, kv::ReadOnlyTx& tx) override;
     ///@}
   };
 }

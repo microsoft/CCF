@@ -63,6 +63,12 @@ class Stats:
     def mean(self):
         return self.stats["mean"]
 
+    def max(self):
+        return self.stats["max"]
+
+    def min(self):
+        return self.stats["min"]
+
 
 @reqs.description("Measure commit latency")
 def measure_commit_latency(args, sig_interval=100):
@@ -124,13 +130,15 @@ def run(args):
         print_fn(f"Mean commit latency / sig_interval = {factor:.2f}")
         factors.append(factor)
 
-    bf = infra.bencher.Bencher()
-    bf.set(
-        "commit_latency_ratio",
-        infra.bencher.Latency(
-            statistics.mean(factors), high_value=max(factors), low_value=min(factors)
-        ),
-    )
+    for sig_interval in (1, 16, 256):
+        stats = all_stats[sig_interval]
+        bf = infra.bencher.Bencher()
+        bf.set(
+            f"Commit Latency (sig_ms_interval={sig_interval}ms)",
+            infra.bencher.Latency(
+                stats.mean(), high_value=stats.max(), low_value=stats.min()
+            ),
+        )
 
 
 if __name__ == "__main__":
