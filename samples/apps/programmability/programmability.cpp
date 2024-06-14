@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 // CCF
+#include "audit_info.h"
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/ds/hash.h"
@@ -9,8 +10,6 @@
 #include "ccf/js/registry.h"
 #include "ccf/json_handler.h"
 #include "ccf/version.h"
-
-#include "audit_info.h"
 
 #include <charconv>
 #define FMT_HEADER_ONLY
@@ -54,7 +53,8 @@ namespace programmabilityapp
       return std::nullopt;
     }
 
-    std::pair<AuditInputFormat, std::span<const uint8_t>> get_body(ccf::endpoints::EndpointContext& ctx)
+    std::pair<AuditInputFormat, std::span<const uint8_t>> get_body(
+      ccf::endpoints::EndpointContext& ctx)
     {
       if (
         const auto* cose_ident =
@@ -409,7 +409,7 @@ namespace programmabilityapp
             fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
           audit->put(ctx.rpc_ctx->get_request_body());
           auto audit_info = ctx.tx.template rw<AuditInfoValue>(
-          fmt::format("{}.audit.info", CUSTOM_ENDPOINTS_NAMESPACE));
+            fmt::format("{}.audit.info", CUSTOM_ENDPOINTS_NAMESPACE));
           audit_info->put({format, AuditInputContent::BUNDLE, user_id.value()});
 
           result = set_js_runtime_options_v1(ctx.tx, options);
