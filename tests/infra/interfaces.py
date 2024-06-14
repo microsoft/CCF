@@ -3,7 +3,7 @@
 
 from dataclasses import dataclass, asdict, field
 from typing import Optional, Dict, Union
-from enum import Enum, auto
+from enum import Enum
 import urllib.parse
 
 from loguru import logger as LOG
@@ -41,11 +41,11 @@ SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
 NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
 
 
-class EndorsementAuthority(Enum):
-    Service = auto()
-    Node = auto()
-    ACME = auto()
-    Unsecured = auto()
+class EndorsementAuthority(str, Enum):
+    Service = "Service"
+    Node = "Node"
+    ACME = "ACME"
+    Unsecured = "Unsecured"
 
 
 @dataclass
@@ -64,8 +64,8 @@ class Endorsement:
     @staticmethod
     def from_json(json):
         endorsement = Endorsement()
-        endorsement.authority = json["authority"]
-        endorsement.acme_configuration = json["acme_configuration"]
+        endorsement.authority = EndorsementAuthority(json["authority"])
+        endorsement.acme_configuration = json.get("acme_configuration", None)
         return endorsement
 
 
@@ -171,9 +171,9 @@ class RPCInterface(Interface):
     # Underlying transport layer protocol (tcp, udp)
     transport: str = "tcp"
     # Host name/IP
-    public_host: Optional[str] = None
+    public_host: Optional[str] = "localhost"
     # Host port
-    public_port: Optional[int] = None
+    public_port: Optional[int] = 8000
     max_open_sessions_soft: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_SOFT
     max_open_sessions_hard: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_HARD
     max_http_body_size: Optional[int] = DEFAULT_MAX_HTTP_BODY_SIZE
@@ -185,7 +185,7 @@ class RPCInterface(Interface):
     endorsement: Optional[Endorsement] = Endorsement()
     acme_configuration: Optional[str] = None
     accepted_endpoints: Optional[str] = None
-    forwarding_timeout_ms: Optional[int] = None
+    forwarding_timeout_ms: Optional[int] = DEFAULT_FORWARDING_TIMEOUT_MS
     redirections: Optional[RedirectionConfig] = None
     app_protocol: str = "HTTP1"
 
@@ -328,3 +328,6 @@ if __name__ == "__main__":
 
     rc.to_backup = NodeByRoleResolver(target=TargetRole(NodeRole.backup))
     test_roundtrip(rc)
+
+    hc = HostSpec()
+    test_roundtrip(hc)
