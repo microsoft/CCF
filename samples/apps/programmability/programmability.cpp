@@ -19,7 +19,9 @@ using namespace nlohmann;
 namespace programmabilityapp
 {
   using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
+  using AuditInput = kv::Value<std::vector<uint8_t>>;
   static constexpr auto PRIVATE_RECORDS = "programmability.records";
+  static constexpr auto CUSTOM_ENDPOINTS_NAMESPACE = "public:custom_endpoints";
 
   // This sample shows the features of DynamicJSEndpointRegistry. This sample
   // adds a PUT /app/custom_endpoints, which calls install_custom_endpoints(),
@@ -67,8 +69,8 @@ namespace programmabilityapp
     ProgrammabilityHandlers(ccfapp::AbstractNodeContext& context) :
       ccf::js::DynamicJSEndpointRegistry(
         context,
-        "public:custom_endpoints" // Internal KV space will be under
-                                  // public:custom_endpoints.*
+        CUSTOM_ENDPOINTS_NAMESPACE // Internal KV space will be under
+                                   // public:custom_endpoints.*
       )
     {
       openapi_info.title = "CCF Programmabilit App";
@@ -223,6 +225,12 @@ namespace programmabilityapp
         }
         // End of Authorization Check
 
+        // Make operation auditable by writing user-supplied
+        // document to the ledger
+        auto audit = ctx.tx.template rw<AuditInput>(
+          fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
+        audit->put(ctx.rpc_ctx->get_request_body());
+
         const auto bundle = get_body(ctx);
         const auto j = nlohmann::json::parse(bundle.begin(), bundle.end());
         const auto parsed_bundle = j.get<ccf::js::Bundle>();
@@ -368,6 +376,12 @@ namespace programmabilityapp
             return;
           }
           // End of Authorization Check
+
+          // Make operation auditable by writing user-supplied
+          // document to the ledger
+          auto audit = ctx.tx.template rw<AuditInput>(
+            fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
+          audit->put(ctx.rpc_ctx->get_request_body());
 
           // Implement patch semantics.
           // - Fetch current options
