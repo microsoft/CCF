@@ -6,7 +6,7 @@ if(NOT COMPILE_TARGET STREQUAL "sgx")
 endif()
 
 # Find OpenEnclave package
-find_package(OpenEnclave 0.19.3 CONFIG REQUIRED)
+find_package(OpenEnclave 0.19.6 CONFIG REQUIRED)
 # As well as pulling in openenclave:: targets, this sets variables which can be
 # used for our edge cases (eg - for virtual libraries). These do not follow the
 # standard naming patterns, for example use OE_INCLUDEDIR rather than
