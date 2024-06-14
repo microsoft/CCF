@@ -59,7 +59,7 @@ def test_redirects_with_node_role_config(network, args):
             if loc.startswith(b_loc):
                 break
         else:
-            assert False, f"Redirect header doesn't point to a backup?"
+            assert False, "Redirect header doesn't point to a backup?"
 
     primary, orig_backups = network.find_nodes()
 
