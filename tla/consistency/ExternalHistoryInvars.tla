@@ -205,7 +205,61 @@ CommittedRwLinearizableInv ==
     /\ AllCommittedObservedInv
     /\ AtMostOnceObservedInv
 
-\*Debugging invariants to check that specific states are reachable
+----
+
+\* TxIDs are of the form <<view,seqnum>>
+View(tx_id) == tx_id[1]
+SeqNum(tx_id) == tx_id[2]
+
+\* Ordering over txIDs
+TxIDStrictlyLessThan(x, y) ==
+    \/ View(x) < View(y)
+    \/ /\ View(x) = View(y)
+       /\ SeqNum(x) < SeqNum(y)
+
+\* CommittedRwResponse is a subsequence of history containing only the responses to committed rx transactions
+\* and sorted by tx_id (instead of by event ordering)
+CommittedRwResponses == 
+    SetToSortSeq({history[i]: i \in RwTxResponseCommittedEventIndexes}, 
+    LAMBDA x,y : TxIDStrictlyLessThan(x.tx_id, y.tx_id))
+
+
+\* If a transaction response is received (event i) before another transaction is requested (event j), 
+\* then tx_id of the first transaction is strictly less than the tx_id of the second transaction.
+\* Note that this invariant only considers committed read-write transactions.
+CommittedRwOrderedRealTimeInv == 
+    \A i \in RwTxResponseCommittedEventIndexes :
+        \A j \in RwTxRequestCommittedEventIndexes :
+            \A k \in RoTxResponseCommittedEventIndexes :
+                /\ history[k].tx = history[j].tx
+                /\ i < j 
+                => TxIDStrictlyLessThan(history[i].tx_id, history[k].tx_id)
+
+\* Each transaction observes the previous transaction in the TxID order and its own write
+\* Note that this invariant is only considers committed read-write transactions.
+CommittedRwOrderedSerializableInv ==
+    \A i \in 1..Len(CommittedRwResponses)-1:
+        CommittedRwResponses[i+1].observed = Append(CommittedRwResponses[i].observed, CommittedRwResponses[i+1].tx)
+
+\* Ordered speculative linearizability for committed read-write transactions is the primary consistency
+\* guarantee provided by CCF. Note that this invariant is stronger than traditional linearizability.
+\* Ordered speculative linearizability means that once a rw transaction is committed, it is linearizable
+\* and that the ordering of execution is consistent with the transaction IDs.
+\* In CCF, a client receives a response before it learns that the transaction is committed.
+\* The speculative 
+\* part of speculative linearizability means that the time window for real-time ordering is from the client's request 
+\* to its initial response.
+\* This differs from linearizability where the time window is from the request to when the client learns that the transaction is committed. 
+\* This time window is smaller and thus the ordering is more strict. 
+\* We check ordered speculative linearizability in two stages:
+\* 1) We check that the rw committed transactions are serializable w.r.t the TxID order
+\* 2) We check that the TxID order is consistent with the real-time order of client observations
+CommittedRwOrderedSpecLinearizableInv ==
+    /\ CommittedRwOrderedSerializableInv
+    /\ CommittedRwOrderedRealTimeInv
+
+----
+\* Debugging invariants to check that specific states are reachable
 
 SomeCommittedTxDebugInv == 
     Cardinality(CommittedTxIDs) = 0
