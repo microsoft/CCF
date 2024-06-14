@@ -16,7 +16,7 @@ def test_redirects_with_node_role_config(network, args):
     msg = "Redirect test"
     req = {"id": 42, "msg": msg}
 
-    def test_redirect_to_node(talk_to, redirect_to):
+    def test_redirect_to_primary(talk_to, redirect_to):
         interface = redirect_to.host.rpc_interfaces[
             infra.interfaces.PRIMARY_RPC_INTERFACE
         ]
@@ -33,6 +33,27 @@ def test_redirects_with_node_role_config(network, args):
                 r = c.get(f"{path}?id={req['id']}", allow_redirects=False)
                 assert r.status_code == http.HTTPStatus.OK
 
+                r = c.get(f"{path}/backup?id={req['id']}", allow_redirects=False)
+                assert r.status_code == http.HTTPStatus.OK
+
+    def assert_redirect_to_backup(response, path):
+        p, bs = network.find_nodes()
+        assert response.status_code == http.HTTPStatus.TEMPORARY_REDIRECT.value
+        assert "location" in response.headers
+        loc = response.headers["location"]
+        assert loc.endswith(path), response.headers
+        assert (
+            p.host.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE].public_host
+            not in loc
+        ), response.headers
+        for b in bs:
+            interface = b.host.rpc_interfaces[infra.interfaces.PRIMARY_RPC_INTERFACE]
+            b_loc = f"https://{interface.public_host}:{interface.public_port}"
+            if loc.startswith(b_loc):
+                break
+        else:
+            assert False, f"Redirect header doesn't point to a backup?"
+
     primary, orig_backups = network.find_nodes()
 
     LOG.info("Write initial values")
@@ -46,14 +67,26 @@ def test_redirects_with_node_role_config(network, args):
 
     LOG.info("Redirect to original primary")
     for backup in orig_backups:
-        test_redirect_to_node(backup, primary)
+        test_redirect_to_primary(backup, primary)
+
+    LOG.info("Redirect from primary to backup")
+    with primary.client("user0") as c:
+        for path in paths:
+            r = c.get(f"{path}/backup?id={req['id']}", allow_redirects=False)
+            assert_redirect_to_backup(r, path)
 
     LOG.info("Redirect to subsequent primary")
     primary.stop()
     network.wait_for_new_primary(primary)
     new_primary, new_backups = network.find_nodes()
     for backup in new_backups:
-        test_redirect_to_node(backup, new_primary)
+        test_redirect_to_primary(backup, new_primary)
+
+    LOG.info("Redirect from subsequent primary to backup")
+    with new_primary.client("user0") as c:
+        for path in paths:
+            r = c.get(f"{path}/backup?id={req['id']}", allow_redirects=False)
+            assert_redirect_to_backup(r, path)
 
     LOG.info("Subsequent primary no longer redirects")
     assert new_primary in orig_backups  # Check it WAS a backup
@@ -62,7 +95,7 @@ def test_redirects_with_node_role_config(network, args):
             r = c.post(path, req, allow_redirects=False)
             assert r.status_code == http.HTTPStatus.OK.value
 
-    LOG.info("Redirects fail when no primary available")
+    LOG.info("to_primary redirects fail when no primary available")
     new_primary.stop()
     backup = new_backups[0]
     start_time = time.time()
@@ -82,6 +115,10 @@ def test_redirects_with_node_role_config(network, args):
             r = c.post(path, req, allow_redirects=False)
             assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value
             assert r.body.json()["error"]["code"] == "PrimaryNotFound"
+
+            # to_backup redirects continue to execute locally
+            r = c.get(f"{path}/backup?id={req['id']}", allow_redirects=False)
+            assert r.status_code == http.HTTPStatus.OK.value
 
 
 def test_redirects_with_static_name_config(network, args):

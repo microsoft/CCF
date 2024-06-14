@@ -599,6 +599,16 @@ namespace loggingapp
         .install();
       // SNIPPET_END: install_get
 
+      make_read_only_endpoint(
+        "/log/private/backup",
+        HTTP_GET,
+        ccf::json_read_only_adapter(get),
+        auth_policies)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::ToBackup)
+        .set_auto_schema<void, LoggingGet::Out>()
+        .add_query_parameter<size_t>("id")
+        .install();
+
       // install the committed index and tell the historical fetcher to keep
       // track of deleted keys too, so that the index can observe the deleted
       // keys.
@@ -939,6 +949,16 @@ namespace loggingapp
         HTTP_GET,
         ccf::json_read_only_adapter(get_public),
         auth_policies)
+        .set_auto_schema<void, LoggingGet::Out>()
+        .add_query_parameter<size_t>("id")
+        .install();
+
+      make_read_only_endpoint(
+        "/log/public/backup",
+        HTTP_GET,
+        ccf::json_read_only_adapter(get_public),
+        auth_policies)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::ToBackup)
         .set_auto_schema<void, LoggingGet::Out>()
         .add_query_parameter<size_t>("id")
         .install();
