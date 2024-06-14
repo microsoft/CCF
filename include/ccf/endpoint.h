@@ -103,7 +103,9 @@ namespace ccf::endpoints
        be marked as ToPrimary. */
     ToPrimary,
 
-    /** TODO: Document  */
+    /** This operation should be executed on a backup. If the current node is
+       not a backup, it should attempt to redirect to a backup, or else return
+       an error. Only read operations should be marked as ToBackup. */
     ToBackup,
   };
 
