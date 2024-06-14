@@ -25,7 +25,8 @@ add_custom_command(
           3072
 )
 add_custom_target(
-  programmability_signing_key ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
+  programmability_signing_key ALL
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
 )
 
 sign_app_library(
