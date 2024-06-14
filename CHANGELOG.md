@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0-rc1]
+
+[5.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-rc1
+
+### Added
+
+- Endpoints now support a `ToBackup` redirection strategy, for requests which should never be executed on a primary. These should also be read-only. These are configured similar to `ToPrimary` endpoints, with a `to_backup` object (specifying by-role or statically-addressed targets) in each node's configuration.
+
 ## [5.0.0-dev18]
 
 [5.0.0-dev18]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev18

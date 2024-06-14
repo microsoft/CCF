@@ -117,3 +117,48 @@ The default value for both is ``ToPrimary``/``"to_primary"``, meaning that all r
      - ``ToPrimary`` / ``"to_primary"``
 
 While ``Never`` and ``Always`` have clear analogs in redirection, the session consistency-preserving ``Sometimes`` value is more complicated. All writes should be redirected to a primary, as attempting to execute them on a backup will result in an error. For reads, you may choose to redirect to retain simple consistency, but to support scaling (by reading on backups), we recommend you choose ``None`` for redirections. Where between-request consistency is a strong requirement, we recommend you enforce it at the application level (eg - ETags, request IDs, etc).
+
+ToBackup
+~~~~~~~~
+
+A third ``RedirectionStrategy`` exists named ``ToBackup`` (represented by ``"redirection_strategy": "to_backup"`` in ``app.json``). This is a mirror of the ``ToPrimary`` strategy - if such a request is processed by a node which is currently a primary, that node will produce a HTTP redirect response directing to a backup node. The choice of backup is arbitrary. The redirection address which is inserted can be configured per-node by the operator, in the ``redirections.to_backup`` object.
+
+For example, to redirect directly to a backup by their unique accessible hostname:
+
+.. code-block:: json
+
+    {
+        "network": {
+            "rpc_interfaces": {
+                "interface_name": {
+                    "redirections": {
+                        "to_backup": {
+                            "kind": "NodeByRole",
+                            "target": { "role": "backup" }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+To redirect to a static address (such as a load balancer):
+
+.. code-block:: json
+
+    {
+        "network": {
+            "rpc_interfaces": {
+                "interface_name": {
+                    "redirections": {
+                        "to_backup": {
+                            "kind": "StaticAddress",
+                            "target": {
+                                "address": "backup.ccf.example.com"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
