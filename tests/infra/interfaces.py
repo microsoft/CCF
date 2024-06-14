@@ -171,9 +171,9 @@ class RPCInterface(Interface):
     # Underlying transport layer protocol (tcp, udp)
     transport: str = "tcp"
     # Host name/IP
-    public_host: Optional[str] = "localhost"
+    public_host: Optional[str] = None
     # Host port
-    public_port: Optional[int] = 8000
+    public_port: Optional[int] = None
     max_open_sessions_soft: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_SOFT
     max_open_sessions_hard: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_HARD
     max_http_body_size: Optional[int] = DEFAULT_MAX_HTTP_BODY_SIZE
@@ -234,12 +234,15 @@ class RPCInterface(Interface):
             "bind_address": make_address(interface.host, interface.port),
             "protocol": f"{interface.transport}",
             "app_protocol": interface.app_protocol,
-            "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
             "http_configuration": http_config,
             "endorsement": Endorsement.to_json(interface.endorsement),
         }
+        if interface.public_host:
+            r["published_address"] = (
+                f"{interface.public_host}:{interface.public_port or 0}"
+            )
         if interface.accepted_endpoints:
             r["accepted_endpoints"] = interface.accepted_endpoints
         if interface.forwarding_timeout_ms:
