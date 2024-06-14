@@ -2002,45 +2002,95 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_basic_constraints(network, args)
-        test(network, args)
-        test_remove(network, args)
-        test_clear(network, args)
-        test_record_count(network, args)
-        # HTTP2 doesn't support forwarding
-        if not args.http2:
-            test_forwarding_frontends(network, args)
-            test_forwarding_frontends_without_app_prefix(network, args)
-            test_long_lived_forwarding(network, args)
-        test_user_data_ACL(network, args)
-        test_cert_prefix(network, args)
-        test_anonymous_caller(network, args)
-        test_multi_auth(network, args)
-        test_custom_auth(network, args)
-        test_custom_auth_safety(network, args)
-        test_raw_text(network, args)
-        test_historical_query(network, args)
-        test_historical_query_range(network, args)
-        test_view_history(network, args)
-        test_metrics(network, args)
-        test_empty_path(network, args)
-        if args.package == "samples/apps/logging/liblogging":
-            # Local-commit lambda is currently only supported in C++
-            test_post_local_commit_failure(network, args)
-            # Custom indexers currently only supported in C++
-            test_committed_index(network, args)
-        test_liveness(network, args)
-        test_rekey(network, args)
-        test_liveness(network, args)
-        test_random_receipts(network, args, False)
-        if args.package == "samples/apps/logging/liblogging":
-            test_receipts(network, args)
-            test_historical_query_sparse(network, args)
-        test_historical_receipts(network, args)
-        test_historical_receipts_with_claims(network, args)
-        test_genesis_receipt(network, args)
-        if args.package == "samples/apps/logging/liblogging":
-            test_etags(network, args)
+        run_main_tests(network, args)
+
+
+def run_app_space_js(args):
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+
+        # Make user0 admin, so it can install custom endpoints
+        primary, _ = network.find_nodes()
+        user = network.users[0]
+        network.consortium.set_user_data(
+            primary, user.service_id, user_data={"isAdmin": True}
+        )
+
+        with primary.client(None, None, user.local_id) as c:
+            parent_dir = os.path.normpath(
+                os.path.join(os.path.dirname(__file__), os.path.pardir)
+            )
+            logging_js_dir = os.path.join(
+                parent_dir,
+                "samples",
+                "apps",
+                "logging",
+                "js",
+            )
+            bundle = network.consortium.read_bundle_from_dir(logging_js_dir)
+            r = c.put("/app/custom_endpoints", body=bundle)
+
+            assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
+
+            # Also modify the runtime options to log and return errors, to aid debugging
+            r = c.call(
+                "/app/custom_endpoints/runtime_options",
+                {"log_exception_details": True, "return_exception_details": True},
+                http_verb="PATCH",
+            )
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+
+        run_main_tests(network, args)
+
+
+def run_main_tests(network, args):
+    test_basic_constraints(network, args)
+    test(network, args)
+    test_remove(network, args)
+    test_clear(network, args)
+    test_record_count(network, args)
+    # HTTP2 doesn't support forwarding
+    if not args.http2:
+        test_forwarding_frontends(network, args)
+        test_forwarding_frontends_without_app_prefix(network, args)
+        test_long_lived_forwarding(network, args)
+    test_user_data_ACL(network, args)
+    test_cert_prefix(network, args)
+    test_anonymous_caller(network, args)
+    test_multi_auth(network, args)
+    test_custom_auth(network, args)
+    test_custom_auth_safety(network, args)
+    test_raw_text(network, args)
+    test_historical_query(network, args)
+    test_historical_query_range(network, args)
+    test_view_history(network, args)
+    test_metrics(network, args)
+    test_empty_path(network, args)
+    if args.package == "samples/apps/logging/liblogging":
+        # Local-commit lambda is currently only supported in C++
+        test_post_local_commit_failure(network, args)
+        # Custom indexers currently only supported in C++
+        test_committed_index(network, args)
+    test_liveness(network, args)
+    test_rekey(network, args)
+    test_liveness(network, args)
+    test_random_receipts(network, args, False)
+    if args.package == "samples/apps/logging/liblogging":
+        test_receipts(network, args)
+        test_historical_query_sparse(network, args)
+    test_historical_receipts(network, args)
+    test_historical_receipts_with_claims(network, args)
+    test_genesis_receipt(network, args)
+    if args.package == "samples/apps/logging/liblogging":
+        test_etags(network, args)
 
 
 def run_parsing_errors(args):
@@ -2066,6 +2116,15 @@ if __name__ == "__main__":
         "js",
         run,
         package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
+
+    cr.add(
+        "app_space_js",
+        run_app_space_js,
+        package="samples/apps/programmability/libprogrammability",
         nodes=infra.e2e_args.max_nodes(cr.args, f=0),
         initial_user_count=4,
         initial_member_count=2,

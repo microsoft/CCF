@@ -9,25 +9,25 @@ import infra.bencher
 benchmark_specs = {
     "kv_bench.csv": [
         {
-            "_name": "KV ser (/s)",
+            "_name": "KV serialisation",
             "Suite": "serialise",
             "Benchmark": "serialise<SD::PUBLIC>",
             "D": "10",
         },
         {
-            "_name": "KV deser (/s)",
+            "_name": "KV deserialisation",
             "Suite": "deserialise",
             "Benchmark": "deserialise<SD::PUBLIC>",
             "D": "10",
         },
         {
-            "_name": "KV snap ser (/s)",
+            "_name": "KV snapshot serialisation",
             "Suite": "serialise_snapshot",
             "Benchmark": "ser_snap<1000>",
             "D": "100",
         },
         {
-            "_name": "KV snap deser (/s)",
+            "_name": "KV snapshot deserialisation",
             "Suite": "deserialise_snapshot",
             "Benchmark": "des_snap<1000>",
             "D": "100",
@@ -35,25 +35,25 @@ benchmark_specs = {
     ],
     "map_bench.csv": [
         {
-            "_name": "CHAMP put (/s)",
+            "_name": "CHAMP put",
             "Suite": "put",
             "Benchmark": "bench_champ_map_put",
             "D": "2048",
         },
         {
-            "_name": "CHAMP get (/s)",
+            "_name": "CHAMP get",
             "Suite": "get",
             "Benchmark": "bench_champ_map_get",
             "D": "2048",
         },
         {
-            "_name": "RB put (/s)",
+            "_name": "RBMap put",
             "Suite": "put",
             "Benchmark": "bench_rb_map_put",
             "D": "2048",
         },
         {
-            "_name": "RB get (/s)",
+            "_name": "RBMap get",
             "Suite": "get",
             "Benchmark": "bench_rb_map_get",
             "D": "2048",
@@ -102,5 +102,5 @@ if __name__ == "__main__":
             upload_name = f"{name}_{i}" if many_results else name
             bf.set(
                 upload_name,
-                infra.bencher.Throughput(result),
+                infra.bencher.Rate(result),
             )

@@ -1,0 +1,97 @@
+name: "Build and Publish Build Containers to GHCR"
+
+on:
+  push:
+    tags:
+      - "build/*"
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    name: "Build and Publish Build Containers"
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/ci
+          flavor: |
+            latest=false
+
+      - name: Build and push Virtual container
+        id: push_virtual
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/ccf_ci
+          build-args: |
+            platform=virtual
+            clang_version=15
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}-virtual-clang15
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Build and push SNP container
+        id: push_snp
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/ccf_ci
+          build-args: |
+            platform=snp
+            clang_version=15
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}-snp-clang15
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Build and push SGX container
+        id: push_sgx
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/ccf_ci
+          build-args: |
+            platform=sgx
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}-sgx
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Attest Virtual container
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/ci
+          subject-digest: ${{ steps.push_virtual.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest SNP container
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/ci
+          subject-digest: ${{ steps.push_sgx.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest SGX container
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/ci
+          subject-digest: ${{ steps.push_sgx.outputs.digest }}
+          push-to-registry: true
