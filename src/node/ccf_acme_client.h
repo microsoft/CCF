@@ -203,7 +203,7 @@ namespace ccf
         throw std::runtime_error("No ACME challenge handler");
       }
 
-      using namespace threading;
+      using namespace ::threading;
 
       challenge_handler->token_responses[token] = response;
 

@@ -195,7 +195,7 @@ namespace ccf
 
     // Used for key exchange
     tls::KeyExchangeContext kex_ctx;
-    ds::StateMachine<ChannelStatus> status;
+    ::ds::StateMachine<ChannelStatus> status;
     std::chrono::microseconds last_initiation_time;
     static constexpr size_t salt_len = 32;
     static constexpr size_t shared_key_size = 32;

@@ -77,7 +77,7 @@ namespace ccf
     //
     // this node's core state
     //
-    ds::StateMachine<NodeStartupState> sm;
+    ::ds::StateMachine<NodeStartupState> sm;
     pal::Mutex lock;
     StartType start_type;
 
@@ -797,8 +797,8 @@ namespace ccf
     {
       initiate_join_unsafe();
 
-      auto timer_msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+      auto timer_msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
+        [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
           std::lock_guard<pal::Mutex> guard(msg->data.self.lock);
           if (msg->data.self.sm.check(NodeStartupState::pending))
           {
@@ -806,13 +806,13 @@ namespace ccf
             auto delay = std::chrono::milliseconds(
               msg->data.self.config.join.retry_timeout);
 
-            threading::ThreadMessaging::instance().add_task_after(
+            ::threading::ThreadMessaging::instance().add_task_after(
               std::move(msg), delay);
           }
         },
         *this);
 
-      threading::ThreadMessaging::instance().add_task_after(
+      ::threading::ThreadMessaging::instance().add_task_after(
         std::move(timer_msg), config.join.retry_timeout);
     }
 
@@ -1962,8 +1962,8 @@ namespace ccf
     {
       // Service creation transaction is asynchronous to avoid deadlocks
       // (e.g. https://github.com/microsoft/CCF/issues/3788)
-      auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+      auto msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
+        [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
           if (!msg->data.self.send_create_request(
                 msg->data.self.serialize_create_request(
                   msg->data.create_view, msg->data.create_consortium)))
@@ -1984,7 +1984,7 @@ namespace ccf
         create_view,
         create_consortium);
 
-      threading::ThreadMessaging::instance().add_task(
+      ::threading::ThreadMessaging::instance().add_task(
         threading::get_current_thread_id(), std::move(msg));
     }
 
@@ -2545,8 +2545,8 @@ namespace ccf
 
         // Start task to periodically check whether any of the certs are
         // expired.
-        auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
-          [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+        auto msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
+          [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
             auto& state = msg->data.self;
 
             if (state.consensus && state.consensus->can_replicate())
@@ -2571,11 +2571,12 @@ namespace ccf
             }
 
             auto delay = std::chrono::minutes(1);
-            ThreadMessaging::instance().add_task_after(std::move(msg), delay);
+            ::threading::ThreadMessaging::instance().add_task_after(
+              std::move(msg), delay);
           },
           *this);
 
-        ThreadMessaging::instance().add_task_after(
+        ::threading::ThreadMessaging::instance().add_task_after(
           std::move(msg), std::chrono::seconds(2));
       }
     }

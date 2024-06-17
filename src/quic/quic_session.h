@@ -144,7 +144,7 @@ namespace quic
 
     void recv_buffered(const uint8_t* data, size_t size, sockaddr addr)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called recv_buffered from incorrect thread");
       }
@@ -178,7 +178,7 @@ namespace quic
 
     void send_raw_thread(const std::vector<uint8_t>& data, sockaddr addr)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error(
           "Called send_raw_thread from incorrect thread");
@@ -206,7 +206,7 @@ namespace quic
 
     void send_buffered(const std::vector<uint8_t>& data, sockaddr addr)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called send_buffered from incorrect thread");
       }
@@ -217,7 +217,7 @@ namespace quic
 
     void flush()
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called flush from incorrect thread");
       }
@@ -271,7 +271,7 @@ namespace quic
 
     void close_thread()
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called close_thread from incorrect thread");
       }
@@ -349,7 +349,7 @@ namespace quic
 
     int handle_recv(uint8_t* buf, size_t len, sockaddr addr)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called handle_recv from incorrect thread");
       }

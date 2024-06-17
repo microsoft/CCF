@@ -10,7 +10,7 @@
 #include <map>
 #include <thread>
 
-namespace threading
+namespace ccf::threading
 {
   // Assign monotonic thread IDs for display + storage
   using ThreadID = uint16_t;

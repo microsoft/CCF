@@ -80,7 +80,8 @@ namespace ccf
       status(handshake)
     {
       execution_thread =
-        threading::ThreadMessaging::instance().get_execution_thread(session_id);
+        ::threading::ThreadMessaging::instance().get_execution_thread(
+          session_id);
       ctx->set_bio(this, send_callback_openssl, recv_callback_openssl);
     }
 
@@ -236,7 +237,7 @@ namespace ccf
 
     void recv_buffered(const uint8_t* data, size_t size)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called recv_buffered from incorrect thread");
       }
@@ -252,12 +253,12 @@ namespace ccf
     void close()
     {
       status = closing;
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
-        auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
+        auto msg = std::make_unique<::threading::Tmsg<EmptyMsg>>(&close_cb);
         msg->data.self = this->shared_from_this();
 
-        threading::ThreadMessaging::instance().add_task(
+        ::threading::ThreadMessaging::instance().add_task(
           execution_thread, std::move(msg));
       }
       else
@@ -267,14 +268,14 @@ namespace ccf
       }
     }
 
-    static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
+    static void close_cb(std::unique_ptr<::threading::Tmsg<EmptyMsg>> msg)
     {
       msg->data.self->close_thread();
     }
 
     virtual void close_thread()
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called close_thread from incorrect thread");
       }
@@ -327,13 +328,14 @@ namespace ccf
 
     void send_raw(const uint8_t* data, size_t size)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
-        auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
+        auto msg =
+          std::make_unique<::threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
         msg->data.self = this->shared_from_this();
         msg->data.data = std::vector<uint8_t>(data, data + size);
 
-        threading::ThreadMessaging::instance().add_task(
+        ::threading::ThreadMessaging::instance().add_task(
           execution_thread, std::move(msg));
       }
       else
@@ -344,7 +346,7 @@ namespace ccf
     }
 
   private:
-    static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
+    static void send_raw_cb(std::unique_ptr<::threading::Tmsg<SendRecvMsg>> msg)
     {
       msg->data.self->send_raw_thread(
         msg->data.data.data(), msg->data.data.size());
@@ -352,7 +354,7 @@ namespace ccf
 
     void send_raw_thread(const uint8_t* data, size_t size)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error(
           "Called send_raw_thread from incorrect thread");
@@ -380,7 +382,7 @@ namespace ccf
 
     void send_buffered(const std::vector<uint8_t>& data)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called send_buffered from incorrect thread");
       }
@@ -390,7 +392,7 @@ namespace ccf
 
     void flush()
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called flush from incorrect thread");
       }
@@ -568,7 +570,7 @@ namespace ccf
 
     int handle_recv(uint8_t* buf, size_t len)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called handle_recv from incorrect thread");
       }

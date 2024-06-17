@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-namespace ds::hashutils
+namespace ccf::ds::hashutils
 {
   template <typename T>
   inline void hash_combine(size_t& n, const T& v, std::hash<T>& h)
@@ -53,7 +53,7 @@ namespace std
   {
     size_t operator()(const std::vector<T>& v) const
     {
-      return ds::hashutils::hash_container(v);
+      return ccf::ds::hashutils::hash_container(v);
     }
   };
 
@@ -62,7 +62,7 @@ namespace std
   {
     size_t operator()(const std::array<T, N>& v) const
     {
-      return ds::hashutils::hash_container(v);
+      return ccf::ds::hashutils::hash_container(v);
     }
   };
 
@@ -74,10 +74,10 @@ namespace std
       size_t n = 0x444e414c544f4353;
 
       std::hash<A> h_a{};
-      ds::hashutils::hash_combine(n, v.first, h_a);
+      ccf::ds::hashutils::hash_combine(n, v.first, h_a);
 
       std::hash<B> h_b{};
-      ds::hashutils::hash_combine(n, v.second, h_b);
+      ccf::ds::hashutils::hash_combine(n, v.second, h_b);
 
       return n;
     }
@@ -85,7 +85,7 @@ namespace std
 
 }
 
-namespace ds
+namespace ccf::ds
 {
   /// Simple, fast constexpr hash function (NOT cryptographically sound)
   namespace

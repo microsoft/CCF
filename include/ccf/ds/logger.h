@@ -72,7 +72,7 @@ namespace logger
       else
       {
 #ifdef INSIDE_ENCLAVE
-        thread_id = threading::get_current_thread_id();
+        thread_id = ccf::threading::get_current_thread_id();
 #else
         thread_id = 100;
 #endif

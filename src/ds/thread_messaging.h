@@ -294,7 +294,7 @@ namespace threading
 
     void run()
     {
-      TaskQueue& task = get_tasks(get_current_thread_id());
+      TaskQueue& task = get_tasks(ccf::threading::get_current_thread_id());
 
       while (!is_finished())
       {
@@ -304,7 +304,7 @@ namespace threading
 
     bool run_one()
     {
-      TaskQueue& task = get_tasks(get_current_thread_id());
+      TaskQueue& task = get_tasks(ccf::threading::get_current_thread_id());
       return task.run_next_task();
     }
 
@@ -320,19 +320,19 @@ namespace threading
     TaskQueue::TimerEntry add_task_after(
       std::unique_ptr<Tmsg<Payload>> msg, std::chrono::milliseconds ms)
     {
-      TaskQueue& task = get_tasks(get_current_thread_id());
+      TaskQueue& task = get_tasks(ccf::threading::get_current_thread_id());
       return task.add_task_after(std::move(msg), ms);
     }
 
     bool cancel_timer_task(TaskQueue::TimerEntry timer_entry)
     {
-      TaskQueue& task = get_tasks(get_current_thread_id());
+      TaskQueue& task = get_tasks(ccf::threading::get_current_thread_id());
       return task.cancel_timer_task(timer_entry);
     }
 
     std::chrono::milliseconds get_current_time_offset()
     {
-      TaskQueue& task = get_tasks(get_current_thread_id());
+      TaskQueue& task = get_tasks(ccf::threading::get_current_thread_id());
       return task.get_current_time_offset();
     }
 
@@ -364,7 +364,7 @@ namespace threading
 
     uint16_t get_execution_thread(uint32_t i)
     {
-      uint16_t tid = MAIN_THREAD_ID;
+      uint16_t tid = ccf::threading::MAIN_THREAD_ID;
       if (tasks.size() > 1)
       {
         // If we have multiple task queues, then we distinguish the main thread

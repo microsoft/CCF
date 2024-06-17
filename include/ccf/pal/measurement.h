@@ -159,7 +159,7 @@ namespace kv::serialisers
       const SerialisedEntry& data)
     {
       ccf::pal::AttestationMeasurement<N> ret;
-      ds::from_hex(std::string(data.data(), data.end()), ret.measurement);
+      ccf::ds::from_hex(std::string(data.data(), data.end()), ret.measurement);
       return ret;
     }
   };

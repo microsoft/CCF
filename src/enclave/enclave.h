@@ -311,7 +311,7 @@ namespace ccf
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp, AdminMessage::stop, [&bp](const uint8_t*, size_t) {
             bp.set_finished();
-            threading::ThreadMessaging::instance().set_finished();
+            ::threading::ThreadMessaging::instance().set_finished();
           });
 
         DISPATCHER_SET_MESSAGE_HANDLER(
@@ -342,7 +342,7 @@ namespace ccf
 
               node->tick(elapsed_ms);
               historical_state_cache->tick(elapsed_ms);
-              threading::ThreadMessaging::instance().tick(elapsed_ms);
+              ::threading::ThreadMessaging::instance().tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
               // public ledger is being read
               if (!node->is_reading_public_ledger())
@@ -462,7 +462,7 @@ namespace ccf
           // Then, execute some thread messages
           size_t thread_msg = 0;
           while (thread_msg < max_messages &&
-                 threading::ThreadMessaging::instance().run_one())
+                 ::threading::ThreadMessaging::instance().run_one())
           {
             thread_msg++;
           }
@@ -525,7 +525,7 @@ namespace ccf
       uint64_t tid;
     };
 
-    static void init_thread_cb(std::unique_ptr<threading::Tmsg<Msg>> msg)
+    static void init_thread_cb(std::unique_ptr<::threading::Tmsg<Msg>> msg)
     {
       LOG_DEBUG_FMT("First thread CB:{}", msg->data.tid);
     }
@@ -538,12 +538,12 @@ namespace ccf
       try
 #endif
       {
-        auto msg = std::make_unique<threading::Tmsg<Msg>>(&init_thread_cb);
-        msg->data.tid = threading::get_current_thread_id();
-        threading::ThreadMessaging::instance().add_task(
+        auto msg = std::make_unique<::threading::Tmsg<Msg>>(&init_thread_cb);
+        msg->data.tid = ccf::threading::get_current_thread_id();
+        ::threading::ThreadMessaging::instance().add_task(
           msg->data.tid, std::move(msg));
 
-        threading::ThreadMessaging::instance().run();
+        ::threading::ThreadMessaging::instance().run();
         crypto::openssl_sha256_shutdown();
       }
 #ifndef VIRTUAL_ENCLAVE

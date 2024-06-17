@@ -101,7 +101,7 @@ namespace ccf
       uint32_t generation_count;
     };
 
-    static void snapshot_cb(std::unique_ptr<threading::Tmsg<SnapshotMsg>> msg)
+    static void snapshot_cb(std::unique_ptr<::threading::Tmsg<SnapshotMsg>> msg)
     {
       msg->data.self->snapshot_(
         std::move(msg->data.snapshot), msg->data.generation_count);
@@ -445,12 +445,12 @@ namespace ccf
     void schedule_snapshot(consensus::Index idx)
     {
       static uint32_t generation_count = 0;
-      auto msg = std::make_unique<threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
+      auto msg = std::make_unique<::threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
       msg->data.self = shared_from_this();
       msg->data.snapshot = store->snapshot_unsafe_maps(idx);
       msg->data.generation_count = generation_count++;
 
-      auto& tm = threading::ThreadMessaging::instance();
+      auto& tm = ::threading::ThreadMessaging::instance();
       tm.add_task(tm.get_execution_thread(generation_count), std::move(msg));
     }
 

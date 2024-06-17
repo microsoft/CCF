@@ -119,8 +119,8 @@ TEST_CASE("std::pair hash" * doctest::test_suite("hash"))
   }
 }
 
-constexpr auto fnv_1a_32 = ds::fnv_1a<uint32_t>;
-constexpr auto fnv_1a_64 = ds::fnv_1a<uint64_t>;
+constexpr auto fnv_1a_32 = ccf::ds::fnv_1a<uint32_t>;
+constexpr auto fnv_1a_64 = ccf::ds::fnv_1a<uint64_t>;
 
 TEST_CASE("FNV-1a correctness" * doctest::test_suite("hash"))
 {

@@ -438,7 +438,7 @@ namespace std
 #define FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_NEXT( \
   TYPE, C_FIELD, JSON_FIELD) \
   j["properties"][JSON_FIELD] = \
-    ::ds::json::schema_element<decltype(TYPE::C_FIELD)>(); \
+    ccf::ds::json::schema_element<decltype(TYPE::C_FIELD)>(); \
   j["required"].push_back(JSON_FIELD);
 #define FILL_SCHEMA_REQUIRED_WITH_RENAMES_FOR_JSON_FINAL( \
   TYPE, C_FIELD, JSON_FIELD) \
@@ -452,7 +452,7 @@ namespace std
 #define FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT( \
   TYPE, C_FIELD, JSON_FIELD) \
   j["properties"][JSON_FIELD] = \
-    ::ds::json::schema_element<decltype(TYPE::C_FIELD)>();
+    ccf::ds::json::schema_element<decltype(TYPE::C_FIELD)>();
 #define FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_FINAL( \
   TYPE, C_FIELD, JSON_FIELD) \
   FILL_SCHEMA_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD)

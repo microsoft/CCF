@@ -113,7 +113,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(Foo, n_1, s_1, opt, vec_s);
 
 TEST_CASE("schema generation")
 {
-  const auto schema = ds::json::build_schema<Foo>("Foo");
+  const auto schema = ccf::ds::json::build_schema<Foo>("Foo");
 
   const auto title_it = schema.find("title");
   REQUIRE(title_it != schema.end());
@@ -175,7 +175,7 @@ TEST_CASE("schema generation")
 TEST_CASE_TEMPLATE("schema types, integer", T, size_t, ssize_t)
 {
   std::map<T, std::string> m;
-  const auto schema = ds::json::build_schema<decltype(m)>("Map");
+  const auto schema = ccf::ds::json::build_schema<decltype(m)>("Map");
 
   REQUIRE(schema["type"] == "array");
   REQUIRE(schema["items"].is_object());
@@ -190,7 +190,7 @@ TEST_CASE_TEMPLATE("schema types, integer", T, size_t, ssize_t)
 TEST_CASE_TEMPLATE("schema types, floating point", T, float, double)
 {
   std::map<size_t, T> m;
-  const auto schema = ds::json::build_schema<decltype(m)>("Map");
+  const auto schema = ccf::ds::json::build_schema<decltype(m)>("Map");
 
   REQUIRE(schema["type"] == "array");
   REQUIRE(schema["items"].is_object());
@@ -233,11 +233,11 @@ namespace custom
 TEST_CASE("custom elements")
 {
   const auto x_schema =
-    ds::json::build_schema<custom::user::defined::X>("custom-x");
+    ccf::ds::json::build_schema<custom::user::defined::X>("custom-x");
   REQUIRE(x_schema["format"] == "email");
 
   const auto y_schema =
-    ds::json::build_schema<custom::user::defined::Y>("custom-y");
+    ccf::ds::json::build_schema<custom::user::defined::Y>("custom-y");
   REQUIRE(y_schema["required"].size() == 2);
 }
 
@@ -400,7 +400,7 @@ TEST_CASE("enum")
 
     REQUIRE(j["se"] == "two");
 
-    const auto schema = ds::json::build_schema<EnumStruct>("EnumStruct");
+    const auto schema = ccf::ds::json::build_schema<EnumStruct>("EnumStruct");
 
     const nlohmann::json expected{"one", "two", "three"};
     REQUIRE(schema["properties"]["se"]["enum"] == expected);
@@ -488,7 +488,7 @@ TEST_CASE("mappings")
   {
     INFO("string-keyed maps");
     std::map<std::string, size_t> m;
-    const auto schema = ds::json::build_schema<decltype(m)>("Map");
+    const auto schema = ccf::ds::json::build_schema<decltype(m)>("Map");
     REQUIRE(schema["type"] == "object");
 
     m["foo"] = 42;
@@ -499,7 +499,7 @@ TEST_CASE("mappings")
   {
     INFO("num-keyed maps");
     std::map<size_t, size_t> m;
-    const auto schema = ds::json::build_schema<decltype(m)>("Map");
+    const auto schema = ccf::ds::json::build_schema<decltype(m)>("Map");
     REQUIRE(schema["type"] == "array");
 
     m[5] = 42;
@@ -510,7 +510,7 @@ TEST_CASE("mappings")
   {
     INFO("stringable-keyed maps");
     std::map<Stringable, size_t> m;
-    const auto schema = ds::json::build_schema<decltype(m)>("Map");
+    const auto schema = ccf::ds::json::build_schema<decltype(m)>("Map");
     REQUIRE(schema["type"] == "object");
 
     Stringable foo("foo");
@@ -524,7 +524,7 @@ TEST_CASE("mappings")
   {
     INFO("enum-keyed maps");
     std::map<EnumStruct::SampleEnum, size_t> m;
-    const auto schema = ds::json::build_schema<decltype(m)>("Map");
+    const auto schema = ccf::ds::json::build_schema<decltype(m)>("Map");
     REQUIRE(schema["type"] == "array");
 
     m[EnumStruct::SampleEnum::One] = 42;
@@ -588,7 +588,7 @@ namespace renamed
 
 TEST_CASE("JSON with different field names")
 {
-  const auto schema = ds::json::build_schema<renamed::Foo>("renamed::Foo");
+  const auto schema = ccf::ds::json::build_schema<renamed::Foo>("renamed::Foo");
 
   const auto& properties = schema["properties"];
   const auto& required = schema["required"];

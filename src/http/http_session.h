@@ -419,7 +419,7 @@ namespace http
 
     void send_data(std::span<const uint8_t> data) override
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::logic_error(
           "Called UnencryptedHTTPSession::send_data "
@@ -434,7 +434,7 @@ namespace http
 
     void close_session() override
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::logic_error(
           "Called UnencryptedHTTPSession::close_session "
