@@ -39,7 +39,7 @@ jobs:
 
       - name: Build and push Virtual container
         id: push_virtual
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/ccf_ci
@@ -52,7 +52,7 @@ jobs:
 
       - name: Build and push SNP container
         id: push_snp
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/ccf_ci
@@ -65,7 +65,7 @@ jobs:
 
       - name: Build and push SGX container
         id: push_sgx
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/ccf_ci
