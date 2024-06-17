@@ -72,7 +72,7 @@ namespace ccf::pal
     }
     else
     {
-      throw JsonParseError(fmt::format(
+      throw ccf::JsonParseError(fmt::format(
         "Attestation measurement should be hex-encoded string: {}", j.dump()));
     }
   }

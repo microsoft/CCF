@@ -8,35 +8,38 @@
 #include <fmt/format.h>
 #include <sstream>
 
-/** Represents a field within a JSON object. Tuples of these can be used in
- * schema generation.
- */
-template <typename T>
-struct JsonField
+namespace ccf
 {
-  using Target = T;
-  char const* name;
-};
-
-class JsonParseError : public std::invalid_argument
-{
-public:
-  std::vector<std::string> pointer_elements = {};
-
-  using std::invalid_argument::invalid_argument;
-
-  std::string pointer() const
+  /** Represents a field within a JSON object. Tuples of these can be used in
+   * schema generation.
+   */
+  template <typename T>
+  struct JsonField
   {
-    return fmt::format(
-      "#/{}",
-      fmt::join(pointer_elements.crbegin(), pointer_elements.crend(), "/"));
-  }
+    using Target = T;
+    char const* name;
+  };
 
-  std::string describe() const
+  class JsonParseError : public std::invalid_argument
   {
-    return fmt::format("At {}: {}", pointer(), what());
-  }
-};
+  public:
+    std::vector<std::string> pointer_elements = {};
+
+    using std::invalid_argument::invalid_argument;
+
+    std::string pointer() const
+    {
+      return fmt::format(
+        "#/{}",
+        fmt::join(pointer_elements.crbegin(), pointer_elements.crend(), "/"));
+    }
+
+    std::string describe() const
+    {
+      return fmt::format("At {}: {}", pointer(), what());
+    }
+  };
+}
 
 namespace std
 {
@@ -89,7 +92,7 @@ namespace std
         }
         catch (const std::exception& e)
         {
-          throw JsonParseError(fmt::format(
+          throw ccf::JsonParseError(fmt::format(
             "Vector of bytes object \"{}\" is not valid base64", j.dump()));
         }
       }
@@ -101,7 +104,7 @@ namespace std
 
     if (!j.is_array())
     {
-      throw JsonParseError(
+      throw ccf::JsonParseError(
         fmt::format("Vector object \"{}\" is not an array", j.dump()));
     }
 
@@ -111,7 +114,7 @@ namespace std
       {
         t.push_back(j.at(i).template get<T>());
       }
-      catch (JsonParseError& jpe)
+      catch (ccf::JsonParseError& jpe)
       {
         jpe.pointer_elements.push_back(std::to_string(i));
         throw;
@@ -398,14 +401,14 @@ namespace std
     const auto it = j.find(JSON_FIELD); \
     if (it == j.end()) \
     { \
-      throw JsonParseError( \
+      throw ccf::JsonParseError( \
         "Missing required field '" JSON_FIELD "' in object: " + j.dump()); \
     } \
     try \
     { \
       t.C_FIELD = it->get<decltype(TYPE::C_FIELD)>(); \
     } \
-    catch (JsonParseError & jpe) \
+    catch (ccf::JsonParseError & jpe) \
     { \
       jpe.pointer_elements.push_back(JSON_FIELD); \
       throw; \
@@ -494,9 +497,9 @@ namespace std
     TYPE, FIELD, #FIELD)
 
 #define JSON_FIELD_FOR_JSON_NEXT(TYPE, FIELD) \
-  JsonField<decltype(TYPE::FIELD)>{#FIELD},
+  ccf::JsonField<decltype(TYPE::FIELD)>{#FIELD},
 #define JSON_FIELD_FOR_JSON_FINAL(TYPE, FIELD) \
-  JsonField<decltype(TYPE::FIELD)> \
+  ccf::JsonField<decltype(TYPE::FIELD)> \
   { \
 #    FIELD \
   }
@@ -723,7 +726,7 @@ namespace std
   { \
     if (!j.is_object()) \
     { \
-      throw JsonParseError("Expected object, found: " + j.dump()); \
+      throw ccf::JsonParseError("Expected object, found: " + j.dump()); \
     } \
     _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)(READ_REQUIRED, TYPE, ##__VA_ARGS__) \
   } \
@@ -758,7 +761,7 @@ namespace std
   { \
     if (!j.is_object()) \
     { \
-      throw JsonParseError("Expected object, found: " + j.dump()); \
+      throw ccf::JsonParseError("Expected object, found: " + j.dump()); \
     } \
     _FOR_JSON_COUNT_NN(__VA_ARGS__) \
     (POP2)(READ_REQUIRED_WITH_RENAMES, TYPE, ##__VA_ARGS__) \
@@ -843,7 +846,7 @@ namespace std
       }); \
     if (it == std::end(m)) \
     { \
-      throw JsonParseError(fmt::format( \
+      throw ccf::JsonParseError(fmt::format( \
         "Value {} in enum " #TYPE " has no specified JSON conversion", \
         (size_t)e)); \
     } \
@@ -862,7 +865,7 @@ namespace std
       }); \
     if (it == std::end(m)) \
     { \
-      throw JsonParseError( \
+      throw ccf::JsonParseError( \
         fmt::format("{} is not convertible to " #TYPE, j.dump())); \
     } \
     e = it->first; \

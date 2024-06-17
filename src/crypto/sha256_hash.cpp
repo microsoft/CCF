@@ -98,7 +98,7 @@ namespace crypto
     }
     catch (const std::logic_error& e)
     {
-      throw JsonParseError(fmt::format(
+      throw ccf::JsonParseError(fmt::format(
         "Input string \"{}\" is not valid hex-encoded SHA-256: {}",
         value,
         e.what()));
