@@ -4,7 +4,7 @@
 
 #include "ccf/ds/enum_formatter.h"
 #include "ccf/ds/logger_level.h"
-#include "ccf/ds/thread_ids.h"
+#include "ccf/threading/thread_ids.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/chrono.h>
