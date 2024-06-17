@@ -13,7 +13,7 @@ ViewWithAllCommitted ==
 \* Simulates leader election by rolling back some number of uncommitted transactions and updating view
 TruncateLedgerAction ==
     /\ \E view \in ViewWithAllCommitted:
-        /\ \E i \in (CommitSeqNum + 1)..Len(ledgerBranches[view]) :
+        /\ \E i \in CommitSeqNum..Len(ledgerBranches[view]) :
             /\ ledgerBranches' = Append(ledgerBranches, SubSeq(ledgerBranches[view], 1, i))
             /\ UNCHANGED history
 
@@ -25,10 +25,17 @@ StatusInvalidResponseAction ==
         /\ \/ /\ CommitSeqNum >= history[i].tx_id[2]
               /\ Len(ledgerBranches[Len(ledgerBranches)]) >= history[i].tx_id[2]
               /\ ledgerBranches[Len(ledgerBranches)][history[i].tx_id[2]].view # history[i].tx_id[1]
-        \* or commit hasn't reached seqnum but never will as current seqnum is higher
+        \* or commit hasn't reached seqnum but never will as current view is higher
             \/ /\ CommitSeqNum > 0
                /\ CommitSeqNum < history[i].tx_id[2]
                /\ ledgerBranches[Len(ledgerBranches)][CommitSeqNum].view > history[i].tx_id[1]
+        \* or commit hasn't reached there,... but can never reach there
+        \* note that this effectively allows StatusInvalidResponseAction to "declare" future transactions
+        \* invalid, and requires a corresponding change in SingleNode::StatusCommittedResponseAction to
+        \* constrain future commits. This combined change is unnecessary for model checking, but greatly
+        \* simplifies trace validation. 
+            \/ /\ history[i].tx_id[1] = Len(ledgerBranches)
+               /\ history[i].tx_id[2] > CommitSeqNum
         \* Reply
         /\ history' = Append(
             history,[
@@ -38,6 +45,7 @@ StatusInvalidResponseAction ==
             )
     /\ UNCHANGED ledgerBranches
 
+\* Compared to SingleNode, the multi-node model has two additional actions to simulate view change
 NextMultiNodeAction ==
     \/ NextSingleNodeAction
     \/ TruncateLedgerAction

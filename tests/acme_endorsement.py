@@ -233,7 +233,7 @@ def run_pebble(args):
     mock_dns_listen_address = "127.0.0.1:1028"
     mock_dns_mgmt_address = "127.0.0.1:1029"
 
-    network_name = "my-network.ccf.dev"
+    network_name = "my-network.example.com"
 
     if not os.path.exists(binary_filename) or not os.path.exists(mock_dns_filename):
         raise FileNotFoundError("pebble not found; run playbooks to install it")
@@ -366,7 +366,7 @@ def run_lets_encrypt(args):
                 "ca_certs": ca_certs,
                 "directory_url": "https://acme-staging-v02.api.letsencrypt.org/directory",
                 "service_dns_name": service_dns_name,
-                "contact": ["mailto:admin@ccf.dev"],
+                "contact": ["mailto:admin@example.com"],
                 "terms_of_service_agreed": True,
                 "challenge_type": "http-01",
                 "challenge_server_interface": "0.0.0.0:80",

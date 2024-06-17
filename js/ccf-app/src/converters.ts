@@ -4,7 +4,8 @@
 /**
  * This module provides converters to and from `ArrayBuffer` objects.
  *
- * Converters are commonly used as {@linkcode kv.typedKv} arguments.
+ * Converters are commonly used as {@linkcode kv.typedKv} or
+ * {@linkcode kv.typedKvSet} arguments.
  * Another use case is {@linkcode crypto.wrapKey} to convert
  * PEM-encoded keys to `ArrayBuffer`.
  *

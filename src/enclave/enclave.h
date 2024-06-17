@@ -3,6 +3,7 @@
 #pragma once
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
+#include "ccf/js/core/context.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
 #include "ccf/pal/enclave.h"
@@ -13,8 +14,8 @@
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
+#include "js/ffi_plugins.h"
 #include "js/interpreter_cache.h"
-#include "js/wrap.h"
 #include "node/acme_challenge_frontend.h"
 #include "node/historical_queries.h"
 #include "node/network_state.h"

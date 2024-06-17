@@ -9,6 +9,7 @@ import infra.network
 import suite.test_requirements as reqs
 from infra.log_capture import flush_info
 from infra.tx_status import TxStatus
+import infra.bencher
 
 from loguru import logger as LOG
 
@@ -61,6 +62,12 @@ class Stats:
 
     def mean(self):
         return self.stats["mean"]
+
+    def max(self):
+        return self.stats["max"]
+
+    def min(self):
+        return self.stats["min"]
 
 
 @reqs.description("Measure commit latency")
@@ -123,9 +130,15 @@ def run(args):
         print_fn(f"Mean commit latency / sig_interval = {factor:.2f}")
         factors.append(factor)
 
-    # https://github.com/microsoft/CCF/issues/6126
-    # with cimetrics.upload.metrics(complete=False) as metrics:
-    #     metrics.put("Commit latency factor", statistics.mean(factors))
+    for sig_interval in (1, 16, 256):
+        stats = all_stats[sig_interval]
+        bf = infra.bencher.Bencher()
+        bf.set(
+            f"Commit Latency (sig_ms_interval={sig_interval}ms)",
+            infra.bencher.Latency(
+                stats.mean(), high_value=stats.max(), low_value=stats.min()
+            ),
+        )
 
 
 if __name__ == "__main__":

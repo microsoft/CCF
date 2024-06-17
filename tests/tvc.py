@@ -32,25 +32,8 @@ KEY = "0"
 VALUE = "value"
 
 
-class Log:
-    """
-    A simple way to defer logging until the end of transaction cycle,
-    and to prepend actions if necessary, such as TruncateLedgerAction
-    """
-
-    def __init__(self):
-        self.entries = []
-
-    def prepend(self, **kwargs):
-        self.entries.insert(0, kwargs)
-
-    def __call__(self, **kwargs):
-        self.entries.append(kwargs)
-
-    def dump(self):
-        for entry in self.entries:
-            print(json.dumps(entry))
-        self.entries = []
+def log(**kwargs):
+    print(json.dumps(kwargs))
 
 
 def tx_id(string):
@@ -58,74 +41,72 @@ def tx_id(string):
     return int(view), int(seqno)
 
 
+def retry(call, urls, **kwargs):
+    """
+    Retry http calls if they time out (process suspended during execution),
+    or return a non-200/204 code (unable to forward because primary unknown).
+    Pick a random URL, to avoid getting stuck too long on a suspended node.
+    """
+    response = None
+    while response is None or response.status_code not in (200, 204):
+        try:
+            url = random.choice(urls)
+            response = call(url, **kwargs)
+        except (httpx.ReadTimeout, httpx.ConnectTimeout):
+            pass
+    return response
+
+
 def run(targets, cacert):
-    transport = httpx.HTTPTransport(retries=10, verify=cacert)
-    session = httpx.Client(transport=transport)
-    tx = 0
-    view = 2
+    session = httpx.Client(verify=cacert)
+    tx = -1
+    key_urls = [f"{target}/records/{KEY}" for target in targets]
     while True:
-        log = Log()
-        target = random.choice(targets)
+        tx += 1
         # Always start with a write, to avoid having to handle missing values
         txtype = random.choice(["Ro", "Rw"]) if tx else "Rw"
         if txtype == "Ro":
-            response = session.get(f"{target}/records/{KEY}")
-            if response.status_code == 200:
-                log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
-                assert response.text == VALUE
-                txid = response.headers["x-ms-ccf-transaction-id"]
-                log(
-                    action="RoTxResponseAction",
-                    type="RoTxResponse",
-                    tx=tx,
-                    tx_id=tx_id(txid),
-                )
+            response = retry(session.get, key_urls)
+            log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
+            assert response.text == VALUE
+            txid = response.headers["x-ms-ccf-transaction-id"]
+            log(
+                action="RoTxResponseAction",
+                type="RoTxResponse",
+                tx=tx,
+                tx_id=tx_id(txid),
+            )
         elif txtype == "Rw":
-            response = session.put(f"{target}/records/{KEY}", data=VALUE)
-            if response.status_code == 204:
-                log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
-                txid = response.headers["x-ms-ccf-transaction-id"]
-                log(
-                    action="RwTxExecuteAction",
-                    type="RwTxExecute",
-                    view=tx_id(txid)[0],
-                    tx=tx,
-                )
-                log(
-                    action="RwTxResponseAction",
-                    type="RwTxResponse",
-                    tx=tx,
-                    tx_id=tx_id(txid),
-                )
-                status = "Pending"
-                final = False
-                while not final:
-                    try:
-                        response = session.get(f"{target}/tx?transaction_id={txid}")
-                        if response.status_code == 200:
-                            status = response.json()["status"]
-                            if status in ("Committed", "Invalid"):
-                                log(
-                                    action=f"Status{status}ResponseAction",
-                                    type="TxStatusReceived",
-                                    tx_id=tx_id(txid),
-                                    status=f"{status}Status",
-                                )
-                                new_view, _ = tx_id(txid)
-                                if new_view > view:
-                                    log.prepend(action="TruncateLedgerAction")
-                                    view = new_view
-                                final = True
-                                break
-                    except httpx.ReadTimeout:
-                        pass
-
-                    # if our target has gone away or does not know who is primary, try another one
-                    target = random.choice(targets)
+            response = retry(session.put, key_urls, data=VALUE)
+            log(action=f"{txtype}TxRequestAction", type=f"{txtype}TxRequest", tx=tx)
+            txid = response.headers["x-ms-ccf-transaction-id"]
+            log(
+                action="RwTxExecuteAction",
+                type="RwTxExecute",
+                tx_id=tx_id(txid),
+                tx=tx,
+            )
+            log(
+                action="RwTxResponseAction",
+                type="RwTxResponse",
+                tx=tx,
+                tx_id=tx_id(txid),
+            )
+            done = False
+            while not done:
+                tx_urls = [f"{target}/tx?transaction_id={txid}" for target in targets]
+                response = retry(session.get, tx_urls)
+                status = response.json()["status"]
+                if status in ("Committed", "Invalid"):
+                    log(
+                        action=f"Status{status}ResponseAction",
+                        type="TxStatusReceived",
+                        tx_id=tx_id(txid),
+                        status=f"{status}Status",
+                    )
+                    done = True
         else:
             raise ValueError(f"Unknown Tx type: {txtype}")
-        log.dump()
-        tx += 1
 
 
 if __name__ == "__main__":

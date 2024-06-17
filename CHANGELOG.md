@@ -5,13 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0-dev18]
+
+[5.0.0-dev18]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev18
+
+### Added
+
+- Added TypeScript `TypedKvSet` and `ccfapp.typedKv<K>` to facilitate set handling from application code.
+- Added support for UVM endorsements signed with EC keys (#6231).
+- Updated Open Enclave to [0.19.6](https://github.com/openenclave/openenclave/releases/tag/v0.19.6).
+
+### Removed
+
+- Removed unused `openenclave.verifyOpenEnclaveEvidence` API from JS/TS
+
+### Changed
+
+- Added token.iss claim validation to JWT authentication (#5809). Must-knows:
+  - Supports both the [OpenID requirements](https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation) and the [Entra specification](https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens#validate-the-issuer) of it.
+  - All keys fetched after the upgrade will not work against tokens missing the 'iss' claim if the issuer has been specified in the .well-known/openid-configuration/.
+  - Due to an internal schema change, networks that are in the process of upgrading to this version may see inconsistent authorization behaviour while the network contains nodes of different versions (depending which node executes the auto-refresh, any nodes on the other version will not use any newly provided keys). We recommend a full upgrade to this version, removing any nodes on prior versions, followed by a key and issuer refresh.
+  - A future release will remove the old tables entirely. Until then, some redundant state will be retained in the ledger. This is tracked in [#6222](https://github.com/microsoft/CCF/issues/6222).
+
+## [5.0.0-dev17]
+
+[5.0.0-dev17]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev17
+
+### Added
+
+- Moved JS registry to public header `ccf/js/registry.h`. Apps should subclass `ccf::js::DynamicJSEndpointRegistry` to get similar behaviour to the existing JS Generic app.
+
+## [5.0.0-dev16]
+
+[5.0.0-dev16]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev16
+
+### Added
+
+- Reusable functionality for creating an in-enclave JS interpreter has been added to the public C++ API. Applications should subclass `CustomJSEndpointRegistry` to get similar behaviour to the existing JS Generic app.
+
 ## [5.0.0-dev15]
 
 [5.0.0-dev15]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev15
 
 ### Added
 
-- CCF now supports a mode where HTTP redirect responses are returned, rather than relying on internal forwarding. This can be used to ensure that write requests are executed on a primary, even if they are initially sent to a backup. This behaviour is enabled by setting the `redirections` field in an `rpc_interface` within cchost's launch config. This can be configured to redirect either directly to a node (if each node has a distinct, accessible name), or to a static load balancer address, depending on the current deployment. See docs for description of [redirection behaviour](https://microsoft.github.io/CCF/main/architecture/request_flow.html#redirection-flow) and [configuration](https://microsoft.github.io/CCF/main/operations/configuration.html#redirections).
+- CCF now supports a mode where HTTP redirect responses are returned, rather than relying on internal forwarding. See docs for description of [redirection behaviour](https://microsoft.github.io/CCF/main/architecture/request_flow.html#redirection-flow) and [migration instructions](https://microsoft.github.io/CCF/main/build_apps/migration_4_x_to_5_0.html).
 - Authentication policies can now be conjoined (AND) together, in addition to the previous disjoint (OR) behaviour. The new `ccf::AllOfAuthnPolicy` takes a collection of other policies, _all of which must be true_ for this auth policy to pass. In JS, [this can be configured](https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html#allofauthnpolicy) in the `app.json` as `"authn_policies": [{ "all_of": ["policy_a", "policy_b"] }]`.
 
 ### Changed

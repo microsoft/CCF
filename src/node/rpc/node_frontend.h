@@ -5,6 +5,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/http_query.h"
+#include "ccf/js/core/context.h"
 #include "ccf/json_handler.h"
 #include "ccf/node/quote.h"
 #include "ccf/odata_error.h"
@@ -16,7 +17,6 @@
 #include "ds/std_formatters.h"
 #include "enclave/reconfiguration_type.h"
 #include "frontend.h"
-#include "js/wrap.h"
 #include "node/network_state.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/no_create_tx_claims_digest.cpp"
@@ -1431,18 +1431,11 @@ namespace ccf
         m.bytecode_used =
           version_val->get() == std::string(ccf::quickjs_version);
 
-        auto js_engine_options = js_engine_map->get();
-        m.max_stack_size = js::default_stack_size;
-        m.max_heap_size = js::default_heap_size;
-        m.max_execution_time = js::default_max_execution_time.count();
-        if (js_engine_options.has_value())
-        {
-          auto& options = js_engine_options.value();
-          m.max_stack_size = options.max_stack_bytes;
-          m.max_heap_size = options.max_heap_bytes;
-          m.max_execution_time = options.max_execution_time_ms;
-          m.max_cached_interpreters = options.max_cached_interpreters;
-        }
+        auto options = js_engine_map->get().value_or(ccf::JSRuntimeOptions{});
+        m.max_stack_size = options.max_stack_bytes;
+        m.max_heap_size = options.max_heap_bytes;
+        m.max_execution_time = options.max_execution_time_ms;
+        m.max_cached_interpreters = options.max_cached_interpreters;
 
         return m;
       };

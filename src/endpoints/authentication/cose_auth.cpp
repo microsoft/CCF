@@ -302,7 +302,7 @@ namespace ccf
     auto member_cert = member_certs->get(phdr.kid);
     if (member_cert.has_value())
     {
-      auto verifier = crypto::make_cose_verifier(member_cert->raw());
+      auto verifier = crypto::make_cose_verifier_from_cert(member_cert->raw());
 
       std::span<const uint8_t> body = {
         ctx->get_request_body().data(), ctx->get_request_body().size()};
@@ -334,14 +334,13 @@ namespace ccf
         }
       }
 
-      auto identity = std::make_unique<MemberCOSESign1AuthnIdentity>();
-      identity->member_id = phdr.kid;
-      identity->member_cert = member_cert.value();
-      identity->protected_header = phdr;
-      identity->envelope = body;
-      identity->content = authned_content;
-      identity->signature = cose_signature;
-      return identity;
+      return std::make_unique<MemberCOSESign1AuthnIdentity>(
+        authned_content,
+        body,
+        cose_signature,
+        phdr.kid,
+        member_cert.value(),
+        phdr);
     }
     else
     {
@@ -442,7 +441,7 @@ namespace ccf
     auto user_cert = user_certs->get(phdr.kid);
     if (user_cert.has_value())
     {
-      auto verifier = crypto::make_cose_verifier(user_cert->raw());
+      auto verifier = crypto::make_cose_verifier_from_cert(user_cert->raw());
 
       std::span<const uint8_t> body = {
         ctx->get_request_body().data(), ctx->get_request_body().size()};
@@ -453,14 +452,13 @@ namespace ccf
         return nullptr;
       }
 
-      auto identity = std::make_unique<UserCOSESign1AuthnIdentity>();
-      identity->user_id = phdr.kid;
-      identity->user_cert = user_cert.value();
-      identity->protected_header = phdr;
-      identity->envelope = body;
-      identity->content = authned_content;
-      identity->signature = cose_signature;
-      return identity;
+      return std::make_unique<UserCOSESign1AuthnIdentity>(
+        authned_content,
+        body,
+        cose_signature,
+        phdr.kid,
+        user_cert.value(),
+        phdr);
     }
     else
     {

@@ -7,6 +7,7 @@
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include <cstring>
 #  include <limits>
+#  include <sys/resource.h>
 #else
 #  include "ccf/pal/hardware_info.h"
 
@@ -36,9 +37,30 @@ namespace ccf::pal
 
   static inline bool get_mallinfo(MallocInfo& info)
   {
-    info.max_total_heap_size = std::numeric_limits<size_t>::max();
-    info.current_allocated_heap_size = 0;
-    info.peak_allocated_heap_size = 0;
+    {
+      rusage ru;
+      auto rc = getrusage(RUSAGE_SELF, &ru);
+      if (rc != 0)
+      {
+        return false;
+      }
+      const auto heap_size = ru.ru_maxrss * 1024;
+
+      info.current_allocated_heap_size = heap_size;
+      info.peak_allocated_heap_size = heap_size;
+    }
+
+    {
+      rlimit rl;
+      auto rc = getrlimit(RLIMIT_AS, &rl);
+      if (rc != 0)
+      {
+        return false;
+      }
+
+      info.max_total_heap_size = rl.rlim_cur;
+    }
+
     return true;
   }
 

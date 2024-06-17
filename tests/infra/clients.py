@@ -1237,6 +1237,19 @@ class CCFClient:
         kwargs["http_verb"] = "OPTIONS"
         return self.call(*args, **kwargs)
 
+    def patch(self, *args, **kwargs) -> Response:
+        """
+        Issue ``PATCH`` request.
+        See :py:meth:`infra.clients.CCFClient.call`.
+
+        :return: :py:class:`infra.clients.Response`
+        """
+        if "http_verb" in kwargs:
+            raise ValueError('"http_verb" should not be specified')
+
+        kwargs["http_verb"] = "PATCH"
+        return self.call(*args, **kwargs)
+
     def wait_for_commit(
         self, response: Response, timeout: int = DEFAULT_COMMIT_TIMEOUT_SEC
     ):

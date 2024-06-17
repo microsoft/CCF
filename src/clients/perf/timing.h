@@ -350,7 +350,7 @@ namespace timing
         }
       }
 
-      for (auto round = 1; round <= rounds; ++round)
+      for (size_t round = 1; round <= rounds; ++round)
       {
         const auto round_begin = sends.begin() + (round_size * (round - 1));
         const auto round_end =

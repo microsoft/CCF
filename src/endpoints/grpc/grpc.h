@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/endpoint_context.h"
+#include "ccf/node/rpc_context_impl.h"
 #include "ccf/odata_error.h"
 #include "message.h"
-#include "node/rpc/rpc_context_impl.h"
 #include "node/rpc/rpc_exception.h"
 #include "stream.h"
 #include "types.h"

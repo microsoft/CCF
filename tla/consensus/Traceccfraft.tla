@@ -77,7 +77,7 @@ IsMessage(msg, dst, src, logline) ==
 ASSUME TLCGet("config").mode = "bfs"
 
 JsonFile ==
-    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../traces/reconfig_01_el0_12.ndjson"
+    IF "JSON" \in DOMAIN IOEnv THEN IOEnv.JSON ELSE "../traces/consensus/append.ndjson"
 
 JsonLog ==
     \* Deserialize the System log as a sequence of records from the log file.
@@ -175,9 +175,7 @@ IsClientRequest ==
     /\ IsEvent("replicate")
     /\ ClientRequest(logline.msg.state.node_id)
     /\ ~logline.msg.globally_committable
-    /\ logline.cmd_prefix # "cleanup_nodes"
-    \* TODO Consider creating a mapping from clientRequests to actual values in the system trace.
-    \* TODO Alternatively, extract the written values from the system trace and redefine clientRequests at startup.
+    /\ logline.cmd_prefix # "cleanup_nodes" 
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
@@ -208,14 +206,11 @@ IsSendAppendEntries ==
                 /\ IsAppendEntriesRequest(msg, j, i, logline)
                 \* There is now one more message of this type.
                 /\ Network!OneMoreMessage(msg)
-\* TODO revisit this. See https://github.com/microsoft/CCF/pull/5988 for discussion.
-\*          /\ logline.msg.sent_idx = nextIndex[i][j]
           /\ logline.msg.match_idx = matchIndex[i][j]
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-    \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsRcvAppendEntriesRequest ==
     /\ IsEvent("recv_append_entries")
@@ -230,9 +225,7 @@ IsRcvAppendEntriesRequest ==
                  \/ RAERRAER(m):: (UNCHANGED messages /\ HandleAppendEntriesRequest(i, j, m)) \cdot HandleAppendEntriesRequest(i, j, m)
               /\ IsAppendEntriesRequest(m, i, j, logline)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
-    \* TODO /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-    \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsSendAppendEntriesResponse ==
     \* Skip saer because ccfraft!HandleAppendEntriesRequest atomcially handles the request and sends the response.
@@ -249,14 +242,7 @@ IsAddConfiguration ==
     /\ IsEvent("add_configuration")
     /\ leadershipState[logline.msg.state.node_id] = Follower
     /\ UNCHANGED vars
-\* This won't work in situations where we receive an AE range that contains a configuration at first followed by committable indices:
-\* recv_append_entries will update the committable indices in the spec, but not in the impl state, which then goes on to handle an
-\* add_configuration event on which state->committable_indices is (correctly) empty.
-\*    /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
-    \* TODO: /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
     /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
-    \*TODO /\ membershipState'[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-    \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsSignCommittableMessages ==
     /\ IsEvent("replicate")
@@ -290,10 +276,8 @@ IsAdvanceCommitIndex ==
     \/ /\ IsEvent("commit")
        /\ UNCHANGED vars
        /\ logline.msg.state.leadership_state = "Follower"
-       \* TODO: /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
        /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
        /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-       \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsChangeConfiguration ==
     /\ IsEvent("add_configuration")
@@ -325,7 +309,6 @@ IsRcvAppendEntriesResponse ==
                /\ IsAppendEntriesResponse(m, i, j, logline)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
-    \*TODO /\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
@@ -358,12 +341,10 @@ IsRcvRequestVoteRequest ==
                   \/ UpdateTerm(i, j, m) \cdot HandleRequestVoteRequest(i, j, m)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
-    \*TODO/\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-    \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsExecuteAppendEntries ==
-    \* Skip append because ccfraft!HandleRequestVoteRequest atomcially handles the request, sends the response,
+    \* Skip append because ccfraft!HandleRequestVoteRequest atomically handles the request, sends the response,
        \* and appends the entry to the ledger.
        /\ IsEvent("execute_append_entries_sync")
        \* Not asserting CommittableIndices here because the impl and spec will only be in sync upon the subsequent send_append_entries.
@@ -371,10 +352,8 @@ IsExecuteAppendEntries ==
        /\ UNCHANGED vars
        /\ leadershipState[logline.msg.state.node_id] = Follower
        /\ currentTerm[logline.msg.state.node_id] = logline.msg.state.current_view
-       \* TODO: /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
        /\ leadershipState[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
        /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
-       \*TODO/\ Len(log'[logline.msg.state.node_id]) = logline.msg.state.last_idx
 
 IsRcvRequestVoteResponse ==
     /\ IsEvent("recv_request_vote_response")
@@ -392,7 +371,6 @@ IsRcvRequestVoteResponse ==
                \/ DropResponseWhenNotInState(i, j, m)
     /\ Range(logline.msg.state.committable_indices) \subseteq CommittableIndices(logline.msg.state.node_id)
     /\ commitIndex[logline.msg.state.node_id] = logline.msg.state.commit_idx
-    \*TODO/\ leadershipState'[logline.msg.state.node_id] = ToLeadershipState[logline.msg.state.leadership_state]
     /\ membershipState[logline.msg.state.node_id] \in ToMembershipState[logline.msg.state.membership_state]
     /\ Len(log[logline.msg.state.node_id]) = logline.msg.state.last_idx
 

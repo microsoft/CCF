@@ -12,7 +12,8 @@ AllRwReceivedIsFirstSentInv ==
             /\ history[j].tx = history[i].tx
 
 \* Read-only transaction responses always follow an associated request
-\* TODO: extend this to handle the fact that separate reads might get the same transaction ID
+\* Note that since multiple read requests can receive the same transaction ID this
+\* invariant specifies only that at least one request was sent before the responses.
 AllRoReceivedIsFirstSentInv ==
     \A i \in DOMAIN history :
         history[i].type = RoTxResponse
@@ -51,7 +52,6 @@ UniqueTxRequestsInv ==
         /\ i # j
         => history[i].tx # history[j].tx
 
-
 \* Each transaction has a unique transaction ID
 UniqueTxIdsInv ==
     \A i, j \in {x \in DOMAIN history : history[x].type \in {RwTxResponse, RoTxResponse}} :
@@ -87,6 +87,14 @@ OnceCommittedPrevCommittedInv ==
         /\ history[j].tx_id[2] <= history[i].tx_id[2]
         => history[j].status = CommittedStatus
 
+\* If a transaction is committed then all others from greater (or equal) seqnums but strictly smaller terms are invalid
+OnceCommittedNextInvalidInv ==
+    \A i, j \in TxStatusReceivedEventIndexes:
+        /\ history[i].status = CommittedStatus
+        /\ history[i].tx_id[2] <= history[j].tx_id[2]
+        /\ history[j].tx_id[1] < history[i].tx_id[1]
+        => history[j].status = InvalidStatus
+
 \* If a transaction is invalid then so are all others from the same term with greater seqnums
 OnceInvalidNextInvalidInv ==
     \A i, j \in TxStatusReceivedEventIndexes:
@@ -98,6 +106,7 @@ OnceInvalidNextInvalidInv ==
 \* The following is strengthened variant of CommittedOrInvalidInv
 CommittedOrInvalidStrongInv ==
     /\ OnceCommittedPrevCommittedInv
+    /\ OnceCommittedNextInvalidInv
     /\ OnceInvalidNextInvalidInv
 
 
@@ -156,16 +165,12 @@ InvalidNotObservedInv ==
 \* A weaker variant of InvalidNotObservedInv which states that invalid requests are 
 \* not observed by committed requests
 InvalidNotObservedByCommittedInv ==
-    \A i, j, k, l \in DOMAIN history:
-        /\ history[i].type = RwTxResponse
-        /\ history[j].type = TxStatusReceived
-        /\ history[j].status = InvalidStatus
-        /\ history[k].type = RwTxResponse
-        /\ history[l].type = TxStatusReceived
-        /\ history[l].type = CommittedStatus
-        /\ history[k].tx_id = history[l]
-        /\ i # k
-        => history[i].tx \notin ToSet(history[k].observed)
+    \A i, k \in RwTxResponseEventIndexes:
+        i # k =>
+        \A j \in InvalidEventIndexes:
+            \A l \in CommittedEventIndexes:
+                history[k].tx_id = history[l]
+                => history[i].tx \notin ToSet(history[k].observed)
 
 \* A history is serializable if there exists an execution sequence which is consistent 
 \* with client observations. This property completely ignores the order of events.
@@ -173,7 +178,6 @@ InvalidNotObservedByCommittedInv ==
 \* In this model, every request execution observes itself
 \* This invariant ignores transaction IDs and whether transactions are committed
 \* This invariant only holds for a single node CCF service
-\* TODO: Fix this definition (and related) as I am not quite happy with them
 RwSerializableInv ==
     \A i,j \in DOMAIN history:
         /\ history[i].type = RwTxResponse
@@ -184,19 +188,14 @@ RwSerializableInv ==
 \* A weaker version of RwSerializableInv which only considers committed requests
 \* If any committed request observes A before B then every committed request must observe A before B
 CommittedRwSerializableInv ==
-    \A i,j,k,l \in DOMAIN history:
-        \* Event k is the committed status received for the transaction in event i
-        /\ history[i].type = RwTxResponse
-        /\ history[k].type = TxStatusReceived
-        /\ history[k].status = CommittedStatus
-        /\ history[i].tx_id = history[k].tx_id
-        \* Event l is the committed status received for the transaction in event j
-        /\ history[j].type = RwTxResponse
-        /\ history[l].type = TxStatusReceived
-        /\ history[l].status = CommittedStatus
-        /\ history[j].tx_id = history[l].tx_id
-        => \/ IsPrefix(history[i].observed, history[j].observed)
-           \/ IsPrefix(history[j].observed, history[i].observed)
+    \A i, j \in RwTxResponseEventIndexes:
+        \A k, l \in CommittedEventIndexes:
+            \* Event k is the committed status received for the transaction in event i
+            /\ history[i].tx_id = history[k].tx_id
+            \* Event l is the committed status received for the transaction in event j
+            /\ history[j].tx_id = history[l].tx_id
+            => \/ IsPrefix(history[i].observed, history[j].observed)
+               \/ IsPrefix(history[j].observed, history[i].observed)
 
 \* Linearizability for read-write transactions
 \* Or equivalently, strict serializability as we are modeling a single object system
@@ -206,7 +205,61 @@ CommittedRwLinearizableInv ==
     /\ AllCommittedObservedInv
     /\ AtMostOnceObservedInv
 
-\*Debugging invariants to check that specific states are reachable
+----
+
+\* TxIDs are of the form <<view,seqnum>>
+View(tx_id) == tx_id[1]
+SeqNum(tx_id) == tx_id[2]
+
+\* Ordering over txIDs
+TxIDStrictlyLessThan(x, y) ==
+    \/ View(x) < View(y)
+    \/ /\ View(x) = View(y)
+       /\ SeqNum(x) < SeqNum(y)
+
+\* CommittedRwResponse is a subsequence of history containing only the responses to committed rx transactions
+\* and sorted by tx_id (instead of by event ordering)
+CommittedRwResponses == 
+    SetToSortSeq({history[i]: i \in RwTxResponseCommittedEventIndexes}, 
+    LAMBDA x,y : TxIDStrictlyLessThan(x.tx_id, y.tx_id))
+
+
+\* If a transaction response is received (event i) before another transaction is requested (event j), 
+\* then tx_id of the first transaction is strictly less than the tx_id of the second transaction.
+\* Note that this invariant only considers committed read-write transactions.
+CommittedRwOrderedRealTimeInv == 
+    \A i \in RwTxResponseCommittedEventIndexes :
+        \A j \in RwTxRequestCommittedEventIndexes :
+            \A k \in RoTxResponseCommittedEventIndexes :
+                /\ history[k].tx = history[j].tx
+                /\ i < j 
+                => TxIDStrictlyLessThan(history[i].tx_id, history[k].tx_id)
+
+\* Each transaction observes the previous transaction in the TxID order and its own write
+\* Note that this invariant is only considers committed read-write transactions.
+CommittedRwOrderedSerializableInv ==
+    \A i \in 1..Len(CommittedRwResponses)-1:
+        CommittedRwResponses[i+1].observed = Append(CommittedRwResponses[i].observed, CommittedRwResponses[i+1].tx)
+
+\* Ordered speculative linearizability for committed read-write transactions is the primary consistency
+\* guarantee provided by CCF. Note that this invariant is stronger than traditional linearizability.
+\* Ordered speculative linearizability means that once a rw transaction is committed, it is linearizable
+\* and that the ordering of execution is consistent with the transaction IDs.
+\* In CCF, a client receives a response before it learns that the transaction is committed.
+\* The speculative 
+\* part of speculative linearizability means that the time window for real-time ordering is from the client's request 
+\* to its initial response.
+\* This differs from linearizability where the time window is from the request to when the client learns that the transaction is committed. 
+\* This time window is smaller and thus the ordering is more strict. 
+\* We check ordered speculative linearizability in two stages:
+\* 1) We check that the rw committed transactions are serializable w.r.t the TxID order
+\* 2) We check that the TxID order is consistent with the real-time order of client observations
+CommittedRwOrderedSpecLinearizableInv ==
+    /\ CommittedRwOrderedSerializableInv
+    /\ CommittedRwOrderedRealTimeInv
+
+----
+\* Debugging invariants to check that specific states are reachable
 
 SomeCommittedTxDebugInv == 
     Cardinality(CommittedTxIDs) = 0

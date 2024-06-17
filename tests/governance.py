@@ -14,7 +14,7 @@ import infra.logging_app as app
 import json
 import jinja2
 import infra.crypto
-from datetime import datetime
+from datetime import datetime, timezone
 import governance_js
 from infra.runner import ConcurrentRunner
 import governance_history
@@ -364,7 +364,7 @@ def test_ack_state_digest_update(network, args):
 @reqs.description("Renew certificates of all nodes, one by one")
 def test_each_node_cert_renewal(network, args):
     primary, _ = network.find_primary()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     validity_period_allowed = args.maximum_node_certificate_validity_days - 1
     validity_period_forbidden = args.maximum_node_certificate_validity_days + 1
 
@@ -488,7 +488,7 @@ def test_service_cert_renewal(network, args, valid_from=None):
     return renew_service_certificate(
         network,
         args,
-        valid_from=valid_from or datetime.utcnow(),
+        valid_from=valid_from or datetime.now(timezone.utc),
         validity_period_days=args.maximum_service_certificate_validity_days - 1,
     )
 
@@ -497,7 +497,7 @@ def test_service_cert_renewal(network, args, valid_from=None):
 def test_service_cert_renewal_extended(network, args):
     validity_period_forbidden = args.maximum_service_certificate_validity_days + 1
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     test_vectors = [
         (now, None, None),  # Omit validity period (deduced from service configuration)
         (now, -1, infra.proposal.ProposalNotCreated),
@@ -537,7 +537,7 @@ def test_binding_proposal_to_service_identity(network, args):
 def test_all_nodes_cert_renewal(network, args, valid_from=None):
     primary, _ = network.find_primary()
 
-    valid_from = valid_from or datetime.utcnow()
+    valid_from = valid_from or datetime.now(timezone.utc)
     validity_period_days = args.maximum_node_certificate_validity_days
 
     self_signed_node_certs_before = {}

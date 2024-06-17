@@ -56,6 +56,11 @@ CCF ensures that governance audit is possible offline from a ledger, by consider
 
     An important exemption here is that application code may still `read` from governance tables. This allows authentication, authorization, and metadata to be configured and controlled by governance, but affect the execution of application endpoints.
 
+..
+    A link to this page is included in the CCF source code, and returned in error messages.
+    If this table is moved, make sure the source is updated in-sync.
+    (Ctrl+Shift+F: read_write_restrictions)
+
 The possible access permissions are elaborated in the table below:
 
 .. table:: KV permissions in different execution contexts

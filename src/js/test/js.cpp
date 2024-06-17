@@ -1,9 +1,10 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
-#include "js/wrap.cpp"
+#include "js/permissions_checks.h"
 
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+#include <random>
 
 TEST_CASE("Check KV Map access")
 {
@@ -21,58 +22,58 @@ TEST_CASE("Check KV Map access")
     {
       INFO("Public internal tables are read-only");
       REQUIRE(
-        _check_kv_map_access(TxAccess::APP_RW, public_internal_table_name) ==
-        MapAccessPermissions::READ_ONLY);
+        check_kv_map_access(TxAccess::APP_RW, public_internal_table_name) ==
+        KVAccessPermissions::READ_ONLY);
     }
 
     {
       INFO("Private tables in internal namespace cannot even be read");
       REQUIRE(
-        _check_kv_map_access(TxAccess::APP_RW, private_internal_table_name) ==
-        MapAccessPermissions::ILLEGAL);
+        check_kv_map_access(TxAccess::APP_RW, private_internal_table_name) ==
+        KVAccessPermissions::ILLEGAL);
     }
 
     {
       INFO("Governance tables are read-only");
       REQUIRE(
-        _check_kv_map_access(TxAccess::APP_RW, public_gov_table_name) ==
-        MapAccessPermissions::READ_ONLY);
+        check_kv_map_access(TxAccess::APP_RW, public_gov_table_name) ==
+        KVAccessPermissions::READ_ONLY);
     }
 
     {
       INFO("Private tables in governance namespace cannot even be read");
       REQUIRE(
-        _check_kv_map_access(TxAccess::APP_RW, private_gov_table_name) ==
-        MapAccessPermissions::ILLEGAL);
+        check_kv_map_access(TxAccess::APP_RW, private_gov_table_name) ==
+        KVAccessPermissions::ILLEGAL);
     }
 
     {
       INFO("Public application tables are read-write");
       REQUIRE(
-        _check_kv_map_access(TxAccess::APP_RW, public_app_table_name) ==
-        MapAccessPermissions::READ_WRITE);
+        check_kv_map_access(TxAccess::APP_RW, public_app_table_name) ==
+        KVAccessPermissions::READ_WRITE);
 
       {
         INFO(
           "Unless the operation is read-only, in which case they're read-only");
         REQUIRE(
-          _check_kv_map_access(TxAccess::APP_RO, public_app_table_name) ==
-          MapAccessPermissions::READ_ONLY);
+          check_kv_map_access(TxAccess::APP_RO, public_app_table_name) ==
+          KVAccessPermissions::READ_ONLY);
       }
     }
 
     {
       INFO("Private application tables are read-write");
       REQUIRE(
-        _check_kv_map_access(TxAccess::APP_RW, private_app_table_name) ==
-        MapAccessPermissions::READ_WRITE);
+        check_kv_map_access(TxAccess::APP_RW, private_app_table_name) ==
+        KVAccessPermissions::READ_WRITE);
 
       {
         INFO(
           "Unless the operation is read-only, in which case they're read-only");
         REQUIRE(
-          _check_kv_map_access(TxAccess::APP_RO, private_app_table_name) ==
-          MapAccessPermissions::READ_ONLY);
+          check_kv_map_access(TxAccess::APP_RO, private_app_table_name) ==
+          KVAccessPermissions::READ_ONLY);
       }
     }
   }
@@ -82,43 +83,43 @@ TEST_CASE("Check KV Map access")
     {
       INFO("Public internal tables are read-only");
       REQUIRE(
-        _check_kv_map_access(TxAccess::GOV_RO, public_internal_table_name) ==
-        MapAccessPermissions::READ_ONLY);
+        check_kv_map_access(TxAccess::GOV_RO, public_internal_table_name) ==
+        KVAccessPermissions::READ_ONLY);
     }
 
     {
       INFO("Private tables in internal namespace cannot even be read");
       REQUIRE(
-        _check_kv_map_access(TxAccess::GOV_RO, private_internal_table_name) ==
-        MapAccessPermissions::ILLEGAL);
+        check_kv_map_access(TxAccess::GOV_RO, private_internal_table_name) ==
+        KVAccessPermissions::ILLEGAL);
     }
 
     {
       INFO("Governance tables are read-only");
       REQUIRE(
-        _check_kv_map_access(TxAccess::GOV_RO, public_gov_table_name) ==
-        MapAccessPermissions::READ_ONLY);
+        check_kv_map_access(TxAccess::GOV_RO, public_gov_table_name) ==
+        KVAccessPermissions::READ_ONLY);
     }
 
     {
       INFO("Private tables in governance namespace cannot even be read");
       REQUIRE(
-        _check_kv_map_access(TxAccess::GOV_RO, private_gov_table_name) ==
-        MapAccessPermissions::ILLEGAL);
+        check_kv_map_access(TxAccess::GOV_RO, private_gov_table_name) ==
+        KVAccessPermissions::ILLEGAL);
     }
 
     {
       INFO("Public application cannot even be read");
       REQUIRE(
-        _check_kv_map_access(TxAccess::GOV_RO, public_app_table_name) ==
-        MapAccessPermissions::ILLEGAL);
+        check_kv_map_access(TxAccess::GOV_RO, public_app_table_name) ==
+        KVAccessPermissions::ILLEGAL);
     }
 
     {
       INFO("Private application cannot even be read");
       REQUIRE(
-        _check_kv_map_access(TxAccess::GOV_RO, private_app_table_name) ==
-        MapAccessPermissions::ILLEGAL);
+        check_kv_map_access(TxAccess::GOV_RO, private_app_table_name) ==
+        KVAccessPermissions::ILLEGAL);
     }
   }
 
@@ -128,43 +129,43 @@ TEST_CASE("Check KV Map access")
     {
       INFO("Public internal tables are read-only");
       REQUIRE(
-        _check_kv_map_access(TxAccess::GOV_RW, public_internal_table_name) ==
-        MapAccessPermissions::READ_ONLY);
+        check_kv_map_access(TxAccess::GOV_RW, public_internal_table_name) ==
+        KVAccessPermissions::READ_ONLY);
     }
 
     {
       INFO("Private tables in internal namespace cannot even be read");
       REQUIRE(
-        _check_kv_map_access(TxAccess::GOV_RW, private_internal_table_name) ==
-        MapAccessPermissions::ILLEGAL);
+        check_kv_map_access(TxAccess::GOV_RW, private_internal_table_name) ==
+        KVAccessPermissions::ILLEGAL);
     }
 
     {
       INFO("Governance tables are read-write");
       REQUIRE(
-        _check_kv_map_access(TxAccess::GOV_RW, public_gov_table_name) ==
-        MapAccessPermissions::READ_WRITE);
+        check_kv_map_access(TxAccess::GOV_RW, public_gov_table_name) ==
+        KVAccessPermissions::READ_WRITE);
     }
 
     {
       INFO("Private tables in governance namespace cannot even be read");
       REQUIRE(
-        _check_kv_map_access(TxAccess::GOV_RW, private_gov_table_name) ==
-        MapAccessPermissions::ILLEGAL);
+        check_kv_map_access(TxAccess::GOV_RW, private_gov_table_name) ==
+        KVAccessPermissions::ILLEGAL);
     }
 
     {
       INFO("Public applications tables cannot even be read");
       REQUIRE(
-        _check_kv_map_access(TxAccess::GOV_RW, public_app_table_name) ==
-        MapAccessPermissions::ILLEGAL);
+        check_kv_map_access(TxAccess::GOV_RW, public_app_table_name) ==
+        KVAccessPermissions::ILLEGAL);
     }
 
     {
       INFO("Private applications tables cannot even be read");
       REQUIRE(
-        _check_kv_map_access(TxAccess::GOV_RW, private_app_table_name) ==
-        MapAccessPermissions::ILLEGAL);
+        check_kv_map_access(TxAccess::GOV_RW, private_app_table_name) ==
+        KVAccessPermissions::ILLEGAL);
     }
   }
 }

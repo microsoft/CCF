@@ -15,6 +15,7 @@ import hashlib
 import json
 from piccolo import generator
 from piccolo import analyzer
+import infra.bencher
 
 
 def get_command_args(args, network, get_command):
@@ -175,74 +176,64 @@ def run(get_command, args):
             format_width = len(str(hard_stop_timeout)) + 3
 
             try:
-                # https://github.com/microsoft/CCF/issues/6126
-                # with cimetrics.upload.metrics(complete=False) as metrics:
-                if True:  # Avoiding dedent
-                    start_time = time.time()
-                    while True:
-                        stop_waiting = True
-                        for i, remote_client in enumerate(clients):
-                            done = remote_client.check_done()
-                            # all the clients need to be done
-                            LOG.info(
-                                f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {hard_stop_timeout}s)"
-                            )
-                            stop_waiting = stop_waiting and done
-                        if stop_waiting:
-                            break
-                        if time.time() > start_time + hard_stop_timeout:
-                            raise TimeoutError(
-                                f"Client still running after {hard_stop_timeout}s"
-                            )
-
-                        time.sleep(5)
-
-                    for remote_client in clients:
-                        analysis = analyzer.Analyze()
-
+                start_time = time.time()
+                while True:
+                    stop_waiting = True
+                    for i, remote_client in enumerate(clients):
+                        done = remote_client.check_done()
+                        # all the clients need to be done
                         LOG.info(
-                            f"Analyzing results from {path_to_send_file} and {path_to_response_file}"
+                            f"Client {i} has {'completed' if done else 'not completed'} running ({time.time() - start_time:>{format_width}.2f}s / {hard_stop_timeout}s)"
                         )
-                        df_sends = analyzer.get_df_from_parquet_file(path_to_send_file)
-                        df_responses = analyzer.get_df_from_parquet_file(
-                            path_to_response_file
+                        stop_waiting = stop_waiting and done
+                    if stop_waiting:
+                        break
+                    if time.time() > start_time + hard_stop_timeout:
+                        raise TimeoutError(
+                            f"Client still running after {hard_stop_timeout}s"
                         )
-                        time_spent = analysis.total_time_in_sec(df_sends, df_responses)
 
-                        perf_result = round(len(df_sends.index) / time_spent, 1)
-                        LOG.success(f"{args.label}/{remote_client.name}: {perf_result}")
+                    time.sleep(5)
 
-                        # TODO: Only results for first client are uploaded
-                        # https://github.com/microsoft/CCF/issues/1046
-                        # https://github.com/microsoft/CCF/issues/6126
-                        # if remote_client == clients[0]:
-                        #     LOG.success(f"Uploading results for {remote_client.name}")
-                        #     metrics.put(args.label, perf_result)
-                        # else:
-                        #     LOG.warning(f"Skipping upload for {remote_client.name}")
+                for remote_client in clients:
+                    analysis = analyzer.Analyze()
 
-                    primary, _ = network.find_primary()
-                    with primary.client() as nc:
-                        r = nc.get("/node/memory")
-                        assert r.status_code == http.HTTPStatus.OK.value
+                    LOG.info(
+                        f"Analyzing results from {path_to_send_file} and {path_to_response_file}"
+                    )
+                    df_sends = analyzer.get_df_from_parquet_file(path_to_send_file)
+                    df_responses = analyzer.get_df_from_parquet_file(
+                        path_to_response_file
+                    )
+                    time_spent = analysis.total_time_in_sec(df_sends, df_responses)
 
-                        results = r.body.json()
+                    perf_result = round(len(df_sends.index) / time_spent, 1)
+                    LOG.success(f"{args.label}/{remote_client.name}: {perf_result}")
 
-                        peak_value = results["peak_allocated_heap_size"]
+                    # Throughput from only one client, preserved for legacy reason
+                    # see basicperf.py for a better, cross-client approach.
+                    bf = infra.bencher.Bencher()
+                    bf.set(
+                        args.perf_label,
+                        infra.bencher.Throughput(perf_result),
+                    )
 
-                        # Do not upload empty metrics (virtual doesn't report memory use)
-                        if peak_value != 0:
-                            # Construct name for heap metric, removing ^ suffix if present
-                            heap_peak_metric = args.label
-                            if heap_peak_metric.endswith("^"):
-                                heap_peak_metric = heap_peak_metric[:-1]
-                            heap_peak_metric += "_mem"
+                primary, _ = network.find_primary()
+                with primary.client() as nc:
+                    r = nc.get("/node/memory")
+                    assert r.status_code == http.HTTPStatus.OK.value
+                    results = r.body.json()
+                    current_value = results["current_allocated_heap_size"]
+                    peak_value = results["peak_allocated_heap_size"]
 
-                            # https://github.com/microsoft/CCF/issues/6126
-                            # metrics.put(heap_peak_metric, peak_value)
+                    bf = infra.bencher.Bencher()
+                    bf.set(
+                        args.perf_label,
+                        infra.bencher.Memory(current_value, high_value=peak_value),
+                    )
 
-                    for remote_client in clients:
-                        remote_client.stop()
+                for remote_client in clients:
+                    remote_client.stop()
 
             except Exception as e:
                 LOG.error(f"Stopping clients due to exception: {e}")

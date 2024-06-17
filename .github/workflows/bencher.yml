@@ -1,0 +1,46 @@
+name: "Bencher: Run Benchmarks"
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  run_benchmarks:
+    name: Continuous Benchmarking with Bencher
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ccfmsrc.azurecr.io/ccf/ci:oe-0.19.6-0-virtual-clang15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build and run virtual perf tests
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DWORKER_THREADS=2 -DBUILD_TPCC=ON ..
+          ninja
+          # Microbenchmarks
+          ./tests.sh -VV -L benchmark
+          # End to end performance tests
+          ./tests.sh -VV -L perf
+          # Convert microbenchmark output to bencher json
+          source env/bin/activate
+          PYTHONPATH=../tests python convert_pico_to_bencher.py
+        shell: bash
+
+      - uses: bencherdev/bencher@main
+      - name: Track base branch benchmarks with Bencher
+        run: |
+          bencher run \
+          --project ccf \
+          --token '${{ secrets.BENCHER_API_TOKEN }}' \
+          --branch main \
+          --testbed gha-virtual-ccf-sub \
+          --adapter json \
+          --err \
+          --file build/bencher.json

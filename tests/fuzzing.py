@@ -115,7 +115,6 @@ def fuzz_node_to_node(network, args):
                     ),
                 ],
             ),
-            # TODO: Different types of body, based on message type?
             boofuzz.Block(
                 "Body",
                 children=[

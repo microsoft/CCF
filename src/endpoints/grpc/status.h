@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "grpc_status.h"
+#include "ccf/research/grpc_status.h"
 #include "status.pb.h"
 
 #include <optional>

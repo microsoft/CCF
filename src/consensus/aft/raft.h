@@ -63,6 +63,28 @@
 #define RAFT_TRACE_JSON_OUT(json_object) \
   CCF_LOG_OUT(DEBUG, "raft_trace") << json_object
 
+#ifdef CCF_RAFT_TRACING
+
+static inline void add_committable_indices_start_and_end(
+  nlohmann::json& j, const std::shared_ptr<aft::State>& state)
+{
+  std::vector<aft::Index> committable_indices;
+  if (!state->committable_indices.empty())
+  {
+    committable_indices.push_back(state->committable_indices.front());
+    if (state->committable_indices.size() > 1)
+    {
+      committable_indices.push_back(state->committable_indices.back());
+    }
+  }
+  j["committable_indices"] = committable_indices;
+}
+
+#  define COMMITTABLE_INDICES(event_state, state) \
+    add_committable_indices_start_and_end(event_state, state);
+
+#endif
+
 #define LOG_ROLLBACK_INFO_FMT CCF_LOG_FMT(INFO, "rollback")
 
 namespace aft
@@ -522,6 +544,7 @@ namespace aft
       nlohmann::json j = {};
       j["function"] = "add_configuration";
       j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
       j["configurations"] = configurations;
       j["args"] = nlohmann::json::object();
       j["args"]["configuration"] = Configuration{idx, conf, idx};
@@ -660,6 +683,7 @@ namespace aft
         nlohmann::json j = {};
         j["function"] = "replicate";
         j["state"] = *state;
+        COMMITTABLE_INDICES(j["state"], state);
         j["view"] = term;
         j["seqno"] = index;
         j["globally_committable"] = globally_committable;
@@ -1038,6 +1062,7 @@ namespace aft
       j["function"] = "send_append_entries";
       j["packet"] = ae;
       j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
       j["to_node_id"] = to;
       j["match_idx"] = node.match_idx;
       j["sent_idx"] = node.sent_idx;
@@ -1078,6 +1103,7 @@ namespace aft
       j["function"] = "recv_append_entries";
       j["packet"] = r;
       j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
       j["from_node_id"] = from;
       RAFT_TRACE_JSON_OUT(j);
 #endif
@@ -1119,7 +1145,7 @@ namespace aft
           "Previous term for {} should be {}", r.prev_idx, prev_term);
 
         // Reply false if the log doesn't contain an entry at r.prev_idx
-        // whose term is r.prev_term.
+        // whose term is r.prev_term. Rejects "future" entries.
         if (prev_term == 0)
         {
           RAFT_DEBUG_FMT(
@@ -1157,7 +1183,6 @@ namespace aft
       }
 
       // Third, check index consistency, making sure entries are not in the past
-      // or in the future
       if (r.prev_idx < state->commit_idx)
       {
         RAFT_DEBUG_FMT(
@@ -1169,9 +1194,13 @@ namespace aft
           state->commit_idx);
         return;
       }
+      // Redundant with check on get_term_internal() at line 1149
+      // Which captures this case in every situation, except r.prev_term == 0.
+      // That only happens if r.prev_idx == 0 however, see line 1033,
+      // in which case this path should not be taken either.
       else if (r.prev_idx > state->last_idx)
       {
-        RAFT_DEBUG_FMT(
+        RAFT_FAIL_FMT(
           "Recv append entries to {} from {} but prev_idx ({}) > last_idx ({})",
           state->node_id,
           from,
@@ -1306,6 +1335,7 @@ namespace aft
         nlohmann::json j = {};
         j["function"] = "execute_append_entries_sync";
         j["state"] = *state;
+        COMMITTABLE_INDICES(j["state"], state);
         j["from_node_id"] = from;
         RAFT_TRACE_JSON_OUT(j);
 #endif
@@ -1492,6 +1522,7 @@ namespace aft
       j["function"] = "send_append_entries_response";
       j["packet"] = response;
       j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
       j["to_node_id"] = to;
       RAFT_TRACE_JSON_OUT(j);
 #endif
@@ -1521,6 +1552,7 @@ namespace aft
       j["function"] = "recv_append_entries_response";
       j["packet"] = r;
       j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
       j["from_node_id"] = from;
       j["match_idx"] = node->second.match_idx;
       j["sent_idx"] = node->second.sent_idx;
@@ -1639,6 +1671,7 @@ namespace aft
       j["function"] = "send_request_vote";
       j["packet"] = rv;
       j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
       j["to_node_id"] = to;
       RAFT_TRACE_JSON_OUT(j);
 #endif
@@ -1662,6 +1695,7 @@ namespace aft
       j["function"] = "recv_request_vote";
       j["packet"] = r;
       j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
       j["from_node_id"] = from;
       RAFT_TRACE_JSON_OUT(j);
 #endif
@@ -1772,6 +1806,7 @@ namespace aft
       j["function"] = "recv_request_vote_response";
       j["packet"] = r;
       j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
       j["from_node_id"] = from;
       RAFT_TRACE_JSON_OUT(j);
 #endif
@@ -1847,6 +1882,7 @@ namespace aft
       j["function"] = "recv_propose_request_vote";
       j["packet"] = r;
       j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
       j["from_node_id"] = from;
       RAFT_TRACE_JSON_OUT(j);
 #endif
@@ -1910,6 +1946,7 @@ namespace aft
       nlohmann::json j = {};
       j["function"] = "become_candidate";
       j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
       j["configurations"] = configurations;
       RAFT_TRACE_JSON_OUT(j);
 #endif
@@ -1965,6 +2002,7 @@ namespace aft
       nlohmann::json j = {};
       j["function"] = "become_leader";
       j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
       j["configurations"] = configurations;
       RAFT_TRACE_JSON_OUT(j);
 #endif
@@ -2018,6 +2056,7 @@ namespace aft
       nlohmann::json j = {};
       j["function"] = "become_follower";
       j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
       j["configurations"] = configurations;
       RAFT_TRACE_JSON_OUT(j);
 #endif
@@ -2308,6 +2347,7 @@ namespace aft
       j["args"] = nlohmann::json::object();
       j["args"]["idx"] = idx;
       j["state"] = *state;
+      COMMITTABLE_INDICES(j["state"], state);
       j["configurations"] = configurations;
       RAFT_TRACE_JSON_OUT(j);
 #endif

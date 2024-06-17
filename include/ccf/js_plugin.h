@@ -7,12 +7,15 @@
 
 namespace ccf::js
 {
-  class Context;
+  namespace core
+  {
+    class Context;
+  }
 
   struct FFIPlugin
   {
     std::string name;
     std::string ccf_version;
-    std::function<void(Context& ctx)> extend;
+    std::function<void(core::Context& ctx)> extend;
   };
 }

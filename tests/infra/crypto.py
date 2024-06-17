@@ -87,7 +87,7 @@ def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
 
 def generate_ec_keypair(curve: ec.EllipticCurve = ec.SECP256R1) -> Tuple[str, str]:
     priv = ec.generate_private_key(
-        curve=curve,
+        curve=curve(),
         backend=default_backend(),
     )
     pub = priv.public_key()
@@ -337,7 +337,7 @@ def check_key_pair_pem(private: str, public: str, password=None) -> bool:
 
 def get_validity_period_from_pem_cert(pem: str):
     cert = load_pem_x509_certificate(pem.encode(), default_backend())
-    return cert.not_valid_before, cert.not_valid_after
+    return cert.not_valid_before_utc, cert.not_valid_after_utc
 
 
 def datetime_to_X509time(datetime: datetime):

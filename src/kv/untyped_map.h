@@ -348,7 +348,7 @@ namespace kv::untyped
 
     virtual AbstractMap* clone(AbstractStore* other) override
     {
-      return new Map(other, name, security_domain);
+      return (AbstractMap*)new Map(other, name, security_domain);
     }
 
     void serialise_changes(

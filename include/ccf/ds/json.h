@@ -105,7 +105,7 @@ namespace std
         fmt::format("Vector object \"{}\" is not an array", j.dump()));
     }
 
-    for (auto i = 0u; i < j.size(); ++i)
+    for (size_t i = 0; i < j.size(); ++i)
     {
       try
       {
