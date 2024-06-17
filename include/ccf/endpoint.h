@@ -105,7 +105,7 @@ namespace ccf::endpoints
 
     /** This operation should be executed on a backup. If the current node is
        not a backup, it should attempt to redirect to a backup, or else return
-       an error. Only read operations should be marked as ToBackup. */
+       an error. Only read operations can be marked as ToBackup. */
     ToBackup,
   };
 
