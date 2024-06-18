@@ -436,17 +436,17 @@ nlohmann::json parse_response_body(
 }
 
 // callers used throughout
-auto user_caller = kp -> self_sign("CN=name", valid_from, valid_to);
-auto user_caller_der = crypto::make_verifier(user_caller) -> cert_der();
+auto user_caller = kp->self_sign("CN=name", valid_from, valid_to);
+auto user_caller_der = crypto::make_verifier(user_caller)->cert_der();
 
-auto member_caller_der = crypto::make_verifier(member_cert) -> cert_der();
+auto member_caller_der = crypto::make_verifier(member_cert)->cert_der();
 
-auto node_caller = kp -> self_sign("CN=node", valid_from, valid_to);
-auto node_caller_der = crypto::make_verifier(node_caller) -> cert_der();
+auto node_caller = kp->self_sign("CN=node", valid_from, valid_to);
+auto node_caller_der = crypto::make_verifier(node_caller)->cert_der();
 
 auto kp_other = crypto::make_key_pair();
-auto invalid_caller = kp_other -> self_sign("CN=name", valid_from, valid_to);
-auto invalid_caller_der = crypto::make_verifier(invalid_caller) -> cert_der();
+auto invalid_caller = kp_other->self_sign("CN=name", valid_from, valid_to);
+auto invalid_caller_der = crypto::make_verifier(invalid_caller)->cert_der();
 
 auto anonymous_caller_der = std::vector<uint8_t>();
 
@@ -1499,31 +1499,6 @@ TEST_CASE("Manual conflicts")
     crypto::openssl_sha256_shutdown();
   };
 
-  auto get_metrics = [&]() {
-    crypto::openssl_sha256_init();
-    auto req = create_simple_request("/api/metrics");
-    req.set_method(HTTP_GET);
-    auto serialized_call = req.build_request();
-    auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-    frontend.process(rpc_ctx);
-    auto response = parse_response(rpc_ctx->serialise_response());
-    CHECK(response.status == HTTP_STATUS_OK);
-    auto body = nlohmann::json::parse(response.body);
-    auto& element = body["metrics"];
-    ccf::EndpointMetricsEntry ret;
-    for (const auto& j : element)
-    {
-      if (j["path"] == "pausable")
-      {
-        ret = j.get<ccf::EndpointMetricsEntry>();
-        break;
-      }
-    }
-
-    crypto::openssl_sha256_shutdown();
-    return ret;
-  };
-
   auto get_value = [&](const std::string& table = TF::DST) {
     crypto::openssl_sha256_init();
     auto tx = network.tables->create_tx();
@@ -1575,16 +1550,17 @@ TEST_CASE("Manual conflicts")
     const auto new_value = rand();
     update_value(new_value);
 
-    const auto metrics_before = get_metrics();
+    // TODO: Replace with a custom registry, that produces its own metrics?
+    // const auto metrics_before = get_metrics();
     run_test([]() {});
-    const auto metrics_after = get_metrics();
+    // const auto metrics_after = get_metrics();
 
     const auto v = get_value();
     REQUIRE(v.has_value());
     REQUIRE(v.value() == new_value);
 
-    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
-    REQUIRE(metrics_after.retries == metrics_before.retries);
+    // REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    // REQUIRE(metrics_after.retries == metrics_before.retries);
   }
 
   {
@@ -1597,16 +1573,16 @@ TEST_CASE("Manual conflicts")
     INFO("Inserted post-read conflict");
 
     const auto new_value = rand();
-    const auto metrics_before = get_metrics();
+    // const auto metrics_before = get_metrics();
     run_test([&]() { update_value(new_value); });
-    const auto metrics_after = get_metrics();
+    // const auto metrics_after = get_metrics();
 
     const auto v = get_value();
     REQUIRE(v.has_value());
     REQUIRE(v.value() == new_value);
 
-    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
-    REQUIRE(metrics_after.retries == metrics_before.retries + 1);
+    // REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    // REQUIRE(metrics_after.retries == metrics_before.retries + 1);
   }
 
   {
@@ -1614,20 +1590,20 @@ TEST_CASE("Manual conflicts")
 
     const auto new_value = rand();
     update_value(new_value);
-    const auto metrics_before = get_metrics();
+    // const auto metrics_before = get_metrics();
     run_test([&]() {
       get_value(TF::SRC);
       get_value(TF::DST);
       get_value("Some other table");
     });
-    const auto metrics_after = get_metrics();
+    // const auto metrics_after = get_metrics();
 
     const auto v = get_value();
     REQUIRE(v.has_value());
     REQUIRE(v.value() == new_value);
 
-    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
-    REQUIRE(metrics_after.retries == metrics_before.retries);
+    // REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    // REQUIRE(metrics_after.retries == metrics_before.retries);
   }
 
   {
@@ -1635,20 +1611,20 @@ TEST_CASE("Manual conflicts")
 
     const auto new_value = rand();
     update_value(new_value);
-    const auto metrics_before = get_metrics();
+    // const auto metrics_before = get_metrics();
     run_test([&]() {
       update_value(rand(), TF::SRC, TF::KEY + 1);
       update_value(rand(), TF::DST);
       update_value(rand(), "Some other table");
     });
-    const auto metrics_after = get_metrics();
+    // const auto metrics_after = get_metrics();
 
     const auto v = get_value();
     REQUIRE(v.has_value());
     REQUIRE(v.value() == new_value);
 
-    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
-    REQUIRE(metrics_after.retries == metrics_before.retries);
+    // REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    // REQUIRE(metrics_after.retries == metrics_before.retries);
   }
 
   {
@@ -1656,7 +1632,7 @@ TEST_CASE("Manual conflicts")
     // Ensuring that a delete is not treated differently from a 'normal' write
 
     update_value(rand());
-    const auto metrics_before = get_metrics();
+    // const auto metrics_before = get_metrics();
     run_test([&]() {
       auto tx = network.tables->create_tx();
       using TF = TestManualConflictsFrontend;
@@ -1664,14 +1640,14 @@ TEST_CASE("Manual conflicts")
       handle->remove(TF::KEY);
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     });
-    const auto metrics_after = get_metrics();
+    // const auto metrics_after = get_metrics();
 
     const auto v = get_value();
     REQUIRE(v.has_value());
     REQUIRE(v.value() == 0);
 
-    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
-    REQUIRE(metrics_after.retries == metrics_before.retries + 1);
+    // REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    // REQUIRE(metrics_after.retries == metrics_before.retries + 1);
   }
 
   {
@@ -1679,7 +1655,7 @@ TEST_CASE("Manual conflicts")
     // Ensuring that a clear is not treated differently from a 'normal' write
 
     update_value(rand());
-    const auto metrics_before = get_metrics();
+    // const auto metrics_before = get_metrics();
     run_test([&]() {
       auto tx = network.tables->create_tx();
       using TF = TestManualConflictsFrontend;
@@ -1687,20 +1663,20 @@ TEST_CASE("Manual conflicts")
       handle->clear();
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
     });
-    const auto metrics_after = get_metrics();
+    // const auto metrics_after = get_metrics();
 
     const auto v = get_value();
     REQUIRE(v.has_value());
     REQUIRE(v.value() == 0);
 
-    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
-    REQUIRE(metrics_after.retries == metrics_before.retries + 1);
+    // REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    // REQUIRE(metrics_after.retries == metrics_before.retries + 1);
   }
 
   {
     INFO("Removed caller ident post-read");
 
-    const auto metrics_before = get_metrics();
+    // const auto metrics_before = get_metrics();
 
     const auto old_value = get_value();
     update_value(rand());
@@ -1717,10 +1693,10 @@ TEST_CASE("Manual conflicts")
     REQUIRE(v.has_value());
     REQUIRE(v.value() == old_value);
 
-    const auto metrics_after = get_metrics();
-    REQUIRE(metrics_after.calls == metrics_before.calls + 1);
-    REQUIRE(metrics_after.retries == metrics_before.retries + 1);
-    REQUIRE(metrics_after.errors == metrics_before.errors + 1);
+    // const auto metrics_after = get_metrics();
+    // REQUIRE(metrics_after.calls == metrics_before.calls + 1);
+    // REQUIRE(metrics_after.retries == metrics_before.retries + 1);
+    // REQUIRE(metrics_after.errors == metrics_before.errors + 1);
   }
 }
 

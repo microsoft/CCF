@@ -1448,27 +1448,6 @@ namespace ccf
         .set_auto_schema<void, JavaScriptMetrics>()
         .install();
 
-      auto jwt_metrics = [this](auto& ctx, nlohmann::json&&) {
-        JWTMetrics m;
-        // Attempts are recorded by the key refresh code itself, registering
-        // before each call to each issuer's keys
-        m.attempts = node_operation.get_jwt_attempts();
-        // Success is marked by the fact that the key succeeded and called
-        // our internal "jwt_keys/refresh" endpoint.
-        auto metric = get_metrics_for_request(
-          "/jwt_keys/refresh", llhttp_method_name(HTTP_POST));
-        m.successes = metric.calls - (metric.failures + metric.errors);
-        return m;
-      };
-
-      make_read_only_endpoint(
-        "/jwt_metrics",
-        HTTP_GET,
-        json_read_only_adapter(jwt_metrics),
-        no_auth_required)
-        .set_auto_schema<void, JWTMetrics>()
-        .install();
-
       auto version = [this](auto&, nlohmann::json&&) {
         GetVersion::Out result;
         result.ccf_version = ccf::ccf_version;

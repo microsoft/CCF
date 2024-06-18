@@ -755,69 +755,64 @@ def test_raw_text(network, args):
     r = network.txs.request(log_id, priv=True)
     assert msg in r.body.json()["msg"], r
 
-    primary, _ = network.find_primary()
-    with primary.client("user0") as c:
-        r = c.get("/app/api/metrics")
-        assert get_metrics(r, "log/private/raw_text/{id}", "POST")["calls"] > 0
-
     return network
 
 
-@reqs.description("Read metrics")
-@reqs.supports_methods("/app/api/metrics")
-def test_metrics(network, args):
-    primary, _ = network.find_primary()
+# @reqs.description("Read metrics")
+# @reqs.supports_methods("/app/api/metrics")
+# def test_metrics(network, args):
+#     primary, _ = network.find_primary()
 
-    calls = 0
-    errors = 0
-    with primary.client("user0") as c:
-        r = c.get("/app/api/metrics")
-        m = get_metrics(r, "api/metrics", "GET")
-        calls = m["calls"]
-        errors = m["errors"]
+#     calls = 0
+#     errors = 0
+#     with primary.client("user0") as c:
+#         r = c.get("/app/api/metrics")
+#         m = get_metrics(r, "api/metrics", "GET")
+#         calls = m["calls"]
+#         errors = m["errors"]
 
-    with primary.client("user0") as c:
-        r = c.get("/app/api/metrics")
-        assert get_metrics(r, "api/metrics", "GET")["calls"] == calls + 1
-        r = c.get("/app/api/metrics")
-        assert get_metrics(r, "api/metrics", "GET")["calls"] == calls + 2
+#     with primary.client("user0") as c:
+#         r = c.get("/app/api/metrics")
+#         assert get_metrics(r, "api/metrics", "GET")["calls"] == calls + 1
+#         r = c.get("/app/api/metrics")
+#         assert get_metrics(r, "api/metrics", "GET")["calls"] == calls + 2
 
-    with primary.client() as c:
-        r = c.get("/app/api/metrics", headers={"accept": "nonsense"})
-        assert r.status_code == http.HTTPStatus.BAD_REQUEST.value
+#     with primary.client() as c:
+#         r = c.get("/app/api/metrics", headers={"accept": "nonsense"})
+#         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value
 
-    with primary.client() as c:
-        r = c.get("/app/api/metrics")
-        assert get_metrics(r, "api/metrics", "GET")["errors"] == errors + 1
+#     with primary.client() as c:
+#         r = c.get("/app/api/metrics")
+#         assert get_metrics(r, "api/metrics", "GET")["errors"] == errors + 1
 
-    calls = 0
-    with primary.client("user0") as c:
-        r = c.get("/app/api/metrics")
-        calls = get_metrics(r, "log/public", "POST", {"calls": 0})["calls"]
+#     calls = 0
+#     with primary.client("user0") as c:
+#         r = c.get("/app/api/metrics")
+#         calls = get_metrics(r, "log/public", "POST", {"calls": 0})["calls"]
 
-    network.txs.issue(
-        network=network,
-        number_txs=1,
-    )
+#     network.txs.issue(
+#         network=network,
+#         number_txs=1,
+#     )
 
-    with primary.client("user0") as c:
-        r = c.get("/app/api/metrics")
-        assert get_metrics(r, "log/public", "POST")["calls"] == calls + 1
+#     with primary.client("user0") as c:
+#         r = c.get("/app/api/metrics")
+#         assert get_metrics(r, "log/public", "POST")["calls"] == calls + 1
 
-    with primary.client("user0") as c:
-        r = c.get("/app/no_such_endpoint")
-        assert r.status_code == http.HTTPStatus.NOT_FOUND.value
-        r = c.get("/app/api/metrics")
-        assert (
-            get_metrics(
-                r,
-                "no_such_endpoint",
-                "GET",
-            )
-            is None
-        )
+#     with primary.client("user0") as c:
+#         r = c.get("/app/no_such_endpoint")
+#         assert r.status_code == http.HTTPStatus.NOT_FOUND.value
+#         r = c.get("/app/api/metrics")
+#         assert (
+#             get_metrics(
+#                 r,
+#                 "no_such_endpoint",
+#                 "GET",
+#             )
+#             is None
+#         )
 
-    return network
+#     return network
 
 
 @reqs.description("Read historical state")

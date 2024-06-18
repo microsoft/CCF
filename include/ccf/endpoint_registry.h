@@ -128,14 +128,6 @@ namespace ccf::endpoints
       std::string document_version = "0.0.1";
     } openapi_info;
 
-    struct Metrics
-    {
-      size_t calls = 0;
-      size_t errors = 0;
-      size_t failures = 0;
-      size_t retries = 0;
-    };
-
     template <typename T>
     bool get_path_param(
       const ccf::PathParams& params,
@@ -165,12 +157,6 @@ namespace ccf::endpoints
       std::string,
       std::map<RESTVerb, std::shared_ptr<PathTemplatedEndpoint>>>
       templated_endpoints;
-
-    ccf::pal::Mutex metrics_lock;
-    std::map<std::string, std::map<std::string, Metrics>> metrics;
-
-    EndpointRegistry::Metrics& get_metrics_for_request(
-      const std::string& method, const std::string& verb);
 
     kv::Consensus* consensus = nullptr;
     kv::TxHistory* history = nullptr;
@@ -292,14 +278,6 @@ namespace ccf::endpoints
     void set_consensus(kv::Consensus* c);
 
     void set_history(kv::TxHistory* h);
-
-    virtual void increment_metrics_calls(const EndpointDefinitionPtr& endpoint);
-    virtual void increment_metrics_errors(
-      const EndpointDefinitionPtr& endpoint);
-    virtual void increment_metrics_failures(
-      const EndpointDefinitionPtr& endpoint);
-    virtual void increment_metrics_retries(
-      const EndpointDefinitionPtr& endpoint);
 
     // Override these methods to log or report request metrics.
     virtual void handle_event_request_completed(
