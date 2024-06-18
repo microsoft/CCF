@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0-rc1]
+
+[5.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-rc1
+
+### Changed
+
+- Serialisation of C++ types to JSON has changed. Fields which are marked as optional in the CCF JSON serdes macros (ie - those in `DECLARE_JSON_OPTIONAL_FIELDS`) will now always be present in the resulting JSON object. Previously they would be omitted from the object if they matched the default value. They are still optional on deserialisation (ie - if these fields are missing, the object can still be deserialised).
+
 ## [5.0.0-dev18]
 
 [5.0.0-dev18]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev18
