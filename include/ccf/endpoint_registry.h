@@ -39,6 +39,21 @@ namespace ccf::endpoints
     PathTemplateSpec spec;
   };
 
+  struct RequestCompletedEvent
+  {
+    std::string method = "";
+    std::string path = "";
+    int status = 0;
+    std::chrono::milliseconds exec_time{0};
+    size_t attempts = 0;
+  };
+
+  struct DispatchFailedEvent
+  {
+    std::string method = "";
+    int status = 0;
+  };
+
   void default_locally_committed_func(
     CommandEndpointContext& ctx, const TxID& tx_id);
 
@@ -285,6 +300,13 @@ namespace ccf::endpoints
       const EndpointDefinitionPtr& endpoint);
     virtual void increment_metrics_retries(
       const EndpointDefinitionPtr& endpoint);
+
+    // Override these methods to log or report request metrics.
+    virtual void handle_event_request_completed(
+      const RequestCompletedEvent& event)
+    {}
+    virtual void handle_event_dispatch_failed(const DispatchFailedEvent& event)
+    {}
 
     virtual bool apply_uncommitted_tx_backpressure() const
     {

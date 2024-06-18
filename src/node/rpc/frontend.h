@@ -13,6 +13,7 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/service.h"
 #include "common/configuration.h"
+#include "enclave/enclave_time.h"
 #include "enclave/rpc_handler.h"
 #include "forwarder.h"
 #include "http/http_jwt.h"
@@ -555,9 +556,46 @@ namespace ccf
     void process_command(std::shared_ptr<ccf::RpcContextImpl> ctx)
     {
       size_t attempts = 0;
-      constexpr auto max_attempts = 30;
       endpoints::EndpointDefinitionPtr endpoint = nullptr;
 
+      const auto start_time = ccf::get_enclave_time();
+
+      process_command_inner(ctx, endpoint, attempts);
+
+      const auto end_time = ccf::get_enclave_time();
+
+      if (endpoint != nullptr)
+      {
+        endpoints::RequestCompletedEvent rce;
+        rce.method = endpoint->dispatch.verb.c_str();
+        rce.path = endpoint->dispatch.uri_path;
+        rce.status = ctx->get_response_status();
+        // Although enclave time returns a microsecond value, the actual
+        // precision/granularity depends on the host's TimeUpdater. By default
+        // this only advances each millisecond. Avoid implying more precision
+        // than that, by rounding to milliseconds
+        rce.exec_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+          end_time - start_time);
+        rce.attempts = attempts;
+
+        endpoints.handle_event_request_completed(rce);
+      }
+      else
+      {
+        endpoints::DispatchFailedEvent dfe;
+        dfe.method = endpoint->dispatch.verb.c_str();
+        dfe.status = ctx->get_response_status();
+
+        endpoints.handle_event_dispatch_failed(dfe);
+      }
+    }
+
+    void process_command_inner(
+      std::shared_ptr<ccf::RpcContextImpl> ctx,
+      endpoints::EndpointDefinitionPtr& endpoint,
+      size_t& attempts)
+    {
+      constexpr auto max_attempts = 30;
       while (attempts < max_attempts)
       {
         if (consensus != nullptr)
