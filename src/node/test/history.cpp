@@ -5,6 +5,7 @@
 #include "ccf/app_interface.h"
 #include "ccf/ds/logger.h"
 #include "ccf/service/tables/nodes.h"
+#include "cert_utils.h"
 #include "crypto/openssl/hash.h"
 #include "ds/x509_time_fmt.h"
 #include "kv/kv_types.h"
@@ -12,7 +13,6 @@
 #include "kv/test/null_encryptor.h"
 #include "kv/test/stub_consensus.h"
 #include "service/tables/signatures.h"
-#include "cert_utils.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>

@@ -57,7 +57,8 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
   const ccf::NodeId node_id = std::string("node_id");
   auto h =
     std::make_shared<ccf::MerkleTxHistory>(*ts.kv_store, node_id, *ts.node_kp);
-  const auto self_signed = ts.node_kp->self_sign("CN=Node", valid_from, valid_to);
+  const auto self_signed =
+    ts.node_kp->self_sign("CN=Node", valid_from, valid_to);
   h->set_endorsed_certificate(self_signed);
   ts.kv_store->set_history(h);
   ts.kv_store->initialise_term(2);
