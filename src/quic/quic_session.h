@@ -19,7 +19,7 @@ namespace quic
   {
   protected:
     ringbuffer::WriterPtr to_host;
-    tls::ConnID session_id;
+    ccf::tls::ConnID session_id;
     size_t execution_thread;
 
     enum Status

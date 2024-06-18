@@ -32,7 +32,7 @@ namespace ccf
 
   protected:
     ringbuffer::WriterPtr to_host;
-    tls::ConnID session_id;
+    ::tls::ConnID session_id;
     size_t execution_thread;
 
   private:
@@ -87,7 +87,7 @@ namespace ccf
 
     virtual ~TLSSession()
     {
-      RINGBUFFER_WRITE_MESSAGE(tls::tls_closed, to_host, session_id);
+      RINGBUFFER_WRITE_MESSAGE(::tls::tls_closed, to_host, session_id);
     }
 
     SessionStatus get_status() const
@@ -178,7 +178,7 @@ namespace ccf
         case TLS_ERR_CONN_CLOSE_NOTIFY:
         {
           LOG_TRACE_FMT(
-            "TLS {} close on read: {}", session_id, tls::error_string(r));
+            "TLS {} close on read: {}", session_id, ::tls::error_string(r));
 
           stop(closed);
 
@@ -214,7 +214,7 @@ namespace ccf
       if (r < 0)
       {
         LOG_TRACE_FMT(
-          "TLS {} error on read: {}", session_id, tls::error_string(r));
+          "TLS {} error on read: {}", session_id, ::tls::error_string(r));
         stop(error);
         return 0;
       }
@@ -312,7 +312,9 @@ namespace ccf
             default:
             {
               LOG_TRACE_FMT(
-                "TLS {} error on_close: {}", session_id, tls::error_string(r));
+                "TLS {} error on_close: {}",
+                session_id,
+                ::tls::error_string(r));
               stop(error);
               break;
             }
@@ -452,7 +454,7 @@ namespace ccf
           on_handshake_error(fmt::format(
             "TLS {} verify error on handshake: {}",
             session_id,
-            tls::error_string(rc)));
+            ::tls::error_string(rc)));
           stop(authfail);
           break;
         }
@@ -462,7 +464,7 @@ namespace ccf
           LOG_TRACE_FMT(
             "TLS {} closed on handshake: {}",
             session_id,
-            tls::error_string(rc));
+            ::tls::error_string(rc));
           stop(closed);
           break;
         }
@@ -474,7 +476,7 @@ namespace ccf
             "TLS {} invalid cert on handshake: {} [{}]",
             session_id,
             err,
-            tls::error_string(rc)));
+            ::tls::error_string(rc)));
           stop(authfail);
           return;
         }
@@ -484,7 +486,7 @@ namespace ccf
           on_handshake_error(fmt::format(
             "TLS {} error on handshake: {}",
             session_id,
-            tls::error_string(rc)));
+            ::tls::error_string(rc)));
           stop(error);
           break;
         }
@@ -528,14 +530,17 @@ namespace ccf
         case closed:
         {
           RINGBUFFER_WRITE_MESSAGE(
-            tls::tls_stop, to_host, session_id, std::string("Session closed"));
+            ::tls::tls_stop,
+            to_host,
+            session_id,
+            std::string("Session closed"));
           break;
         }
 
         case authfail:
         {
           RINGBUFFER_WRITE_MESSAGE(
-            tls::tls_stop,
+            ::tls::tls_stop,
             to_host,
             session_id,
             std::string("Authentication failed"));
@@ -543,7 +548,7 @@ namespace ccf
         case error:
         {
           RINGBUFFER_WRITE_MESSAGE(
-            tls::tls_stop, to_host, session_id, std::string("Error"));
+            ::tls::tls_stop, to_host, session_id, std::string("Error"));
           break;
         }
 
@@ -557,7 +562,7 @@ namespace ccf
     {
       // Either write all of the data or none of it.
       auto wrote = RINGBUFFER_TRY_WRITE_MESSAGE(
-        tls::tls_outbound,
+        ::tls::tls_outbound,
         to_host,
         session_id,
         serializer::ByteRange{buf, len});

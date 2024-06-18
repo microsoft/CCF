@@ -164,8 +164,8 @@ namespace ccf
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback) override
     {
-      auto ca = std::make_shared<tls::CA>(config.ca_certs, true);
-      auto ca_cert = std::make_shared<tls::Cert>(ca);
+      auto ca = std::make_shared<::tls::CA>(config.ca_certs, true);
+      auto ca_cert = std::make_shared<::tls::Cert>(ca);
       auto client = rpc_sessions->create_client(ca_cert);
 
       client->connect(

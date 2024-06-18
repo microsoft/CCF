@@ -43,7 +43,7 @@ namespace ccf
       const HandleErrorCallback e = nullptr)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        tls::tls_connect, to_host, client_session_id, hostname, service);
+        ::tls::tls_connect, to_host, client_session_id, hostname, service);
       handle_data_cb = f;
       handle_error_cb = e;
     }

@@ -68,8 +68,8 @@ namespace client
   protected:
     std::string host;
     std::string port;
-    std::shared_ptr<tls::CA> node_ca;
-    std::shared_ptr<tls::Cert> cert;
+    std::shared_ptr<::tls::CA> node_ca;
+    std::shared_ptr<::tls::Cert> cert;
     bool connected = false;
 
     Unique_SSL_CTX ctx;
@@ -119,8 +119,8 @@ namespace client
     TlsClient(
       const std::string& host,
       const std::string& port,
-      std::shared_ptr<tls::CA> node_ca = nullptr,
-      std::shared_ptr<tls::Cert> cert = nullptr) :
+      std::shared_ptr<::tls::CA> node_ca = nullptr,
+      std::shared_ptr<::tls::Cert> cert = nullptr) :
       host(host),
       port(port),
       node_ca(node_ca),

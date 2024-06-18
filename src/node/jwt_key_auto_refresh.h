@@ -193,7 +193,7 @@ namespace ccf
 
     void handle_jwt_metadata_response(
       const std::string& issuer,
-      std::shared_ptr<tls::CA> ca,
+      std::shared_ptr<::tls::CA> ca,
       http_status status,
       std::vector<uint8_t>&& data)
     {
@@ -248,7 +248,7 @@ namespace ccf
       }
       auto jwks_url_port = !jwks_url.port.empty() ? jwks_url.port : "443";
 
-      auto ca_cert = std::make_shared<tls::Cert>(
+      auto ca_cert = std::make_shared<::tls::Cert>(
         ca, std::nullopt, std::nullopt, jwks_url.host);
 
       std::optional<std::string> issuer_constraint{std::nullopt};
@@ -321,8 +321,8 @@ namespace ccf
         auto metadata_url_port =
           !metadata_url.port.empty() ? metadata_url.port : "443";
 
-        auto ca = std::make_shared<tls::CA>(ca_cert_bundle_pem.value());
-        auto ca_cert = std::make_shared<tls::Cert>(
+        auto ca = std::make_shared<::tls::CA>(ca_cert_bundle_pem.value());
+        auto ca_cert = std::make_shared<::tls::Cert>(
           ca, std::nullopt, std::nullopt, metadata_url.host);
 
         LOG_DEBUG_FMT(

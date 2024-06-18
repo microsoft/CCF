@@ -164,7 +164,7 @@ long recv(
 
 /// Performs a TLS handshake, looping until there's nothing more to read/write.
 /// Returns 0 on success, throws a runtime error with SSL error str on failure.
-int handshake(Context* ctx, std::atomic<bool>& keep_going)
+int handshake(ccf::tls::Context* ctx, std::atomic<bool>& keep_going)
 {
   while (keep_going)
   {
@@ -183,26 +183,26 @@ int handshake(Context* ctx, std::atomic<bool>& keep_going)
 
       case TLS_ERR_NEED_CERT:
       {
-        LOG_FAIL_FMT("Handshake error: {}", tls::error_string(rc));
+        LOG_FAIL_FMT("Handshake error: {}", ::tls::error_string(rc));
         return 1;
       }
 
       case TLS_ERR_CONN_CLOSE_NOTIFY:
       {
-        LOG_FAIL_FMT("Handshake error: {}", tls::error_string(rc));
+        LOG_FAIL_FMT("Handshake error: {}", ::tls::error_string(rc));
         return 1;
       }
 
       case TLS_ERR_X509_VERIFY:
       {
         auto err = ctx->get_verify_error();
-        LOG_FAIL_FMT("Handshake error: {} [{}]", err, tls::error_string(rc));
+        LOG_FAIL_FMT("Handshake error: {} [{}]", err, ::tls::error_string(rc));
         return 1;
       }
 
       default:
       {
-        LOG_FAIL_FMT("Handshake error: {}", tls::error_string(rc));
+        LOG_FAIL_FMT("Handshake error: {}", ::tls::error_string(rc));
         return 1;
       }
     }
@@ -261,12 +261,12 @@ NetworkCA get_ca()
   return {kp, crt};
 }
 
-/// Creates a tls::Cert with a new CA using a new self-signed Pem certificate.
-unique_ptr<tls::Cert> get_dummy_cert(
+/// Creates a ::tls::Cert with a new CA using a new self-signed Pem certificate.
+unique_ptr<::tls::Cert> get_dummy_cert(
   NetworkCA& net_ca, string name, bool auth_required = true)
 {
   // Create a CA with a self-signed certificate
-  auto ca = make_unique<tls::CA>(net_ca.cert.str());
+  auto ca = make_unique<::tls::CA>(net_ca.cert.str());
 
   // Create a signing request and sign with the CA
   auto kp = crypto::make_key_pair();
@@ -277,13 +277,14 @@ unique_ptr<tls::Cert> get_dummy_cert(
   auto v = crypto::make_verifier(crt);
   REQUIRE(v->verify_certificate({&net_ca.cert}));
 
-  // Create a tls::Cert with the CA, the signed certificate and the private key
+  // Create a ::tls::Cert with the CA, the signed certificate and the private
+  // key
   auto pk = kp->private_key_pem();
   return make_unique<Cert>(std::move(ca), crt, pk, std::nullopt, auth_required);
 }
 
 /// Helper to write past the maximum buffer (16k)
-int write_helper(Context& handler, const uint8_t* buf, size_t len)
+int write_helper(ccf::tls::Context& handler, const uint8_t* buf, size_t len)
 {
   LOG_DEBUG_FMT("WRITE {} bytes", len);
   int rc = handler.write(buf, len);
@@ -293,7 +294,7 @@ int write_helper(Context& handler, const uint8_t* buf, size_t len)
 }
 
 /// Helper to read past the maximum buffer (16k)
-int read_helper(Context& handler, uint8_t* buf, size_t len)
+int read_helper(ccf::tls::Context& handler, uint8_t* buf, size_t len)
 {
   LOG_DEBUG_FMT("READ {} bytes", len);
   int rc = handler.read(buf, len);
@@ -319,8 +320,8 @@ void run_test_case(
   size_t message_length,
   const uint8_t* response,
   size_t response_length,
-  unique_ptr<tls::Cert> server_cert,
-  unique_ptr<tls::Cert> client_cert)
+  unique_ptr<::tls::Cert> server_cert,
+  unique_ptr<::tls::Cert> client_cert)
 {
   uint8_t buf[max(message_length, response_length) + 1];
 

@@ -34,7 +34,7 @@ namespace ccf
     // that eventually invokes the virtual handle_incoming_data_thread()
     void handle_incoming_data(std::span<const uint8_t> data) override
     {
-      auto [_, body] = ringbuffer::read_message<tls::tls_inbound>(data);
+      auto [_, body] = ringbuffer::read_message<::tls::tls_inbound>(data);
 
       auto msg = std::make_unique<::threading::Tmsg<SendRecvMsg>>(
         &handle_incoming_data_cb);

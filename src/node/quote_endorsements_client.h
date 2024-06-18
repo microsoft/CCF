@@ -76,7 +76,7 @@ namespace ccf
       // private data. If the server was malicious and the certificate chain was
       // bogus, the verification of the endorsement of the quote would fail
       // anyway.
-      return rpcsessions->create_client(std::make_shared<tls::Cert>(
+      return rpcsessions->create_client(std::make_shared<::tls::Cert>(
         nullptr, std::nullopt, std::nullopt, std::nullopt, false));
     }
 

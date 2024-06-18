@@ -560,10 +560,10 @@ namespace ccf
     {
       sm.expect(NodeStartupState::pending);
 
-      auto network_ca = std::make_shared<tls::CA>(std::string(
+      auto network_ca = std::make_shared<::tls::CA>(std::string(
         config.join.service_cert.begin(), config.join.service_cert.end()));
 
-      auto join_client_cert = std::make_unique<tls::Cert>(
+      auto join_client_cert = std::make_unique<::tls::Cert>(
         network_ca,
         self_signed_node_cert,
         node_sign_kp->private_key_pem(),
@@ -2629,9 +2629,9 @@ namespace ccf
         client_cert_key = node_sign_kp->private_key_pem();
       }
 
-      auto ca = std::make_shared<tls::CA>(ca_certs, true);
-      std::shared_ptr<tls::Cert> ca_cert =
-        std::make_shared<tls::Cert>(ca, client_cert, client_cert_key);
+      auto ca = std::make_shared<::tls::CA>(ca_certs, true);
+      std::shared_ptr<::tls::Cert> ca_cert =
+        std::make_shared<::tls::Cert>(ca, client_cert, client_cert_key);
       auto client = rpcsessions->create_client(ca_cert, app_protocol);
       client->connect(
         url.host,
