@@ -5,7 +5,7 @@
 #include "ccf/ds/unit_strings.h"
 #include "ccf/service/consensus_type.h"
 
-namespace consensus
+namespace ccf::consensus
 {
   struct Configuration
   {

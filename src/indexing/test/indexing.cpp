@@ -282,7 +282,7 @@ aft::LedgerStubProxy* add_raft_consensus(
   using AllCommittableRaftConsensus = AllCommittableWrapper<TRaft>;
   using ms = std::chrono::milliseconds;
   const std::string node_id = "Node 0";
-  const consensus::Configuration settings{{"20ms"}, {"100ms"}};
+  const ccf::consensus::Configuration settings{{"20ms"}, {"100ms"}};
   auto consensus = std::make_shared<AllCommittableRaftConsensus>(
     settings,
     std::make_unique<aft::Adaptor<kv::Store>>(kv_store),
@@ -382,11 +382,11 @@ TEST_CASE_TEMPLATE(
 
         const uint8_t* data = write.contents.data();
         size_t size = write.contents.size();
-        REQUIRE(write.m == consensus::ledger_get_range);
+        REQUIRE(write.m == ::consensus::ledger_get_range);
         auto [from_seqno, to_seqno, purpose_] =
-          ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+          ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
         auto& purpose = purpose_;
-        REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+        REQUIRE(purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
 
         std::vector<uint8_t> combined;
         for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)
@@ -590,11 +590,12 @@ TEST_CASE(
 
           const uint8_t* data = write.contents.data();
           size_t size = write.contents.size();
-          REQUIRE(write.m == consensus::ledger_get_range);
+          REQUIRE(write.m == ::consensus::ledger_get_range);
           auto [from_seqno, to_seqno, purpose_] =
-            ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+            ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
           auto& purpose = purpose_;
-          REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+          REQUIRE(
+            purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
 
           std::vector<uint8_t> combined;
           for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)

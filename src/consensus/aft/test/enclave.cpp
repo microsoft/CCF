@@ -31,7 +31,7 @@ TEST_CASE("Enclave put")
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case consensus::ledger_append:
+        case ::consensus::ledger_append:
         {
           REQUIRE(num_msgs == 0);
           REQUIRE(serialized::read<bool>(data, size) == globally_committable);
@@ -88,7 +88,7 @@ TEST_CASE("Enclave record")
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case consensus::ledger_append:
+        case ::consensus::ledger_append:
         {
           REQUIRE(num_msgs == 0);
           REQUIRE(serialized::read<bool>(data, size) == globally_committable);
@@ -109,7 +109,7 @@ TEST_CASE("Enclave record")
     -1, [&](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case consensus::ledger_append:
+        case ::consensus::ledger_append:
         {
           REQUIRE(num_msgs == 0);
           REQUIRE(serialized::read<bool>(data, size) == globally_committable);

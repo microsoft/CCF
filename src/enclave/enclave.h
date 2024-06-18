@@ -87,7 +87,7 @@ namespace ccf
       RingbufferLogger* ringbuffer_logger_,
       size_t sig_tx_interval,
       size_t sig_ms_interval,
-      const consensus::Configuration& consensus_config,
+      const ccf::consensus::Configuration& consensus_config,
       const crypto::CurveID& curve_id) :
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
@@ -371,14 +371,14 @@ namespace ccf
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
-          consensus::ledger_entry_range,
+          ::consensus::ledger_entry_range,
           [this](const uint8_t* data, size_t size) {
             const auto [from_seqno, to_seqno, purpose, body] =
-              ringbuffer::read_message<consensus::ledger_entry_range>(
+              ringbuffer::read_message<::consensus::ledger_entry_range>(
                 data, size);
             switch (purpose)
             {
-              case consensus::LedgerRequestPurpose::Recovery:
+              case ::consensus::LedgerRequestPurpose::Recovery:
               {
                 if (node->is_reading_public_ledger())
                 {
@@ -396,7 +396,7 @@ namespace ccf
                 }
                 break;
               }
-              case consensus::LedgerRequestPurpose::HistoricalQuery:
+              case ::consensus::LedgerRequestPurpose::HistoricalQuery:
               {
                 historical_state_cache->handle_ledger_entries(
                   from_seqno, to_seqno, body);
@@ -411,19 +411,19 @@ namespace ccf
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
-          consensus::ledger_no_entry_range,
+          ::consensus::ledger_no_entry_range,
           [this](const uint8_t* data, size_t size) {
             const auto [from_seqno, to_seqno, purpose] =
-              ringbuffer::read_message<consensus::ledger_no_entry_range>(
+              ringbuffer::read_message<::consensus::ledger_no_entry_range>(
                 data, size);
             switch (purpose)
             {
-              case consensus::LedgerRequestPurpose::Recovery:
+              case ::consensus::LedgerRequestPurpose::Recovery:
               {
                 node->recover_ledger_end();
                 break;
               }
-              case consensus::LedgerRequestPurpose::HistoricalQuery:
+              case ::consensus::LedgerRequestPurpose::HistoricalQuery:
               {
                 historical_state_cache->handle_no_entry_range(
                   from_seqno, to_seqno);
@@ -438,10 +438,10 @@ namespace ccf
 
         DISPATCHER_SET_MESSAGE_HANDLER(
           bp,
-          consensus::snapshot_allocated,
+          ::consensus::snapshot_allocated,
           [this](const uint8_t* data, size_t size) {
             const auto [snapshot_span, generation_count] =
-              ringbuffer::read_message<consensus::snapshot_allocated>(
+              ringbuffer::read_message<::consensus::snapshot_allocated>(
                 data, size);
 
             node->write_snapshot(snapshot_span, generation_count);

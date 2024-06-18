@@ -57,7 +57,7 @@
 
 namespace ccf
 {
-  using RaftType = aft::Aft<consensus::LedgerEnclave>;
+  using RaftType = aft::Aft<::consensus::LedgerEnclave>;
 
   struct NodeCreateInfo
   {
@@ -119,7 +119,7 @@ namespace ccf
     //
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host;
-    consensus::Configuration consensus_config;
+    ccf::consensus::Configuration consensus_config;
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
@@ -146,10 +146,10 @@ namespace ccf
     kv::Version recovery_v;
     crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> view_history;
-    consensus::Index last_recovered_signed_idx = 0;
+    ::consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets = {};
     LedgerSecretsMap recovered_ledger_secrets = {};
-    consensus::Index last_recovered_idx = 0;
+    ::consensus::Index last_recovered_idx = 0;
     static const size_t recovery_batch_size = 100;
 
     //
@@ -252,7 +252,7 @@ namespace ccf
     // funcs in state "uninitialized"
     //
     void initialize(
-      const consensus::Configuration& consensus_config_,
+      const ccf::consensus::Configuration& consensus_config_,
       std::shared_ptr<RPCMap> rpc_map_,
       std::shared_ptr<AbstractRPCResponder> rpc_sessions_,
       std::shared_ptr<indexing::Indexer> indexer_,
@@ -883,7 +883,7 @@ namespace ccf
 
       while (size > 0)
       {
-        auto entry = consensus::LedgerEnclave::get_entry(data, size);
+        auto entry = ::consensus::LedgerEnclave::get_entry(data, size);
 
         LOG_INFO_FMT("Deserialising public ledger entry [{}]", entry.size());
 
@@ -1064,7 +1064,7 @@ namespace ccf
 
       while (size > 0)
       {
-        auto entry = consensus::LedgerEnclave::get_entry(data, size);
+        auto entry = ::consensus::LedgerEnclave::get_entry(data, size);
 
         LOG_INFO_FMT("Deserialising private ledger entry [{}]", entry.size());
 
@@ -2282,7 +2282,7 @@ namespace ccf
           {
             open_user_frontend();
 
-            RINGBUFFER_WRITE_MESSAGE(consensus::ledger_open, to_host);
+            RINGBUFFER_WRITE_MESSAGE(::consensus::ledger_open, to_host);
             LOG_INFO_FMT("Service open at seqno {}", hook_version);
           }
         }));
@@ -2435,7 +2435,7 @@ namespace ccf
       consensus = std::make_shared<RaftType>(
         consensus_config,
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
-        std::make_unique<consensus::LedgerEnclave>(writer_factory),
+        std::make_unique<::consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         shared_state,
         node_client,
@@ -2508,20 +2508,20 @@ namespace ccf
         writer_factory, network.tables, config.snapshot_tx_interval);
     }
 
-    void read_ledger_entries(consensus::Index from, consensus::Index to)
+    void read_ledger_entries(::consensus::Index from, ::consensus::Index to)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_get_range,
+        ::consensus::ledger_get_range,
         to_host,
         from,
         to,
-        consensus::LedgerRequestPurpose::Recovery);
+        ::consensus::LedgerRequestPurpose::Recovery);
     }
 
-    void ledger_truncate(consensus::Index idx, bool recovery_mode = false)
+    void ledger_truncate(::consensus::Index idx, bool recovery_mode = false)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_truncate, to_host, idx, recovery_mode);
+        ::consensus::ledger_truncate, to_host, idx, recovery_mode);
     }
 
     void setup_acme_clients()

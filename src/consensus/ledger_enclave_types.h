@@ -43,43 +43,44 @@ namespace consensus
 }
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_get_range,
-  consensus::Index,
-  consensus::Index,
-  consensus::LedgerRequestPurpose);
+  ::consensus::ledger_get_range,
+  ::consensus::Index,
+  ::consensus::Index,
+  ::consensus::LedgerRequestPurpose);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_entry_range,
-  consensus::Index,
-  consensus::Index,
-  consensus::LedgerRequestPurpose,
+  ::consensus::ledger_entry_range,
+  ::consensus::Index,
+  ::consensus::Index,
+  ::consensus::LedgerRequestPurpose,
   std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_no_entry_range,
-  consensus::Index,
-  consensus::Index,
-  consensus::LedgerRequestPurpose);
+  ::consensus::ledger_no_entry_range,
+  ::consensus::Index,
+  ::consensus::Index,
+  ::consensus::LedgerRequestPurpose);
 
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_init,
-  consensus::Index /* start idx */,
-  consensus::Index /* recovery start idx */);
+  ::consensus::ledger_init,
+  ::consensus::Index /* start idx */,
+  ::consensus::Index /* recovery start idx */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_append, bool /* committable */, std::vector<uint8_t>);
+  ::consensus::ledger_append, bool /* committable */, std::vector<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::ledger_truncate, consensus::Index, bool /* recovery mode */);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(consensus::ledger_commit, consensus::Index);
-DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(consensus::ledger_open);
+  ::consensus::ledger_truncate, ::consensus::Index, bool /* recovery mode */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::snapshot_allocate,
-  consensus::Index /* snapshot idx */,
-  consensus::Index /* evidence idx */,
+  ::consensus::ledger_commit, ::consensus::Index);
+DECLARE_RINGBUFFER_MESSAGE_NO_PAYLOAD(::consensus::ledger_open);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  ::consensus::snapshot_allocate,
+  ::consensus::Index /* snapshot idx */,
+  ::consensus::Index /* evidence idx */,
   size_t /* size to allocate */,
   uint32_t /* unique request id */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::snapshot_allocated,
+  ::consensus::snapshot_allocated,
   std::span<uint8_t>, /* span to host-allocated memory for snapshot */
   uint32_t /* unique request id */);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  consensus::snapshot_commit,
-  consensus::Index /* snapshot idx */,
+  ::consensus::snapshot_commit,
+  ::consensus::Index /* snapshot idx */,
   std::vector<uint8_t> /* serialised receipt */);

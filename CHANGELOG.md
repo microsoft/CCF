@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `::ds` is now `ccf::ds`
   - `::siphash` is now `ccf::siphash`
   - `::threading` is now `ccf::threading`, and `ccf/ds/thread_ids.h` has moved to `ccf/threading/thread_ids.h`
+  - `::consensus` is now `ccf::consensus`
 
 ## [5.0.0-dev18]
 

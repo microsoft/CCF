@@ -124,7 +124,7 @@ namespace aft
   DECLARE_JSON_TYPE(RaftHeader<raft_append_entries>)
   DECLARE_JSON_REQUIRED_FIELDS(RaftHeader<raft_append_entries>, msg)
   struct AppendEntries : RaftHeader<raft_append_entries>,
-                         consensus::AppendEntriesIndex
+                         ::consensus::AppendEntriesIndex
   {
     Term term;
     Term prev_term;
@@ -141,7 +141,7 @@ namespace aft
   DECLARE_JSON_TYPE_WITH_2BASES(
     AppendEntries,
     RaftHeader<raft_append_entries>,
-    consensus::AppendEntriesIndex);
+    ::consensus::AppendEntriesIndex);
   DECLARE_JSON_REQUIRED_FIELDS(
     AppendEntries,
     term,

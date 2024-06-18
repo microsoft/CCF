@@ -51,7 +51,7 @@ namespace ccf
       // host has not yet allocated memory for the snapshot.
       bool is_stored = false;
 
-      std::optional<consensus::Index> evidence_idx = std::nullopt;
+      std::optional<::consensus::Index> evidence_idx = std::nullopt;
 
       std::optional<NodeId> node_id = std::nullopt;
       std::optional<crypto::Pem> node_cert = std::nullopt;
@@ -65,10 +65,10 @@ namespace ccf
     std::map<uint32_t, SnapshotInfo> pending_snapshots;
 
     // Initial snapshot index
-    static constexpr consensus::Index initial_snapshot_idx = 0;
+    static constexpr ::consensus::Index initial_snapshot_idx = 0;
 
     // Index at which the latest snapshot was generated
-    consensus::Index last_snapshot_idx = 0;
+    ::consensus::Index last_snapshot_idx = 0;
 
     // Used to suspend snapshot generation during public recovery
     bool snapshot_generation_enabled = true;
@@ -77,21 +77,24 @@ namespace ccf
     // indicate whether a snapshot was forced at the given index
     struct SnapshotEntry
     {
-      consensus::Index idx;
+      ::consensus::Index idx;
       bool forced;
       bool done;
     };
     std::deque<SnapshotEntry> next_snapshot_indices;
 
     void commit_snapshot(
-      consensus::Index snapshot_idx,
+      ::consensus::Index snapshot_idx,
       const std::vector<uint8_t>& serialised_receipt)
     {
       // The snapshot_idx is used to retrieve the correct snapshot file
       // previously generated.
       auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot_commit, to_host, snapshot_idx, serialised_receipt);
+        ::consensus::snapshot_commit,
+        to_host,
+        snapshot_idx,
+        serialised_receipt);
     }
 
     struct SnapshotMsg
@@ -173,7 +176,7 @@ namespace ccf
 
       auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::snapshot_allocate,
+        ::consensus::snapshot_allocate,
         to_host,
         snapshot_version,
         evidence_version,
@@ -190,7 +193,7 @@ namespace ccf
         ws_digest);
     }
 
-    void update_indices(consensus::Index idx)
+    void update_indices(::consensus::Index idx)
     {
       while ((next_snapshot_indices.size() > 1) &&
              (std::next(next_snapshot_indices.begin())->idx <= idx))
@@ -254,7 +257,7 @@ namespace ccf
       snapshot_generation_enabled = enabled;
     }
 
-    void set_last_snapshot_idx(consensus::Index idx)
+    void set_last_snapshot_idx(::consensus::Index idx)
     {
       // Should only be called once, after a snapshot has been applied
       std::lock_guard<ccf::pal::Mutex> guard(lock);
@@ -330,7 +333,7 @@ namespace ccf
       return true;
     }
 
-    bool record_committable(consensus::Index idx) override
+    bool record_committable(::consensus::Index idx) override
     {
       // Returns true if the committable idx will require the generation of a
       // snapshot, and thus a new ledger chunk
@@ -345,7 +348,7 @@ namespace ccf
       bool forced = store->flag_enabled_unsafe(
         kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
-      consensus::Index last_unforced_idx = last_snapshot_idx;
+      ::consensus::Index last_unforced_idx = last_snapshot_idx;
       for (auto it = next_snapshot_indices.rbegin();
            it != next_snapshot_indices.rend();
            it++)
@@ -372,7 +375,7 @@ namespace ccf
     }
 
     void record_signature(
-      consensus::Index idx,
+      ::consensus::Index idx,
       const std::vector<uint8_t>& sig,
       const NodeId& node_id,
       const crypto::Pem& node_cert)
@@ -400,7 +403,7 @@ namespace ccf
     }
 
     void record_serialised_tree(
-      consensus::Index idx, const std::vector<uint8_t>& tree)
+      ::consensus::Index idx, const std::vector<uint8_t>& tree)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
@@ -424,7 +427,7 @@ namespace ccf
     }
 
     void record_snapshot_evidence_idx(
-      consensus::Index idx, const SnapshotHash& snapshot)
+      ::consensus::Index idx, const SnapshotHash& snapshot)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
@@ -442,7 +445,7 @@ namespace ccf
       }
     }
 
-    void schedule_snapshot(consensus::Index idx)
+    void schedule_snapshot(::consensus::Index idx)
     {
       static uint32_t generation_count = 0;
       auto msg = std::make_unique<::threading::Tmsg<SnapshotMsg>>(&snapshot_cb);
@@ -454,7 +457,7 @@ namespace ccf
       tm.add_task(tm.get_execution_thread(generation_count), std::move(msg));
     }
 
-    void commit(consensus::Index idx, bool generate_snapshot) override
+    void commit(::consensus::Index idx, bool generate_snapshot) override
     {
       // If generate_snapshot is true, takes a snapshot of the key value store
       // at the last snapshottable index before idx, and schedule snapshot
@@ -504,7 +507,7 @@ namespace ccf
       }
     }
 
-    void rollback(consensus::Index idx) override
+    void rollback(::consensus::Index idx) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
