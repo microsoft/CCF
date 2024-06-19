@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/ds/logger.h"
+#include "ccf/ds/unit_strings.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/platform.h"
 #include "ccf/version.h"
@@ -90,7 +91,7 @@ int main(int argc, char** argv)
   app.add_option(
     "-c,--config", config_file_path, "Path to JSON configuration file");
 
-  ds::TimeString config_timeout = {"0s"};
+  ccf::ds::TimeString config_timeout = {"0s"};
   app.add_option(
     "--config-timeout",
     config_timeout,

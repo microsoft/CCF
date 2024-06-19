@@ -32,7 +32,7 @@ namespace ccf
 
   protected:
     ringbuffer::WriterPtr to_host;
-    tls::ConnID session_id;
+    ::tls::ConnID session_id;
     size_t execution_thread;
 
   private:
@@ -80,13 +80,14 @@ namespace ccf
       status(handshake)
     {
       execution_thread =
-        threading::ThreadMessaging::instance().get_execution_thread(session_id);
+        ::threading::ThreadMessaging::instance().get_execution_thread(
+          session_id);
       ctx->set_bio(this, send_callback_openssl, recv_callback_openssl);
     }
 
     virtual ~TLSSession()
     {
-      RINGBUFFER_WRITE_MESSAGE(tls::tls_closed, to_host, session_id);
+      RINGBUFFER_WRITE_MESSAGE(::tls::tls_closed, to_host, session_id);
     }
 
     SessionStatus get_status() const
@@ -177,7 +178,7 @@ namespace ccf
         case TLS_ERR_CONN_CLOSE_NOTIFY:
         {
           LOG_TRACE_FMT(
-            "TLS {} close on read: {}", session_id, tls::error_string(r));
+            "TLS {} close on read: {}", session_id, ::tls::error_string(r));
 
           stop(closed);
 
@@ -213,7 +214,7 @@ namespace ccf
       if (r < 0)
       {
         LOG_TRACE_FMT(
-          "TLS {} error on read: {}", session_id, tls::error_string(r));
+          "TLS {} error on read: {}", session_id, ::tls::error_string(r));
         stop(error);
         return 0;
       }
@@ -236,7 +237,7 @@ namespace ccf
 
     void recv_buffered(const uint8_t* data, size_t size)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called recv_buffered from incorrect thread");
       }
@@ -252,12 +253,12 @@ namespace ccf
     void close()
     {
       status = closing;
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
-        auto msg = std::make_unique<threading::Tmsg<EmptyMsg>>(&close_cb);
+        auto msg = std::make_unique<::threading::Tmsg<EmptyMsg>>(&close_cb);
         msg->data.self = this->shared_from_this();
 
-        threading::ThreadMessaging::instance().add_task(
+        ::threading::ThreadMessaging::instance().add_task(
           execution_thread, std::move(msg));
       }
       else
@@ -267,14 +268,14 @@ namespace ccf
       }
     }
 
-    static void close_cb(std::unique_ptr<threading::Tmsg<EmptyMsg>> msg)
+    static void close_cb(std::unique_ptr<::threading::Tmsg<EmptyMsg>> msg)
     {
       msg->data.self->close_thread();
     }
 
     virtual void close_thread()
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called close_thread from incorrect thread");
       }
@@ -311,7 +312,9 @@ namespace ccf
             default:
             {
               LOG_TRACE_FMT(
-                "TLS {} error on_close: {}", session_id, tls::error_string(r));
+                "TLS {} error on_close: {}",
+                session_id,
+                ::tls::error_string(r));
               stop(error);
               break;
             }
@@ -327,13 +330,14 @@ namespace ccf
 
     void send_raw(const uint8_t* data, size_t size)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
-        auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
+        auto msg =
+          std::make_unique<::threading::Tmsg<SendRecvMsg>>(&send_raw_cb);
         msg->data.self = this->shared_from_this();
         msg->data.data = std::vector<uint8_t>(data, data + size);
 
-        threading::ThreadMessaging::instance().add_task(
+        ::threading::ThreadMessaging::instance().add_task(
           execution_thread, std::move(msg));
       }
       else
@@ -344,7 +348,7 @@ namespace ccf
     }
 
   private:
-    static void send_raw_cb(std::unique_ptr<threading::Tmsg<SendRecvMsg>> msg)
+    static void send_raw_cb(std::unique_ptr<::threading::Tmsg<SendRecvMsg>> msg)
     {
       msg->data.self->send_raw_thread(
         msg->data.data.data(), msg->data.data.size());
@@ -352,7 +356,7 @@ namespace ccf
 
     void send_raw_thread(const uint8_t* data, size_t size)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error(
           "Called send_raw_thread from incorrect thread");
@@ -380,7 +384,7 @@ namespace ccf
 
     void send_buffered(const std::vector<uint8_t>& data)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called send_buffered from incorrect thread");
       }
@@ -390,7 +394,7 @@ namespace ccf
 
     void flush()
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called flush from incorrect thread");
       }
@@ -450,7 +454,7 @@ namespace ccf
           on_handshake_error(fmt::format(
             "TLS {} verify error on handshake: {}",
             session_id,
-            tls::error_string(rc)));
+            ::tls::error_string(rc)));
           stop(authfail);
           break;
         }
@@ -460,7 +464,7 @@ namespace ccf
           LOG_TRACE_FMT(
             "TLS {} closed on handshake: {}",
             session_id,
-            tls::error_string(rc));
+            ::tls::error_string(rc));
           stop(closed);
           break;
         }
@@ -472,7 +476,7 @@ namespace ccf
             "TLS {} invalid cert on handshake: {} [{}]",
             session_id,
             err,
-            tls::error_string(rc)));
+            ::tls::error_string(rc)));
           stop(authfail);
           return;
         }
@@ -482,7 +486,7 @@ namespace ccf
           on_handshake_error(fmt::format(
             "TLS {} error on handshake: {}",
             session_id,
-            tls::error_string(rc)));
+            ::tls::error_string(rc)));
           stop(error);
           break;
         }
@@ -526,14 +530,17 @@ namespace ccf
         case closed:
         {
           RINGBUFFER_WRITE_MESSAGE(
-            tls::tls_stop, to_host, session_id, std::string("Session closed"));
+            ::tls::tls_stop,
+            to_host,
+            session_id,
+            std::string("Session closed"));
           break;
         }
 
         case authfail:
         {
           RINGBUFFER_WRITE_MESSAGE(
-            tls::tls_stop,
+            ::tls::tls_stop,
             to_host,
             session_id,
             std::string("Authentication failed"));
@@ -541,7 +548,7 @@ namespace ccf
         case error:
         {
           RINGBUFFER_WRITE_MESSAGE(
-            tls::tls_stop, to_host, session_id, std::string("Error"));
+            ::tls::tls_stop, to_host, session_id, std::string("Error"));
           break;
         }
 
@@ -555,7 +562,7 @@ namespace ccf
     {
       // Either write all of the data or none of it.
       auto wrote = RINGBUFFER_TRY_WRITE_MESSAGE(
-        tls::tls_outbound,
+        ::tls::tls_outbound,
         to_host,
         session_id,
         serializer::ByteRange{buf, len});
@@ -568,7 +575,7 @@ namespace ccf
 
     int handle_recv(uint8_t* buf, size_t len)
     {
-      if (threading::get_current_thread_id() != execution_thread)
+      if (ccf::threading::get_current_thread_id() != execution_thread)
       {
         throw std::runtime_error("Called handle_recv from incorrect thread");
       }

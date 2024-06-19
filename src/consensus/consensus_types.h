@@ -10,13 +10,17 @@
 
 #include <stdint.h>
 
-namespace consensus
+namespace ccf::consensus
 {
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Configuration);
   DECLARE_JSON_REQUIRED_FIELDS(Configuration);
   DECLARE_JSON_OPTIONAL_FIELDS(
     Configuration, message_timeout, election_timeout, max_uncommitted_tx_count);
 
+}
+
+namespace consensus
+{
 #pragma pack(push, 1)
   template <typename T>
   struct ConsensusHeader

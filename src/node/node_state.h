@@ -57,7 +57,7 @@
 
 namespace ccf
 {
-  using RaftType = aft::Aft<consensus::LedgerEnclave>;
+  using RaftType = aft::Aft<::consensus::LedgerEnclave>;
 
   struct NodeCreateInfo
   {
@@ -77,7 +77,7 @@ namespace ccf
     //
     // this node's core state
     //
-    ds::StateMachine<NodeStartupState> sm;
+    ::ds::StateMachine<NodeStartupState> sm;
     pal::Mutex lock;
     StartType start_type;
 
@@ -119,7 +119,7 @@ namespace ccf
     //
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host;
-    consensus::Configuration consensus_config;
+    ccf::consensus::Configuration consensus_config;
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
@@ -146,10 +146,10 @@ namespace ccf
     kv::Version recovery_v;
     crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> view_history;
-    consensus::Index last_recovered_signed_idx = 0;
+    ::consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets = {};
     LedgerSecretsMap recovered_ledger_secrets = {};
-    consensus::Index last_recovered_idx = 0;
+    ::consensus::Index last_recovered_idx = 0;
     static const size_t recovery_batch_size = 100;
 
     //
@@ -252,7 +252,7 @@ namespace ccf
     // funcs in state "uninitialized"
     //
     void initialize(
-      const consensus::Configuration& consensus_config_,
+      const ccf::consensus::Configuration& consensus_config_,
       std::shared_ptr<RPCMap> rpc_map_,
       std::shared_ptr<AbstractRPCResponder> rpc_sessions_,
       std::shared_ptr<indexing::Indexer> indexer_,
@@ -560,10 +560,10 @@ namespace ccf
     {
       sm.expect(NodeStartupState::pending);
 
-      auto network_ca = std::make_shared<tls::CA>(std::string(
+      auto network_ca = std::make_shared<::tls::CA>(std::string(
         config.join.service_cert.begin(), config.join.service_cert.end()));
 
-      auto join_client_cert = std::make_unique<tls::Cert>(
+      auto join_client_cert = std::make_unique<::tls::Cert>(
         network_ca,
         self_signed_node_cert,
         node_sign_kp->private_key_pem(),
@@ -797,8 +797,8 @@ namespace ccf
     {
       initiate_join_unsafe();
 
-      auto timer_msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+      auto timer_msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
+        [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
           std::lock_guard<pal::Mutex> guard(msg->data.self.lock);
           if (msg->data.self.sm.check(NodeStartupState::pending))
           {
@@ -806,13 +806,13 @@ namespace ccf
             auto delay = std::chrono::milliseconds(
               msg->data.self.config.join.retry_timeout);
 
-            threading::ThreadMessaging::instance().add_task_after(
+            ::threading::ThreadMessaging::instance().add_task_after(
               std::move(msg), delay);
           }
         },
         *this);
 
-      threading::ThreadMessaging::instance().add_task_after(
+      ::threading::ThreadMessaging::instance().add_task_after(
         std::move(timer_msg), config.join.retry_timeout);
     }
 
@@ -883,7 +883,7 @@ namespace ccf
 
       while (size > 0)
       {
-        auto entry = consensus::LedgerEnclave::get_entry(data, size);
+        auto entry = ::consensus::LedgerEnclave::get_entry(data, size);
 
         LOG_INFO_FMT("Deserialising public ledger entry [{}]", entry.size());
 
@@ -1064,7 +1064,7 @@ namespace ccf
 
       while (size > 0)
       {
-        auto entry = consensus::LedgerEnclave::get_entry(data, size);
+        auto entry = ::consensus::LedgerEnclave::get_entry(data, size);
 
         LOG_INFO_FMT("Deserialising private ledger entry [{}]", entry.size());
 
@@ -1962,8 +1962,8 @@ namespace ccf
     {
       // Service creation transaction is asynchronous to avoid deadlocks
       // (e.g. https://github.com/microsoft/CCF/issues/3788)
-      auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
-        [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+      auto msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
+        [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
           if (!msg->data.self.send_create_request(
                 msg->data.self.serialize_create_request(
                   msg->data.create_view, msg->data.create_consortium)))
@@ -1984,7 +1984,7 @@ namespace ccf
         create_view,
         create_consortium);
 
-      threading::ThreadMessaging::instance().add_task(
+      ::threading::ThreadMessaging::instance().add_task(
         threading::get_current_thread_id(), std::move(msg));
     }
 
@@ -2282,7 +2282,7 @@ namespace ccf
           {
             open_user_frontend();
 
-            RINGBUFFER_WRITE_MESSAGE(consensus::ledger_open, to_host);
+            RINGBUFFER_WRITE_MESSAGE(::consensus::ledger_open, to_host);
             LOG_INFO_FMT("Service open at seqno {}", hook_version);
           }
         }));
@@ -2435,7 +2435,7 @@ namespace ccf
       consensus = std::make_shared<RaftType>(
         consensus_config,
         std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
-        std::make_unique<consensus::LedgerEnclave>(writer_factory),
+        std::make_unique<::consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         shared_state,
         node_client,
@@ -2508,20 +2508,20 @@ namespace ccf
         writer_factory, network.tables, config.snapshot_tx_interval);
     }
 
-    void read_ledger_entries(consensus::Index from, consensus::Index to)
+    void read_ledger_entries(::consensus::Index from, ::consensus::Index to)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_get_range,
+        ::consensus::ledger_get_range,
         to_host,
         from,
         to,
-        consensus::LedgerRequestPurpose::Recovery);
+        ::consensus::LedgerRequestPurpose::Recovery);
     }
 
-    void ledger_truncate(consensus::Index idx, bool recovery_mode = false)
+    void ledger_truncate(::consensus::Index idx, bool recovery_mode = false)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_truncate, to_host, idx, recovery_mode);
+        ::consensus::ledger_truncate, to_host, idx, recovery_mode);
     }
 
     void setup_acme_clients()
@@ -2545,8 +2545,8 @@ namespace ccf
 
         // Start task to periodically check whether any of the certs are
         // expired.
-        auto msg = std::make_unique<threading::Tmsg<NodeStateMsg>>(
-          [](std::unique_ptr<threading::Tmsg<NodeStateMsg>> msg) {
+        auto msg = std::make_unique<::threading::Tmsg<NodeStateMsg>>(
+          [](std::unique_ptr<::threading::Tmsg<NodeStateMsg>> msg) {
             auto& state = msg->data.self;
 
             if (state.consensus && state.consensus->can_replicate())
@@ -2571,11 +2571,12 @@ namespace ccf
             }
 
             auto delay = std::chrono::minutes(1);
-            ThreadMessaging::instance().add_task_after(std::move(msg), delay);
+            ::threading::ThreadMessaging::instance().add_task_after(
+              std::move(msg), delay);
           },
           *this);
 
-        ThreadMessaging::instance().add_task_after(
+        ::threading::ThreadMessaging::instance().add_task_after(
           std::move(msg), std::chrono::seconds(2));
       }
     }
@@ -2628,9 +2629,9 @@ namespace ccf
         client_cert_key = node_sign_kp->private_key_pem();
       }
 
-      auto ca = std::make_shared<tls::CA>(ca_certs, true);
-      std::shared_ptr<tls::Cert> ca_cert =
-        std::make_shared<tls::Cert>(ca, client_cert, client_cert_key);
+      auto ca = std::make_shared<::tls::CA>(ca_certs, true);
+      std::shared_ptr<::tls::Cert> ca_cert =
+        std::make_shared<::tls::Cert>(ca, client_cert, client_cert_key);
       auto client = rpcsessions->create_client(ca_cert, app_protocol);
       client->connect(
         url.host,

@@ -821,7 +821,7 @@ namespace ccf
 
           return;
         }
-        catch (const JsonParseError& e)
+        catch (const ccf::JsonParseError& e)
         {
           ctx->clear_response_headers();
           ctx->set_error(

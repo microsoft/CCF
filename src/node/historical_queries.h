@@ -503,11 +503,11 @@ namespace ccf::historical
       LOG_TRACE_FMT("fetch_entries_range({}, {})", from, to);
 
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_get_range,
+        ::consensus::ledger_get_range,
         to_host,
-        static_cast<consensus::Index>(from),
-        static_cast<consensus::Index>(to),
-        consensus::LedgerRequestPurpose::HistoricalQuery);
+        static_cast<::consensus::Index>(from),
+        static_cast<::consensus::Index>(to),
+        ::consensus::LedgerRequestPurpose::HistoricalQuery);
     }
 
     std::optional<ccf::SeqNo> fetch_supporting_secret_if_needed(

@@ -11,10 +11,10 @@ namespace ccf
 {
   static inline llhttp_method http_method_from_str(const std::string_view& s)
   {
-    const auto hashed_name = ds::fnv_1a<size_t>(s);
+    const auto hashed_name = ccf::ds::fnv_1a<size_t>(s);
 
 #define XX(num, name, string) \
-  case (ds::fnv_1a<size_t>(#string)): \
+  case (ccf::ds::fnv_1a<size_t>(#string)): \
   { \
     return llhttp_method(num); \
   }

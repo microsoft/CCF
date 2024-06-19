@@ -60,13 +60,13 @@ namespace crypto
 
   std::string Sha256Hash::hex_str() const
   {
-    return ds::to_hex(h);
+    return ccf::ds::to_hex(h);
   }
 
   Sha256Hash Sha256Hash::from_hex_string(const std::string& str)
   {
     Sha256Hash digest;
-    ds::from_hex(str, digest.h);
+    ccf::ds::from_hex(str, digest.h);
     return digest;
   }
 
@@ -94,11 +94,11 @@ namespace crypto
     auto value = j.get<std::string>();
     try
     {
-      ds::from_hex(value, hash.h);
+      ccf::ds::from_hex(value, hash.h);
     }
     catch (const std::logic_error& e)
     {
-      throw JsonParseError(fmt::format(
+      throw ccf::JsonParseError(fmt::format(
         "Input string \"{}\" is not valid hex-encoded SHA-256: {}",
         value,
         e.what()));

@@ -1501,12 +1501,12 @@ namespace asynchost
       size_t from_idx,
       size_t to_idx,
       std::optional<LedgerReadResult>&& read_result,
-      consensus::LedgerRequestPurpose purpose)
+      ::consensus::LedgerRequestPurpose purpose)
     {
       if (read_result.has_value())
       {
         RINGBUFFER_WRITE_MESSAGE(
-          consensus::ledger_entry_range,
+          ::consensus::ledger_entry_range,
           to_enclave,
           from_idx,
           read_result->end_idx,
@@ -1516,7 +1516,7 @@ namespace asynchost
       else
       {
         RINGBUFFER_WRITE_MESSAGE(
-          consensus::ledger_no_entry_range,
+          ::consensus::ledger_no_entry_range,
           to_enclave,
           from_idx,
           to_idx,
@@ -1528,16 +1528,18 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, consensus::ledger_init, [this](const uint8_t* data, size_t size) {
-          auto idx = serialized::read<consensus::Index>(data, size);
+        disp,
+        ::consensus::ledger_init,
+        [this](const uint8_t* data, size_t size) {
+          auto idx = serialized::read<::consensus::Index>(data, size);
           auto recovery_start_index =
-            serialized::read<consensus::Index>(data, size);
+            serialized::read<::consensus::Index>(data, size);
           init(idx, recovery_start_index);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
-        consensus::ledger_append,
+        ::consensus::ledger_append,
         [this](const uint8_t* data, size_t size) {
           auto committable = serialized::read<bool>(data, size);
           write_entry(data, size, committable);
@@ -1545,9 +1547,9 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
-        consensus::ledger_truncate,
+        ::consensus::ledger_truncate,
         [this](const uint8_t* data, size_t size) {
-          auto idx = serialized::read<consensus::Index>(data, size);
+          auto idx = serialized::read<::consensus::Index>(data, size);
           auto recovery_mode = serialized::read<bool>(data, size);
           truncate(idx);
           if (recovery_mode)
@@ -1558,23 +1560,23 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
-        consensus::ledger_commit,
+        ::consensus::ledger_commit,
         [this](const uint8_t* data, size_t size) {
-          auto idx = serialized::read<consensus::Index>(data, size);
+          auto idx = serialized::read<::consensus::Index>(data, size);
           commit(idx);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, consensus::ledger_open, [this](const uint8_t*, size_t) {
+        disp, ::consensus::ledger_open, [this](const uint8_t*, size_t) {
           complete_recovery();
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
-        consensus::ledger_get_range,
+        ::consensus::ledger_get_range,
         [&](const uint8_t* data, size_t size) {
           auto [from_idx, to_idx, purpose] =
-            ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+            ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
 
           // Ledger entries response has metadata so cap total entries size
           // accordingly

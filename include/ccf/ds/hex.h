@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace ds
+namespace ccf::ds
 {
   static uint8_t hex_char_to_int(char c)
   {

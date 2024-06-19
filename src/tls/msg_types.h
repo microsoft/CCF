@@ -39,13 +39,14 @@ namespace tls
   };
 }
 
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_start, tls::ConnID, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  tls::tls_connect, tls::ConnID, std::string, std::string);
+  ::tls::tls_start, ::tls::ConnID, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  tls::tls_inbound, tls::ConnID, serializer::ByteRange);
+  ::tls::tls_connect, ::tls::ConnID, std::string, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  tls::tls_outbound, tls::ConnID, serializer::ByteRange);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_stop, tls::ConnID, std::string);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_close, tls::ConnID);
-DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(tls::tls_closed, tls::ConnID);
+  ::tls::tls_inbound, ::tls::ConnID, serializer::ByteRange);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
+  ::tls::tls_outbound, ::tls::ConnID, serializer::ByteRange);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(::tls::tls_stop, ::tls::ConnID, std::string);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(::tls::tls_close, ::tls::ConnID);
+DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(::tls::tls_closed, ::tls::ConnID);

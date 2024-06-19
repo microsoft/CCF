@@ -53,8 +53,8 @@ namespace ccf
 
     void start()
     {
-      auto refresh_msg = std::make_unique<threading::Tmsg<RefreshTimeMsg>>(
-        [](std::unique_ptr<threading::Tmsg<RefreshTimeMsg>> msg) {
+      auto refresh_msg = std::make_unique<::threading::Tmsg<RefreshTimeMsg>>(
+        [](std::unique_ptr<::threading::Tmsg<RefreshTimeMsg>> msg) {
           if (!msg->data.self.consensus->can_replicate())
           {
             LOG_DEBUG_FMT(
@@ -68,7 +68,7 @@ namespace ccf
             "JWT key auto-refresh: Scheduling in {}s",
             msg->data.self.refresh_interval_s);
           auto delay = std::chrono::seconds(msg->data.self.refresh_interval_s);
-          threading::ThreadMessaging::instance().add_task_after(
+          ::threading::ThreadMessaging::instance().add_task_after(
             std::move(msg), delay);
         },
         *this);
@@ -76,14 +76,14 @@ namespace ccf
       LOG_DEBUG_FMT(
         "JWT key auto-refresh: Scheduling in {}s", refresh_interval_s);
       auto delay = std::chrono::seconds(refresh_interval_s);
-      threading::ThreadMessaging::instance().add_task_after(
+      ::threading::ThreadMessaging::instance().add_task_after(
         std::move(refresh_msg), delay);
     }
 
     void schedule_once()
     {
-      auto refresh_msg = std::make_unique<threading::Tmsg<RefreshTimeMsg>>(
-        [](std::unique_ptr<threading::Tmsg<RefreshTimeMsg>> msg) {
+      auto refresh_msg = std::make_unique<::threading::Tmsg<RefreshTimeMsg>>(
+        [](std::unique_ptr<::threading::Tmsg<RefreshTimeMsg>> msg) {
           if (!msg->data.self.consensus->can_replicate())
           {
             LOG_DEBUG_FMT(
@@ -98,7 +98,7 @@ namespace ccf
 
       LOG_DEBUG_FMT("JWT key one-off refresh: Scheduling without delay");
       auto delay = std::chrono::seconds(0);
-      threading::ThreadMessaging::instance().add_task_after(
+      ::threading::ThreadMessaging::instance().add_task_after(
         std::move(refresh_msg), delay);
     }
 
@@ -193,7 +193,7 @@ namespace ccf
 
     void handle_jwt_metadata_response(
       const std::string& issuer,
-      std::shared_ptr<tls::CA> ca,
+      std::shared_ptr<::tls::CA> ca,
       http_status status,
       std::vector<uint8_t>&& data)
     {
@@ -248,7 +248,7 @@ namespace ccf
       }
       auto jwks_url_port = !jwks_url.port.empty() ? jwks_url.port : "443";
 
-      auto ca_cert = std::make_shared<tls::Cert>(
+      auto ca_cert = std::make_shared<::tls::Cert>(
         ca, std::nullopt, std::nullopt, jwks_url.host);
 
       std::optional<std::string> issuer_constraint{std::nullopt};
@@ -321,8 +321,8 @@ namespace ccf
         auto metadata_url_port =
           !metadata_url.port.empty() ? metadata_url.port : "443";
 
-        auto ca = std::make_shared<tls::CA>(ca_cert_bundle_pem.value());
-        auto ca_cert = std::make_shared<tls::Cert>(
+        auto ca = std::make_shared<::tls::CA>(ca_cert_bundle_pem.value());
+        auto ca_cert = std::make_shared<::tls::Cert>(
           ca, std::nullopt, std::nullopt, metadata_url.host);
 
         LOG_DEBUG_FMT(

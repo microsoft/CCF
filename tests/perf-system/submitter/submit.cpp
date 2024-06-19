@@ -27,7 +27,7 @@ using namespace client;
 
 crypto::Pem key = {};
 std::string key_id = "Invalid";
-std::shared_ptr<tls::Cert> tls_cert = nullptr;
+std::shared_ptr<::tls::Cert> tls_cert = nullptr;
 
 void read_parquet_file(string generator_filepath, ParquetData& data_handler)
 {
@@ -160,7 +160,7 @@ std::shared_ptr<RpcTlsClient> create_connection(
     key_id = crypto::Sha256Hash(cert_der).hex_str();
 
     tls_cert =
-      std::make_shared<tls::Cert>(std::make_shared<tls::CA>(ca), cert_pem, key);
+      std::make_shared<::tls::Cert>(std::make_shared<::tls::CA>(ca), cert_pem, key);
   }
 
   const auto [host, port] = ccf::split_net_address(server_address);
