@@ -86,14 +86,15 @@ namespace ccf
     max_execution_time,
     max_cached_interpreters);
 
-  struct JWTMetrics
+  struct JWTRefreshMetrics
   {
-    size_t attempts;
-    size_t successes;
+    size_t attempts = 0;
+    size_t successes = 0;
+    size_t failures = 0;
   };
 
-  DECLARE_JSON_TYPE(JWTMetrics)
-  DECLARE_JSON_REQUIRED_FIELDS(JWTMetrics, attempts, successes)
+  DECLARE_JSON_TYPE(JWTRefreshMetrics)
+  DECLARE_JSON_REQUIRED_FIELDS(JWTRefreshMetrics, attempts, successes, failures)
 
   struct SetJwtPublicSigningKeys
   {
@@ -373,6 +374,25 @@ namespace ccf
       return make_success(rep);
     }
 
+    JWTRefreshMetrics jwt_refresh_metrics;
+    void handle_event_request_completed(
+      const ccf::endpoints::RequestCompletedEvent& event) override
+    {
+      if (event.method == "POST" && event.path == "/jwt_keys/refresh")
+      {
+        jwt_refresh_metrics.attempts += 1;
+        int status_category = event.status / 100;
+        if (status_category >= 4)
+        {
+          jwt_refresh_metrics.failures += 1;
+        }
+        else if (status_category == 2)
+        {
+          jwt_refresh_metrics.successes += 1;
+        }
+      }
+    }
+
   public:
     NodeEndpoints(
       NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
@@ -384,7 +404,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "4.9.1";
+      openapi_info.document_version = "4.9.2";
     }
 
     void init_handlers() override
@@ -1615,7 +1635,7 @@ namespace ccf
             "Unable to parse body.");
         }
 
-        auto issuers = ctx.tx.rw(this->network.jwt_issuers);
+        auto issuers = ctx.tx.ro(this->network.jwt_issuers);
         auto issuer_metadata_ = issuers->get(parsed.issuer);
         if (!issuer_metadata_.has_value())
         {
@@ -1669,11 +1689,22 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
+      auto get_jwt_metrics = [this](auto& args, const nlohmann::json& params) {
+        LOG_INFO_FMT("!!! {}", nlohmann::json(jwt_refresh_metrics).dump(2));
+        return make_success(jwt_refresh_metrics);
+      };
+      make_read_only_endpoint(
+        "/jwt_keys/refresh/metrics",
+        HTTP_GET,
+        json_read_only_adapter(get_jwt_metrics),
+        no_auth_required)
+        .set_auto_schema<void, JWTRefreshMetrics>()
+        .install();
+
       auto service_config_handler =
         [this](auto& args, const nlohmann::json& params) {
           return make_success(args.tx.ro(network.config)->get());
         };
-
       make_endpoint(
         "/service/configuration",
         HTTP_GET,

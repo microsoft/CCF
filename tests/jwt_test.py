@@ -488,23 +488,18 @@ def check_kv_jwt_keys_not_empty(args, network, issuer):
 
 
 def get_jwt_refresh_endpoint_metrics(network) -> dict:
+    # TODO: No way this should be taking a network. This is only tracked per-node
     primary, _ = network.find_nodes()
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.get("/node/api/metrics")
-        m = next(
-            v
-            for v in r.body.json()["metrics"]
-            if v["path"] == "jwt_keys/refresh" and v["method"] == "POST"
-        )
-        assert m["errors"] == 0, m["errors"]  # not used in jwt refresh endpoint
-        m["successes"] = m["calls"] - m["failures"]
-        return m
+        r = c.get("/node/jwt_keys/refresh/metrics")
+        assert r.status_code == 200, r
+        return r.body.json()
 
 
 def get_jwt_metrics(network) -> dict:
     primary, _ = network.find_nodes()
     with primary.client(network.consortium.get_any_active_member().local_id) as c:
-        r = c.get("/node/jwt_metrics")
+        r = c.get("/node/jwt_keys/refresh/metrics")
         return r.body.json()
 
 
@@ -563,13 +558,13 @@ def test_jwt_key_auto_refresh(network, args):
 
         LOG.info("Check that JWT refresh has attempts and successes")
         m = get_jwt_metrics(network)
-        assert m["attempts"] > 0, m["attempts"]
-        assert m["successes"] > 0, m["successes"]
+        assert m["attempts"] > 0, m
+        assert m["successes"] > 0, m
 
         LOG.info("Check that JWT refresh endpoint has no failures")
         m = get_jwt_refresh_endpoint_metrics(network)
-        assert m["failures"] == 0, m["failures"]
-        assert m["successes"] > 0, m["successes"]
+        assert m["failures"] == 0, m
+        assert m["successes"] > 0, m
 
         LOG.info("Serve invalid JWKS")
         server.jwks = {"foo": "bar"}
@@ -578,13 +573,13 @@ def test_jwt_key_auto_refresh(network, args):
 
         def check_has_failures():
             m = get_jwt_refresh_endpoint_metrics(network)
-            assert m["failures"] > 0, m["failures"]
+            assert m["failures"] > 0, m
 
         with_timeout(check_has_failures, timeout=5)
 
         LOG.info("Check that JWT refresh has fewer successes than attempts")
         m = get_jwt_metrics(network)
-        assert m["attempts"] > m["successes"], m["attempts"]
+        assert m["attempts"] > m["successes"], m
 
     LOG.info("Restart OpenID endpoint server with new keys")
     kid2 = "the_kid_2"

@@ -281,10 +281,11 @@ namespace ccf::endpoints
 
     // Override these methods to log or report request metrics.
     virtual void handle_event_request_completed(
-      const RequestCompletedEvent& event)
+      const ccf::endpoints::RequestCompletedEvent& event)
     {}
 
-    virtual void handle_event_dispatch_failed(const DispatchFailedEvent& event)
+    virtual void handle_event_dispatch_failed(
+      const ccf::endpoints::DispatchFailedEvent& event)
     {}
 
     virtual bool apply_uncommitted_tx_backpressure() const

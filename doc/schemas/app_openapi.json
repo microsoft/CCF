@@ -37,54 +37,6 @@
         ],
         "type": "string"
       },
-      "EndpointMetrics": {
-        "properties": {
-          "metrics": {
-            "$ref": "#/components/schemas/EndpointMetricsEntry_array"
-          }
-        },
-        "required": [
-          "metrics"
-        ],
-        "type": "object"
-      },
-      "EndpointMetricsEntry": {
-        "properties": {
-          "calls": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "errors": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "failures": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "method": {
-            "$ref": "#/components/schemas/string"
-          },
-          "path": {
-            "$ref": "#/components/schemas/string"
-          },
-          "retries": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "path",
-          "method",
-          "calls",
-          "errors",
-          "failures",
-          "retries"
-        ],
-        "type": "object"
-      },
-      "EndpointMetricsEntry_array": {
-        "items": {
-          "$ref": "#/components/schemas/EndpointMetricsEntry"
-        },
-        "type": "array"
-      },
       "GetCode__Out": {
         "properties": {
           "versions": {
@@ -311,7 +263,7 @@
   "info": {
     "description": "This CCF sample app implements a simple logging application, securely recording messages at client-specified IDs. It demonstrates most of the features available to CCF apps.",
     "title": "CCF Sample Logging App",
-    "version": "2.3.0"
+    "version": "2.3.1"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -333,29 +285,6 @@
           }
         },
         "summary": "OpenAPI schema",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/app/api/metrics": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EndpointMetrics"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "summary": "Usage metrics for endpoints",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }

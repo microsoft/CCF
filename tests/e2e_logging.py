@@ -758,63 +758,6 @@ def test_raw_text(network, args):
     return network
 
 
-# @reqs.description("Read metrics")
-# @reqs.supports_methods("/app/api/metrics")
-# def test_metrics(network, args):
-#     primary, _ = network.find_primary()
-
-#     calls = 0
-#     errors = 0
-#     with primary.client("user0") as c:
-#         r = c.get("/app/api/metrics")
-#         m = get_metrics(r, "api/metrics", "GET")
-#         calls = m["calls"]
-#         errors = m["errors"]
-
-#     with primary.client("user0") as c:
-#         r = c.get("/app/api/metrics")
-#         assert get_metrics(r, "api/metrics", "GET")["calls"] == calls + 1
-#         r = c.get("/app/api/metrics")
-#         assert get_metrics(r, "api/metrics", "GET")["calls"] == calls + 2
-
-#     with primary.client() as c:
-#         r = c.get("/app/api/metrics", headers={"accept": "nonsense"})
-#         assert r.status_code == http.HTTPStatus.BAD_REQUEST.value
-
-#     with primary.client() as c:
-#         r = c.get("/app/api/metrics")
-#         assert get_metrics(r, "api/metrics", "GET")["errors"] == errors + 1
-
-#     calls = 0
-#     with primary.client("user0") as c:
-#         r = c.get("/app/api/metrics")
-#         calls = get_metrics(r, "log/public", "POST", {"calls": 0})["calls"]
-
-#     network.txs.issue(
-#         network=network,
-#         number_txs=1,
-#     )
-
-#     with primary.client("user0") as c:
-#         r = c.get("/app/api/metrics")
-#         assert get_metrics(r, "log/public", "POST")["calls"] == calls + 1
-
-#     with primary.client("user0") as c:
-#         r = c.get("/app/no_such_endpoint")
-#         assert r.status_code == http.HTTPStatus.NOT_FOUND.value
-#         r = c.get("/app/api/metrics")
-#         assert (
-#             get_metrics(
-#                 r,
-#                 "no_such_endpoint",
-#                 "GET",
-#             )
-#             is None
-#         )
-
-#     return network
-
-
 @reqs.description("Read historical state")
 @reqs.supports_methods("/app/log/private", "/app/log/private/historical")
 @app.scoped_txs()
@@ -2067,7 +2010,6 @@ def run_main_tests(network, args):
     test_historical_query(network, args)
     test_historical_query_range(network, args)
     test_view_history(network, args)
-    test_metrics(network, args)
     test_empty_path(network, args)
     if args.package == "samples/apps/logging/liblogging":
         # Local-commit lambda is currently only supported in C++
