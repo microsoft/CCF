@@ -29,29 +29,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
+      - name: Extract metadata (tags, labels) for default image
+        id: meta_default
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}/ci
-          flavor: |
-            latest=false
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/ci/default
 
-      - name: Build and push Virtual container
-        id: push_virtual
-        uses: docker/build-push-action@v6
+      - name: Extract metadata (tags, labels) for SGX image
+        id: meta_sgx
+        uses: docker/metadata-action@v5
         with:
-          context: .
-          file: ./docker/ccf_ci
-          build-args: |
-            platform=virtual
-            clang_version=15
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}-virtual-clang15
-          labels: ${{ steps.meta.outputs.labels }}
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/ci/sgx
 
-      - name: Build and push SNP container
-        id: push_snp
+      - name: Build and push default container
+        id: push_default
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -60,8 +51,8 @@ jobs:
             platform=snp
             clang_version=15
           push: true
-          tags: ${{ steps.meta.outputs.tags }}-snp-clang15
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta_default.outputs.tags }}
+          labels: ${{ steps.meta_default.outputs.labels }}
 
       - name: Build and push SGX container
         id: push_sgx
@@ -72,26 +63,19 @@ jobs:
           build-args: |
             platform=sgx
           push: true
-          tags: ${{ steps.meta.outputs.tags }}-sgx
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta_sgx.outputs.tags }}
+          labels: ${{ steps.meta_sgx.outputs.labels }}
 
-      - name: Attest Virtual container
+      - name: Attest default container
         uses: actions/attest-build-provenance@v1
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/ci
-          subject-digest: ${{ steps.push_virtual.outputs.digest }}
-          push-to-registry: true
-
-      - name: Attest SNP container
-        uses: actions/attest-build-provenance@v1
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/ci
-          subject-digest: ${{ steps.push_sgx.outputs.digest }}
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/ci/default
+          subject-digest: ${{ steps.push_default.outputs.digest }}
           push-to-registry: true
 
       - name: Attest SGX container
         uses: actions/attest-build-provenance@v1
         with:
-          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/ci
+          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}/ci/sgx
           subject-digest: ${{ steps.push_sgx.outputs.digest }}
           push-to-registry: true
