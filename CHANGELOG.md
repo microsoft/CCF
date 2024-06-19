@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Endpoints now support a `ToBackup` redirection strategy, for requests which should never be executed on a primary. These should also be read-only. These are configured similar to `ToPrimary` endpoints, with a `to_backup` object (specifying by-role or statically-addressed targets) in each node's configuration.
+- Endpoints now support a `ToBackup` redirection strategy, for requests which should never be executed on a primary. These must also be read-only. These are configured similar to `ToPrimary` endpoints, with a `to_backup` object (specifying by-role or statically-addressed targets) in each node's configuration.
 
 ## [5.0.0-dev18]
 
