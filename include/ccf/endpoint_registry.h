@@ -283,6 +283,7 @@ namespace ccf::endpoints
     virtual void handle_event_request_completed(
       const RequestCompletedEvent& event)
     {}
+
     virtual void handle_event_dispatch_failed(const DispatchFailedEvent& event)
     {}
 
