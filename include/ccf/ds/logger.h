@@ -4,7 +4,7 @@
 
 #include "ccf/ds/enum_formatter.h"
 #include "ccf/ds/logger_level.h"
-#include "ccf/ds/thread_ids.h"
+#include "ccf/threading/thread_ids.h"
 
 #define FMT_HEADER_ONLY
 #include <fmt/chrono.h>
@@ -72,7 +72,7 @@ namespace logger
       else
       {
 #ifdef INSIDE_ENCLAVE
-        thread_id = threading::get_current_thread_id();
+        thread_id = ccf::threading::get_current_thread_id();
 #else
         thread_id = 100;
 #endif

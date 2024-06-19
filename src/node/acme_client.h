@@ -155,7 +155,7 @@ namespace ACME
         crypto::make_key_pair();
       LOG_DEBUG_FMT(
         "ACME: new account public key: {}",
-        ds::to_hex(account_key_pair->public_key_der()));
+        ccf::ds::to_hex(account_key_pair->public_key_der()));
     }
 
     bool has_active_orders() const

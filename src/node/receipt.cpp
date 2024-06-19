@@ -8,7 +8,7 @@
   { \
     out.FIELD = it->get<decltype(TYPE::FIELD)>(); \
   } \
-  catch (JsonParseError & jpe) \
+  catch (ccf::JsonParseError & jpe) \
   { \
     jpe.pointer_elements.push_back(#FIELD); \
     throw; \
@@ -19,7 +19,7 @@
     const auto it = j.find(#FIELD); \
     if (it == j.end()) \
     { \
-      throw JsonParseError(fmt::format( \
+      throw ccf::JsonParseError(fmt::format( \
         "Missing required field '" #FIELD "' in object:", j.dump())); \
     } \
     FROM_JSON_TRY_PARSE(TYPE, FIELD) \
@@ -53,7 +53,7 @@ namespace ccf
   {
     if (!j.is_object())
     {
-      throw JsonParseError(fmt::format(
+      throw ccf::JsonParseError(fmt::format(
         "Cannot parse Receipt LeafComponents: Expected object, got {}",
         j.dump()));
     }
@@ -113,7 +113,7 @@ namespace ccf
   {
     if (!j.is_object())
     {
-      throw JsonParseError(fmt::format(
+      throw ccf::JsonParseError(fmt::format(
         "Cannot parse Receipt Step: Expected object, got {}", j.dump()));
     }
 
@@ -121,7 +121,7 @@ namespace ccf
     const auto r_it = j.find("right");
     if ((l_it == j.end()) == (r_it == j.end()))
     {
-      throw JsonParseError(fmt::format(
+      throw ccf::JsonParseError(fmt::format(
         "Cannot parse Receipt Step: Expected either 'left' or 'right' field, "
         "got {}",
         j.dump()));
@@ -168,7 +168,7 @@ namespace ccf
   {
     if (receipt == nullptr)
     {
-      throw JsonParseError(
+      throw ccf::JsonParseError(
         fmt::format("Cannot serialise Receipt to JSON: Got nullptr"));
     }
 
@@ -202,7 +202,7 @@ namespace ccf
   {
     if (!j.is_object())
     {
-      throw JsonParseError(
+      throw ccf::JsonParseError(
         fmt::format("Cannot parse Receipt: Expected object, got {}", j.dump()));
     }
 
@@ -223,7 +223,7 @@ namespace ccf
       }
       else
       {
-        throw JsonParseError(fmt::format(
+        throw ccf::JsonParseError(fmt::format(
           "Cannot parse Receipt: Expected 'leaf_components' and 'proof'"
           "fields, got {}",
           j.dump()));
@@ -248,7 +248,7 @@ namespace ccf
           sig_receipt->signed_root =
             leaf_it->get<decltype(SignatureReceipt::signed_root)>();
         }
-        catch (JsonParseError& jpe)
+        catch (ccf::JsonParseError& jpe)
         {
           jpe.pointer_elements.push_back("leaf");
           throw;
@@ -268,7 +268,7 @@ namespace ccf
       }
       else
       {
-        throw JsonParseError(fmt::format(
+        throw ccf::JsonParseError(fmt::format(
           "Cannot parse v1 Receipt: Expected either 'leaf' or "
           "'leaf_components' "
           "field, got {}",

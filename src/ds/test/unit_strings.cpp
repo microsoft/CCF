@@ -6,7 +6,7 @@
 #include <cmath>
 #include <doctest/doctest.h>
 
-using namespace ds;
+using namespace ccf::ds;
 
 TEST_CASE("Size strings" * doctest::test_suite("unit strings"))
 {

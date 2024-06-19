@@ -882,7 +882,7 @@ namespace ccf
           {
             status = nlohmann::json(status_str.value()).get<NodeStatus>();
           }
-          catch (const JsonParseError& e)
+          catch (const ccf::JsonParseError& e)
           {
             return ccf::make_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -1628,7 +1628,7 @@ namespace ccf
         {
           parsed = body.get<SetJwtPublicSigningKeys>();
         }
-        catch (const JsonParseError& e)
+        catch (const ccf::JsonParseError& e)
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,

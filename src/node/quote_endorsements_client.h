@@ -76,7 +76,7 @@ namespace ccf
       // private data. If the server was malicious and the certificate chain was
       // bogus, the verification of the endorsement of the quote would fail
       // anyway.
-      return rpcsessions->create_client(std::make_shared<tls::Cert>(
+      return rpcsessions->create_client(std::make_shared<::tls::Cert>(
         nullptr, std::nullopt, std::nullopt, std::nullopt, false));
     }
 
@@ -111,8 +111,8 @@ namespace ccf
 
       // Start watchdog to send request on new server if it is unresponsive
       auto msg = std::make_unique<
-        threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>(
-        [](std::unique_ptr<threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>
+        ::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>(
+        [](std::unique_ptr<::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>
              msg) {
           if (msg->data.self->has_completed)
           {
@@ -149,7 +149,7 @@ namespace ccf
         endpoint,
         last_received_request_id);
 
-      threading::ThreadMessaging::instance().add_task_after(
+      ::threading::ThreadMessaging::instance().add_task_after(
         std::move(msg),
         std::chrono::milliseconds(server_connection_timeout_s * 1000));
     }
@@ -252,9 +252,10 @@ namespace ccf
             }
 
             auto msg =
-              std::make_unique<threading::Tmsg<QuoteEndorsementsClientMsg>>(
-                [](std::unique_ptr<threading::Tmsg<QuoteEndorsementsClientMsg>>
-                     msg) { msg->data.self->fetch(msg->data.server); },
+              std::make_unique<::threading::Tmsg<QuoteEndorsementsClientMsg>>(
+                [](
+                  std::unique_ptr<::threading::Tmsg<QuoteEndorsementsClientMsg>>
+                    msg) { msg->data.self->fetch(msg->data.server); },
                 shared_from_this(),
                 server);
 
@@ -264,7 +265,7 @@ namespace ccf
               endpoint,
               retry_after_s);
 
-            threading::ThreadMessaging::instance().add_task_after(
+            ::threading::ThreadMessaging::instance().add_task_after(
               std::move(msg), std::chrono::milliseconds(retry_after_s * 1000));
           }
           return;

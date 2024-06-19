@@ -160,7 +160,7 @@ namespace ringbuffer
 
   /// Useful machinery
 #define DEFINE_RINGBUFFER_MSG_TYPE(NAME) \
-  NAME = ds::fnv_1a<ringbuffer::Message>(#NAME)
+  NAME = ccf::ds::fnv_1a<ringbuffer::Message>(#NAME)
 
   template <ringbuffer::Message m>
   struct MessageSerializers

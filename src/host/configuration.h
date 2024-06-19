@@ -70,10 +70,10 @@ namespace host
     Enclave enclave = {};
 
     // Other
-    ds::TimeString tick_interval = {"10ms"};
-    ds::TimeString slow_io_logging_threshold = {"10ms"};
+    ccf::ds::TimeString tick_interval = {"10ms"};
+    ccf::ds::TimeString slow_io_logging_threshold = {"10ms"};
     std::optional<std::string> node_client_interface = std::nullopt;
-    ds::TimeString client_connection_timeout = {"2000ms"};
+    ccf::ds::TimeString client_connection_timeout = {"2000ms"};
     std::optional<std::string> node_data_json_file = std::nullopt;
     std::optional<std::string> service_data_json_file = std::nullopt;
     bool ignore_first_sigterm = false;
@@ -95,7 +95,7 @@ namespace host
     {
       std::string directory = "ledger";
       std::vector<std::string> read_only_directories = {};
-      ds::SizeString chunk_size = {"5MB"};
+      ccf::ds::SizeString chunk_size = {"5MB"};
 
       bool operator==(const Ledger&) const = default;
     };
@@ -122,9 +122,9 @@ namespace host
 
     struct Memory
     {
-      ds::SizeString circuit_size = {"16MB"};
-      ds::SizeString max_msg_size = {"64MB"};
-      ds::SizeString max_fragment_size = {"256KB"};
+      ccf::ds::SizeString circuit_size = {"16MB"};
+      ccf::ds::SizeString max_msg_size = {"64MB"};
+      ccf::ds::SizeString max_fragment_size = {"256KB"};
 
       bool operator==(const Memory&) const = default;
     };
@@ -150,7 +150,7 @@ namespace host
       struct Join
       {
         ccf::NodeInfoNetwork::NetAddress target_rpc_address;
-        ds::TimeString retry_timeout = {"1000ms"};
+        ccf::ds::TimeString retry_timeout = {"1000ms"};
         bool follow_redirect = true;
 
         bool operator==(const Join&) const = default;

@@ -49,12 +49,13 @@ namespace ccf
 
         const auto valid_from_unix_time =
           duration_cast<seconds>(
-            ds::time_point_from_string(valid_from_timestring)
+            ::ds::time_point_from_string(valid_from_timestring)
               .time_since_epoch())
             .count();
         const auto valid_to_unix_time =
           duration_cast<seconds>(
-            ds::time_point_from_string(valid_to_timestring).time_since_epoch())
+            ::ds::time_point_from_string(valid_to_timestring)
+              .time_since_epoch())
             .count();
 
         it = periods.insert(

@@ -10,7 +10,7 @@
 #include <nlohmann/json.hpp>
 #include <string>
 
-namespace ds
+namespace ccf::ds
 {
   // Inspired by CLI11's AsNumberWithUnit
   class UnitStringConverter
@@ -212,7 +212,7 @@ namespace ds
 
 FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<ds::SizeString>
+struct formatter<ccf::ds::SizeString>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -221,7 +221,7 @@ struct formatter<ds::SizeString>
   }
 
   template <typename FormatContext>
-  auto format(const ds::SizeString& v, FormatContext& ctx) const
+  auto format(const ccf::ds::SizeString& v, FormatContext& ctx) const
   {
     std::stringstream ss;
     ss << v.str;

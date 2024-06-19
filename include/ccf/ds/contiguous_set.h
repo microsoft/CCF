@@ -7,7 +7,7 @@
 #include <numeric>
 #include <vector>
 
-namespace ds
+namespace ccf::ds
 {
   // Dense representation of an ordered set of values, assuming it contains
   // some contiguous ranges of adjacent values. Stores a sequence of ranges,
@@ -500,7 +500,7 @@ namespace ds
 
 FMT_BEGIN_NAMESPACE
 template <typename T>
-struct formatter<ds::ContiguousSet<T>>
+struct formatter<ccf::ds::ContiguousSet<T>>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -509,7 +509,7 @@ struct formatter<ds::ContiguousSet<T>>
   }
 
   template <typename FormatContext>
-  auto format(const ds::ContiguousSet<T>& v, FormatContext& ctx) const
+  auto format(const ccf::ds::ContiguousSet<T>& v, FormatContext& ctx) const
   {
     std::vector<std::string> ranges;
     for (const auto& [from, additional] : v.get_ranges())

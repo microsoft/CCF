@@ -282,7 +282,7 @@ namespace ccf::js::extensions
 
       try
       {
-        tls::CA ca(pem.value());
+        ::tls::CA ca(pem.value());
       }
       catch (const std::runtime_error& e)
       {
