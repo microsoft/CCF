@@ -566,7 +566,7 @@ namespace ccf
       else
       {
         endpoints::DispatchFailedEvent dfe;
-        dfe.method = endpoint->dispatch.verb.c_str();
+        dfe.method = ctx->get_method();
         dfe.status = ctx->get_response_status();
 
         endpoints.handle_event_dispatch_failed(dfe);
