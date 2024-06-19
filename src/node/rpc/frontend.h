@@ -224,32 +224,32 @@ namespace ccf
             incoming_interface :
             interface_it.value().get<std::string>();
 
-          std::optional<ccf::NodeId> target_node_id;
+          std::vector<std::map<NodeId, NodeInfo>::const_iterator>
+            target_node_its;
           const auto nodes = InternalTablesAccess::get_trusted_nodes(tx);
           {
             const auto primary_id = consensus->primary();
-            if (seeking_primary)
+            if (seeking_primary && primary_id.has_value())
             {
-              target_node_id = primary_id;
+              target_node_its.push_back(nodes.find(primary_id.value()));
             }
             else if (seeking_backup)
             {
-              for (const auto& [id, _] : nodes)
+              for (auto it = nodes.begin(); it != nodes.end(); ++it)
               {
-                if (id != primary_id)
+                if (it->first != primary_id)
                 {
-                  target_node_id = id;
-                  break;
+                  target_node_its.push_back(it);
                 }
               }
             }
           }
-          if (!target_node_id.has_value())
+          if (target_node_its.empty())
           {
             return std::nullopt;
           }
 
-          const auto node_it = nodes.find(target_node_id.value());
+          const auto node_it = target_node_its[rand() % target_node_its.size()];
           if (node_it != nodes.end())
           {
             const auto& interfaces = node_it->second.rpc_interfaces;
