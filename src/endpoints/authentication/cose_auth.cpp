@@ -166,11 +166,11 @@ namespace ccf
       return {parsed, sig};
     }
 
-    std::pair<ccf::ProtectedHeader, Signature>
+    std::pair<ccf::TimestampedProtectedHeader, Signature>
     extract_protected_header_and_signature(
       const std::vector<uint8_t>& cose_sign1)
     {
-      ccf::ProtectedHeader parsed;
+      ccf::TimestampedProtectedHeader parsed;
 
       // Adapted from parse_cose_header_parameters in t_cose_parameters.c.
       // t_cose doesn't support custom header parameters yet.

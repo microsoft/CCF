@@ -22,6 +22,12 @@ namespace ccf
     uint64_t gov_msg_created_at;
   };
 
+  struct TimestampedProtectedHeader : ProtectedHeader
+  {
+    std::optional<std::string> msg_type;
+    std::optional<uint64_t> msg_created_at;
+  };
+
   struct COSESign1AuthnIdentity : public AuthnIdentity
   {
     /** COSE Content */
@@ -83,7 +89,7 @@ namespace ccf
     crypto::Pem user_cert;
 
     /** COSE Protected Header */
-    ProtectedHeader protected_header;
+    TimestampedProtectedHeader protected_header;
 
     UserCOSESign1AuthnIdentity(
       const std::span<const uint8_t>& content_,
@@ -91,7 +97,7 @@ namespace ccf
       const std::span<const uint8_t>& signature_,
       const UserId& user_id_,
       const crypto::Pem& user_cert_,
-      const ProtectedHeader& protected_header_) :
+      const TimestampedProtectedHeader& protected_header_) :
       COSESign1AuthnIdentity(content_, envelope_, signature_),
       user_id(user_id_),
       user_cert(user_cert_),
