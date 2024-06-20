@@ -31,19 +31,11 @@ namespace ccf
       CommonEndpointRegistry(get_actor_prefix(ActorsType::users), context)
     {}
 
-    // Default behaviour is to log summary of every request as it completes.
-    // Apps may override this if they wish
+    // Default behaviour is to do nothing - do NOT log summary of every request
+    // as it completes. Apps may override this if they wish.
     void handle_event_request_completed(
       const ccf::endpoints::RequestCompletedEvent& event) override
-    {
-      CCF_APP_INFO(
-        "RequestCompletedEvent: {} {} {} {}ms {} attempt(s)",
-        event.method,
-        event.path,
-        event.status,
-        event.exec_time.count(),
-        event.attempts);
-    }
+    {}
 
     void handle_event_dispatch_failed(
       const ccf::endpoints::DispatchFailedEvent& event) override
