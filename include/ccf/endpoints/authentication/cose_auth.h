@@ -172,13 +172,21 @@ namespace ccf
    */
   class UserCOSESign1AuthnPolicy : public AuthnPolicy
   {
+    std::string msg_type_name;
+    std::string msg_created_at_name;
+
   protected:
     static const OpenAPISecuritySchema security_schema;
 
   public:
     static constexpr auto SECURITY_SCHEME_NAME = "user_cose_sign1";
 
-    UserCOSESign1AuthnPolicy();
+    UserCOSESign1AuthnPolicy(
+      const std::string& msg_type_name_ = "ccf.msg.type",
+      const std::string& msg_created_at_name_ = "ccf.msg.created_at") :
+      msg_type_name(msg_type_name_),
+      msg_created_at_name(msg_created_at_name_)
+    {}
     ~UserCOSESign1AuthnPolicy();
 
     std::unique_ptr<AuthnIdentity> authenticate(
