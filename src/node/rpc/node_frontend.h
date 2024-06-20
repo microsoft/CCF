@@ -378,7 +378,7 @@ namespace ccf
     void handle_event_request_completed(
       const ccf::endpoints::RequestCompletedEvent& event) override
     {
-      if (event.method == "POST" && event.path == "/jwt_keys/refresh")
+      if (event.method == "POST" && event.dispatch_path == "/jwt_keys/refresh")
       {
         jwt_refresh_metrics.attempts += 1;
         int status_category = event.status / 100;

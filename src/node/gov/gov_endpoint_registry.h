@@ -58,7 +58,9 @@ namespace ccf
       GOV_INFO_FMT(
         "RequestCompletedEvent: {} {} {} {}ms {} attempt(s)",
         event.method,
-        event.path,
+        // Here we are happy to log raw paths, including proposal IDs and member
+        // IDs - these should be non-confidential
+        event.raw_path,
         event.status,
         event.exec_time.count(),
         event.attempts);

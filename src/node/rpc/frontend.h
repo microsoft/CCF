@@ -551,7 +551,8 @@ namespace ccf
       {
         endpoints::RequestCompletedEvent rce;
         rce.method = endpoint->dispatch.verb.c_str();
-        rce.path = endpoint->dispatch.uri_path;
+        rce.raw_path = ctx->get_request_url();
+        rce.dispatch_path = endpoint->dispatch.uri_path;
         rce.status = ctx->get_response_status();
         // Although enclave time returns a microsecond value, the actual
         // precision/granularity depends on the host's TimeUpdater. By default
@@ -567,6 +568,7 @@ namespace ccf
       {
         endpoints::DispatchFailedEvent dfe;
         dfe.method = ctx->get_method();
+        dfe.raw_path = ctx->get_request_url();
         dfe.status = ctx->get_response_status();
 
         endpoints.handle_event_dispatch_failed(dfe);

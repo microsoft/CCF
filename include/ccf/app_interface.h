@@ -40,6 +40,9 @@ namespace ccf
     void handle_event_dispatch_failed(
       const ccf::endpoints::DispatchFailedEvent& event) override
     {
+      // Log dispatch failures, as a coarse metric of some user errors, but do
+      // not log the raw path, which may contain confidential fields
+      // misformatted into the wrong url
       CCF_APP_INFO("DispatchFailedEvent: {} {}", event.method, event.status);
     }
   };

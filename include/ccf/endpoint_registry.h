@@ -42,7 +42,15 @@ namespace ccf::endpoints
   struct RequestCompletedEvent
   {
     std::string method = "";
-    std::string path = "";
+    // This contains the original path from the original request. Note that this
+    // may include confidential information in path parameters, so should
+    // generally not be logged verbatim.
+    std::string raw_path = "";
+    // This contains the path template against which the request matched. For
+    // instance `/user/{user_id}` rather than `/user/Bob`. This should be safer
+    // to log, though doing so still reveals (to anyone with stdout access)
+    // exactly which endpoints were executed and when.
+    std::string dispatch_path = "";
     int status = 0;
     std::chrono::milliseconds exec_time{0};
     size_t attempts = 0;
@@ -51,6 +59,10 @@ namespace ccf::endpoints
   struct DispatchFailedEvent
   {
     std::string method = "";
+    // This contains the original path from the original request. Note that this
+    // may include confidential information in path parameters, so should
+    // generally not be logged verbatim.
+    std::string raw_path = "";
     int status = 0;
   };
 
