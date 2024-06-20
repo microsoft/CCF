@@ -25,6 +25,16 @@ namespace programmabilityapp
   static constexpr auto PRIVATE_RECORDS = "programmability.records";
   static constexpr auto CUSTOM_ENDPOINTS_NAMESPACE = "public:custom_endpoints";
 
+  static constexpr auto MSG_TYPE_NAME = "app.msg.type";
+  static constexpr auto CREATED_AT_NAME = "app.msg.created_at";
+
+  static auto endpoints_user_cose_sign1_auth_policy =
+    std::make_shared<ccf::TypedUserCOSESign1AuthnPolicy>(
+      "custom_endpoints", MSG_TYPE_NAME, CREATED_AT_NAME);
+  static auto options_user_cose_sign1_auth_policy =
+    std::make_shared<ccf::TypedUserCOSESign1AuthnPolicy>(
+      "runtime_options", MSG_TYPE_NAME, CREATED_AT_NAME);
+
   // This sample shows the features of DynamicJSEndpointRegistry. This sample
   // adds a PUT /app/custom_endpoints, which calls install_custom_endpoints(),
   // after first authenticating the caller (user_data["isAdmin"] is true), to
@@ -260,7 +270,7 @@ namespace programmabilityapp
         "/custom_endpoints",
         HTTP_PUT,
         put_custom_endpoints,
-        {ccf::user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
+        {endpoints_user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
         .set_auto_schema<ccf::js::Bundle, void>()
         .install();
 
@@ -432,7 +442,7 @@ namespace programmabilityapp
         "/custom_endpoints/runtime_options",
         HTTP_PATCH,
         patch_runtime_options,
-        {ccf::user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
+        {options_user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
         .install();
 
       auto get_runtime_options = [this](ccf::endpoints::EndpointContext& ctx) {

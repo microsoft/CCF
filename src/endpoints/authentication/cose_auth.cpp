@@ -438,10 +438,11 @@ namespace ccf
 
   UserCOSESign1AuthnPolicy::~UserCOSESign1AuthnPolicy() = default;
 
-  std::unique_ptr<AuthnIdentity> UserCOSESign1AuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
-    const std::shared_ptr<ccf::RpcContext>& ctx,
-    std::string& error_reason)
+  std::unique_ptr<UserCOSESign1AuthnIdentity> UserCOSESign1AuthnPolicy::
+    _authenticate(
+      kv::ReadOnlyTx& tx,
+      const std::shared_ptr<ccf::RpcContext>& ctx,
+      std::string& error_reason)
   {
     const auto& headers = ctx->get_request_headers();
     const auto content_type_it = headers.find(http::headers::CONTENT_TYPE);
@@ -498,6 +499,14 @@ namespace ccf
     }
   }
 
+  std::unique_ptr<AuthnIdentity> UserCOSESign1AuthnPolicy::authenticate(
+    kv::ReadOnlyTx& tx,
+    const std::shared_ptr<ccf::RpcContext>& ctx,
+    std::string& error_reason)
+  {
+    return _authenticate(tx, ctx, error_reason);
+  }
+
   void UserCOSESign1AuthnPolicy::set_unauthenticated_error(
     std::shared_ptr<ccf::RpcContext> ctx, std::string&& error_reason)
   {
@@ -520,4 +529,23 @@ namespace ccf
          "Request payload must be a COSE Sign1 document, with expected "
          "protected headers. "
          "Signer must be a user identity registered with this service."}});
+
+  std::unique_ptr<AuthnIdentity> TypedUserCOSESign1AuthnPolicy::authenticate(
+    kv::ReadOnlyTx& tx,
+    const std::shared_ptr<ccf::RpcContext>& ctx,
+    std::string& error_reason)
+  {
+    auto identity = _authenticate(tx, ctx, error_reason);
+
+    if (identity->protected_header.msg_type != expected_msg_type)
+    {
+      error_reason = fmt::format(
+        "Unexpected message type: {}, expected: {}",
+        identity->protected_header.msg_type,
+        expected_msg_type);
+      return nullptr;
+    }
+
+    return identity;
+  }
 }
