@@ -50,7 +50,7 @@ namespace ccf
          rpc_ctx.get_request_path() == "/gov/members/proposals:create");
     }
 
-    // Log these events on /gov frontend. Everything here should be public, so
+    // Log these events on /gov frontend. Everything here is public, so
     // safe to display in clear in the log
     void handle_event_request_completed(
       const ccf::endpoints::RequestCompletedEvent& event) override
