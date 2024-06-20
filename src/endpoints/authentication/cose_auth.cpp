@@ -537,7 +537,9 @@ namespace ccf
   {
     auto identity = _authenticate(tx, ctx, error_reason);
 
-    if (identity->protected_header.msg_type != expected_msg_type)
+    if (
+      identity != nullptr &&
+      identity->protected_header.msg_type != expected_msg_type)
     {
       error_reason = fmt::format(
         "Unexpected message type: {}, expected: {}",
