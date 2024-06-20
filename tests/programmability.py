@@ -369,7 +369,15 @@ def test_custom_endpoints_js_options(network, args):
     )
 
     def test_options_patch(c, **kwargs):
-        r = c.patch("/app/custom_endpoints/runtime_options", **kwargs)
+        signed_bundle = sign_payload(
+            network.identity(user.local_id), "runtime_options", {**kwargs}
+        )
+
+        r = c.patch(
+            "/app/custom_endpoints/runtime_options",
+            body=signed_bundle,
+            headers={"Content-Type": "application/cose"},
+        )
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
         new_options = r.body.json()
 
@@ -381,7 +389,7 @@ def test_custom_endpoints_js_options(network, args):
         assert new_options == get_options, f"{new_options} != {get_options}"
         return new_options
 
-    with primary.client(None, None, user.local_id) as c:
+    with primary.client(None, None) as c:
         r = c.get("/app/custom_endpoints/runtime_options")
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
@@ -610,6 +618,7 @@ def run(args):
         network = test_custom_endpoints_circular_includes(network, args)
         network = test_custom_endpoints_kv_restrictions(network, args)
         network = test_custom_role_definitions(network, args)
+        network = test_custom_endpoints_js_options(network, args)
 
         network = npm_tests.build_npm_app(network, args)
         network = deploy_npm_app_custom(network, args)
