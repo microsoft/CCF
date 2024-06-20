@@ -1690,7 +1690,6 @@ namespace ccf
         .install();
 
       auto get_jwt_metrics = [this](auto& args, const nlohmann::json& params) {
-        LOG_INFO_FMT("!!! {}", nlohmann::json(jwt_refresh_metrics).dump(2));
         return make_success(jwt_refresh_metrics);
       };
       make_read_only_endpoint(
