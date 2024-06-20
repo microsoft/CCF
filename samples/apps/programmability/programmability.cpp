@@ -76,7 +76,7 @@ namespace programmabilityapp
                                    // public:custom_endpoints.*
       )
     {
-      openapi_info.title = "CCF Programmabilit App";
+      openapi_info.title = "CCF Programmability App";
       openapi_info.description =
         "Lightweight application demonstrating app-space JS programmability";
       openapi_info.document_version = "0.0.1";
