@@ -7,7 +7,7 @@
 #include <vector>
 
 // C++ port of reference implementation
-namespace siphash
+namespace ccf::siphash
 {
   using SipState = uint64_t[4];
   using SipKey = uint64_t[2];

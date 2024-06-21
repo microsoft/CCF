@@ -10,7 +10,7 @@
 #include <nlohmann/json.hpp>
 #include <set>
 
-namespace ds
+namespace ccf::ds
 {
   namespace json
   {

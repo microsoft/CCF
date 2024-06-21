@@ -454,7 +454,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.3.0";
+      openapi_info.document_version = "2.3.1";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -1756,7 +1756,7 @@ namespace loggingapp
           handle = h(id);
           for (const auto& seqno : seqnos)
           {
-            ds::hashutils::hash_combine(handle, seqno, h);
+            ccf::ds::hashutils::hash_combine(handle, seqno, h);
           }
         }
 

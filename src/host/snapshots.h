@@ -179,7 +179,7 @@ namespace asynchost
 
     struct PendingSnapshot
     {
-      consensus::Index evidence_idx;
+      ::consensus::Index evidence_idx;
       std::shared_ptr<std::vector<uint8_t>> snapshot;
     };
     std::map<size_t, PendingSnapshot> pending_snapshots;
@@ -220,8 +220,8 @@ namespace asynchost
     }
 
     std::shared_ptr<std::vector<uint8_t>> add_pending_snapshot(
-      consensus::Index idx,
-      consensus::Index evidence_idx,
+      ::consensus::Index idx,
+      ::consensus::Index evidence_idx,
       size_t requested_size)
     {
       auto snapshot = std::make_shared<std::vector<uint8_t>>(requested_size);
@@ -234,7 +234,7 @@ namespace asynchost
     }
 
     void commit_snapshot(
-      consensus::Index snapshot_idx,
+      ::consensus::Index snapshot_idx,
       const uint8_t* receipt_data,
       size_t receipt_size)
     {
@@ -338,10 +338,10 @@ namespace asynchost
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
-        consensus::snapshot_allocate,
+        ::consensus::snapshot_allocate,
         [this](const uint8_t* data, size_t size) {
-          auto idx = serialized::read<consensus::Index>(data, size);
-          auto evidence_idx = serialized::read<consensus::Index>(data, size);
+          auto idx = serialized::read<::consensus::Index>(data, size);
+          auto evidence_idx = serialized::read<::consensus::Index>(data, size);
           auto requested_size = serialized::read<size_t>(data, size);
           auto generation_count = serialized::read<uint32_t>(data, size);
 
@@ -349,7 +349,7 @@ namespace asynchost
             add_pending_snapshot(idx, evidence_idx, requested_size);
 
           RINGBUFFER_WRITE_MESSAGE(
-            consensus::snapshot_allocated,
+            ::consensus::snapshot_allocated,
             to_enclave,
             std::span<uint8_t>{snapshot->data(), snapshot->size()},
             generation_count);
@@ -357,9 +357,9 @@ namespace asynchost
 
       DISPATCHER_SET_MESSAGE_HANDLER(
         disp,
-        consensus::snapshot_commit,
+        ::consensus::snapshot_commit,
         [this](const uint8_t* data, size_t size) {
-          auto snapshot_idx = serialized::read<consensus::Index>(data, size);
+          auto snapshot_idx = serialized::read<::consensus::Index>(data, size);
           commit_snapshot(snapshot_idx, data, size);
         });
     }

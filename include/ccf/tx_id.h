@@ -100,14 +100,14 @@ namespace ccf
   {
     if (!j.is_string())
     {
-      throw JsonParseError(
+      throw ccf::JsonParseError(
         fmt::format("Cannot parse TxID: Expected string, got {}", j.dump()));
     }
 
     const auto opt = TxID::from_str(j.get<std::string>());
     if (!opt.has_value())
     {
-      throw JsonParseError(fmt::format("Cannot parse TxID: {}", j.dump()));
+      throw ccf::JsonParseError(fmt::format("Cannot parse TxID: {}", j.dump()));
     }
 
     tx_id = opt.value();

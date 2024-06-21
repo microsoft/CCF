@@ -33,10 +33,10 @@ auto read_ringbuffer_out(ringbuffer::Circuit& circuit)
     -1, [&idx](ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case consensus::snapshot_allocate:
-        case consensus::snapshot_commit:
+        case ::consensus::snapshot_allocate:
+        case ::consensus::snapshot_commit:
         {
-          auto idx_ = serialized::read<consensus::Index>(data, size);
+          auto idx_ = serialized::read<::consensus::Index>(data, size);
           idx = {m, idx_};
           break;
         }
@@ -52,7 +52,7 @@ auto read_ringbuffer_out(ringbuffer::Circuit& circuit)
 
 auto read_snapshot_allocate_out(ringbuffer::Circuit& circuit)
 {
-  std::optional<std::tuple<consensus::Index, size_t, uint32_t>>
+  std::optional<std::tuple<::consensus::Index, size_t, uint32_t>>
     snapshot_allocate_out = std::nullopt;
   circuit.read_from_inside().read(
     -1,
@@ -60,17 +60,17 @@ auto read_snapshot_allocate_out(ringbuffer::Circuit& circuit)
       ringbuffer::Message m, const uint8_t* data, size_t size) {
       switch (m)
       {
-        case consensus::snapshot_allocate:
+        case ::consensus::snapshot_allocate:
         {
-          auto idx = serialized::read<consensus::Index>(data, size);
-          serialized::read<consensus::Index>(data, size);
+          auto idx = serialized::read<::consensus::Index>(data, size);
+          serialized::read<::consensus::Index>(data, size);
           auto requested_size = serialized::read<size_t>(data, size);
           auto generation_count = serialized::read<uint32_t>(data, size);
 
           snapshot_allocate_out = {idx, requested_size, generation_count};
           break;
         }
-        case consensus::snapshot_commit:
+        case ::consensus::snapshot_commit:
         {
           REQUIRE(false);
           break;
@@ -252,7 +252,7 @@ TEST_CASE("Regular snapshotting")
     snapshotter->commit(commit_idx, true);
     REQUIRE(
       read_ringbuffer_out(eio) ==
-      rb_msg({consensus::snapshot_commit, snapshot_idx}));
+      rb_msg({::consensus::snapshot_commit, snapshot_idx}));
   }
 
   INFO("Subsequent commit before next snapshot idx has no effect");
@@ -295,7 +295,7 @@ TEST_CASE("Regular snapshotting")
     snapshotter->commit(commit_idx, true);
     REQUIRE(
       read_ringbuffer_out(eio) ==
-      rb_msg({consensus::snapshot_commit, snapshot_idx}));
+      rb_msg({::consensus::snapshot_commit, snapshot_idx}));
   }
 }
 
@@ -386,7 +386,7 @@ TEST_CASE("Rollback before snapshot is committed")
     snapshotter->commit(commit_idx, true);
     REQUIRE(
       read_ringbuffer_out(eio) ==
-      rb_msg({consensus::snapshot_commit, snapshot_idx}));
+      rb_msg({::consensus::snapshot_commit, snapshot_idx}));
   }
 
   INFO("Force a snapshot");
@@ -420,7 +420,7 @@ TEST_CASE("Rollback before snapshot is committed")
     snapshotter->commit(commit_idx, true);
     REQUIRE(
       read_ringbuffer_out(eio) ==
-      rb_msg({consensus::snapshot_commit, snapshot_idx}));
+      rb_msg({::consensus::snapshot_commit, snapshot_idx}));
 
     threading::ThreadMessaging::instance().run_one();
   }

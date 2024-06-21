@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0-rc0]
+
+[5.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-rc0
+
+### Added
+
+- More public namespaces have been moved under `::ccf`
+  - `::ds` is now `ccf::ds`
+  - `::siphash` is now `ccf::siphash`
+  - `::threading` is now `ccf::threading`, and `ccf/ds/thread_ids.h` has moved to `ccf/threading/thread_ids.h`
+  - `::consensus` is now `ccf::consensus`
+  - `::tls` is now `ccf::tls`
+
+### Removed
+
+- Removed the existing metrics endpoint and API (`GET /api/metrics`, `get_metrics_v1`). Stats for request execution can instead be gathered by overriding the `EndpointRegistry::handle_event_request_completed()` method.
+
 ## [5.0.0-dev18]
 
 [5.0.0-dev18]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-dev18

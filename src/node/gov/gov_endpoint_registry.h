@@ -50,6 +50,26 @@ namespace ccf
          rpc_ctx.get_request_path() == "/gov/members/proposals:create");
     }
 
+    // Log these events on /gov frontend. Everything here is public, so
+    // safe to display in clear in the log
+    void handle_event_request_completed(
+      const ccf::endpoints::RequestCompletedEvent& event) override
+    {
+      GOV_INFO_FMT(
+        "RequestCompletedEvent: {} {} {} {}ms {} attempt(s)",
+        event.method,
+        event.dispatch_path,
+        event.status,
+        event.exec_time.count(),
+        event.attempts);
+    }
+
+    void handle_event_dispatch_failed(
+      const ccf::endpoints::DispatchFailedEvent& event) override
+    {
+      GOV_INFO_FMT("DispatchFailedEvent: {} {}", event.method, event.status);
+    }
+
     void api_endpoint(ccf::endpoints::ReadOnlyEndpointContext& ctx) override
     {
       using namespace ccf::gov::endpoints;

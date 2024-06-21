@@ -33,7 +33,7 @@ namespace tls
     return SSL_TLSEXT_ERR_OK;
   }
 
-  class Server : public Context
+  class Server : public ccf::tls::Context
   {
   private:
     std::shared_ptr<Cert> cert;

@@ -23,12 +23,12 @@ struct Foo
 
 size_t Foo::count = 0;
 
-static void always(std::unique_ptr<threading::Tmsg<Foo>> msg)
+static void always(std::unique_ptr<::threading::Tmsg<Foo>> msg)
 {
   msg->data.happened = true;
 }
 
-static void never(std::unique_ptr<threading::Tmsg<Foo>> msg)
+static void never(std::unique_ptr<::threading::Tmsg<Foo>> msg)
 {
   CHECK(false);
 }
@@ -36,20 +36,21 @@ static void never(std::unique_ptr<threading::Tmsg<Foo>> msg)
 TEST_CASE("ThreadMessaging API" * doctest::test_suite("threadmessaging"))
 {
   {
-    threading::ThreadMessaging tm(1);
+    ::threading::ThreadMessaging tm(1);
 
-    static constexpr auto worker_thread_id = threading::MAIN_THREAD_ID + 1;
+    static constexpr auto worker_thread_id = ccf::threading::MAIN_THREAD_ID + 1;
 
     bool happened_main_thread = false;
     bool happened_worker_thread = false;
 
     tm.add_task<Foo>(
-      threading::MAIN_THREAD_ID,
-      std::make_unique<threading::Tmsg<Foo>>(&always, happened_main_thread));
+      ccf::threading::MAIN_THREAD_ID,
+      std::make_unique<::threading::Tmsg<Foo>>(&always, happened_main_thread));
 
     REQUIRE_THROWS(tm.add_task<Foo>(
       worker_thread_id,
-      std::make_unique<threading::Tmsg<Foo>>(&always, happened_worker_thread)));
+      std::make_unique<::threading::Tmsg<Foo>>(
+        &always, happened_worker_thread)));
 
     REQUIRE(tm.run_one());
     REQUIRE_FALSE(tm.run_one());
@@ -61,9 +62,9 @@ TEST_CASE("ThreadMessaging API" * doctest::test_suite("threadmessaging"))
   {
     // Create a ThreadMessaging with task queues for main thread + 1 worker
     // thread
-    threading::ThreadMessaging tm(2);
+    ::threading::ThreadMessaging tm(2);
 
-    static constexpr auto worker_a_id = threading::MAIN_THREAD_ID + 1;
+    static constexpr auto worker_a_id = ccf::threading::MAIN_THREAD_ID + 1;
     static constexpr auto worker_b_id = worker_a_id + 1;
 
     bool happened_0 = false;
@@ -74,21 +75,23 @@ TEST_CASE("ThreadMessaging API" * doctest::test_suite("threadmessaging"))
     // Queue single task for main thread:
     // - set happened_0
     tm.add_task<Foo>(
-      threading::MAIN_THREAD_ID,
+      ccf::threading::MAIN_THREAD_ID,
       std::make_unique<threading::Tmsg<Foo>>(&always, happened_0));
 
     // Queue 2 tasks for worker a:
     // - set happened_1
     // - set happened_2
     tm.add_task<Foo>(
-      worker_a_id, std::make_unique<threading::Tmsg<Foo>>(&always, happened_1));
+      worker_a_id,
+      std::make_unique<::threading::Tmsg<Foo>>(&always, happened_1));
     tm.add_task<Foo>(
-      worker_a_id, std::make_unique<threading::Tmsg<Foo>>(&always, happened_2));
+      worker_a_id,
+      std::make_unique<::threading::Tmsg<Foo>>(&always, happened_2));
 
     // Fail to queue task for worker b, tm is too small
     REQUIRE_THROWS(tm.add_task<Foo>(
       worker_b_id,
-      std::make_unique<threading::Tmsg<Foo>>(&always, happened_3)));
+      std::make_unique<::threading::Tmsg<Foo>>(&always, happened_3)));
 
     // Run single task on main thread
     REQUIRE(tm.run_one());
@@ -103,7 +106,7 @@ TEST_CASE("ThreadMessaging API" * doctest::test_suite("threadmessaging"))
 
     std::thread t([&]() {
       // Run tasks for worker "a"
-      REQUIRE(threading::get_current_thread_id() == worker_a_id);
+      REQUIRE(ccf::threading::get_current_thread_id() == worker_a_id);
 
       REQUIRE(tm.run_one());
       REQUIRE(happened_1);
@@ -132,16 +135,16 @@ TEST_CASE(
   bool happened = false;
 
   {
-    threading::ThreadMessaging tm(1);
+    ::threading::ThreadMessaging tm(1);
 
-    auto m1 = std::make_unique<threading::Tmsg<Foo>>(&always, happened);
+    auto m1 = std::make_unique<::threading::Tmsg<Foo>>(&always, happened);
     tm.add_task<Foo>(0, std::move(m1));
 
     // Task payload (and TMsg) is freed after running
     tm.run_one();
     CHECK(Foo::count == 0);
 
-    auto m2 = std::make_unique<threading::Tmsg<Foo>>(&never, happened);
+    auto m2 = std::make_unique<::threading::Tmsg<Foo>>(&never, happened);
     tm.add_task<Foo>(0, std::move(m2));
     // Task is owned by the queue, hasn't run
     CHECK(Foo::count == 1);
@@ -158,14 +161,14 @@ TEST_CASE("Unique thread IDs" * doctest::test_suite("threadmessaging"))
   std::mutex assigned_ids_lock;
   std::vector<uint16_t> assigned_ids;
 
-  const auto main_thread_id = threading::get_current_thread_id();
-  REQUIRE(main_thread_id == threading::MAIN_THREAD_ID);
+  const auto main_thread_id = ccf::threading::get_current_thread_id();
+  REQUIRE(main_thread_id == ccf::threading::MAIN_THREAD_ID);
   assigned_ids.push_back(main_thread_id);
 
   auto fn = [&]() {
     {
       std::lock_guard<std::mutex> guard(assigned_ids_lock);
-      const auto current_thread_id = threading::get_current_thread_id();
+      const auto current_thread_id = ccf::threading::get_current_thread_id();
       assigned_ids.push_back(current_thread_id);
     }
   };

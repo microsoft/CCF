@@ -50,8 +50,8 @@ namespace http
       char const c = *src++;
       if (c == '%' && (src + 1) < end && isxdigit(src[0]) && isxdigit(src[1]))
       {
-        const auto a = ds::hex_char_to_int(*src++);
-        const auto b = ds::hex_char_to_int(*src++);
+        const auto a = ccf::ds::hex_char_to_int(*src++);
+        const auto b = ccf::ds::hex_char_to_int(*src++);
         *dst++ = (a << 4) | b;
       }
       else if (c == '+')

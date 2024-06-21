@@ -371,7 +371,7 @@ namespace asynchost
           {
             // Parse the indices to be sent to the recipient.
             const auto& ae =
-              serialized::overlay<consensus::AppendEntriesIndex>(data, size);
+              serialized::overlay<::consensus::AppendEntriesIndex>(data, size);
 
             // Find the total frame size, and write it along with the header.
             uint32_t frame = (uint32_t)size_to_send;

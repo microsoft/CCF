@@ -332,7 +332,7 @@ extern "C"
     // is safe for the first thread that calls enclave_run to re-use this
     // thread_id. That way they are both considered MAIN_THREAD_ID, even if
     // they are actually distinct std::threads.
-    threading::reset_thread_id_generator();
+    ccf::threading::reset_thread_id_generator();
 
     return CreateNodeStatus::OK;
   }
@@ -345,7 +345,7 @@ extern "C"
       {
         std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
-        tid = threading::get_current_thread_id();
+        tid = ccf::threading::get_current_thread_id();
         num_pending_threads.fetch_sub(1);
 
         LOG_INFO_FMT("Starting thread: {}", tid);
@@ -356,7 +356,7 @@ extern "C"
 
       LOG_INFO_FMT("All threads are ready!");
 
-      if (tid == threading::MAIN_THREAD_ID)
+      if (tid == ccf::threading::MAIN_THREAD_ID)
       {
         auto s = e.load()->run_main();
         while (num_complete_threads !=
