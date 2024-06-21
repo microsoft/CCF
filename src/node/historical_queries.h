@@ -493,6 +493,16 @@ namespace ccf::historical
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
+    void bar(size_t something)
+    {
+      std::vector<size_t> foo;
+      for (size_t i = 0; i < something; i++)
+      {
+        foo.insert(foo.begin(), i);
+      }
+      std::ignore = foo;
+    }
+
     void fetch_entry_at(ccf::SeqNo seqno)
     {
       fetch_entries_range(seqno, seqno);
@@ -757,6 +767,7 @@ namespace ccf::historical
       {
         // This is a new handle - insert a newly created Request for it
         it = requests.emplace_hint(it, handle, Request(all_stores));
+        bar(rand() % 10);
         HISTORICAL_LOG("First time I've seen handle {}", handle);
       }
 
@@ -823,6 +834,7 @@ namespace ccf::historical
       {
         if (request_it->second.get_store_details(seqno) != nullptr)
         {
+          bar(rand() % 10);
           request_it = requests.erase(request_it);
         }
         else
@@ -985,6 +997,7 @@ namespace ccf::historical
     bool drop_cached_states(const CompoundHandle& handle)
     {
       std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      bar(rand() % 10);
       const auto erased_count = requests.erase(handle);
       HISTORICAL_LOG("Dropping historical request {}", handle);
       return erased_count > 0;
@@ -1245,6 +1258,7 @@ namespace ccf::historical
           {
             LOG_DEBUG_FMT(
               "Dropping expired historical query with handle {}", it->first);
+            bar(rand() % 10);
             it = requests.erase(it);
           }
           else
