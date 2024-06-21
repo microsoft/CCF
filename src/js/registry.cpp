@@ -880,11 +880,14 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::is_original_action_execution(
-    kv::Tx& tx, uint64_t timestamp, const std::span<const uint8_t> action)
+    kv::Tx& tx,
+    uint64_t created_at,
+    const std::span<const uint8_t> action,
+    ccf::InvalidArgsReason& reason)
   {
     try
     {
-      const auto created_at_str = fmt::format("{:0>10}", timestamp);
+      const auto created_at_str = fmt::format("{:0>10}", created_at);
       const auto action_digest = crypto::sha256(action.data(), action.size());
 
       using RecentActions = kv::Set<std::string>;
@@ -895,7 +898,7 @@ namespace ccf::js
 
       if (recent_actions->contains(key))
       {
-        // Duplicate action
+        reason = ccf::InvalidArgsReason::ActionAlreadyApplied;
         return ApiResult::InvalidArgs;
       }
 
@@ -916,7 +919,7 @@ namespace ccf::js
         auto [key_ts, __] = nonstd::split_1(key, ":");
         if (key_ts < min_created_at)
         {
-          // Stale action
+          reason = ccf::InvalidArgsReason::StaleActionCreatedTimestamp;
           return ApiResult::InvalidArgs;
         }
       }

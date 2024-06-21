@@ -85,6 +85,42 @@ namespace programmabilityapp
       }
     }
 
+    bool set_error_details(
+      ccf::endpoints::EndpointContext& ctx,
+      ccf::ApiResult result,
+      ccf::InvalidArgsReason reason)
+    {
+      switch (result)
+      {
+        case ccf::ApiResult::OK:
+        {
+          return false;
+        }
+        case ccf::ApiResult::InvalidArgs:
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InvalidInput,
+            reason == ccf::InvalidArgsReason::ActionAlreadyApplied ?
+              "Action was already applied" :
+              "Action created_at timestamp is too old");
+          return true;
+        }
+        case ccf::ApiResult::InternalError:
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Failed to check if action is original");
+          return true;
+        }
+        default:
+        {
+          return true;
+        }
+      }
+    }
+
   public:
     ProgrammabilityHandlers(ccfapp::AbstractNodeContext& context) :
       ccf::js::DynamicJSEndpointRegistry(
@@ -251,12 +287,32 @@ namespace programmabilityapp
 
         // Make operation auditable by writing user-supplied
         // document to the ledger
+
+        // if (format == AuditInputFormat::COSE)
+        // {
+        //   is_original_action_execution_v1(
+        //     ctx,
+        //     reason
+        //   );
+
+        //   if (reason)
+        //   ...
+        // }
+
+        // record_action_details_to_ledger_v1(
+        //   ctx,
+        //   format,
+        //   ActionType::BUNDLE, // string
+        //   user_id.value() // string
+        //   );
+
         auto audit_input = ctx.tx.template rw<AuditInputValue>(
           fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
         audit_input->put(ctx.rpc_ctx->get_request_body());
         auto audit_info = ctx.tx.template rw<AuditInfoValue>(
           fmt::format("{}.audit.info", CUSTOM_ENDPOINTS_NAMESPACE));
         audit_info->put({format, AuditInputContent::BUNDLE, user_id.value()});
+
         if (format == AuditInputFormat::COSE)
         {
           const auto* cose_ident =
@@ -269,24 +325,15 @@ namespace programmabilityapp
               fmt::format("Missing {} protected header", CREATED_AT_NAME));
             return;
           }
+          ccf::InvalidArgsReason reason;
           result = is_original_action_execution(
             ctx.tx,
             cose_ident->protected_header.msg_created_at.value(),
-            ctx.rpc_ctx->get_request_body());
-          if (result == ccf::ApiResult::InvalidArgs)
+            ctx.rpc_ctx->get_request_body(),
+            reason);
+
+          if (set_error_details(ctx, result, reason))
           {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_BAD_REQUEST,
-              ccf::errors::InvalidInput,
-              "Action is either stale, or was already executed");
-            return;
-          }
-          else if (result == ccf::ApiResult::InternalError)
-          {
-            ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Failed to check if action is original");
             return;
           }
         }
@@ -473,24 +520,15 @@ namespace programmabilityapp
                 fmt::format("Missing {} protected header", CREATED_AT_NAME));
               return;
             }
+            ccf::InvalidArgsReason reason;
             result = is_original_action_execution(
               ctx.tx,
               cose_ident->protected_header.msg_created_at.value(),
-              ctx.rpc_ctx->get_request_body());
-            if (result == ccf::ApiResult::InvalidArgs)
+              ctx.rpc_ctx->get_request_body(),
+              reason);
+
+            if (set_error_details(ctx, result, reason))
             {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_BAD_REQUEST,
-                ccf::errors::InvalidInput,
-                "Action is either stale, or was already executed");
-              return;
-            }
-            else if (result == ccf::ApiResult::InternalError)
-            {
-              ctx.rpc_ctx->set_error(
-                HTTP_STATUS_INTERNAL_SERVER_ERROR,
-                ccf::errors::InternalError,
-                "Failed to check if action is original");
               return;
             }
           }

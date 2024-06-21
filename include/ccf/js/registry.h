@@ -146,7 +146,10 @@ namespace ccf::js
     void build_api(nlohmann::json& document, kv::ReadOnlyTx& tx) override;
 
     ccf::ApiResult is_original_action_execution(
-      kv::Tx& tx, uint64_t ts, const std::span<const uint8_t> action);
+      kv::Tx& tx,
+      uint64_t created_at,
+      const std::span<const uint8_t> action,
+      ccf::InvalidArgsReason& reason);
     ///@}
   };
 }
