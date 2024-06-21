@@ -51,6 +51,7 @@ namespace ccf::js
     std::string modules_quickjs_version_map;
     std::string modules_quickjs_bytecode_map;
     std::string runtime_options_map;
+    std::string recent_actions_map;
 
     ccf::js::NamespaceRestriction namespace_restriction;
 
@@ -143,6 +144,9 @@ namespace ccf::js
       const ccf::TxID& tx_id) override;
 
     void build_api(nlohmann::json& document, kv::ReadOnlyTx& tx) override;
+
+    void store_ts_to_action(
+      kv::Tx& tx, uint64_t ts, const std::span<const uint8_t> action);
     ///@}
   };
 }

@@ -11,6 +11,7 @@ import json
 from infra.runner import ConcurrentRunner
 from governance_js import action, proposal, ballot_yes
 import ccf.cose
+import infra.clients
 
 import npm_tests
 
@@ -89,6 +90,7 @@ def sign_payload(identity, msg_type, json_payload):
     cert = open(identity.cert, "r").read()
     phdr = {
         "app.msg.type": msg_type,
+        "app.msg.created_at": int(infra.clients.get_clock().moment().timestamp()),
     }
     return ccf.cose.create_cose_sign1(serialised_payload, key, cert, phdr)
 

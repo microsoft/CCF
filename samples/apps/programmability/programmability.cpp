@@ -25,9 +25,16 @@ namespace programmabilityapp
   static constexpr auto PRIVATE_RECORDS = "programmability.records";
   static constexpr auto CUSTOM_ENDPOINTS_NAMESPACE = "public:custom_endpoints";
 
+  // The programmability sample demonstrates how signed payloads can be used to
+  // provide offline auditability without requiring trusting the hardware or the
+  // service owners/consortium.
+  // COSE Sign1 payloads must set these protected headers in order to guarantee
+  // the specificity of the payload for the endpoint, and avoid possible replay
+  // of payloads signed in the past.
   static constexpr auto MSG_TYPE_NAME = "app.msg.type";
   static constexpr auto CREATED_AT_NAME = "app.msg.created_at";
-
+  // Instances of ccf::TypedUserCOSESign1AuthnPolicy for the endpoints that
+  // support COSE Sign1 authentication.
   static auto endpoints_user_cose_sign1_auth_policy =
     std::make_shared<ccf::TypedUserCOSESign1AuthnPolicy>(
       "custom_endpoints", MSG_TYPE_NAME, CREATED_AT_NAME);
@@ -250,6 +257,23 @@ namespace programmabilityapp
         auto audit_info = ctx.tx.template rw<AuditInfoValue>(
           fmt::format("{}.audit.info", CUSTOM_ENDPOINTS_NAMESPACE));
         audit_info->put({format, AuditInputContent::BUNDLE, user_id.value()});
+        if (format == AuditInputFormat::COSE)
+        {
+          const auto* cose_ident =
+            ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>();
+          if (!cose_ident->protected_header.msg_created_at.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::MissingRequiredHeader,
+              fmt::format("Missing {} protected header", CREATED_AT_NAME));
+            return;
+          }
+          store_ts_to_action(
+            ctx.tx,
+            cose_ident->protected_header.msg_created_at.value(),
+            ctx.rpc_ctx->get_request_body());
+        }
 
         result = install_custom_endpoints_v1(ctx.tx, parsed_bundle);
         if (result != ccf::ApiResult::OK)
