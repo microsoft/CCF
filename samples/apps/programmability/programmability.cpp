@@ -269,10 +269,26 @@ namespace programmabilityapp
               fmt::format("Missing {} protected header", CREATED_AT_NAME));
             return;
           }
-          store_ts_to_action(
+          result = is_original_action_execution(
             ctx.tx,
             cose_ident->protected_header.msg_created_at.value(),
             ctx.rpc_ctx->get_request_body());
+          if (result == ccf::ApiResult::InvalidArgs)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::InvalidInput,
+              "Action is either stale, or was already executed");
+            return;
+          }
+          else if (result == ccf::ApiResult::InternalError)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "Failed to check if action is original");
+            return;
+          }
         }
 
         result = install_custom_endpoints_v1(ctx.tx, parsed_bundle);
@@ -445,6 +461,39 @@ namespace programmabilityapp
           auto audit_info = ctx.tx.template rw<AuditInfoValue>(
             fmt::format("{}.audit.info", CUSTOM_ENDPOINTS_NAMESPACE));
           audit_info->put({format, AuditInputContent::BUNDLE, user_id.value()});
+          if (format == AuditInputFormat::COSE)
+          {
+            const auto* cose_ident =
+              ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>();
+            if (!cose_ident->protected_header.msg_created_at.has_value())
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::MissingRequiredHeader,
+                fmt::format("Missing {} protected header", CREATED_AT_NAME));
+              return;
+            }
+            result = is_original_action_execution(
+              ctx.tx,
+              cose_ident->protected_header.msg_created_at.value(),
+              ctx.rpc_ctx->get_request_body());
+            if (result == ccf::ApiResult::InvalidArgs)
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidInput,
+                "Action is either stale, or was already executed");
+              return;
+            }
+            else if (result == ccf::ApiResult::InternalError)
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_INTERNAL_SERVER_ERROR,
+                ccf::errors::InternalError,
+                "Failed to check if action is original");
+              return;
+            }
+          }
 
           result = set_js_runtime_options_v1(ctx.tx, options);
           if (result != ccf::ApiResult::OK)

@@ -879,58 +879,69 @@ namespace ccf::js
     });
   }
 
-  void DynamicJSEndpointRegistry::store_ts_to_action(
+  ccf::ApiResult DynamicJSEndpointRegistry::is_original_action_execution(
     kv::Tx& tx, uint64_t timestamp, const std::span<const uint8_t> action)
   {
-    const auto created_at_str = fmt::format("{:0>10}", timestamp);
-    const auto action_digest = crypto::sha256(action.data(), action.size());
-
-    using RecentActions = kv::Set<std::string>;
-
-    auto recent_actions = tx.rw<RecentActions>(recent_actions_map);
-    auto key = fmt::format("{}:{}", created_at_str, ds::to_hex(action_digest));
-
-    if (recent_actions->contains(key))
+    try
     {
-      // Duplicate action
-      return;
-    }
+      const auto created_at_str = fmt::format("{:0>10}", timestamp);
+      const auto action_digest = crypto::sha256(action.data(), action.size());
 
-    // In the absence of in-KV support for sorted sets, we need
-    // to extract them and sort them here.
-    std::vector<std::string> replay_keys;
-    recent_actions->foreach([&replay_keys](const std::string& replay_key) {
-      replay_keys.push_back(replay_key);
-      return true;
-    });
-    std::sort(replay_keys.begin(), replay_keys.end());
+      using RecentActions = kv::Set<std::string>;
 
-    // Actions must be more recent than the median of recent actions
-    if (!replay_keys.empty())
-    {
-      const auto [min_created_at, _] =
-        nonstd::split_1(replay_keys[replay_keys.size() / 2], ":");
-      auto [key_ts, __] = nonstd::split_1(key, ":");
-      if (key_ts < min_created_at)
+      auto recent_actions = tx.rw<RecentActions>(recent_actions_map);
+      auto key =
+        fmt::format("{}:{}", created_at_str, ds::to_hex(action_digest));
+
+      if (recent_actions->contains(key))
       {
-        // Stale action
-        return;
+        // Duplicate action
+        return ApiResult::InvalidArgs;
       }
-    }
 
-    // The action is neither stale, nor a replay
-    recent_actions->insert(key);
+      // In the absence of in-KV support for sorted sets, we need
+      // to extract them and sort them here.
+      std::vector<std::string> replay_keys;
+      recent_actions->foreach([&replay_keys](const std::string& replay_key) {
+        replay_keys.push_back(replay_key);
+        return true;
+      });
+      std::sort(replay_keys.begin(), replay_keys.end());
 
-    // Only keep the most recent window_size proposals, do not
-    // allow the set to grow indefinitely.
-    // Should this be configurable through runtime options?
-    size_t window_size = 100;
-    if (replay_keys.size() >= (window_size - 1) /* We just added one */)
-    {
-      for (size_t i = 0; i < (replay_keys.size() - (window_size - 1)); i++)
+      // Actions must be more recent than the median of recent actions
+      if (!replay_keys.empty())
       {
-        recent_actions->remove(replay_keys[i]);
+        const auto [min_created_at, _] =
+          nonstd::split_1(replay_keys[replay_keys.size() / 2], ":");
+        auto [key_ts, __] = nonstd::split_1(key, ":");
+        if (key_ts < min_created_at)
+        {
+          // Stale action
+          return ApiResult::InvalidArgs;
+        }
       }
+
+      // The action is neither stale, nor a replay
+      recent_actions->insert(key);
+
+      // Only keep the most recent window_size proposals, do not
+      // allow the set to grow indefinitely.
+      // Should this be configurable through runtime options?
+      size_t window_size = 100;
+      if (replay_keys.size() >= (window_size - 1) /* We just added one */)
+      {
+        for (size_t i = 0; i < (replay_keys.size() - (window_size - 1)); i++)
+        {
+          recent_actions->remove(replay_keys[i]);
+        }
+      }
+
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("{}", e.what());
+      return ApiResult::InternalError;
     }
   }
 }
