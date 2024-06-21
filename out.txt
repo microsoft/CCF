@@ -1,0 +1,1198 @@
+Setting up Python environment...
+Python environment successfully setup
+/usr/bin/lldb
+UpdateCTestConfiguration  from :/home/mtropets/workspace/CCF/build/DartConfiguration.tcl
+UpdateCTestConfiguration  from :/home/mtropets/workspace/CCF/build/DartConfiguration.tcl
+Test project /home/mtropets/workspace/CCF/build
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 80
+    Start 80: historical_query_perf_test
+
+80: Test command: /home/mtropets/workspace/CCF/build/env/bin/python3 "/home/mtropets/workspace/CCF/tests/historical_query_perf.py" "-b" "." "--label" "historical_query_perf_test" "--perf-label" "Historical Queries" "--host-log-level" "info" "--enclave-log-level" "info" "--worker-threads" "0" "--constitution" "/home/mtropets/workspace/CCF/samples/constitutions/default/actions.js" "--constitution" "/home/mtropets/workspace/CCF/samples/constitutions/default/validate.js" "--constitution" "/home/mtropets/workspace/CCF/samples/constitutions/default/resolve.js" "--constitution" "/home/mtropets/workspace/CCF/samples/constitutions/default/apply.js" "--tick-ms" "1"
+80: Environment variables: 
+80:  PYTHONPATH=/home/mtropets/workspace/CCF/tests:
+80:  TSAN_OPTIONS=suppressions=/home/mtropets/workspace/CCF/tsan_env_suppressions
+80:  DEFAULT_ENCLAVE_PLATFORM=virtual
+80: Test timeout computed to be: 10000000
+80: 21:07:32.592 | INFO     | infra.network:_setup_common_folder:519 - Creating common folder: /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common
+80: 21:07:32.592 | INFO     | infra.proc:ccall:11 - rm -rf /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common
+80: 21:07:32.595 | INFO     | infra.proc:ccall:11 - mkdir -p /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common
+80: 21:07:32.599 | INFO     | infra.proc:ccall:11 - cp /home/mtropets/workspace/CCF/samples/constitutions/default/actions.js /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common
+80: 21:07:32.602 | INFO     | infra.proc:ccall:11 - cp /home/mtropets/workspace/CCF/samples/constitutions/default/validate.js /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common
+80: 21:07:32.605 | INFO     | infra.proc:ccall:11 - cp /home/mtropets/workspace/CCF/samples/constitutions/default/resolve.js /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common
+80: 21:07:32.608 | INFO     | infra.proc:ccall:11 - cp /home/mtropets/workspace/CCF/samples/constitutions/default/apply.js /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common
+80: 21:07:32.612 | INFO     | infra.proc:ccall:11 - ln -s /home/mtropets/workspace/CCF/build/keygenerator.sh /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common
+80: 21:07:32.614 | INFO     | infra.proc:ccall:11 - /home/mtropets/workspace/CCF/build/keygenerator.sh --name member0 --curve secp384r1 --gen-enc-key [cwd: /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common]
+80: 21:07:32.672 | INFO     | infra.member:__init__:347 - Member member0 created: 76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c
+80: 21:07:32.672 | DEBUG    | infra.network:_start_all_nodes:447 - Opening CCF service on [HostSpec(rpc_interfaces={'primary_rpc_interface': RPCInterface(host='localhost', port=0, protocol='local', transport='tcp', public_host=None, public_port=None, max_open_sessions_soft=1000, max_open_sessions_hard=1010, max_http_body_size=1048576, max_http_header_size=16384, max_http_headers_count=256, max_concurrent_streams_count=100, initial_window_size=65536, max_frame_size=16384, endorsement=Endorsement(authority=<EndorsementAuthority.Service: 1>, acme_configuration=None), acme_configuration=None, accepted_endpoints=None, forwarding_timeout_ms=3000, redirections=None, app_protocol='HTTP1')}, acme_challenge_server_interface=None), HostSpec(rpc_interfaces={'primary_rpc_interface': RPCInterface(host='localhost', port=0, protocol='local', transport='tcp', public_host=None, public_port=None, max_open_sessions_soft=1000, max_open_sessions_hard=1010, max_http_body_size=1048576, max_http_header_size=16384, max_http_headers_count=256, max_concurrent_streams_count=100, initial_window_size=65536, max_frame_size=16384, endorsement=Endorsement(authority=<EndorsementAuthority.Service: 1>, acme_configuration=None), acme_configuration=None, accepted_endpoints=None, forwarding_timeout_ms=3000, redirections=None, app_protocol='HTTP1')}, acme_challenge_server_interface=None)]
+80: 21:07:32.681 | INFO     | infra.remote:_rc:392 - [127.16.159.15] rm -rf /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0
+80: 21:07:32.692 | INFO     | infra.remote:_rc:392 - [127.16.159.15] mkdir -p /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0
+80: 21:07:32.696 | INFO     | infra.remote:_rc:392 - [127.16.159.15] ln -s /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/0.config.json /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/0.config.json
+80: 21:07:32.699 | INFO     | infra.remote:_rc:392 - [127.16.159.15] ln -s /home/mtropets/workspace/CCF/build/cchost /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/cchost
+80: 21:07:32.703 | INFO     | infra.remote:_rc:392 - [127.16.159.15] ln -s /home/mtropets/workspace/CCF/build/samples/apps/logging/liblogging.virtual.so /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/liblogging.virtual.so
+80: 21:07:32.706 | INFO     | infra.remote:_rc:392 - [127.16.159.15] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/member0_cert.pem /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/member0_cert.pem
+80: 21:07:32.710 | INFO     | infra.remote:_rc:392 - [127.16.159.15] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/member0_enc_pubk.pem /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/member0_enc_pubk.pem
+80: 21:07:32.713 | INFO     | infra.remote:_rc:392 - [127.16.159.15] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/actions.js /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/actions.js
+80: 21:07:32.717 | INFO     | infra.remote:_rc:392 - [127.16.159.15] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/validate.js /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/validate.js
+80: 21:07:32.721 | INFO     | infra.remote:_rc:392 - [127.16.159.15] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/resolve.js /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/resolve.js
+80: 21:07:32.724 | INFO     | infra.remote:_rc:392 - [127.16.159.15] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/apply.js /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/apply.js
+80: 21:07:32.728 | INFO     | infra.remote:start:446 - [127.16.159.15] cd /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0 && ./cchost --config 0.config.json --enclave-log-level info --enclave-file ./liblogging.virtual.so 1> /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/out 2> /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/err (env: dict_keys(['UBSAN_OPTIONS', 'TSAN_OPTIONS', 'ASAN_OPTIONS']))
+80: 21:07:33.132 | INFO     | infra.remote:_rc:392 - [127.16.159.15] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/0.pem /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/0.pem
+80: 21:07:33.138 | INFO     | infra.remote:_rc:392 - [127.16.159.15] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/0.node_address /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/0.node_address
+80: 21:07:33.142 | INFO     | infra.remote:_rc:392 - [127.16.159.15] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/0.rpc_addresses /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/0.rpc_addresses
+80: 21:07:33.145 | INFO     | infra.remote:_rc:392 - [127.16.159.15] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/service_cert.pem /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/service_cert.pem
+80: 21:07:33.149 | INFO     | infra.node:_start:379 - Read 680 bytes from (/home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/0.pem)
+80: 21:07:33.149 | INFO     | infra.node:_start:380 - Full contents of (/home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/0.pem): 
+80: <START>
+80:  -----BEGIN CERTIFICATE-----
+80: MIIByTCCAU+gAwIBAgIRAL5f4riqYbVCAR4ZTzK5ANUwCgYIKoZIzj0EAwMwEzER
+80: MA8GA1UEAwwIQ0NGIE5vZGUwHhcNMjQwNjIxMjEwNzMyWhcNMjQwNjIyMjEwNzMx
+80: WjATMREwDwYDVQQDDAhDQ0YgTm9kZTB2MBAGByqGSM49AgEGBSuBBAAiA2IABJYm
+80: gx+dosTG2flyLPPVUcyA50hTNVQYjV8LfZJ849ORAXOWflHdGtsJKXioPeJdCTOg
+80: p1V4mXJaTdFt08JuisohUU7mJ/1QzuP9shgcNnfaw0nNDrHm/rFJuaQWmIJqEqNn
+80: MGUwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUqjAQL0Gh14YRSkepamF7
+80: 29OtdaowHwYDVR0jBBgwFoAUqjAQL0Gh14YRSkepamF729OtdaowDwYDVR0RBAgw
+80: BocEfxCfDzAKBggqhkjOPQQDAwNoADBlAjEA4aff1/UcxPXnlduKlY+1kCUGcdsp
+80: ANvLwgIN1YSHuK0+zCLVztoq6/umePX/cM5nAjAZ1qd10HjpK30qW+PTzrzQW/JE
+80: MlojaP0tynnSd3OzLMwEbq4aXfrXbpxcPI6W49g=
+80: -----END CERTIFICATE-----
+80: 
+80: <END>
+80: 21:07:33.149 | INFO     | infra.node:_start:396 - Node 0 started: 40f8d57bf48f8867f9dfdd24020159c56ae8b59f31d365ce9c2f50b37207fc64
+80: 21:07:33.161 | INFO     | infra.network:_setup_node:343 - Joining from target node 0
+80: 21:07:33.161 | INFO     | infra.network:_setup_node:364 - Joining without snapshot: complete transaction history will be replayed
+80: 21:07:33.161 | INFO     | infra.network:_setup_node:369 - Copying ledger from target node 0
+80: 21:07:33.161 | INFO     | infra.remote:_rc:392 - [127.16.159.15] rm -rf /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/0.ledger
+80: 21:07:33.165 | INFO     | infra.remote:_rc:392 - [127.16.159.15] cp -r /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_0/0.ledger /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/0.ledger
+80: 21:07:33.175 | INFO     | infra.remote:_rc:392 - [127.120.205.243] rm -rf /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1
+80: 21:07:33.182 | INFO     | infra.remote:_rc:392 - [127.120.205.243] mkdir -p /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1
+80: 21:07:33.186 | INFO     | infra.remote:_rc:392 - [127.120.205.243] ln -s /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/1.config.json /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1/1.config.json
+80: 21:07:33.189 | INFO     | infra.remote:_rc:392 - [127.120.205.243] ln -s /home/mtropets/workspace/CCF/build/cchost /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1/cchost
+80: 21:07:33.192 | INFO     | infra.remote:_rc:392 - [127.120.205.243] ln -s /home/mtropets/workspace/CCF/build/samples/apps/logging/liblogging.virtual.so /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1/liblogging.virtual.so
+80: 21:07:33.195 | INFO     | infra.remote:_rc:392 - [127.120.205.243] rm -rf /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1/0.ledger.current
+80: 21:07:33.198 | INFO     | infra.remote:_rc:392 - [127.120.205.243] cp -r /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/0.ledger.current /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1/0.ledger.current
+80: 21:07:33.201 | INFO     | infra.remote:_rc:392 - [127.120.205.243] rm -rf /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1/0.ledger.committed
+80: 21:07:33.204 | INFO     | infra.remote:_rc:392 - [127.120.205.243] cp -r /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/0.ledger.committed /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1/0.ledger.committed
+80: 21:07:33.208 | INFO     | infra.remote:_rc:392 - [127.120.205.243] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/service_cert.pem /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1/service_cert.pem
+80: 21:07:33.212 | INFO     | infra.remote:start:446 - [127.120.205.243] cd /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1 && ./cchost --config 1.config.json --enclave-log-level info --enclave-file ./liblogging.virtual.so 1> /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1/out 2> /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1/err (env: dict_keys(['UBSAN_OPTIONS', 'TSAN_OPTIONS', 'ASAN_OPTIONS']))
+80: 21:07:33.616 | INFO     | infra.remote:_rc:392 - [127.120.205.243] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1/1.pem /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/1.pem
+80: 21:07:33.621 | INFO     | infra.remote:_rc:392 - [127.120.205.243] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1/1.node_address /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/1.node_address
+80: 21:07:33.625 | INFO     | infra.remote:_rc:392 - [127.120.205.243] cp /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_1/1.rpc_addresses /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/1.rpc_addresses
+80: 21:07:33.629 | INFO     | infra.node:_start:379 - Read 680 bytes from (/home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/1.pem)
+80: 21:07:33.629 | INFO     | infra.node:_start:380 - Full contents of (/home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/1.pem): 
+80: <START>
+80:  -----BEGIN CERTIFICATE-----
+80: MIIByDCCAU+gAwIBAgIRAO7+jRRnHETFq4QMhUtIThswCgYIKoZIzj0EAwMwEzER
+80: MA8GA1UEAwwIQ0NGIE5vZGUwHhcNMjQwNjIxMjEwNzMzWhcNMjQwNjIyMjEwNzMy
+80: WjATMREwDwYDVQQDDAhDQ0YgTm9kZTB2MBAGByqGSM49AgEGBSuBBAAiA2IABECD
+80: /j8qZvL9C5A7zbgpZ5nhf7LUbNw79coV6eTaftFXe8iAWRU/WpsjF2jjb86oE7TI
+80: Ag6783JCOEzfJ4aUnn/Zs3eqrOXFM3b8jJyOECbbH+OEe5GcDkVGDkxWbsXSz6Nn
+80: MGUwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQUZ/YQ2QsbZF4gSJ84QoFg
+80: 9Wj1Px0wHwYDVR0jBBgwFoAUZ/YQ2QsbZF4gSJ84QoFg9Wj1Px0wDwYDVR0RBAgw
+80: BocEf3jN8zAKBggqhkjOPQQDAwNnADBkAjBCZzAx3WeGORYT2kuQL013MYWIeCBu
+80: eUs89kCi4RMuPv4XDwPZT7skpZKX4rb82RYCMFA2nBcX+yHOmfRkH1CHOiTtSsPw
+80: W+i079EueEpiTwic7Es2F56HWN+ezBiIQq/L6w==
+80: -----END CERTIFICATE-----
+80: 
+80: <END>
+80: 21:07:33.630 | INFO     | infra.node:_start:396 - Node 1 started: d2d4aba956fe87f351285ad182e60809b8f0a2f5a96c529254e2bac1a78da2b6
+80: 21:07:34.252 | INFO     | infra.node:wait_for_node_to_join:495 - [1] GET /node/commit
+80: 21:07:34.252 | INFO     | infra.node:wait_for_node_to_join:495 - 200 {"transaction_id":"2.4"}
+80: 21:07:34.252 | INFO     | infra.network:_start_all_nodes:509 - All nodes started
+80: 21:07:34.272 | INFO     | infra.network:wait_for_all_nodes_to_commit:1271 - [0] GET /node/state
+80: 21:07:34.272 | INFO     | infra.network:wait_for_all_nodes_to_commit:1271 - 200 @2.4 {"last_signed_seqno":4,"node_id":"40f8d57bf48f8867f9dfdd24020159c56ae8b59f31d365ce9c2f50b37207fc64","startup_seqno":0,"state":"PartOfNetwork","stop_notice":false}
+80: 21:07:34.291 | INFO     | infra.network:wait_for_all_nodes_to_commit:1310 - [0] GET /node/tx?transaction_id=2.4
+80: 21:07:34.292 | INFO     | infra.network:wait_for_all_nodes_to_commit:1310 - 200 {"status":"Committed","transaction_id":"2.4"}
+80: 21:07:34.292 | INFO     | infra.network:wait_for_all_nodes_to_commit:1310 - [1] GET /node/tx?transaction_id=2.4
+80: 21:07:34.292 | INFO     | infra.network:wait_for_all_nodes_to_commit:1310 - 200 {"status":"Committed","transaction_id":"2.4"}
+80: 21:07:34.292 | SUCCESS  | infra.network:start:592 - All nodes joined network
+80: 21:07:34.334 | INFO     | infra.clients:post:1186 - [1|cose=member0] POST /gov/members/state-digests/76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c:update?api-version=2023-06-01-preview
+80: 21:07:34.334 | INFO     | infra.clients:post:1186 - 200 @2.5 {"memberId":"76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c","stateDigest":"b6cf709bc3fa494928850560b02a1d2c2a8b99df8372c65778dcb34997ad41a7"}
+80: 21:07:34.351 | INFO     | infra.clients:post:1186 - [1|cose=member0] POST /gov/members/state-digests/76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c:ack?api-version=2023-06-01-preview {'memberId': '76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c', 'stateDigest': 'b6cf709bc3fa494928850560b02a1d2c2a8b99df8372c65778dcb34997ad41a7'}
+80: 21:07:34.351 | INFO     | infra.clients:post:1186 - 204 @2.6 
+80: 21:07:34.351 | INFO     | infra.proc:ccall:11 - /home/mtropets/workspace/CCF/build/keygenerator.sh --name user0 --curve secp384r1 [cwd: /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common]
+80: 21:07:34.363 | INFO     | infra.clients:advance:54 - Advancing clock by 1 seconds
+80: 21:07:34.400 | INFO     | infra.clients:post:1186 - [1|cose=member0] POST /gov/members/proposals:create?api-version=2023-06-01-preview {'actions': [{'name': 'set_user', 'args': {'cert': '-----BEGIN CERTIFICATE-----\nMIIBsjCCATigAwIBAgIUSMYG43GWvWyPlXPWAuby3AppPQowCgYIKoZIzj0EAwMw\nEDEOMAwGA1UEAwwFdXNlcjAwHhcNMjQwNjIxMjEwNzM0WhcNMjUwNjIxMjEwNzM0\nWjAQMQ4wDAYDVQQDDAV1c2VyMDB2MBAGByqGSM49AgE + 1228 chars
+80: 21:07:34.400 | INFO     | infra.clients:post:1186 - 200 @2.7 {"ballotCount":0,"proposalId":"7a6bf24dd8c654f46b8154688f7e2f2b6507652d632acd0f17964d06735663e2","proposalState":"Open","proposerId":"76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c"}
+80: 21:07:34.438 | INFO     | infra.clients:post:1186 - [1|cose=member0] POST /gov/members/proposals/7a6bf24dd8c654f46b8154688f7e2f2b6507652d632acd0f17964d06735663e2/ballots/76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c:submit?api-version=2023-06-01-preview {'ballot': 'export function vote (proposal, proposer_id) { return true }'}
+80: 21:07:34.438 | INFO     | infra.clients:post:1186 - 200 @2.8 {"ballotCount":1,"finalVotes":{"76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c":true},"proposalId":"7a6bf24dd8c654f46b8154688f7e2f2b6507652d632acd0f17964d06735663e2","proposalState":"Accepted","proposerId":"76d2db8ce75f7dae72cc0b47f7346ae + 53 chars
+80: 21:07:35.269 | INFO     | infra.consortium:vote_using_majority:327 - [1] GET /node/tx?transaction_id=2.8
+80: 21:07:35.270 | INFO     | infra.consortium:vote_using_majority:327 - 200 {"status":"Committed","transaction_id":"2.8"}
+80: 21:07:35.270 | INFO     | infra.network:open:627 - Initial set of users added: 1
+80: 21:07:35.280 | INFO     | infra.network:_wait_for_app_open:1150 - [0] GET /app/commit
+80: 21:07:35.280 | INFO     | infra.network:_wait_for_app_open:1150 - 200 {"transaction_id":"2.9"}
+80: 21:07:35.290 | INFO     | infra.network:_wait_for_app_open:1150 - [1] GET /app/commit
+80: 21:07:35.290 | INFO     | infra.network:_wait_for_app_open:1150 - 200 {"transaction_id":"2.9"}
+80: 21:07:35.290 | SUCCESS  | infra.network:open:632 - ***** Network is now open *****
+80: 21:07:35.513 | DEBUG    | infra.consortium:make_proposal:185 - Writing proposal to /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/set_ca_cert_bundle_proposal.json
+80: 21:07:35.513 | DEBUG    | infra.consortium:make_proposal:189 - Writing ballot to /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/set_ca_cert_bundle_vote_for.json
+80: 21:07:35.513 | INFO     | infra.clients:advance:54 - Advancing clock by 1 seconds
+80: 21:07:35.546 | INFO     | infra.clients:post:1186 - [0|cose=member0] POST /gov/members/proposals:create?api-version=2023-06-01-preview @/home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/set_ca_cert_bundle_proposal.json
+80: 21:07:35.546 | INFO     | infra.clients:post:1186 - 200 @2.11 {"ballotCount":0,"proposalId":"dca50fb8c9eb10a179fbbd4d3d14cfd1f76c69ce08b61c67a513ca22c2f74862","proposalState":"Open","proposerId":"76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c"}
+80: 21:07:35.580 | INFO     | infra.clients:post:1186 - [0|cose=member0] POST /gov/members/proposals/dca50fb8c9eb10a179fbbd4d3d14cfd1f76c69ce08b61c67a513ca22c2f74862/ballots/76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c:submit?api-version=2023-06-01-preview @/home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/set_ca_cert_bundle_vote_for.json
+80: 21:07:35.580 | INFO     | infra.clients:post:1186 - 200 @2.12 {"ballotCount":1,"finalVotes":{"76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c":true},"proposalId":"dca50fb8c9eb10a179fbbd4d3d14cfd1f76c69ce08b61c67a513ca22c2f74862","proposalState":"Accepted","proposerId":"76d2db8ce75f7dae72cc0b47f7346ae + 53 chars
+80: 21:07:36.103 | INFO     | infra.consortium:vote_using_majority:327 - [0] GET /node/tx?transaction_id=2.12
+80: 21:07:36.103 | INFO     | infra.consortium:vote_using_majority:327 - 200 {"status":"Committed","transaction_id":"2.12"}
+80: 21:07:36.104 | DEBUG    | infra.consortium:make_proposal:185 - Writing proposal to /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/set_jwt_issuer_proposal.json
+80: 21:07:36.104 | DEBUG    | infra.consortium:make_proposal:189 - Writing ballot to /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/set_jwt_issuer_vote_for.json
+80: 21:07:36.104 | INFO     | infra.clients:advance:54 - Advancing clock by 1 seconds
+80: 21:07:36.137 | INFO     | infra.clients:post:1186 - [0|cose=member0] POST /gov/members/proposals:create?api-version=2023-06-01-preview @/home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/set_jwt_issuer_proposal.json
+80: 21:07:36.137 | INFO     | infra.clients:post:1186 - 200 @2.15 {"ballotCount":0,"proposalId":"24ce1fb03c5c96973921fdf55abd36e003e382467ee2a4950b7a078a17a8b0f7","proposalState":"Open","proposerId":"76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c"}
+80: 21:07:36.170 | INFO     | infra.clients:post:1186 - [0|cose=member0] POST /gov/members/proposals/24ce1fb03c5c96973921fdf55abd36e003e382467ee2a4950b7a078a17a8b0f7/ballots/76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c:submit?api-version=2023-06-01-preview @/home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/set_jwt_issuer_vote_for.json
+80: 21:07:36.170 | INFO     | infra.clients:post:1186 - 200 @2.16 {"ballotCount":1,"finalVotes":{"76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c":true},"proposalId":"24ce1fb03c5c96973921fdf55abd36e003e382467ee2a4950b7a078a17a8b0f7","proposalState":"Accepted","proposerId":"76d2db8ce75f7dae72cc0b47f7346ae + 53 chars
+80: 21:07:37.103 | INFO     | infra.consortium:vote_using_majority:327 - [0] GET /node/tx?transaction_id=2.16
+80: 21:07:37.103 | INFO     | infra.consortium:vote_using_majority:327 - 200 {"status":"Committed","transaction_id":"2.16"}
+80: 21:07:37.104 | DEBUG    | infra.consortium:make_proposal:185 - Writing proposal to /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/set_jwt_public_signing_keys_proposal.json
+80: 21:07:37.104 | DEBUG    | infra.consortium:make_proposal:189 - Writing ballot to /home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/set_jwt_public_signing_keys_vote_for.json
+80: 21:07:37.104 | INFO     | infra.clients:advance:54 - Advancing clock by 1 seconds
+80: 21:07:37.136 | INFO     | infra.clients:post:1186 - [0|cose=member0] POST /gov/members/proposals:create?api-version=2023-06-01-preview @/home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/set_jwt_public_signing_keys_proposal.json
+80: 21:07:37.137 | INFO     | infra.clients:post:1186 - 200 @2.18 {"ballotCount":0,"proposalId":"722ea74b94ce74fc3622f293e3fb77a272ff7a709c8b1566df4368e69760df82","proposalState":"Open","proposerId":"76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c"}
+80: 21:07:37.171 | INFO     | infra.clients:post:1186 - [0|cose=member0] POST /gov/members/proposals/722ea74b94ce74fc3622f293e3fb77a272ff7a709c8b1566df4368e69760df82/ballots/76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c:submit?api-version=2023-06-01-preview @/home/mtropets/workspace/CCF/build/workspace/historical_query_perf_test_common/set_jwt_public_signing_keys_vote_for.json
+80: 21:07:37.171 | INFO     | infra.clients:post:1186 - 200 @2.19 {"ballotCount":1,"finalVotes":{"76d2db8ce75f7dae72cc0b47f7346aecc40ebfc2bbd799f6fddea54ea6ee987c":true},"proposalId":"722ea74b94ce74fc3622f293e3fb77a272ff7a709c8b1566df4368e69760df82","proposalState":"Accepted","proposerId":"76d2db8ce75f7dae72cc0b47f7346ae + 53 chars
+80: 21:07:38.103 | INFO     | infra.consortium:vote_using_majority:327 - [0] GET /node/tx?transaction_id=2.19
+80: 21:07:38.103 | INFO     | infra.consortium:vote_using_majority:327 - 200 {"status":"Committed","transaction_id":"2.19"}
+80: 21:07:38.151 | INFO     | __main__:test_historical_query_range:132 - Submitting 30000 entries
+80: 21:07:38.152 | INFO     | __main__:submit_range:21 - Starting submission of     0 to  1000
+80: 21:07:38.153 | INFO     | __main__:submit_range:21 - Starting submission of  1000 to  2000
+80: 21:07:38.153 | INFO     | __main__:submit_range:21 - Starting submission of  2000 to  3000
+80: 21:07:38.155 | INFO     | __main__:submit_range:21 - Starting submission of  3000 to  4000
+80: 21:07:38.155 | INFO     | __main__:submit_range:21 - Starting submission of  4000 to  5000
+80: 21:07:38.156 | INFO     | __main__:submit_range:21 - Starting submission of  5000 to  6000
+80: 21:07:38.158 | INFO     | __main__:submit_range:21 - Starting submission of  6000 to  7000
+80: 21:07:38.162 | INFO     | __main__:submit_range:21 - Starting submission of  7000 to  8000
+80: 21:07:38.166 | INFO     | __main__:submit_range:21 - Starting submission of  8000 to  9000
+80: 21:07:38.167 | INFO     | __main__:submit_range:21 - Starting submission of  9000 to 10000
+80: 21:07:38.168 | INFO     | __main__:submit_range:21 - Starting submission of 10000 to 11000
+80: 21:07:38.168 | INFO     | __main__:submit_range:21 - Starting submission of 11000 to 12000
+80: 21:08:00.543 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 500'}
+80: 21:08:00.543 | INFO     | __main__:submit_range:35 - 200 @2.6031 true
+80: 21:08:00.544 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 3500'}
+80: 21:08:00.544 | INFO     | __main__:submit_range:35 - 200 @2.6033 true
+80: 21:08:00.547 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 9500'}
+80: 21:08:00.547 | INFO     | __main__:submit_range:35 - 200 @2.6034 true
+80: 21:08:00.575 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 3, 'msg': 'Unique message 2500'}
+80: 21:08:00.575 | INFO     | __main__:submit_range:35 - 200 @2.6039 true
+80: 21:08:00.639 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 1500'}
+80: 21:08:00.639 | INFO     | __main__:submit_range:35 - 200 @2.6058 true
+80: 21:08:00.643 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 10500'}
+80: 21:08:00.643 | INFO     | __main__:submit_range:35 - 200 @2.6059 true
+80: 21:08:00.663 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 3, 'msg': 'Unique message 11500'}
+80: 21:08:00.663 | INFO     | __main__:submit_range:35 - 200 @2.6064 true
+80: 21:08:00.671 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 6500'}
+80: 21:08:00.672 | INFO     | __main__:submit_range:35 - 200 @2.6066 true
+80: 21:08:00.695 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 3, 'msg': 'Unique message 5500'}
+80: 21:08:00.695 | INFO     | __main__:submit_range:35 - 200 @2.6072 true
+80: 21:08:00.703 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 3, 'msg': 'Unique message 8500'}
+80: 21:08:00.703 | INFO     | __main__:submit_range:35 - 200 @2.6073 true
+80: 21:08:00.923 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 7500'}
+80: 21:08:00.923 | INFO     | __main__:submit_range:35 - 200 @2.6133 true
+80: 21:08:01.111 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 4500'}
+80: 21:08:01.111 | INFO     | __main__:submit_range:35 - 200 @2.6187 true
+80: 21:08:23.015 | INFO     | __main__:submit_range:21 - Starting submission of 12000 to 13000
+80: 21:08:23.059 | INFO     | __main__:submit_range:21 - Starting submission of 13000 to 14000
+80: 21:08:23.112 | INFO     | __main__:submit_range:21 - Starting submission of 14000 to 15000
+80: 21:08:23.135 | INFO     | __main__:submit_range:21 - Starting submission of 15000 to 16000
+80: 21:08:23.221 | INFO     | __main__:submit_range:21 - Starting submission of 16000 to 17000
+80: 21:08:23.221 | INFO     | __main__:submit_range:21 - Starting submission of 17000 to 18000
+80: 21:08:23.241 | INFO     | __main__:submit_range:21 - Starting submission of 18000 to 19000
+80: 21:08:23.252 | INFO     | __main__:submit_range:21 - Starting submission of 19000 to 20000
+80: 21:08:23.259 | INFO     | __main__:submit_range:21 - Starting submission of 20000 to 21000
+80: 21:08:23.335 | INFO     | __main__:submit_range:21 - Starting submission of 21000 to 22000
+80: 21:08:23.516 | INFO     | __main__:submit_range:21 - Starting submission of 22000 to 23000
+80: 21:08:23.659 | INFO     | __main__:submit_range:21 - Starting submission of 23000 to 24000
+80: 21:08:45.547 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 12500'}
+80: 21:08:45.547 | INFO     | __main__:submit_range:35 - 200 @2.18098 true
+80: 21:08:45.563 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 15500'}
+80: 21:08:45.564 | INFO     | __main__:submit_range:35 - 200 @2.18105 true
+80: 21:08:45.615 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 13500'}
+80: 21:08:45.615 | INFO     | __main__:submit_range:35 - 200 @2.18119 true
+80: 21:08:45.683 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 18500'}
+80: 21:08:45.683 | INFO     | __main__:submit_range:35 - 200 @2.18135 true
+80: 21:08:45.687 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 3, 'msg': 'Unique message 14500'}
+80: 21:08:45.687 | INFO     | __main__:submit_range:35 - 200 @2.18137 true
+80: 21:08:45.719 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 16500'}
+80: 21:08:45.719 | INFO     | __main__:submit_range:35 - 200 @2.18145 true
+80: 21:08:45.735 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 3, 'msg': 'Unique message 20500'}
+80: 21:08:45.735 | INFO     | __main__:submit_range:35 - 200 @2.18150 true
+80: 21:08:45.738 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 3, 'msg': 'Unique message 17500'}
+80: 21:08:45.739 | INFO     | __main__:submit_range:35 - 200 @2.18152 true
+80: 21:08:45.743 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 19500'}
+80: 21:08:45.743 | INFO     | __main__:submit_range:35 - 200 @2.18154 true
+80: 21:08:45.859 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 21500'}
+80: 21:08:45.860 | INFO     | __main__:submit_range:35 - 200 @2.18184 true
+80: 21:08:46.155 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 22500'}
+80: 21:08:46.155 | INFO     | __main__:submit_range:35 - 200 @2.18266 true
+80: 21:08:46.223 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 3, 'msg': 'Unique message 23500'}
+80: 21:08:46.223 | INFO     | __main__:submit_range:35 - 200 @2.18285 true
+80: 21:09:08.211 | INFO     | __main__:submit_range:21 - Starting submission of 24000 to 25000
+80: 21:09:08.347 | INFO     | __main__:submit_range:21 - Starting submission of 25000 to 26000
+80: 21:09:08.413 | INFO     | __main__:submit_range:21 - Starting submission of 26000 to 27000
+80: 21:09:08.464 | INFO     | __main__:submit_range:21 - Starting submission of 27000 to 28000
+80: 21:09:08.479 | INFO     | __main__:submit_range:21 - Starting submission of 28000 to 29000
+80: 21:09:08.487 | INFO     | __main__:submit_range:21 - Starting submission of 29000 to 30000
+80: 21:09:31.275 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 24500'}
+80: 21:09:31.276 | INFO     | __main__:submit_range:35 - 200 @2.27221 true
+80: 21:09:31.455 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 3, 'msg': 'Unique message 26500'}
+80: 21:09:31.455 | INFO     | __main__:submit_range:35 - 200 @2.27243 true
+80: 21:09:31.475 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 25500'}
+80: 21:09:31.475 | INFO     | __main__:submit_range:35 - 200 @2.27244 true
+80: 21:09:31.523 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 3, 'msg': 'Unique message 29500'}
+80: 21:09:31.523 | INFO     | __main__:submit_range:35 - 200 @2.27251 true
+80: 21:09:31.635 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 28500'}
+80: 21:09:31.635 | INFO     | __main__:submit_range:35 - 200 @2.27266 true
+80: 21:09:31.663 | INFO     | __main__:submit_range:35 - [0|tls=user0] POST /app/log/public {'id': 2, 'msg': 'Unique message 27500'}
+80: 21:09:31.663 | INFO     | __main__:submit_range:35 - 200 @2.27269 true
+80: 21:09:55.165 | INFO     | __main__:test_historical_query_range:155 - [0|tls=user0] GET /node/tx?transaction_id=2.30292
+80: 21:09:55.166 | INFO     | __main__:test_historical_query_range:155 - 200 {"status":"Committed","transaction_id":"2.30292"}
+80: 21:09:55.166 | INFO     | __main__:test_historical_query_range:157 - Total ledger contains 30292 entries, of which we expect our transactions to be spread over a range of ~30271 transactions
+80: 21:09:55.175 | INFO     | infra.network:wait_for_all_nodes_to_commit:1271 - [0] GET /node/state
+80: 21:09:55.176 | INFO     | infra.network:wait_for_all_nodes_to_commit:1271 - 200 @2.30294 {"last_signed_seqno":30293,"node_id":"40f8d57bf48f8867f9dfdd24020159c56ae8b59f31d365ce9c2f50b37207fc64","startup_seqno":0,"state":"PartOfNetwork","stop_notice":false}
+80: 21:09:56.274 | INFO     | infra.network:wait_for_all_nodes_to_commit:1310 - [0] GET /node/tx?transaction_id=2.30294
+80: 21:09:56.274 | INFO     | infra.network:wait_for_all_nodes_to_commit:1310 - 200 {"status":"Committed","transaction_id":"2.30294"}
+80: 21:09:56.274 | INFO     | infra.network:wait_for_all_nodes_to_commit:1310 - [1] GET /node/tx?transaction_id=2.30294
+80: 21:09:56.275 | INFO     | infra.network:wait_for_all_nodes_to_commit:1310 - 200 {"status":"Committed","transaction_id":"2.30294"}
+80: 21:09:56.285 | INFO     | __main__:get_all_entries:66 - Getting historical entries for id 2
+80: 21:09:56.294 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:56.295 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 0/30289
+80: 21:09:56.417 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:56.417 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 1503/30289
+80: 21:09:56.529 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:56.530 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 3006/30289
+80: 21:09:56.641 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:56.641 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 4509/30289
+80: 21:09:56.751 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:56.751 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 6012/30289
+80: 21:09:56.862 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:56.862 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 7515/30289
+80: 21:09:56.973 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:56.973 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 9018/30289
+80: 21:09:57.091 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:57.091 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 10521/30289
+80: 21:09:57.199 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:57.199 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 12024/30289
+80: 21:09:57.310 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:57.311 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 13527/30289
+80: 21:09:57.422 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:57.422 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 15030/30289
+80: 21:09:57.531 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:57.531 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 16533/30289
+80: 21:09:57.642 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:57.642 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 18036/30289
+80: 21:09:57.752 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:57.752 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 19539/30289
+80: 21:09:57.868 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:57.868 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 21042/30289
+80: 21:09:57.981 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:57.981 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 22545/30289
+80: 21:09:58.090 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:58.090 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 24048/30289
+80: 21:09:58.204 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:58.204 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 25551/30289
+80: 21:09:58.317 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:58.317 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 27054/30289
+80: 21:09:58.431 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:58.432 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 28557/30289
+80: 21:09:58.556 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:58.556 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 2 - indexed to 30060/30289
+80: 21:09:58.660 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:58.661 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for private records at 2
+80: 21:09:58.783 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:58.783 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 1 to 10001 are not yet available, fetching now
+80: 21:09:59.248 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:09:59.248 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=10002&to_seqno=30289&id=2","entries":[{"id":2,"msg":"Unique message 0","seqno":21},{"id":2,"msg":"Unique message 2000","seqno":22},{"id":2,"msg":"Unique message 3000","seqno":24},{"id":2,"msg":"Uniq + 247414 chars
+80: 21:09:59.276 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=10002&to_seqno=30289&id=2
+80: 21:09:59.277 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 10002 to 20002 are not yet available, fetching now
+80: 21:09:59.787 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=10002&to_seqno=30289&id=2
+80: 21:09:59.787 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=20003&to_seqno=30289&id=2","entries":[{"id":2,"msg":"Unique message 7820","seqno":10002},{"id":2,"msg":"Unique message 10826","seqno":10004},{"id":2,"msg":"Unique message 11826","seqno":10005},{"id" + 257013 chars
+80: 21:09:59.808 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=20003&to_seqno=30289&id=2
+80: 21:09:59.808 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 20003 to 30003 are not yet available, fetching now
+80: 21:09:59.915 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=20003&to_seqno=30289&id=2
+80: 21:09:59.915 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 20003 to 30003 are not yet available, fetching now
+80: 21:10:00.375 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=20003&to_seqno=30289&id=2
+80: 21:10:00.375 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=30004&to_seqno=30289&id=2","entries":[{"id":2,"msg":"Unique message 22644","seqno":20007},{"id":2,"msg":"Unique message 13656","seqno":20014},{"id":2,"msg":"Unique message 14658","seqno":20016},{"id + 256669 chars
+80: 21:10:00.386 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=30004&to_seqno=30289&id=2
+80: 21:10:00.386 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 30004 to 30289 are not yet available, fetching now
+80: 21:10:00.495 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=30004&to_seqno=30289&id=2
+80: 21:10:00.495 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"entries":[{"id":2,"msg":"Unique message 26954","seqno":30005},{"id":2,"msg":"Unique message 29947","seqno":30009},{"id":2,"msg":"Unique message 25956","seqno":30012},{"id":2,"msg":"Unique message 29948","seqno":30014},{"id":2,"msg":"Unique message 24960" + 7141 chars
+80: 21:10:00.496 | INFO     | __main__:get_all_entries:90 - Done! Fetched 15000 entries in 4.21s
+80: 21:10:00.497 | INFO     | __main__:get_all_entries:66 - Getting historical entries for id 3
+80: 21:10:00.499 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=3
+80: 21:10:00.499 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 3 - indexed to 30289/30291
+80: 21:10:00.603 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=3
+80: 21:10:00.603 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for private records at 3
+80: 21:10:00.718 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=3
+80: 21:10:00.719 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 1 to 10001 are not yet available, fetching now
+80: 21:10:01.030 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=3
+80: 21:10:01.030 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=10002&to_seqno=30291&id=3","entries":[{"id":3,"msg":"Unique message 1000","seqno":23},{"id":3,"msg":"Unique message 4000","seqno":25},{"id":3,"msg":"Unique message 7000","seqno":28},{"id":3,"msg":"U + 164831 chars
+80: 21:10:01.047 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=10002&to_seqno=30291&id=3
+80: 21:10:01.047 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 10002 to 20002 are not yet available, fetching now
+80: 21:10:01.391 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=10002&to_seqno=30291&id=3
+80: 21:10:01.392 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=20003&to_seqno=30291&id=3","entries":[{"id":3,"msg":"Unique message 6825","seqno":10008},{"id":3,"msg":"Unique message 1827","seqno":10011},{"id":3,"msg":"Unique message 7821","seqno":10015},{"id":3 + 171322 chars
+80: 21:10:01.409 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=20003&to_seqno=30291&id=3
+80: 21:10:01.409 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 20003 to 30003 are not yet available, fetching now
+80: 21:10:01.515 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=20003&to_seqno=30291&id=3
+80: 21:10:01.515 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 20003 to 30003 are not yet available, fetching now
+80: 21:10:02.151 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=20003&to_seqno=30291&id=3
+80: 21:10:02.151 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=30004&to_seqno=30291&id=3","entries":[{"id":3,"msg":"Unique message 12658","seqno":20004},{"id":3,"msg":"Unique message 20655","seqno":20005},{"id":3,"msg":"Unique message 21651","seqno":20006},{"id + 171129 chars
+80: 21:10:02.183 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=30004&to_seqno=30291&id=3
+80: 21:10:02.184 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"entries":[{"id":3,"msg":"Unique message 28948","seqno":30004},{"id":3,"msg":"Unique message 27952","seqno":30007},{"id":3,"msg":"Unique message 26955","seqno":30011},{"id":3,"msg":"Unique message 26956","seqno":30017},{"id":3,"msg":"Unique message 29949" + 4645 chars
+80: 21:10:02.184 | INFO     | __main__:get_all_entries:90 - Done! Fetched 10000 entries in 1.69s
+80: 21:10:02.185 | INFO     | __main__:get_all_entries:66 - Getting historical entries for id 4
+80: 21:10:02.187 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=4
+80: 21:10:02.187 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for public records on key 4 - indexed to 30291/30292
+80: 21:10:02.291 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=4
+80: 21:10:02.292 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Still constructing index for private records at 4
+80: 21:10:02.402 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=4
+80: 21:10:02.402 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 1 to 10001 are not yet available, fetching now
+80: 21:10:02.578 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=4
+80: 21:10:02.578 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=10002&to_seqno=30292&id=4","entries":[{"id":4,"msg":"Unique message 1001","seqno":34},{"id":4,"msg":"Unique message 4001","seqno":37},{"id":4,"msg":"Unique message 7001","seqno":40},{"id":4,"msg":"U + 82289 chars
+80: 21:10:02.592 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=10002&to_seqno=30292&id=4
+80: 21:10:02.592 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 10002 to 20002 are not yet available, fetching now
+80: 21:10:02.799 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=10002&to_seqno=30292&id=4
+80: 21:10:02.799 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=20003&to_seqno=30292&id=4","entries":[{"id":4,"msg":"Unique message 8825","seqno":10003},{"id":4,"msg":"Unique message 5825","seqno":10010},{"id":4,"msg":"Unique message 4817","seqno":10012},{"id":4 + 85477 chars
+80: 21:10:02.872 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=20003&to_seqno=30292&id=4
+80: 21:10:02.872 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4","entries":[{"id":4,"msg":"Unique message 14657","seqno":20003},{"id":4,"msg":"Unique message 15659","seqno":20008},{"id":4,"msg":"Unique message 16655","seqno":20012},{"id + 85537 chars
+80: 21:10:02.876 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4
+80: 21:10:02.876 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 30004 to 30292 are not yet available, fetching now
+80: 21:10:02.982 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4
+80: 21:10:02.982 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"entries":[{"id":4,"msg":"Unique message 25955","seqno":30006},{"id":4,"msg":"Unique message 24959","seqno":30008},{"id":4,"msg":"Unique message 28949","seqno":30010},{"id":4,"msg":"Unique message 27953","seqno":30013},{"id":4,"msg":"Unique message 26957" + 2305 chars
+80: 21:10:02.983 | INFO     | __main__:get_all_entries:90 - Done! Fetched 5000 entries in 0.80s
+80: 21:10:02.983 | INFO     | __main__:get_all_entries:66 - Getting historical entries for id 2
+80: 21:10:03.001 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:10:03.001 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 1 to 10001 are not yet available, fetching now
+80: 21:10:03.538 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=2
+80: 21:10:03.538 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=10002&to_seqno=30289&id=2","entries":[{"id":2,"msg":"Unique message 0","seqno":21},{"id":2,"msg":"Unique message 2000","seqno":22},{"id":2,"msg":"Unique message 3000","seqno":24},{"id":2,"msg":"Uniq + 247414 chars
+80: 21:10:03.701 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=10002&to_seqno=30289&id=2
+80: 21:10:03.702 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 10002 to 20002 are not yet available, fetching now
+80: 21:10:04.660 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=10002&to_seqno=30289&id=2
+80: 21:10:04.660 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=20003&to_seqno=30289&id=2","entries":[{"id":2,"msg":"Unique message 7820","seqno":10002},{"id":2,"msg":"Unique message 10826","seqno":10004},{"id":2,"msg":"Unique message 11826","seqno":10005},{"id" + 257013 chars
+80: 21:10:05.728 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=20003&to_seqno=30289&id=2
+80: 21:10:05.728 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=30004&to_seqno=30289&id=2","entries":[{"id":2,"msg":"Unique message 22644","seqno":20007},{"id":2,"msg":"Unique message 13656","seqno":20014},{"id":2,"msg":"Unique message 14658","seqno":20016},{"id + 256669 chars
+80: 21:10:07.051 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=30004&to_seqno=30289&id=2
+80: 21:10:07.051 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"entries":[{"id":2,"msg":"Unique message 26954","seqno":30005},{"id":2,"msg":"Unique message 29947","seqno":30009},{"id":2,"msg":"Unique message 25956","seqno":30012},{"id":2,"msg":"Unique message 29948","seqno":30014},{"id":2,"msg":"Unique message 24960" + 7141 chars
+80: 21:10:07.051 | INFO     | __main__:get_all_entries:90 - Done! Fetched 15000 entries in 4.07s
+80: 21:10:07.051 | INFO     | __main__:get_all_entries:66 - Getting historical entries for id 3
+80: 21:10:08.654 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=3
+80: 21:10:08.655 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 1 to 10001 are not yet available, fetching now
+80: 21:10:11.249 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=3
+80: 21:10:11.249 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=10002&to_seqno=30291&id=3","entries":[{"id":3,"msg":"Unique message 1000","seqno":23},{"id":3,"msg":"Unique message 4000","seqno":25},{"id":3,"msg":"Unique message 7000","seqno":28},{"id":3,"msg":"U + 164831 chars
+80: 21:10:14.268 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=10002&to_seqno=30291&id=3
+80: 21:10:14.268 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=20003&to_seqno=30291&id=3","entries":[{"id":3,"msg":"Unique message 6825","seqno":10008},{"id":3,"msg":"Unique message 1827","seqno":10011},{"id":3,"msg":"Unique message 7821","seqno":10015},{"id":3 + 171322 chars
+80: 21:10:17.915 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=20003&to_seqno=30291&id=3
+80: 21:10:17.915 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=30004&to_seqno=30291&id=3","entries":[{"id":3,"msg":"Unique message 12658","seqno":20004},{"id":3,"msg":"Unique message 20655","seqno":20005},{"id":3,"msg":"Unique message 21651","seqno":20006},{"id + 171129 chars
+80: 21:10:22.219 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=30004&to_seqno=30291&id=3
+80: 21:10:22.219 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"entries":[{"id":3,"msg":"Unique message 28948","seqno":30004},{"id":3,"msg":"Unique message 27952","seqno":30007},{"id":3,"msg":"Unique message 26955","seqno":30011},{"id":3,"msg":"Unique message 26956","seqno":30017},{"id":3,"msg":"Unique message 29949" + 4645 chars
+80: 21:10:22.219 | INFO     | __main__:get_all_entries:90 - Done! Fetched 10000 entries in 15.17s
+80: 21:10:22.219 | INFO     | __main__:get_all_entries:66 - Getting historical entries for id 4
+80: 21:10:27.012 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=4
+80: 21:10:27.012 | INFO     | __main__:get_all_entries:80 - 202 @2.30295 Historical transactions from 1 to 10001 are not yet available, fetching now
+80: 21:10:33.396 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?id=4
+80: 21:10:33.397 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=10002&to_seqno=30292&id=4","entries":[{"id":4,"msg":"Unique message 1001","seqno":34},{"id":4,"msg":"Unique message 4001","seqno":37},{"id":4,"msg":"Unique message 7001","seqno":40},{"id":4,"msg":"U + 82289 chars
+80: 21:10:40.943 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=10002&to_seqno=30292&id=4
+80: 21:10:40.943 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=20003&to_seqno=30292&id=4","entries":[{"id":4,"msg":"Unique message 8825","seqno":10003},{"id":4,"msg":"Unique message 5825","seqno":10010},{"id":4,"msg":"Unique message 4817","seqno":10012},{"id":4 + 85477 chars
+80: 21:10:49.619 | INFO     | __main__:get_all_entries:80 - [1] GET /app/log/public/historical/range?from_seqno=20003&to_seqno=30292&id=4
+80: 21:10:49.619 | INFO     | __main__:get_all_entries:80 - 200 @2.30295 {"@nextLink":"/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4","entries":[{"id":4,"msg":"Unique message 14657","seqno":20003},{"id":4,"msg":"Unique message 15659","seqno":20008},{"id":4,"msg":"Unique message 16655","seqno":20012},{"id + 85537 chars
+80: 21:10:59.631 | INFO     | infra.network:network:1713 - Stopping network
+80: 21:10:59.631 | INFO     | infra.node:stop:469 - Stopping node 0
+80: 21:10:59.632 | INFO     | infra.remote:stop:515 - [127.16.159.15] closing
+80: 21:10:59.917 | INFO     | infra.node:stop:469 - Stopping node 1
+80: 21:10:59.917 | INFO     | infra.remote:stop:515 - [127.120.205.243] closing
+80: 21:11:09.917 | ERROR    | infra.remote:stop:522 - Process didn't finish within 10 seconds. Trying to get stack trace...
+80: Traceback (most recent call last):
+80: 
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_exceptions.py", line 10, in map_exceptions
+80:     yield
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/backends/sync.py", line 28, in read
+80:     return self._sock.recv(max_bytes)
+80:            │    │     │    └ 65536
+80:            │    │     └ <function SSLSocket.recv at 0x7f663c3cb430>
+80:            │    └ <ssl.SSLSocket [closed] fd=-1, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=6>
+80:            └ <httpcore.backends.sync.SyncStream object at 0x7f66371aedc0>
+80:   File "/usr/lib/python3.8/ssl.py", line 1255, in recv
+80:     return self.read(buflen)
+80:            │    │    └ 65536
+80:            │    └ <function SSLSocket.read at 0x7f663c3caca0>
+80:            └ <ssl.SSLSocket [closed] fd=-1, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=6>
+80:   File "/usr/lib/python3.8/ssl.py", line 1130, in read
+80:     return self._sslobj.read(len)
+80:            │    │            └ 65536
+80:            │    └ None
+80:            └ <ssl.SSLSocket [closed] fd=-1, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=6>
+80: 
+80: socket.timeout: The read operation timed out
+80: 
+80: 
+80: During handling of the above exception, another exception occurred:
+80: 
+80: 
+80: Traceback (most recent call last):
+80: 
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_transports/default.py", line 60, in map_httpcore_exceptions
+80:     yield
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_transports/default.py", line 218, in handle_request
+80:     resp = self._pool.handle_request(req)
+80:            │    │     │              └ <Request [b'GET']>
+80:            │    │     └ <function ConnectionPool.handle_request at 0x7f663afd3dc0>
+80:            │    └ <httpcore.ConnectionPool object at 0x7f6637a9ec10>
+80:            └ <httpx.HTTPTransport object at 0x7f6637a9e6a0>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/connection_pool.py", line 253, in handle_request
+80:     raise exc
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/connection_pool.py", line 237, in handle_request
+80:     response = connection.handle_request(request)
+80:                │          │              └ <Request [b'GET']>
+80:                │          └ <function HTTPConnection.handle_request at 0x7f663afd31f0>
+80:                └ <HTTPConnection ['https://127.120.205.243:42239', HTTP/1.1, CLOSED, Request Count: 66]>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/connection.py", line 90, in handle_request
+80:     return self._connection.handle_request(request)
+80:            │    │           │              └ <Request [b'GET']>
+80:            │    │           └ <function HTTP11Connection.handle_request at 0x7f663afd0550>
+80:            │    └ <HTTP11Connection ['https://127.120.205.243:42239', CLOSED, Request Count: 66]>
+80:            └ <HTTPConnection ['https://127.120.205.243:42239', HTTP/1.1, CLOSED, Request Count: 66]>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/http11.py", line 112, in handle_request
+80:     raise exc
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/http11.py", line 91, in handle_request
+80:     ) = self._receive_response_headers(**kwargs)
+80:         │    │                           └ {'request': <Request [b'GET']>}
+80:         │    └ <function HTTP11Connection._receive_response_headers at 0x7f663afd0790>
+80:         └ <HTTP11Connection ['https://127.120.205.243:42239', CLOSED, Request Count: 66]>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/http11.py", line 155, in _receive_response_headers
+80:     event = self._receive_event(timeout=timeout)
+80:             │    │                      └ 10
+80:             │    └ <function HTTP11Connection._receive_event at 0x7f663afd08b0>
+80:             └ <HTTP11Connection ['https://127.120.205.243:42239', CLOSED, Request Count: 66]>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/http11.py", line 191, in _receive_event
+80:     data = self._network_stream.read(
+80:            │    │               └ <function SyncStream.read at 0x7f663b07ee50>
+80:            │    └ <httpcore.backends.sync.SyncStream object at 0x7f66371aedc0>
+80:            └ <HTTP11Connection ['https://127.120.205.243:42239', CLOSED, Request Count: 66]>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/backends/sync.py", line 28, in read
+80:     return self._sock.recv(max_bytes)
+80:            │    │     │    └ 65536
+80:            │    │     └ <function SSLSocket.recv at 0x7f663c3cb430>
+80:            │    └ <ssl.SSLSocket [closed] fd=-1, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=6>
+80:            └ <httpcore.backends.sync.SyncStream object at 0x7f66371aedc0>
+80:   File "/usr/lib/python3.8/contextlib.py", line 131, in __exit__
+80:     self.gen.throw(type, value, traceback)
+80:     │    │   │     │     │      └ <traceback object at 0x7f6637224b00>
+80:     │    │   │     │     └ timeout('The read operation timed out')
+80:     │    │   │     └ <class 'socket.timeout'>
+80:     │    │   └ <method 'throw' of 'generator' objects>
+80:     │    └ <generator object map_exceptions at 0x7f6637a94510>
+80:     └ <contextlib._GeneratorContextManager object at 0x7f6637a973a0>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+80:     raise to_exc(exc)
+80:           └ <class 'httpcore.ReadTimeout'>
+80: 
+80: httpcore.ReadTimeout: The read operation timed out
+80: 
+80: 
+80: The above exception was the direct cause of the following exception:
+80: 
+80: 
+80: Traceback (most recent call last):
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 754, in request
+80:     response = self.session.request(
+80:                │    │       └ <function Client.request at 0x7f663aeedaf0>
+80:                │    └ <httpx.Client object at 0x7f66371d8070>
+80:                └ <infra.clients.HttpxClient object at 0x7f66371d8e80>
+80: 
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 821, in request
+80:     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+80:            │    │    │             │                      └ <httpx._client.UseClientDefault object at 0x7f663b504e50>
+80:            │    │    │             └ None
+80:            │    │    └ <Request('GET', 'https://127.120.205.243:42239/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4')>
+80:            │    └ <function Client.send at 0x7f663aeedca0>
+80:            └ <httpx.Client object at 0x7f66371d8070>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 908, in send
+80:     response = self._send_handling_auth(
+80:                │    └ <function Client._send_handling_auth at 0x7f663aeedd30>
+80:                └ <httpx.Client object at 0x7f66371d8070>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 936, in _send_handling_auth
+80:     response = self._send_handling_redirects(
+80:                │    └ <function Client._send_handling_redirects at 0x7f663aeeddc0>
+80:                └ <httpx.Client object at 0x7f66371d8070>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 973, in _send_handling_redirects
+80:     response = self._send_single_request(request)
+80:                │    │                    └ <Request('GET', 'https://127.120.205.243:42239/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4')>
+80:                │    └ <function Client._send_single_request at 0x7f663aeede50>
+80:                └ <httpx.Client object at 0x7f66371d8070>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 1009, in _send_single_request
+80:     response = transport.handle_request(request)
+80:                │         │              └ <Request('GET', 'https://127.120.205.243:42239/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4')>
+80:                │         └ <function HTTPTransport.handle_request at 0x7f663aee1940>
+80:                └ <httpx.HTTPTransport object at 0x7f6637a9e6a0>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_transports/default.py", line 218, in handle_request
+80:     resp = self._pool.handle_request(req)
+80:            │    │     │              └ <Request [b'GET']>
+80:            │    │     └ <function ConnectionPool.handle_request at 0x7f663afd3dc0>
+80:            │    └ <httpcore.ConnectionPool object at 0x7f6637a9ec10>
+80:            └ <httpx.HTTPTransport object at 0x7f6637a9e6a0>
+80:   File "/usr/lib/python3.8/contextlib.py", line 131, in __exit__
+80:     self.gen.throw(type, value, traceback)
+80:     │    │   │     │     │      └ <traceback object at 0x7f6637224dc0>
+80:     │    │   │     │     └ ReadTimeout(timeout('The read operation timed out'))
+80:     │    │   │     └ <class 'httpcore.ReadTimeout'>
+80:     │    │   └ <method 'throw' of 'generator' objects>
+80:     │    └ <generator object map_httpcore_exceptions at 0x7f6637a94e40>
+80:     └ <contextlib._GeneratorContextManager object at 0x7f6636f8eca0>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_transports/default.py", line 77, in map_httpcore_exceptions
+80:     raise mapped_exc(message) from exc
+80:           │          └ 'The read operation timed out'
+80:           └ <class 'httpx.ReadTimeout'>
+80: 
+80: httpx.ReadTimeout: The read operation timed out
+80: 
+80: 
+80: The above exception was the direct cause of the following exception:
+80: 
+80: 
+80: Traceback (most recent call last):
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/network.py", line 1701, in network
+80:     yield net
+80:           └ <infra.network.Network object at 0x7f6637b346a0>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 208, in run
+80:     network = test_historical_query_range(network, args)
+80:               │                           │        └ Namespace(binary_dir='/home/mtropets/workspace/CCF/build', ccf_version=None, common_read_only_ledger_dir=None, config_file=No...
+80:               │                           └ <infra.network.Network object at 0x7f6637b346a0>
+80:               └ <function test_historical_query_range at 0x7f6637b2e3a0>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 179, in test_historical_query_range
+80:     entries[id_c], duration_c = get_all_entries(c, id_c, timeout=timeout)
+80:     │       │                   │               │  │             └ 300.0
+80:     │       │                   │               │  └ 4
+80:     │       │                   │               └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80:     │       │                   └ <function get_all_entries at 0x7f6637b85b80>
+80:     │       └ 4
+80:     └ {2: [{'id': 2, 'msg': 'Unique message 0', 'seqno': 21}, {'id': 2, 'msg': 'Unique message 2000', 'seqno': 22}, {'id': 2, 'msg'...
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 80, in get_all_entries
+80:     r = client.get(path, headers=headers or {})  # , log_capture=logs)
+80:         │      │   │             └ None
+80:         │      │   └ '/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4'
+80:         │      └ <function CCFClient.get at 0x7f663a6efb80>
+80:         └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 1173, in get
+80:     return self.call(*args, **kwargs)
+80:            │    │     │       └ {'headers': {}, 'http_verb': 'GET'}
+80:            │    │     └ ('/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4',)
+80:            │    └ <function CCFClient.call at 0x7f663a6efaf0>
+80:            └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 1120, in call
+80:     r = self._call(
+80:         │    └ <function CCFClient._call at 0x7f663a6efa60>
+80:         └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 1053, in _call
+80:     response = self.client_impl.request(r, timeout, cose_header_parameters_override)
+80:                │    │           │       │  │        └ None
+80:                │    │           │       │  └ 10
+80:                │    │           │       └ Request(path='/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4', body=None, http_verb='GET', headers={})
+80:                │    │           └ <function HttpxClient.request at 0x7f663a6ef3a0>
+80:                │    └ <infra.clients.HttpxClient object at 0x7f66371d8e80>
+80:                └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 763, in request
+80:     raise TimeoutError from exc
+80: 
+80: TimeoutError
+80: 
+80: 
+80: During handling of the above exception, another exception occurred:
+80: 
+80: 
+80: Traceback (most recent call last):
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 221, in <module>
+80:     run(args)
+80:     │   └ Namespace(binary_dir='/home/mtropets/workspace/CCF/build', ccf_version=None, common_read_only_ledger_dir=None, config_file=No...
+80:     └ <function run at 0x7f6637b2e430>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 208, in run
+80:     network = test_historical_query_range(network, args)
+80:               │                           │        └ Namespace(binary_dir='/home/mtropets/workspace/CCF/build', ccf_version=None, common_read_only_ledger_dir=None, config_file=No...
+80:               │                           └ <infra.network.Network object at 0x7f6637b346a0>
+80:               └ <function test_historical_query_range at 0x7f6637b2e3a0>
+80: 
+80:   File "/usr/lib/python3.8/contextlib.py", line 131, in __exit__
+80:     self.gen.throw(type, value, traceback)
+80:     │    │   │     │     │      └ <traceback object at 0x7f66372252c0>
+80:     │    │   │     │     └ TimeoutError()
+80:     │    │   │     └ <class 'TimeoutError'>
+80:     │    │   └ <method 'throw' of 'generator' objects>
+80:     │    └ <generator object network at 0x7f6637b7deb0>
+80:     └ <contextlib._GeneratorContextManager object at 0x7f663c0ccbe0>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/network.py", line 1714, in network
+80:     net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+80:     │   └ <function Network.stop_all_nodes at 0x7f6637b65040>
+80:     └ <infra.network.Network object at 0x7f6637b346a0>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/network.py", line 845, in stop_all_nodes
+80:     node.stop()
+80:     │    └ <function Node.stop at 0x7f6620dfb670>
+80:     └ <infra.node.Node object at 0x7f6637b343a0>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/node.py", line 470, in stop
+80:     self.remote.stop()
+80:     │    │      └ <function CCFRemote.stop at 0x7f6621247c10>
+80:     │    └ <infra.remote.CCFRemote object at 0x7f6637b419a0>
+80:     └ <infra.node.Node object at 0x7f6637b343a0>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/remote.py", line 939, in stop
+80:     self.remote.stop()
+80:     │    │      └ <function LocalRemote.stop at 0x7f6621247430>
+80:     │    └ <infra.remote.LocalRemote object at 0x7f6637b59ac0>
+80:     └ <infra.remote.CCFRemote object at 0x7f6637b419a0>
+80: 
+80: > File "/home/mtropets/workspace/CCF/tests/infra/remote.py", line 520, in stop
+80:     self.proc.wait(timeout)
+80:     │    │    │    └ 10
+80:     │    │    └ <function Popen.wait at 0x7f663c77d8b0>
+80:     │    └ <subprocess.Popen object at 0x7f6637b59a00>
+80:     └ <infra.remote.LocalRemote object at 0x7f6637b59ac0>
+80: 
+80:   File "/usr/lib/python3.8/subprocess.py", line 1083, in wait
+80:     return self._wait(timeout=timeout)
+80:            │    │             └ 10
+80:            │    └ <function Popen._wait at 0x7f663c77dd30>
+80:            └ <subprocess.Popen object at 0x7f6637b59a00>
+80:   File "/usr/lib/python3.8/subprocess.py", line 1798, in _wait
+80:     raise TimeoutExpired(self.args, timeout)
+80:           │              │    │     └ 10
+80:           │              │    └ ['./cchost', '--config', '1.config.json', '--enclave-log-level', 'info', '--enclave-file', './liblogging.virtual.so']
+80:           │              └ <subprocess.Popen object at 0x7f6637b59a00>
+80:           └ <class 'subprocess.TimeoutExpired'>
+80: 
+80: subprocess.TimeoutExpired: Command '['./cchost', '--config', '1.config.json', '--enclave-log-level', 'info', '--enclave-file', './liblogging.virtual.so']' timed out after 10 seconds
+80: 21:11:12.128 | INFO     | infra.remote:_print_stack_trace:498 - stack trace: (lldb) process attach --pid 140199
+80: Process 140199 stopped
+80: * thread #1, name = 'cchost', stop reason = signal SIGSTOP
+80:     frame #0: 0x00007f3879f8468e libc.so.6`epoll_wait(epfd=3, events=0x00007fff430b2650, maxevents=1024, timeout=1) at epoll_wait.c:30:10
+80:   thread #2, name = 'cchost', stop reason = signal SIGSTOP
+80:     frame #0: 0x00007f387a4b1376 libpthread.so.0`__pthread_cond_wait at futex-internal.h:183:13
+80:   thread #3, name = 'cchost', stop reason = signal SIGSTOP
+80:     frame #0: 0x00007f387a4b1376 libpthread.so.0`__pthread_cond_wait at futex-internal.h:183:13
+80:   thread #4, name = 'cchost', stop reason = signal SIGSTOP
+80:     frame #0: 0x00007f387a4b1376 libpthread.so.0`__pthread_cond_wait at futex-internal.h:183:13
+80:   thread #5, name = 'cchost', stop reason = signal SIGSTOP
+80:     frame #0: 0x00007f387a4b1376 libpthread.so.0`__pthread_cond_wait at futex-internal.h:183:13
+80:   thread #6, name = 'cchost', stop reason = signal SIGSTOP
+80:     frame #0: 0x00007ef8781f4e93 liblogging.virtual.so`std::__1::weak_ptr<ccf::historical::StateCacheImpl::StoreDetails>::lock(this=0x00007ef87984fde8) const + 35
+80: liblogging.virtual.so`std::__1::weak_ptr<ccf::historical::StateCacheImpl::StoreDetails>::lock:
+80: ->  0x7ef8781f4e93 <+35>: movb   $0x0, -0x11(%rbp)
+80:     0x7ef8781f4e97 <+39>: callq  0x7ef8781f7400            ; std::__1::shared_ptr<ccf::historical::StateCacheImpl::StoreDetails>::shared_ptr[abi:v15007]()
+80:     0x7ef8781f4e9c <+44>: movq   -0x20(%rbp), %rax
+80:     0x7ef8781f4ea0 <+48>: cmpq   $0x0, 0x8(%rax)
+80: 
+80: Executable module set to "/home/mtropets/workspace/CCF/build/cchost".
+80: Architecture set to: x86_64-pc-linux-gnu.
+80: (lldb) thread backtrace all
+80: * thread #1, name = 'cchost', stop reason = signal SIGSTOP
+80:   * frame #0: 0x00007f3879f8468e libc.so.6`epoll_wait(epfd=3, events=0x00007fff430b2650, maxevents=1024, timeout=1) at epoll_wait.c:30:10
+80:     frame #1: 0x00007f387a580c89 libuv.so.1`uv__io_poll + 1113
+80:     frame #2: 0x00007f387a57085c libuv.so.1`uv_run + 284
+80:     frame #3: 0x0000564132f4b938 cchost`main(argc=7, argv=0x00007fff430bee88) + 52168
+80:     frame #4: 0x00007f3879e89083 libc.so.6`__libc_start_main(main=(cchost`main), argc=7, argv=0x00007fff430bee88, init=<unavailable>, fini=<unavailable>, rtld_fini=<unavailable>, stack_end=0x00007fff430bee78) at libc-start.c:308:16
+80:     frame #5: 0x0000564132f17cde cchost`_start + 46
+80:   thread #2, name = 'cchost', stop reason = signal SIGSTOP
+80:     frame #0: 0x00007f387a4b1376 libpthread.so.0`__pthread_cond_wait at futex-internal.h:183:13
+80:     frame #1: 0x00007f387a4b1359 libpthread.so.0`__pthread_cond_wait at pthread_cond_wait.c:508
+80:     frame #2: 0x00007f387a4b1290 libpthread.so.0`__pthread_cond_wait(cond=0x00007f387a590200, mutex=0x00007f387a5901c0) at pthread_cond_wait.c:647
+80:     frame #3: 0x00007f387a57d8ed libuv.so.1`uv_cond_wait + 13
+80:     frame #4: 0x00007f387a56c5bd libuv.so.1`___lldb_unnamed_symbol70$$libuv.so.1 + 301
+80:     frame #5: 0x00007f387a4aa609 libpthread.so.0`start_thread(arg=<unavailable>) at pthread_create.c:477:8
+80:     frame #6: 0x00007f3879f84353 libc.so.6`__clone at clone.S:95
+80:   thread #3, name = 'cchost', stop reason = signal SIGSTOP
+80:     frame #0: 0x00007f387a4b1376 libpthread.so.0`__pthread_cond_wait at futex-internal.h:183:13
+80:     frame #1: 0x00007f387a4b1359 libpthread.so.0`__pthread_cond_wait at pthread_cond_wait.c:508
+80:     frame #2: 0x00007f387a4b1290 libpthread.so.0`__pthread_cond_wait(cond=0x00007f387a590200, mutex=0x00007f387a5901c0) at pthread_cond_wait.c:647
+80:     frame #3: 0x00007f387a57d8ed libuv.so.1`uv_cond_wait + 13
+80:     frame #4: 0x00007f387a56c5bd libuv.so.1`___lldb_unnamed_symbol70$$libuv.so.1 + 301
+80:     frame #5: 0x00007f387a4aa609 libpthread.so.0`start_thread(arg=<unavailable>) at pthread_create.c:477:8
+80:     frame #6: 0x00007f3879f84353 libc.so.6`__clone at clone.S:95
+80:   thread #4, name = 'cchost', stop reason = signal SIGSTOP
+80:     frame #0: 0x00007f387a4b1376 libpthread.so.0`__pthread_cond_wait at futex-internal.h:183:13
+80:     frame #1: 0x00007f387a4b1359 libpthread.so.0`__pthread_cond_wait at pthread_cond_wait.c:508
+80:     frame #2: 0x00007f387a4b1290 libpthread.so.0`__pthread_cond_wait(cond=0x00007f387a590200, mutex=0x00007f387a5901c0) at pthread_cond_wait.c:647
+80:     frame #3: 0x00007f387a57d8ed libuv.so.1`uv_cond_wait + 13
+80:     frame #4: 0x00007f387a56c5bd libuv.so.1`___lldb_unnamed_symbol70$$libuv.so.1 + 301
+80:     frame #5: 0x00007f387a4aa609 libpthread.so.0`start_thread(arg=<unavailable>) at pthread_create.c:477:8
+80:     frame #6: 0x00007f3879f84353 libc.so.6`__clone at clone.S:95
+80:   thread #5, name = 'cchost', stop reason = signal SIGSTOP
+80:     frame #0: 0x00007f387a4b1376 libpthread.so.0`__pthread_cond_wait at futex-internal.h:183:13
+80:     frame #1: 0x00007f387a4b1359 libpthread.so.0`__pthread_cond_wait at pthread_cond_wait.c:508
+80:     frame #2: 0x00007f387a4b1290 libpthread.so.0`__pthread_cond_wait(cond=0x00007f387a590200, mutex=0x00007f387a5901c0) at pthread_cond_wait.c:647
+80:     frame #3: 0x00007f387a57d8ed libuv.so.1`uv_cond_wait + 13
+80:     frame #4: 0x00007f387a56c5bd libuv.so.1`___lldb_unnamed_symbol70$$libuv.so.1 + 301
+80:     frame #5: 0x00007f387a4aa609 libpthread.so.0`start_thread(arg=<unavailable>) at pthread_create.c:477:8
+80:     frame #6: 0x00007f3879f84353 libc.so.6`__clone at clone.S:95
+80:   thread #6, name = 'cchost', stop reason = signal SIGSTOP
+80:     frame #0: 0x00007ef8781f4e93 liblogging.virtual.so`std::__1::weak_ptr<ccf::historical::StateCacheImpl::StoreDetails>::lock(this=0x00007ef87984fde8) const + 35
+80:     frame #1: 0x00007ef8785aa552 liblogging.virtual.so`ccf::historical::StateCacheImpl::tick(this=0x00007ef878e82620, elapsed_ms=0x00007ef8732ed900) + 1378
+80:     frame #2: 0x00007ef8785a9134 liblogging.virtual.so`ccf::Enclave::run_main(this=0x00007ef8752cc218, (null)="", (null)=0)::'lambda1'(unsigned char const*, unsigned long)::operator()(unsigned char const*, unsigned long) const + 500
+80:     frame #3: 0x00007ef8785a8f2b liblogging.virtual.so`decltype(__f=0x00007ef8752cc218, __args=0x00007ef8732eda80, __args=0x00007ef8732eda78)::'lambda1'(unsigned char const*, unsigned long)&>()(std::declval<unsigned char const*>(), std::declval<unsigned long>())) std::__1::__invoke[abi:v15007]<ccf::Enclave::run_main()::'lambda1'(unsigned char const*, unsigned long)&, unsigned char const*, unsigned long>(ccf::Enclave::run_main()::'lambda1'(unsigned char const*, unsigned long)&, unsigned char const*&&, unsigned long&&) + 43
+80:     frame #4: 0x00007ef8785a8ed5 liblogging.virtual.so`void std::__1::__invoke_void_return_wrapper<void, true>::__call<ccf::Enclave::run_main(__args=0x00007ef8752cc218, __args=0x00007ef8732eda80, __args=0x00007ef8732eda78)::'lambda1'(unsigned char const*, unsigned long)&, unsigned char const*, unsigned long>(ccf::Enclave::run_main()::'lambda1'(unsigned char const*, unsigned long)&, unsigned char const*&&, unsigned long&&) + 37
+80:     frame #5: 0x00007ef8785a8e9d liblogging.virtual.so`std::__1::__function::__alloc_func<ccf::Enclave::run_main()::'lambda1'(unsigned char const*, unsigned long), std::__1::allocator<ccf::Enclave::run_main()::'lambda1'(unsigned char const*, unsigned long)>, void (unsigned char const*, unsigned long)>::operator(this=0x00007ef8752cc218, __arg=0x00007ef8732eda80, __arg=0x00007ef8732eda78)[abi:v15007](unsigned char const*&&, unsigned long&&) + 45
+80:     frame #6: 0x00007ef8785a80b9 liblogging.virtual.so`std::__1::__function::__func<ccf::Enclave::run_main()::'lambda1'(unsigned char const*, unsigned long), std::__1::allocator<ccf::Enclave::run_main()::'lambda1'(unsigned char const*, unsigned long)>, void (unsigned char const*, unsigned long)>::operator(this=0x00007ef8752cc210, __arg=0x00007ef8732eda80, __arg=0x00007ef8732eda78)(unsigned char const*&&, unsigned long&&) + 41
+80:     frame #7: 0x00007ef87859cd62 liblogging.virtual.so`std::__1::__function::__value_func<void (unsigned char const*, unsigned long)>::operator(this=0x00007ef8752cc210, __args=0x00007ef8732eda80, __args=0x00007ef8732eda78)[abi:v15007](unsigned char const*&&, unsigned long&&) const + 66
+80:     frame #8: 0x00007ef87859cbd2 liblogging.virtual.so`std::__1::function<void (unsigned char const*, unsigned long)>::operator(this=0x00007ef8752cc210, __arg="", __arg=0)(unsigned char const*, unsigned long) const + 50
+80:     frame #9: 0x00007ef87859a270 liblogging.virtual.so`messaging::Dispatcher<unsigned int>::dispatch(this=0x00007ef8732ee900, m=1532375204, data="", size=0) + 592
+80:     frame #10: 0x00007ef87861494e liblogging.virtual.so`messaging::BufferProcessor::read_n(this=0x00007ef8732ee388, m=1532375204, data="", size=0)::'lambda'(unsigned int, unsigned char const*, unsigned long)::operator()(unsigned int, unsigned char const*, unsigned long) const + 46
+80:     frame #11: 0x00007ef878614915 liblogging.virtual.so`decltype(__f=0x00007ef8732ee388, __args=0x00007ef8732ee234, __args=0x00007ef8732ee228, __args=0x00007ef8732ee220)::'lambda'(unsigned int, unsigned char const*, unsigned long)&>()(std::declval<unsigned int>(), std::declval<unsigned char const*>(), std::declval<unsigned long>())) std::__1::__invoke[abi:v15007]<messaging::BufferProcessor::read_n(unsigned long, ringbuffer::Reader&)::'lambda'(unsigned int, unsigned char const*, unsigned long)&, unsigned int, unsigned char const*, unsigned long>(messaging::BufferProcessor::read_n(unsigned long, ringbuffer::Reader&)::'lambda'(unsigned int, unsigned char const*, unsigned long)&, unsigned int&&, unsigned char const*&&, unsigned long&&) + 53
+80:     frame #12: 0x00007ef8786148ad liblogging.virtual.so`void std::__1::__invoke_void_return_wrapper<void, true>::__call<messaging::BufferProcessor::read_n(__args=0x00007ef8732ee388, __args=0x00007ef8732ee234, __args=0x00007ef8732ee228, __args=0x00007ef8732ee220)::'lambda'(unsigned int, unsigned char const*, unsigned long)&, unsigned int, unsigned char const*, unsigned long>(messaging::BufferProcessor::read_n(unsigned long, ringbuffer::Reader&)::'lambda'(unsigned int, unsigned char const*, unsigned long)&, unsigned int&&, unsigned char const*&&, unsigned long&&) + 45
+80:     frame #13: 0x00007ef878614875 liblogging.virtual.so`std::__1::__function::__alloc_func<messaging::BufferProcessor::read_n(unsigned long, ringbuffer::Reader&)::'lambda'(unsigned int, unsigned char const*, unsigned long), std::__1::allocator<messaging::BufferProcessor::read_n(unsigned long, ringbuffer::Reader&)::'lambda'(unsigned int, unsigned char const*, unsigned long)>, void (unsigned int, unsigned char const*, unsigned long)>::operator(this=0x00007ef8732ee388, __arg=0x00007ef8732ee234, __arg=0x00007ef8732ee228, __arg=0x00007ef8732ee220)[abi:v15007](unsigned int&&, unsigned char const*&&, unsigned long&&) + 53
+80:     frame #14: 0x00007ef878613a81 liblogging.virtual.so`std::__1::__function::__func<messaging::BufferProcessor::read_n(unsigned long, ringbuffer::Reader&)::'lambda'(unsigned int, unsigned char const*, unsigned long), std::__1::allocator<messaging::BufferProcessor::read_n(unsigned long, ringbuffer::Reader&)::'lambda'(unsigned int, unsigned char const*, unsigned long)>, void (unsigned int, unsigned char const*, unsigned long)>::operator(this=0x00007ef8732ee380, __arg=0x00007ef8732ee234, __arg=0x00007ef8732ee228, __arg=0x00007ef8732ee220)(unsigned int&&, unsigned char const*&&, unsigned long&&) + 49
+80:     frame #15: 0x00007ef87861351a liblogging.virtual.so`std::__1::__function::__value_func<void (unsigned int, unsigned char const*, unsigned long)>::operator(this=0x00007ef8732ee380, __args=0x00007ef8732ee234, __args=0x00007ef8732ee228, __args=0x00007ef8732ee220)[abi:v15007](unsigned int&&, unsigned char const*&&, unsigned long&&) const + 74
+80:     frame #16: 0x00007ef8786134a9 liblogging.virtual.so`std::__1::function<void (unsigned int, unsigned char const*, unsigned long)>::operator(this=0x00007ef8732ee380, __arg=1532375204, __arg="", __arg=0)(unsigned int, unsigned char const*, unsigned long) const + 57
+80:     frame #17: 0x00007ef878613085 liblogging.virtual.so`ringbuffer::Reader::read(this=0x00007ef878ea6610, limit=1, f=ringbuffer::Handler @ 0x00007ef8732ee380)>) + 597
+80:     frame #18: 0x00007ef87859337d liblogging.virtual.so`messaging::BufferProcessor::read_n(this=0x00007ef8732ee900, max_messages=256, r=0x00007ef878ea6610) + 205
+80:     frame #19: 0x00007ef87807b4e3 liblogging.virtual.so`ccf::Enclave::run_main(this=0x00007ef878eb8c00) + 1523
+80:     frame #20: 0x00007ef877fe9ac3 liblogging.virtual.so`::enclave_run() + 1635
+80:     frame #21: 0x00005641331caee8 cchost`::virtual_run(virtual_enclave_handle=0x00007ef878eb4500, _retval=0x00007ef8732ef117) + 104
+80:     frame #22: 0x00005641331cab81 cchost`host::Enclave::run(this=0x00007fff430baab0) + 81
+80:     frame #23: 0x0000564132f53521 cchost`main::$_1::operator(this=0x00007ef878e6a698)() const + 33
+80:     frame #24: 0x0000564132f534d5 cchost`decltype(__f=0x00007ef878e6a698)()) std::__1::__invoke[abi:v15007]<main::$_1>(main::$_1&&) + 21
+80:     frame #25: 0x0000564132f534ad cchost`void std::__1::__thread_execute[abi:v15007]<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, main::$_1>(__t=size=2, (null)=__tuple_indices<> @ 0x00007ef8732ef4e8) + 29
+80:     frame #26: 0x0000564132f532e2 cchost`void* std::__1::__thread_proxy[abi:v15007]<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct> >, main::$_1> >(__vp=0x00007ef878e6a690) + 98
+80:     frame #27: 0x00007f387a4aa609 libpthread.so.0`start_thread(arg=<unavailable>) at pthread_create.c:477:8
+80:     frame #28: 0x00007f3879f84353 libc.so.6`__clone at clone.S:95
+80: (lldb) quit
+80: 
+80: 21:11:12.128 | ERROR    | infra.remote:stop:941 - Failed to shut down 1 cleanly
+80: Traceback (most recent call last):
+80: 
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_exceptions.py", line 10, in map_exceptions
+80:     yield
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/backends/sync.py", line 28, in read
+80:     return self._sock.recv(max_bytes)
+80:            │    │     │    └ 65536
+80:            │    │     └ <function SSLSocket.recv at 0x7f663c3cb430>
+80:            │    └ <ssl.SSLSocket [closed] fd=-1, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=6>
+80:            └ <httpcore.backends.sync.SyncStream object at 0x7f66371aedc0>
+80:   File "/usr/lib/python3.8/ssl.py", line 1255, in recv
+80:     return self.read(buflen)
+80:            │    │    └ 65536
+80:            │    └ <function SSLSocket.read at 0x7f663c3caca0>
+80:            └ <ssl.SSLSocket [closed] fd=-1, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=6>
+80:   File "/usr/lib/python3.8/ssl.py", line 1130, in read
+80:     return self._sslobj.read(len)
+80:            │    │            └ 65536
+80:            │    └ None
+80:            └ <ssl.SSLSocket [closed] fd=-1, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=6>
+80: 
+80: socket.timeout: The read operation timed out
+80: 
+80: 
+80: During handling of the above exception, another exception occurred:
+80: 
+80: 
+80: Traceback (most recent call last):
+80: 
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_transports/default.py", line 60, in map_httpcore_exceptions
+80:     yield
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_transports/default.py", line 218, in handle_request
+80:     resp = self._pool.handle_request(req)
+80:            │    │     │              └ <Request [b'GET']>
+80:            │    │     └ <function ConnectionPool.handle_request at 0x7f663afd3dc0>
+80:            │    └ <httpcore.ConnectionPool object at 0x7f6637a9ec10>
+80:            └ <httpx.HTTPTransport object at 0x7f6637a9e6a0>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/connection_pool.py", line 253, in handle_request
+80:     raise exc
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/connection_pool.py", line 237, in handle_request
+80:     response = connection.handle_request(request)
+80:                │          │              └ <Request [b'GET']>
+80:                │          └ <function HTTPConnection.handle_request at 0x7f663afd31f0>
+80:                └ <HTTPConnection ['https://127.120.205.243:42239', HTTP/1.1, CLOSED, Request Count: 66]>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/connection.py", line 90, in handle_request
+80:     return self._connection.handle_request(request)
+80:            │    │           │              └ <Request [b'GET']>
+80:            │    │           └ <function HTTP11Connection.handle_request at 0x7f663afd0550>
+80:            │    └ <HTTP11Connection ['https://127.120.205.243:42239', CLOSED, Request Count: 66]>
+80:            └ <HTTPConnection ['https://127.120.205.243:42239', HTTP/1.1, CLOSED, Request Count: 66]>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/http11.py", line 112, in handle_request
+80:     raise exc
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/http11.py", line 91, in handle_request
+80:     ) = self._receive_response_headers(**kwargs)
+80:         │    │                           └ {'request': <Request [b'GET']>}
+80:         │    └ <function HTTP11Connection._receive_response_headers at 0x7f663afd0790>
+80:         └ <HTTP11Connection ['https://127.120.205.243:42239', CLOSED, Request Count: 66]>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/http11.py", line 155, in _receive_response_headers
+80:     event = self._receive_event(timeout=timeout)
+80:             │    │                      └ 10
+80:             │    └ <function HTTP11Connection._receive_event at 0x7f663afd08b0>
+80:             └ <HTTP11Connection ['https://127.120.205.243:42239', CLOSED, Request Count: 66]>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/http11.py", line 191, in _receive_event
+80:     data = self._network_stream.read(
+80:            │    │               └ <function SyncStream.read at 0x7f663b07ee50>
+80:            │    └ <httpcore.backends.sync.SyncStream object at 0x7f66371aedc0>
+80:            └ <HTTP11Connection ['https://127.120.205.243:42239', CLOSED, Request Count: 66]>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/backends/sync.py", line 28, in read
+80:     return self._sock.recv(max_bytes)
+80:            │    │     │    └ 65536
+80:            │    │     └ <function SSLSocket.recv at 0x7f663c3cb430>
+80:            │    └ <ssl.SSLSocket [closed] fd=-1, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=6>
+80:            └ <httpcore.backends.sync.SyncStream object at 0x7f66371aedc0>
+80:   File "/usr/lib/python3.8/contextlib.py", line 131, in __exit__
+80:     self.gen.throw(type, value, traceback)
+80:     │    │   │     │     │      └ <traceback object at 0x7f6637224b00>
+80:     │    │   │     │     └ timeout('The read operation timed out')
+80:     │    │   │     └ <class 'socket.timeout'>
+80:     │    │   └ <method 'throw' of 'generator' objects>
+80:     │    └ <generator object map_exceptions at 0x7f6637a94510>
+80:     └ <contextlib._GeneratorContextManager object at 0x7f6637a973a0>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+80:     raise to_exc(exc)
+80:           └ <class 'httpcore.ReadTimeout'>
+80: 
+80: httpcore.ReadTimeout: The read operation timed out
+80: 
+80: 
+80: The above exception was the direct cause of the following exception:
+80: 
+80: 
+80: Traceback (most recent call last):
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 754, in request
+80:     response = self.session.request(
+80:                │    │       └ <function Client.request at 0x7f663aeedaf0>
+80:                │    └ <httpx.Client object at 0x7f66371d8070>
+80:                └ <infra.clients.HttpxClient object at 0x7f66371d8e80>
+80: 
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 821, in request
+80:     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+80:            │    │    │             │                      └ <httpx._client.UseClientDefault object at 0x7f663b504e50>
+80:            │    │    │             └ None
+80:            │    │    └ <Request('GET', 'https://127.120.205.243:42239/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4')>
+80:            │    └ <function Client.send at 0x7f663aeedca0>
+80:            └ <httpx.Client object at 0x7f66371d8070>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 908, in send
+80:     response = self._send_handling_auth(
+80:                │    └ <function Client._send_handling_auth at 0x7f663aeedd30>
+80:                └ <httpx.Client object at 0x7f66371d8070>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 936, in _send_handling_auth
+80:     response = self._send_handling_redirects(
+80:                │    └ <function Client._send_handling_redirects at 0x7f663aeeddc0>
+80:                └ <httpx.Client object at 0x7f66371d8070>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 973, in _send_handling_redirects
+80:     response = self._send_single_request(request)
+80:                │    │                    └ <Request('GET', 'https://127.120.205.243:42239/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4')>
+80:                │    └ <function Client._send_single_request at 0x7f663aeede50>
+80:                └ <httpx.Client object at 0x7f66371d8070>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 1009, in _send_single_request
+80:     response = transport.handle_request(request)
+80:                │         │              └ <Request('GET', 'https://127.120.205.243:42239/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4')>
+80:                │         └ <function HTTPTransport.handle_request at 0x7f663aee1940>
+80:                └ <httpx.HTTPTransport object at 0x7f6637a9e6a0>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_transports/default.py", line 218, in handle_request
+80:     resp = self._pool.handle_request(req)
+80:            │    │     │              └ <Request [b'GET']>
+80:            │    │     └ <function ConnectionPool.handle_request at 0x7f663afd3dc0>
+80:            │    └ <httpcore.ConnectionPool object at 0x7f6637a9ec10>
+80:            └ <httpx.HTTPTransport object at 0x7f6637a9e6a0>
+80:   File "/usr/lib/python3.8/contextlib.py", line 131, in __exit__
+80:     self.gen.throw(type, value, traceback)
+80:     │    │   │     │     │      └ <traceback object at 0x7f6637224dc0>
+80:     │    │   │     │     └ ReadTimeout(timeout('The read operation timed out'))
+80:     │    │   │     └ <class 'httpcore.ReadTimeout'>
+80:     │    │   └ <method 'throw' of 'generator' objects>
+80:     │    └ <generator object map_httpcore_exceptions at 0x7f6637a94e40>
+80:     └ <contextlib._GeneratorContextManager object at 0x7f6636f8eca0>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_transports/default.py", line 77, in map_httpcore_exceptions
+80:     raise mapped_exc(message) from exc
+80:           │          └ 'The read operation timed out'
+80:           └ <class 'httpx.ReadTimeout'>
+80: 
+80: httpx.ReadTimeout: The read operation timed out
+80: 
+80: 
+80: The above exception was the direct cause of the following exception:
+80: 
+80: 
+80: Traceback (most recent call last):
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/network.py", line 1701, in network
+80:     yield net
+80:           └ <infra.network.Network object at 0x7f6637b346a0>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 208, in run
+80:     network = test_historical_query_range(network, args)
+80:               │                           │        └ Namespace(binary_dir='/home/mtropets/workspace/CCF/build', ccf_version=None, common_read_only_ledger_dir=None, config_file=No...
+80:               │                           └ <infra.network.Network object at 0x7f6637b346a0>
+80:               └ <function test_historical_query_range at 0x7f6637b2e3a0>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 179, in test_historical_query_range
+80:     entries[id_c], duration_c = get_all_entries(c, id_c, timeout=timeout)
+80:     │       │                   │               │  │             └ 300.0
+80:     │       │                   │               │  └ 4
+80:     │       │                   │               └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80:     │       │                   └ <function get_all_entries at 0x7f6637b85b80>
+80:     │       └ 4
+80:     └ {2: [{'id': 2, 'msg': 'Unique message 0', 'seqno': 21}, {'id': 2, 'msg': 'Unique message 2000', 'seqno': 22}, {'id': 2, 'msg'...
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 80, in get_all_entries
+80:     r = client.get(path, headers=headers or {})  # , log_capture=logs)
+80:         │      │   │             └ None
+80:         │      │   └ '/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4'
+80:         │      └ <function CCFClient.get at 0x7f663a6efb80>
+80:         └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 1173, in get
+80:     return self.call(*args, **kwargs)
+80:            │    │     │       └ {'headers': {}, 'http_verb': 'GET'}
+80:            │    │     └ ('/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4',)
+80:            │    └ <function CCFClient.call at 0x7f663a6efaf0>
+80:            └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 1120, in call
+80:     r = self._call(
+80:         │    └ <function CCFClient._call at 0x7f663a6efa60>
+80:         └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 1053, in _call
+80:     response = self.client_impl.request(r, timeout, cose_header_parameters_override)
+80:                │    │           │       │  │        └ None
+80:                │    │           │       │  └ 10
+80:                │    │           │       └ Request(path='/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4', body=None, http_verb='GET', headers={})
+80:                │    │           └ <function HttpxClient.request at 0x7f663a6ef3a0>
+80:                │    └ <infra.clients.HttpxClient object at 0x7f66371d8e80>
+80:                └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 763, in request
+80:     raise TimeoutError from exc
+80: 
+80: TimeoutError
+80: 
+80: 
+80: During handling of the above exception, another exception occurred:
+80: 
+80: 
+80: Traceback (most recent call last):
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 221, in <module>
+80:     run(args)
+80:     │   └ Namespace(binary_dir='/home/mtropets/workspace/CCF/build', ccf_version=None, common_read_only_ledger_dir=None, config_file=No...
+80:     └ <function run at 0x7f6637b2e430>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 208, in run
+80:     network = test_historical_query_range(network, args)
+80:               │                           │        └ Namespace(binary_dir='/home/mtropets/workspace/CCF/build', ccf_version=None, common_read_only_ledger_dir=None, config_file=No...
+80:               │                           └ <infra.network.Network object at 0x7f6637b346a0>
+80:               └ <function test_historical_query_range at 0x7f6637b2e3a0>
+80: 
+80:   File "/usr/lib/python3.8/contextlib.py", line 131, in __exit__
+80:     self.gen.throw(type, value, traceback)
+80:     │    │   │     │     │      └ <traceback object at 0x7f66372252c0>
+80:     │    │   │     │     └ TimeoutError()
+80:     │    │   │     └ <class 'TimeoutError'>
+80:     │    │   └ <method 'throw' of 'generator' objects>
+80:     │    └ <generator object network at 0x7f6637b7deb0>
+80:     └ <contextlib._GeneratorContextManager object at 0x7f663c0ccbe0>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/network.py", line 1714, in network
+80:     net.stop_all_nodes(skip_verification=True, accept_ledger_diff=True)
+80:     │   └ <function Network.stop_all_nodes at 0x7f6637b65040>
+80:     └ <infra.network.Network object at 0x7f6637b346a0>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/network.py", line 845, in stop_all_nodes
+80:     node.stop()
+80:     │    └ <function Node.stop at 0x7f6620dfb670>
+80:     └ <infra.node.Node object at 0x7f6637b343a0>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/node.py", line 470, in stop
+80:     self.remote.stop()
+80:     │    │      └ <function CCFRemote.stop at 0x7f6621247c10>
+80:     │    └ <infra.remote.CCFRemote object at 0x7f6637b419a0>
+80:     └ <infra.node.Node object at 0x7f6637b343a0>
+80: 
+80: > File "/home/mtropets/workspace/CCF/tests/infra/remote.py", line 939, in stop
+80:     self.remote.stop()
+80:     │    │      └ <function LocalRemote.stop at 0x7f6621247430>
+80:     │    └ <infra.remote.LocalRemote object at 0x7f6637b59ac0>
+80:     └ <infra.remote.CCFRemote object at 0x7f6637b419a0>
+80: 
+80:   File "/home/mtropets/workspace/CCF/tests/infra/remote.py", line 520, in stop
+80:     self.proc.wait(timeout)
+80:     │    │    │    └ 10
+80:     │    │    └ <function Popen.wait at 0x7f663c77d8b0>
+80:     │    └ <subprocess.Popen object at 0x7f6637b59a00>
+80:     └ <infra.remote.LocalRemote object at 0x7f6637b59ac0>
+80: 
+80:   File "/usr/lib/python3.8/subprocess.py", line 1083, in wait
+80:     return self._wait(timeout=timeout)
+80:            │    │             └ 10
+80:            │    └ <function Popen._wait at 0x7f663c77dd30>
+80:            └ <subprocess.Popen object at 0x7f6637b59a00>
+80:   File "/usr/lib/python3.8/subprocess.py", line 1798, in _wait
+80:     raise TimeoutExpired(self.args, timeout)
+80:           │              │    │     └ 10
+80:           │              │    └ ['./cchost', '--config', '1.config.json', '--enclave-log-level', 'info', '--enclave-file', './liblogging.virtual.so']
+80:           │              └ <subprocess.Popen object at 0x7f6637b59a00>
+80:           └ <class 'subprocess.TimeoutExpired'>
+80: 
+80: subprocess.TimeoutExpired: Command '['./cchost', '--config', '1.config.json', '--enclave-log-level', 'info', '--enclave-file', './liblogging.virtual.so']' timed out after 10 seconds
+80: 21:11:12.147 | INFO     | infra.network:stop_all_nodes:857 - All nodes stopped
+80: Traceback (most recent call last):
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_exceptions.py", line 10, in map_exceptions
+80:     yield
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/backends/sync.py", line 28, in read
+80:     return self._sock.recv(max_bytes)
+80:            │               └ 65536
+80:            └ <httpcore.backends.sync.SyncStream object at 0x7f66371aedc0>
+80:   File "/usr/lib/python3.8/ssl.py", line 1255, in recv
+80:     return self.read(buflen)
+80:            │         └ 65536
+80:            └ <ssl.SSLSocket [closed] fd=-1, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=6>
+80:   File "/usr/lib/python3.8/ssl.py", line 1130, in read
+80:     return self._sslobj.read(len)
+80:            │                 └ 65536
+80:            └ <ssl.SSLSocket [closed] fd=-1, family=AddressFamily.AF_INET, type=SocketKind.SOCK_STREAM, proto=6>
+80: socket.timeout: The read operation timed out
+80: 
+80: During handling of the above exception, another exception occurred:
+80: 
+80: Traceback (most recent call last):
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_transports/default.py", line 60, in map_httpcore_exceptions
+80:     yield
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_transports/default.py", line 218, in handle_request
+80:     resp = self._pool.handle_request(req)
+80:            │                         └ <Request [b'GET']>
+80:            └ <httpx.HTTPTransport object at 0x7f6637a9e6a0>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/connection_pool.py", line 253, in handle_request
+80:     raise exc
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/connection_pool.py", line 237, in handle_request
+80:     response = connection.handle_request(request)
+80:                │                         └ <Request [b'GET']>
+80:                └ <HTTPConnection ['https://127.120.205.243:42239', HTTP/1.1, CLOSED, Request Count: 66]>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/connection.py", line 90, in handle_request
+80:     return self._connection.handle_request(request)
+80:            │                               └ <Request [b'GET']>
+80:            └ <HTTPConnection ['https://127.120.205.243:42239', HTTP/1.1, CLOSED, Request Count: 66]>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/http11.py", line 112, in handle_request
+80:     raise exc
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/http11.py", line 91, in handle_request
+80:     ) = self._receive_response_headers(**kwargs)
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/http11.py", line 155, in _receive_response_headers
+80:     event = self._receive_event(timeout=timeout)
+80:             │                           └ 10
+80:             └ <HTTP11Connection ['https://127.120.205.243:42239', CLOSED, Request Count: 66]>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_sync/http11.py", line 191, in _receive_event
+80:     data = self._network_stream.read(
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/backends/sync.py", line 28, in read
+80:     return self._sock.recv(max_bytes)
+80:            │               └ 65536
+80:            └ <httpcore.backends.sync.SyncStream object at 0x7f66371aedc0>
+80:   File "/usr/lib/python3.8/contextlib.py", line 131, in __exit__
+80:     self.gen.throw(type, value, traceback)
+80:     │              │     │      └ <traceback object at 0x7f6637224b00>
+80:     │              │     └ timeout('The read operation timed out')
+80:     │              └ <class 'socket.timeout'>
+80:     └ <contextlib._GeneratorContextManager object at 0x7f6637a973a0>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+80:     raise to_exc(exc)
+80:           └ <class 'httpcore.ReadTimeout'>
+80: httpcore.ReadTimeout: The read operation timed out
+80: 
+80: The above exception was the direct cause of the following exception:
+80: 
+80: Traceback (most recent call last):
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 754, in request
+80:     response = self.session.request(
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 821, in request
+80:     return self.send(request, auth=auth, follow_redirects=follow_redirects)
+80:            │         │             │                      └ <httpx._client.UseClientDefault object at 0x7f663b504e50>
+80:            │         │             └ None
+80:            │         └ <Request('GET', 'https://127.120.205.243:42239/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4')>
+80:            └ <httpx.Client object at 0x7f66371d8070>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 908, in send
+80:     response = self._send_handling_auth(
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 936, in _send_handling_auth
+80:     response = self._send_handling_redirects(
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 973, in _send_handling_redirects
+80:     response = self._send_single_request(request)
+80:                │                         └ <Request('GET', 'https://127.120.205.243:42239/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4')>
+80:                └ <httpx.Client object at 0x7f66371d8070>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_client.py", line 1009, in _send_single_request
+80:     response = transport.handle_request(request)
+80:                │                        └ <Request('GET', 'https://127.120.205.243:42239/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4')>
+80:                └ <httpx.HTTPTransport object at 0x7f6637a9e6a0>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_transports/default.py", line 218, in handle_request
+80:     resp = self._pool.handle_request(req)
+80:            │                         └ <Request [b'GET']>
+80:            └ <httpx.HTTPTransport object at 0x7f6637a9e6a0>
+80:   File "/usr/lib/python3.8/contextlib.py", line 131, in __exit__
+80:     self.gen.throw(type, value, traceback)
+80:     │              │     │      └ <traceback object at 0x7f6637224dc0>
+80:     │              │     └ ReadTimeout(timeout('The read operation timed out'))
+80:     │              └ <class 'httpcore.ReadTimeout'>
+80:     └ <contextlib._GeneratorContextManager object at 0x7f6636f8eca0>
+80:   File "/home/mtropets/workspace/CCF/build/env/lib/python3.8/site-packages/httpx/_transports/default.py", line 77, in map_httpcore_exceptions
+80:     raise mapped_exc(message) from exc
+80:           │          └ 'The read operation timed out'
+80:           └ <class 'httpx.ReadTimeout'>
+80: httpx.ReadTimeout: The read operation timed out
+80: 
+80: The above exception was the direct cause of the following exception:
+80: 
+80: Traceback (most recent call last):
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 221, in <module>
+80:     run(args)
+80:     │   └ Namespace(binary_dir='/home/mtropets/workspace/CCF/build', ccf_version=None, common_read_only_ledger_dir=None, config_file=None,...
+80:     └ <function run at 0x7f6637b2e430>
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 208, in run
+80:     network = test_historical_query_range(network, args)
+80:     │         │                           │        └ Namespace(binary_dir='/home/mtropets/workspace/CCF/build', ccf_version=None, common_read_only_ledger_dir=None, config_file=None,...
+80:     │         │                           └ <infra.network.Network object at 0x7f6637b346a0>
+80:     │         └ <function test_historical_query_range at 0x7f6637b2e3a0>
+80:     └ <infra.network.Network object at 0x7f6637b346a0>
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 179, in test_historical_query_range
+80:     entries[id_c], duration_c = get_all_entries(c, id_c, timeout=timeout)
+80:     │       │                   │               │  │             └ 300.0
+80:     │       │                   │               │  └ 4
+80:     │       │                   │               └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80:     │       │                   └ <function get_all_entries at 0x7f6637b85b80>
+80:     │       └ 4
+80:     └ {2: [{'id': 2, 'msg': 'Unique message 0', 'seqno': 21}, {'id': 2, 'msg': 'Unique message 2000', 'seqno': 22}, {'id': 2, 'msg': '...
+80:   File "/home/mtropets/workspace/CCF/tests/historical_query_perf.py", line 80, in get_all_entries
+80:     r = client.get(path, headers=headers or {})  # , log_capture=logs)
+80:     │   │          │             └ None
+80:     │   │          └ '/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4'
+80:     │   └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80:     └ Response(status_code=200, body=b'{"@nextLink":"/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4","entries":...
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 1173, in get
+80:     return self.call(*args, **kwargs)
+80:            │          │       └ {'headers': {}, 'http_verb': 'GET'}
+80:            │          └ ('/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4',)
+80:            └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 1120, in call
+80:     r = self._call(
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 1053, in _call
+80:     response = self.client_impl.request(r, timeout, cose_header_parameters_override)
+80:                │                        │  │        └ None
+80:                │                        │  └ 10
+80:                │                        └ Request(path='/app/log/public/historical/range?from_seqno=30004&to_seqno=30292&id=4', body=None, http_verb='GET', headers={})
+80:                └ <infra.clients.CCFClient object at 0x7f66371d8d60>
+80:   File "/home/mtropets/workspace/CCF/tests/infra/clients.py", line 763, in request
+80:     raise TimeoutError from exc
+80: TimeoutError
+    Test #80: historical_query_perf_test .......***Failed  220.59 sec
+
+0% tests passed, 1 tests failed out of 1
+
+Label Time Summary:
+e2e     = 220.59 sec*proc (1 test)
+perf    = 220.59 sec*proc (1 test)
+
+Total Test time (real) = 220.59 sec
+
+The following tests FAILED:
+	 80 - historical_query_perf_test (Failed)
