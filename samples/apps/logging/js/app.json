@@ -65,6 +65,18 @@
         "interpreter_reuse": { "key": "singleton_interpreter" }
       }
     },
+    "/log/private/backup": {
+      "get": {
+        "js_module": "logging.js",
+        "js_function": "get_private",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "to_backup",
+        "authn_policies": ["jwt", "user_cert"],
+        "mode": "readonly",
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
+      }
+    },
     "/log/private/admin_only": {
       "post": {
         "js_module": "logging.js",
@@ -189,6 +201,18 @@
         "redirection_strategy": "to_primary",
         "authn_policies": ["jwt", "user_cert"],
         "mode": "readwrite",
+        "openapi": {},
+        "interpreter_reuse": { "key": "singleton_interpreter" }
+      }
+    },
+    "/log/public/backup": {
+      "get": {
+        "js_module": "logging.js",
+        "js_function": "get_public",
+        "forwarding_required": "sometimes",
+        "redirection_strategy": "to_backup",
+        "authn_policies": ["jwt", "user_cert"],
+        "mode": "readonly",
         "openapi": {},
         "interpreter_reuse": { "key": "singleton_interpreter" }
       }

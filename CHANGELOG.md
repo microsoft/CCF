@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `::consensus` is now `ccf::consensus`
   - `::tls` is now `ccf::tls`
 - The `programmability` sample app now demonstrates how applications can define their own extensions, creating bindings between C++ and JS state, and allowing JS endpoints to call functions implemented in C++.
+- Endpoints now support a `ToBackup` redirection strategy, for requests which should never be executed on a primary. These must also be read-only. These are configured similar to `ToPrimary` endpoints, with a `to_backup` object (specifying by-role or statically-addressed targets) in each node's configuration.
 
 ### Removed
 

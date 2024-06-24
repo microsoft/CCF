@@ -105,6 +105,7 @@ namespace ccf
     ERROR(TransactionPendingOrUnknown)
     ERROR(TransactionInvalid)
     ERROR(PrimaryNotFound)
+    ERROR(BackupNotFound)
     ERROR(RequestAlreadyForwarded)
     ERROR(NodeNotRetiredCommitted)
     ERROR(SessionConsistencyLost)
