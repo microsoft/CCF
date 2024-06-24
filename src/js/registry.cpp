@@ -882,7 +882,7 @@ namespace ccf::js
     });
   }
 
-  ccf::ApiResult DynamicJSEndpointRegistry::is_original_action_execution_v1(
+  ccf::ApiResult DynamicJSEndpointRegistry::check_action_not_replayed_v1(
     kv::Tx& tx,
     uint64_t created_at,
     const std::span<const uint8_t> action,
@@ -951,7 +951,7 @@ namespace ccf::js
     }
   }
 
-  ccf::ApiResult DynamicJSEndpointRegistry::record_action_details_for_audit_v1(
+  ccf::ApiResult DynamicJSEndpointRegistry::record_action_for_audit_v1(
     kv::Tx& tx,
     ccf::ActionFormat format,
     const std::string& user_id,

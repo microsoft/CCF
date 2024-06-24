@@ -426,7 +426,7 @@ namespace programmabilityapp
         const auto parsed_bundle = parsed_content.get<ccf::js::Bundle>();
 
         // Make operation auditable
-        record_action_details_for_audit_v1(
+        record_action_for_audit_v1(
           ctx.tx,
           format,
           user_id.value(),
@@ -436,7 +436,7 @@ namespace programmabilityapp
             ctx.rpc_ctx->get_request_path()),
           ctx.rpc_ctx->get_request_body());
 
-        // Ensure signed actions are original, i.e. not replayed
+        // Ensure signed actions are not replayed
         if (format == ccf::ActionFormat::COSE)
         {
           if (!created_at.has_value())
@@ -448,7 +448,7 @@ namespace programmabilityapp
             return;
           }
           ccf::InvalidArgsReason reason;
-          result = is_original_action_execution_v1(
+          result = check_action_not_replayed_v1(
             ctx.tx,
             created_at.value(),
             ctx.rpc_ctx->get_request_body(),
@@ -624,7 +624,7 @@ namespace programmabilityapp
           options = j_options.get<ccf::JSRuntimeOptions>();
 
           // Make operation auditable
-          record_action_details_for_audit_v1(
+          record_action_for_audit_v1(
             ctx.tx,
             format,
             user_id.value(),
@@ -634,7 +634,7 @@ namespace programmabilityapp
               ctx.rpc_ctx->get_request_path()),
             ctx.rpc_ctx->get_request_body());
 
-          // Ensure signed actions are original, i.e. not replayed
+          // Ensure signed actions are not replayed
           if (format == ccf::ActionFormat::COSE)
           {
             if (!created_at.has_value())
@@ -646,7 +646,7 @@ namespace programmabilityapp
               return;
             }
             ccf::InvalidArgsReason reason;
-            result = is_original_action_execution_v1(
+            result = check_action_not_replayed_v1(
               ctx.tx,
               created_at.value(),
               ctx.rpc_ctx->get_request_body(),

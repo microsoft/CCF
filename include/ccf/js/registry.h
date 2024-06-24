@@ -135,7 +135,7 @@ namespace ccf::js
      * Record action details by storing them in KV maps using a common format,
      * for the purposes of offline audit using the ledger.
      */
-    ccf::ApiResult record_action_details_for_audit_v1(
+    ccf::ApiResult record_action_for_audit_v1(
       kv::Tx& tx,
       ccf::ActionFormat format,
       const std::string& user_id,
@@ -143,11 +143,11 @@ namespace ccf::js
       const std::vector<uint8_t>& action_body);
 
     /**
-     * Check an action is original, as opposed to replayed, by looking it up
+     * Check an action is not being replayed, by looking it up
      * in the history of recent actions. To place an upper bound on the history
      * size, an authenticated timestamp (@p created_at) is required.
      */
-    ccf::ApiResult is_original_action_execution_v1(
+    ccf::ApiResult check_action_not_replayed_v1(
       kv::Tx& tx,
       uint64_t created_at,
       const std::span<const uint8_t> action,
