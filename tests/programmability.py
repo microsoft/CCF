@@ -38,25 +38,19 @@ export function foo() {
 
 TESTJS_ROLE = """
 export function content(request) {
-  let raw_id = ccf.strToBuf(request.caller.id);
-  let user_info = ccf.kv["public:ccf.gov.users.info"].get(raw_id);
-  if (user_info !== undefined) {
-    user_info = ccf.bufToJsonCompatible(user_info);
-    let roles = user_info?.user_data?.roles || [];
-
-    for (const [_, role] of roles.entries()) {
-        let role_map = ccf.kv[`public:ccf.gov.roles.${role}`];
-        let endpoint_name = request.url.split("/")[2];
-        if (role_map?.has(ccf.strToBuf(`/${endpoint_name}/read`)))
-        {
-            return {
-                statusCode: 200,
-                body: {
-                    payload: "Test content",
-                },
-            };
-        }
-    }
+  console.log(`my_constant is: ${my_object.my_constant}`);
+  
+  const endpoint_name = request.url.split("/")[2];
+  const action_name = `/${endpoint_name}/read`;
+  const permitted = my_object.hasRole(request.caller.id, action_name);
+  if (permitted)
+  {
+    return {
+        statusCode: 200,
+        body: {
+            payload: "Test content",
+        },
+    };
   }
 
   return {

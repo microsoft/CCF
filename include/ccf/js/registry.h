@@ -170,5 +170,11 @@ namespace ccf::js
 
     void build_api(nlohmann::json& document, kv::ReadOnlyTx& tx) override;
     ///@}
+
+    virtual ccf::js::extensions::Extensions get_extensions(
+      const ccf::endpoints::EndpointContext& endpoint_ctx)
+    {
+      return {};
+    };
   };
 }

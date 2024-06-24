@@ -109,7 +109,8 @@ namespace ccf::js
 
     // Extensions with a dependency on this endpoint context (invocation),
     // which must be removed after execution.
-    ccf::js::extensions::Extensions local_extensions;
+    ccf::js::extensions::Extensions local_extensions =
+      get_extensions(endpoint_ctx);
 
     // ccf.kv.*
     local_extensions.emplace_back(

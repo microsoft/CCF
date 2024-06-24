@@ -24,7 +24,7 @@ class KVSet {
 
   asSetOfStrings() {
     let set = new Set();
-    this.#map.forEach((_, key) => set.add(ccf.bufToStr(key)));
+    this.#map.forEach((_, key) => set.add(ccf.bufToJsonCompatible(key)));
     return set;
   }
 }
@@ -47,12 +47,12 @@ actions.set(
       let newValues = new Set(args.actions);
       for (const action of oldValues) {
         if (!newValues.has(action)) {
-          roleDefinition.delete(ccf.strToBuf(action));
+          roleDefinition.delete(ccf.jsonCompatibleToBuf(action));
         }
       }
       for (const action of newValues) {
         if (!oldValues.has(action)) {
-          roleDefinition.add(ccf.strToBuf(action));
+          roleDefinition.add(ccf.jsonCompatibleToBuf(action));
         }
       }
     },
