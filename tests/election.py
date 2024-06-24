@@ -141,7 +141,7 @@ def test_commit_view_history(network, args):
         assert error["code"] == "InvalidQueryParameterValue"
         assert (
             error["message"]
-            == "Invalid value for view_history_since, must be in range [1, current_term]",
+            == "Invalid value for view_history_since, must be in range [1, current_term]"
         )
 
         # views start at 1, at least internally
@@ -166,7 +166,7 @@ def test_commit_view_history(network, args):
         assert error["code"] == "InvalidQueryParameterValue"
         assert (
             error["message"]
-            == "Invalid value for view_history_since, must be in range [1, current_term]",
+            == "Invalid value for view_history_since, must be in range [1, current_term]"
         )
 
         # view_history should override the view_history_since
