@@ -6,7 +6,7 @@
 
 namespace nontls
 {
-  class PlaintextServer : public tls::Context
+  class PlaintextServer : public ccf::tls::Context
   {
   public:
     PlaintextServer() : Context(false) {}

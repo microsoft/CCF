@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "ccf/ds/thread_ids.h"
+#include "ccf/threading/thread_ids.h"
 
-namespace threading
+namespace ccf::threading
 {
   static std::atomic<ThreadID> next_thread_id = MAIN_THREAD_ID;
 

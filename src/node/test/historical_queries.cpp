@@ -304,13 +304,13 @@ TEST_CASE("StateCache point queries")
     {
       const uint8_t* data = write.contents.data();
       size_t size = write.contents.size();
-      REQUIRE(write.m == consensus::ledger_get_range);
+      REQUIRE(write.m == ::consensus::ledger_get_range);
       auto [from_seqno_, to_seqno_, purpose_] =
-        ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+        ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
       auto& purpose = purpose_;
       auto& from_seqno = from_seqno_;
       auto& to_seqno = to_seqno_;
-      REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+      REQUIRE(purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
       REQUIRE(from_seqno == to_seqno);
       // Despite multiple calls for each seqno, the host only sees a single
       // request for each
@@ -332,13 +332,13 @@ TEST_CASE("StateCache point queries")
     const auto& write = stub_writer->writes[0];
     const uint8_t* data = write.contents.data();
     size_t size = write.contents.size();
-    REQUIRE(write.m == consensus::ledger_get_range);
+    REQUIRE(write.m == ::consensus::ledger_get_range);
     auto [from_seqno_, to_seqno_, purpose_] =
-      ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+      ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
     auto& purpose = purpose_;
     auto& from_seqno = from_seqno_;
     auto& to_seqno = to_seqno_;
-    REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+    REQUIRE(purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
     REQUIRE(from_seqno == to_seqno);
     REQUIRE(from_seqno == low_seqno);
     stub_writer->writes.clear();
@@ -893,13 +893,13 @@ TEST_CASE("Incremental progress")
     const auto& write = stub_writer->writes[0];
     const uint8_t* data = write.contents.data();
     size_t size = write.contents.size();
-    REQUIRE(write.m == consensus::ledger_get_range);
+    REQUIRE(write.m == ::consensus::ledger_get_range);
     auto [from_seqno_, to_seqno_, purpose_] =
-      ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+      ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
     auto& purpose = purpose_;
     auto& from_seqno = from_seqno_;
     auto& to_seqno = to_seqno_;
-    REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+    REQUIRE(purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
     REQUIRE(from_seqno == from);
     REQUIRE(to_seqno == to);
 
@@ -1136,12 +1136,13 @@ TEST_CASE("StateCache concurrent access")
       {
         auto data = write.contents.data();
         auto size = write.contents.size();
-        if (write.m == consensus::ledger_get_range)
+        if (write.m == ::consensus::ledger_get_range)
         {
           const auto [from_seqno, to_seqno, purpose_] =
-            ringbuffer::read_message<consensus::ledger_get_range>(data, size);
+            ringbuffer::read_message<::consensus::ledger_get_range>(data, size);
           auto& purpose = purpose_;
-          REQUIRE(purpose == consensus::LedgerRequestPurpose::HistoricalQuery);
+          REQUIRE(
+            purpose == ::consensus::LedgerRequestPurpose::HistoricalQuery);
 
           std::vector<uint8_t> combined;
           for (auto seqno = from_seqno; seqno <= to_seqno; ++seqno)

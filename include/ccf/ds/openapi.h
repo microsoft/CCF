@@ -13,7 +13,7 @@
 #include <set>
 #include <string_view>
 
-namespace ds
+namespace ccf::ds
 {
   /**
    * This namespace contains helper functions, structs, and templates for
@@ -296,7 +296,7 @@ namespace ds
           }
 
           return add_schema_to_components(
-            document, ds::json::schema_name<T>(), schema);
+            document, ccf::ds::json::schema_name<T>(), schema);
         }
         else if constexpr (
           nonstd::is_specialization<T, std::map>::value ||
@@ -328,7 +328,7 @@ namespace ds
             schema["items"] = items;
           }
           return add_schema_to_components(
-            document, ds::json::schema_name<T>(), schema);
+            document, ccf::ds::json::schema_name<T>(), schema);
         }
         else if constexpr (nonstd::is_specialization<T, std::pair>::value)
         {
@@ -338,20 +338,21 @@ namespace ds
           items.push_back(add_schema_component<typename T::second_type>());
           schema["items"] = items;
           return add_schema_to_components(
-            document, ds::json::schema_name<T>(), schema);
+            document, ccf::ds::json::schema_name<T>(), schema);
         }
         else if constexpr (
           std::is_same<T, std::string>::value || std::is_arithmetic_v<T> ||
           std::is_same<T, nlohmann::json>::value ||
-          std::is_same<T, ds::json::JsonSchema>::value)
+          std::is_same<T, ccf::ds::json::JsonSchema>::value)
         {
-          ds::json::fill_schema<T>(schema);
+          ccf::ds::json::fill_schema<T>(schema);
           return add_schema_to_components(
-            document, ds::json::schema_name<T>(), schema);
+            document, ccf::ds::json::schema_name<T>(), schema);
         }
         else
         {
-          const auto name = sanitise_components_key(ds::json::schema_name<T>());
+          const auto name =
+            sanitise_components_key(ccf::ds::json::schema_name<T>());
 
           auto& components = access::get_object(document, "components");
           auto& schemas = access::get_object(components, "schemas");

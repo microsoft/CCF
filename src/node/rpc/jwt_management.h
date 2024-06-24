@@ -124,22 +124,17 @@ namespace ccf
 
   static bool set_jwt_public_signing_keys(
     kv::Tx& tx,
-    const ProposalId& proposal_id,
+    const std::string& log_prefix,
     std::string issuer,
     const JwtIssuerMetadata& issuer_metadata,
     const JsonWebKeySet& jwks)
   {
     auto keys =
       tx.rw<JwtPublicSigningKeys>(Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
-
-    auto log_prefix = proposal_id.empty() ?
-      "JWT key auto-refresh" :
-      fmt::format("Proposal {}", proposal_id);
-
     // add keys
     if (jwks.keys.empty())
     {
-      LOG_FAIL_FMT("{}: JWKS has no keys", log_prefix, proposal_id);
+      LOG_FAIL_FMT("{}: JWKS has no keys", log_prefix);
       return false;
     }
     std::map<std::string, std::vector<uint8_t>> new_keys;

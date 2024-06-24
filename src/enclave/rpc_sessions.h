@@ -61,19 +61,19 @@ namespace ccf
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host = nullptr;
     std::shared_ptr<RPCMap> rpc_map;
-    std::unordered_map<ListenInterfaceID, std::shared_ptr<tls::Cert>> certs;
+    std::unordered_map<ListenInterfaceID, std::shared_ptr<::tls::Cert>> certs;
     std::shared_ptr<CustomProtocolSubsystem> custom_protocol_subsystem;
 
     ccf::pal::Mutex lock;
     std::unordered_map<
-      tls::ConnID,
+      ccf::tls::ConnID,
       std::pair<ListenInterfaceID, std::shared_ptr<ccf::Session>>>
       sessions;
     size_t sessions_peak = 0;
 
     // Negative sessions are reserved for those originating from
     // the enclave via create_client().
-    std::atomic<tls::ConnID> next_client_session_id = -1;
+    std::atomic<ccf::tls::ConnID> next_client_session_id = -1;
 
     template <typename Base>
     class NoMoreSessionsImpl : public Base
@@ -101,7 +101,7 @@ namespace ccf
       }
     };
 
-    tls::ConnID get_next_client_id()
+    ccf::tls::ConnID get_next_client_id()
     {
       auto id = next_client_session_id--;
       const auto initial = id;
@@ -141,7 +141,7 @@ namespace ccf
 
     std::shared_ptr<ccf::Session> make_server_session(
       const std::string& app_protocol,
-      tls::ConnID id,
+      ccf::tls::ConnID id,
       const ListenInterfaceID& listen_interface_id,
       std::unique_ptr<tls::Context>&& ctx,
       const http::ParserConfiguration& parser_configuration)
@@ -307,7 +307,7 @@ namespace ccf
       // the caller's certificate in the relevant store table. The caller
       // certificate does not have to be signed by a known CA (nullptr) and
       // verification is not required here.
-      auto cert = std::make_shared<tls::Cert>(
+      auto cert = std::make_shared<::tls::Cert>(
         nullptr, cert_, pk, std::nullopt, /*auth_required ==*/false);
 
       std::lock_guard<ccf::pal::Mutex> guard(lock);
@@ -328,7 +328,7 @@ namespace ccf
     }
 
     void accept(
-      tls::ConnID id,
+      ccf::tls::ConnID id,
       const ListenInterfaceID& listen_interface_id,
       bool udp = false)
     {
@@ -363,7 +363,7 @@ namespace ccf
           listen_interface_id);
 
         RINGBUFFER_WRITE_MESSAGE(
-          tls::tls_stop, to_host, id, std::string("Session refused"));
+          ::tls::tls_stop, to_host, id, std::string("Session refused"));
       }
       else if (
         per_listen_interface.open_sessions >=
@@ -378,7 +378,7 @@ namespace ccf
           per_listen_interface.max_open_sessions_hard);
 
         RINGBUFFER_WRITE_MESSAGE(
-          tls::tls_stop, to_host, id, std::string("Session refused"));
+          ::tls::tls_stop, to_host, id, std::string("Session refused"));
       }
       else if (
         per_listen_interface.open_sessions >=
@@ -392,7 +392,7 @@ namespace ccf
           listen_interface_id,
           per_listen_interface.max_open_sessions_soft);
 
-        auto ctx = std::make_unique<tls::Server>(certs[listen_interface_id]);
+        auto ctx = std::make_unique<::tls::Server>(certs[listen_interface_id]);
         std::shared_ptr<Session> capped_session;
         if (per_listen_interface.app_protocol == "HTTP2")
         {
@@ -471,7 +471,7 @@ namespace ccf
           }
           else
           {
-            ctx = std::make_unique<tls::Server>(
+            ctx = std::make_unique<::tls::Server>(
               certs[listen_interface_id],
               per_listen_interface.app_protocol == "HTTP2");
           }
@@ -495,7 +495,7 @@ namespace ccf
       sessions_peak = std::max(sessions_peak, sessions.size());
     }
 
-    std::shared_ptr<Session> find_session(tls::ConnID id)
+    std::shared_ptr<Session> find_session(ccf::tls::ConnID id)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
@@ -509,7 +509,7 @@ namespace ccf
     }
 
     bool reply_async(
-      tls::ConnID id,
+      ccf::tls::ConnID id,
       bool terminate_after_send,
       std::vector<uint8_t>&& data) override
     {
@@ -532,7 +532,7 @@ namespace ccf
       return true;
     }
 
-    void remove_session(tls::ConnID id)
+    void remove_session(ccf::tls::ConnID id)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       LOG_DEBUG_FMT("Closing a session inside the enclave: {}", id);
@@ -549,11 +549,11 @@ namespace ccf
     }
 
     std::shared_ptr<ClientSession> create_client(
-      const std::shared_ptr<tls::Cert>& cert,
+      const std::shared_ptr<::tls::Cert>& cert,
       const std::string& app_protocol = "HTTP1")
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
-      auto ctx = std::make_unique<tls::Client>(cert);
+      auto ctx = std::make_unique<::tls::Client>(cert);
       auto id = get_next_client_id();
 
       LOG_DEBUG_FMT("Creating a new client session inside the enclave: {}", id);
@@ -598,15 +598,15 @@ namespace ccf
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, tls::tls_start, [this](const uint8_t* data, size_t size) {
+        disp, ::tls::tls_start, [this](const uint8_t* data, size_t size) {
           auto [new_tls_id, listen_interface_name] =
-            ringbuffer::read_message<tls::tls_start>(data, size);
+            ringbuffer::read_message<::tls::tls_start>(data, size);
           accept(new_tls_id, listen_interface_name);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, tls::tls_inbound, [this](const uint8_t* data, size_t size) {
-          auto id = serialized::peek<tls::ConnID>(data, size);
+        disp, ::tls::tls_inbound, [this](const uint8_t* data, size_t size) {
+          auto id = serialized::peek<ccf::tls::ConnID>(data, size);
 
           auto search = sessions.find(id);
           if (search == sessions.end())
@@ -620,8 +620,8 @@ namespace ccf
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, tls::tls_close, [this](const uint8_t* data, size_t size) {
-          auto [id] = ringbuffer::read_message<tls::tls_close>(data, size);
+        disp, ::tls::tls_close, [this](const uint8_t* data, size_t size) {
+          auto [id] = ringbuffer::read_message<::tls::tls_close>(data, size);
           remove_session(id);
         });
 

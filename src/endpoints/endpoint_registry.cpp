@@ -173,18 +173,6 @@ namespace ccf::endpoints
     return spec;
   }
 
-  EndpointRegistry::Metrics& EndpointRegistry::get_metrics_for_request(
-    const std::string& method_, const std::string& verb)
-  {
-    auto substr_start = method_.find_first_not_of('/');
-    if (substr_start == std::string::npos)
-    {
-      substr_start = 0;
-    }
-    auto method = method_.substr(substr_start);
-    return metrics[method][verb];
-  }
-
   void default_locally_committed_func(
     CommandEndpointContext& ctx, const TxID& tx_id)
   {
@@ -575,41 +563,5 @@ namespace ccf::endpoints
   void EndpointRegistry::set_history(kv::TxHistory* h)
   {
     history = h;
-  }
-
-  void EndpointRegistry::increment_metrics_calls(
-    const endpoints::EndpointDefinitionPtr& endpoint)
-  {
-    std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
-    get_metrics_for_request(
-      endpoint->dispatch.uri_path, endpoint->dispatch.verb.c_str())
-      .calls++;
-  }
-
-  void EndpointRegistry::increment_metrics_errors(
-    const endpoints::EndpointDefinitionPtr& endpoint)
-  {
-    std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
-    get_metrics_for_request(
-      endpoint->dispatch.uri_path, endpoint->dispatch.verb.c_str())
-      .errors++;
-  }
-
-  void EndpointRegistry::increment_metrics_failures(
-    const endpoints::EndpointDefinitionPtr& endpoint)
-  {
-    std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
-    get_metrics_for_request(
-      endpoint->dispatch.uri_path, endpoint->dispatch.verb.c_str())
-      .failures++;
-  }
-
-  void EndpointRegistry::increment_metrics_retries(
-    const endpoints::EndpointDefinitionPtr& endpoint)
-  {
-    std::lock_guard<ccf::pal::Mutex> guard(metrics_lock);
-    get_metrics_for_request(
-      endpoint->dispatch.uri_path, endpoint->dispatch.verb.c_str())
-      .retries++;
   }
 }

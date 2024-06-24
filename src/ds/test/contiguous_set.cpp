@@ -25,7 +25,7 @@ void test(T from, T to)
   std::mt19937 g(rd());
   std::shuffle(sample.begin(), sample.end(), g);
 
-  ds::ContiguousSet<T> cs;
+  ccf::ds::ContiguousSet<T> cs;
   for (const auto& n : sample)
   {
     REQUIRE(cs.insert(n));
@@ -59,7 +59,7 @@ void test(T from, T to)
 TEST_CASE_TEMPLATE(
   "Contiguous set API" * doctest::test_suite("contiguousset"), T, size_t, int)
 {
-  ds::ContiguousSet<T> cs;
+  ccf::ds::ContiguousSet<T> cs;
   const auto& ccs = cs;
 
   T a, b, c;
@@ -103,7 +103,7 @@ TEST_CASE_TEMPLATE(
   REQUIRE(ccs.front() == ccs.back());
 
   {
-    ds::ContiguousSet<T> cs2(ccs);
+    ccf::ds::ContiguousSet<T> cs2(ccs);
     REQUIRE(cs == cs2);
 
     REQUIRE(cs2.erase(b));
@@ -219,7 +219,7 @@ TEST_CASE_TEMPLATE(
 
 TEST_CASE("Contiguous set single range" * doctest::test_suite("contiguousset"))
 {
-  ds::ContiguousSet<size_t> cs;
+  ccf::ds::ContiguousSet<size_t> cs;
 
   cs.insert(5);
   cs.insert(6);
@@ -231,7 +231,7 @@ TEST_CASE("Contiguous set single range" * doctest::test_suite("contiguousset"))
 
 TEST_CASE("Contiguous set explicit test" * doctest::test_suite("contiguousset"))
 {
-  ds::ContiguousSet<size_t> cs;
+  ccf::ds::ContiguousSet<size_t> cs;
 
   REQUIRE(cs.insert(10));
   REQUIRE(cs.insert(8));
@@ -337,7 +337,7 @@ TEST_CASE("Contiguous set explicit test" * doctest::test_suite("contiguousset"))
 
 TEST_CASE("Contiguous set iterators" * doctest::test_suite("contiguousset"))
 {
-  ds::ContiguousSet<size_t> cs;
+  ccf::ds::ContiguousSet<size_t> cs;
 
   REQUIRE(cs.insert(5));
   REQUIRE(cs.insert(9));
@@ -432,7 +432,7 @@ TEST_CASE("Contiguous set iterators" * doctest::test_suite("contiguousset"))
 TEST_CASE(
   "Contiguous set range construction" * doctest::test_suite("contiguousset"))
 {
-  ds::ContiguousSet<size_t> cs;
+  ccf::ds::ContiguousSet<size_t> cs;
 
   REQUIRE(cs.insert(5));
   REQUIRE(cs.insert(6));
@@ -446,42 +446,42 @@ TEST_CASE(
   REQUIRE(cs.insert(26));
 
   {
-    ds::ContiguousSet<size_t> subrange(cs.begin(), cs.end());
+    ccf::ds::ContiguousSet<size_t> subrange(cs.begin(), cs.end());
     REQUIRE(cs == subrange);
   }
 
   {
-    ds::ContiguousSet<size_t> subrange(cs.begin(), cs.begin());
+    ccf::ds::ContiguousSet<size_t> subrange(cs.begin(), cs.begin());
     REQUIRE(subrange.empty());
   }
 
   {
-    ds::ContiguousSet<size_t> subrange(cs.end(), cs.end());
+    ccf::ds::ContiguousSet<size_t> subrange(cs.end(), cs.end());
     REQUIRE(subrange.empty());
   }
 
   {
-    ds::ContiguousSet<size_t> subrange(cs.find(5), cs.find(6));
+    ccf::ds::ContiguousSet<size_t> subrange(cs.find(5), cs.find(6));
     REQUIRE(subrange.size() == 1);
     REQUIRE(subrange.contains(5));
   }
 
   {
-    ds::ContiguousSet<size_t> subrange(cs.begin(), cs.find(9));
+    ccf::ds::ContiguousSet<size_t> subrange(cs.begin(), cs.find(9));
     REQUIRE(subrange.size() == 2);
     REQUIRE(subrange.contains(5));
     REQUIRE(subrange.contains(6));
   }
 
   {
-    ds::ContiguousSet<size_t> subrange(cs.find(5), cs.find(9));
+    ccf::ds::ContiguousSet<size_t> subrange(cs.find(5), cs.find(9));
     REQUIRE(subrange.size() == 2);
     REQUIRE(subrange.contains(5));
     REQUIRE(subrange.contains(6));
   }
 
   {
-    ds::ContiguousSet<size_t> subrange(cs.find(5), cs.find(10));
+    ccf::ds::ContiguousSet<size_t> subrange(cs.find(5), cs.find(10));
     REQUIRE(subrange.size() == 3);
     REQUIRE(subrange.contains(5));
     REQUIRE(subrange.contains(6));
@@ -489,7 +489,7 @@ TEST_CASE(
   }
 
   {
-    ds::ContiguousSet<size_t> subrange(cs.find(6), cs.find(11));
+    ccf::ds::ContiguousSet<size_t> subrange(cs.find(6), cs.find(11));
     REQUIRE(subrange.size() == 3);
     REQUIRE(subrange.contains(6));
     REQUIRE(subrange.contains(9));
@@ -497,7 +497,7 @@ TEST_CASE(
   }
 
   {
-    ds::ContiguousSet<size_t> subrange(cs.find(6), cs.find(25));
+    ccf::ds::ContiguousSet<size_t> subrange(cs.find(6), cs.find(25));
     REQUIRE(subrange.size() == 7);
     REQUIRE(subrange.contains(6));
     REQUIRE(subrange.contains(9));
@@ -509,7 +509,7 @@ TEST_CASE(
   }
 
   {
-    ds::ContiguousSet<size_t> subrange(cs.find(6), cs.find(26));
+    ccf::ds::ContiguousSet<size_t> subrange(cs.find(6), cs.find(26));
     REQUIRE(subrange.size() == 8);
     REQUIRE(subrange.contains(6));
     REQUIRE(subrange.contains(9));
@@ -522,7 +522,7 @@ TEST_CASE(
   }
 
   {
-    ds::ContiguousSet<size_t> subrange(cs.find(6), cs.end());
+    ccf::ds::ContiguousSet<size_t> subrange(cs.find(6), cs.end());
     REQUIRE(subrange.size() == 9);
     REQUIRE(subrange.contains(6));
     REQUIRE(subrange.contains(9));
@@ -553,7 +553,7 @@ TEST_CASE("Contiguous set scale" * doctest::test_suite("contiguousset"))
 
 TEST_CASE("Contiguous set extend" * doctest::test_suite("contiguousset"))
 {
-  ds::ContiguousSet<size_t> cs;
+  ccf::ds::ContiguousSet<size_t> cs;
 
   // Distinct range at beginning
   cs.extend(5, 1);

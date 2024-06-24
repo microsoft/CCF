@@ -209,7 +209,7 @@ namespace aft
 
   public:
     Aft(
-      const consensus::Configuration& settings_,
+      const ccf::consensus::Configuration& settings_,
       std::unique_ptr<Store> store_,
       std::unique_ptr<LedgerProxy> ledger_,
       std::shared_ptr<ccf::NodeToNode> channels_,

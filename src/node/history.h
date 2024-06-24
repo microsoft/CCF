@@ -493,8 +493,8 @@ namespace ccf
 
     crypto::KeyPair& kp;
 
-    std::optional<threading::TaskQueue::TimerEntry> emit_signature_timer_entry =
-      std::nullopt;
+    std::optional<::threading::TaskQueue::TimerEntry>
+      emit_signature_timer_entry = std::nullopt;
     size_t sig_tx_interval;
     size_t sig_ms_interval;
 
@@ -532,8 +532,8 @@ namespace ccf
         HashedTxHistory<T>* self;
       };
 
-      auto emit_sig_msg = std::make_unique<threading::Tmsg<EmitSigMsg>>(
-        [](std::unique_ptr<threading::Tmsg<EmitSigMsg>> msg) {
+      auto emit_sig_msg = std::make_unique<::threading::Tmsg<EmitSigMsg>>(
+        [](std::unique_ptr<::threading::Tmsg<EmitSigMsg>> msg) {
           auto self = msg->data.self;
 
           std::unique_lock<ccf::pal::Mutex> mguard(
@@ -576,13 +576,13 @@ namespace ccf
           }
 
           self->emit_signature_timer_entry =
-            threading::ThreadMessaging::instance().add_task_after(
+            ::threading::ThreadMessaging::instance().add_task_after(
               std::move(msg), std::chrono::milliseconds(self->sig_ms_interval));
         },
         this);
 
       emit_signature_timer_entry =
-        threading::ThreadMessaging::instance().add_task_after(
+        ::threading::ThreadMessaging::instance().add_task_after(
           std::move(emit_sig_msg), std::chrono::milliseconds(sig_ms_interval));
     }
 
@@ -590,7 +590,7 @@ namespace ccf
     {
       if (emit_signature_timer_entry.has_value())
       {
-        threading::ThreadMessaging::instance().cancel_timer_task(
+        ::threading::ThreadMessaging::instance().cancel_timer_task(
           *emit_signature_timer_entry);
       }
     }

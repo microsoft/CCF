@@ -205,7 +205,7 @@ namespace client
   private:
     crypto::Pem key = {};
     std::string key_id = "Invalid";
-    std::shared_ptr<tls::Cert> tls_cert = nullptr;
+    std::shared_ptr<::tls::Cert> tls_cert = nullptr;
 
     // Process reply to an RPC. Records time reply was received. Calls
     // check_response for derived-overridable validation
@@ -307,8 +307,8 @@ namespace client
         auto cert_der = crypto::cert_pem_to_der(cert_pem);
         key_id = crypto::Sha256Hash(cert_der).hex_str();
 
-        tls_cert = std::make_shared<tls::Cert>(
-          std::make_shared<tls::CA>(ca), cert_pem, key);
+        tls_cert = std::make_shared<::tls::Cert>(
+          std::make_shared<::tls::CA>(ca), cert_pem, key);
       }
 
       const auto [host, port] = ccf::split_net_address(options.server_address);

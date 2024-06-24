@@ -109,54 +109,6 @@
         },
         "type": "array"
       },
-      "EndpointMetrics": {
-        "properties": {
-          "metrics": {
-            "$ref": "#/components/schemas/EndpointMetricsEntry_array"
-          }
-        },
-        "required": [
-          "metrics"
-        ],
-        "type": "object"
-      },
-      "EndpointMetricsEntry": {
-        "properties": {
-          "calls": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "errors": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "failures": {
-            "$ref": "#/components/schemas/uint64"
-          },
-          "method": {
-            "$ref": "#/components/schemas/string"
-          },
-          "path": {
-            "$ref": "#/components/schemas/string"
-          },
-          "retries": {
-            "$ref": "#/components/schemas/uint64"
-          }
-        },
-        "required": [
-          "path",
-          "method",
-          "calls",
-          "errors",
-          "failures",
-          "retries"
-        ],
-        "type": "object"
-      },
-      "EndpointMetricsEntry_array": {
-        "items": {
-          "$ref": "#/components/schemas/EndpointMetricsEntry"
-        },
-        "type": "array"
-      },
       "EndpointProperties": {
         "properties": {
           "authn_policies": {
@@ -1366,7 +1318,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.1.7"
+    "version": "4.1.8"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1447,29 +1399,6 @@
           }
         },
         "summary": "OpenAPI schema",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/gov/api/metrics": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EndpointMetrics"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "summary": "Usage metrics for endpoints",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }

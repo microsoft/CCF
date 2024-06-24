@@ -11,7 +11,7 @@
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
 
-namespace tls
+namespace ccf::tls
 {
   class Context
   {

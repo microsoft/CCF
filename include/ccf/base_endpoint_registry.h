@@ -186,10 +186,5 @@ namespace ccf
     /** Get untrusted time from the host of the currently executing node.
      */
     ApiResult get_untrusted_host_time_v1(::timespec& time);
-
-    /** Get usage metrics from endpoints under the registry, including
-     * number of calls, errors, failures and retries.
-     */
-    ApiResult get_metrics_v1(EndpointMetrics& endpoint_metrics);
   };
 }

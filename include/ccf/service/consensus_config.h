@@ -5,12 +5,12 @@
 #include "ccf/ds/unit_strings.h"
 #include "ccf/service/consensus_type.h"
 
-namespace consensus
+namespace ccf::consensus
 {
   struct Configuration
   {
-    ds::TimeString message_timeout = {"100ms"};
-    ds::TimeString election_timeout = {"5000ms"};
+    ccf::ds::TimeString message_timeout = {"100ms"};
+    ccf::ds::TimeString election_timeout = {"5000ms"};
     size_t max_uncommitted_tx_count = 10000;
 
     bool operator==(const Configuration&) const = default;

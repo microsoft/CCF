@@ -7,5 +7,5 @@
 
 namespace ccf
 {
-  using SeqNoCollection = ds::ContiguousSet<ccf::SeqNo>;
+  using SeqNoCollection = ccf::ds::ContiguousSet<ccf::SeqNo>;
 }
