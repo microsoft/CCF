@@ -22,7 +22,7 @@ namespace ccf
     static constexpr auto HEADER_PARAM_MSG_TYPE = "ccf.gov.msg.type";
     static constexpr auto HEADER_PARAM_MSG_PROPOSAL_ID =
       "ccf.gov.msg.proposal_id";
-    static constexpr auto HEADER_PARAM_MSG_MSG_CREATED_AT =
+    static constexpr auto HEADER_PARAM_MSG_CREATED_AT =
       "ccf.gov.msg.created_at";
 
     std::pair<ccf::GovernanceProtectedHeader, Signature>
@@ -89,7 +89,7 @@ namespace ccf
       header_items[GOV_MSG_PROPOSAL_ID].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[GOV_MSG_PROPOSAL_ID].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      auto gov_msg_proposal_created_at = HEADER_PARAM_MSG_MSG_CREATED_AT;
+      auto gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
       header_items[GOV_MSG_MSG_CREATED_AT].label.string =
         UsefulBuf_FromSZ(gov_msg_proposal_created_at);
       header_items[GOV_MSG_MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;
@@ -225,7 +225,7 @@ namespace ccf
       header_items[MSG_TYPE].uLabelType = QCBOR_TYPE_TEXT_STRING;
       header_items[MSG_TYPE].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-      auto gov_msg_proposal_created_at = HEADER_PARAM_MSG_MSG_CREATED_AT;
+      auto gov_msg_proposal_created_at = HEADER_PARAM_MSG_CREATED_AT;
       header_items[MSG_CREATED_AT].label.string =
         UsefulBuf_FromSZ(created_at_name.c_str());
       header_items[MSG_CREATED_AT].uLabelType = QCBOR_TYPE_TEXT_STRING;

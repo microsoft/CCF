@@ -298,7 +298,7 @@ namespace programmabilityapp
           ctx.tx,
           format,
           user_id.value(),
-          "PUT /app/custom_endpoints",
+          fmt::format("{} {}", ctx.rpc_ctx->get_method(), ctx.rpc_ctx->get_request_path()),
           ctx.rpc_ctx->get_request_body());
 
         // Ensure signed actions are original, i.e. not replayed
@@ -493,7 +493,7 @@ namespace programmabilityapp
             ctx.tx,
             format,
             user_id.value(),
-            "PUT /app/custom_endpoints",
+            fmt::format("{} {}", ctx.rpc_ctx->get_method(), ctx.rpc_ctx->get_request_path()),
             ctx.rpc_ctx->get_request_body());
 
           // Ensure signed actions are original, i.e. not replayed
