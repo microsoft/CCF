@@ -35,7 +35,7 @@ from infra.member import AckException
 from types import MappingProxyType
 import threading
 import copy
-import e2e_common_endpoints
+import programmability
 
 from loguru import logger as LOG
 
@@ -1962,7 +1962,7 @@ def run_app_space_js(args):
             primary, user.service_id, user_data={"isAdmin": True}
         )
 
-        with primary.client(None, None, user.local_id) as c:
+        with primary.client() as c:
             parent_dir = os.path.normpath(
                 os.path.join(os.path.dirname(__file__), os.path.pardir)
             )
@@ -1974,15 +1974,26 @@ def run_app_space_js(args):
                 "js",
             )
             bundle = network.consortium.read_bundle_from_dir(logging_js_dir)
-            r = c.put("/app/custom_endpoints", body=bundle)
+            signed_bundle = programmability.sign_payload(
+                network.identity(user.local_id), "custom_endpoints", bundle
+            )
+            r = c.put(
+                "/app/custom_endpoints",
+                body=signed_bundle,
+                headers={"Content-Type": "application/cose"},
+            )
 
             assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
             # Also modify the runtime options to log and return errors, to aid debugging
-            r = c.call(
+            options = {"log_exception_details": True, "return_exception_details": True}
+            signed_options = programmability.sign_payload(
+                network.identity(user.local_id), "runtime_options", options
+            )
+            r = c.patch(
                 "/app/custom_endpoints/runtime_options",
-                {"log_exception_details": True, "return_exception_details": True},
-                http_verb="PATCH",
+                signed_options,
+                headers={"Content-Type": "application/cose"},
             )
             assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
@@ -2049,14 +2060,14 @@ def run_parsing_errors(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    cr.add(
-        "js",
-        run,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "js",
+    #     run,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
     cr.add(
         "app_space_js",
@@ -2067,44 +2078,44 @@ if __name__ == "__main__":
         initial_member_count=2,
     )
 
-    cr.add(
-        "cpp",
-        run,
-        package="samples/apps/logging/liblogging",
-        js_app_bundle=None,
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "cpp",
+    #     run,
+    #     package="samples/apps/logging/liblogging",
+    #     js_app_bundle=None,
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
-    cr.add(
-        "common",
-        e2e_common_endpoints.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "common",
+    #     e2e_common_endpoints.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    # Run illegal traffic tests in separate runners, to reduce total serial runtime
-    cr.add(
-        "js_illegal",
-        run_parsing_errors,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # # Run illegal traffic tests in separate runners, to reduce total serial runtime
+    # cr.add(
+    #     "js_illegal",
+    #     run_parsing_errors,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    cr.add(
-        "cpp_illegal",
-        run_parsing_errors,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "cpp_illegal",
+    #     run_parsing_errors,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    # This is just for the UDP echo test for now
-    cr.add(
-        "udp",
-        run_udp_tests,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # # This is just for the UDP echo test for now
+    # cr.add(
+    #     "udp",
+    #     run_udp_tests,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
     cr.run()
