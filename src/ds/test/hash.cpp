@@ -11,9 +11,9 @@
 
 TEST_CASE("SipHash-2-4 correctness" * doctest::test_suite("hash"))
 {
-  siphash::SipKey key{
-    siphash::bytes_to_64_le("\000\001\002\003\004\005\006\007"),
-    siphash::bytes_to_64_le("\010\011\012\013\014\015\016\017")};
+  ccf::siphash::SipKey key{
+    ccf::siphash::bytes_to_64_le("\000\001\002\003\004\005\006\007"),
+    ccf::siphash::bytes_to_64_le("\010\011\012\013\014\015\016\017")};
 
   std::vector<uint8_t> in;
 
@@ -21,10 +21,10 @@ TEST_CASE("SipHash-2-4 correctness" * doctest::test_suite("hash"))
   {
     const auto& expected = siphash_2_4_vectors[i];
 
-    auto out = siphash::siphash<2, 4>(in, key);
+    auto out = ccf::siphash::siphash<2, 4>(in, key);
     uint8_t actual[8];
 
-    siphash::u64_to_bytes_le(out, actual);
+    ccf::siphash::u64_to_bytes_le(out, actual);
 
     for (auto j = 0; j < 8; ++j)
     {
@@ -119,8 +119,8 @@ TEST_CASE("std::pair hash" * doctest::test_suite("hash"))
   }
 }
 
-constexpr auto fnv_1a_32 = ds::fnv_1a<uint32_t>;
-constexpr auto fnv_1a_64 = ds::fnv_1a<uint64_t>;
+constexpr auto fnv_1a_32 = ccf::ds::fnv_1a<uint32_t>;
+constexpr auto fnv_1a_64 = ccf::ds::fnv_1a<uint64_t>;
 
 TEST_CASE("FNV-1a correctness" * doctest::test_suite("hash"))
 {

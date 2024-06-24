@@ -86,14 +86,15 @@ namespace ccf
     max_execution_time,
     max_cached_interpreters);
 
-  struct JWTMetrics
+  struct JWTRefreshMetrics
   {
-    size_t attempts;
-    size_t successes;
+    size_t attempts = 0;
+    size_t successes = 0;
+    size_t failures = 0;
   };
 
-  DECLARE_JSON_TYPE(JWTMetrics)
-  DECLARE_JSON_REQUIRED_FIELDS(JWTMetrics, attempts, successes)
+  DECLARE_JSON_TYPE(JWTRefreshMetrics)
+  DECLARE_JSON_REQUIRED_FIELDS(JWTRefreshMetrics, attempts, successes, failures)
 
   struct SetJwtPublicSigningKeys
   {
@@ -371,6 +372,25 @@ namespace ccf
           endorsed_certificate};
       }
       return make_success(rep);
+    }
+
+    JWTRefreshMetrics jwt_refresh_metrics;
+    void handle_event_request_completed(
+      const ccf::endpoints::RequestCompletedEvent& event) override
+    {
+      if (event.method == "POST" && event.dispatch_path == "/jwt_keys/refresh")
+      {
+        jwt_refresh_metrics.attempts += 1;
+        int status_category = event.status / 100;
+        if (status_category >= 4)
+        {
+          jwt_refresh_metrics.failures += 1;
+        }
+        else if (status_category == 2)
+        {
+          jwt_refresh_metrics.successes += 1;
+        }
+      }
     }
 
   public:
@@ -882,7 +902,7 @@ namespace ccf
           {
             status = nlohmann::json(status_str.value()).get<NodeStatus>();
           }
-          catch (const JsonParseError& e)
+          catch (const ccf::JsonParseError& e)
           {
             return ccf::make_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -1448,27 +1468,6 @@ namespace ccf
         .set_auto_schema<void, JavaScriptMetrics>()
         .install();
 
-      auto jwt_metrics = [this](auto& ctx, nlohmann::json&&) {
-        JWTMetrics m;
-        // Attempts are recorded by the key refresh code itself, registering
-        // before each call to each issuer's keys
-        m.attempts = node_operation.get_jwt_attempts();
-        // Success is marked by the fact that the key succeeded and called
-        // our internal "jwt_keys/refresh" endpoint.
-        auto metric = get_metrics_for_request(
-          "/jwt_keys/refresh", llhttp_method_name(HTTP_POST));
-        m.successes = metric.calls - (metric.failures + metric.errors);
-        return m;
-      };
-
-      make_read_only_endpoint(
-        "/jwt_metrics",
-        HTTP_GET,
-        json_read_only_adapter(jwt_metrics),
-        no_auth_required)
-        .set_auto_schema<void, JWTMetrics>()
-        .install();
-
       auto version = [this](auto&, nlohmann::json&&) {
         GetVersion::Out result;
         result.ccf_version = ccf::ccf_version;
@@ -1628,7 +1627,7 @@ namespace ccf
         {
           parsed = body.get<SetJwtPublicSigningKeys>();
         }
-        catch (const JsonParseError& e)
+        catch (const ccf::JsonParseError& e)
         {
           return make_error(
             HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -1636,7 +1635,7 @@ namespace ccf
             "Unable to parse body.");
         }
 
-        auto issuers = ctx.tx.rw(this->network.jwt_issuers);
+        auto issuers = ctx.tx.ro(this->network.jwt_issuers);
         auto issuer_metadata_ = issuers->get(parsed.issuer);
         if (!issuer_metadata_.has_value())
         {
@@ -1690,11 +1689,21 @@ namespace ccf
         .set_openapi_hidden(true)
         .install();
 
+      auto get_jwt_metrics = [this](auto& args, const nlohmann::json& params) {
+        return make_success(jwt_refresh_metrics);
+      };
+      make_read_only_endpoint(
+        "/jwt_keys/refresh/metrics",
+        HTTP_GET,
+        json_read_only_adapter(get_jwt_metrics),
+        no_auth_required)
+        .set_auto_schema<void, JWTRefreshMetrics>()
+        .install();
+
       auto service_config_handler =
         [this](auto& args, const nlohmann::json& params) {
           return make_success(args.tx.ro(network.config)->get());
         };
-
       make_endpoint(
         "/service/configuration",
         HTTP_GET,

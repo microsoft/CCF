@@ -91,8 +91,8 @@ namespace ccf
     auto properties = nlohmann::json::object();
     {
 #define XX(field, field_type) \
-  properties[#field] = \
-    ds::openapi::components_ref_object(ds::json::schema_name<field_type>());
+  properties[#field] = ccf::ds::openapi::components_ref_object( \
+    ccf::ds::json::schema_name<field_type>());
 
       FOREACH_JSENGINE_FIELD(XX)
 #undef XX

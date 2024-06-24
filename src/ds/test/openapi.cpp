@@ -8,7 +8,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
-using namespace ds;
+using namespace ccf::ds;
 
 #define REQUIRE_ELEMENT(j, name, type_fn) \
   { \
@@ -260,7 +260,7 @@ TEST_CASE("Manual function definitions")
 
 TEST_CASE("sanitise_components_key")
 {
-  using namespace ds::openapi;
+  using namespace ccf::ds::openapi;
 
   CHECK(sanitise_components_key("User") == "User");
   CHECK(sanitise_components_key("User_1") == "User_1");

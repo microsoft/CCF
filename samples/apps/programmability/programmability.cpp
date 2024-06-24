@@ -9,6 +9,7 @@
 #include "ccf/http_query.h"
 #include "ccf/js/registry.h"
 #include "ccf/json_handler.h"
+#include "ccf/service/tables/users.h"
 #include "ccf/version.h"
 
 #include <charconv>
@@ -24,6 +25,137 @@ namespace programmabilityapp
   using AuditInfoValue = kv::Value<AuditInfo>;
   static constexpr auto PRIVATE_RECORDS = "programmability.records";
   static constexpr auto CUSTOM_ENDPOINTS_NAMESPACE = "public:custom_endpoints";
+
+  // This is a pure helper function which can be called from either C++ or JS,
+  // to implement common functionality in a single place
+  static inline bool has_role_permitting_action(
+    kv::ReadOnlyTx& tx, const std::string& user_id, const std::string& action)
+  {
+    using RoleSet = kv::Set<std::string>;
+
+    auto users_handle = tx.ro<ccf::UserInfo>(ccf::Tables::USER_INFO);
+    const auto user_info = users_handle->get(user_id);
+    if (user_info.has_value())
+    {
+      const auto roles_it = user_info->user_data.find("roles");
+      if (roles_it != user_info->user_data.end())
+      {
+        const auto roles = roles_it->get<std::vector<std::string>>();
+        for (const auto& role : roles)
+        {
+          auto role_handle =
+            tx.ro<RoleSet>(fmt::format("public:ccf.gov.roles.{}", role));
+          if (role_handle->contains(action))
+          {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  class MyExtension : public ccf::js::extensions::ExtensionInterface
+  {
+  public:
+    // Store any objects/state which the extension's functions might need on
+    // this extension object.
+    // In this case, since the extension adds a function that wants to read from
+    // the KV, it needs the current request's Tx.
+    kv::ReadOnlyTx* tx;
+
+    MyExtension(kv::ReadOnlyTx* t) : tx(t) {}
+
+    void install(ccf::js::core::Context& ctx) override;
+  };
+
+  // This is the signature for a function exposed to JS, interacting directly
+  // with JS interpreter state
+  JSValue js_has_role_permitting_action(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    // Check correct number of args were passed, to avoid unsafe accesses to
+    // argv
+    if (argc != 2)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 2", argc);
+    }
+
+    // Retrieve the CCF context object from QuickJS's opaque pointer
+    ccf::js::core::Context& jsctx =
+      *(ccf::js::core::Context*)JS_GetContextOpaque(ctx);
+
+    // Get the extension (by type), and the Tx* stashed on it
+    auto extension = jsctx.get_extension<MyExtension>();
+    if (extension == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "Failed to get extension object");
+    }
+
+    auto tx_ptr = extension->tx;
+    if (tx_ptr == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "No transaction available");
+    }
+
+    kv::ReadOnlyTx& tx = *tx_ptr;
+
+    // Process the arguments passed to the JS function, confirming they're both
+    // strings
+    std::optional<std::string> user_id = jsctx.to_str(argv[0]);
+    if (!user_id.has_value())
+    {
+      return JS_ThrowTypeError(ctx, "user_id argument is not a string");
+    }
+
+    std::optional<std::string> action = jsctx.to_str(argv[1]);
+    if (!action.has_value())
+    {
+      return JS_ThrowTypeError(ctx, "action argument is not a string");
+    }
+
+    try
+    {
+      // Call function containing shared implementation
+      const bool permitted =
+        has_role_permitting_action(tx, user_id.value(), action.value());
+
+      // Return result (converting C++ type to QuickJS value)
+      return JS_NewBool(ctx, permitted);
+    }
+    catch (const std::exception& exc)
+    {
+      // Catch any exceptions from C++ function, report them to the JS layer as
+      // error
+      return JS_ThrowInternalError(
+        ctx, "Error checking for role permissions: %s", exc.what());
+    }
+  }
+
+  void MyExtension::install(ccf::js::core::Context& ctx)
+  {
+    // Nest all of this extension's functions in a single object, rather than
+    // inserting directly into the global namespace
+    auto my_global_object =
+      ctx.get_or_create_global_property("my_object", ctx.new_obj());
+
+    // Insert a constant string into the JS environment, accessible at
+    // my_object.my_constant
+    my_global_object.set("my_constant", ctx.new_string("Hello world"));
+
+    // Insert a function into the JS environment, called at my_object.has_role
+    my_global_object.set(
+      // Name of field on object
+      "hasRole",
+      ctx.new_c_function(
+        // C/C++ function implementing this JS function
+        js_has_role_permitting_action,
+        // Repeated name of function, used in callstacks
+        "hasRole",
+        // Number of arguments to this function
+        2));
+  }
 
   // This sample shows the features of DynamicJSEndpointRegistry. This sample
   // adds a PUT /app/custom_endpoints, which calls install_custom_endpoints(),
@@ -76,7 +208,7 @@ namespace programmabilityapp
                                    // public:custom_endpoints.*
       )
     {
-      openapi_info.title = "CCF Programmabilit App";
+      openapi_info.title = "CCF Programmability App";
       openapi_info.description =
         "Lightweight application demonstrating app-space JS programmability";
       openapi_info.document_version = "0.0.1";
@@ -462,6 +594,16 @@ namespace programmabilityapp
         {ccf::empty_auth_policy})
         .set_auto_schema<void, ccf::JSRuntimeOptions>()
         .install();
+    }
+
+    ccf::js::extensions::Extensions get_extensions(
+      const ccf::endpoints::EndpointContext& endpoint_ctx) override
+    {
+      ccf::js::extensions::Extensions extensions;
+
+      extensions.push_back(std::make_shared<MyExtension>(&endpoint_ctx.tx));
+
+      return extensions;
     }
   };
 }

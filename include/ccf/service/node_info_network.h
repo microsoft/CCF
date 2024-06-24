@@ -246,14 +246,14 @@ namespace ccf
       from_json(j, v2);
       nin = NodeInfoNetwork(v2);
     }
-    catch (const JsonParseError& jpe)
+    catch (const ccf::JsonParseError& jpe)
     {
       NodeInfoNetwork_v1 v1;
       try
       {
         from_json(j, v1);
       }
-      catch (const JsonParseError& _)
+      catch (const ccf::JsonParseError& _)
       {
         // If this also fails to parse as a v1, then rethrow the earlier error.
         // Configs should now be using v2, and this v1 parsing is just a

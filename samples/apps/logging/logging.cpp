@@ -1776,7 +1776,7 @@ namespace loggingapp
           handle = h(id);
           for (const auto& seqno : seqnos)
           {
-            ds::hashutils::hash_combine(handle, seqno, h);
+            ccf::ds::hashutils::hash_combine(handle, seqno, h);
           }
         }
 

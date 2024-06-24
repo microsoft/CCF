@@ -128,7 +128,7 @@ namespace http
       {
         header_typed = header.get<JwtHeader>();
       }
-      catch (const JsonParseError& e)
+      catch (const ccf::JsonParseError& e)
       {
         error_reason =
           fmt::format("JWT header does not follow schema: {}", e.describe());
@@ -139,7 +139,7 @@ namespace http
       {
         payload_typed = payload.get<JwtPayload>();
       }
-      catch (const JsonParseError& e)
+      catch (const ccf::JsonParseError& e)
       {
         error_reason = fmt::format(
           "JWT payload is missing required field: {}", e.describe());

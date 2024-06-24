@@ -6,7 +6,7 @@
 
 namespace tls
 {
-  class Client : public Context
+  class Client : public ccf::tls::Context
   {
   private:
     std::shared_ptr<Cert> cert;

@@ -30,6 +30,21 @@ namespace ccf
     UserEndpointRegistry(ccfapp::AbstractNodeContext& context) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::users), context)
     {}
+
+    // Default behaviour is to do nothing - do NOT log summary of every request
+    // as it completes. Apps may override this if they wish.
+    void handle_event_request_completed(
+      const ccf::endpoints::RequestCompletedEvent& event) override
+    {}
+
+    void handle_event_dispatch_failed(
+      const ccf::endpoints::DispatchFailedEvent& event) override
+    {
+      // Log dispatch failures, as a coarse metric of some user errors, but do
+      // not log the raw path, which may contain confidential fields
+      // misformatted into the wrong url
+      CCF_APP_INFO("DispatchFailedEvent: {} {}", event.method, event.status);
+    }
   };
 }
 

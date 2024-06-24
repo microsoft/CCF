@@ -18,12 +18,12 @@ namespace http
   protected:
     std::shared_ptr<ccf::TLSSession> tls_io;
     std::shared_ptr<ErrorReporter> error_reporter;
-    tls::ConnID session_id;
+    ::tls::ConnID session_id;
 
     HTTP2Session(
-      tls::ConnID session_id_,
+      ::tls::ConnID session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx,
+      std::unique_ptr<ccf::tls::Context> ctx,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
       ccf::ThreadedSession(session_id_),
       tls_io(std::make_shared<ccf::TLSSession>(
@@ -312,7 +312,7 @@ namespace http
       int64_t session_id_,
       const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx,
+      std::unique_ptr<ccf::tls::Context> ctx,
       const http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter,
       http::ResponderLookup& responder_lookup_) :
@@ -519,7 +519,7 @@ namespace http
     HTTP2ClientSession(
       int64_t session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<tls::Context> ctx) :
+      std::unique_ptr<ccf::tls::Context> ctx) :
       HTTP2Session(session_id_, writer_factory, std::move(ctx)),
       ccf::ClientSession(session_id_, writer_factory),
       client_parser(*this)

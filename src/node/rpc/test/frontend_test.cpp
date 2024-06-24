@@ -27,24 +27,28 @@
 #include <iostream>
 #include <string>
 
-std::unique_ptr<threading::ThreadMessaging>
-  threading::ThreadMessaging::singleton = nullptr;
+namespace threading
+{
+  std::unique_ptr<::threading::ThreadMessaging> ThreadMessaging::singleton =
+    nullptr;
+};
 
 using namespace ccf;
 using namespace std;
 
-class SimpleUserRpcFrontend : public RpcFrontend
+template <typename Registry>
+class TSimpleFrontend : public RpcFrontend
 {
-protected:
-  UserEndpointRegistry common_handlers;
-
 public:
-  SimpleUserRpcFrontend(
-    kv::Store& tables, ccfapp::AbstractNodeContext& context) :
-    RpcFrontend(tables, common_handlers, context),
-    common_handlers(context)
+  Registry registry;
+
+  TSimpleFrontend(kv::Store& tables, ccfapp::AbstractNodeContext& context) :
+    RpcFrontend(tables, registry, context),
+    registry(context)
   {}
 };
+
+using SimpleUserRpcFrontend = TSimpleFrontend<UserEndpointRegistry>;
 
 class BaseTestFrontend : public SimpleUserRpcFrontend
 {
@@ -1419,7 +1423,7 @@ TEST_CASE("Retry on conflict")
   }
 }
 
-class TestManualConflictsFrontend : public BaseTestFrontend
+class TestManualConflictsRegistry : public UserEndpointRegistry
 {
 public:
   using MyVals = kv::Map<size_t, size_t>;
@@ -1455,10 +1459,33 @@ public:
   WaitPoint before_write;
   WaitPoint after_write;
 
-  TestManualConflictsFrontend(kv::Store& tables) : BaseTestFrontend(tables)
+  struct Metrics
   {
-    open();
+    size_t calls = 0;
+    size_t retries = 0;
+    size_t errors = 0;
+  };
 
+  Metrics pausable_metrics;
+
+  void handle_event_request_completed(
+    const ccf::endpoints::RequestCompletedEvent& event) override
+  {
+    if (event.method == "POST" && event.dispatch_path == "/pausable")
+    {
+      pausable_metrics.calls += 1;
+      pausable_metrics.retries += event.attempts - 1;
+
+      if (event.status / 100 == 4)
+      {
+        pausable_metrics.errors += 1;
+      }
+    }
+  }
+
+  TestManualConflictsRegistry(ccfapp::AbstractNodeContext& context) :
+    UserEndpointRegistry(context)
+  {
     auto pausable = [this](auto& ctx) {
       auto src_handle = ctx.tx.template rw<MyVals>(SRC);
       auto dst_handle = ctx.tx.template rw<MyVals>(DST);
@@ -1475,6 +1502,36 @@ public:
     };
     make_endpoint("/pausable", HTTP_POST, pausable, {user_cert_auth_policy})
       .install();
+
+    auto get_pausable_metrics = [this](auto& ctx) {
+      auto j = nlohmann::json::object();
+      j["calls"] = pausable_metrics.calls;
+      j["retries"] = pausable_metrics.retries;
+      j["errors"] = pausable_metrics.errors;
+
+      ctx.rpc_ctx->set_response_body(j.dump(2));
+      ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+    };
+    make_endpoint("/pausable/metrics", HTTP_GET, get_pausable_metrics, {})
+      .install();
+  }
+};
+
+class TestManualConflictsFrontend
+  : public TSimpleFrontend<TestManualConflictsRegistry>
+{
+public:
+  using MyVals = TestManualConflictsRegistry::MyVals;
+  static constexpr auto SRC = TestManualConflictsRegistry::SRC;
+  static constexpr auto DST = TestManualConflictsRegistry::DST;
+  static constexpr auto KEY = TestManualConflictsRegistry::KEY;
+
+  ccf::StubNodeContext context;
+
+  TestManualConflictsFrontend(kv::Store& tables) :
+    TSimpleFrontend<TestManualConflictsRegistry>(tables, context)
+  {
+    open();
   }
 };
 
@@ -1501,7 +1558,7 @@ TEST_CASE("Manual conflicts")
 
   auto get_metrics = [&]() {
     crypto::openssl_sha256_init();
-    auto req = create_simple_request("/api/metrics");
+    auto req = create_simple_request("/pausable/metrics");
     req.set_method(HTTP_GET);
     auto serialized_call = req.build_request();
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
@@ -1509,17 +1566,10 @@ TEST_CASE("Manual conflicts")
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == HTTP_STATUS_OK);
     auto body = nlohmann::json::parse(response.body);
-    auto& element = body["metrics"];
-    ccf::EndpointMetricsEntry ret;
-    for (const auto& j : element)
-    {
-      if (j["path"] == "pausable")
-      {
-        ret = j.get<ccf::EndpointMetricsEntry>();
-        break;
-      }
-    }
-
+    TestManualConflictsRegistry::Metrics ret;
+    ret.calls = body["calls"].get<size_t>();
+    ret.retries = body["retries"].get<size_t>();
+    ret.errors = body["errors"].get<size_t>();
     crypto::openssl_sha256_shutdown();
     return ret;
   };
@@ -1550,20 +1600,20 @@ TEST_CASE("Manual conflicts")
                     std::shared_ptr<ccf::SessionContext> session = user_session,
                     http_status expected_status = HTTP_STATUS_OK) {
     crypto::openssl_sha256_init();
-    frontend.before_read.ready = false;
-    frontend.after_read.ready = false;
-    frontend.before_write.ready = false;
-    frontend.after_write.ready = false;
+    frontend.registry.before_read.ready = false;
+    frontend.registry.after_read.ready = false;
+    frontend.registry.before_write.ready = false;
+    frontend.registry.after_write.ready = false;
 
     std::thread worker(call_pausable, session, expected_status);
 
-    frontend.before_read.notify();
-    frontend.after_read.wait();
+    frontend.registry.before_read.notify();
+    frontend.registry.after_read.wait();
 
     read_write_op();
 
-    frontend.before_write.notify();
-    frontend.after_write.wait();
+    frontend.registry.before_write.notify();
+    frontend.registry.after_write.wait();
 
     worker.join();
     crypto::openssl_sha256_shutdown();
@@ -1730,7 +1780,7 @@ int main(int argc, char** argv)
     std::chrono::duration_cast<std::chrono::microseconds>(
       std::chrono::system_clock::now().time_since_epoch());
 
-  threading::ThreadMessaging::init(1);
+  ::threading::ThreadMessaging::init(1);
   crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);

@@ -77,7 +77,7 @@ namespace consensus
     {
       serializer::ByteRange byte_range = {data, size};
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_append, to_host, globally_committable, byte_range);
+        ::consensus::ledger_append, to_host, globally_committable, byte_range);
     }
 
     /**
@@ -102,7 +102,7 @@ namespace consensus
     void truncate(Index idx)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_truncate, to_host, idx, false /* no recovery */);
+        ::consensus::ledger_truncate, to_host, idx, false /* no recovery */);
     }
 
     /**
@@ -112,7 +112,7 @@ namespace consensus
      */
     void commit(Index idx)
     {
-      RINGBUFFER_WRITE_MESSAGE(consensus::ledger_commit, to_host, idx);
+      RINGBUFFER_WRITE_MESSAGE(::consensus::ledger_commit, to_host, idx);
     }
 
     /**
@@ -124,7 +124,7 @@ namespace consensus
     void init(Index idx = 0, Index recovery_start_idx = 0)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        consensus::ledger_init, to_host, idx, recovery_start_idx);
+        ::consensus::ledger_init, to_host, idx, recovery_start_idx);
     }
   };
 }
