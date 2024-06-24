@@ -146,6 +146,7 @@ namespace programmabilityapp
 
     // Insert a function into the JS environment, called at my_object.has_role
     my_global_object.set(
+      // Name of field on object
       "hasRole",
       ctx.new_c_function(
         // C/C++ function implementing this JS function
@@ -593,6 +594,16 @@ namespace programmabilityapp
         {ccf::empty_auth_policy})
         .set_auto_schema<void, ccf::JSRuntimeOptions>()
         .install();
+    }
+
+    ccf::js::extensions::Extensions get_extensions(
+      const ccf::endpoints::EndpointContext& endpoint_ctx) override
+    {
+      ccf::js::extensions::Extensions extensions;
+
+      extensions.push_back(std::make_shared<MyExtension>(&endpoint_ctx.tx));
+
+      return extensions;
     }
   };
 }
