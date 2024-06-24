@@ -67,18 +67,28 @@ namespace programmabilityapp
       return std::nullopt;
     }
 
-    std::pair<ccf::ActionFormat, std::span<const uint8_t>> get_body(
-      ccf::endpoints::EndpointContext& ctx)
+    std::tuple<
+      ccf::ActionFormat, // JSON or COSE
+      std::span<const uint8_t>, // Content
+      std::optional<uint64_t> // Created at timestamp, if passed
+      >
+    get_action_content(ccf::endpoints::EndpointContext& ctx)
     {
       if (
         const auto* cose_ident =
           ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
       {
-        return {ccf::ActionFormat::COSE, cose_ident->content};
+        return {
+          ccf::ActionFormat::COSE,
+          cose_ident->content,
+          cose_ident->protected_header.msg_created_at};
       }
       else
       {
-        return {ccf::ActionFormat::JSON, ctx.rpc_ctx->get_request_body()};
+        return {
+          ccf::ActionFormat::JSON,
+          ctx.rpc_ctx->get_request_body(),
+          std::nullopt};
       }
     }
 
@@ -278,9 +288,10 @@ namespace programmabilityapp
         }
         // End of Authorization Check
 
-        const auto [format, bundle] = get_body(ctx);
-        const auto j = nlohmann::json::parse(bundle.begin(), bundle.end());
-        const auto parsed_bundle = j.get<ccf::js::Bundle>();
+        const auto [format, content, created_at] = get_action_content(ctx);
+        const auto parsed_content =
+          nlohmann::json::parse(content.begin(), content.end());
+        const auto parsed_bundle = parsed_content.get<ccf::js::Bundle>();
 
         // Make operation auditable
         record_action_details_for_audit_v1(
@@ -293,9 +304,7 @@ namespace programmabilityapp
         // Ensure signed actions are original, i.e. not replayed
         if (format == ccf::ActionFormat::COSE)
         {
-          const auto* cose_ident =
-            ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>();
-          if (!cose_ident->protected_header.msg_created_at.has_value())
+          if (!created_at.has_value())
           {
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -304,9 +313,9 @@ namespace programmabilityapp
             return;
           }
           ccf::InvalidArgsReason reason;
-          result = is_original_action_execution(
+          result = is_original_action_execution_v1(
             ctx.tx,
-            cose_ident->protected_header.msg_created_at.value(),
+            created_at.value(),
             ctx.rpc_ctx->get_request_body(),
             reason);
 
@@ -466,14 +475,15 @@ namespace programmabilityapp
           // - Convert current options to JSON
           auto j_options = nlohmann::json(options);
 
-          const auto [format, body] = get_body(ctx);
-          // - Parse argument as JSON body
-          const auto arg_body = nlohmann::json::parse(body.begin(), body.end());
+          const auto [format, content, created_at] = get_action_content(ctx);
+          // - Parse content as JSON options
+          const auto arg_content =
+            nlohmann::json::parse(content.begin(), content.end());
 
           // - Merge, to overwrite current options with anything from body. Note
           // that nulls mean deletions, which results in resetting to a default
           // value
-          j_options.merge_patch(arg_body);
+          j_options.merge_patch(arg_content);
 
           // - Parse patched options from JSON
           options = j_options.get<ccf::JSRuntimeOptions>();
@@ -489,9 +499,7 @@ namespace programmabilityapp
           // Ensure signed actions are original, i.e. not replayed
           if (format == ccf::ActionFormat::COSE)
           {
-            const auto* cose_ident =
-              ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>();
-            if (!cose_ident->protected_header.msg_created_at.has_value())
+            if (!created_at.has_value())
             {
               ctx.rpc_ctx->set_error(
                 HTTP_STATUS_BAD_REQUEST,
@@ -500,9 +508,9 @@ namespace programmabilityapp
               return;
             }
             ccf::InvalidArgsReason reason;
-            result = is_original_action_execution(
+            result = is_original_action_execution_v1(
               ctx.tx,
-              cose_ident->protected_header.msg_created_at.value(),
+              created_at.value(),
               ctx.rpc_ctx->get_request_body(),
               reason);
 

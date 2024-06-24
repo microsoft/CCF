@@ -881,7 +881,7 @@ namespace ccf::js
     });
   }
 
-  ccf::ApiResult DynamicJSEndpointRegistry::is_original_action_execution(
+  ccf::ApiResult DynamicJSEndpointRegistry::is_original_action_execution_v1(
     kv::Tx& tx,
     uint64_t created_at,
     const std::span<const uint8_t> action,

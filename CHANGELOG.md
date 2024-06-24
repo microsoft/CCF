@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `::threading` is now `ccf::threading`, and `ccf/ds/thread_ids.h` has moved to `ccf/threading/thread_ids.h`
   - `::consensus` is now `ccf::consensus`
   - `::tls` is now `ccf::tls`
+- Introduce `DynamicJSEndpointRegistry::record_action_details_for_audit_v1` and `DynamicJSEndpointRegistry::is_original_action_execution_v1` to allow an application making use of the programmability feature to easily implement auditability, and protect users allowed to update the application against replay attacks (#6285).
 
 ### Removed
 

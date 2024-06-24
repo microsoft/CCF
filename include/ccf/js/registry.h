@@ -142,6 +142,17 @@ namespace ccf::js
       const std::string& action_name,
       const std::vector<uint8_t>& action_body);
 
+    /**
+     * Check an action is original, as opposed to replayed, by looking it up
+     * in the history of recent actions. To place an upper bound on the history
+     * size, an authenticated timestamp (@p created_at) is required.
+     */
+    ccf::ApiResult is_original_action_execution_v1(
+      kv::Tx& tx,
+      uint64_t created_at,
+      const std::span<const uint8_t> action,
+      ccf::InvalidArgsReason& reason);
+
     /// \defgroup Overrides for base EndpointRegistry functions, looking up JS
     /// endpoints before delegating to base implementation.
     ///@{
@@ -158,12 +169,6 @@ namespace ccf::js
       const ccf::TxID& tx_id) override;
 
     void build_api(nlohmann::json& document, kv::ReadOnlyTx& tx) override;
-
-    ccf::ApiResult is_original_action_execution(
-      kv::Tx& tx,
-      uint64_t created_at,
-      const std::span<const uint8_t> action,
-      ccf::InvalidArgsReason& reason);
     ///@}
   };
 }
