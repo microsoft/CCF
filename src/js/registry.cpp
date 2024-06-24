@@ -461,7 +461,9 @@ namespace ccf::js
     modules_quickjs_bytecode_map(
       fmt::format("{}.modules_quickjs_bytecode", kv_prefix)),
     runtime_options_map(fmt::format("{}.runtime_options", kv_prefix)),
-    recent_actions_map(fmt::format("{}.recent_actions", kv_prefix))
+    recent_actions_map(fmt::format("{}.recent_actions", kv_prefix)),
+    audit_input_map(fmt::format("{}.audit.input", kv_prefix)),
+    audit_info_map(fmt::format("{}.audit.info", kv_prefix))
   {
     interpreter_cache =
       context.get_subsystem<ccf::js::AbstractInterpreterCache>();
@@ -938,6 +940,33 @@ namespace ccf::js
           recent_actions->remove(replay_keys[i]);
         }
       }
+
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
+  ccf::ApiResult DynamicJSEndpointRegistry::record_action_details_for_audit_v1(
+    kv::Tx& tx,
+    ccf::ActionFormat format,
+    const std::string& user_id,
+    const std::string& action_name,
+    const std::vector<uint8_t>& action_body)
+  {
+    try
+    {
+      using AuditInputValue = kv::Value<std::vector<uint8_t>>;
+      using AuditInfoValue = kv::Value<AuditInfo>;
+
+      auto audit_input = tx.template rw<AuditInputValue>(audit_input_map);
+      audit_input->put(action_body);
+
+      auto audit_info = tx.template rw<AuditInfoValue>(audit_info_map);
+      audit_info->put({format, user_id, action_name});
 
       return ApiResult::OK;
     }

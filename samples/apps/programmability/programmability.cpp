@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 // CCF
-#include "audit_info.h"
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/ds/hash.h"
@@ -20,8 +19,6 @@ using namespace nlohmann;
 namespace programmabilityapp
 {
   using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
-  using AuditInputValue = kv::Value<std::vector<uint8_t>>;
-  using AuditInfoValue = kv::Value<AuditInfo>;
   static constexpr auto PRIVATE_RECORDS = "programmability.records";
   static constexpr auto CUSTOM_ENDPOINTS_NAMESPACE = "public:custom_endpoints";
 
@@ -70,18 +67,18 @@ namespace programmabilityapp
       return std::nullopt;
     }
 
-    std::pair<AuditInputFormat, std::span<const uint8_t>> get_body(
+    std::pair<ccf::ActionFormat, std::span<const uint8_t>> get_body(
       ccf::endpoints::EndpointContext& ctx)
     {
       if (
         const auto* cose_ident =
           ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
       {
-        return {AuditInputFormat::COSE, cose_ident->content};
+        return {ccf::ActionFormat::COSE, cose_ident->content};
       }
       else
       {
-        return {AuditInputFormat::JSON, ctx.rpc_ctx->get_request_body()};
+        return {ccf::ActionFormat::JSON, ctx.rpc_ctx->get_request_body()};
       }
     }
 
@@ -285,35 +282,16 @@ namespace programmabilityapp
         const auto j = nlohmann::json::parse(bundle.begin(), bundle.end());
         const auto parsed_bundle = j.get<ccf::js::Bundle>();
 
-        // Make operation auditable by writing user-supplied
-        // document to the ledger
+        // Make operation auditable
+        record_action_details_for_audit_v1(
+          ctx.tx,
+          format,
+          user_id.value(),
+          "PUT /app/custom_endpoints",
+          ctx.rpc_ctx->get_request_body());
 
-        // if (format == AuditInputFormat::COSE)
-        // {
-        //   is_original_action_execution_v1(
-        //     ctx,
-        //     reason
-        //   );
-
-        //   if (reason)
-        //   ...
-        // }
-
-        // record_action_details_to_ledger_v1(
-        //   ctx,
-        //   format,
-        //   ActionType::BUNDLE, // string
-        //   user_id.value() // string
-        //   );
-
-        auto audit_input = ctx.tx.template rw<AuditInputValue>(
-          fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
-        audit_input->put(ctx.rpc_ctx->get_request_body());
-        auto audit_info = ctx.tx.template rw<AuditInfoValue>(
-          fmt::format("{}.audit.info", CUSTOM_ENDPOINTS_NAMESPACE));
-        audit_info->put({format, AuditInputContent::BUNDLE, user_id.value()});
-
-        if (format == AuditInputFormat::COSE)
+        // Ensure signed actions are original, i.e. not replayed
+        if (format == ccf::ActionFormat::COSE)
         {
           const auto* cose_ident =
             ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>();
@@ -500,15 +478,16 @@ namespace programmabilityapp
           // - Parse patched options from JSON
           options = j_options.get<ccf::JSRuntimeOptions>();
 
-          // Make operation auditable by writing user-supplied
-          // document to the ledger
-          auto audit = ctx.tx.template rw<AuditInputValue>(
-            fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
-          audit->put(ctx.rpc_ctx->get_request_body());
-          auto audit_info = ctx.tx.template rw<AuditInfoValue>(
-            fmt::format("{}.audit.info", CUSTOM_ENDPOINTS_NAMESPACE));
-          audit_info->put({format, AuditInputContent::BUNDLE, user_id.value()});
-          if (format == AuditInputFormat::COSE)
+          // Make operation auditable
+          record_action_details_for_audit_v1(
+            ctx.tx,
+            format,
+            user_id.value(),
+            "PUT /app/custom_endpoints",
+            ctx.rpc_ctx->get_request_body());
+
+          // Ensure signed actions are original, i.e. not replayed
+          if (format == ccf::ActionFormat::COSE)
           {
             const auto* cose_ident =
               ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>();
