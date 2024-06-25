@@ -67,6 +67,7 @@ jobs:
       - name: "Test ${{ matrix.platform.name }}"
         run: |
           set -ex
+          rm -rf /github/home/.cache/pip
           cd build
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           ./tests.sh --timeout 240 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite" > tests.out
@@ -85,11 +86,11 @@ jobs:
         with:
           name: logs-${{ matrix.platform.name }}
           path: build/*.out
-        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
+        if: "(success() || failure()) && ${{ matrix.platform.name }} != 'snp'" # Needs 1ES Pool support
 
       - name: "Upload logs for ${{ matrix.platform.name }}"
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ matrix.platform.name }}
           path: build/workspace/
-        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
+        if: "(success() || failure()) && ${{ matrix.platform.name }} != 'snp'" # Needs 1ES Pool support
