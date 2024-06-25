@@ -30,7 +30,7 @@ jobs:
     runs-on: ${{ matrix.platform.nodes }}
     container:
       image: ${{ matrix.platform.image }}
-      options: --user root
+      options: --user 1001
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,14 +47,8 @@ jobs:
       - name: "Test ${{ matrix.platform.name }}"
         run: |
           cd build
-          ./tests.sh -VV --timeout 240 --no-compress-output -T Test
+          ./tests.sh -VV --timeout 240
         shell: bash
-        if: "${{ matrix.platform.name != 'snp' }}" # Can only run when 1ES pools support SNP
-
-      - name: "Test Report ${{ matrix.platform.name }}"
-        uses: dorny/test-reporter@v1
-        if: success() || failure()
-        with:
-          name: CTests
-          path: build/Testing/*/Test.xml
-          reporter: jest-junit
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
