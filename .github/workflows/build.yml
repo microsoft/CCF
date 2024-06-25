@@ -51,6 +51,6 @@ jobs:
         uses: dorny/test-reporter@v1
         if: success() || failure()    # run this step even if previous step failed
         with:
-          name: CTests            # Name of the check run which will be created
-          path: build/Testing/*/Test.xml    # Path to test results
-          reporter: jest-junit        # Format of test results
+          name: CTests
+          path: build/Testing/*/Test.xml
+          reporter: jest-junit
