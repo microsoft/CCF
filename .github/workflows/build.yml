@@ -1,0 +1,35 @@
+name: "Bencher: Run Benchmarks"
+
+on:
+  push:
+    branches:
+      - main
+      - gha_ci
+  workflow_dispatch:
+
+jobs:
+  run_benchmarks:
+    name: Continuous Integration
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-19-06-2024
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual ..
+          ninja
+          ./tests.sh -VV
+        shell: bash
+
+      - name: Test
+        run: |
+          cd build
+          ./tests.sh -VV
+        shell: bash
