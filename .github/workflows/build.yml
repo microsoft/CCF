@@ -67,6 +67,7 @@ jobs:
       - name: "Test ${{ matrix.platform.name }}"
         run: |
           set -ex
+          cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
