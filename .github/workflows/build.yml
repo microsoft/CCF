@@ -25,12 +25,12 @@ jobs:
             image: ghcr.io/microsoft/ccf/ci/default:build-19-06-2024
             nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
           - name: sgx
-            image: ghcr.io/microsoft/ccf/ci/default:build-19-06-2024
+            image: ghcr.io/microsoft/ccf/ci/sgx:build-19-06-2024
             nodes: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
     runs-on: ${{ matrix.platform.nodes }}
     container:
       image: ${{ matrix.platform.image }}
-      options: --user root # That should work
+      options: --user root
     steps:
       - uses: actions/checkout@v4
         with:
