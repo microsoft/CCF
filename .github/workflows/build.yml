@@ -41,6 +41,7 @@ jobs:
 
       - name: "Build Debug ${{ matrix.platform.name }}"
         run: |
+          set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
@@ -65,6 +66,7 @@ jobs:
 
       - name: "Test ${{ matrix.platform.name }}"
         run: |
+          set -ex
           cd build
           ASAN_SYMBOLIZERS=/usr/bin/llvm-symbolizer-15
           export ASAN_SYMBOLIZER_PATH=$(realpath $(ASAN_SYMBOLIZERS))
@@ -74,6 +76,7 @@ jobs:
 
       - name: "Partitions Test ${{ matrix.platform.name }}"
         run: |
+          set -ex
           source env/bin/activate && ctest -VV --timeout 240 -L partitions -C partitions
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
@@ -83,3 +86,4 @@ jobs:
         with:
           name: logs-${{ matrix.platform.name }}
           path: build/workspace/
+        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
