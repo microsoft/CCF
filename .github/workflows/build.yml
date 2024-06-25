@@ -70,15 +70,22 @@ jobs:
           cd build
           ASAN_SYMBOLIZERS=/usr/bin/llvm-symbolizer-15
           export ASAN_SYMBOLIZER_PATH=$(realpath $(ASAN_SYMBOLIZERS))
-          ./tests.sh --timeout 240 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite"
+          ./tests.sh --timeout 240 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite" > tests.out
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
 
       - name: "Partitions Test ${{ matrix.platform.name }}"
         run: |
           set -ex
-          source env/bin/activate && ctest -VV --timeout 240 -L partitions -C partitions
+          source env/bin/activate && ctest -VV --timeout 240 -L partitions -C partitions > partitions.out
         shell: bash
+        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
+
+      - name: "Upload test output for ${{ matrix.platform.name }}"
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.platform.name }}
+          path: build/*.out
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
 
       - name: "Upload logs for ${{ matrix.platform.name }}"
