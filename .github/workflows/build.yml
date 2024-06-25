@@ -48,6 +48,21 @@ jobs:
           ninja
         shell: bash
 
+      - name: "Platform SGX"
+        run: |
+          sudo groupadd -fg $(/usr/bin/stat -Lc '%g' /dev/sgx/provision) sgx_prv
+          sudo usermod -a -G sgx_prv $(whoami)
+          samples/scripts/sgxinfo.sh
+          cat /proc/cpuinfo | grep flags | uniq
+        shell: bash
+        if: "${{ matrix.platform.name == 'sgx' }}"
+
+      - name: "Platform SNP"
+        run: |
+          samples/scripts/snpinfo.sh
+        shell: bash
+        if: "${{ matrix.platform.name == 'snp' }}"
+
       - name: "Test ${{ matrix.platform.name }}"
         run: |
           cd build
