@@ -53,7 +53,7 @@ jobs:
           cd build
           ASAN_SYMBOLIZERS=/usr/bin/llvm-symbolizer-15
           export ASAN_SYMBOLIZER_PATH=$(realpath $(ASAN_SYMBOLIZERS))
-          ./tests.sh --timeout 240 --output-on-failure -L e2e
+          ./tests.sh --timeout 240 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite"
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
 
