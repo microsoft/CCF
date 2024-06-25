@@ -194,9 +194,11 @@ namespace ccf
         case (RedirectionResolutionKind::NodeByRole):
         {
           const auto role_it = resolver.target.find("role");
-          const bool primary =
+          const bool seeking_primary =
             role_it == resolver.target.end() || role_it.value() == "primary";
-          if (!primary)
+          const bool seeking_backup =
+            !seeking_primary && role_it.value() == "backup";
+          if (!seeking_primary && !seeking_backup)
           {
             return std::nullopt;
           }
@@ -207,14 +209,32 @@ namespace ccf
             incoming_interface :
             interface_it.value().get<std::string>();
 
-          const auto primary_id = consensus->primary();
-          if (!primary_id.has_value())
+          std::vector<std::map<NodeId, NodeInfo>::const_iterator>
+            target_node_its;
+          const auto nodes = InternalTablesAccess::get_trusted_nodes(tx);
+          {
+            const auto primary_id = consensus->primary();
+            if (seeking_primary && primary_id.has_value())
+            {
+              target_node_its.push_back(nodes.find(primary_id.value()));
+            }
+            else if (seeking_backup)
+            {
+              for (auto it = nodes.begin(); it != nodes.end(); ++it)
+              {
+                if (it->first != primary_id)
+                {
+                  target_node_its.push_back(it);
+                }
+              }
+            }
+          }
+          if (target_node_its.empty())
           {
             return std::nullopt;
           }
 
-          const auto nodes = InternalTablesAccess::get_trusted_nodes(tx);
-          const auto node_it = nodes.find(primary_id.value());
+          const auto node_it = target_node_its[rand() % target_node_its.size()];
           if (node_it != nodes.end())
           {
             const auto& interfaces = node_it->second.rpc_interfaces;
@@ -242,24 +262,6 @@ namespace ccf
       return std::nullopt;
     }
 
-    RedirectionResolverConfig get_redirect_resolver_config(
-      endpoints::RedirectionStrategy strategy,
-      const ccf::NodeInfoNetwork_v2::NetInterface::Redirections& redirections)
-    {
-      switch (strategy)
-      {
-        case (ccf::endpoints::RedirectionStrategy::None):
-        {
-          return {};
-        }
-
-        case (ccf::endpoints::RedirectionStrategy::ToPrimary):
-        {
-          return redirections.to_primary;
-        }
-      }
-    }
-
     bool check_redirect(
       kv::ReadOnlyTx& tx,
       std::shared_ptr<ccf::RpcContextImpl> ctx,
@@ -282,7 +284,7 @@ namespace ccf
 
           if (!is_primary)
           {
-            auto resolver = get_redirect_resolver_config(rs, redirections);
+            auto resolver = redirections.to_primary;
 
             const auto listen_interface =
               ctx->get_session_context()->interface_id.value_or(
@@ -305,6 +307,41 @@ namespace ccf
               ccf::errors::PrimaryNotFound,
               "Request should be redirected to primary, but receiving node "
               "does not know current primary address");
+            return true;
+          }
+          return false;
+        }
+
+        case (ccf::endpoints::RedirectionStrategy::ToBackup):
+        {
+          const bool is_backup =
+            (consensus != nullptr) && !consensus->can_replicate();
+
+          if (!is_backup)
+          {
+            auto resolver = redirections.to_backup;
+
+            const auto listen_interface =
+              ctx->get_session_context()->interface_id.value_or(
+                PRIMARY_RPC_INTERFACE);
+            const auto location =
+              resolve_redirect_location(resolver, tx, listen_interface);
+            if (location.has_value())
+            {
+              ctx->set_response_header(
+                http::headers::LOCATION,
+                fmt::format(
+                  "https://{}{}", location.value(), ctx->get_request_url()));
+              ctx->set_response_status(HTTP_STATUS_TEMPORARY_REDIRECT);
+              return true;
+            }
+
+            // Should have redirected, but don't know how to. Return an error
+            ctx->set_error(
+              HTTP_STATUS_SERVICE_UNAVAILABLE,
+              ccf::errors::BackupNotFound,
+              "Request should be redirected to backup, but receiving node "
+              "does not know any current backup address");
             return true;
           }
           return false;
