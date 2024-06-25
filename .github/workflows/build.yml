@@ -13,32 +13,41 @@ permissions:
   checks: write
 
 jobs:
-  run_benchmarks:
+  build_and_test:
     name: Continuous Integration
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    strategy:
+      matrix:
+        platform:
+          - name: virtual
+            image: ghcr.io/microsoft/ccf/ci/default:build-19-06-2024
+            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub] 
+          - name: snp
+            image: ghcr.io/microsoft/ccf/ci/default:build-19-06-2024
+            nodes: [self-hosted, 1ES.Pool=gha-snp-ccf-sub]
+    runs-on: ${{ matrix.platform.nodes }}
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-19-06-2024
+      image: ${{ matrix.platform.containers }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Build
+      - name: "Build Debug ${{ matrix.platform.name }}"
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual ..
+          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON ..
           ninja
         shell: bash
 
-      - name: Test
+      - name: "Test ${{ matrix.platform.name }}"
         run: |
           cd build
           ./tests.sh -VV --timeout 240 --no-compress-output -T Test
         shell: bash
 
-      - name: Test Report
+      - name: "Test Report ${{ matrix.platform.name }}"
         uses: dorny/test-reporter@v1
         if: success() || failure()    # run this step even if previous step failed
         with:
