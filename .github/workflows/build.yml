@@ -51,7 +51,7 @@ jobs:
       - name: "Test ${{ matrix.platform.name }}"
         run: |
           cd build
-          ASAN_SYMBOLIZER=/usr/bin/llvm-symbolizer-15
+          ASAN_SYMBOLIZERS=/usr/bin/llvm-symbolizer-15
           export ASAN_SYMBOLIZER_PATH=$(realpath $(ASAN_SYMBOLIZERS))
           ./tests.sh --timeout 240 --output-on-failure -L e2e
         shell: bash
