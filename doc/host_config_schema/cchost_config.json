@@ -169,6 +169,10 @@
                   "to_primary": {
                     "$ref": "#/$defs/RedirectionResolver",
                     "description": "Configures how the Location header should be populated, when requests arrive on this interface that must be served by a primary while the receiving node is not a primary"
+                  },
+                  "to_backup": {
+                    "$ref": "#/$defs/RedirectionResolver",
+                    "description": "Configures how the Location header should be populated, when requests arrive on this interface that must be served by a backup while the receiving node is currently a primary"
                   }
                 },
                 "additionalProperties": false
@@ -724,7 +728,7 @@
                 "type": "object",
                 "properties": {
                   "role": {
-                    "enum": ["primary"],
+                    "enum": ["primary", "backup"],
                     "default": "primary"
                   }
                 },

@@ -688,7 +688,7 @@ const actions = new Map([
             if (redirection_strategy !== undefined) {
               checkEnum(
                 info.redirection_strategy,
-                ["none", "to_primary"],
+                ["none", "to_primary", "to_backup"],
                 `${prefix2}.redirection_strategy`,
               );
             }
