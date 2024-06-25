@@ -1,4 +1,4 @@
-name: "Bencher: Run Benchmarks"
+name: "Continuous Integration"
 
 on:
   push:
