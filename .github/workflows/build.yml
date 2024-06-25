@@ -29,7 +29,7 @@ jobs:
             nodes: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
     runs-on: ${{ matrix.platform.nodes }}
     container:
-      image: ${{ matrix.platform.containers }}
+      image: ${{ matrix.platform.image }}
       options: --user root
     steps:
       - uses: actions/checkout@v4
