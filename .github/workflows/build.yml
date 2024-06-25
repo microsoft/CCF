@@ -67,7 +67,9 @@ jobs:
       - name: "Test ${{ matrix.platform.name }}"
         run: |
           set -ex
-          rm -rf /github/home/.cache/pip
+          rm -rf /github/home/.cache
+          ls -al /github/home
+          whoami
           cd build
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           ./tests.sh --timeout 240 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite" > tests.out
