@@ -23,7 +23,10 @@ jobs:
             nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub] 
           - name: snp
             image: ghcr.io/microsoft/ccf/ci/default:build-19-06-2024
-            nodes: [self-hosted, 1ES.Pool=gha-snp-ccf-sub]
+            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+          - name: sgx
+            image: ghcr.io/microsoft/ccf/ci/default:build-19-06-2024
+            nodes: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
     runs-on: ${{ matrix.platform.nodes }}
     container:
       image: ${{ matrix.platform.containers }}
@@ -46,10 +49,11 @@ jobs:
           cd build
           ./tests.sh -VV --timeout 240 --no-compress-output -T Test
         shell: bash
+        if: "${{ matrix.platform.name != 'snp' }}" # Can only run when 1ES pools support SNP
 
       - name: "Test Report ${{ matrix.platform.name }}"
         uses: dorny/test-reporter@v1
-        if: success() || failure()    # run this step even if previous step failed
+        if: success() || failure()
         with:
           name: CTests
           path: build/Testing/*/Test.xml
