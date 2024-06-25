@@ -48,6 +48,14 @@ jobs:
       - name: "Test ${{ matrix.platform.name }}"
         run: |
           cd build
-          ./tests.sh -VV --timeout 240 --output-on-failure
+          ASAN_SYMBOLIZER=/usr/bin/llvm-symbolizer-15
+          export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS})
+          ./tests.sh --timeout 240 --output-on-failure -L unit_test
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
+
+      - name: "Upload logs for ${{ matrix.platform.name }}"
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.platform.name }}
+          path: build/workspace
