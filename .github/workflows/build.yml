@@ -7,6 +7,11 @@ on:
       - gha_ci
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
 jobs:
   run_benchmarks:
     name: Continuous Integration
@@ -25,11 +30,18 @@ jobs:
           cd build
           cmake -GNinja -DCOMPILE_TARGET=virtual ..
           ninja
-          ./tests.sh -VV
         shell: bash
 
       - name: Test
         run: |
           cd build
-          ./tests.sh -VV
+          ./tests.sh -VV --timeout 240 --no-compress-output -T Test
         shell: bash
+
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        if: success() || failure()    # run this step even if previous step failed
+        with:
+          name: CTests            # Name of the check run which will be created
+          path: Testing/*/Test.xml    # Path to test results
+          reporter: jest-junit        # Format of test results
