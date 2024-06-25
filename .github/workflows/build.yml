@@ -38,6 +38,7 @@ jobs:
 
       - name: "Build Debug ${{ matrix.platform.name }}"
         run: |
+          git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
           cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON ..
