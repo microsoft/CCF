@@ -1,4 +1,4 @@
-name: "Continuous Integration"
+name: CI
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build_and_test:
-    name: Continuous Integration
+    name: CI
     strategy:
       matrix:
         platform:
@@ -49,7 +49,7 @@ jobs:
         run: |
           cd build
           ASAN_SYMBOLIZER=/usr/bin/llvm-symbolizer-15
-          export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS})
+          export ASAN_SYMBOLIZER_PATH=$(realpath $(ASAN_SYMBOLIZERS))
           ./tests.sh --timeout 240 --output-on-failure -L unit_test
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
@@ -58,4 +58,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ matrix.platform.name }}
-          path: build/workspace
+          path: build/workspace/
