@@ -30,7 +30,7 @@ jobs:
     runs-on: ${{ matrix.platform.nodes }}
     container:
       image: ${{ matrix.platform.image }}
-      options: --user 1001 # That should work
+      options: --user root # That should work
     steps:
       - uses: actions/checkout@v4
         with:
