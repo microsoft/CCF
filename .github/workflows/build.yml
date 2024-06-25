@@ -48,8 +48,6 @@ jobs:
       - name: "Test ${{ matrix.platform.name }}"
         run: |
           cd build
-          ./tests.sh -VV --timeout 240
+          ./tests.sh -VV --timeout 240 --output-on-failure
         shell: bash
-        env:
-          CTEST_OUTPUT_ON_FAILURE: 1
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
