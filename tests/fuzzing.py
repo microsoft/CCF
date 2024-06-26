@@ -146,6 +146,7 @@ def fuzz_node_to_node(network, args):
         # Don't try to read any responses
         receive_data_after_fuzz=False,
         receive_data_after_each_request=False,
+        db_filename="/dev/shm/boofuzz.db",
     )
     fuzz_logger.session = session
 
