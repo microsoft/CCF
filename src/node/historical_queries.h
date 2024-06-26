@@ -64,6 +64,7 @@ FMT_END_NAMESPACE
 namespace ccf::historical
 {
   static constexpr auto slow_fetch_threshold = std::chrono::milliseconds(1000);
+  static constexpr size_t soft_to_raw_ratio{5};
 
   static std::optional<ccf::PrimarySignature> get_signature(
     const kv::StorePtr& sig_store)
@@ -95,10 +96,9 @@ namespace ccf::historical
     // whether to keep all the writes so that we can build a diff later
     bool track_deletes_on_missing_keys_v = false;
 
-    enum class RequestStage
+    enum class StoreStage
     {
       Fetching,
-      Untrusted,
       Trusted,
     };
 
@@ -132,7 +132,7 @@ namespace ccf::historical
     struct StoreDetails
     {
       std::chrono::milliseconds time_until_fetch = {};
-      RequestStage current_stage = RequestStage::Fetching;
+      StoreStage current_stage = StoreStage::Fetching;
       ccf::crypto::Sha256Hash entry_digest = {};
       ccf::ClaimsDigest claims_digest = {};
       kv::StorePtr store = nullptr;
@@ -234,11 +234,13 @@ namespace ccf::historical
         return {};
       }
 
-      void adjust_ranges(
+      std::pair<std::vector<SeqNo>, std::vector<SeqNo>> adjust_ranges(
         const SeqNoCollection& new_seqnos,
         bool should_include_receipts,
         SeqNo earliest_ledger_secret_seqno)
       {
+        std::vector<SeqNo> removed{}, probably_added{};
+
         bool any_diff = false;
 
         // If a seqno is earlier than the earliest known ledger secret, we will
@@ -266,6 +268,7 @@ namespace ccf::historical
             {
               // No longer looking for a seqno which was previously requested.
               // Remove it from my_stores
+              removed.push_back(prev_it->first);
               prev_it = my_stores.erase(prev_it);
               any_diff |= true;
             }
@@ -279,6 +282,7 @@ namespace ccf::historical
               {
                 // If this is too early for known secrets, just record that it
                 // was requested but don't add it to all_stores yet
+                probably_added.push_back(*new_it);
                 prev_it = my_stores.insert_or_assign(prev_it, *new_it, nullptr);
                 any_too_early = true;
               }
@@ -293,6 +297,7 @@ namespace ccf::historical
                   details = std::make_shared<StoreDetails>();
                   all_stores.insert_or_assign(all_it, *new_it, details);
                 }
+                probably_added.push_back(*new_it);
                 prev_it = my_stores.insert_or_assign(prev_it, *new_it, details);
               }
               any_diff |= true;
@@ -311,7 +316,7 @@ namespace ccf::historical
         if (!any_diff && (should_include_receipts == include_receipts))
         {
           HISTORICAL_LOG("Identical to previous request");
-          return;
+          return {removed, probably_added};
         }
 
         include_receipts = should_include_receipts;
@@ -331,6 +336,7 @@ namespace ccf::historical
             populate_receipts(seqno);
           }
         }
+        return {removed, probably_added};
       }
 
       void populate_receipts(ccf::SeqNo new_seqno)
@@ -493,6 +499,135 @@ namespace ccf::historical
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
+    // These two combine into an effective O(1) lookup/add/remove by handle.
+    std::list<CompoundHandle> lru_requests;
+    std::map<CompoundHandle, std::list<CompoundHandle>::iterator> lru_lookup;
+
+    // To maintain the estimated size consumed by all requests. Gets updated
+    // when ledger entries are fetched, and when requests are dropped.
+    std::unordered_map<SeqNo, std::set<CompoundHandle>> store_to_requests;
+    std::unordered_map<ccf::SeqNo, size_t> raw_store_sizes{};
+
+    CacheSize soft_store_cache_limit{1ll * 1024 * 1024 * 512 /*512 MB*/};
+    CacheSize soft_store_cache_limit_raw =
+      soft_store_cache_limit / soft_to_raw_ratio;
+    CacheSize estimated_store_cache_size{0};
+
+    void add_request_ref(SeqNo seq, CompoundHandle handle)
+    {
+      auto it = store_to_requests.find(seq);
+
+      if (it == store_to_requests.end())
+      {
+        store_to_requests.insert({seq, {handle}});
+        auto size = raw_store_sizes.find(seq);
+        if (size != raw_store_sizes.end())
+        {
+          estimated_store_cache_size += size->second;
+        }
+      }
+      else
+      {
+        it->second.insert(handle);
+      }
+    }
+
+    void add_request_refs(CompoundHandle handle)
+    {
+      for (const auto& [seq, _] : requests.at(handle).my_stores)
+      {
+        add_request_ref(seq, handle);
+      }
+    }
+
+    void remove_request_ref(SeqNo seq, CompoundHandle handle)
+    {
+      auto it = store_to_requests.find(seq);
+      assert(it != store_to_requests.end());
+
+      it->second.erase(handle);
+      if (it->second.empty())
+      {
+        store_to_requests.erase(it);
+        auto size = raw_store_sizes.find(seq);
+        if (size != raw_store_sizes.end())
+        {
+          estimated_store_cache_size -= size->second;
+          raw_store_sizes.erase(size);
+        }
+      }
+    }
+
+    void remove_request_refs(CompoundHandle handle)
+    {
+      for (const auto& [seq, _] : requests.at(handle).my_stores)
+      {
+        remove_request_ref(seq, handle);
+      }
+    }
+
+    void lru_promote(CompoundHandle handle)
+    {
+      auto it = lru_lookup.find(handle);
+      if (it != lru_lookup.end())
+      {
+        lru_requests.erase(it->second);
+        it->second = lru_requests.insert(lru_requests.begin(), handle);
+      }
+      else
+      {
+        lru_lookup[handle] = lru_requests.insert(lru_requests.begin(), handle);
+        add_request_refs(handle);
+      }
+    }
+
+    void lru_shrink_to_fit(size_t threshold)
+    {
+      while (estimated_store_cache_size > threshold)
+      {
+        if (lru_requests.empty())
+        {
+          LOG_FAIL_FMT(
+            "LRU shrink to {} requested but cache is already empty", threshold);
+          return;
+        }
+
+        const auto handle = lru_requests.back();
+        LOG_DEBUG_FMT(
+          "Cache size shrinking (reached {} / {}). Dropping {}",
+          estimated_store_cache_size,
+          threshold,
+          handle);
+
+        remove_request_refs(handle);
+        lru_lookup.erase(handle);
+
+        requests.erase(handle);
+        lru_requests.pop_back();
+      }
+    }
+
+    void lru_evict(CompoundHandle handle)
+    {
+      auto it = lru_lookup.find(handle);
+      if (it != lru_lookup.end())
+      {
+        remove_request_refs(handle);
+        lru_requests.erase(it->second);
+        lru_lookup.erase(it);
+      }
+    }
+
+    void update_store_raw_size(SeqNo seq, size_t new_size)
+    {
+      auto& stored_size = raw_store_sizes[seq];
+      assert(!stored_size || stored_size == new_size);
+
+      estimated_store_cache_size -= stored_size;
+      estimated_store_cache_size += new_size;
+      stored_size = new_size;
+    }
+
     void fetch_entry_at(ccf::SeqNo seqno)
     {
       fetch_entries_range(seqno, seqno);
@@ -577,7 +712,7 @@ namespace ccf::historical
     {
       // Deserialisation includes a GCM integrity check, so all entries
       // have been verified by the time we get here.
-      details->current_stage = RequestStage::Trusted;
+      details->current_stage = StoreStage::Trusted;
       details->has_commit_evidence = has_commit_evidence;
 
       details->entry_digest = entry_digest;
@@ -760,6 +895,8 @@ namespace ccf::historical
         HISTORICAL_LOG("First time I've seen handle {}", handle);
       }
 
+      lru_promote(handle);
+
       Request& request = it->second;
 
       update_earliest_known_ledger_secret();
@@ -772,8 +909,17 @@ namespace ccf::historical
         seqnos.size(),
         *seqnos.begin(),
         include_receipts);
-      request.adjust_ranges(
+      auto [removed, probably_added] = request.adjust_ranges(
         seqnos, include_receipts, earliest_secret_.valid_from);
+
+      for (auto seq : removed)
+      {
+        remove_request_ref(seq, handle);
+      }
+      for (auto seq : probably_added)
+      {
+        add_request_ref(seq, handle);
+      }
 
       // If the earliest target entry cannot be deserialised with the earliest
       // known ledger secret, record the target seqno and begin fetching the
@@ -789,10 +935,9 @@ namespace ccf::historical
       for (auto seqno : seqnos)
       {
         auto target_details = request.get_store_details(seqno);
-
         if (
           target_details != nullptr &&
-          target_details->current_stage == RequestStage::Trusted &&
+          target_details->current_stage == StoreStage::Trusted &&
           (!request.include_receipts || target_details->receipt != nullptr))
         {
           // Have this store, associated txid and receipt and trust it - add
@@ -823,6 +968,7 @@ namespace ccf::historical
       {
         if (request_it->second.get_store_details(seqno) != nullptr)
         {
+          lru_evict(request_it->first);
           request_it = requests.erase(request_it);
         }
         else
@@ -977,6 +1123,12 @@ namespace ccf::historical
       default_expiry_duration = duration;
     }
 
+    void set_soft_cache_limit(CacheSize cache_limit)
+    {
+      soft_store_cache_limit = cache_limit;
+      soft_store_cache_limit_raw = soft_store_cache_limit / soft_to_raw_ratio;
+    }
+
     void track_deletes_on_missing_keys(bool track)
     {
       track_deletes_on_missing_keys_v = track;
@@ -985,8 +1137,8 @@ namespace ccf::historical
     bool drop_cached_states(const CompoundHandle& handle)
     {
       std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
+      lru_evict(handle);
       const auto erased_count = requests.erase(handle);
-      HISTORICAL_LOG("Dropping historical request {}", handle);
       return erased_count > 0;
     }
 
@@ -1000,8 +1152,7 @@ namespace ccf::historical
       std::lock_guard<ccf::pal::Mutex> guard(requests_lock);
       const auto it = all_stores.find(seqno);
       auto details = it == all_stores.end() ? nullptr : it->second.lock();
-      if (
-        details == nullptr || details->current_stage != RequestStage::Fetching)
+      if (details == nullptr || details->current_stage != StoreStage::Fetching)
       {
         // Unexpected entry, we already have it or weren't asking for it -
         // ignore this resubmission
@@ -1094,6 +1245,7 @@ namespace ccf::historical
         std::move(claims_digest),
         has_commit_evidence);
 
+      update_store_raw_size(seqno, size);
       return true;
     }
 
@@ -1245,6 +1397,7 @@ namespace ccf::historical
           {
             LOG_DEBUG_FMT(
               "Dropping expired historical query with handle {}", it->first);
+            lru_evict(it->first);
             it = requests.erase(it);
           }
           else
@@ -1254,6 +1407,8 @@ namespace ccf::historical
           }
         }
       }
+
+      lru_shrink_to_fit(soft_store_cache_limit_raw);
 
       {
         auto it = all_stores.begin();
@@ -1268,7 +1423,7 @@ namespace ccf::historical
           }
           else
           {
-            if (details->current_stage == RequestStage::Fetching)
+            if (details->current_stage == StoreStage::Fetching)
             {
               details->time_until_fetch -= elapsed_ms;
               if (details->time_until_fetch.count() <= 0)
@@ -1432,6 +1587,11 @@ namespace ccf::historical
     void set_default_expiry_duration(ExpiryDuration duration) override
     {
       StateCacheImpl::set_default_expiry_duration(duration);
+    }
+
+    void set_soft_cache_limit(CacheSize cache_limit) override
+    {
+      StateCacheImpl::set_soft_cache_limit(cache_limit);
     }
 
     void track_deletes_on_missing_keys(bool track) override

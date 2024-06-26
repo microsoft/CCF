@@ -948,6 +948,82 @@ TEST_CASE("Incremental progress")
   }
 }
 
+TEST_CASE("StateCache soft zero limit with increasing")
+{
+  // Try get two stores. Shouldn't be able to retrieve anything with 0 cache
+  // limit. After increasing to the size of first store only that one is
+  // available, but later overwritten by the second one, and finally all are
+  // evicted after setting again to 0.
+  //
+  // If you change this bare in mind that each attempt to get the store promotes
+  // the handle, and so requests eviction order changes, therefore this test in
+  // particular is quite fragile.
+
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  kv::Version signature_transaction;
+
+  {
+    signature_transaction = write_transactions_and_signature(kv_store, 1);
+    signature_transaction = write_transactions_and_signature(kv_store, 1);
+    REQUIRE(kv_store.current_version() == signature_transaction);
+  }
+
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  REQUIRE(ledger.size() == signature_transaction);
+
+  auto seq_high = signature_transaction;
+  auto seq_low = seq_high - 1;
+
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCache cache(
+    kv_store, state.ledger_secrets, stub_writer);
+
+  cache.set_soft_cache_limit(0);
+
+  REQUIRE(!cache.get_store_at(0, seq_low));
+  cache.tick(std::chrono::milliseconds(100));
+
+  cache.handle_ledger_entry(seq_low, ledger.at(seq_low));
+  cache.tick(std::chrono::milliseconds(100));
+
+  // Ledger entry fecthed and instantly removed because of the parent request
+  // eviction due to zero cache limit.
+  REQUIRE(!cache.get_store_at(0, seq_low));
+
+  const size_t limit_for_one_entry_only =
+    (ledger.at(seq_low).size() + ledger.at(seq_high).size()) *
+      ccf::historical::soft_to_raw_ratio -
+    1;
+  cache.set_soft_cache_limit(limit_for_one_entry_only);
+
+  cache.handle_ledger_entry(5, ledger.at(seq_low));
+  cache.tick(std::chrono::milliseconds(100));
+
+  REQUIRE(cache.get_store_at(0, seq_low));
+  REQUIRE(!cache.get_store_at(1, seq_high));
+
+  cache.tick(std::chrono::milliseconds(100));
+
+  cache.handle_ledger_entry(seq_high, ledger.at(seq_high));
+
+  // Both available because tick hasn't been called yet.
+  REQUIRE(cache.get_store_at(0, seq_low));
+  REQUIRE(cache.get_store_at(1, seq_high));
+
+  cache.tick(std::chrono::milliseconds(100));
+
+  REQUIRE(!cache.get_store_at(0, seq_low));
+  REQUIRE(cache.get_store_at(1, seq_high));
+
+  cache.set_soft_cache_limit(0);
+  cache.tick(std::chrono::milliseconds(100));
+
+  REQUIRE(!cache.get_store_at(0, seq_low));
+  REQUIRE(!cache.get_store_at(1, seq_high));
+}
+
 TEST_CASE("StateCache sparse queries")
 {
   auto state = create_and_init_state();
