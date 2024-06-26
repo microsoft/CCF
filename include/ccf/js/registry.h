@@ -4,6 +4,7 @@
 // CCF
 #include "ccf/app_interface.h"
 #include "ccf/endpoint.h"
+#include "ccf/js/audit_format.h"
 #include "ccf/js/bundle.h"
 #include "ccf/js/core/context.h"
 #include "ccf/js/interpreter_cache_interface.h"
@@ -51,6 +52,9 @@ namespace ccf::js
     std::string modules_quickjs_version_map;
     std::string modules_quickjs_bytecode_map;
     std::string runtime_options_map;
+    std::string recent_actions_map;
+    std::string audit_input_map;
+    std::string audit_info_map;
 
     ccf::js::NamespaceRestriction namespace_restriction;
 
@@ -126,6 +130,28 @@ namespace ccf::js
      */
     ccf::ApiResult get_js_runtime_options_v1(
       ccf::JSRuntimeOptions& options, kv::ReadOnlyTx& tx);
+
+    /**
+     * Record action details by storing them in KV maps using a common format,
+     * for the purposes of offline audit using the ledger.
+     */
+    ccf::ApiResult record_action_for_audit_v1(
+      kv::Tx& tx,
+      ccf::ActionFormat format,
+      const std::string& user_id,
+      const std::string& action_name,
+      const std::vector<uint8_t>& action_body);
+
+    /**
+     * Check an action is not being replayed, by looking it up
+     * in the history of recent actions. To place an upper bound on the history
+     * size, an authenticated timestamp (@p created_at) is required.
+     */
+    ccf::ApiResult check_action_not_replayed_v1(
+      kv::Tx& tx,
+      uint64_t created_at,
+      const std::span<const uint8_t> action,
+      ccf::InvalidArgsReason& reason);
 
     /// \defgroup Overrides for base EndpointRegistry functions, looking up JS
     /// endpoints before delegating to base implementation.
