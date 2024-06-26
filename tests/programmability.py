@@ -79,6 +79,8 @@ def endpoint_properties(
         "authn_policies": ["no_auth"],
         "mode": mode,
         "openapi": {},
+        "openapi_hidden": False,
+        "interpreter_reuse": None,
     }
 
 
