@@ -71,7 +71,7 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
-          ./tests.sh --timeout 240 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite"
+          ./tests.sh --timeout 240 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite|fuzz_test"
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
 
