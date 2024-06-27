@@ -499,7 +499,7 @@ namespace ccf::historical
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
-    // These two combine into an effective O(1) lookup/add/remove by handle.
+    // These two combine into an effective O(log(N)) lookup/add/remove by handle.
     std::list<CompoundHandle> lru_requests;
     std::map<CompoundHandle, std::list<CompoundHandle>::iterator> lru_lookup;
 
