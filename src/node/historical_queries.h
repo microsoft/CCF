@@ -239,7 +239,7 @@ namespace ccf::historical
         bool should_include_receipts,
         SeqNo earliest_ledger_secret_seqno)
       {
-        std::vector<SeqNo> removed{}, probably_added{};
+        std::vector<SeqNo> removed{}, added{};
 
         bool any_diff = false;
 
@@ -282,7 +282,7 @@ namespace ccf::historical
               {
                 // If this is too early for known secrets, just record that it
                 // was requested but don't add it to all_stores yet
-                probably_added.push_back(*new_it);
+                added.push_back(*new_it);
                 prev_it = my_stores.insert_or_assign(prev_it, *new_it, nullptr);
                 any_too_early = true;
               }
@@ -297,7 +297,7 @@ namespace ccf::historical
                   details = std::make_shared<StoreDetails>();
                   all_stores.insert_or_assign(all_it, *new_it, details);
                 }
-                probably_added.push_back(*new_it);
+                added.push_back(*new_it);
                 prev_it = my_stores.insert_or_assign(prev_it, *new_it, details);
               }
               any_diff |= true;
@@ -316,7 +316,7 @@ namespace ccf::historical
         if (!any_diff && (should_include_receipts == include_receipts))
         {
           HISTORICAL_LOG("Identical to previous request");
-          return {removed, probably_added};
+          return {removed, added};
         }
 
         include_receipts = should_include_receipts;
@@ -336,7 +336,7 @@ namespace ccf::historical
             populate_receipts(seqno);
           }
         }
-        return {removed, probably_added};
+        return {removed, added};
       }
 
       void populate_receipts(ccf::SeqNo new_seqno)
@@ -499,7 +499,8 @@ namespace ccf::historical
 
     ExpiryDuration default_expiry_duration = std::chrono::seconds(1800);
 
-    // These two combine into an effective O(log(N)) lookup/add/remove by handle.
+    // These two combine into an effective O(log(N)) lookup/add/remove by
+    // handle.
     std::list<CompoundHandle> lru_requests;
     std::map<CompoundHandle, std::list<CompoundHandle>::iterator> lru_lookup;
 
@@ -909,14 +910,14 @@ namespace ccf::historical
         seqnos.size(),
         *seqnos.begin(),
         include_receipts);
-      auto [removed, probably_added] = request.adjust_ranges(
+      auto [removed, added] = request.adjust_ranges(
         seqnos, include_receipts, earliest_secret_.valid_from);
 
       for (auto seq : removed)
       {
         remove_request_ref(seq, handle);
       }
-      for (auto seq : probably_added)
+      for (auto seq : added)
       {
         add_request_ref(seq, handle);
       }
