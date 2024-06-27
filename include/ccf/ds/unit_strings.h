@@ -34,7 +34,7 @@ namespace ccf::ds
       }
 
       auto unit = std::string(unit_begin, input.end());
-      nonstd::to_lower(unit);
+      ccf::nonstd::to_lower(unit);
       auto value = std::string(input.begin(), unit_begin);
 
       size_t ret = 0;

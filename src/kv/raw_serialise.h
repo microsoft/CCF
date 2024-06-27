@@ -81,7 +81,7 @@ namespace kv
     void append(const T& entry)
     {
       if constexpr (
-        nonstd::is_std_vector<T>::value ||
+        ccf::nonstd::is_std_vector<T>::value ||
         std::is_same_v<T, kv::serialisers::SerialisedEntry>)
       {
         serialise_entry(entry.size() * sizeof(typename T::value_type));
@@ -109,7 +109,7 @@ namespace kv
       else
       {
         static_assert(
-          nonstd::dependent_false<T>::value, "Can't serialise this type");
+          ccf::nonstd::dependent_false<T>::value, "Can't serialise this type");
       }
     }
 
@@ -183,7 +183,7 @@ namespace kv
     T read_next()
     {
       if constexpr (
-        nonstd::is_std_vector<T>::value ||
+        ccf::nonstd::is_std_vector<T>::value ||
         std::is_same_v<T, kv::serialisers::SerialisedEntry>)
       {
         size_t entry_offset = 0;
@@ -196,7 +196,7 @@ namespace kv
 
         return ret;
       }
-      else if constexpr (nonstd::is_std_array<T>::value)
+      else if constexpr (ccf::nonstd::is_std_array<T>::value)
       {
         T ret;
         auto data_ = reinterpret_cast<uint8_t*>(ret.data());
@@ -230,7 +230,8 @@ namespace kv
       else
       {
         static_assert(
-          nonstd::dependent_false<T>::value, "Can't deserialise this type");
+          ccf::nonstd::dependent_false<T>::value,
+          "Can't deserialise this type");
       }
     }
 

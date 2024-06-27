@@ -85,7 +85,7 @@ namespace ccf
   inline void to_json(nlohmann::json& j, const RESTVerb& verb)
   {
     std::string s(verb.c_str());
-    nonstd::to_lower(s);
+    ccf::nonstd::to_lower(s);
     j = s;
   }
 
@@ -98,7 +98,7 @@ namespace ccf
     }
 
     std::string s = j.get<std::string>();
-    nonstd::to_upper(s);
+    ccf::nonstd::to_upper(s);
 
     verb = RESTVerb(s.c_str());
   }
