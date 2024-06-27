@@ -1033,7 +1033,7 @@ TEST_CASE("StateCache dropping state explicitly")
   // State1 should remain available, as well as state3, state2 was force-evicted
   // from LRU because it's been dropped explicitly.
   //
-  // ! DISCLAIMER ! If you change this bare in mind that each attempt to get the
+  // ! DISCLAIMER ! If you change this bear in mind that each attempt to get the
   // store promotes the handle, and so requests eviction order changes,
   // therefore this test in particular is quite fragile.
 
