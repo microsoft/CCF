@@ -8,7 +8,6 @@
 #include "ccf/ds/logger.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
-#include "ccf/serdes.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "enclave/enclave_time.h"
@@ -185,7 +184,7 @@ public:
 
     auto maybe_commit = [this](ccf::endpoints::EndpointContext& ctx) {
       const auto parsed =
-        serdes::unpack(ctx.rpc_ctx->get_request_body(), default_pack);
+        nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
 
       const auto new_value = parsed["value"].get<size_t>();
       auto vs = ctx.tx.rw(values);
@@ -412,13 +411,11 @@ public:
   }
 };
 
-auto create_simple_request(
-  const std::string& method = "/empty_function",
-  serdes::Pack pack = default_pack)
+auto create_simple_request(const std::string& method = "/empty_function")
 {
   http::Request request(method);
   request.set_header(
-    http::headers::CONTENT_TYPE, ccf::jsonhandler::pack_to_content_type(pack));
+    http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
   return request;
 }
 
@@ -433,10 +430,9 @@ http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
   return processor.received.front();
 }
 
-nlohmann::json parse_response_body(
-  const vector<uint8_t>& body, serdes::Pack pack = default_pack)
+nlohmann::json parse_response_body(const vector<uint8_t>& body)
 {
-  return serdes::unpack(body, pack);
+  return nlohmann::json::parse(body);
 }
 
 // callers used throughout
@@ -656,105 +652,102 @@ TEST_CASE("JsonWrappedEndpointFunction")
   NetworkState network;
   prepare_callers(network);
   TestJsonWrappedEndpointFunction frontend(*network.tables);
-  for (const auto pack_type : {serdes::Pack::Text, serdes::Pack::MsgPack})
+  {{INFO("Calling echo, with params in body");
+  auto echo_call = create_simple_request("/echo");
+  const nlohmann::json j_body = {
+    {"data", {"nested", "Some string"}}, {"other", "Another string"}};
+  const auto serialized_body = j_body.dump();
+  echo_call.set_body(serialized_body);
+  const auto serialized_call = echo_call.build_request();
+
+  auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
+  frontend.process(rpc_ctx);
+  auto response = parse_response(rpc_ctx->serialise_response());
+  CHECK(response.status == HTTP_STATUS_OK);
+
+  const auto response_body = parse_response_body(response.body);
+  CHECK(response_body == j_body);
+}
+
+{
+  INFO("Calling echo_query, with params in query");
+  auto echo_call = create_simple_request("/echo_parsed_query");
+  const std::map<std::string, std::string> query_params = {
+    {"foo", "helloworld"},
+    {"bar", "1"},
+    {"fooz", "\"2\""},
+    {"baz", "\"awkward\"\"escapes"}};
+  for (const auto& [k, v] : query_params)
   {
-    {
-      INFO("Calling echo, with params in body");
-      auto echo_call = create_simple_request("/echo", pack_type);
-      const nlohmann::json j_body = {
-        {"data", {"nested", "Some string"}}, {"other", "Another string"}};
-      const auto serialized_body = serdes::pack(j_body, pack_type);
-      echo_call.set_body(serialized_body.data(), serialized_body.size());
-      const auto serialized_call = echo_call.build_request();
-
-      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-      frontend.process(rpc_ctx);
-      auto response = parse_response(rpc_ctx->serialise_response());
-      CHECK(response.status == HTTP_STATUS_OK);
-
-      const auto response_body = parse_response_body(response.body, pack_type);
-      CHECK(response_body == j_body);
-    }
-
-    {
-      INFO("Calling echo_query, with params in query");
-      auto echo_call = create_simple_request("/echo_parsed_query", pack_type);
-      const std::map<std::string, std::string> query_params = {
-        {"foo", "helloworld"},
-        {"bar", "1"},
-        {"fooz", "\"2\""},
-        {"baz", "\"awkward\"\"escapes"}};
-      for (const auto& [k, v] : query_params)
-      {
-        echo_call.set_query_param(k, v);
-      }
-
-      const auto serialized_call = echo_call.build_request();
-
-      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-      frontend.process(rpc_ctx);
-      auto response = parse_response(rpc_ctx->serialise_response());
-      CHECK(response.status == HTTP_STATUS_OK);
-
-      const auto response_body = parse_response_body(response.body, pack_type);
-      const auto response_map = response_body.get<decltype(query_params)>();
-      CHECK(response_map == query_params);
-    }
-
-    {
-      INFO("Calling get_caller");
-      const auto get_caller = create_simple_request("/get_caller", pack_type);
-      const auto serialized_call = get_caller.build_request();
-
-      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-      frontend.process(rpc_ctx);
-      auto response = parse_response(rpc_ctx->serialise_response());
-      CHECK(response.status == HTTP_STATUS_OK);
-
-      const auto response_body = parse_response_body(response.body, pack_type);
-      CHECK(response_body == user_id);
-    }
+    echo_call.set_query_param(k, v);
   }
 
+  const auto serialized_call = echo_call.build_request();
+
+  auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
+  frontend.process(rpc_ctx);
+  auto response = parse_response(rpc_ctx->serialise_response());
+  CHECK(response.status == HTTP_STATUS_OK);
+
+  const auto response_body = parse_response_body(response.body);
+  const auto response_map = response_body.get<decltype(query_params)>();
+  CHECK(response_map == query_params);
+}
+
+{
+  INFO("Calling get_caller");
+  const auto get_caller = create_simple_request("/get_caller");
+  const auto serialized_call = get_caller.build_request();
+
+  auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
+  frontend.process(rpc_ctx);
+  auto response = parse_response(rpc_ctx->serialise_response());
+  CHECK(response.status == HTTP_STATUS_OK);
+
+  const auto response_body = parse_response_body(response.body);
+  CHECK(response_body == user_id);
+}
+}
+
+{
+  INFO("Calling failable, without failing");
+  auto dont_fail = create_simple_request("/failable");
+  const auto serialized_call = dont_fail.build_request();
+
+  auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
+  frontend.process(rpc_ctx);
+  auto response = parse_response(rpc_ctx->serialise_response());
+  CHECK(response.status == HTTP_STATUS_OK);
+}
+
+{
+  for (const auto err : {
+         HTTP_STATUS_INTERNAL_SERVER_ERROR,
+         HTTP_STATUS_BAD_REQUEST,
+         (http_status)418 // Teapot
+       })
   {
-    INFO("Calling failable, without failing");
-    auto dont_fail = create_simple_request("/failable");
-    const auto serialized_call = dont_fail.build_request();
+    INFO("Calling failable, with error");
+    const auto msg = fmt::format("An error message about {}", err);
+    auto fail = create_simple_request("/failable");
+    const nlohmann::json j_body = {
+      {"error", {{"code", err}, {"message", msg}}}};
+    const auto serialized_body = j_body.dump();
+    fail.set_body(serialized_body);
+    const auto serialized_call = fail.build_request();
 
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
     frontend.process(rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
-    CHECK(response.status == HTTP_STATUS_OK);
+    CHECK(response.status == err);
+    CHECK(
+      response.headers[http::headers::CONTENT_TYPE] ==
+      http::headervalues::contenttype::JSON);
+    const std::string body_s(response.body.begin(), response.body.end());
+    auto body_j = nlohmann::json::parse(body_s);
+    CHECK(body_j["error"]["message"] == msg);
   }
-
-  {
-    for (const auto err : {
-           HTTP_STATUS_INTERNAL_SERVER_ERROR,
-           HTTP_STATUS_BAD_REQUEST,
-           (http_status)418 // Teapot
-         })
-    {
-      INFO("Calling failable, with error");
-      const auto msg = fmt::format("An error message about {}", err);
-      auto fail = create_simple_request("/failable");
-      const nlohmann::json j_body = {
-        {"error", {{"code", err}, {"message", msg}}}};
-      const auto serialized_body = serdes::pack(j_body, default_pack);
-      fail.set_body(serialized_body.data(), serialized_body.size());
-      const auto serialized_call = fail.build_request();
-
-      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-      frontend.process(rpc_ctx);
-      auto response = parse_response(rpc_ctx->serialise_response());
-      CHECK(response.status == err);
-      CHECK(
-        response.headers[http::headers::CONTENT_TYPE] ==
-        http::headervalues::contenttype::JSON);
-      const std::string body_s(response.body.begin(), response.body.end());
-      auto body_j = nlohmann::json::parse(body_s);
-      CHECK(body_j["error"]["message"] == msg);
-    }
-  }
+}
 }
 
 TEST_CASE("Restricted verbs")
@@ -881,8 +874,8 @@ TEST_CASE("Explicit commitability")
 
       const nlohmann::json request_body = {
         {"value", new_value}, {"status", status}};
-      const auto serialized_body = serdes::pack(request_body, default_pack);
-      request.set_body(&serialized_body);
+      const auto serialized_body = request_body.dump();
+      request.set_body(serialized_body);
 
       const auto serialized_request = request.build_request();
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
@@ -917,8 +910,8 @@ TEST_CASE("Explicit commitability")
 
         const nlohmann::json request_body = {
           {"value", new_value}, {"apply", apply}, {"status", status}};
-        const auto serialized_body = serdes::pack(request_body, default_pack);
-        request.set_body(&serialized_body);
+        const auto serialized_body = request_body.dump();
+        request.set_body(serialized_body);
 
         const auto serialized_request = request.build_request();
         auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);

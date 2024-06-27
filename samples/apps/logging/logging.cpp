@@ -1237,8 +1237,6 @@ namespace loggingapp
       auto get_historical = [this](
                               ccf::endpoints::ReadOnlyEndpointContext& ctx,
                               ccf::historical::StatePtr historical_state) {
-        const auto pack = ccf::jsonhandler::detect_json_pack(ctx.rpc_ctx);
-
         // Parse id from query
         const auto parsed_query =
           http::parse_query(ctx.rpc_ctx->get_request_query());
@@ -1264,7 +1262,7 @@ namespace loggingapp
           LoggingGetHistorical::Out out;
           out.msg = v.value();
           nlohmann::json j = out;
-          ccf::jsonhandler::set_response(std::move(j), ctx.rpc_ctx, pack);
+          ccf::jsonhandler::set_response(std::move(j), ctx.rpc_ctx);
         }
         else
         {
@@ -1294,8 +1292,6 @@ namespace loggingapp
         [this](
           ccf::endpoints::ReadOnlyEndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
-          const auto pack = ccf::jsonhandler::detect_json_pack(ctx.rpc_ctx);
-
           // Parse id from query
           const auto parsed_query =
             http::parse_query(ctx.rpc_ctx->get_request_query());
@@ -1322,7 +1318,7 @@ namespace loggingapp
             out.msg = v.value();
             assert(historical_state->receipt);
             out.receipt = ccf::describe_receipt_v1(*historical_state->receipt);
-            ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
+            ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx);
           }
           else
           {
@@ -1345,8 +1341,6 @@ namespace loggingapp
         [this](
           ccf::endpoints::ReadOnlyEndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
-          const auto pack = ccf::jsonhandler::detect_json_pack(ctx.rpc_ctx);
-
           // Parse id from query
           const auto parsed_query =
             http::parse_query(ctx.rpc_ctx->get_request_query());
@@ -1380,7 +1374,7 @@ namespace loggingapp
             out.receipt = full_receipt;
             out.receipt["leaf_components"].erase("claims_digest");
             // SNIPPET_END: claims_digest_in_receipt
-            ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
+            ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx);
           }
           else
           {

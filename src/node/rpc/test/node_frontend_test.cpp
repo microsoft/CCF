@@ -4,7 +4,6 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
-#include "ccf/serdes.h"
 #include "crypto/openssl/hash.h"
 #include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
@@ -15,7 +14,6 @@
 
 using namespace ccf;
 using namespace nlohmann;
-using namespace serdes;
 
 using TResponse = http::SimpleResponseProcessor::Response;
 
@@ -28,10 +26,8 @@ TResponse frontend_process(
   const crypto::Pem& caller)
 {
   http::Request r(method);
-  const auto body = json_params.is_null() ?
-    std::vector<uint8_t>() :
-    serdes::pack(json_params, Pack::Text);
-  r.set_body(&body);
+  const auto body = json_params.is_null() ? std::string() : json_params.dump();
+  r.set_body(body);
   auto serialise_request = r.build_request();
 
   auto session =
