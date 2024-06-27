@@ -96,7 +96,7 @@ namespace cli
 
   static CLI::Option* add_subject_alternative_name_option(
     CLI::App& app,
-    std::vector<crypto::SubjectAltName>& parsed,
+    std::vector<ccf::crypto::SubjectAltName>& parsed,
     const std::string& option_name,
     const std::string& option_desc)
   {

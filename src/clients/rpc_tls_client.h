@@ -36,7 +36,7 @@ namespace client
   protected:
     http::ResponseParser parser;
     std::optional<std::string> prefix;
-    crypto::KeyPairPtr key_pair = nullptr;
+    ccf::crypto::KeyPairPtr key_pair = nullptr;
     std::string key_id = "Invalid";
 
     size_t next_send_id = 0;
@@ -112,9 +112,9 @@ namespace client
       key_id(c.key_id)
     {}
 
-    void create_key_pair(const crypto::Pem priv_key)
+    void create_key_pair(const ccf::crypto::Pem priv_key)
     {
-      key_pair = crypto::make_key_pair(priv_key);
+      key_pair = ccf::crypto::make_key_pair(priv_key);
     }
 
     PreparedRpc gen_request(

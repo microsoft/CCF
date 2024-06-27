@@ -23,7 +23,7 @@ TResponse frontend_process(
   NodeRpcFrontend& frontend,
   const json& json_params,
   const std::string& method,
-  const crypto::Pem& caller)
+  const ccf::crypto::Pem& caller)
 {
   http::Request r(method);
   const auto body = json_params.is_null() ? std::string() : json_params.dump();
@@ -81,10 +81,10 @@ TEST_CASE("Add a node to an opening service")
     up_to_ledger_secret_seqno, make_ledger_secret());
 
   // Node certificate
-  crypto::KeyPairPtr kp = crypto::make_key_pair();
+  ccf::crypto::KeyPairPtr kp = ccf::crypto::make_key_pair();
   const auto caller = kp->self_sign("CN=Joiner", valid_from, valid_to);
   const auto node_public_encryption_key =
-    crypto::make_key_pair()->public_key_pem();
+    ccf::crypto::make_key_pair()->public_key_pem();
 
   INFO("Add first node before a service exists");
   {
@@ -123,7 +123,7 @@ TEST_CASE("Add a node to an opening service")
     CHECK(response.network_info->endorsed_certificate == std::nullopt);
 
     auto pk_der = kp->public_key_der();
-    const NodeId node_id = crypto::Sha256Hash(pk_der).hex_str();
+    const NodeId node_id = ccf::crypto::Sha256Hash(pk_der).hex_str();
     auto nodes = tx.rw(network.nodes);
     auto node_info = nodes->get(node_id);
 
@@ -159,8 +159,8 @@ TEST_CASE("Add a node to an opening service")
   INFO(
     "Adding a different node with the same node network details should fail");
   {
-    crypto::KeyPairPtr kp = crypto::make_key_pair();
-    auto v = crypto::make_verifier(
+    ccf::crypto::KeyPairPtr kp = ccf::crypto::make_key_pair();
+    auto v = ccf::crypto::make_verifier(
       kp->self_sign("CN=Other Joiner", valid_from, valid_to));
     const auto new_caller = v->cert_pem();
 
@@ -204,19 +204,20 @@ TEST_CASE("Add a node to an open service")
   InternalTablesAccess::activate_member(
     gen_tx,
     InternalTablesAccess::add_member(
-      gen_tx, {member_cert, crypto::make_rsa_key_pair()->public_key_pem()}));
+      gen_tx,
+      {member_cert, ccf::crypto::make_rsa_key_pair()->public_key_pem()}));
   REQUIRE(InternalTablesAccess::open_service(gen_tx));
   REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
 
   // Node certificate
-  crypto::KeyPairPtr kp = crypto::make_key_pair();
+  ccf::crypto::KeyPairPtr kp = ccf::crypto::make_key_pair();
   const auto caller = kp->self_sign("CN=Joiner", valid_from, valid_to);
 
   std::optional<NodeInfo> node_info;
   auto tx = network.tables->create_tx();
 
   const auto node_public_encryption_key =
-    crypto::make_key_pair()->public_key_pem();
+    ccf::crypto::make_key_pair()->public_key_pem();
 
   JoinNetworkNodeToNode::In join_input;
   join_input.public_encryption_key = node_public_encryption_key;
@@ -233,7 +234,7 @@ TEST_CASE("Add a node to an open service")
     CHECK(!response.network_info.has_value());
 
     auto pk_der = kp->public_key_der();
-    const NodeId node_id = crypto::Sha256Hash(pk_der).hex_str();
+    const NodeId node_id = ccf::crypto::Sha256Hash(pk_der).hex_str();
     auto nodes = tx.rw(network.nodes);
     node_info = nodes->get(node_id);
     CHECK(node_info.has_value());
@@ -244,9 +245,9 @@ TEST_CASE("Add a node to an open service")
   INFO(
     "Adding a different node with the same node network details should fail");
   {
-    crypto::KeyPairPtr kp = crypto::make_key_pair();
-    auto v =
-      crypto::make_verifier(kp->self_sign("CN=Joiner", valid_from, valid_to));
+    ccf::crypto::KeyPairPtr kp = ccf::crypto::make_key_pair();
+    auto v = ccf::crypto::make_verifier(
+      kp->self_sign("CN=Joiner", valid_from, valid_to));
     const auto new_caller = v->cert_pem();
 
     // Network node info is empty (same as before)
@@ -279,8 +280,9 @@ TEST_CASE("Add a node to an open service")
     auto joining_node_id = ccf::compute_node_id_from_kp(kp);
     InternalTablesAccess::trust_node(
       tx, joining_node_id, network.ledger_secrets->get_latest(tx).first);
-    const auto dummy_endorsed_certificate = crypto::make_key_pair()->self_sign(
-      "CN=dummy endorsed certificate", valid_from, valid_to);
+    const auto dummy_endorsed_certificate =
+      ccf::crypto::make_key_pair()->self_sign(
+        "CN=dummy endorsed certificate", valid_from, valid_to);
     auto endorsed_certificate = tx.rw(network.node_endorsed_certificates);
     endorsed_certificate->put(joining_node_id, {dummy_endorsed_certificate});
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
@@ -314,11 +316,11 @@ TEST_CASE("Add a node to an open service")
 
 int main(int argc, char** argv)
 {
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

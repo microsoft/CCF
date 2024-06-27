@@ -7,7 +7,7 @@
 #include <span>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   /** Perform HKDF key derivation */
   std::vector<uint8_t> hkdf(

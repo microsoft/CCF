@@ -13,16 +13,16 @@ namespace ccf
   {
   protected:
     std::shared_ptr<ccf::RPCMap> rpc_map;
-    crypto::KeyPairPtr node_sign_kp;
-    const crypto::Pem& self_signed_node_cert;
-    const std::optional<crypto::Pem>& endorsed_node_cert = std::nullopt;
+    ccf::crypto::KeyPairPtr node_sign_kp;
+    const ccf::crypto::Pem& self_signed_node_cert;
+    const std::optional<ccf::crypto::Pem>& endorsed_node_cert = std::nullopt;
 
   public:
     NodeClient(
       std::shared_ptr<ccf::RPCMap> rpc_map_,
-      crypto::KeyPairPtr node_sign_kp_,
-      const crypto::Pem& self_signed_node_cert_,
-      const std::optional<crypto::Pem>& endorsed_node_cert_) :
+      ccf::crypto::KeyPairPtr node_sign_kp_,
+      const ccf::crypto::Pem& self_signed_node_cert_,
+      const std::optional<ccf::crypto::Pem>& endorsed_node_cert_) :
       rpc_map(rpc_map_),
       node_sign_kp(node_sign_kp_),
       self_signed_node_cert(self_signed_node_cert_),

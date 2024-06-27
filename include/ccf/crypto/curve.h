@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace crypto
+namespace ccf::crypto
 {
   // SNIPPET_START: supported_curves
   enum class CurveID

@@ -40,7 +40,7 @@ namespace ccf::gov::endpoints
 
   nlohmann::json produce_user_description(
     const ccf::UserId& user_id,
-    const crypto::Pem& user_cert,
+    const ccf::crypto::Pem& user_cert,
     ccf::UserInfo::ReadOnlyHandle* user_info_handle)
   {
     auto user = nlohmann::json::object();
@@ -85,9 +85,10 @@ namespace ccf::gov::endpoints
       case ccf::QuoteFormat::oe_sgx_v1:
       {
         quote_info["format"] = "OE_SGX_v1";
-        quote_info["quote"] = crypto::b64_from_raw(node_info.quote_info.quote);
+        quote_info["quote"] =
+          ccf::crypto::b64_from_raw(node_info.quote_info.quote);
         quote_info["endorsements"] =
-          crypto::b64_from_raw(node_info.quote_info.endorsements);
+          ccf::crypto::b64_from_raw(node_info.quote_info.endorsements);
         break;
       }
       case ccf::QuoteFormat::insecure_virtual:
@@ -100,12 +101,12 @@ namespace ccf::gov::endpoints
         quote_info["format"] = "AMD_SEV_SNP_v1";
         if (node_info.quote_info.uvm_endorsements.has_value())
         {
-          quote_info["uvmEndorsements"] =
-            crypto::b64_from_raw(node_info.quote_info.uvm_endorsements.value());
+          quote_info["uvmEndorsements"] = ccf::crypto::b64_from_raw(
+            node_info.quote_info.uvm_endorsements.value());
         }
         if (node_info.quote_info.endorsed_tcb.has_value())
         {
-          quote_info["endorsedTcb"] = crypto::b64_from_raw(
+          quote_info["endorsedTcb"] = ccf::crypto::b64_from_raw(
             ds::from_hex(node_info.quote_info.endorsed_tcb.value()));
         }
         break;
@@ -478,7 +479,8 @@ namespace ccf::gov::endpoints
                   auto info = nlohmann::json::object();
 
                   // cert is stored as DER - convert to PEM for API
-                  const auto cert_pem = crypto::cert_der_to_pem(metadata.cert);
+                  const auto cert_pem =
+                    ccf::crypto::cert_der_to_pem(metadata.cert);
                   info["certificate"] = cert_pem.str();
 
                   info["issuer"] = metadata.issuer;
@@ -642,7 +644,7 @@ namespace ccf::gov::endpoints
 
             user_certs_handle->foreach([&user_list, user_info_handle](
                                          const ccf::UserId& user_id,
-                                         const crypto::Pem& user_cert) {
+                                         const ccf::crypto::Pem& user_cert) {
               user_list.push_back(
                 produce_user_description(user_id, user_cert, user_info_handle));
               return true;

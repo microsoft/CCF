@@ -157,7 +157,7 @@ int main(int argc, char** argv)
 {
   logger::config::default_init();
   logger::config::level() = LoggerLevel::INFO;
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
 
   CLI::App cli_app{"Tpcc Client"};
   TpccClientOptions options(cli_app, argv[0]);
@@ -165,7 +165,7 @@ int main(int argc, char** argv)
 
   TpccClient client(options);
   client.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
 
   return 0;
 }

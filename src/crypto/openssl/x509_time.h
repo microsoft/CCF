@@ -7,7 +7,7 @@
 
 #include <openssl/asn1.h>
 
-namespace crypto::OpenSSL
+namespace ccf::crypto::OpenSSL
 {
   /** Set of utilities functions for working with x509 time, as defined in RFC
   5280 (https://datatracker.ietf.org/doc/html/rfc5280#section-4.1.2.5.1) */
@@ -30,6 +30,6 @@ namespace crypto::OpenSSL
   {
     std::tm t;
     CHECK1(ASN1_TIME_to_tm(time, &t));
-    return ds::to_x509_time_string(t);
+    return ::ds::to_x509_time_string(t);
   }
 }

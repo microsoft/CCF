@@ -22,12 +22,12 @@ namespace ccf
   class LedgerSecretWrappingKey
   {
   private:
-    static constexpr auto KZ_KEY_SIZE = crypto::GCM_DEFAULT_KEY_SIZE;
+    static constexpr auto KZ_KEY_SIZE = ccf::crypto::GCM_DEFAULT_KEY_SIZE;
     bool has_wrapped = false;
     size_t num_shares;
     size_t recovery_threshold;
     std::vector<uint8_t> data; // Referred to as "kz" in TR
-    std::vector<crypto::sharing::Share> shares;
+    std::vector<ccf::crypto::sharing::Share> shares;
 
   public:
     LedgerSecretWrappingKey(size_t num_shares_, size_t recovery_threshold_) :
@@ -35,20 +35,20 @@ namespace ccf
       recovery_threshold(recovery_threshold_)
     {
       shares.resize(num_shares);
-      crypto::sharing::Share secret;
-      crypto::sharing::sample_secret_and_shares(
+      ccf::crypto::sharing::Share secret;
+      ccf::crypto::sharing::sample_secret_and_shares(
         secret, shares, recovery_threshold);
       data = secret.key(KZ_KEY_SIZE);
     }
 
     LedgerSecretWrappingKey(
-      std::vector<crypto::sharing::Share>&& shares_,
+      std::vector<ccf::crypto::sharing::Share>&& shares_,
       size_t recovery_threshold_) :
       recovery_threshold(recovery_threshold_)
     {
       shares = shares_;
-      crypto::sharing::Share secret;
-      crypto::sharing::recover_unauthenticated_secret(
+      ccf::crypto::sharing::Share secret;
+      ccf::crypto::sharing::recover_unauthenticated_secret(
         secret, shares, recovery_threshold);
       data = secret.key(KZ_KEY_SIZE);
     }
@@ -81,7 +81,7 @@ namespace ccf
     std::vector<std::vector<uint8_t>> get_shares() const
     {
       std::vector<std::vector<uint8_t>> shares_;
-      for (const crypto::sharing::Share& share : shares)
+      for (const ccf::crypto::sharing::Share& share : shares)
       {
         shares_.emplace_back(share.serialise());
       }
@@ -104,9 +104,9 @@ namespace ccf
           "Ledger secret wrapping key has already wrapped once");
       }
 
-      crypto::GcmCipher encrypted_ls(ledger_secret->raw_key.size());
+      ccf::crypto::GcmCipher encrypted_ls(ledger_secret->raw_key.size());
 
-      crypto::make_key_aes_gcm(data)->encrypt(
+      ccf::crypto::make_key_aes_gcm(data)->encrypt(
         encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
                                    // key is never re-used for encryption
         ledger_secret->raw_key,
@@ -122,11 +122,11 @@ namespace ccf
     LedgerSecretPtr unwrap(
       const std::vector<uint8_t>& wrapped_latest_ledger_secret)
     {
-      crypto::GcmCipher encrypted_ls;
+      ccf::crypto::GcmCipher encrypted_ls;
       encrypted_ls.deserialise(wrapped_latest_ledger_secret);
       std::vector<uint8_t> decrypted_ls;
 
-      if (!crypto::make_key_aes_gcm(data)->decrypt(
+      if (!ccf::crypto::make_key_aes_gcm(data)->decrypt(
             encrypted_ls.hdr.get_iv(),
             encrypted_ls.hdr.tag,
             encrypted_ls.cipher,
@@ -168,7 +168,7 @@ namespace ccf
       size_t share_index = 0;
       for (auto const& [member_id, enc_pub_key] : active_recovery_members_info)
       {
-        auto member_enc_pubk = crypto::make_rsa_public_key(enc_pub_key);
+        auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
         auto raw_share = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
         encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_share);
@@ -248,7 +248,7 @@ namespace ccf
       {
         version_previous_secret = previous_ledger_secret->first;
 
-        crypto::GcmCipher encrypted_previous_ls(
+        ccf::crypto::GcmCipher encrypted_previous_ls(
           previous_ledger_secret->second->raw_key.size());
         encrypted_previous_ls.hdr.set_random_iv();
 
@@ -278,7 +278,7 @@ namespace ccf
       const LedgerSecretPtr& current_ledger_secret)
     {
       // Submitted recovery shares are encrypted with the latest ledger secret.
-      crypto::GcmCipher encrypted_submitted_share(submitted_share.size());
+      ccf::crypto::GcmCipher encrypted_submitted_share(submitted_share.size());
 
       encrypted_submitted_share.hdr.set_random_iv();
 
@@ -296,7 +296,7 @@ namespace ccf
       const std::vector<uint8_t>& encrypted_submitted_share,
       LedgerSecretPtr&& current_ledger_secret)
     {
-      crypto::GcmCipher encrypted_share;
+      ccf::crypto::GcmCipher encrypted_share;
       encrypted_share.deserialise(encrypted_submitted_share);
       std::vector<uint8_t> decrypted_share;
 
@@ -316,7 +316,7 @@ namespace ccf
         Tables::ENCRYPTED_SUBMITTED_SHARES);
       auto config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
 
-      std::vector<crypto::sharing::Share> new_shares = {};
+      std::vector<ccf::crypto::sharing::Share> new_shares = {};
       std::vector<SecretSharing::Share> old_shares = {};
       // Defensively allow shares in both formats for the time being, even if we
       // get a mix, and so long as we have enough of one or the other, attempt
@@ -330,7 +330,7 @@ namespace ccf
             encrypted_share, ledger_secrets->get_latest(tx).second);
           switch (decrypted_share.size())
           {
-            case crypto::sharing::Share::serialised_size:
+            case ccf::crypto::sharing::Share::serialised_size:
             {
               new_shares.emplace_back(decrypted_share);
               break;
@@ -353,7 +353,7 @@ namespace ccf
                 "is neither a new-style share of {} bytes nor an old-style "
                 "share of {} bytes",
                 decrypted_share.size(),
-                crypto::sharing::Share::serialised_size,
+                ccf::crypto::sharing::Share::serialised_size,
                 SecretSharing::SHARE_LENGTH));
             }
           }

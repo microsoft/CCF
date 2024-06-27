@@ -11,7 +11,7 @@
 #include <openssl/x509.h>
 #include <optional>
 
-using namespace crypto::OpenSSL;
+using namespace ccf::crypto::OpenSSL;
 
 namespace tls
 {
@@ -29,14 +29,14 @@ namespace tls
 
     Unique_X509 own_cert;
     Unique_STACK_OF_X509 chain;
-    std::shared_ptr<crypto::KeyPair_OpenSSL> own_pkey;
+    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> own_pkey;
     bool has_own_cert = false;
 
   public:
     Cert(
       std::shared_ptr<CA> peer_ca_,
-      const std::optional<crypto::Pem>& own_cert_ = std::nullopt,
-      const std::optional<crypto::Pem>& own_pkey_ = std::nullopt,
+      const std::optional<ccf::crypto::Pem>& own_cert_ = std::nullopt,
+      const std::optional<ccf::crypto::Pem>& own_pkey_ = std::nullopt,
       const std::optional<std::string>& peer_hostname_ = std::nullopt,
       bool auth_required_ = true) :
       peer_ca(peer_ca_),
@@ -45,13 +45,14 @@ namespace tls
     {
       if (own_cert_.has_value() && own_pkey_.has_value())
       {
-        const auto certs = crypto::split_x509_cert_bundle(own_cert_->str());
+        const auto certs =
+          ccf::crypto::split_x509_cert_bundle(own_cert_->str());
         has_own_cert = true;
 
         {
           Unique_BIO certbio(certs[0]);
           own_cert = Unique_X509(certbio, true);
-          own_pkey = std::make_shared<crypto::KeyPair_OpenSSL>(*own_pkey_);
+          own_pkey = std::make_shared<ccf::crypto::KeyPair_OpenSSL>(*own_pkey_);
         }
 
         if (certs.size() > 1)

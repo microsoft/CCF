@@ -9,7 +9,7 @@ namespace ccf
   class ClaimsDigest
   {
   public:
-    using Digest = crypto::Sha256Hash;
+    using Digest = ccf::crypto::Sha256Hash;
 
   private:
     bool is_set = false;

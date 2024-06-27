@@ -7,7 +7,7 @@
 #include <openssl/sha.h>
 #include <stdexcept>
 
-namespace crypto
+namespace ccf::crypto
 {
   namespace OpenSSL
   {

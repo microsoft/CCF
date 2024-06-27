@@ -101,9 +101,9 @@ namespace http
       std::string_view payload_b64url =
         token.substr(first_dot + 1, payload_size);
       std::string_view signature_b64url = token.substr(second_dot + 1);
-      auto header_raw = crypto::raw_from_b64url(header_b64url);
-      auto payload_raw = crypto::raw_from_b64url(payload_b64url);
-      auto signature_raw = crypto::raw_from_b64url(signature_b64url);
+      auto header_raw = ccf::crypto::raw_from_b64url(header_b64url);
+      auto payload_raw = ccf::crypto::raw_from_b64url(payload_b64url);
+      auto signature_raw = ccf::crypto::raw_from_b64url(signature_b64url);
       auto signed_content = token.substr(0, second_dot);
       nlohmann::json header;
       nlohmann::json payload;
@@ -174,14 +174,14 @@ namespace http
     }
 
     static bool validate_token_signature(
-      const Token& token, const crypto::VerifierPtr& verifier)
+      const Token& token, const ccf::crypto::VerifierPtr& verifier)
     {
       return verifier->verify(
         (uint8_t*)token.signed_content.data(),
         token.signed_content.size(),
         token.signature.data(),
         token.signature.size(),
-        crypto::MDType::SHA256);
+        ccf::crypto::MDType::SHA256);
     }
   };
 }

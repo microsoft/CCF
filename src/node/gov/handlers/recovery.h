@@ -44,7 +44,7 @@ namespace ccf::gov::endpoints
             auto response_body = nlohmann::json::object();
             response_body["memberId"] = member_id;
             response_body["encryptedShare"] =
-              crypto::b64_from_raw(encrypted_share.value());
+              ccf::crypto::b64_from_raw(encrypted_share.value());
 
             ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
             return;
@@ -124,8 +124,8 @@ namespace ccf::gov::endpoints
             return;
           }
 
-          auto raw_recovery_share =
-            crypto::raw_from_b64(params["share"].template get<std::string>());
+          auto raw_recovery_share = ccf::crypto::raw_from_b64(
+            params["share"].template get<std::string>());
 
           size_t submitted_shares_count = 0;
           try

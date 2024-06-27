@@ -94,7 +94,7 @@ namespace ccf
 
   struct JsonWebKeySet
   {
-    std::vector<crypto::JsonWebKey> keys;
+    std::vector<ccf::crypto::JsonWebKey> keys;
 
     bool operator!=(const JsonWebKeySet& rhs) const
     {

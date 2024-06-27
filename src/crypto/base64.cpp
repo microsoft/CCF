@@ -5,7 +5,7 @@
 
 #include "ccf/ds/logger.h"
 
-namespace crypto
+namespace ccf::crypto
 {
   using Base64Impl = Base64_openssl;
 
