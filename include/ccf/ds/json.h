@@ -66,7 +66,7 @@ namespace std
   {
     if constexpr (std::is_same_v<T, uint8_t>)
     {
-      j = crypto::b64_from_raw(t);
+      j = ccf::crypto::b64_from_raw(t);
     }
     else
     {
@@ -87,7 +87,7 @@ namespace std
       {
         try
         {
-          t = crypto::raw_from_b64(j.get<std::string>());
+          t = ccf::crypto::raw_from_b64(j.get<std::string>());
           return;
         }
         catch (const std::exception& e)
@@ -501,7 +501,7 @@ namespace std
 #define JSON_FIELD_FOR_JSON_FINAL(TYPE, FIELD) \
   ccf::JsonField<decltype(TYPE::FIELD)> \
   { \
-#    FIELD \
+    #FIELD \
   }
 
 /** Defines from_json, to_json, fill_json_schema, schema_name and

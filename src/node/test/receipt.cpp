@@ -15,11 +15,11 @@
 std::random_device rand_device;
 std::default_random_engine rand_engine(rand_device());
 
-crypto::Sha256Hash rand_digest()
+ccf::crypto::Sha256Hash rand_digest()
 {
   std::uniform_int_distribution<uint8_t> dist;
 
-  crypto::Sha256Hash ret;
+  ccf::crypto::Sha256Hash ret;
   std::generate(
     ret.h.begin(), ret.h.end(), [&]() { return dist(rand_engine); });
 
@@ -34,7 +34,7 @@ void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
   const auto valid_to =
     ds::to_x509_time_string(std::chrono::system_clock::now() + 1h);
 
-  auto node_kp = crypto::make_key_pair();
+  auto node_kp = ccf::crypto::make_key_pair();
   auto node_cert = node_kp->self_sign("CN=node", valid_from, valid_to);
 
   receipt->cert = node_cert;
@@ -54,11 +54,11 @@ void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
 
     if (dir == ccf::ProofReceipt::ProofStep::Left)
     {
-      current_digest = crypto::Sha256Hash(digest, current_digest);
+      current_digest = ccf::crypto::Sha256Hash(digest, current_digest);
     }
     else
     {
-      current_digest = crypto::Sha256Hash(current_digest, digest);
+      current_digest = ccf::crypto::Sha256Hash(current_digest, digest);
     }
   }
 
@@ -68,7 +68,7 @@ void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
   const auto num_endorsements = rand() % 3;
   for (auto i = 0; i < num_endorsements; ++i)
   {
-    auto service_kp = crypto::make_key_pair();
+    auto service_kp = ccf::crypto::make_key_pair();
     auto service_cert =
       service_kp->self_sign("CN=service", valid_from, valid_to);
     const auto csr = node_kp->create_csr(fmt::format("CN=Test{}", i));
@@ -169,7 +169,7 @@ TEST_CASE("JSON parsing" * doctest::test_suite("receipt"))
 
 TEST_CASE("JSON roundtrip" * doctest::test_suite("receipt"))
 {
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   {
     std::shared_ptr<ccf::Receipt> r = nullptr;
     nlohmann::json j;
@@ -194,5 +194,5 @@ TEST_CASE("JSON roundtrip" * doctest::test_suite("receipt"))
       compare_receipts(p_receipt, parsed);
     }
   }
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
 }

@@ -31,6 +31,6 @@ namespace tls
 {
   inline std::string error_string(int ec)
   {
-    return crypto::OpenSSL::error_string(ec);
+    return ccf::crypto::OpenSSL::error_string(ec);
   }
 }

@@ -53,7 +53,7 @@ namespace ccf::pal
 
     PlatformAttestationReportData() = default;
 
-    PlatformAttestationReportData(const crypto::Sha256Hash& hash) :
+    PlatformAttestationReportData(const ccf::crypto::Sha256Hash& hash) :
       data(hash.h.begin(), hash.h.end())
     {}
 
@@ -67,11 +67,11 @@ namespace ccf::pal
       return ds::to_hex(data);
     }
 
-    crypto::Sha256Hash to_sha256_hash() const
+    ccf::crypto::Sha256Hash to_sha256_hash() const
     {
-      std::span<const uint8_t, crypto::Sha256Hash::SIZE> s(
-        data.data(), crypto::Sha256Hash::SIZE);
-      return crypto::Sha256Hash::from_span(s);
+      std::span<const uint8_t, ccf::crypto::Sha256Hash::SIZE> s(
+        data.data(), ccf::crypto::Sha256Hash::SIZE);
+      return ccf::crypto::Sha256Hash::from_span(s);
     }
   };
 }

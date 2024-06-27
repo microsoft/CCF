@@ -693,7 +693,7 @@ namespace kv
       OrderedChanges& changes,
       MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
-      std::optional<crypto::Sha256Hash>& commit_evidence_digest,
+      std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest,
       bool ignore_strict_versions = false) override
     {
       // This will return FAILED if the serialised transaction is being

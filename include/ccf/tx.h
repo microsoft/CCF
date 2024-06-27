@@ -51,7 +51,7 @@ namespace kv
 
     OrderedChanges all_changes;
 
-    std::optional<crypto::Sha256Hash> root_at_read_version = std::nullopt;
+    std::optional<ccf::crypto::Sha256Hash> root_at_read_version = std::nullopt;
 
     void retain_change_set(
       const std::string& map_name,
@@ -122,7 +122,7 @@ namespace kv
 
     virtual ~BaseTx();
 
-    std::optional<crypto::Sha256Hash> get_root_at_read_version()
+    std::optional<ccf::crypto::Sha256Hash> get_root_at_read_version()
     {
       return root_at_read_version;
     }

@@ -158,7 +158,7 @@ namespace ccf
       auto const& kid = jwk.kid.value();
       try
       {
-        der = crypto::raw_from_b64(der_base64);
+        der = ccf::crypto::raw_from_b64(der_base64);
       }
       catch (const std::invalid_argument& e)
       {
@@ -234,7 +234,7 @@ namespace ccf
       {
         try
         {
-          crypto::make_unique_verifier(
+          ccf::crypto::make_unique_verifier(
             (std::vector<uint8_t>)der); // throws on error
         }
         catch (std::invalid_argument& exc)

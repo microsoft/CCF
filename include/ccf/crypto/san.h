@@ -56,7 +56,7 @@ namespace crypto
 
 FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<crypto::SubjectAltName>
+struct formatter<ccf::crypto::SubjectAltName>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -65,7 +65,7 @@ struct formatter<crypto::SubjectAltName>
   }
 
   template <typename FormatContext>
-  auto format(const crypto::SubjectAltName& san, FormatContext& ctx) const
+  auto format(const ccf::crypto::SubjectAltName& san, FormatContext& ctx) const
     -> decltype(ctx.out())
   {
     std::string prefix;

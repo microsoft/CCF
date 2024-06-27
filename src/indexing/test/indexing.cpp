@@ -31,7 +31,7 @@ constexpr size_t certificate_validity_period_days = 365;
 using namespace std::literals;
 auto valid_from =
   ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
-auto valid_to = crypto::compute_cert_valid_to_string(
+auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
 static std::vector<ActionDesc> create_actions(
@@ -342,14 +342,14 @@ TEST_CASE_TEMPLATE(
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = crypto::make_key_pair();
+    auto kp = ccf::crypto::make_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
-      crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
+      ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();
 
     member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
     member_public_encryption_keys->put(
-      member_id, crypto::make_rsa_key_pair()->public_key_pem());
+      member_id, ccf::crypto::make_rsa_key_pair()->public_key_pem());
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
@@ -493,14 +493,14 @@ TEST_CASE(
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = crypto::make_key_pair();
+    auto kp = ccf::crypto::make_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
-      crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
+      ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();
 
     member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
     member_public_encryption_keys->put(
-      member_id, crypto::make_rsa_key_pair()->public_key_pem());
+      member_id, ccf::crypto::make_rsa_key_pair()->public_key_pem());
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
@@ -510,7 +510,7 @@ TEST_CASE(
   std::atomic<size_t> writes_to_42 = 0;
 
   auto tx_advancer = [&]() {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     size_t i = 0;
     while (i < 1'000)
     {
@@ -532,7 +532,7 @@ TEST_CASE(
       ++i;
       std::this_thread::yield();
     }
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
     finished = true;
   };
 
@@ -572,7 +572,7 @@ TEST_CASE(
   std::atomic<bool> work_done = false;
 
   std::thread index_ticker([&]() {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     while (!work_done)
     {
       size_t post_work_done_loops = 0;
@@ -626,7 +626,7 @@ TEST_CASE(
         std::this_thread::yield();
       }
     }
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   });
 
   std::vector<std::thread> threads;
@@ -782,14 +782,14 @@ TEST_CASE(
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = crypto::make_key_pair();
+    auto kp = ccf::crypto::make_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
-      crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
+      ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();
 
     member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
     member_public_encryption_keys->put(
-      member_id, crypto::make_rsa_key_pair()->public_key_pem());
+      member_id, ccf::crypto::make_rsa_key_pair()->public_key_pem());
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
@@ -799,7 +799,7 @@ TEST_CASE(
   std::atomic<size_t> writes_to_42 = 0;
 
   auto tx_advancer = [&]() {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     size_t i = 0;
     constexpr auto tx_count =
 #if NDEBUG
@@ -829,12 +829,12 @@ TEST_CASE(
       std::this_thread::yield();
     }
     all_submitted = true;
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   auto get_all =
     [&](const std::string& key) -> std::optional<ccf::SeqNoCollection> {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     const auto max_range = index_a->max_requestable_range();
     auto range_start = 0;
 
@@ -866,7 +866,7 @@ TEST_CASE(
 
       if (range_end == end_seqno)
       {
-        crypto::openssl_sha256_shutdown();
+        ccf::crypto::openssl_sha256_shutdown();
         return all_results;
       }
       else
@@ -874,7 +874,7 @@ TEST_CASE(
         range_start = range_end + 1;
       }
     }
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   auto fetch_index_a = [&]() {
@@ -931,7 +931,7 @@ TEST_CASE(
   });
 
   std::thread index_ticker([&]() {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     while (!work_done)
     {
       while (indexer.update_strategies(step_time, kv_store.current_txid()))
@@ -939,7 +939,7 @@ TEST_CASE(
         std::this_thread::yield();
       }
     }
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   });
 
   std::thread watchdog([&]() {
@@ -967,11 +967,11 @@ TEST_CASE(
 
 int main(int argc, char** argv)
 {
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

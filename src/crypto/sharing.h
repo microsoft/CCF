@@ -51,7 +51,8 @@ namespace crypto
           reinterpret_cast<const uint8_t*>(y), sizeof(y));
         const std::span<const uint8_t> label(
           reinterpret_cast<const uint8_t*>(y), sizeof(y));
-        auto k = crypto::hkdf(crypto::MDType::SHA256, key_size, ikm, {}, label);
+        auto k = ccf::crypto::hkdf(
+          ccf::crypto::MDType::SHA256, key_size, ikm, {}, label);
         return k;
       }
 

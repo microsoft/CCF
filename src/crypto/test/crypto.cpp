@@ -57,7 +57,7 @@ static constexpr CurveID supported_curves[] = {
 
 static constexpr char const* labels[] = {"secp384r1", "secp256r1", "secp256k1"};
 
-crypto::Pem generate_self_signed_cert(
+ccf::crypto::Pem generate_self_signed_cert(
   const KeyPairPtr& kp, const std::string& name)
 {
   constexpr size_t certificate_validity_period_days = 365;
@@ -65,7 +65,7 @@ crypto::Pem generate_self_signed_cert(
   auto valid_from =
     ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 
-  return crypto::create_self_signed_cert(
+  return ccf::crypto::create_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
 }
 
@@ -219,12 +219,12 @@ TEST_CASE("Sign, verify. Fail to verify with bad contents")
   }
 }
 
-crypto::HashBytes bad_manual_hash(const std::vector<uint8_t>& data)
+ccf::crypto::HashBytes bad_manual_hash(const std::vector<uint8_t>& data)
 {
   // secp256r1 requires 32-byte hashes, other curves don't care. So use 32 for
   // general hasher
   constexpr auto n = 32;
-  crypto::HashBytes hash(n);
+  ccf::crypto::HashBytes hash(n);
 
   for (size_t i = 0; i < data.size(); ++i)
   {
@@ -241,7 +241,7 @@ TEST_CASE("Manually hash, sign, verify, with PublicKey")
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
-    crypto::HashBytes hash = bad_manual_hash(contents);
+    ccf::crypto::HashBytes hash = bad_manual_hash(contents);
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
 
     const auto public_key = kp->public_key_pem();
@@ -259,7 +259,7 @@ TEST_CASE("Manually hash, sign, verify, with certificate")
     INFO("With curve: " << labels[static_cast<size_t>(curve) - 1]);
     auto kp = make_key_pair(curve);
     vector<uint8_t> contents(contents_.begin(), contents_.end());
-    crypto::HashBytes hash = bad_manual_hash(contents);
+    ccf::crypto::HashBytes hash = bad_manual_hash(contents);
     const vector<uint8_t> signature = kp->sign_hash(hash.data(), hash.size());
 
     auto cert = generate_self_signed_cert(kp, "CN=name");
@@ -581,7 +581,7 @@ static const vector<uint8_t>& get_raw_key()
 
 TEST_CASE("ExtendedIv0")
 {
-  auto k = crypto::make_key_aes_gcm(get_raw_key());
+  auto k = ccf::crypto::make_key_aes_gcm(get_raw_key());
 
   // setup plain text
   std::vector<uint8_t> plain(100);
@@ -601,7 +601,7 @@ TEST_CASE("ExtendedIv0")
   std::vector<uint8_t> cipher;
   k->encrypt(h.get_iv(), plain, {}, cipher, h.tag);
 
-  auto k2 = crypto::make_key_aes_gcm(get_raw_key());
+  auto k2 = ccf::crypto::make_key_aes_gcm(get_raw_key());
   std::vector<uint8_t> decrypted_plain;
   REQUIRE(k2->decrypt(h.get_iv(), h.tag, cipher, {}, decrypted_plain));
   REQUIRE(plain == decrypted_plain);
@@ -630,14 +630,14 @@ TEST_CASE("CKM_RSA_PKCS_OAEP")
   auto rsa_kp = make_rsa_key_pair();
   auto rsa_pk = make_rsa_public_key(rsa_kp->public_key_pem());
 
-  auto wrapped = crypto::ckm_rsa_pkcs_oaep_wrap(rsa_pk, key);
-  auto wrapped_ = crypto::ckm_rsa_pkcs_oaep_wrap(rsa_pk, key);
+  auto wrapped = ccf::crypto::ckm_rsa_pkcs_oaep_wrap(rsa_pk, key);
+  auto wrapped_ = ccf::crypto::ckm_rsa_pkcs_oaep_wrap(rsa_pk, key);
 
   // CKM_RSA_PKCS_OAEP wrap is non deterministic
   REQUIRE(wrapped != wrapped_);
 
-  auto unwrapped = crypto::ckm_rsa_pkcs_oaep_unwrap(rsa_kp, wrapped);
-  auto unwrapped_ = crypto::ckm_rsa_pkcs_oaep_unwrap(rsa_kp, wrapped_);
+  auto unwrapped = ccf::crypto::ckm_rsa_pkcs_oaep_unwrap(rsa_kp, wrapped);
+  auto unwrapped_ = ccf::crypto::ckm_rsa_pkcs_oaep_unwrap(rsa_kp, wrapped_);
 
   REQUIRE(unwrapped == unwrapped_);
 }
@@ -705,9 +705,9 @@ TEST_CASE("x509 time")
       const auto& from = data.input.from;
       const auto& to = data.input.to;
       REQUIRE(
-        crypto::OpenSSL::validate_chronological_times(
-          crypto::OpenSSL::Unique_X509_TIME(from),
-          crypto::OpenSSL::Unique_X509_TIME(to),
+        ccf::crypto::OpenSSL::validate_chronological_times(
+          ccf::crypto::OpenSSL::Unique_X509_TIME(from),
+          ccf::crypto::OpenSSL::Unique_X509_TIME(to),
           data.input.maximum_validity_period_days) ==
         data.expected_verification_result);
     }
@@ -723,14 +723,14 @@ TEST_CASE("x509 time")
     {
       auto adjusted_time = t + std::chrono::days(days_offset);
 
-      auto from = crypto::OpenSSL::Unique_X509_TIME(t);
-      auto to = crypto::OpenSSL::Unique_X509_TIME(adjusted_time);
+      auto from = ccf::crypto::OpenSSL::Unique_X509_TIME(t);
+      auto to = ccf::crypto::OpenSSL::Unique_X509_TIME(adjusted_time);
 
       // Convert to string and back to time_points
-      auto from_conv =
-        ds::time_point_from_string(crypto::OpenSSL::to_x509_time_string(from));
-      auto to_conv =
-        ds::time_point_from_string(crypto::OpenSSL::to_x509_time_string(to));
+      auto from_conv = ds::time_point_from_string(
+        ccf::crypto::OpenSSL::to_x509_time_string(from));
+      auto to_conv = ds::time_point_from_string(
+        ccf::crypto::OpenSSL::to_x509_time_string(to));
 
       // Diff is still the same amount of days
       auto days_diff =
@@ -748,8 +748,8 @@ TEST_CASE("x509 time")
     {
       auto adjusted_time = time + std::chrono::days(days_offset);
       auto adjusted_str = ds::to_x509_time_string(adjusted_time);
-      auto asn1_time = crypto::OpenSSL::Unique_X509_TIME(adjusted_str);
-      auto converted_str = crypto::OpenSSL::to_x509_time_string(asn1_time);
+      auto asn1_time = ccf::crypto::OpenSSL::Unique_X509_TIME(adjusted_str);
+      auto converted_str = ccf::crypto::OpenSSL::to_x509_time_string(asn1_time);
       REQUIRE(converted_str == adjusted_str);
     }
   }
@@ -764,15 +764,15 @@ TEST_CASE("hmac")
 
   INFO("Same inputs, same hmac");
   {
-    auto r0 = crypto::hmac(MDType::SHA256, key, zeros);
-    auto r1 = crypto::hmac(MDType::SHA256, key, zeros);
+    auto r0 = ccf::crypto::hmac(MDType::SHA256, key, zeros);
+    auto r1 = ccf::crypto::hmac(MDType::SHA256, key, zeros);
     REQUIRE(r0 == r1);
   }
 
   INFO("Different inputs, different hmacs");
   {
-    auto r0 = crypto::hmac(MDType::SHA256, key, zeros);
-    auto r1 = crypto::hmac(MDType::SHA256, key, mostly_zeros);
+    auto r0 = ccf::crypto::hmac(MDType::SHA256, key, zeros);
+    auto r1 = ccf::crypto::hmac(MDType::SHA256, key, mostly_zeros);
     REQUIRE(r0 != r1);
   }
 }
@@ -889,8 +889,8 @@ TEST_CASE("PEM to JWK and back")
 
 TEST_CASE("Incremental hash")
 {
-  crypto::openssl_sha256_init();
-  auto simple_hash = crypto::Sha256Hash(contents);
+  ccf::crypto::openssl_sha256_init();
+  auto simple_hash = ccf::crypto::Sha256Hash(contents);
 
   INFO("Incremental hash");
   {
@@ -930,5 +930,5 @@ TEST_CASE("Incremental hash")
       REQUIRE_THROWS_AS(ihash->finalise(), std::logic_error);
     }
   }
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
 }

@@ -29,7 +29,7 @@ struct CCFConfig
   {
     std::string subject_name = "CN=CCF Node";
     std::vector<std::string> subject_alt_names = {};
-    crypto::CurveID curve_id = crypto::CurveID::SECP384R1;
+    ccf::crypto::CurveID curve_id = ccf::crypto::CurveID::SECP384R1;
     size_t initial_validity_days = 1;
 
     bool operator==(const NodeCertificateInfo&) const = default;

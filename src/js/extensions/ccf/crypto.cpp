@@ -40,7 +40,8 @@ namespace ccf::js::extensions
 
       try
       {
-        std::vector<uint8_t> key = crypto::get_entropy()->random(key_size / 8);
+        std::vector<uint8_t> key =
+          ccf::crypto::get_entropy()->random(key_size / 8);
         return JS_NewArrayBufferCopy(ctx, key.data(), key.size());
       }
       catch (const std::exception& exc)
@@ -68,16 +69,16 @@ namespace ccf::js::extensions
         return ccf::js::core::constants::Exception;
       }
 
-      std::shared_ptr<crypto::RSAKeyPair> k;
+      std::shared_ptr<ccf::crypto::RSAKeyPair> k;
       try
       {
         if (argc == 1)
         {
-          k = crypto::make_rsa_key_pair(key_size);
+          k = ccf::crypto::make_rsa_key_pair(key_size);
         }
         else
         {
-          k = crypto::make_rsa_key_pair(key_size, key_exponent);
+          k = ccf::crypto::make_rsa_key_pair(key_size, key_exponent);
         }
       }
       catch (const std::exception& exc)
@@ -90,8 +91,8 @@ namespace ccf::js::extensions
 
       try
       {
-        crypto::Pem prv = k->private_key_pem();
-        crypto::Pem pub = k->public_key_pem();
+        ccf::crypto::Pem prv = k->private_key_pem();
+        ccf::crypto::Pem pub = k->public_key_pem();
 
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
@@ -126,18 +127,18 @@ namespace ccf::js::extensions
         return ccf::js::core::constants::Exception;
       }
 
-      crypto::CurveID cid;
+      ccf::crypto::CurveID cid;
       if (curve == "secp256r1")
       {
-        cid = crypto::CurveID::SECP256R1;
+        cid = ccf::crypto::CurveID::SECP256R1;
       }
       else if (curve == "secp256k1")
       {
-        cid = crypto::CurveID::SECP256K1;
+        cid = ccf::crypto::CurveID::SECP256K1;
       }
       else if (curve == "secp384r1")
       {
-        cid = crypto::CurveID::SECP384R1;
+        cid = ccf::crypto::CurveID::SECP384R1;
       }
       else
       {
@@ -148,10 +149,10 @@ namespace ccf::js::extensions
 
       try
       {
-        auto k = crypto::make_key_pair(cid);
+        auto k = ccf::crypto::make_key_pair(cid);
 
-        crypto::Pem prv = k->private_key_pem();
-        crypto::Pem pub = k->public_key_pem();
+        ccf::crypto::Pem prv = k->private_key_pem();
+        ccf::crypto::Pem pub = k->public_key_pem();
 
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
@@ -186,14 +187,14 @@ namespace ccf::js::extensions
         return ccf::js::core::constants::Exception;
       }
 
-      crypto::CurveID cid;
+      ccf::crypto::CurveID cid;
       if (curve == "curve25519")
       {
-        cid = crypto::CurveID::CURVE25519;
+        cid = ccf::crypto::CurveID::CURVE25519;
       }
       else if (curve == "x25519")
       {
-        cid = crypto::CurveID::X25519;
+        cid = ccf::crypto::CurveID::X25519;
       }
       else
       {
@@ -203,10 +204,10 @@ namespace ccf::js::extensions
 
       try
       {
-        auto k = crypto::make_eddsa_key_pair(cid);
+        auto k = ccf::crypto::make_eddsa_key_pair(cid);
 
-        crypto::Pem prv = k->private_key_pem();
-        crypto::Pem pub = k->public_key_pem();
+        ccf::crypto::Pem prv = k->private_key_pem();
+        ccf::crypto::Pem pub = k->public_key_pem();
 
         auto r = jsctx.new_obj();
         JS_CHECK_EXC(r);
@@ -256,7 +257,7 @@ namespace ccf::js::extensions
 
       try
       {
-        auto h = crypto::sha256(data, data_size);
+        auto h = ccf::crypto::sha256(data, data_size);
         return JS_NewArrayBufferCopy(ctx, h.data(), h.size());
       }
       catch (const std::exception& exc)
@@ -325,8 +326,8 @@ namespace ccf::js::extensions
 
       try
       {
-        auto chain_vec = crypto::split_x509_cert_bundle(*chain_str);
-        auto trusted_vec = crypto::split_x509_cert_bundle(*trusted_str);
+        auto chain_vec = ccf::crypto::split_x509_cert_bundle(*chain_str);
+        auto trusted_vec = ccf::crypto::split_x509_cert_bundle(*trusted_str);
         if (chain_vec.empty() || trusted_vec.empty())
         {
           throw std::runtime_error(
@@ -334,18 +335,18 @@ namespace ccf::js::extensions
         }
 
         auto& target_pem = chain_vec[0];
-        std::vector<const crypto::Pem*> chain_ptr;
+        std::vector<const ccf::crypto::Pem*> chain_ptr;
         for (auto it = chain_vec.begin() + 1; it != chain_vec.end(); it++)
         {
           chain_ptr.push_back(&*it);
         }
-        std::vector<const crypto::Pem*> trusted_ptr;
+        std::vector<const ccf::crypto::Pem*> trusted_ptr;
         for (auto& pem : trusted_vec)
         {
           trusted_ptr.push_back(&pem);
         }
 
-        auto verifier = crypto::make_unique_verifier(target_pem);
+        auto verifier = ccf::crypto::make_unique_verifier(target_pem);
         if (!verifier->verify_certificate(trusted_ptr, chain_ptr))
         {
           throw std::runtime_error("certificate chain is invalid");
@@ -395,34 +396,36 @@ namespace ccf::js::extensions
       T jwk;
       try
       {
-        if constexpr (std::is_same_v<T, crypto::JsonWebKeyECPublic>)
+        if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPublic>)
         {
-          auto pubk = crypto::make_public_key(*pem_str);
+          auto pubk = ccf::crypto::make_public_key(*pem_str);
           jwk = pubk->public_key_jwk(kid);
         }
-        else if constexpr (std::is_same_v<T, crypto::JsonWebKeyECPrivate>)
+        else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPrivate>)
         {
-          auto kp = crypto::make_key_pair(*pem_str);
+          auto kp = ccf::crypto::make_key_pair(*pem_str);
           jwk = kp->private_key_jwk(kid);
         }
-        else if constexpr (std::is_same_v<T, crypto::JsonWebKeyRSAPublic>)
+        else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyRSAPublic>)
         {
-          auto pubk = crypto::make_rsa_public_key(*pem_str);
+          auto pubk = ccf::crypto::make_rsa_public_key(*pem_str);
           jwk = pubk->public_key_jwk_rsa(kid);
         }
-        else if constexpr (std::is_same_v<T, crypto::JsonWebKeyRSAPrivate>)
+        else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyRSAPrivate>)
         {
-          auto kp = crypto::make_rsa_key_pair(*pem_str);
+          auto kp = ccf::crypto::make_rsa_key_pair(*pem_str);
           jwk = kp->private_key_jwk_rsa(kid);
         }
-        else if constexpr (std::is_same_v<T, crypto::JsonWebKeyEdDSAPublic>)
+        else if constexpr (std::
+                             is_same_v<T, ccf::crypto::JsonWebKeyEdDSAPublic>)
         {
-          auto pubk = crypto::make_eddsa_public_key(*pem_str);
+          auto pubk = ccf::crypto::make_eddsa_public_key(*pem_str);
           jwk = pubk->public_key_jwk_eddsa(kid);
         }
-        else if constexpr (std::is_same_v<T, crypto::JsonWebKeyEdDSAPrivate>)
+        else if constexpr (std::
+                             is_same_v<T, ccf::crypto::JsonWebKeyEdDSAPrivate>)
         {
-          auto kp = crypto::make_eddsa_key_pair(*pem_str);
+          auto kp = ccf::crypto::make_eddsa_key_pair(*pem_str);
           jwk = kp->private_key_jwk_eddsa(kid);
         }
         else
@@ -464,40 +467,42 @@ namespace ccf::js::extensions
         return ccf::js::core::constants::Exception;
       }
 
-      crypto::Pem pem;
+      ccf::crypto::Pem pem;
 
       try
       {
         T jwk = nlohmann::json::parse(jwk_str.value());
 
-        if constexpr (std::is_same_v<T, crypto::JsonWebKeyECPublic>)
+        if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPublic>)
         {
-          auto pubk = crypto::make_public_key(jwk);
+          auto pubk = ccf::crypto::make_public_key(jwk);
           pem = pubk->public_key_pem();
         }
-        else if constexpr (std::is_same_v<T, crypto::JsonWebKeyECPrivate>)
+        else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyECPrivate>)
         {
-          auto kp = crypto::make_key_pair(jwk);
+          auto kp = ccf::crypto::make_key_pair(jwk);
           pem = kp->private_key_pem();
         }
-        else if constexpr (std::is_same_v<T, crypto::JsonWebKeyRSAPublic>)
+        else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyRSAPublic>)
         {
-          auto pubk = crypto::make_rsa_public_key(jwk);
+          auto pubk = ccf::crypto::make_rsa_public_key(jwk);
           pem = pubk->public_key_pem();
         }
-        else if constexpr (std::is_same_v<T, crypto::JsonWebKeyRSAPrivate>)
+        else if constexpr (std::is_same_v<T, ccf::crypto::JsonWebKeyRSAPrivate>)
         {
-          auto kp = crypto::make_rsa_key_pair(jwk);
+          auto kp = ccf::crypto::make_rsa_key_pair(jwk);
           pem = kp->private_key_pem();
         }
-        else if constexpr (std::is_same_v<T, crypto::JsonWebKeyEdDSAPublic>)
+        else if constexpr (std::
+                             is_same_v<T, ccf::crypto::JsonWebKeyEdDSAPublic>)
         {
-          auto pubk = crypto::make_eddsa_public_key(jwk);
+          auto pubk = ccf::crypto::make_eddsa_public_key(jwk);
           pem = pubk->public_key_pem();
         }
-        else if constexpr (std::is_same_v<T, crypto::JsonWebKeyEdDSAPrivate>)
+        else if constexpr (std::
+                             is_same_v<T, ccf::crypto::JsonWebKeyEdDSAPrivate>)
         {
-          auto kp = crypto::make_eddsa_key_pair(jwk);
+          auto kp = ccf::crypto::make_eddsa_key_pair(jwk);
           pem = kp->private_key_pem();
         }
         else
@@ -573,8 +578,8 @@ namespace ccf::js::extensions
             label_opt = {label_buf, label_buf + label_buf_size};
           }
 
-          auto wrapped_key = crypto::ckm_rsa_pkcs_oaep_wrap(
-            crypto::Pem(wrapping_key, wrapping_key_size),
+          auto wrapped_key = ccf::crypto::ckm_rsa_pkcs_oaep_wrap(
+            ccf::crypto::Pem(wrapping_key, wrapping_key_size),
             {key, key + key_size},
             label_opt);
 
@@ -585,8 +590,8 @@ namespace ccf::js::extensions
         {
           std::vector<uint8_t> privateKey(
             wrapping_key, wrapping_key + wrapping_key_size);
-          std::vector<uint8_t> wrapped_key =
-            crypto::ckm_aes_key_wrap_pad(privateKey, {key, key + key_size});
+          std::vector<uint8_t> wrapped_key = ccf::crypto::ckm_aes_key_wrap_pad(
+            privateKey, {key, key + key_size});
 
           OPENSSL_cleanse(privateKey.data(), privateKey.size());
 
@@ -618,9 +623,9 @@ namespace ccf::js::extensions
             label_opt = {label_buf, label_buf + label_buf_size};
           }
 
-          auto wrapped_key = crypto::ckm_rsa_aes_key_wrap(
+          auto wrapped_key = ccf::crypto::ckm_rsa_aes_key_wrap(
             aes_key_size,
-            crypto::Pem(wrapping_key, wrapping_key_size),
+            ccf::crypto::Pem(wrapping_key, wrapping_key_size),
             {key, key + key_size},
             label_opt);
 
@@ -704,8 +709,8 @@ namespace ccf::js::extensions
           }
 
           auto pemPrivateUnwrappingKey =
-            crypto::Pem(unwrapping_key, unwrapping_key_size);
-          auto unwrapped_key = crypto::ckm_rsa_pkcs_oaep_unwrap(
+            ccf::crypto::Pem(unwrapping_key, unwrapping_key_size);
+          auto unwrapped_key = ccf::crypto::ckm_rsa_pkcs_oaep_unwrap(
             pemPrivateUnwrappingKey, {key, key + key_size}, label_opt);
 
           OPENSSL_cleanse(
@@ -719,7 +724,8 @@ namespace ccf::js::extensions
           std::vector<uint8_t> privateKey(
             unwrapping_key, unwrapping_key + unwrapping_key_size);
           std::vector<uint8_t> unwrapped_key =
-            crypto::ckm_aes_key_unwrap_pad(privateKey, {key, key + key_size});
+            ccf::crypto::ckm_aes_key_unwrap_pad(
+              privateKey, {key, key + key_size});
 
           OPENSSL_cleanse(privateKey.data(), privateKey.size());
 
@@ -752,8 +758,8 @@ namespace ccf::js::extensions
           }
 
           auto privPemUnwrappingKey =
-            crypto::Pem(unwrapping_key, unwrapping_key_size);
-          auto unwrapped_key = crypto::ckm_rsa_aes_key_unwrap(
+            ccf::crypto::Pem(unwrapping_key, unwrapping_key_size);
+          auto unwrapped_key = ccf::crypto::ckm_rsa_aes_key_unwrap(
             privPemUnwrappingKey, {key, key + key_size}, label_opt);
 
           OPENSSL_cleanse(
@@ -827,8 +833,8 @@ namespace ccf::js::extensions
       {
         try
         {
-          crypto::Pem key_pem(key);
-          auto key_pair = crypto::make_eddsa_key_pair(key_pem);
+          ccf::crypto::Pem key_pem(key);
+          auto key_pair = ccf::crypto::make_eddsa_key_pair(key_pem);
           auto sig = key_pair->sign(contents);
           return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
         }
@@ -850,18 +856,18 @@ namespace ccf::js::extensions
         auto algo_name = *algo_name_str;
         auto algo_hash = *algo_hash_str;
 
-        crypto::MDType mdtype;
+        ccf::crypto::MDType mdtype;
         if (algo_hash == "SHA-256")
         {
-          mdtype = crypto::MDType::SHA256;
+          mdtype = ccf::crypto::MDType::SHA256;
         }
         else if (algo_hash == "SHA-384")
         {
-          mdtype = crypto::MDType::SHA384;
+          mdtype = ccf::crypto::MDType::SHA384;
         }
         else if (algo_hash == "SHA-512")
         {
-          mdtype = crypto::MDType::SHA512;
+          mdtype = ccf::crypto::MDType::SHA512;
         }
         else
         {
@@ -872,22 +878,22 @@ namespace ccf::js::extensions
 
         if (algo_name == "ECDSA")
         {
-          auto key_pair = crypto::make_key_pair(key);
+          auto key_pair = ccf::crypto::make_key_pair(key);
           auto sig_der = key_pair->sign(contents, mdtype);
-          auto sig =
-            crypto::ecdsa_sig_der_to_p1363(sig_der, key_pair->get_curve_id());
+          auto sig = ccf::crypto::ecdsa_sig_der_to_p1363(
+            sig_der, key_pair->get_curve_id());
           return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
         }
         else if (algo_name == "RSASSA-PKCS1-v1_5")
         {
-          auto key_pair = crypto::make_rsa_key_pair(key);
+          auto key_pair = ccf::crypto::make_rsa_key_pair(key);
           auto sig = key_pair->sign(contents, mdtype);
           return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
         }
         else if (algo_name == "HMAC")
         {
           std::vector<uint8_t> vkey(key.begin(), key.end());
-          const auto sig = crypto::hmac(mdtype, vkey, contents);
+          const auto sig = ccf::crypto::hmac(mdtype, vkey, contents);
           return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
         }
         else
@@ -911,7 +917,7 @@ namespace ccf::js::extensions
       size_t signature_size,
       const std::string& pub_key)
     {
-      auto public_key = crypto::make_eddsa_public_key(pub_key);
+      auto public_key = ccf::crypto::make_eddsa_public_key(pub_key);
       return public_key->verify(
         contents, contents_size, signature, signature_size);
     }
@@ -993,10 +999,10 @@ namespace ccf::js::extensions
         auto algo_hash = *algo_hash_str;
         auto key = *key_str;
 
-        crypto::MDType mdtype;
+        ccf::crypto::MDType mdtype;
         if (algo_hash == "SHA-256")
         {
-          mdtype = crypto::MDType::SHA256;
+          mdtype = ccf::crypto::MDType::SHA256;
         }
         else
         {
@@ -1016,7 +1022,7 @@ namespace ccf::js::extensions
 
         if (algo_name == "ECDSA")
         {
-          sig = crypto::ecdsa_sig_p1363_to_der(sig);
+          sig = ccf::crypto::ecdsa_sig_p1363_to_der(sig);
         }
 
         auto is_cert = key.starts_with("-----BEGIN CERTIFICATE");
@@ -1025,13 +1031,13 @@ namespace ccf::js::extensions
 
         if (is_cert)
         {
-          auto verifier = crypto::make_unique_verifier(key);
+          auto verifier = ccf::crypto::make_unique_verifier(key);
           valid =
             verifier->verify(data, data_size, sig.data(), sig.size(), mdtype);
         }
         else
         {
-          auto public_key = crypto::make_public_key(key);
+          auto public_key = ccf::crypto::make_public_key(key);
           valid =
             public_key->verify(data, data_size, sig.data(), sig.size(), mdtype);
         }
@@ -1062,32 +1068,38 @@ namespace ccf::js::extensions
       crypto,
       "pubPemToJwk",
       JS_NewCFunction(
-        ctx, js_pem_to_jwk<crypto::JsonWebKeyECPublic>, "pubPemToJwk", 1));
+        ctx, js_pem_to_jwk<ccf::crypto::JsonWebKeyECPublic>, "pubPemToJwk", 1));
     JS_SetPropertyStr(
       ctx,
       crypto,
       "pemToJwk",
       JS_NewCFunction(
-        ctx, js_pem_to_jwk<crypto::JsonWebKeyECPrivate>, "pemToJwk", 1));
+        ctx, js_pem_to_jwk<ccf::crypto::JsonWebKeyECPrivate>, "pemToJwk", 1));
     JS_SetPropertyStr(
       ctx,
       crypto,
       "pubRsaPemToJwk",
       JS_NewCFunction(
-        ctx, js_pem_to_jwk<crypto::JsonWebKeyRSAPublic>, "pubRsaPemToJwk", 1));
+        ctx,
+        js_pem_to_jwk<ccf::crypto::JsonWebKeyRSAPublic>,
+        "pubRsaPemToJwk",
+        1));
     JS_SetPropertyStr(
       ctx,
       crypto,
       "rsaPemToJwk",
       JS_NewCFunction(
-        ctx, js_pem_to_jwk<crypto::JsonWebKeyRSAPrivate>, "rsaPemToJwk", 1));
+        ctx,
+        js_pem_to_jwk<ccf::crypto::JsonWebKeyRSAPrivate>,
+        "rsaPemToJwk",
+        1));
     JS_SetPropertyStr(
       ctx,
       crypto,
       "pubEddsaPemToJwk",
       JS_NewCFunction(
         ctx,
-        js_pem_to_jwk<crypto::JsonWebKeyEdDSAPublic>,
+        js_pem_to_jwk<ccf::crypto::JsonWebKeyEdDSAPublic>,
         "pubEddsaPemToJwk",
         1));
     JS_SetPropertyStr(
@@ -1096,7 +1108,7 @@ namespace ccf::js::extensions
       "eddsaPemToJwk",
       JS_NewCFunction(
         ctx,
-        js_pem_to_jwk<crypto::JsonWebKeyEdDSAPrivate>,
+        js_pem_to_jwk<ccf::crypto::JsonWebKeyEdDSAPrivate>,
         "eddsaPemToJwk",
         1));
     JS_SetPropertyStr(
@@ -1104,32 +1116,38 @@ namespace ccf::js::extensions
       crypto,
       "pubJwkToPem",
       JS_NewCFunction(
-        ctx, js_jwk_to_pem<crypto::JsonWebKeyECPublic>, "pubJwkToPem", 1));
+        ctx, js_jwk_to_pem<ccf::crypto::JsonWebKeyECPublic>, "pubJwkToPem", 1));
     JS_SetPropertyStr(
       ctx,
       crypto,
       "jwkToPem",
       JS_NewCFunction(
-        ctx, js_jwk_to_pem<crypto::JsonWebKeyECPrivate>, "jwkToPem", 1));
+        ctx, js_jwk_to_pem<ccf::crypto::JsonWebKeyECPrivate>, "jwkToPem", 1));
     JS_SetPropertyStr(
       ctx,
       crypto,
       "pubRsaJwkToPem",
       JS_NewCFunction(
-        ctx, js_jwk_to_pem<crypto::JsonWebKeyRSAPublic>, "pubRsaJwkToPem", 1));
+        ctx,
+        js_jwk_to_pem<ccf::crypto::JsonWebKeyRSAPublic>,
+        "pubRsaJwkToPem",
+        1));
     JS_SetPropertyStr(
       ctx,
       crypto,
       "rsaJwkToPem",
       JS_NewCFunction(
-        ctx, js_jwk_to_pem<crypto::JsonWebKeyRSAPrivate>, "rsaJwkToPem", 1));
+        ctx,
+        js_jwk_to_pem<ccf::crypto::JsonWebKeyRSAPrivate>,
+        "rsaJwkToPem",
+        1));
     JS_SetPropertyStr(
       ctx,
       crypto,
       "pubEddsaJwkToPem",
       JS_NewCFunction(
         ctx,
-        js_jwk_to_pem<crypto::JsonWebKeyEdDSAPublic>,
+        js_jwk_to_pem<ccf::crypto::JsonWebKeyEdDSAPublic>,
         "pubEddsaJwkToPem",
         1));
     JS_SetPropertyStr(
@@ -1138,7 +1156,7 @@ namespace ccf::js::extensions
       "eddsaJwkToPem",
       JS_NewCFunction(
         ctx,
-        js_jwk_to_pem<crypto::JsonWebKeyEdDSAPrivate>,
+        js_jwk_to_pem<ccf::crypto::JsonWebKeyEdDSAPrivate>,
         "eddsaJwkToPem",
         1));
     JS_SetPropertyStr(

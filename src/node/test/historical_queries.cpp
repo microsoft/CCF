@@ -32,14 +32,14 @@ using namespace std::literals;
 auto valid_from =
   ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 
-auto valid_to = crypto::compute_cert_valid_to_string(
+auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
 struct TestState
 {
   std::shared_ptr<kv::Store> kv_store = nullptr;
   std::shared_ptr<ccf::LedgerSecrets> ledger_secrets = nullptr;
-  crypto::KeyPairPtr node_kp = nullptr;
+  ccf::crypto::KeyPairPtr node_kp = nullptr;
 };
 
 TestState create_and_init_state(bool initialise_ledger_rekey = true)
@@ -51,7 +51,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
   ts.kv_store->set_encryptor(encryptor);
 
-  ts.node_kp = crypto::make_key_pair();
+  ts.node_kp = ccf::crypto::make_key_pair();
 
   // Make history to produce signatures
   const ccf::NodeId node_id = std::string("node_id");
@@ -94,14 +94,14 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = crypto::make_key_pair();
+    auto kp = ccf::crypto::make_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
-      crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
+      ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();
 
     member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
     member_public_encryption_keys->put(
-      member_id, crypto::make_rsa_key_pair()->public_key_pem());
+      member_id, ccf::crypto::make_rsa_key_pair()->public_key_pem());
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
   }
 
@@ -1110,7 +1110,7 @@ TEST_CASE("StateCache concurrent access")
 
   std::atomic<bool> finished = false;
   std::thread host_thread([&]() {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     auto ledger = construct_host_ledger(state.kv_store->get_consensus());
 
     size_t last_handled_write = 0;
@@ -1161,7 +1161,7 @@ TEST_CASE("StateCache concurrent access")
       cache.tick(std::chrono::milliseconds(100));
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   });
 
   constexpr auto per_thread_queries = 30;
@@ -1293,7 +1293,7 @@ TEST_CASE("StateCache concurrent access")
                                      size_t handle,
                                      const auto& error_printer) {
     std::vector<ccf::historical::StatePtr> states;
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     auto fetch_result = [&]() {
       states = cache.get_state_range(handle, range_start, range_end);
     };
@@ -1301,7 +1301,7 @@ TEST_CASE("StateCache concurrent access")
     REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
     REQUIRE(states.size() == range_end - range_start + 1);
     validate_all_states(states);
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   auto query_random_sparse_set_stores = [&](
@@ -1323,7 +1323,7 @@ TEST_CASE("StateCache concurrent access")
                                           size_t handle,
                                           const auto& error_printer) {
     std::vector<ccf::historical::StatePtr> states;
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     auto fetch_result = [&]() {
       states = cache.get_states_for(handle, seqnos);
     };
@@ -1331,7 +1331,7 @@ TEST_CASE("StateCache concurrent access")
     REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
     REQUIRE(states.size() == seqnos.size());
     validate_all_states(states);
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   auto run_n_queries = [&](size_t handle) {
@@ -1589,7 +1589,7 @@ TEST_CASE("StateCache concurrent access")
 
 TEST_CASE("Recover historical ledger secrets")
 {
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
@@ -1706,17 +1706,17 @@ TEST_CASE("Recover historical ledger secrets")
 
     validate_business_transaction(historical_state, first_seqno);
   }
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
 }
 
 int main(int argc, char** argv)
 {
   threading::ThreadMessaging::init(1);
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

@@ -97,13 +97,14 @@ template <MDType M, size_t NContents>
 static void benchmark_hmac(picobench::state& s)
 {
   const auto contents = make_contents<NContents>();
-  const auto key = crypto::get_entropy()->random(crypto::GCM_DEFAULT_KEY_SIZE);
+  const auto key =
+    ccf::crypto::get_entropy()->random(ccf::crypto::GCM_DEFAULT_KEY_SIZE);
 
   s.start_timer();
   for (auto _ : s)
   {
     (void)_;
-    HashBytes hash = crypto::hmac(M, key, contents);
+    HashBytes hash = ccf::crypto::hmac(M, key, contents);
     do_not_optimize(hash);
     clobber_memory();
   }
@@ -381,7 +382,7 @@ namespace Hashes
 template <size_t size>
 static void sha256_bench(picobench::state& s)
 {
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
 
   std::vector<uint8_t> v(size);
   for (size_t i = 0; i < size; ++i)
@@ -389,15 +390,15 @@ static void sha256_bench(picobench::state& s)
     v[i] = rand();
   }
 
-  crypto::Sha256Hash h;
+  ccf::crypto::Sha256Hash h;
 
   s.start_timer();
   for (size_t i = 0; i < 10; ++i)
   {
-    crypto::openssl_sha256(v, h.h.data());
+    ccf::crypto::openssl_sha256(v, h.h.data());
   }
   s.stop_timer();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
 }
 
 PICOBENCH_SUITE("digest sha256");
@@ -436,8 +437,8 @@ namespace Base64_bench
     {
       // We don't check the outputs as this is done elsewhere
       std::string encoded =
-        crypto::Base64_openssl::b64_from_raw(v.data(), v.size());
-      crypto::Base64_openssl::raw_from_b64(encoded);
+        ccf::crypto::Base64_openssl::b64_from_raw(v.data(), v.size());
+      ccf::crypto::Base64_openssl::raw_from_b64(encoded);
     }
     s.stop_timer();
   }
@@ -473,7 +474,7 @@ namespace HMAC_bench
   PICOBENCH(openssl_hmac_sha256_64).PICO_HASH_SUFFIX();
 }
 
-std::vector<crypto::sharing::Share> shares;
+std::vector<ccf::crypto::sharing::Share> shares;
 
 PICOBENCH_SUITE("share");
 namespace SHARE_bench
@@ -487,8 +488,8 @@ namespace SHARE_bench
     for (auto _ : s)
     {
       (void)_;
-      crypto::sharing::Share secret;
-      crypto::sharing::sample_secret_and_shares(secret, shares, threshold);
+      ccf::crypto::sharing::Share secret;
+      ccf::crypto::sharing::sample_secret_and_shares(secret, shares, threshold);
       do_not_optimize(secret);
       clobber_memory();
     }
@@ -520,9 +521,9 @@ namespace SHARE_bench
     for (auto _ : s)
     {
       (void)_;
-      crypto::sharing::Share secret;
-      crypto::sharing::sample_secret_and_shares(secret, shares, threshold);
-      crypto::sharing::recover_unauthenticated_secret(
+      ccf::crypto::sharing::Share secret;
+      ccf::crypto::sharing::sample_secret_and_shares(secret, shares, threshold);
+      ccf::crypto::sharing::recover_unauthenticated_secret(
         secret, shares, threshold);
       do_not_optimize(secret);
       clobber_memory();

@@ -48,9 +48,9 @@ namespace crypto
     default_sha256(data, h.data());
   }
 
-  std::ostream& operator<<(std::ostream& os, const crypto::Sha256Hash& h)
+  std::ostream& operator<<(std::ostream& os, const ccf::crypto::Sha256Hash& h)
   {
-    for (unsigned i = 0; i < crypto::Sha256Hash::SIZE; i++)
+    for (unsigned i = 0; i < ccf::crypto::Sha256Hash::SIZE; i++)
     {
       os << std::hex << static_cast<int>(h.h[i]);
     }
@@ -123,7 +123,7 @@ namespace crypto
 
   bool operator==(const Sha256Hash& lhs, const Sha256Hash& rhs)
   {
-    for (unsigned i = 0; i < crypto::Sha256Hash::SIZE; i++)
+    for (unsigned i = 0; i < ccf::crypto::Sha256Hash::SIZE; i++)
     {
       if (lhs.h[i] != rhs.h[i])
       {

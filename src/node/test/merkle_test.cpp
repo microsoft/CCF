@@ -6,9 +6,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
-crypto::Sha256Hash rand_hash()
+ccf::crypto::Sha256Hash rand_hash()
 {
-  crypto::Sha256Hash hash;
+  ccf::crypto::Sha256Hash hash;
   uint8_t* data = hash.h.data();
   for (size_t i = 0; i < hash.h.size(); ++i)
   {
@@ -88,8 +88,9 @@ TEST_CASE("Retrieving leaves")
 {
   constexpr size_t hash_count = 1'000;
 
-  std::map<uint64_t, crypto::Sha256Hash> hashes;
-  hashes[0] = crypto::Sha256Hash(); // Default index 0 always contains all-0s
+  std::map<uint64_t, ccf::crypto::Sha256Hash> hashes;
+  hashes[0] =
+    ccf::crypto::Sha256Hash(); // Default index 0 always contains all-0s
 
   ccf::MerkleTreeHistory history;
 
@@ -165,7 +166,7 @@ TEST_CASE("First root")
     INFO("Empty root");
     ccf::MerkleTreeHistory tree;
     const auto empty_root = tree.get_root();
-    REQUIRE(empty_root == crypto::Sha256Hash());
+    REQUIRE(empty_root == ccf::crypto::Sha256Hash());
     REQUIRE(tree.get_leaf(0) == empty_root);
   }
 
@@ -181,10 +182,10 @@ TEST_CASE("First root")
 
 int main(int argc, char** argv)
 {
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   return res;
 }

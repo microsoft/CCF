@@ -449,11 +449,11 @@ TEST_CASE("Encryptor rollback")
 int main(int argc, char** argv)
 {
   logger::config::default_init();
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

@@ -7,7 +7,7 @@
 
 #include <openssl/asn1.h>
 
-namespace crypto::OpenSSL
+namespace ccf::crypto::OpenSSL
 {
   /** Set of utilities functions for working with x509 time, as defined in RFC
   5280 (https://datatracker.ietf.org/doc/html/rfc5280#section-4.1.2.5.1) */

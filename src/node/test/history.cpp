@@ -28,7 +28,7 @@ using namespace std::literals;
 auto valid_from =
   ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 
-auto valid_to = crypto::compute_cert_valid_to_string(
+auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
 class DummyConsensus : public kv::test::StubConsensus
@@ -74,7 +74,7 @@ TEST_CASE("Check signature verification")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
-  auto kp = crypto::make_key_pair();
+  auto kp = ccf::crypto::make_key_pair();
   const auto self_signed = kp->self_sign("CN=Node", valid_from, valid_to);
 
   kv::Store primary_store;
@@ -139,7 +139,7 @@ TEST_CASE("Check signing works across rollback")
 {
   auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
-  auto kp = crypto::make_key_pair();
+  auto kp = ccf::crypto::make_key_pair();
   const auto self_signed = kp->self_sign("CN=Node", valid_from, valid_to);
 
   kv::Store primary_store;
@@ -475,11 +475,11 @@ TEST_CASE(
 int main(int argc, char** argv)
 {
   threading::ThreadMessaging::init(1);
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

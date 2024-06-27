@@ -252,13 +252,13 @@ namespace crypto
    */
   VerifierPtr make_verifier(const Pem& pem);
 
-  crypto::Pem cert_der_to_pem(const std::vector<uint8_t>& der);
+  ccf::crypto::Pem cert_der_to_pem(const std::vector<uint8_t>& der);
   std::vector<uint8_t> cert_pem_to_der(const Pem& pem);
 
   std::vector<uint8_t> public_key_der_from_cert(
     const std::vector<uint8_t>& der);
 
-  crypto::Pem public_key_pem_from_cert(const std::vector<uint8_t>& der);
+  ccf::crypto::Pem public_key_pem_from_cert(const std::vector<uint8_t>& der);
 
   std::string get_subject_name(const Pem& cert);
 }

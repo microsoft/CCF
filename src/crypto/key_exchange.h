@@ -19,9 +19,9 @@ namespace tls
   class KeyExchangeContext
   {
   private:
-    crypto::KeyPairPtr own_key;
-    crypto::PublicKeyPtr peer_key;
-    crypto::CurveID curve;
+    ccf::crypto::KeyPairPtr own_key;
+    ccf::crypto::PublicKeyPtr peer_key;
+    ccf::crypto::CurveID curve;
     std::vector<uint8_t> shared_secret;
 
     void compute_shared_secret()
@@ -41,7 +41,7 @@ namespace tls
     }
 
   public:
-    KeyExchangeContext() : curve(crypto::CurveID::SECP384R1) {}
+    KeyExchangeContext() : curve(ccf::crypto::CurveID::SECP384R1) {}
 
     ~KeyExchangeContext() {}
 
@@ -91,15 +91,15 @@ namespace tls
       std::vector<uint8_t> tmp(ks.begin(), ks.end());
       tmp.erase(tmp.begin());
 
-      int nid = crypto::PublicKey_OpenSSL::get_openssl_group_id(curve);
-      auto pk = crypto::key_from_raw_ec_point(tmp, nid);
+      int nid = ccf::crypto::PublicKey_OpenSSL::get_openssl_group_id(curve);
+      auto pk = ccf::crypto::key_from_raw_ec_point(tmp, nid);
 
       if (!pk)
       {
         throw std::runtime_error("Failed to parse peer key share");
       }
 
-      peer_key = std::make_shared<crypto::PublicKey_OpenSSL>(pk);
+      peer_key = std::make_shared<ccf::crypto::PublicKey_OpenSSL>(pk);
       shared_secret.clear();
     }
 

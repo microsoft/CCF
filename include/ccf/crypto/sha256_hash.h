@@ -36,7 +36,7 @@ namespace crypto
       const Sha256Hash& third);
 
     friend std::ostream& operator<<(
-      std::ostream& os, const crypto::Sha256Hash& h);
+      std::ostream& os, const ccf::crypto::Sha256Hash& h);
 
     std::string hex_str() const;
 
@@ -60,7 +60,7 @@ namespace crypto
 
 FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<crypto::Sha256Hash>
+struct formatter<ccf::crypto::Sha256Hash>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -69,7 +69,7 @@ struct formatter<crypto::Sha256Hash>
   }
 
   template <typename FormatContext>
-  auto format(const crypto::Sha256Hash& p, FormatContext& ctx) const
+  auto format(const ccf::crypto::Sha256Hash& p, FormatContext& ctx) const
   {
     return format_to(ctx.out(), "<sha256 {:02x}>", fmt::join(p.h, ""));
   }
@@ -79,18 +79,18 @@ FMT_END_NAMESPACE
 namespace kv::serialisers
 {
   template <>
-  struct BlitSerialiser<crypto::Sha256Hash>
+  struct BlitSerialiser<ccf::crypto::Sha256Hash>
   {
-    static SerialisedEntry to_serialised(const crypto::Sha256Hash& h)
+    static SerialisedEntry to_serialised(const ccf::crypto::Sha256Hash& h)
     {
       auto hex_str = h.hex_str();
       return SerialisedEntry(hex_str.begin(), hex_str.end());
     }
 
-    static crypto::Sha256Hash from_serialised(const SerialisedEntry& data)
+    static ccf::crypto::Sha256Hash from_serialised(const SerialisedEntry& data)
     {
       auto data_str = std::string{data.begin(), data.end()};
-      crypto::Sha256Hash ret;
+      ccf::crypto::Sha256Hash ret;
       return ret.from_hex_string(data_str);
     }
   };

@@ -78,7 +78,7 @@ namespace ccf::pal
     report_data = SnpAttestationReportData(quote.report_data);
     measurement = SnpAttestationMeasurement(quote.measurement);
 
-    auto certificates = crypto::split_x509_cert_bundle(std::string_view(
+    auto certificates = ccf::crypto::split_x509_cert_bundle(std::string_view(
       reinterpret_cast<const char*>(quote_info.endorsements.data()),
       quote_info.endorsements.size()));
     if (certificates.size() != 3)
@@ -90,7 +90,7 @@ namespace ccf::pal
     auto sev_version_certificate = certificates[1];
     auto root_certificate = certificates[2];
 
-    auto root_cert_verifier = crypto::make_verifier(root_certificate);
+    auto root_cert_verifier = ccf::crypto::make_verifier(root_certificate);
 
     if (
       root_cert_verifier->public_key_pem().str() !=
@@ -109,7 +109,7 @@ namespace ccf::pal
         "self signed as expected");
     }
 
-    auto chip_cert_verifier = crypto::make_verifier(chip_certificate);
+    auto chip_cert_verifier = ccf::crypto::make_verifier(chip_certificate);
     if (!chip_cert_verifier->verify_certificate(
           {&root_certificate, &sev_version_certificate}))
     {
@@ -127,7 +127,7 @@ namespace ccf::pal
     }
 
     // Make ASN1 DER signature
-    auto quote_signature = crypto::ecdsa_sig_from_r_s(
+    auto quote_signature = ccf::crypto::ecdsa_sig_from_r_s(
       quote.signature.r,
       sizeof(quote.signature.r),
       quote.signature.s,

@@ -42,9 +42,9 @@ namespace ccf
     struct SnapshotInfo
     {
       kv::Version version;
-      crypto::Sha256Hash write_set_digest;
+      ccf::crypto::Sha256Hash write_set_digest;
       std::string commit_evidence;
-      crypto::Sha256Hash snapshot_digest;
+      ccf::crypto::Sha256Hash snapshot_digest;
       std::vector<uint8_t> serialised_snapshot;
 
       // Prevents the receipt from being passed to the host (on commit) in case
@@ -54,7 +54,7 @@ namespace ccf
       std::optional<::consensus::Index> evidence_idx = std::nullopt;
 
       std::optional<NodeId> node_id = std::nullopt;
-      std::optional<crypto::Pem> node_cert = std::nullopt;
+      std::optional<ccf::crypto::Pem> node_cert = std::nullopt;
       std::optional<std::vector<uint8_t>> sig = std::nullopt;
       std::optional<std::vector<uint8_t>> tree = std::nullopt;
 
@@ -130,20 +130,20 @@ namespace ccf
 
       auto tx = store->create_tx();
       auto evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
-      auto snapshot_hash = crypto::Sha256Hash(serialised_snapshot);
+      auto snapshot_hash = ccf::crypto::Sha256Hash(serialised_snapshot);
       evidence->put({snapshot_hash, snapshot_version});
 
       ccf::ClaimsDigest cd;
       cd.set(std::move(snapshot_hash));
 
-      crypto::Sha256Hash ws_digest;
+      ccf::crypto::Sha256Hash ws_digest;
       std::string commit_evidence;
       auto capture_ws_digest_and_commit_evidence =
         [&ws_digest, &commit_evidence](
           const std::vector<uint8_t>& write_set,
           const std::string& commit_evidence_) {
           new (&ws_digest)
-            crypto::Sha256Hash({write_set.data(), write_set.size()});
+            ccf::crypto::Sha256Hash({write_set.data(), write_set.size()});
           commit_evidence = commit_evidence_;
         };
 
@@ -378,7 +378,7 @@ namespace ccf
       ::consensus::Index idx,
       const std::vector<uint8_t>& sig,
       const NodeId& node_id,
-      const crypto::Pem& node_cert)
+      const ccf::crypto::Pem& node_cert)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 

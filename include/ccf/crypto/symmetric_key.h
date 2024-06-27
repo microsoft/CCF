@@ -44,7 +44,7 @@ namespace crypto
       return GCM_SIZE_TAG + IV_SIZE;
     }
 
-    void set_random_iv(EntropyPtr entropy = crypto::get_entropy())
+    void set_random_iv(EntropyPtr entropy = ccf::crypto::get_entropy())
     {
       iv = entropy->random(IV_SIZE);
     }

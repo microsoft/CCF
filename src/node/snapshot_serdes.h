@@ -67,7 +67,7 @@ namespace ccf
     }
 
     auto snapshot_digest =
-      crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
+      ccf::crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
     auto snapshot_digest_claim = receipt->leaf_components.claims_digest.value();
     if (snapshot_digest != snapshot_digest_claim)
     {
@@ -80,13 +80,13 @@ namespace ccf
     auto root = receipt->calculate_root();
     auto raw_sig = receipt->signature;
 
-    auto v = crypto::make_unique_verifier(receipt->cert);
+    auto v = ccf::crypto::make_unique_verifier(receipt->cert);
     if (!v->verify_hash(
           root.h.data(),
           root.h.size(),
           receipt->signature.data(),
           receipt->signature.size(),
-          crypto::MDType::SHA256))
+          ccf::crypto::MDType::SHA256))
     {
       throw std::logic_error(
         "Signature verification failed for snapshot receipt");
@@ -94,7 +94,7 @@ namespace ccf
 
     if (prev_service_identity)
     {
-      crypto::Pem prev_pem(*prev_service_identity);
+      ccf::crypto::Pem prev_pem(*prev_service_identity);
       if (!v->verify_certificate(
             {&prev_pem},
             {}, /* ignore_time */
@@ -148,11 +148,11 @@ namespace ccf
     const std::vector<uint8_t>& sig,
     const std::vector<uint8_t>& tree,
     const NodeId& node_id,
-    const crypto::Pem& node_cert,
+    const ccf::crypto::Pem& node_cert,
     kv::Version seqno,
-    const crypto::Sha256Hash& write_set_digest,
+    const ccf::crypto::Sha256Hash& write_set_digest,
     const std::string& commit_evidence,
-    crypto::Sha256Hash&& claims_digest)
+    ccf::crypto::Sha256Hash&& claims_digest)
   {
     ccf::MerkleTreeHistory history(tree);
     auto proof = history.get_proof(seqno);

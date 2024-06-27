@@ -26,9 +26,9 @@ namespace ccf
     struct ThisNode
     {
       NodeId node_id;
-      crypto::Pem service_cert;
-      crypto::KeyPairPtr node_kp;
-      std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
+      ccf::crypto::Pem service_cert;
+      ccf::crypto::KeyPairPtr node_kp;
+      std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     };
     std::unique_ptr<ThisNode> this_node; //< Not available at construction, only
                                          // after calling initialize()
@@ -93,9 +93,9 @@ namespace ccf
 
     void initialize(
       const NodeId& self_id,
-      const crypto::Pem& service_cert,
-      crypto::KeyPairPtr node_kp,
-      const std::optional<crypto::Pem>& node_cert) override
+      const ccf::crypto::Pem& service_cert,
+      ccf::crypto::KeyPairPtr node_kp,
+      const std::optional<ccf::crypto::Pem>& node_cert) override
     {
       CCF_ASSERT_FMT(
         this_node == nullptr,
@@ -117,7 +117,8 @@ namespace ccf
         new ThisNode{self_id, service_cert, node_kp, node_cert});
     }
 
-    void set_endorsed_node_cert(const crypto::Pem& endorsed_node_cert) override
+    void set_endorsed_node_cert(
+      const ccf::crypto::Pem& endorsed_node_cert) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       this_node->endorsed_node_cert = endorsed_node_cert;

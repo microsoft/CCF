@@ -457,8 +457,8 @@ namespace crypto
   std::vector<uint8_t> KeyPair_OpenSSL::derive_shared_secret(
     const PublicKey& peer_key)
   {
-    crypto::CurveID cid = peer_key.get_curve_id();
-    int nid = crypto::PublicKey_OpenSSL::get_openssl_group_id(cid);
+    ccf::crypto::CurveID cid = peer_key.get_curve_id();
+    int nid = ccf::crypto::PublicKey_OpenSSL::get_openssl_group_id(cid);
     auto pk = key_from_raw_ec_point(peer_key.public_key_raw(), nid);
 
     std::vector<uint8_t> shared_secret;
