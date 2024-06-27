@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 // CCF
-#include "audit_info.h"
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/ds/hash.h"
@@ -21,10 +20,25 @@ using namespace nlohmann;
 namespace programmabilityapp
 {
   using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
-  using AuditInputValue = kv::Value<std::vector<uint8_t>>;
-  using AuditInfoValue = kv::Value<AuditInfo>;
   static constexpr auto PRIVATE_RECORDS = "programmability.records";
   static constexpr auto CUSTOM_ENDPOINTS_NAMESPACE = "public:custom_endpoints";
+
+  // The programmability sample demonstrates how signed payloads can be used to
+  // provide offline auditability without requiring trusting the hardware or the
+  // service owners/consortium.
+  // COSE Sign1 payloads must set these protected headers in order to guarantee
+  // the specificity of the payload for the endpoint, and avoid possible replay
+  // of payloads signed in the past.
+  static constexpr auto MSG_TYPE_NAME = "app.msg.type";
+  static constexpr auto CREATED_AT_NAME = "app.msg.created_at";
+  // Instances of ccf::TypedUserCOSESign1AuthnPolicy for the endpoints that
+  // support COSE Sign1 authentication.
+  static auto endpoints_user_cose_sign1_auth_policy =
+    std::make_shared<ccf::TypedUserCOSESign1AuthnPolicy>(
+      "custom_endpoints", MSG_TYPE_NAME, CREATED_AT_NAME);
+  static auto options_user_cose_sign1_auth_policy =
+    std::make_shared<ccf::TypedUserCOSESign1AuthnPolicy>(
+      "runtime_options", MSG_TYPE_NAME, CREATED_AT_NAME);
 
   // This is a pure helper function which can be called from either C++ or JS,
   // to implement common functionality in a single place
@@ -185,18 +199,64 @@ namespace programmabilityapp
       return std::nullopt;
     }
 
-    std::pair<AuditInputFormat, std::span<const uint8_t>> get_body(
-      ccf::endpoints::EndpointContext& ctx)
+    std::tuple<
+      ccf::ActionFormat, // JSON or COSE
+      std::span<const uint8_t>, // Content
+      std::optional<uint64_t> // Created at timestamp, if passed
+      >
+    get_action_content(ccf::endpoints::EndpointContext& ctx)
     {
       if (
         const auto* cose_ident =
           ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
       {
-        return {AuditInputFormat::COSE, cose_ident->content};
+        return {
+          ccf::ActionFormat::COSE,
+          cose_ident->content,
+          cose_ident->protected_header.msg_created_at};
       }
       else
       {
-        return {AuditInputFormat::JSON, ctx.rpc_ctx->get_request_body()};
+        return {
+          ccf::ActionFormat::JSON,
+          ctx.rpc_ctx->get_request_body(),
+          std::nullopt};
+      }
+    }
+
+    bool set_error_details(
+      ccf::endpoints::EndpointContext& ctx,
+      ccf::ApiResult result,
+      ccf::InvalidArgsReason reason)
+    {
+      switch (result)
+      {
+        case ccf::ApiResult::OK:
+        {
+          return false;
+        }
+        case ccf::ApiResult::InvalidArgs:
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InvalidInput,
+            reason == ccf::InvalidArgsReason::ActionAlreadyApplied ?
+              "Action was already applied" :
+              "Action created_at timestamp is too old");
+          return true;
+        }
+        case ccf::ApiResult::InternalError:
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Failed to check if action is original");
+          return true;
+        }
+        default:
+        {
+          return true;
+        }
       }
     }
 
@@ -360,18 +420,45 @@ namespace programmabilityapp
         }
         // End of Authorization Check
 
-        const auto [format, bundle] = get_body(ctx);
-        const auto j = nlohmann::json::parse(bundle.begin(), bundle.end());
-        const auto parsed_bundle = j.get<ccf::js::Bundle>();
+        const auto [format, content, created_at] = get_action_content(ctx);
+        const auto parsed_content =
+          nlohmann::json::parse(content.begin(), content.end());
+        const auto parsed_bundle = parsed_content.get<ccf::js::Bundle>();
 
-        // Make operation auditable by writing user-supplied
-        // document to the ledger
-        auto audit_input = ctx.tx.template rw<AuditInputValue>(
-          fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
-        audit_input->put(ctx.rpc_ctx->get_request_body());
-        auto audit_info = ctx.tx.template rw<AuditInfoValue>(
-          fmt::format("{}.audit.info", CUSTOM_ENDPOINTS_NAMESPACE));
-        audit_info->put({format, AuditInputContent::BUNDLE, user_id.value()});
+        // Make operation auditable
+        record_action_for_audit_v1(
+          ctx.tx,
+          format,
+          user_id.value(),
+          fmt::format(
+            "{} {}",
+            ctx.rpc_ctx->get_method(),
+            ctx.rpc_ctx->get_request_path()),
+          ctx.rpc_ctx->get_request_body());
+
+        // Ensure signed actions are not replayed
+        if (format == ccf::ActionFormat::COSE)
+        {
+          if (!created_at.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::MissingRequiredHeader,
+              fmt::format("Missing {} protected header", CREATED_AT_NAME));
+            return;
+          }
+          ccf::InvalidArgsReason reason;
+          result = check_action_not_replayed_v1(
+            ctx.tx,
+            created_at.value(),
+            ctx.rpc_ctx->get_request_body(),
+            reason);
+
+          if (set_error_details(ctx, result, reason))
+          {
+            return;
+          }
+        }
 
         result = install_custom_endpoints_v1(ctx.tx, parsed_bundle);
         if (result != ccf::ApiResult::OK)
@@ -392,7 +479,7 @@ namespace programmabilityapp
         "/custom_endpoints",
         HTTP_PUT,
         put_custom_endpoints,
-        {ccf::user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
+        {endpoints_user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
         .set_auto_schema<ccf::js::Bundle, void>()
         .install();
 
@@ -523,26 +610,53 @@ namespace programmabilityapp
           // - Convert current options to JSON
           auto j_options = nlohmann::json(options);
 
-          const auto [format, body] = get_body(ctx);
-          // - Parse argument as JSON body
-          const auto arg_body = nlohmann::json::parse(body.begin(), body.end());
+          const auto [format, content, created_at] = get_action_content(ctx);
+          // - Parse content as JSON options
+          const auto arg_content =
+            nlohmann::json::parse(content.begin(), content.end());
 
           // - Merge, to overwrite current options with anything from body. Note
           // that nulls mean deletions, which results in resetting to a default
           // value
-          j_options.merge_patch(arg_body);
+          j_options.merge_patch(arg_content);
 
           // - Parse patched options from JSON
           options = j_options.get<ccf::JSRuntimeOptions>();
 
-          // Make operation auditable by writing user-supplied
-          // document to the ledger
-          auto audit = ctx.tx.template rw<AuditInputValue>(
-            fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
-          audit->put(ctx.rpc_ctx->get_request_body());
-          auto audit_info = ctx.tx.template rw<AuditInfoValue>(
-            fmt::format("{}.audit.info", CUSTOM_ENDPOINTS_NAMESPACE));
-          audit_info->put({format, AuditInputContent::BUNDLE, user_id.value()});
+          // Make operation auditable
+          record_action_for_audit_v1(
+            ctx.tx,
+            format,
+            user_id.value(),
+            fmt::format(
+              "{} {}",
+              ctx.rpc_ctx->get_method(),
+              ctx.rpc_ctx->get_request_path()),
+            ctx.rpc_ctx->get_request_body());
+
+          // Ensure signed actions are not replayed
+          if (format == ccf::ActionFormat::COSE)
+          {
+            if (!created_at.has_value())
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::MissingRequiredHeader,
+                fmt::format("Missing {} protected header", CREATED_AT_NAME));
+              return;
+            }
+            ccf::InvalidArgsReason reason;
+            result = check_action_not_replayed_v1(
+              ctx.tx,
+              created_at.value(),
+              ctx.rpc_ctx->get_request_body(),
+              reason);
+
+            if (set_error_details(ctx, result, reason))
+            {
+              return;
+            }
+          }
 
           result = set_js_runtime_options_v1(ctx.tx, options);
           if (result != ccf::ApiResult::OK)
@@ -564,7 +678,7 @@ namespace programmabilityapp
         "/custom_endpoints/runtime_options",
         HTTP_PATCH,
         patch_runtime_options,
-        {ccf::user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
+        {options_user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
         .install();
 
       auto get_runtime_options = [this](ccf::endpoints::EndpointContext& ctx) {

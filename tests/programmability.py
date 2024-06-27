@@ -10,6 +10,8 @@ import os
 import json
 from infra.runner import ConcurrentRunner
 from governance_js import action, proposal, ballot_yes
+import ccf.cose
+import infra.clients
 
 import npm_tests
 
@@ -76,6 +78,17 @@ def endpoint_properties(
     }
 
 
+def sign_payload(identity, msg_type, json_payload):
+    serialised_payload = json.dumps(json_payload).encode()
+    key = open(identity.key, "r").read()
+    cert = open(identity.cert, "r").read()
+    phdr = {
+        "app.msg.type": msg_type,
+        "app.msg.created_at": int(infra.clients.get_clock().moment().timestamp()),
+    }
+    return ccf.cose.create_cose_sign1(serialised_payload, key, cert, phdr)
+
+
 def test_custom_endpoints(network, args):
     primary, _ = network.find_primary()
     user = network.users[0]
@@ -133,10 +146,16 @@ def test_custom_endpoints(network, args):
                 r.body.text() == module_def["module"]
             ), f"Expected:\n{module_def['module']}\n\n\nActual:\n{r.body.text()}"
 
-    with primary.client(None, None, user.local_id) as c:
-        r = c.put("/app/custom_endpoints", body=bundle_with_content)
+    signed_bundle = sign_payload(
+        network.identity(user.local_id), "custom_endpoints", bundle_with_content
+    )
+    with primary.client() as c:
+        r = c.put(
+            "/app/custom_endpoints",
+            body=signed_bundle,
+            headers={"Content-Type": "application/cose"},
+        )
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
-
         test_getters(c, bundle_with_content)
 
     # Install also works with cert authentication, at the expense of potential offline
@@ -153,8 +172,15 @@ def test_custom_endpoints(network, args):
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
         assert r.body.json()["payload"] == "Test content", r.body.json()
 
-    with primary.client(None, None, user.local_id) as c:
-        r = c.put("/app/custom_endpoints", body=bundle_with_other_content)
+    signed_bundle = sign_payload(
+        network.identity(user.local_id), "custom_endpoints", bundle_with_other_content
+    )
+    with primary.client() as c:
+        r = c.put(
+            "/app/custom_endpoints",
+            body=signed_bundle,
+            headers={"Content-Type": "application/cose"},
+        )
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
         test_getters(c, bundle_with_other_content)
@@ -208,8 +234,15 @@ export function do_op(request) {
         "modules": modules,
     }
 
-    with primary.client(None, None, user.local_id) as c:
-        r = c.put("/app/custom_endpoints", body=recursive_bundle)
+    signed_bundle = sign_payload(
+        network.identity(user.local_id), "custom_endpoints", recursive_bundle
+    )
+    with primary.client() as c:
+        r = c.put(
+            "/app/custom_endpoints",
+            body=signed_bundle,
+            headers={"Content-Type": "application/cose"},
+        )
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
     with primary.client() as c:
@@ -257,8 +290,15 @@ def test_custom_endpoints_kv_restrictions(network, args):
         "modules": modules,
     }
 
-    with primary.client(None, None, user.local_id) as c:
-        r = c.put("/app/custom_endpoints", body=bundle_with_content)
+    signed_bundle = sign_payload(
+        network.identity(user.local_id), "custom_endpoints", bundle_with_content
+    )
+    with primary.client() as c:
+        r = c.put(
+            "/app/custom_endpoints",
+            body=signed_bundle,
+            headers={"Content-Type": "application/cose"},
+        )
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
     with primary.client() as c:
@@ -325,8 +365,14 @@ def test_custom_endpoints_js_options(network, args):
     )
 
     def test_options_patch(c, **kwargs):
-        r = c.call(
-            "/app/custom_endpoints/runtime_options", {**kwargs}, http_verb="PATCH"
+        signed_bundle = sign_payload(
+            network.identity(user.local_id), "runtime_options", {**kwargs}
+        )
+
+        r = c.patch(
+            "/app/custom_endpoints/runtime_options",
+            body=signed_bundle,
+            headers={"Content-Type": "application/cose"},
         )
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
         new_options = r.body.json()
@@ -339,7 +385,7 @@ def test_custom_endpoints_js_options(network, args):
         assert new_options == get_options, f"{new_options} != {get_options}"
         return new_options
 
-    with primary.client(None, None, user.local_id) as c:
+    with primary.client(None, None) as c:
         r = c.get("/app/custom_endpoints/runtime_options")
         assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 
@@ -411,9 +457,16 @@ def test_custom_role_definitions(network, args):
         "modules": [{"name": "test.js", "module": TESTJS_ROLE}],
     }
 
+    signed_bundle = sign_payload(
+        network.identity(user.local_id), "custom_endpoints", bundle_with_auth
+    )
     # Install app with auth/role support
-    with primary.client(None, None, user.local_id) as c:
-        r = c.put("/app/custom_endpoints", body=bundle_with_auth)
+    with primary.client() as c:
+        r = c.put(
+            "/app/custom_endpoints",
+            body=signed_bundle,
+            headers={"Content-Type": "application/cose"},
+        )
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
     # Add role definition
@@ -481,9 +534,16 @@ def test_custom_role_definitions(network, args):
         "modules": [{"name": "test.js", "module": TESTJS_ROLE}],
     }
 
+    signed_bundle = sign_payload(
+        network.identity(user.local_id), "custom_endpoints", bundle_with_auth_both
+    )
     # Install two endpoints with role auth
-    with primary.client(None, None, user.local_id) as c:
-        r = c.put("/app/custom_endpoints", body=bundle_with_auth_both)
+    with primary.client() as c:
+        r = c.put(
+            "/app/custom_endpoints",
+            body=signed_bundle,
+            headers={"Content-Type": "application/cose"},
+        )
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
     # Assign the new role to user0
@@ -517,10 +577,16 @@ def deploy_npm_app_custom(network, args):
         app_dir, "dist", "bundle.json"
     )  # Produced by build_npm_app
 
-    with primary.client(None, None, user.local_id) as c:
+    signed_bundle = sign_payload(
+        network.identity(user.local_id),
+        "custom_endpoints",
+        json.load(open(bundle_path)),
+    )
+    with primary.client() as c:
         r = c.put(
             "/app/custom_endpoints",
-            body=json.load(open(bundle_path)),
+            body=signed_bundle,
+            headers={"Content-Type": "application/cose"},
         )
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
@@ -548,6 +614,7 @@ def run(args):
         network = test_custom_endpoints_circular_includes(network, args)
         network = test_custom_endpoints_kv_restrictions(network, args)
         network = test_custom_role_definitions(network, args)
+        network = test_custom_endpoints_js_options(network, args)
 
         network = npm_tests.build_npm_app(network, args)
         network = deploy_npm_app_custom(network, args)
