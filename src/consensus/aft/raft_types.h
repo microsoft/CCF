@@ -19,7 +19,7 @@ namespace aft
   using Index = uint64_t;
   using Term = uint64_t;
   using Node2NodeMsg = uint64_t;
-  using Nonce = crypto::Sha256Hash;
+  using Nonce = ccf::crypto::Sha256Hash;
 
   using ReplyCallback = std::function<bool(
     void* owner,

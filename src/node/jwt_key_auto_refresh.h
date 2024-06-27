@@ -21,8 +21,8 @@ namespace ccf
     std::shared_ptr<kv::Consensus> consensus;
     std::shared_ptr<ccf::RPCSessions> rpcsessions;
     std::shared_ptr<ccf::RPCMap> rpc_map;
-    crypto::KeyPairPtr node_sign_kp;
-    crypto::Pem node_cert;
+    ccf::crypto::KeyPairPtr node_sign_kp;
+    ccf::crypto::Pem node_cert;
     std::atomic_size_t attempts;
 
   public:
@@ -32,8 +32,8 @@ namespace ccf
       const std::shared_ptr<kv::Consensus>& consensus,
       const std::shared_ptr<ccf::RPCSessions>& rpcsessions,
       const std::shared_ptr<ccf::RPCMap>& rpc_map,
-      const crypto::KeyPairPtr& node_sign_kp,
-      const crypto::Pem& node_cert) :
+      const ccf::crypto::KeyPairPtr& node_sign_kp,
+      const ccf::crypto::Pem& node_cert) :
       refresh_interval_s(refresh_interval_s),
       network(network),
       consensus(consensus),

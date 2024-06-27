@@ -142,7 +142,7 @@ namespace kv
       return ret;
     }
 
-    crypto::HashBytes get_commit_nonce(
+    ccf::crypto::HashBytes get_commit_nonce(
       const TxID& tx_id, bool historical_hint = false) override
     {
       auto secret =
@@ -155,8 +155,8 @@ namespace kv
       std::vector<uint8_t> txid = {
         txid_str.data(), txid_str.data() + txid_str.size()};
 
-      auto commit_nonce =
-        crypto::hmac(crypto::MDType::SHA256, secret->get_commit_secret(), txid);
+      auto commit_nonce = ccf::crypto::hmac(
+        ccf::crypto::MDType::SHA256, secret->get_commit_secret(), txid);
       return commit_nonce;
     }
 

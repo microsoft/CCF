@@ -16,7 +16,7 @@
 #include <string>
 #include <vector>
 
-using namespace crypto::OpenSSL;
+using namespace ccf::crypto::OpenSSL;
 
 #ifdef _DEBUG
 static BIO* bio_err = NULL;

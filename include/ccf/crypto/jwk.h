@@ -8,7 +8,7 @@
 
 #include <string>
 
-namespace crypto
+namespace ccf::crypto
 {
   enum class JsonWebKeyType
   {

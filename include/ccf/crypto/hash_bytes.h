@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   using HashBytes = std::vector<uint8_t>;
 }

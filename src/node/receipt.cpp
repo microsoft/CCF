@@ -154,7 +154,7 @@ namespace ccf
       schema["required"].push_back(name);
       schema["properties"] = nlohmann::json::object();
       schema["properties"][name] = ds::openapi::components_ref_object(
-        ds::json::schema_name<crypto::Sha256Hash>());
+        ds::json::schema_name<ccf::crypto::Sha256Hash>());
       return schema;
     };
 

@@ -65,7 +65,7 @@ namespace ACME
   public:
     Client(
       const ClientConfig& config,
-      std::shared_ptr<crypto::KeyPair> account_key_pair = nullptr) :
+      std::shared_ptr<ccf::crypto::KeyPair> account_key_pair = nullptr) :
       config(config)
     {
       set_account_key(account_key_pair);
@@ -74,7 +74,8 @@ namespace ACME
     virtual ~Client() {}
 
     void get_certificate(
-      std::shared_ptr<crypto::KeyPair> service_key_, bool override_time = false)
+      std::shared_ptr<ccf::crypto::KeyPair> service_key_,
+      bool override_time = false)
     {
       using namespace std::chrono_literals;
       using namespace std::chrono;
@@ -148,11 +149,11 @@ namespace ACME
     }
 
     virtual void set_account_key(
-      std::shared_ptr<crypto::KeyPair> new_account_key_pair)
+      std::shared_ptr<ccf::crypto::KeyPair> new_account_key_pair)
     {
       account_key_pair = new_account_key_pair != nullptr ?
         new_account_key_pair :
-        crypto::make_key_pair();
+        ccf::crypto::make_key_pair();
       LOG_DEBUG_FMT(
         "ACME: new account public key: {}",
         ccf::ds::to_hex(account_key_pair->public_key_der()));
@@ -362,8 +363,8 @@ namespace ACME
     }
 
     ClientConfig config;
-    std::shared_ptr<crypto::KeyPair> service_key;
-    std::shared_ptr<crypto::KeyPair> account_key_pair;
+    std::shared_ptr<ccf::crypto::KeyPair> service_key;
+    std::shared_ptr<ccf::crypto::KeyPair> account_key_pair;
 
     nlohmann::json directory;
     nlohmann::json account;
@@ -427,11 +428,11 @@ namespace ACME
     static std::string json_to_b64url(
       const nlohmann::json& j, bool with_padding = true)
     {
-      return crypto::b64url_from_raw(json_to_bytes(j), with_padding);
+      return ccf::crypto::b64url_from_raw(json_to_bytes(j), with_padding);
     }
 
     static void convert_signature_to_ieee_p1363(
-      std::vector<uint8_t>& sig, const crypto::KeyPair& signer)
+      std::vector<uint8_t>& sig, const ccf::crypto::KeyPair& signer)
     {
       // Convert signature from ASN.1 format to IEEE P1363
       const unsigned char* pp = sig.data();
@@ -451,7 +452,7 @@ namespace ACME
       JWS(
         const nlohmann::json& header_,
         const nlohmann::json& payload_,
-        crypto::KeyPair& signer_,
+        ccf::crypto::KeyPair& signer_,
         bool empty_payload = false)
       {
         LOG_TRACE_FMT("ACME: JWS header: {}", header_.dump());
@@ -461,7 +462,7 @@ namespace ACME
         set(header_b64, payload_b64, signer_);
       }
 
-      JWS(const nlohmann::json& header_, crypto::KeyPair& signer_) :
+      JWS(const nlohmann::json& header_, ccf::crypto::KeyPair& signer_) :
         JWS(header_, nlohmann::json::object_t(), signer_, true)
       {}
 
@@ -471,12 +472,12 @@ namespace ACME
       void set(
         const std::string& header_b64,
         const std::string& payload_b64,
-        crypto::KeyPair& signer)
+        ccf::crypto::KeyPair& signer)
       {
         auto msg = header_b64 + "." + payload_b64;
         auto sig = signer.sign(s2v(msg));
         convert_signature_to_ieee_p1363(sig, signer);
-        auto sig_b64 = crypto::b64url_from_raw(sig);
+        auto sig_b64 = ccf::crypto::b64url_from_raw(sig);
 
         (*this)["protected"] = header_b64;
         (*this)["payload"] = payload_b64;
@@ -549,15 +550,15 @@ namespace ACME
     }
 
     static std::pair<std::string, std::string> get_crv_alg(
-      const std::shared_ptr<crypto::KeyPair>& key_pair)
+      const std::shared_ptr<ccf::crypto::KeyPair>& key_pair)
     {
       std::string crv, alg;
-      if (key_pair->get_curve_id() == crypto::CurveID::SECP256R1)
+      if (key_pair->get_curve_id() == ccf::crypto::CurveID::SECP256R1)
       {
         crv = "P-256";
         alg = "ES256";
       }
-      else if (key_pair->get_curve_id() == crypto::CurveID::SECP384R1)
+      else if (key_pair->get_curve_id() == ccf::crypto::CurveID::SECP384R1)
       {
         crv = "P-384";
         alg = "ES384";
@@ -679,8 +680,8 @@ namespace ACME
         JWK jwk(
           "EC",
           crv_alg.first,
-          crypto::b64url_from_raw(key_coords.x, false),
-          crypto::b64url_from_raw(key_coords.y, false));
+          ccf::crypto::b64url_from_raw(key_coords.x, false),
+          ccf::crypto::b64url_from_raw(key_coords.y, false));
 
         nlohmann::json header = {
           {"alg", crv_alg.second},
@@ -879,11 +880,11 @@ namespace ACME
       JWK jwk(
         "EC",
         crv_alg.first,
-        crypto::b64url_from_raw(key_coords.x, false),
-        crypto::b64url_from_raw(key_coords.y, false));
+        ccf::crypto::b64url_from_raw(key_coords.x, false),
+        ccf::crypto::b64url_from_raw(key_coords.y, false));
 
-      auto thumbprint = crypto::sha256(s2v(nlohmann::json(jwk).dump()));
-      return crypto::b64url_from_raw(thumbprint, false);
+      auto thumbprint = ccf::crypto::sha256(s2v(nlohmann::json(jwk).dump()));
+      return ccf::crypto::b64url_from_raw(thumbprint, false);
     }
 
     void add_challenge(
@@ -1114,7 +1115,7 @@ namespace ACME
 
     virtual std::vector<uint8_t> get_service_csr()
     {
-      std::vector<crypto::SubjectAltName> alt_names;
+      std::vector<ccf::crypto::SubjectAltName> alt_names;
       alt_names.push_back({config.service_dns_name, false});
       for (const auto& an : config.alternative_names)
         alt_names.push_back({an, false});
@@ -1147,7 +1148,8 @@ namespace ACME
 
         auto csr = get_service_csr();
 
-        nlohmann::json payload = {{"csr", crypto::b64url_from_raw(csr, false)}};
+        nlohmann::json payload = {
+          {"csr", ccf::crypto::b64url_from_raw(csr, false)}};
 
         JWS jws(header, payload, *account_key_pair);
 

@@ -172,7 +172,7 @@ namespace ccf
 
       if (response_endpoint.response_is_der)
       {
-        auto raw = crypto::cert_der_to_pem(data).raw();
+        auto raw = ccf::crypto::cert_der_to_pem(data).raw();
         endorsements_pem.insert(endorsements_pem.end(), raw.begin(), raw.end());
       }
       else if (response_endpoint.response_is_thim_json)

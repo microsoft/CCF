@@ -87,20 +87,20 @@ namespace ccf
 
     using DER = std::vector<uint8_t>;
     ccf::pal::Mutex verifiers_lock;
-    LRU<DER, crypto::VerifierPtr> verifiers;
+    LRU<DER, ccf::crypto::VerifierPtr> verifiers;
 
     VerifiersCache(size_t max_verifiers = DEFAULT_MAX_VERIFIERS) :
       verifiers(max_verifiers)
     {}
 
-    crypto::VerifierPtr get_verifier(const DER& der)
+    ccf::crypto::VerifierPtr get_verifier(const DER& der)
     {
       std::lock_guard<ccf::pal::Mutex> guard(verifiers_lock);
 
       auto it = verifiers.find(der);
       if (it == verifiers.end())
       {
-        it = verifiers.insert(der, crypto::make_unique_verifier(der));
+        it = verifiers.insert(der, ccf::crypto::make_unique_verifier(der));
       }
 
       return it->second;

@@ -125,7 +125,7 @@ namespace ccf
 
   struct SelfSignedNodeCertificateInfo
   {
-    crypto::Pem self_signed_certificate;
+    ccf::crypto::Pem self_signed_certificate;
   };
 
   DECLARE_JSON_TYPE(SelfSignedNodeCertificateInfo);
@@ -136,7 +136,7 @@ namespace ccf
   {
     struct Out
     {
-      crypto::Pem previous_service_identity;
+      ccf::crypto::Pem previous_service_identity;
     };
   };
 
@@ -195,7 +195,7 @@ namespace ccf
     {
       NodeId node_id;
       std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
-      std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
+      std::optional<ccf::crypto::Pem> endorsed_certificate = std::nullopt;
     };
 
     std::optional<ExistingNodeInfo> check_node_exists(
@@ -211,7 +211,7 @@ namespace ccf
 
       LOG_DEBUG_FMT(
         "Check node exists with certificate [{}]", self_signed_node_der);
-      auto pk_pem = crypto::public_key_pem_from_cert(self_signed_node_der);
+      auto pk_pem = ccf::crypto::public_key_pem_from_cert(self_signed_node_der);
 
       std::optional<ExistingNodeInfo> existing_node_info = std::nullopt;
       nodes->foreach([&existing_node_info,
@@ -286,7 +286,7 @@ namespace ccf
             conflicting_node_id.value()));
       }
 
-      auto pubk_der = crypto::public_key_der_from_cert(node_der);
+      auto pubk_der = ccf::crypto::public_key_der_from_cert(node_der);
       NodeId joining_node_id = compute_node_id_from_pubk_der(pubk_der);
 
       pal::PlatformAttestationMeasurement measurement;
@@ -307,11 +307,12 @@ namespace ccf
       }
 
       // Note: All new nodes should specify a CSR from 2.x
-      auto client_public_key_pem = crypto::public_key_pem_from_cert(node_der);
+      auto client_public_key_pem =
+        ccf::crypto::public_key_pem_from_cert(node_der);
       if (in.certificate_signing_request.has_value())
       {
         // Verify that client's public key matches the one specified in the CSR
-        auto csr_public_key_pem = crypto::public_key_pem_from_csr(
+        auto csr_public_key_pem = ccf::crypto::public_key_pem_from_csr(
           in.certificate_signing_request.value());
         if (client_public_key_pem != csr_public_key_pem)
         {
@@ -344,14 +345,14 @@ namespace ccf
       if (node_status == NodeStatus::TRUSTED)
       {
         // Joining node only submit a CSR from 2.x
-        std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
+        std::optional<ccf::crypto::Pem> endorsed_certificate = std::nullopt;
         if (in.certificate_signing_request.has_value())
         {
           // For a pre-open service, extract the validity period of self-signed
           // node certificate and use it verbatim in endorsed certificate
           auto [valid_from, valid_to] =
-            crypto::make_verifier(node_der)->validity_period();
-          endorsed_certificate = crypto::create_endorsed_cert(
+            ccf::crypto::make_verifier(node_der)->validity_period();
+          endorsed_certificate = ccf::crypto::create_endorsed_cert(
             in.certificate_signing_request.value(),
             valid_from,
             valid_to,

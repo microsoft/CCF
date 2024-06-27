@@ -10,7 +10,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace crypto
+namespace ccf::crypto
 {
   class PublicKey_OpenSSL : public PublicKey
   {

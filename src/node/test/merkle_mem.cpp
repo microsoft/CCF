@@ -25,10 +25,10 @@ static size_t get_maxrss()
   return r.ru_maxrss;
 }
 
-static crypto::Sha256Hash random_hash(std::random_device& rdev)
+static ccf::crypto::Sha256Hash random_hash(std::random_device& rdev)
 {
-  crypto::Sha256Hash h;
-  for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+  ccf::crypto::Sha256Hash h;
+  for (size_t j = 0; j < ccf::crypto::Sha256Hash::SIZE; j++)
     h.h[j] = rdev();
   return h;
 }

@@ -11,7 +11,7 @@
 #include <string_view>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   // Convenience class ensuring null termination of PEM-encoded certificates
   class Pem
@@ -128,11 +128,11 @@ namespace crypto
     return "Pem";
   }
 
-  static std::vector<crypto::Pem> split_x509_cert_bundle(
+  static std::vector<ccf::crypto::Pem> split_x509_cert_bundle(
     const std::string_view& pem)
   {
     std::string separator("-----END CERTIFICATE-----");
-    std::vector<crypto::Pem> pems;
+    std::vector<ccf::crypto::Pem> pems;
     auto separator_end = 0;
     auto next_separator_start = pem.find(separator);
     while (next_separator_start != std::string_view::npos)
@@ -154,9 +154,9 @@ namespace crypto
 namespace std
 {
   template <>
-  struct hash<crypto::Pem>
+  struct hash<ccf::crypto::Pem>
   {
-    size_t operator()(const crypto::Pem& pem) const
+    size_t operator()(const ccf::crypto::Pem& pem) const
     {
       return std::hash<std::string>()(pem.str());
     }

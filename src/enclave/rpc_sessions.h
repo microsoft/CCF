@@ -287,20 +287,22 @@ namespace ccf
       return listening_interfaces.begin()->second.app_protocol;
     }
 
-    void set_node_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
+    void set_node_cert(
+      const ccf::crypto::Pem& cert_, const ccf::crypto::Pem& pk)
     {
       set_cert(ccf::Authority::NODE, cert_, pk);
     }
 
-    void set_network_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
+    void set_network_cert(
+      const ccf::crypto::Pem& cert_, const ccf::crypto::Pem& pk)
     {
       set_cert(ccf::Authority::SERVICE, cert_, pk);
     }
 
     void set_cert(
       ccf::Authority authority,
-      const crypto::Pem& cert_,
-      const crypto::Pem& pk,
+      const ccf::crypto::Pem& cert_,
+      const ccf::crypto::Pem& pk,
       const std::string& acme_configuration = "")
     {
       // Caller authentication is done by each frontend by looking up

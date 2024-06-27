@@ -61,8 +61,8 @@ namespace ccf
 
   struct NodeCreateInfo
   {
-    crypto::Pem self_signed_node_cert;
-    crypto::Pem service_cert;
+    ccf::crypto::Pem self_signed_node_cert;
+    ccf::crypto::Pem service_cert;
   };
 
   void reset_data(std::vector<uint8_t>& data)
@@ -81,14 +81,14 @@ namespace ccf
     pal::Mutex lock;
     StartType start_type;
 
-    crypto::CurveID curve_id;
-    std::vector<crypto::SubjectAltName> subject_alt_names = {};
+    ccf::crypto::CurveID curve_id;
+    std::vector<ccf::crypto::SubjectAltName> subject_alt_names = {};
 
-    std::shared_ptr<crypto::KeyPair_OpenSSL> node_sign_kp;
+    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> node_sign_kp;
     NodeId self;
-    std::shared_ptr<crypto::RSAKeyPair> node_encrypt_kp;
-    crypto::Pem self_signed_node_cert;
-    std::optional<crypto::Pem> endorsed_node_cert = std::nullopt;
+    std::shared_ptr<ccf::crypto::RSAKeyPair> node_encrypt_kp;
+    ccf::crypto::Pem self_signed_node_cert;
+    std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     pal::PlatformAttestationMeasurement node_measurement;
     StartupConfig config;
@@ -144,7 +144,7 @@ namespace ccf
     std::shared_ptr<kv::Store> recovery_store;
 
     kv::Version recovery_v;
-    crypto::Sha256Hash recovery_root;
+    ccf::crypto::Sha256Hash recovery_root;
     std::vector<kv::Version> view_history;
     ::consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets = {};
@@ -225,12 +225,12 @@ namespace ccf
       ringbuffer::AbstractWriterFactory& writer_factory,
       NetworkState& network,
       std::shared_ptr<RPCSessions> rpcsessions,
-      crypto::CurveID curve_id_) :
+      ccf::crypto::CurveID curve_id_) :
       sm("NodeState", NodeStartupState::uninitialized),
       curve_id(curve_id_),
-      node_sign_kp(std::make_shared<crypto::KeyPair_OpenSSL>(curve_id_)),
+      node_sign_kp(std::make_shared<ccf::crypto::KeyPair_OpenSSL>(curve_id_)),
       self(compute_node_id_from_kp(node_sign_kp)),
-      node_encrypt_kp(crypto::make_rsa_key_pair()),
+      node_encrypt_kp(ccf::crypto::make_rsa_key_pair()),
       writer_factory(writer_factory),
       to_host(writer_factory.create_writer_to_outside()),
       network(network),
@@ -318,7 +318,7 @@ namespace ccf
             config.attestation.environment.security_policy.value();
 
           auto security_policy_digest =
-            crypto::Sha256Hash(crypto::raw_from_b64(security_policy));
+            ccf::crypto::Sha256Hash(ccf::crypto::raw_from_b64(security_policy));
           if (security_policy_digest != quoted_digest.value())
           {
             throw std::logic_error(fmt::format(
@@ -343,7 +343,7 @@ namespace ccf
         {
           try
           {
-            auto uvm_endorsements_raw = crypto::raw_from_b64(
+            auto uvm_endorsements_raw = ccf::crypto::raw_from_b64(
               config.attestation.environment.uvm_endorsements.value());
             snp_uvm_endorsements =
               verify_uvm_endorsements(uvm_endorsements_raw, node_measurement);
@@ -452,7 +452,7 @@ namespace ccf
       };
 
       pal::PlatformAttestationReportData report_data =
-        crypto::Sha256Hash((node_sign_kp->public_key_der()));
+        ccf::crypto::Sha256Hash((node_sign_kp->public_key_der()));
 
       pal::generate_quote(
         report_data,
@@ -532,11 +532,11 @@ namespace ccf
               "identity");
           }
 
-          crypto::Pem previous_service_identity_cert(
+          ccf::crypto::Pem previous_service_identity_cert(
             config.recover.previous_service_identity.value());
 
           network.identity = std::make_unique<ReplicatedNetworkIdentity>(
-            crypto::get_subject_name(previous_service_identity_cert),
+            ccf::crypto::get_subject_name(previous_service_identity_cert),
             curve_id,
             config.startup_host_time,
             config.initial_service_certificate_validity_days);
@@ -644,7 +644,7 @@ namespace ccf
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
 
-            crypto::Pem n2n_channels_cert;
+            ccf::crypto::Pem n2n_channels_cert;
             if (!resp.network_info->endorsed_certificate.has_value())
             {
               // Endorsed certificate was added to join response in 2.x
@@ -1432,7 +1432,7 @@ namespace ccf
             "next service certificates");
         }
 
-        const crypto::Pem from_proposal(
+        const ccf::crypto::Pem from_proposal(
           identities.previous->data(), identities.previous->size());
         if (prev_ident.value() != from_proposal)
         {
@@ -1719,7 +1719,7 @@ namespace ccf
       return rpcsessions->get_session_metrics();
     }
 
-    crypto::Pem get_self_signed_certificate() override
+    ccf::crypto::Pem get_self_signed_certificate() override
     {
       std::lock_guard<pal::Mutex> guard(lock);
       return self_signed_node_cert;
@@ -1752,21 +1752,21 @@ namespace ccf
       return true;
     }
 
-    std::vector<crypto::SubjectAltName> get_subject_alternative_names()
+    std::vector<ccf::crypto::SubjectAltName> get_subject_alternative_names()
     {
       // If no Subject Alternative Name (SAN) is passed in at node creation,
       // default to using node's RPC address as single SAN. Otherwise, use
       // specified SANs.
       if (!config.node_certificate.subject_alt_names.empty())
       {
-        return crypto::sans_from_string_list(
+        return ccf::crypto::sans_from_string_list(
           config.node_certificate.subject_alt_names);
       }
       else
       {
         // Construct SANs from RPC interfaces, manually detecting whether each
         // is a domain name or IP
-        std::vector<crypto::SubjectAltName> sans;
+        std::vector<ccf::crypto::SubjectAltName> sans;
         for (const auto& [_, interface] : config.network.rpc_interfaces)
         {
           auto host = split_net_address(interface.published_address).first;
@@ -1874,12 +1874,13 @@ namespace ccf
       create_params.node_id = self;
       create_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
-      create_params.node_endorsed_certificate = crypto::create_endorsed_cert(
-        create_params.certificate_signing_request,
-        config.startup_host_time,
-        config.node_certificate.initial_validity_days,
-        network.identity->priv_key,
-        network.identity->cert);
+      create_params.node_endorsed_certificate =
+        ccf::crypto::create_endorsed_cert(
+          create_params.certificate_signing_request,
+          config.startup_host_time,
+          config.node_certificate.initial_validity_days,
+          network.identity->priv_key,
+          network.identity->cert);
 
       // Even though endorsed certificate is updated on (global) hook, history
       // requires it to generate signatures
@@ -2239,7 +2240,7 @@ namespace ccf
                 // for the initial addition of the node (the self-signed
                 // certificate is output to disk then).
                 auto [valid_from, valid_to] =
-                  crypto::make_verifier(endorsed_node_cert.value())
+                  ccf::crypto::make_verifier(endorsed_node_cert.value())
                     ->validity_period();
                 self_signed_node_cert = create_self_signed_cert(
                   node_sign_kp,
@@ -2256,37 +2257,37 @@ namespace ccf
 
       network.tables->set_global_hook(
         network.service.get_name(),
-        network.service.wrap_commit_hook([this](
-                                           kv::Version hook_version,
-                                           const Service::Write& w) {
-          if (!w.has_value())
-          {
-            throw std::logic_error("Unexpected deletion in service value");
-          }
+        network.service.wrap_commit_hook(
+          [this](kv::Version hook_version, const Service::Write& w) {
+            if (!w.has_value())
+            {
+              throw std::logic_error("Unexpected deletion in service value");
+            }
 
-          // Service open on historical service has no effect
-          auto hook_pubk_pem =
-            crypto::public_key_pem_from_cert(crypto::cert_pem_to_der(w->cert));
-          auto current_pubk_pem =
-            crypto::make_key_pair(network.identity->priv_key)->public_key_pem();
-          if (hook_pubk_pem != current_pubk_pem)
-          {
-            LOG_TRACE_FMT(
-              "Ignoring historical service open at seqno {} for {}",
-              hook_version,
-              w->cert.str());
-            return;
-          }
+            // Service open on historical service has no effect
+            auto hook_pubk_pem = ccf::crypto::public_key_pem_from_cert(
+              ccf::crypto::cert_pem_to_der(w->cert));
+            auto current_pubk_pem =
+              ccf::crypto::make_key_pair(network.identity->priv_key)
+                ->public_key_pem();
+            if (hook_pubk_pem != current_pubk_pem)
+            {
+              LOG_TRACE_FMT(
+                "Ignoring historical service open at seqno {} for {}",
+                hook_version,
+                w->cert.str());
+              return;
+            }
 
-          network.identity->set_certificate(w->cert);
-          if (w->status == ServiceStatus::OPEN)
-          {
-            open_user_frontend();
+            network.identity->set_certificate(w->cert);
+            if (w->status == ServiceStatus::OPEN)
+            {
+              open_user_frontend();
 
-            RINGBUFFER_WRITE_MESSAGE(::consensus::ledger_open, to_host);
-            LOG_INFO_FMT("Service open at seqno {}", hook_version);
-          }
-        }));
+              RINGBUFFER_WRITE_MESSAGE(::consensus::ledger_open, to_host);
+              LOG_INFO_FMT("Service open at seqno {}", hook_version);
+            }
+          }));
 
       network.tables->set_global_hook(
         network.acme_certificates.get_name(),
@@ -2372,7 +2373,7 @@ namespace ccf
     }
 
     void setup_n2n_channels(
-      const std::optional<crypto::Pem>& endorsed_node_certificate_ =
+      const std::optional<ccf::crypto::Pem>& endorsed_node_certificate_ =
         std::nullopt)
     {
       // If the endorsed node certificate is available at the time the
@@ -2420,7 +2421,7 @@ namespace ccf
       ServiceStatus service_status,
       ReconfigurationType reconfiguration_type,
       bool public_only = false,
-      const std::optional<crypto::Pem>& endorsed_node_certificate_ =
+      const std::optional<ccf::crypto::Pem>& endorsed_node_certificate_ =
         std::nullopt)
     {
       setup_n2n_channels(endorsed_node_certificate_);
@@ -2598,7 +2599,7 @@ namespace ccf
       return config;
     }
 
-    virtual crypto::Pem get_network_cert() override
+    virtual ccf::crypto::Pem get_network_cert() override
     {
       return network.identity->cert;
     }
@@ -2621,8 +2622,8 @@ namespace ccf
       const std::string& app_protocol = "HTTP1",
       bool authenticate_as_node_client_certificate = false) override
     {
-      std::optional<crypto::Pem> client_cert = std::nullopt;
-      std::optional<crypto::Pem> client_cert_key = std::nullopt;
+      std::optional<ccf::crypto::Pem> client_cert = std::nullopt;
+      std::optional<ccf::crypto::Pem> client_cert_key = std::nullopt;
       if (authenticate_as_node_client_certificate)
       {
         client_cert =

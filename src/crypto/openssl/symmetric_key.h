@@ -7,7 +7,7 @@
 
 #include <openssl/crypto.h>
 
-namespace crypto
+namespace ccf::crypto
 {
   class KeyAesGcm_OpenSSL : public KeyAesGcm
   {

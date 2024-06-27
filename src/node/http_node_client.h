@@ -13,9 +13,9 @@ namespace ccf
   public:
     HTTPNodeClient(
       std::shared_ptr<ccf::RPCMap> rpc_map,
-      crypto::KeyPairPtr node_sign_kp,
-      const crypto::Pem& self_signed_node_cert_,
-      const std::optional<crypto::Pem>& endorsed_node_cert_) :
+      ccf::crypto::KeyPairPtr node_sign_kp,
+      const ccf::crypto::Pem& self_signed_node_cert_,
+      const std::optional<ccf::crypto::Pem>& endorsed_node_cert_) :
       NodeClient(
         rpc_map, node_sign_kp, self_signed_node_cert_, endorsed_node_cert_)
     {}

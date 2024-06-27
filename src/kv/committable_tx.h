@@ -38,7 +38,7 @@ namespace kv
     SerialisedEntryFlags entry_flags = 0;
 
     std::vector<uint8_t> serialise(
-      crypto::Sha256Hash& commit_evidence_digest,
+      ccf::crypto::Sha256Hash& commit_evidence_digest,
       std::string& commit_evidence,
       const ccf::ClaimsDigest& claims_digest_,
       bool include_reads = false)
@@ -76,7 +76,7 @@ namespace kv
         version,
         ccf::ds::to_hex(commit_nonce));
       LOG_TRACE_FMT("Commit evidence: {}", commit_evidence);
-      crypto::Sha256Hash tx_commit_evidence_digest(commit_evidence);
+      ccf::crypto::Sha256Hash tx_commit_evidence_digest(commit_evidence);
       commit_evidence_digest = tx_commit_evidence_digest;
       auto entry_type = EntryType::WriteSetWithCommitEvidenceAndClaims;
 
@@ -219,7 +219,7 @@ namespace kv
         // recover.
         try
         {
-          crypto::Sha256Hash commit_evidence_digest;
+          ccf::crypto::Sha256Hash commit_evidence_digest;
           std::string commit_evidence;
           auto data =
             serialise(commit_evidence_digest, commit_evidence, claims);
@@ -364,7 +364,7 @@ namespace kv
       pimpl->commit_view = commit_view_;
     }
 
-    void set_root_at_read_version(const crypto::Sha256Hash& r)
+    void set_root_at_read_version(const ccf::crypto::Sha256Hash& r)
     {
       root_at_read_version = r;
     }
@@ -437,7 +437,7 @@ namespace kv
       if (!success)
         throw std::logic_error("Failed to commit reserved transaction");
 
-      crypto::Sha256Hash commit_evidence_digest;
+      ccf::crypto::Sha256Hash commit_evidence_digest;
       std::string commit_evidence;
 
       // This is a signature and, if the ledger chunking or snapshot flags are

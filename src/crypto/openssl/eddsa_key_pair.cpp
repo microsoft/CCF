@@ -5,7 +5,7 @@
 
 #include "openssl_wrappers.h"
 
-namespace crypto
+namespace ccf::crypto
 {
   EdDSAKeyPair_OpenSSL::EdDSAKeyPair_OpenSSL(CurveID curve_id)
   {

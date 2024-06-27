@@ -198,7 +198,7 @@ TEST_CASE("Old snapshots" * doctest::test_suite("snapshot"))
       "AAAAEQAAAAAAAABwdWJsaWM6c3RyaW5nX21hcAIAAAAAAAAAKAAAAAAAAAAFAAAAAAAAACJm"
       "b28iAAAADQAAAAAAAAABAAAAAAAAACJiYXIiAAAA";
   }
-  const auto raw_snapshot = crypto::raw_from_b64(raw_snapshot_b64);
+  const auto raw_snapshot = ccf::crypto::raw_from_b64(raw_snapshot_b64);
 
   kv::Store new_store;
 

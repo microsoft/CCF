@@ -45,7 +45,7 @@ namespace ccf
       }
     }
 
-    virtual crypto::Pem network_cert() override
+    virtual ccf::crypto::Pem network_cert() override
     {
       return node_state.get_network_cert();
     }
