@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   class RSAPublicKey_OpenSSL : public PublicKey_OpenSSL, public RSAPublicKey
   {

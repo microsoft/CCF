@@ -10,7 +10,7 @@
 
 namespace ccf
 {
-  using PreviousServiceIdentity = ServiceValue<crypto::Pem>;
+  using PreviousServiceIdentity = ServiceValue<ccf::crypto::Pem>;
 
   namespace Tables
   {

@@ -380,7 +380,7 @@ namespace kv
     {
       RequestID rid;
       Version version;
-      crypto::Sha256Hash replicated_state_merkle_root;
+      ccf::crypto::Sha256Hash replicated_state_merkle_root;
     };
 
     struct ResponseCallbackArgs
@@ -406,10 +406,10 @@ namespace kv
       Term* term = nullptr, ccf::PrimarySignature* sig = nullptr) = 0;
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
-    virtual crypto::Sha256Hash get_replicated_state_root() = 0;
+    virtual ccf::crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::tuple<
       kv::TxID /* TxID of last transaction seen by history */,
-      crypto::Sha256Hash /* root as of TxID */,
+      ccf::crypto::Sha256Hash /* root as of TxID */,
       kv::Term /* term_of_next_version */>
     get_replicated_state_txid_and_root() = 0;
     virtual std::vector<uint8_t> get_proof(Version v) = 0;
@@ -419,14 +419,14 @@ namespace kv
     virtual std::vector<uint8_t> get_raw_leaf(uint64_t index) = 0;
     virtual void append(const std::vector<uint8_t>& data) = 0;
     virtual void append_entry(
-      const crypto::Sha256Hash& digest,
+      const ccf::crypto::Sha256Hash& digest,
       std::optional<kv::Term> expected_term = std::nullopt) = 0;
     virtual void rollback(
       const kv::TxID& tx_id, kv::Term term_of_next_version_) = 0;
     virtual void compact(Version v) = 0;
     virtual void set_term(kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t to) = 0;
-    virtual void set_endorsed_certificate(const crypto::Pem& cert) = 0;
+    virtual void set_endorsed_certificate(const ccf::crypto::Pem& cert) = 0;
     virtual void start_signature_emit_timer() = 0;
   };
 
@@ -486,14 +486,14 @@ namespace kv
     CommitResult success;
     std::vector<uint8_t> data;
     ccf::ClaimsDigest claims_digest;
-    crypto::Sha256Hash commit_evidence_digest;
+    ccf::crypto::Sha256Hash commit_evidence_digest;
     std::vector<ConsensusHookPtr> hooks;
 
     PendingTxInfo(
       CommitResult success_,
       std::vector<uint8_t>&& data_,
       ccf::ClaimsDigest&& claims_digest_,
-      crypto::Sha256Hash&& commit_evidence_digest_,
+      ccf::crypto::Sha256Hash&& commit_evidence_digest_,
       std::vector<ConsensusHookPtr>&& hooks_) :
       success(success_),
       data(std::move(data_)),
@@ -515,14 +515,14 @@ namespace kv
   private:
     std::vector<uint8_t> data;
     ccf::ClaimsDigest claims_digest;
-    crypto::Sha256Hash commit_evidence_digest;
+    ccf::crypto::Sha256Hash commit_evidence_digest;
     ConsensusHookPtrs hooks;
 
   public:
     MovePendingTx(
       std::vector<uint8_t>&& data_,
       ccf::ClaimsDigest&& claims_digest_,
-      crypto::Sha256Hash&& commit_evidence_digest_,
+      ccf::crypto::Sha256Hash&& commit_evidence_digest_,
       ConsensusHookPtrs&& hooks_) :
       data(std::move(data_)),
       claims_digest(std::move(claims_digest_)),
@@ -568,7 +568,7 @@ namespace kv
     virtual size_t get_header_length() = 0;
     virtual uint64_t get_term(const uint8_t* data, size_t size) = 0;
 
-    virtual crypto::HashBytes get_commit_nonce(
+    virtual ccf::crypto::HashBytes get_commit_nonce(
       const TxID& tx_id, bool historical_hint = false) = 0;
   };
   using EncryptorPtr = std::shared_ptr<AbstractTxEncryptor>;
@@ -658,7 +658,7 @@ namespace kv
     virtual bool support_async_execution() = 0;
     virtual bool is_public_only() = 0;
     virtual ccf::ClaimsDigest&& consume_claims_digest() = 0;
-    virtual std::optional<crypto::Sha256Hash>&&
+    virtual std::optional<ccf::crypto::Sha256Hash>&&
     consume_commit_evidence_digest() = 0;
 
     // Setting a short rollback is a work around that should be fixed

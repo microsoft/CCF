@@ -891,7 +891,8 @@ namespace ccf::js
     try
     {
       const auto created_at_str = fmt::format("{:0>10}", created_at);
-      const auto action_digest = crypto::sha256(action.data(), action.size());
+      const auto action_digest =
+        ccf::crypto::sha256(action.data(), action.size());
 
       using RecentActions = kv::Set<std::string>;
 

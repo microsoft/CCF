@@ -61,7 +61,7 @@ namespace ccf
     MemberId member_id;
 
     /** Member certificate, used to sign this request, described by keyId */
-    crypto::Pem member_cert;
+    ccf::crypto::Pem member_cert;
 
     /** COSE Protected Header */
     GovernanceProtectedHeader protected_header;
@@ -71,7 +71,7 @@ namespace ccf
       const std::span<const uint8_t>& envelope_,
       const std::span<const uint8_t>& signature_,
       const MemberId& member_id_,
-      const crypto::Pem& member_cert_,
+      const ccf::crypto::Pem& member_cert_,
       const GovernanceProtectedHeader& protected_header_) :
       COSESign1AuthnIdentity(content_, envelope_, signature_),
       member_id(member_id_),
@@ -86,7 +86,7 @@ namespace ccf
     UserId user_id;
 
     /** User certificate, used to sign this request, described by keyId */
-    crypto::Pem user_cert;
+    ccf::crypto::Pem user_cert;
 
     /** COSE Protected Header */
     TimestampedProtectedHeader protected_header;
@@ -96,7 +96,7 @@ namespace ccf
       const std::span<const uint8_t>& envelope_,
       const std::span<const uint8_t>& signature_,
       const UserId& user_id_,
-      const crypto::Pem& user_cert_,
+      const ccf::crypto::Pem& user_cert_,
       const TimestampedProtectedHeader& protected_header_) :
       COSESign1AuthnIdentity(content_, envelope_, signature_),
       user_id(user_id_),

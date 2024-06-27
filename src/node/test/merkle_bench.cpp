@@ -25,13 +25,13 @@ inline void clobber_memory()
 static void append_retract(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
-  vector<crypto::Sha256Hash> hashes;
+  vector<ccf::crypto::Sha256Hash> hashes;
   std::random_device r;
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
-    crypto::Sha256Hash h;
-    for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+    ccf::crypto::Sha256Hash h;
+    for (size_t j = 0; j < ccf::crypto::Sha256Hash::SIZE; j++)
       h.h[j] = r();
 
     hashes.emplace_back(h);
@@ -58,13 +58,13 @@ static void append_retract(picobench::state& s)
 static void append_flush(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
-  vector<crypto::Sha256Hash> hashes;
+  vector<ccf::crypto::Sha256Hash> hashes;
   std::random_device r;
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
-    crypto::Sha256Hash h;
-    for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+    ccf::crypto::Sha256Hash h;
+    for (size_t j = 0; j < ccf::crypto::Sha256Hash::SIZE; j++)
       h.h[j] = r();
 
     hashes.emplace_back(h);
@@ -88,13 +88,13 @@ static void append_flush(picobench::state& s)
 static void append_get_proof_verify(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
-  vector<crypto::Sha256Hash> hashes;
+  vector<ccf::crypto::Sha256Hash> hashes;
   std::random_device r;
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
-    crypto::Sha256Hash h;
-    for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+    ccf::crypto::Sha256Hash h;
+    for (size_t j = 0; j < ccf::crypto::Sha256Hash::SIZE; j++)
       h.h[j] = r();
 
     hashes.emplace_back(h);
@@ -120,13 +120,13 @@ static void append_get_proof_verify(picobench::state& s)
 static void append_get_proof_verify_v(picobench::state& s)
 {
   ccf::MerkleTreeHistory t;
-  vector<crypto::Sha256Hash> hashes;
+  vector<ccf::crypto::Sha256Hash> hashes;
   std::random_device r;
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
-    crypto::Sha256Hash h;
-    for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+    ccf::crypto::Sha256Hash h;
+    for (size_t j = 0; j < ccf::crypto::Sha256Hash::SIZE; j++)
       h.h[j] = r();
 
     hashes.emplace_back(h);
@@ -157,8 +157,8 @@ static void serialise_deserialise(picobench::state& s)
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
-    crypto::Sha256Hash h;
-    for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+    ccf::crypto::Sha256Hash h;
+    for (size_t j = 0; j < ccf::crypto::Sha256Hash::SIZE; j++)
       h.h[j] = r();
     t.append(h);
   }
@@ -176,8 +176,8 @@ static void serialised_size(picobench::state& s)
 
   for (size_t i = 0; i < s.iterations(); ++i)
   {
-    crypto::Sha256Hash h;
-    for (size_t j = 0; j < crypto::Sha256Hash::SIZE; j++)
+    ccf::crypto::Sha256Hash h;
+    for (size_t j = 0; j < ccf::crypto::Sha256Hash::SIZE; j++)
       h.h[j] = r();
     t.append(h);
   }
@@ -191,8 +191,8 @@ static void serialised_size(picobench::state& s)
                  s.iterations(),
                  buf.size(),
                  bph,
-                 (bph - crypto::Sha256Hash::SIZE) * 100 /
-                   crypto::Sha256Hash::SIZE)
+                 (bph - ccf::crypto::Sha256Hash::SIZE) * 100 /
+                   ccf::crypto::Sha256Hash::SIZE)
             << std::endl;
 }
 
@@ -219,9 +219,9 @@ PICOBENCH(serialised_size)
 int main(int argc, char* argv[])
 {
   picobench::runner runner;
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   runner.parse_cmd_line(argc, argv);
   auto ret = runner.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   return ret;
 }

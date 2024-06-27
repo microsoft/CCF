@@ -16,8 +16,8 @@ namespace ccf::tls
   class Context
   {
   protected:
-    crypto::OpenSSL::Unique_SSL_CTX cfg;
-    crypto::OpenSSL::Unique_SSL ssl;
+    ccf::crypto::OpenSSL::Unique_SSL_CTX cfg;
+    ccf::crypto::OpenSSL::Unique_SSL ssl;
 
   public:
     Context(bool client) :
@@ -202,14 +202,14 @@ namespace ccf::tls
       // need to do that because it's been verified before and we use
       // SSL_get_peer_certificate just to extract it from the context.
 
-      crypto::OpenSSL::Unique_X509 cert(
+      ccf::crypto::OpenSSL::Unique_X509 cert(
         SSL_get_peer_certificate(ssl), /*check_null=*/false);
       if (!cert)
       {
         LOG_TRACE_FMT("Empty peer cert");
         return {};
       }
-      crypto::OpenSSL::Unique_BIO bio;
+      ccf::crypto::OpenSSL::Unique_BIO bio;
       if (!i2d_X509_bio(bio, cert))
       {
         LOG_TRACE_FMT("Can't convert X509 to DER");

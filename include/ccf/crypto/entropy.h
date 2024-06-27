@@ -27,7 +27,7 @@
 // issue.`
 #define RDRAND_RETRIES 10
 
-namespace crypto
+namespace ccf::crypto
 {
   using rng_func_t = int (*)(void* ctx, unsigned char* output, size_t len);
 

@@ -11,7 +11,7 @@
 #include <openssl/aes.h>
 #include <openssl/evp.h>
 
-namespace crypto
+namespace ccf::crypto
 {
   using namespace OpenSSL;
 

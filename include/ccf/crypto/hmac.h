@@ -5,7 +5,7 @@
 #include "ccf/crypto/hash_bytes.h"
 #include "ccf/crypto/md_type.h"
 
-namespace crypto
+namespace ccf::crypto
 {
   /** Compute the HMAC of @p key and @p data
    */

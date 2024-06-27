@@ -317,13 +317,13 @@ class RpcContextRecorder
 {
 public:
   // session->caller_cert may be DER or PEM, we always convert to PEM
-  crypto::Pem last_caller_cert;
+  ccf::crypto::Pem last_caller_cert;
   std::optional<std::string> last_caller_id = std::nullopt;
 
   void record_ctx(ccf::endpoints::EndpointContext& ctx)
   {
-    last_caller_cert =
-      crypto::cert_der_to_pem(ctx.rpc_ctx->get_session_context()->caller_cert);
+    last_caller_cert = ccf::crypto::cert_der_to_pem(
+      ctx.rpc_ctx->get_session_context()->caller_cert);
     if (const auto uci = ctx.try_get_caller<UserCertAuthnIdentity>())
     {
       last_caller_id = uci->user_id;
@@ -441,16 +441,17 @@ nlohmann::json parse_response_body(
 
 // callers used throughout
 auto user_caller = kp -> self_sign("CN=name", valid_from, valid_to);
-auto user_caller_der = crypto::make_verifier(user_caller) -> cert_der();
+auto user_caller_der = ccf::crypto::make_verifier(user_caller) -> cert_der();
 
-auto member_caller_der = crypto::make_verifier(member_cert) -> cert_der();
+auto member_caller_der = ccf::crypto::make_verifier(member_cert) -> cert_der();
 
 auto node_caller = kp -> self_sign("CN=node", valid_from, valid_to);
-auto node_caller_der = crypto::make_verifier(node_caller) -> cert_der();
+auto node_caller_der = ccf::crypto::make_verifier(node_caller) -> cert_der();
 
-auto kp_other = crypto::make_key_pair();
+auto kp_other = ccf::crypto::make_key_pair();
 auto invalid_caller = kp_other -> self_sign("CN=name", valid_from, valid_to);
-auto invalid_caller_der = crypto::make_verifier(invalid_caller) -> cert_der();
+auto invalid_caller_der =
+  ccf::crypto::make_verifier(invalid_caller) -> cert_der();
 
 auto anonymous_caller_der = std::vector<uint8_t>();
 
@@ -1546,18 +1547,18 @@ TEST_CASE("Manual conflicts")
   auto call_pausable = [&](
                          std::shared_ptr<ccf::SessionContext> session,
                          http_status expected_status) {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     auto req = create_simple_request("/pausable");
     auto serialized_call = req.build_request();
     auto rpc_ctx = ccf::make_rpc_context(session, serialized_call);
     frontend.process(rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
     CHECK(response.status == expected_status);
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   auto get_metrics = [&]() {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     auto req = create_simple_request("/pausable/metrics");
     req.set_method(HTTP_GET);
     auto serialized_call = req.build_request();
@@ -1570,36 +1571,36 @@ TEST_CASE("Manual conflicts")
     ret.calls = body["calls"].get<size_t>();
     ret.retries = body["retries"].get<size_t>();
     ret.errors = body["errors"].get<size_t>();
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
     return ret;
   };
 
   auto get_value = [&](const std::string& table = TF::DST) {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     auto tx = network.tables->create_tx();
     auto handle = tx.ro<TF::MyVals>(table);
     auto ret = handle->get(TF::KEY);
     REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
     return ret;
   };
 
   auto update_value =
     [&](size_t n, const std::string& table = TF::SRC, size_t key = TF::KEY) {
-      crypto::openssl_sha256_init();
+      ccf::crypto::openssl_sha256_init();
       auto tx = network.tables->create_tx();
       using TF = TestManualConflictsFrontend;
       auto handle = tx.wo<TF::MyVals>(table);
       handle->put(key, n);
       REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
-      crypto::openssl_sha256_shutdown();
+      ccf::crypto::openssl_sha256_shutdown();
     };
 
   auto run_test = [&](
                     std::function<void()>&& read_write_op,
                     std::shared_ptr<ccf::SessionContext> session = user_session,
                     http_status expected_status = HTTP_STATUS_OK) {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     frontend.registry.before_read.ready = false;
     frontend.registry.after_read.ready = false;
     frontend.registry.before_write.ready = false;
@@ -1616,7 +1617,7 @@ TEST_CASE("Manual conflicts")
     frontend.registry.after_write.wait();
 
     worker.join();
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   {
@@ -1781,11 +1782,11 @@ int main(int argc, char** argv)
       std::chrono::system_clock::now().time_since_epoch());
 
   ::threading::ThreadMessaging::init(1);
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

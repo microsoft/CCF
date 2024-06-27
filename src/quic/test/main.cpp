@@ -8,7 +8,7 @@
 #include <openssl/ssl.h>
 
 using namespace std;
-using namespace crypto;
+using namespace ccf::crypto;
 
 TEST_CASE("check QUIC OpenSSL library call")
 {

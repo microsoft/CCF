@@ -244,7 +244,7 @@ namespace ccf
       ledger_secrets.merge(restored_ledger_secrets);
     }
 
-    std::shared_ptr<crypto::KeyAesGcm> get_encryption_key_for(
+    std::shared_ptr<ccf::crypto::KeyAesGcm> get_encryption_key_for(
       kv::Version version, bool historical_hint = false)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);

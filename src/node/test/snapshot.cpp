@@ -26,7 +26,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   source_store.set_consensus(source_consensus);
 
   ccf::NodeId source_node_id = kv::test::PrimaryNodeId;
-  auto source_node_kp = crypto::make_key_pair();
+  auto source_node_kp = ccf::crypto::make_key_pair();
 
   auto source_history = std::make_shared<ccf::MerkleTxHistory>(
     source_store, source_node_id, *source_node_kp);
@@ -80,7 +80,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
     target_tree.append(ccf::entry_leaf(
       serialised_signature,
-      crypto::Sha256Hash("ce:2.4:"),
+      ccf::crypto::Sha256Hash("ce:2.4:"),
       ccf::empty_claims()));
     REQUIRE(
       target_tree.get_root() == source_history->get_replicated_state_root());
@@ -93,7 +93,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     target_store.set_encryptor(encryptor);
     INFO("Setup target store");
     {
-      auto target_node_kp = crypto::make_key_pair();
+      auto target_node_kp = ccf::crypto::make_key_pair();
 
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
         target_store, kv::test::PrimaryNodeId, *target_node_kp);
@@ -173,11 +173,11 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 int main(int argc, char** argv)
 {
   threading::ThreadMessaging::init(1);
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

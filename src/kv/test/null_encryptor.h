@@ -37,7 +37,7 @@ namespace kv
       return true;
     }
 
-    crypto::HashBytes get_commit_nonce(
+    ccf::crypto::HashBytes get_commit_nonce(
       const TxID& tx_id, bool historical_hint = false) override
     {
       return {};
