@@ -22,12 +22,12 @@ namespace http
   static ParsedQuery parse_query(const std::string_view& query)
   {
     ParsedQuery parsed;
-    const auto params = nonstd::split(query, "&");
+    const auto params = ccf::nonstd::split(query, "&");
     for (const auto& param : params)
     {
       // NB: This means both `foo=` and `foo` will be accepted and result in a
       // `{"foo": ""}` in the map
-      const auto& [key, value] = nonstd::split_1(param, "=");
+      const auto& [key, value] = ccf::nonstd::split_1(param, "=");
       parsed.emplace(key, value);
     }
 
@@ -71,7 +71,7 @@ namespace http
     }
     else
     {
-      static_assert(nonstd::dependent_false<T>::value, "Unsupported type");
+      static_assert(ccf::nonstd::dependent_false<T>::value, "Unsupported type");
       return false;
     }
   }

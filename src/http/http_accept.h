@@ -24,7 +24,7 @@ namespace http
 
     bool matches(const std::string& mime) const
     {
-      const auto [t, st] = nonstd::split_1(mime, "/");
+      const auto [t, st] = ccf::nonstd::split_1(mime, "/");
 
       if (is_wildcard(mime_type) || mime_type == t)
       {
@@ -88,11 +88,11 @@ namespace http
 
     std::vector<AcceptHeaderField> fields;
 
-    const auto elements = nonstd::split(s, ",");
+    const auto elements = ccf::nonstd::split(s, ",");
     for (const auto& element : elements)
     {
-      const auto [types, q_string] = nonstd::split_1(element, ";q=");
-      const auto [type, subtype] = nonstd::split_1(types, "/");
+      const auto [types, q_string] = ccf::nonstd::split_1(element, ";q=");
+      const auto [type, subtype] = ccf::nonstd::split_1(types, "/");
       if (type.empty() || subtype.empty())
       {
         throw ccf::RpcException(
