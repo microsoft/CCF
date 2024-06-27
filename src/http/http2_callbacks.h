@@ -186,8 +186,8 @@ namespace http2
     auto* p = get_parser(user_data);
     const auto& configuration = p->get_configuration();
 
-    auto const& max_header_size =
-      configuration.max_header_size.value_or(ccf::http::default_max_header_size);
+    auto const& max_header_size = configuration.max_header_size.value_or(
+      ccf::http::default_max_header_size);
     if (namelen > max_header_size)
     {
       throw http::RequestHeaderTooLargeException(
@@ -209,8 +209,8 @@ namespace http2
     }
 
     auto* stream_data = get_stream_data(session, stream_id);
-    const auto max_headers_count =
-      configuration.max_headers_count.value_or(ccf::http::default_max_headers_count);
+    const auto max_headers_count = configuration.max_headers_count.value_or(
+      ccf::http::default_max_headers_count);
     if (stream_data->incoming.headers.size() >= max_headers_count)
     {
       throw http::RequestHeaderTooLargeException(

@@ -21,7 +21,8 @@ namespace http
     auto response = ::http::Response(error.status);
 
     response.set_header(
-      ccf::http::headers::CONTENT_TYPE, ccf::http::headervalues::contenttype::JSON);
+      ccf::http::headers::CONTENT_TYPE,
+      ccf::http::headervalues::contenttype::JSON);
     response.set_body(&data);
 
     return response.build_response();
@@ -208,7 +209,8 @@ namespace http
       return url;
     }
 
-    virtual std::shared_ptr<ccf::http::HTTPResponder> get_responder() const override
+    virtual std::shared_ptr<ccf::http::HTTPResponder> get_responder()
+      const override
     {
       return responder;
     }

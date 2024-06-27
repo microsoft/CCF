@@ -24,7 +24,8 @@ namespace ccfapp
     {
       ctx.rpc_ctx->set_response_status(status);
       ctx.rpc_ctx->set_response_header(
-        ccf::http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        ccf::http::headers::CONTENT_TYPE,
+        http::headervalues::contenttype::TEXT);
       ctx.rpc_ctx->set_response_body(std::move(message));
     }
 

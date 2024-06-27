@@ -31,6 +31,8 @@ namespace http
   {
   public:
     virtual void handle_response(
-      http_status status, ccf::http::HeaderMap&& headers, std::vector<uint8_t>&& body) = 0;
+      http_status status,
+      ccf::http::HeaderMap&& headers,
+      std::vector<uint8_t>&& body) = 0;
   };
 }

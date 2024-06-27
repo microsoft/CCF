@@ -112,7 +112,8 @@ namespace ccf
         ccf::get_actor_prefix(ccf::ActorsType::nodes),
         "jwt_keys/refresh"));
       request.set_header(
-        ccf::http::headers::CONTENT_TYPE, ccf::http::headervalues::contenttype::JSON);
+        ccf::http::headers::CONTENT_TYPE,
+        ccf::http::headervalues::contenttype::JSON);
       request.set_body(&body);
 
       auto packed = request.build_request();

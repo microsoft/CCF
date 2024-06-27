@@ -171,8 +171,8 @@ namespace ACME
     virtual void on_http_request(
       const http::URL& url,
       http::Request&& req,
-      std::function<
-        bool(http_status status, ccf::http::HeaderMap&&, std::vector<uint8_t>&&)>
+      std::function<bool(
+        http_status status, ccf::http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback) = 0;
 
     void make_request(
@@ -180,8 +180,8 @@ namespace ACME
       const http::URL& url,
       const std::vector<uint8_t>& body,
       http_status expected_status,
-      std::function<bool(const ccf::http::HeaderMap&, const std::vector<uint8_t>&)>
-        ok_callback)
+      std::function<bool(
+        const ccf::http::HeaderMap&, const std::vector<uint8_t>&)> ok_callback)
     {
       std::unique_lock<ccf::pal::Mutex> guard(req_lock);
 
@@ -197,7 +197,8 @@ namespace ACME
           ccf::http::headers::HOST, fmt::format("{}:{}", url.host, url.port));
         if (!body.empty())
         {
-          r.set_header(ccf::http::headers::CONTENT_TYPE, "application/jose+json");
+          r.set_header(
+            ccf::http::headers::CONTENT_TYPE, "application/jose+json");
           r.set_body(&body);
         }
         auto req = r.build_request();
@@ -259,7 +260,8 @@ namespace ACME
       const http::URL& url,
       const std::vector<uint8_t>& body,
       http_status expected_status,
-      std::function<void(const ccf::http::HeaderMap& headers, const nlohmann::json&)>
+      std::function<
+        void(const ccf::http::HeaderMap& headers, const nlohmann::json&)>
         ok_callback)
     {
       make_request(
@@ -268,7 +270,8 @@ namespace ACME
         body,
         expected_status,
         [ok_callback](
-          const ccf::http::HeaderMap& headers, const std::vector<uint8_t>& data) {
+          const ccf::http::HeaderMap& headers,
+          const std::vector<uint8_t>& data) {
           nlohmann::json jr;
 
           if (!data.empty())
@@ -293,8 +296,8 @@ namespace ACME
     void post_as_get(
       const std::string& account_url,
       const std::string& resource_url,
-      std::function<bool(const ccf::http::HeaderMap&, const std::vector<uint8_t>&)>
-        ok_callback)
+      std::function<bool(
+        const ccf::http::HeaderMap&, const std::vector<uint8_t>&)> ok_callback)
     {
       if (nonces.empty())
       {
@@ -342,7 +345,8 @@ namespace ACME
           json_to_bytes(jws),
           HTTP_STATUS_OK,
           [ok_callback](
-            const ccf::http::HeaderMap& headers, const std::vector<uint8_t>& data) {
+            const ccf::http::HeaderMap& headers,
+            const std::vector<uint8_t>& data) {
             try
             {
               ok_callback(headers, nlohmann::json::parse(data));
@@ -648,8 +652,8 @@ namespace ACME
         url,
         {},
         HTTP_STATUS_NO_CONTENT,
-        [this,
-         ok_callback](const ccf::http::HeaderMap& headers, const nlohmann::json& j) {
+        [this, ok_callback](
+          const ccf::http::HeaderMap& headers, const nlohmann::json& j) {
           ok_callback();
           return true;
         });
@@ -952,7 +956,8 @@ namespace ACME
         order->account_url,
         challenge.authorization_url,
         [this, order_url, challenge_token = challenge.token](
-          const ccf::http::HeaderMap& headers, const std::vector<uint8_t>& body) {
+          const ccf::http::HeaderMap& headers,
+          const std::vector<uint8_t>& body) {
           auto j = nlohmann::json::parse(body);
           LOG_TRACE_FMT("ACME: authorization status: {}", j.dump());
           expect(j, "status");
@@ -1042,7 +1047,8 @@ namespace ACME
         order->account_url,
         order->order_url,
         [this, order_url](
-          const ccf::http::HeaderMap& headers, const std::vector<uint8_t>& body) {
+          const ccf::http::HeaderMap& headers,
+          const std::vector<uint8_t>& body) {
           auto j = nlohmann::json::parse(body);
           LOG_TRACE_FMT("ACME: finalization status: {}", j.dump());
           expect(j, "status");
@@ -1203,7 +1209,8 @@ namespace ACME
           order->account_url,
           order->certificate_url,
           [this, order_url](
-            const ccf::http::HeaderMap& headers, const std::vector<uint8_t>& data) {
+            const ccf::http::HeaderMap& headers,
+            const std::vector<uint8_t>& data) {
             std::string c(data.data(), data.data() + data.size());
             LOG_TRACE_FMT("ACME: obtained certificate (chain): {}", c);
 

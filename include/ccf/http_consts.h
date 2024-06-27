@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-namespace ccf {
+namespace ccf
+{
   namespace http
   {
     namespace headers

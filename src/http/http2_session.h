@@ -214,7 +214,8 @@ namespace http
       return true;
     }
 
-    bool set_on_stream_close_callback(ccf::http::StreamOnCloseCallback cb) override
+    bool set_on_stream_close_callback(
+      ccf::http::StreamOnCloseCallback cb) override
     {
       auto sp = server_parser.lock();
       if (sp)
@@ -501,7 +502,8 @@ namespace http
         ->close_stream(std::move(trailers));
     }
 
-    bool set_on_stream_close_callback(ccf::http::StreamOnCloseCallback cb) override
+    bool set_on_stream_close_callback(
+      ccf::http::StreamOnCloseCallback cb) override
     {
       return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->set_on_stream_close_callback(cb);

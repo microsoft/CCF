@@ -1905,7 +1905,8 @@ namespace ccf
       ::http::Request request(
         fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "create"));
       request.set_header(
-        ccf::http::headers::CONTENT_TYPE, ccf::http::headervalues::contenttype::JSON);
+        ccf::http::headers::CONTENT_TYPE,
+        ccf::http::headervalues::contenttype::JSON);
 
       request.set_body(&body);
 

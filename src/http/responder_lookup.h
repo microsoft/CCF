@@ -13,8 +13,8 @@ namespace http
   class ResponderLookup
   {
   protected:
-    using ByStream =
-      std::unordered_map<http2::StreamId, std::shared_ptr<ccf::http::HTTPResponder>>;
+    using ByStream = std::
+      unordered_map<http2::StreamId, std::shared_ptr<ccf::http::HTTPResponder>>;
 
     std::unordered_map<::tls::ConnID, ByStream> all_responders;
 

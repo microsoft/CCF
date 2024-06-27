@@ -161,7 +161,8 @@ namespace http
       const auto auth_it = headers.find(ccf::http::headers::AUTHORIZATION);
       if (auth_it == headers.end())
       {
-        error_reason = fmt::format("Missing {} header", ccf::http::headers::AUTHORIZATION);
+        error_reason =
+          fmt::format("Missing {} header", ccf::http::headers::AUTHORIZATION);
         return std::nullopt;
       }
       std::string_view token = auth_it->second;

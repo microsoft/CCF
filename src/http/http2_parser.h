@@ -29,7 +29,8 @@ namespace http2
 
   public:
     Parser(
-      const ccf::http::ParserConfiguration& configuration_, bool is_client = false) :
+      const ccf::http::ParserConfiguration& configuration_,
+      bool is_client = false) :
       configuration(configuration_)
     {
       LOG_TRACE_FMT("Creating HTTP2 parser");
@@ -274,7 +275,8 @@ namespace http2
 
       auto status_str = fmt::format(
         "{}", static_cast<std::underlying_type<http_status>::type>(status));
-      hdrs.emplace_back(make_nv(ccf::http2::headers::STATUS, status_str.data()));
+      hdrs.emplace_back(
+        make_nv(ccf::http2::headers::STATUS, status_str.data()));
 
       for (auto& [k, v] : base_headers)
       {
@@ -371,7 +373,9 @@ namespace http2
     }
 
     void start_stream(
-      StreamId stream_id, http_status status, const ccf::http::HeaderMap& headers)
+      StreamId stream_id,
+      http_status status,
+      const ccf::http::HeaderMap& headers)
     {
       LOG_TRACE_FMT(
         "http2::start_stream: stream {} - {} headers",

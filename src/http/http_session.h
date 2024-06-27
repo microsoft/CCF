@@ -306,7 +306,8 @@ namespace http
       throw std::logic_error("Not implemented!");
     }
 
-    bool set_on_stream_close_callback(ccf::http::StreamOnCloseCallback cb) override
+    bool set_on_stream_close_callback(
+      ccf::http::StreamOnCloseCallback cb) override
     {
       throw std::logic_error("Not implemented!");
     }

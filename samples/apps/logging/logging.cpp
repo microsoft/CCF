@@ -1093,7 +1093,8 @@ namespace loggingapp
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_TYPE, ccf::http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(true).dump());
       };
       make_endpoint(
@@ -1517,7 +1518,8 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::RETRY_AFTER, retry_after_seconds);
           ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CONTENT_TYPE, ccf::http::headervalues::contenttype::TEXT);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::TEXT);
           ctx.rpc_ctx->set_response_body(fmt::format(
             "Still constructing index for public records on key {} - indexed "
             "to {}/{}",
@@ -1545,7 +1547,8 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::RETRY_AFTER, retry_after_seconds);
           ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CONTENT_TYPE, ccf::http::headervalues::contenttype::TEXT);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::TEXT);
           ctx.rpc_ctx->set_response_body(fmt::format(
             "Still constructing index for private records at {}", id));
           return;
@@ -1657,7 +1660,8 @@ namespace loggingapp
         nlohmann::json j_response = response;
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_TYPE, ccf::http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(j_response.dump());
 
         // ALSO: Assume this response makes it all the way to the client, and
@@ -1793,7 +1797,8 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::RETRY_AFTER, retry_after_seconds);
           ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CONTENT_TYPE, ccf::http::headervalues::contenttype::TEXT);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::TEXT);
           ctx.rpc_ctx->set_response_body(fmt::format(
             "Historical transactions are not yet available, fetching now"));
           return;
@@ -1826,7 +1831,8 @@ namespace loggingapp
         nlohmann::json j_response = response;
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
-          ccf::http::headers::CONTENT_TYPE, ccf::http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(j_response.dump());
 
         // ALSO: Assume this response makes it all the way to the client, and
@@ -1923,7 +1929,8 @@ namespace loggingapp
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
 
           ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CONTENT_TYPE, ccf::http::headervalues::contenttype::TEXT);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::TEXT);
           std::vector<uint8_t> response_body(
             caller_identity.content.begin(), caller_identity.content.end());
           ctx.rpc_ctx->set_response_body(response_body);

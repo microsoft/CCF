@@ -418,11 +418,13 @@ auto create_simple_request(
 {
   ::http::Request request(method);
   request.set_header(
-    ccf::http::headers::CONTENT_TYPE, ccf::jsonhandler::pack_to_content_type(pack));
+    ccf::http::headers::CONTENT_TYPE,
+    ccf::jsonhandler::pack_to_content_type(pack));
   return request;
 }
 
-::http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
+::http::SimpleResponseProcessor::Response parse_response(
+  const vector<uint8_t>& v)
 {
   ::http::SimpleResponseProcessor processor;
   ::http::ResponseParser parser(processor);

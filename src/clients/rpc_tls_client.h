@@ -63,7 +63,8 @@ namespace client
       if (auth_token != nullptr)
       {
         r.set_header(
-          ccf::http::headers::AUTHORIZATION, fmt::format("Bearer {}", auth_token));
+          ccf::http::headers::AUTHORIZATION,
+          fmt::format("Bearer {}", auth_token));
       }
 
       return r.build_request();
