@@ -32,7 +32,7 @@ jobs:
             options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro -v /dev/shm:/dev/shm
     runs-on: ${{ matrix.platform.nodes }}
     container:
-      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-19-06-2024
+      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-26-06-2024
       options: ${{ matrix.platform.options }}
     steps:
       - uses: actions/checkout@v4
