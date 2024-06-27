@@ -968,7 +968,7 @@ TEST_CASE("StateCache soft zero limit with increasing")
   // available, but later overwritten by the second one, and finally all are
   // evicted after setting again to 0.
   //
-  // ! DISCLAIMER ! If you change this bare in mind that each attempt to get the
+  // ! DISCLAIMER ! If you change this bear in mind that each attempt to get the
   // store promotes the handle, and so requests eviction order changes,
   // therefore this test in particular is quite fragile.
 
