@@ -161,9 +161,7 @@ namespace ccf
     inline auto get_all_jwt_tables() const
     {
       return std::make_tuple(
-        ca_cert_bundles,
-        jwt_issuers,
-        jwt_public_signing_keys_metadata);
+        ca_cert_bundles, jwt_issuers, jwt_public_signing_keys_metadata);
     }
 
     //
