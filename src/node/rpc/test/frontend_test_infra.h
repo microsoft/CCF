@@ -31,15 +31,15 @@ using TResponse = http::SimpleResponseProcessor::Response;
 constexpr size_t certificate_validity_period_days = 365;
 using namespace std::literals;
 auto valid_from =
-  :: ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+  ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
 auto kp = ccf::crypto::make_key_pair();
-auto member_cert = kp->self_sign("CN=name_member", valid_from, valid_to);
+auto member_cert = kp -> self_sign("CN=name_member", valid_from, valid_to);
 auto verifier_mem = ccf::crypto::make_verifier(member_cert);
-auto user_cert = kp->self_sign("CN=name_user", valid_from, valid_to);
-auto dummy_enc_pubk = ccf::crypto::make_rsa_key_pair()->public_key_pem();
+auto user_cert = kp -> self_sign("CN=name_user", valid_from, valid_to);
+auto dummy_enc_pubk = ccf::crypto::make_rsa_key_pair() -> public_key_pem();
 
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
@@ -121,7 +121,7 @@ std::unique_ptr<ccf::NetworkIdentity> make_test_network_ident()
 {
   using namespace std::literals;
   const auto valid_from =
-    :: ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+    ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
   return std::make_unique<ReplicatedNetworkIdentity>(
     "CN=CCF test network",
     ccf::crypto::service_identity_curve_choice,

@@ -197,7 +197,7 @@ namespace ccf::crypto
     const std::chrono::system_clock::time_point& now) const
   {
     auto [from, to] = validity_period();
-    auto tp_to = ds::time_point_from_string(to);
+    auto tp_to = ::ds::time_point_from_string(to);
     return std::chrono::duration_cast<std::chrono::seconds>(tp_to - now)
              .count() +
       1;
@@ -207,8 +207,8 @@ namespace ccf::crypto
     const std::chrono::system_clock::time_point& now) const
   {
     auto [from, to] = validity_period();
-    auto tp_from = ds::time_point_from_string(from);
-    auto tp_to = ds::time_point_from_string(to);
+    auto tp_from = ::ds::time_point_from_string(from);
+    auto tp_to = ::ds::time_point_from_string(to);
     auto total_sec =
       std::chrono::duration_cast<std::chrono::seconds>(tp_to - tp_from)
         .count() +
