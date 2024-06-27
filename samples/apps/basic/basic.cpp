@@ -74,7 +74,7 @@ namespace basicapp
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+            ccf::http::headers::CONTENT_TYPE, ccf::http::headervalues::contenttype::TEXT);
           ctx.rpc_ctx->set_response_body(record.value());
           return;
         }

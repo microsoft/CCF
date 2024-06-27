@@ -343,7 +343,7 @@ namespace client
         rpc_connection->gen_request(
           method,
           params,
-          http::headervalues::contenttype::JSON,
+          ccf::http::headervalues::contenttype::JSON,
           HTTP_POST,
           options.bearer_token.size() == 0 ? nullptr :
                                              options.bearer_token.c_str()),
@@ -367,8 +367,8 @@ namespace client
           method,
           body,
           serdes == serdes::Pack::Text ?
-            http::headervalues::contenttype::JSON :
-            http::headervalues::contenttype::MSGPACK,
+            ccf::http::headervalues::contenttype::JSON :
+            ccf::http::headervalues::contenttype::MSGPACK,
           HTTP_POST,
           options.bearer_token.size() == 0 ? nullptr :
                                              options.bearer_token.c_str()),

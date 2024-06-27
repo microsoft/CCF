@@ -815,7 +815,7 @@ namespace ccf
         j["state_digest"] = ma->state_digest;
 
         ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(j.dump());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         return;
@@ -870,7 +870,7 @@ namespace ccf
           auto rec_share = GetRecoveryShare::Out{
             crypto::b64_from_raw(encrypted_share.value())};
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(rec_share).dump());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;
@@ -920,7 +920,7 @@ namespace ccf
           auto rec_share = GetRecoveryShare::Out{
             crypto::b64_from_raw(encrypted_share.value())};
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(rec_share).dump());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;
@@ -1027,7 +1027,7 @@ namespace ccf
             submitted_shares_count,
             InternalTablesAccess::get_recovery_threshold(ctx.tx))};
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;
@@ -1064,7 +1064,7 @@ namespace ccf
           submitted_shares_count,
           InternalTablesAccess::get_recovery_threshold(ctx.tx))};
         ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
@@ -1341,7 +1341,7 @@ namespace ccf
             proposal_id,
             {member_id.value(), rv.state, {}, {}, std::nullopt, rv.failure});
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;
@@ -1530,7 +1530,7 @@ namespace ccf
         }
 
         ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(pi_.value()).dump());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
@@ -1575,7 +1575,7 @@ namespace ccf
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(std::move(p.value()));
         };
 
@@ -1734,7 +1734,7 @@ namespace ccf
           pi_.value().failure = rv.failure;
           pi->put(proposal_id, pi_.value());
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;

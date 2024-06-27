@@ -16,7 +16,7 @@
 
 namespace http
 {
-  static std::string get_header_string(const HeaderMap& headers)
+  static std::string get_header_string(const ccf::http::HeaderMap& headers)
   {
     std::string header_string;
     for (const auto& [k, v] : headers)
@@ -30,14 +30,14 @@ namespace http
   class Message
   {
   protected:
-    HeaderMap headers;
+    ccf::http::HeaderMap headers;
     const uint8_t* body = nullptr;
     size_t body_size = 0;
 
     Message() = default;
 
   public:
-    const HeaderMap& get_headers() const
+    const ccf::http::HeaderMap& get_headers() const
     {
       return headers;
     }
@@ -88,7 +88,7 @@ namespace http
       body = b;
       body_size = s;
 
-      headers[headers::CONTENT_LENGTH] =
+      headers[ccf::http::headers::CONTENT_LENGTH] =
         fmt::format("{}", get_content_length());
     }
 
@@ -97,7 +97,7 @@ namespace http
       body = (uint8_t*)s.data();
       body_size = s.size();
 
-      headers[headers::CONTENT_LENGTH] =
+      headers[ccf::http::headers::CONTENT_LENGTH] =
         fmt::format("{}", get_content_length());
     }
   };

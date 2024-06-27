@@ -11,7 +11,7 @@
 #include <optional>
 #include <string_view>
 
-namespace http
+namespace ccf::http
 {
   // Query is parsed into a multimap, so that duplicate keys are retained.
   // Handling of duplicates (or ignoring them entirely) is left to the caller.

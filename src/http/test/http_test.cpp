@@ -62,10 +62,10 @@ DOCTEST_TEST_CASE("Complete response")
   {
     const std::vector<uint8_t> r = {0, 1, 2, 3};
 
-    http::SimpleResponseProcessor sp;
-    http::ResponseParser p(sp);
+    ::http::SimpleResponseProcessor sp;
+    ::http::ResponseParser p(sp);
 
-    auto response = http::Response(status);
+    auto response = ::http::Response(status);
     response.set_body(&r);
     auto res = response.build_response();
     p.execute(res.data(), res.size());
@@ -279,15 +279,15 @@ DOCTEST_TEST_CASE("Pessimal transport")
 {
   logger::config::level() = LoggerLevel::INFO;
 
-  const http::HeaderMap h1 = {{"foo", "bar"}, {"baz", "42"}};
-  const http::HeaderMap h2 = {
+  const ccf::http::HeaderMap h1 = {{"foo", "bar"}, {"baz", "42"}};
+  const ccf::http::HeaderMap h2 = {
     {"foo", "barbar"},
     {"content-type", "application/json"},
     {"x-custom-header", "custom user data"},
     {"x-MixedCASE", "DontCARE"}};
 
-  http::SimpleRequestProcessor sp;
-  http::RequestParser p(sp);
+  ::http::SimpleRequestProcessor sp;
+  ::http::RequestParser p(sp);
 
   // Use the same processor and test repeatedly to make sure headers are for
   // only the current request
@@ -487,7 +487,7 @@ DOCTEST_TEST_CASE("Query parser")
     "&multi=maintains-order!&multi=twice&multi=2&multi=three&multi=1&multi="
     "twice";
 
-  const auto parsed = http::parse_query(query);
+  const auto parsed = ccf::http::parse_query(query);
 
   std::vector<std::string> checked_keys;
 

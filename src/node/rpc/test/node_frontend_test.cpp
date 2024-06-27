@@ -17,7 +17,7 @@ using namespace ccf;
 using namespace nlohmann;
 using namespace serdes;
 
-using TResponse = http::SimpleResponseProcessor::Response;
+using TResponse = ::http::SimpleResponseProcessor::Response;
 
 auto node_id = 0;
 
@@ -27,7 +27,7 @@ TResponse frontend_process(
   const std::string& method,
   const crypto::Pem& caller)
 {
-  http::Request r(method);
+  ::http::Request r(method);
   const auto body = json_params.is_null() ?
     std::vector<uint8_t>() :
     serdes::pack(json_params, Pack::Text);
@@ -42,8 +42,8 @@ TResponse frontend_process(
   CHECK(!rpc_ctx->response_is_pending);
   const auto serialised_response = rpc_ctx->serialise_response();
 
-  http::SimpleResponseProcessor processor;
-  http::ResponseParser parser(processor);
+  ::http::SimpleResponseProcessor processor;
+  ::http::ResponseParser parser(processor);
 
   parser.execute(serialised_response.data(), serialised_response.size());
   REQUIRE(processor.received.size() == 1);

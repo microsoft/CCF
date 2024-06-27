@@ -22,7 +22,7 @@ namespace ccf
 
     virtual ~HTTPNodeClient() {}
 
-    virtual bool make_request(http::Request& request) override
+    virtual bool make_request(::http::Request& request) override
     {
       const auto& node_cert = endorsed_node_cert.has_value() ?
         endorsed_node_cert.value() :
@@ -35,7 +35,7 @@ namespace ccf
       auto ctx = ccf::make_rpc_context(node_session, packed);
 
       std::shared_ptr<ccf::RpcHandler> search =
-        http::fetch_rpc_handler(ctx, rpc_map);
+        ::http::fetch_rpc_handler(ctx, rpc_map);
 
       search->process(ctx);
 

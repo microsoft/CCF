@@ -21,7 +21,7 @@ namespace http2
   using StreamId = int32_t;
   constexpr static StreamId DEFAULT_STREAM_ID = 0;
 
-  using StreamCloseCB = http::StreamOnCloseCallback;
+  using StreamCloseCB = ccf::http::StreamOnCloseCallback;
 
   // Used to keep track of response state between nghttp2 callbacks and to
   // differentiate unary from streaming responses
@@ -65,7 +65,7 @@ namespace http2
   {
     struct Incoming
     {
-      http::HeaderMap headers;
+      ccf::http::HeaderMap headers;
       std::vector<uint8_t> body;
     };
     Incoming incoming;
@@ -91,6 +91,6 @@ namespace http2
     virtual std::shared_ptr<StreamData> get_stream(StreamId stream_id) = 0;
     virtual void destroy_stream(StreamId stream_id) = 0;
     virtual StreamId get_last_stream_id() const = 0;
-    virtual http::ParserConfiguration get_configuration() const = 0;
+    virtual ccf::http::ParserConfiguration get_configuration() const = 0;
   };
 }

@@ -98,7 +98,7 @@ namespace http
     {}
   };
 
-  class HTTP2StreamResponder : public http::HTTPResponder
+  class HTTP2StreamResponder : public ccf::http::HTTPResponder
   {
   private:
     http2::StreamId stream_id;
@@ -118,8 +118,8 @@ namespace http
 
     bool send_response(
       http_status status_code,
-      http::HeaderMap&& headers,
-      http::HeaderMap&& trailers,
+      ccf::http::HeaderMap&& headers,
+      ccf::http::HeaderMap&& trailers,
       std::span<const uint8_t> body) override
     {
       auto sp = server_parser.lock();
@@ -143,7 +143,7 @@ namespace http
     }
 
     bool start_stream(
-      http_status status, const http::HeaderMap& headers) override
+      http_status status, const ccf::http::HeaderMap& headers) override
     {
       auto sp = server_parser.lock();
       if (sp)
@@ -166,7 +166,7 @@ namespace http
       return true;
     }
 
-    bool close_stream(http::HeaderMap&& trailers) override
+    bool close_stream(ccf::http::HeaderMap&& trailers) override
     {
       auto sp = server_parser.lock();
       if (sp)
@@ -214,7 +214,7 @@ namespace http
       return true;
     }
 
-    bool set_on_stream_close_callback(StreamOnCloseCallback cb) override
+    bool set_on_stream_close_callback(ccf::http::StreamOnCloseCallback cb) override
     {
       auto sp = server_parser.lock();
       if (sp)
@@ -243,7 +243,7 @@ namespace http
 
   class HTTP2ServerSession : public HTTP2Session,
                              public http::RequestProcessor,
-                             public http::HTTPResponder
+                             public ccf::http::HTTPResponder
   {
   private:
     std::shared_ptr<http2::ServerParser> server_parser;
@@ -295,9 +295,9 @@ namespace http
         ccf::ODataError{std::move(error.code), std::move(error.msg)}};
       const auto s = body.dump();
 
-      http::HeaderMap headers;
-      headers[http::headers::CONTENT_TYPE] =
-        http::headervalues::contenttype::JSON;
+      ccf::http::HeaderMap headers;
+      headers[ccf::http::headers::CONTENT_TYPE] =
+        ccf::http::headervalues::contenttype::JSON;
 
       get_stream_responder(stream_id)->send_response(
         error.status,
@@ -313,7 +313,7 @@ namespace http
       const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<ccf::tls::Context> ctx,
-      const http::ParserConfiguration& configuration,
+      const ccf::http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter,
       http::ResponderLookup& responder_lookup_) :
       HTTP2Session(session_id_, writer_factory, std::move(ctx), error_reporter),
@@ -403,7 +403,7 @@ namespace http
     void handle_request(
       llhttp_method verb,
       const std::string_view& url,
-      http::HeaderMap&& headers,
+      ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body,
       int32_t stream_id) override
     {
@@ -474,8 +474,8 @@ namespace http
 
     bool send_response(
       http_status status_code,
-      http::HeaderMap&& headers,
-      http::HeaderMap&& trailers,
+      ccf::http::HeaderMap&& headers,
+      ccf::http::HeaderMap&& trailers,
       std::span<const uint8_t> body) override
     {
       return get_stream_responder(http2::DEFAULT_STREAM_ID)
@@ -484,7 +484,7 @@ namespace http
     }
 
     bool start_stream(
-      http_status status, const http::HeaderMap& headers) override
+      http_status status, const ccf::http::HeaderMap& headers) override
     {
       return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->start_stream(status, headers);
@@ -495,13 +495,13 @@ namespace http
       return get_stream_responder(http2::DEFAULT_STREAM_ID)->stream_data(data);
     }
 
-    bool close_stream(http::HeaderMap&& trailers) override
+    bool close_stream(ccf::http::HeaderMap&& trailers) override
     {
       return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->close_stream(std::move(trailers));
     }
 
-    bool set_on_stream_close_callback(StreamOnCloseCallback cb) override
+    bool set_on_stream_close_callback(ccf::http::StreamOnCloseCallback cb) override
     {
       return get_stream_responder(http2::DEFAULT_STREAM_ID)
         ->set_on_stream_close_callback(cb);
@@ -510,7 +510,7 @@ namespace http
 
   class HTTP2ClientSession : public HTTP2Session,
                              public ccf::ClientSession,
-                             public http::ResponseProcessor
+                             public ::http::ResponseProcessor
   {
   private:
     http2::ClientParser client_parser;
@@ -564,7 +564,7 @@ namespace http
 
     void handle_response(
       http_status status,
-      http::HeaderMap&& headers,
+      ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
       handle_data_cb(status, std::move(headers), std::move(body));
