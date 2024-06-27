@@ -1499,17 +1499,23 @@ const actions = new Map([
     new Action(
       function (args) {
         // Validate that no arguments are passed
-        if (args !== undefined && args !== null && Object.keys(args).length > 0) {
-          throw new Error("remove_old_jwt_tables does not accept any arguments");
+        if (
+          args !== undefined &&
+          args !== null &&
+          Object.keys(args).length > 0
+        ) {
+          throw new Error(
+            "remove_old_jwt_tables does not accept any arguments",
+          );
         }
       },
       function (args) {
         // Clear the JWT public signing key table
         ccf.kv["public:ccf.gov.jwt.public_signing_key"].clear();
-  
+
         // Clear the JWT public signing key issuer table
         ccf.kv["public:ccf.gov.jwt.public_signing_key_issuer"].clear();
-      }
+      },
     ),
   ],
 ]);
