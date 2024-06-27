@@ -31,15 +31,15 @@ resources:
   containers:
     - container: virtual
       image: ccfmsrc.azurecr.io/ccf/ci:2024-06-26-virtual-clang15
-      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro -v /dev/shm:/dev/shm
 
     - container: snp
       image: ccfmsrc.azurecr.io/ccf/ci:2024-06-26-snp-clang15
-      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro -v /dev/shm:/dev/shm
 
     - container: sgx
       image: ccfmsrc.azurecr.io/ccf/ci:2024-06-26-sgx
-      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
+      options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro -v /dev/shm:/dev/shm
 
 variables:
   perf_or_release: perf
