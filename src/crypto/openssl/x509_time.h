@@ -30,6 +30,6 @@ namespace ccf::crypto::OpenSSL
   {
     std::tm t;
     CHECK1(ASN1_TIME_to_tm(time, &t));
-    return ds::to_x509_time_string(t);
+    return ::ds::to_x509_time_string(t);
   }
 }

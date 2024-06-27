@@ -19,7 +19,7 @@ namespace crypto
     // _inclusive_ so substract one second from the validity period.
     auto valid_to = ds::time_point_from_string(valid_from) +
       std::chrono::days(validity_period_days) - 1s;
-    return ds::to_x509_time_string(valid_to);
+    return ::ds::to_x509_time_string(valid_to);
   }
 
   static Pem create_self_signed_cert(

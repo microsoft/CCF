@@ -223,7 +223,7 @@ static ccf::crypto::Pem generate_self_signed_cert(
   using namespace std::literals;
   constexpr size_t certificate_validity_period_days = 365;
   auto valid_from =
-    ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+    ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 
   return ccf::crypto::create_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
@@ -239,7 +239,7 @@ static ccf::crypto::Pem generate_endorsed_cert(
 
   using namespace std::literals;
   auto valid_from =
-    ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+    ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 
   return ccf::crypto::create_endorsed_cert(
     kp,

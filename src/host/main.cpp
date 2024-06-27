@@ -591,7 +591,7 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
     startup_config.startup_host_time =
-      ds::to_x509_time_string(startup_host_time);
+      ::ds::to_x509_time_string(startup_host_time);
 
     if (config.command.type == StartType::Start)
     {
