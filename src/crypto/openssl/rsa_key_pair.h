@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   class RSAKeyPair_OpenSSL : public RSAPublicKey_OpenSSL, public RSAKeyPair
   {

@@ -7,7 +7,7 @@
 
 #include <exception>
 
-using namespace crypto::OpenSSL;
+using namespace ccf::crypto::OpenSSL;
 
 namespace tls
 {

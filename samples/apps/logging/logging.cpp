@@ -238,7 +238,7 @@ namespace loggingapp
         response += fmt::format(
           "\nThe caller is a user with ID: {}", user_cert_ident->user_id);
 
-        crypto::Pem user_cert;
+        ccf::crypto::Pem user_cert;
         if (
           get_user_cert_v1(ctx.tx, user_cert_ident->user_id, user_cert) ==
           ccf::ApiResult::OK)
@@ -266,7 +266,7 @@ namespace loggingapp
         response += fmt::format(
           "\nThe caller is a member with ID: {}", member_cert_ident->member_id);
 
-        crypto::Pem member_cert;
+        ccf::crypto::Pem member_cert;
         if (
           get_member_cert_v1(
             ctx.tx, member_cert_ident->member_id, member_cert) ==
@@ -810,7 +810,7 @@ namespace loggingapp
           auto current_value = records_handle->get(id);
           if (current_value.has_value())
           {
-            crypto::Sha256Hash value_digest(current_value.value());
+            ccf::crypto::Sha256Hash value_digest(current_value.value());
             auto etag = value_digest.hex_str();
 
             // On a POST operation, If-Match failing or If-None-Match passing
@@ -853,7 +853,7 @@ namespace loggingapp
         CCF_APP_INFO("Storing {} = {}", id, in.msg);
 
         // SNIPPET_START: public_table_post_etag
-        crypto::Sha256Hash value_digest(in.msg);
+        ccf::crypto::Sha256Hash value_digest(in.msg);
         // Succesful calls set an ETag
         ctx.rpc_ctx->set_response_header("ETag", value_digest.hex_str());
         // SNIPPET_END: public_table_post_etag
@@ -905,7 +905,7 @@ namespace loggingapp
 
           // If a record is present, compute an Entity Tag, and apply
           // If-Match and If-None-Match.
-          crypto::Sha256Hash value_digest(record.value());
+          ccf::crypto::Sha256Hash value_digest(record.value());
           const auto etag = value_digest.hex_str();
 
           if (match_headers.if_match.has_value())
@@ -1000,7 +1000,7 @@ namespace loggingapp
           {
             // If a Match header is present, we need to compute the ETag
             // to resolve the constraints
-            crypto::Sha256Hash value_digest(current_value.value());
+            ccf::crypto::Sha256Hash value_digest(current_value.value());
             const auto etag = value_digest.hex_str();
 
             if (match_headers.if_match.has_value())

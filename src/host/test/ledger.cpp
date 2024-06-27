@@ -195,14 +195,15 @@ size_t read_entries_range_from_ledger(
 }
 
 using LedgerDirCapture =
-  std::vector<std::pair<std::string, crypto::Sha256Hash>>;
+  std::vector<std::pair<std::string, ccf::crypto::Sha256Hash>>;
 LedgerDirCapture capture_ledger_dir()
 {
   LedgerDirCapture capture = {};
   for (auto const& f : fs::directory_iterator(ledger_dir))
   {
     capture.emplace_back(
-      f.path().filename(), crypto::Sha256Hash(files::slurp(f.path().string())));
+      f.path().filename(),
+      ccf::crypto::Sha256Hash(files::slurp(f.path().string())));
   }
   return capture;
 }
@@ -1726,11 +1727,11 @@ TEST_CASE("Ledger init with existing files")
 int main(int argc, char** argv)
 {
   logger::config::default_init();
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

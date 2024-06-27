@@ -12,7 +12,7 @@ namespace ccf
 {
   struct NewUser
   {
-    crypto::Pem cert;
+    ccf::crypto::Pem cert;
     nlohmann::json user_data = nullptr;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewUser)
@@ -28,7 +28,7 @@ namespace ccf
   DECLARE_JSON_TYPE(UserDetails)
   DECLARE_JSON_REQUIRED_FIELDS(UserDetails, user_data)
 
-  using UserCerts = kv::RawCopySerialisedMap<UserId, crypto::Pem>;
+  using UserCerts = kv::RawCopySerialisedMap<UserId, ccf::crypto::Pem>;
   using UserInfo = ServiceMap<UserId, UserDetails>;
 
   namespace Tables

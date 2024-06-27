@@ -90,7 +90,7 @@ namespace kv
           serialise_vector(entry);
         }
       }
-      else if constexpr (std::is_same_v<T, crypto::Sha256Hash>)
+      else if constexpr (std::is_same_v<T, ccf::crypto::Sha256Hash>)
       {
         serialise_array(entry.h);
       }

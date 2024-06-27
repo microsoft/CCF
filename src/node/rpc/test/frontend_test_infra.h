@@ -32,14 +32,14 @@ constexpr size_t certificate_validity_period_days = 365;
 using namespace std::literals;
 auto valid_from =
   ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
-auto valid_to = crypto::compute_cert_valid_to_string(
+auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
-auto kp = crypto::make_key_pair();
+auto kp = ccf::crypto::make_key_pair();
 auto member_cert = kp -> self_sign("CN=name_member", valid_from, valid_to);
-auto verifier_mem = crypto::make_verifier(member_cert);
+auto verifier_mem = ccf::crypto::make_verifier(member_cert);
 auto user_cert = kp -> self_sign("CN=name_user", valid_from, valid_to);
-auto dummy_enc_pubk = crypto::make_rsa_key_pair() -> public_key_pem();
+auto dummy_enc_pubk = ccf::crypto::make_rsa_key_pair() -> public_key_pem();
 
 auto encryptor = std::make_shared<kv::NullTxEncryptor>();
 
@@ -91,10 +91,10 @@ std::vector<uint8_t> create_request(
 auto frontend_process(
   MemberRpcFrontend& frontend,
   const std::vector<uint8_t>& serialized_request,
-  const crypto::Pem& caller)
+  const ccf::crypto::Pem& caller)
 {
   auto session = std::make_shared<ccf::SessionContext>(
-    ccf::InvalidSessionId, crypto::make_verifier(caller)->cert_der());
+    ccf::InvalidSessionId, ccf::crypto::make_verifier(caller)->cert_der());
   auto rpc_ctx = ccf::make_rpc_context(session, serialized_request);
   http::extract_actor(*rpc_ctx);
   frontend.process(rpc_ctx);
@@ -111,7 +111,7 @@ auto frontend_process(
   return processor.received.front();
 }
 
-auto get_cert(uint64_t member_id, crypto::KeyPairPtr& kp_mem)
+auto get_cert(uint64_t member_id, ccf::crypto::KeyPairPtr& kp_mem)
 {
   return kp_mem->self_sign(
     "CN=new member" + to_string(member_id), valid_from, valid_to);
@@ -124,7 +124,7 @@ std::unique_ptr<ccf::NetworkIdentity> make_test_network_ident()
     ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
   return std::make_unique<ReplicatedNetworkIdentity>(
     "CN=CCF test network",
-    crypto::service_identity_curve_choice,
+    ccf::crypto::service_identity_curve_choice,
     valid_from,
     2);
 }

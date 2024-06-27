@@ -13,7 +13,7 @@
 // Inspired by openssl/test/evp_test.c
 // Ref: https://www.openssl.org/docs/man1.1.1/man3/EVP_DecodeBlock.html
 
-namespace crypto
+namespace ccf::crypto
 {
   struct Base64_openssl
   {

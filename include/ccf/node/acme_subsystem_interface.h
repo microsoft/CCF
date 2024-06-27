@@ -28,7 +28,7 @@ namespace ccf
     virtual std::optional<const ccf::ACMEClientConfig*> config(
       const NodeInfoNetwork::RpcInterfaceID& id) = 0;
 
-    virtual crypto::Pem network_cert() = 0;
+    virtual ccf::crypto::Pem network_cert() = 0;
 
     virtual void install_challenge_handler(
       const ccf::NodeInfoNetwork::RpcInterfaceID& interface_id,

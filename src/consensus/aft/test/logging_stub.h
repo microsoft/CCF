@@ -196,7 +196,7 @@ namespace aft
 
     void close_channel(const ccf::NodeId& peer_id) override {}
 
-    void set_endorsed_node_cert(const crypto::Pem&) override {}
+    void set_endorsed_node_cert(const ccf::crypto::Pem&) override {}
 
     bool have_channel(const ccf::NodeId& nid) override
     {
@@ -231,9 +231,9 @@ namespace aft
 
     void initialize(
       const ccf::NodeId& self_id,
-      const crypto::Pem& service_cert,
-      crypto::KeyPairPtr node_kp,
-      const std::optional<crypto::Pem>& node_cert = std::nullopt) override
+      const ccf::crypto::Pem& service_cert,
+      ccf::crypto::KeyPairPtr node_kp,
+      const std::optional<ccf::crypto::Pem>& node_cert = std::nullopt) override
     {}
 
     bool send_encrypted(
@@ -365,7 +365,8 @@ namespace aft
       kv::Version index;
       std::vector<uint8_t> entry;
       ccf::ClaimsDigest claims_digest;
-      std::optional<crypto::Sha256Hash> commit_evidence_digest = std::nullopt;
+      std::optional<ccf::crypto::Sha256Hash> commit_evidence_digest =
+        std::nullopt;
       kv::ApplyResult result;
 
     public:
@@ -400,7 +401,7 @@ namespace aft
         return std::move(claims_digest);
       }
 
-      std::optional<crypto::Sha256Hash>&& consume_commit_evidence_digest()
+      std::optional<ccf::crypto::Sha256Hash>&& consume_commit_evidence_digest()
         override
       {
         return std::move(commit_evidence_digest);
@@ -562,7 +563,7 @@ namespace aft
       Index,
       const std::vector<uint8_t>&,
       const ccf::NodeId&,
-      const crypto::Pem&)
+      const ccf::crypto::Pem&)
     {}
   };
 }

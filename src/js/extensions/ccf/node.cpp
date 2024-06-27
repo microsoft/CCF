@@ -109,7 +109,7 @@ namespace ccf::js::extensions
             return JS_ThrowTypeError(
               ctx, "Previous service identity argument is not an array buffer");
           }
-          identities.previous = crypto::Pem(prev_bytes, prev_bytes_sz);
+          identities.previous = ccf::crypto::Pem(prev_bytes, prev_bytes_sz);
           GOV_DEBUG_FMT(
             "previous service identity: {}", identities.previous->str());
         }
@@ -129,7 +129,7 @@ namespace ccf::js::extensions
             ctx, "Next service identity argument is not an array buffer");
         }
 
-        identities.next = crypto::Pem(next_bytes, next_bytes_sz);
+        identities.next = ccf::crypto::Pem(next_bytes, next_bytes_sz);
         GOV_DEBUG_FMT("next service identity: {}", identities.next.str());
 
         gov_effects->transition_service_to_open(*tx_ptr, identities);

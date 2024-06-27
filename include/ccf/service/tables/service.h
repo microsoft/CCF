@@ -27,7 +27,7 @@ namespace ccf
   struct ServiceInfo
   {
     /// x.509 Service Certificate, as a PEM string
-    crypto::Pem cert;
+    ccf::crypto::Pem cert;
     /// Status of the service
     ServiceStatus status = ServiceStatus::OPENING;
     /// Version (seqno) of previous service identity (before the last recovery)

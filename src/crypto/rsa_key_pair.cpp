@@ -5,7 +5,7 @@
 
 #include "crypto/openssl/rsa_key_pair.h"
 
-namespace crypto
+namespace ccf::crypto
 {
   using RSAPublicKeyImpl = RSAPublicKey_OpenSSL;
   using RSAKeyPairImpl = RSAKeyPair_OpenSSL;

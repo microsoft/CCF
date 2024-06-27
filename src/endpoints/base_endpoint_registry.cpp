@@ -275,7 +275,7 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_user_cert_v1(
-    kv::ReadOnlyTx& tx, const UserId& user_id, crypto::Pem& user_cert_pem)
+    kv::ReadOnlyTx& tx, const UserId& user_id, ccf::crypto::Pem& user_cert_pem)
   {
     try
     {
@@ -297,7 +297,9 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_member_cert_v1(
-    kv::ReadOnlyTx& tx, const MemberId& member_id, crypto::Pem& member_cert_pem)
+    kv::ReadOnlyTx& tx,
+    const MemberId& member_id,
+    ccf::crypto::Pem& member_cert_pem)
   {
     try
     {

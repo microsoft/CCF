@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace crypto
+namespace ccf::crypto
 {
   class KeyPair_OpenSSL : public PublicKey_OpenSSL, public KeyPair
   {

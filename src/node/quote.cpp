@@ -97,9 +97,9 @@ namespace ccf
 
   QuoteVerificationResult verify_quoted_node_public_key(
     const std::vector<uint8_t>& expected_node_public_key,
-    const crypto::Sha256Hash& quoted_hash)
+    const ccf::crypto::Sha256Hash& quoted_hash)
   {
-    if (quoted_hash != crypto::Sha256Hash(expected_node_public_key))
+    if (quoted_hash != ccf::crypto::Sha256Hash(expected_node_public_key))
     {
       return QuoteVerificationResult::FailedInvalidQuotedPublicKey;
     }
@@ -185,7 +185,7 @@ namespace ccf
     const std::vector<uint8_t>& expected_node_public_key_der,
     pal::PlatformAttestationMeasurement& measurement)
   {
-    crypto::Sha256Hash quoted_hash;
+    ccf::crypto::Sha256Hash quoted_hash;
     pal::PlatformAttestationReportData report_data;
     try
     {

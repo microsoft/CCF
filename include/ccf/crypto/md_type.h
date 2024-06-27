@@ -4,7 +4,7 @@
 
 #include "ccf/ds/json.h"
 
-namespace crypto
+namespace ccf::crypto
 {
   enum class MDType
   {

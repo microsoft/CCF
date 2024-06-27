@@ -107,13 +107,13 @@ namespace ccf
   struct MessageHash
   {
     MessageHash() = default;
-    MessageHash(ForwardedMsg msg_, crypto::Sha256Hash&& hash_) :
+    MessageHash(ForwardedMsg msg_, ccf::crypto::Sha256Hash&& hash_) :
       msg(msg_),
       hash(std::move(hash_))
     {}
 
     ForwardedMsg msg;
-    crypto::Sha256Hash hash;
+    ccf::crypto::Sha256Hash hash;
   };
 #pragma pack(pop)
 

@@ -11,7 +11,7 @@
 #include <charconv>
 #include <fmt/format.h>
 
-using namespace crypto::sharing;
+using namespace ccf::crypto::sharing;
 
 void check_share_is_not_trivially_wrong(const Share& share)
 {

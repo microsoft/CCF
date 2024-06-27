@@ -5,7 +5,7 @@
 
 #include "crypto/openssl/verifier.h"
 
-namespace crypto
+namespace ccf::crypto
 {
   using VerifierPtr = std::shared_ptr<Verifier>;
   using VerifierUniquePtr = std::unique_ptr<Verifier>;
@@ -30,12 +30,12 @@ namespace crypto
     return make_verifier(pem.raw());
   }
 
-  crypto::Pem cert_der_to_pem(const std::vector<uint8_t>& der)
+  ccf::crypto::Pem cert_der_to_pem(const std::vector<uint8_t>& der)
   {
     return make_verifier(der)->cert_pem();
   }
 
-  std::vector<uint8_t> cert_pem_to_der(const crypto::Pem& pem)
+  std::vector<uint8_t> cert_pem_to_der(const ccf::crypto::Pem& pem)
   {
     return make_verifier(pem)->cert_der();
   }
@@ -45,7 +45,7 @@ namespace crypto
     return make_unique_verifier(der)->public_key_der();
   }
 
-  crypto::Pem public_key_pem_from_cert(const std::vector<uint8_t>& der)
+  ccf::crypto::Pem public_key_pem_from_cert(const std::vector<uint8_t>& der)
   {
     return make_unique_verifier(der)->public_key_pem();
   }

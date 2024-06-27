@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   class EdDSAPublicKey_OpenSSL : public EdDSAPublicKey
   {
