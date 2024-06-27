@@ -157,20 +157,13 @@ namespace ccf
     const JwtIssuers jwt_issuers = {Tables::JWT_ISSUERS};
     const JwtPublicSigningKeys jwt_public_signing_keys_metadata = {
       Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA};
-    const Tables::Legacy::JwtPublicSigningKeys legacy_jwt_public_signing_keys =
-      {Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS};
-    const Tables::Legacy::JwtPublicSigningKeyIssuer
-      legacy_jwt_public_signing_key_issuer = {
-        Tables::Legacy::JWT_PUBLIC_SIGNING_KEY_ISSUER};
 
     inline auto get_all_jwt_tables() const
     {
       return std::make_tuple(
         ca_cert_bundles,
         jwt_issuers,
-        jwt_public_signing_keys_metadata,
-        legacy_jwt_public_signing_keys,
-        legacy_jwt_public_signing_key_issuer);
+        jwt_public_signing_keys_metadata);
     }
 
     //

@@ -23,25 +23,6 @@
 
 namespace ccf
 {
-  static void legacy_remove_jwt_public_signing_keys(
-    kv::Tx& tx, std::string issuer)
-  {
-    auto keys =
-      tx.rw<JwtPublicSigningKeys>(Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS);
-    auto key_issuer = tx.rw<Tables::Legacy::JwtPublicSigningKeyIssuer>(
-      Tables::Legacy::JWT_PUBLIC_SIGNING_KEY_ISSUER);
-
-    key_issuer->foreach(
-      [&issuer, &keys, &key_issuer](const auto& k, const auto& v) {
-        if (v == issuer)
-        {
-          keys->remove(k);
-          key_issuer->remove(k);
-        }
-        return true;
-      });
-  }
-
   static bool check_issuer_constraint(
     const std::string& issuer, const std::string& constraint)
   {
@@ -75,11 +56,6 @@ namespace ccf
 
   static void remove_jwt_public_signing_keys(kv::Tx& tx, std::string issuer)
   {
-    // Unlike resetting JWT keys for a particular issuer, removing keys can be
-    // safely done on both table revisions, as soon as the application shouldn't
-    // use them anyway after being ask about that explicitly.
-    legacy_remove_jwt_public_signing_keys(tx, issuer);
-
     auto keys =
       tx.rw<JwtPublicSigningKeys>(Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
 

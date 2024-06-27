@@ -78,18 +78,6 @@ namespace ccf
 
     static constexpr auto JWT_PUBLIC_SIGNING_KEYS_METADATA =
       "public:ccf.gov.jwt.public_signing_keys_metadata";
-
-    namespace Legacy
-    {
-      static constexpr auto JWT_PUBLIC_SIGNING_KEYS =
-        "public:ccf.gov.jwt.public_signing_key";
-      static constexpr auto JWT_PUBLIC_SIGNING_KEY_ISSUER =
-        "public:ccf.gov.jwt.public_signing_key_issuer";
-
-      using JwtPublicSigningKeys = kv::RawCopySerialisedMap<JwtKeyId, Cert>;
-      using JwtPublicSigningKeyIssuer =
-        kv::RawCopySerialisedMap<JwtKeyId, JwtIssuer>;
-    }
   }
 
   struct JsonWebKeySet
