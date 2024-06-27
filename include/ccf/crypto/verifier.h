@@ -9,7 +9,7 @@
 
 #include <chrono>
 
-namespace crypto
+namespace ccf::crypto
 {
   class Verifier
   {

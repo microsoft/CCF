@@ -10,7 +10,7 @@
 #  include <openssl/core_names.h>
 #endif
 
-namespace crypto
+namespace ccf::crypto
 {
   using namespace OpenSSL;
 

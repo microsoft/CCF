@@ -21,7 +21,7 @@
 #include <thread>
 
 using namespace std;
-using namespace crypto;
+using namespace ccf::crypto;
 using namespace tls;
 
 /// Server uses one pipe while client uses the other.

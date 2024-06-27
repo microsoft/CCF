@@ -6,7 +6,7 @@
 
 #include <stdexcept>
 
-namespace crypto
+namespace ccf::crypto
 {
   namespace sharing
   {

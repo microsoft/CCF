@@ -11,7 +11,7 @@
 #include <string_view>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   // Convenience class ensuring null termination of PEM-encoded certificates
   class Pem

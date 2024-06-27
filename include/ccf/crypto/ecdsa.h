@@ -6,7 +6,7 @@
 
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   /** Converts R and S signature parameters to RFC 3279 DER
    * encoding.

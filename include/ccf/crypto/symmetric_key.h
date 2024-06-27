@@ -7,7 +7,7 @@
 #include <span>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   constexpr size_t GCM_DEFAULT_KEY_SIZE = 32;
 

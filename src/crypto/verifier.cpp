@@ -5,7 +5,7 @@
 
 #include "crypto/openssl/verifier.h"
 
-namespace crypto
+namespace ccf::crypto
 {
   using VerifierPtr = std::shared_ptr<Verifier>;
   using VerifierUniquePtr = std::unique_ptr<Verifier>;

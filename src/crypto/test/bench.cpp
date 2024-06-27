@@ -18,7 +18,7 @@
 #include <picobench/picobench.hpp>
 
 using namespace std;
-using namespace crypto;
+using namespace ccf::crypto;
 
 static const string lorem_ipsum =
   "Lorem ipsum dolor sit amet, consectetur adipiscing "

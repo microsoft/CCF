@@ -26,7 +26,7 @@
 #  include <openssl/evp.h>
 #endif
 
-namespace crypto
+namespace ccf::crypto
 {
   namespace OpenSSL
   {

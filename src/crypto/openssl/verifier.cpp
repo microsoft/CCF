@@ -14,7 +14,7 @@
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 
-namespace crypto
+namespace ccf::crypto
 {
   using namespace OpenSSL;
 

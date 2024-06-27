@@ -23,7 +23,7 @@
 #  include <openssl/param_build.h>
 #endif
 
-namespace crypto
+namespace ccf::crypto
 {
   using namespace OpenSSL;
 

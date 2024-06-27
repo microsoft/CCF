@@ -29,7 +29,7 @@
 #include <span>
 
 using namespace std;
-using namespace crypto;
+using namespace ccf::crypto;
 
 static const string contents_ =
   "Lorem ipsum dolor sit amet, consectetur adipiscing "

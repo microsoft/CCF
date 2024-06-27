@@ -11,7 +11,7 @@
 #include <iostream>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   class HashProvider
   {

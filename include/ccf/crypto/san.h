@@ -9,7 +9,7 @@
 #include <fmt/format.h>
 #include <string>
 
-namespace crypto
+namespace ccf::crypto
 {
   static const std::string IP_ADDRESS_PREFIX = "iPAddress:";
   static const std::string DNS_NAME_PREFIX = "dNSName:";

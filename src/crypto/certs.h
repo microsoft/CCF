@@ -9,7 +9,7 @@
 #include <chrono>
 #include <string>
 
-namespace crypto
+namespace ccf::crypto
 {
   static std::string compute_cert_valid_to_string(
     const std::string& valid_from, size_t validity_period_days)

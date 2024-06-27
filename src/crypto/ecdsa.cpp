@@ -9,7 +9,7 @@
 #include <openssl/ecdsa.h>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   std::vector<uint8_t> ecdsa_sig_from_r_s(
     const uint8_t* r,

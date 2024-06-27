@@ -14,7 +14,7 @@
 
 #include <fmt/format.h>
 
-namespace crypto
+namespace ccf::crypto
 {
   namespace sharing
   {
