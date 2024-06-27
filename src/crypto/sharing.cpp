@@ -6,7 +6,7 @@
 
 #include <stdexcept>
 
-namespace crypto
+namespace ccf::crypto
 {
   namespace sharing
   {
@@ -94,7 +94,7 @@ namespace crypto
     // We assume the lower 31 bits are uniformly distributed,
     // and retry if they are all set to get uniformity in F[prime].
 
-    static element sample(const crypto::EntropyPtr& entropy)
+    static element sample(const ccf::crypto::EntropyPtr& entropy)
     {
       uint64_t res = prime;
       while (res == prime)
@@ -107,7 +107,7 @@ namespace crypto
     /* POLYNOMIAL SHARING AND INTERPOLATION */
 
     static void sample_polynomial(
-      element p[], size_t degree, const crypto::EntropyPtr& entropy)
+      element p[], size_t degree, const ccf::crypto::EntropyPtr& entropy)
     {
       for (size_t i = 0; i <= degree; i++)
       {
@@ -148,7 +148,7 @@ namespace crypto
         shares[s].x = s + 1;
       }
 
-      auto entropy = crypto::get_entropy();
+      auto entropy = ccf::crypto::get_entropy();
 
       for (size_t limb = 0; limb < LIMBS; limb++)
       {

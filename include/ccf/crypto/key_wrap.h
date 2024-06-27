@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   /// PKCS11 2.1.8 CKM_RSA_PKCS_OAEP wrap
   /// @param wrapping_key The wrapping (encryption) key

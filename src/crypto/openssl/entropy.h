@@ -10,7 +10,7 @@
 #include <openssl/rand.h>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   class Entropy_OpenSSL : public Entropy
   {

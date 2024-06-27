@@ -100,7 +100,7 @@ namespace ccf
       throw std::logic_error("Unimplemented");
     }
 
-    crypto::Pem get_self_signed_node_certificate() override
+    ccf::crypto::Pem get_self_signed_node_certificate() override
     {
       return {};
     }

@@ -15,7 +15,7 @@
 #include <openssl/x509_vfy.h>
 #include <t_cose/t_cose_sign1_verify.h>
 
-namespace crypto
+namespace ccf::crypto
 {
   using namespace OpenSSL;
 

@@ -172,7 +172,7 @@ namespace ccf::js::extensions
       std::string sig_b64;
       try
       {
-        sig_b64 = crypto::b64_from_raw(receipt_out.signature);
+        sig_b64 = ccf::crypto::b64_from_raw(receipt_out.signature);
       }
       catch (const std::exception& e)
       {

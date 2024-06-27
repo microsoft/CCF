@@ -591,19 +591,19 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
     startup_config.startup_host_time =
-      ds::to_x509_time_string(startup_host_time);
+      ::ds::to_x509_time_string(startup_host_time);
 
     if (config.command.type == StartType::Start)
     {
       for (auto const& m : config.command.start.members)
       {
-        std::optional<crypto::Pem> public_encryption_key = std::nullopt;
+        std::optional<ccf::crypto::Pem> public_encryption_key = std::nullopt;
         if (
           m.encryption_public_key_file.has_value() &&
           !m.encryption_public_key_file.value().empty())
         {
-          public_encryption_key =
-            crypto::Pem(files::slurp(m.encryption_public_key_file.value()));
+          public_encryption_key = ccf::crypto::Pem(
+            files::slurp(m.encryption_public_key_file.value()));
         }
 
         nlohmann::json md = nullptr;
@@ -613,7 +613,7 @@ int main(int argc, char** argv)
         }
 
         startup_config.start.members.emplace_back(
-          crypto::Pem(files::slurp(m.certificate_file)),
+          ccf::crypto::Pem(files::slurp(m.certificate_file)),
           public_encryption_key,
           md);
       }

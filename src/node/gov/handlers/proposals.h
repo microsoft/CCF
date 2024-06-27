@@ -418,15 +418,15 @@ namespace ccf::gov::endpoints
               return;
             }
 
-            auto hasher = crypto::make_incremental_sha256();
+            auto hasher = ccf::crypto::make_incremental_sha256();
             hasher->update_hash(root_at_read.value().h);
 
-            request_digest = crypto::sha256(
+            request_digest = ccf::crypto::sha256(
               cose_ident.signature.data(), cose_ident.signature.size());
 
             hasher->update_hash(request_digest);
 
-            const crypto::Sha256Hash proposal_hash = hasher->finalise();
+            const ccf::crypto::Sha256Hash proposal_hash = hasher->finalise();
             proposal_id = proposal_hash.hex_str();
           }
 

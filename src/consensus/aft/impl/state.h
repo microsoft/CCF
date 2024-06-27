@@ -135,7 +135,7 @@ namespace aft
   public:
     Replica(const ccf::NodeId& id_, const std::vector<uint8_t>& cert_) :
       id(id_),
-      verifier(crypto::make_unique_verifier(cert_))
+      verifier(ccf::crypto::make_unique_verifier(cert_))
     {}
 
     ccf::NodeId get_id() const
@@ -145,7 +145,7 @@ namespace aft
 
   private:
     ccf::NodeId id;
-    crypto::VerifierUniquePtr verifier;
+    ccf::crypto::VerifierUniquePtr verifier;
   };
 
   struct State

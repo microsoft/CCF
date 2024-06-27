@@ -225,7 +225,7 @@ namespace ccf::js::extensions
           fmt::format("Failed to get data for caller {}", id));
       }
 
-      crypto::Pem cert;
+      ccf::crypto::Pem cert;
       if (is_member)
       {
         result = registry->get_member_cert_v1(endpoint_ctx.tx, id, cert);

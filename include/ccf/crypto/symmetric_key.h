@@ -7,7 +7,7 @@
 #include <span>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   constexpr size_t GCM_DEFAULT_KEY_SIZE = 32;
 
@@ -44,7 +44,7 @@ namespace crypto
       return GCM_SIZE_TAG + IV_SIZE;
     }
 
-    void set_random_iv(EntropyPtr entropy = crypto::get_entropy())
+    void set_random_iv(EntropyPtr entropy = ccf::crypto::get_entropy())
     {
       iv = entropy->random(IV_SIZE);
     }

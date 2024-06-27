@@ -6,7 +6,7 @@
 
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   /** Compute the SHA256 hash of @p data
    * @param data The data to compute the hash of

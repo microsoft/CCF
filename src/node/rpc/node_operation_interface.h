@@ -56,6 +56,6 @@ namespace ccf
 
     virtual void initiate_private_recovery(kv::Tx& tx) = 0;
 
-    virtual crypto::Pem get_self_signed_node_certificate() = 0;
+    virtual ccf::crypto::Pem get_self_signed_node_certificate() = 0;
   };
 }

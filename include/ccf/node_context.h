@@ -66,7 +66,7 @@ namespace ccfapp
       return {};
     }
 
-    virtual crypto::Pem get_self_signed_certificate() const
+    virtual ccf::crypto::Pem get_self_signed_certificate() const
     {
       return {};
     }

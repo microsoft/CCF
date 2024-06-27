@@ -21,7 +21,7 @@ std::unique_ptr<threading::ThreadMessaging>
   threading::ThreadMessaging::singleton = nullptr;
 
 constexpr auto buffer_size = 1024 * 16;
-auto kp = crypto::make_key_pair();
+auto kp = ccf::crypto::make_key_pair();
 
 using StringString = kv::Map<std::string, std::string>;
 using rb_msg = std::pair<ringbuffer::Message, size_t>;
@@ -114,7 +114,7 @@ bool record_signature(
   size_t idx)
 {
   std::vector<uint8_t> dummy_signature(128, 43);
-  crypto::Pem node_cert;
+  ccf::crypto::Pem node_cert;
 
   bool requires_snapshot = snapshotter->record_committable(idx);
   snapshotter->record_signature(
@@ -523,11 +523,11 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
 int main(int argc, char** argv)
 {
   threading::ThreadMessaging::init(1);
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

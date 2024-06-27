@@ -5,7 +5,7 @@
 #include "ccf/crypto/sha256_hash.h"
 #include "ccf/service/map.h"
 
-using HostData = crypto::Sha256Hash;
+using HostData = ccf::crypto::Sha256Hash;
 using HostDataMetadata =
   std::string; // Optional raw (i.e. not base64-encoded) policy
 

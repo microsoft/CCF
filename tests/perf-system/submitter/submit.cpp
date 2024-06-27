@@ -25,7 +25,7 @@
 using namespace std;
 using namespace client;
 
-crypto::Pem key = {};
+ccf::crypto::Pem key = {};
 std::string key_id = "Invalid";
 std::shared_ptr<::tls::Cert> tls_cert = nullptr;
 
@@ -153,14 +153,14 @@ std::shared_ptr<RpcTlsClient> create_connection(
     const auto raw_key = files::slurp(certificates[1].c_str());
     const auto ca = files::slurp_string(certificates[2].c_str());
 
-    key = crypto::Pem(raw_key);
+    key = ccf::crypto::Pem(raw_key);
 
-    const crypto::Pem cert_pem(raw_cert);
-    auto cert_der = crypto::cert_pem_to_der(cert_pem);
-    key_id = crypto::Sha256Hash(cert_der).hex_str();
+    const ccf::crypto::Pem cert_pem(raw_cert);
+    auto cert_der = ccf::crypto::cert_pem_to_der(cert_pem);
+    key_id = ccf::crypto::Sha256Hash(cert_der).hex_str();
 
-    tls_cert =
-      std::make_shared<::tls::Cert>(std::make_shared<::tls::CA>(ca), cert_pem, key);
+    tls_cert = std::make_shared<::tls::Cert>(
+      std::make_shared<::tls::CA>(ca), cert_pem, key);
   }
 
   const auto [host, port] = ccf::split_net_address(server_address);
@@ -267,7 +267,7 @@ int main(int argc, char** argv)
 
   logger::config::default_init();
   logger::config::level() = LoggerLevel::INFO;
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   CLI::App cli_app{"Perf Tool"};
   ArgumentParser args("Perf Tool", cli_app);
   CLI11_PARSE(cli_app, argc, argv);
@@ -381,7 +381,7 @@ int main(int argc, char** argv)
   }
 
   store_parquet_results(args, data_handler);
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
 
   return 0;
 }

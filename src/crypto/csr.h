@@ -7,7 +7,7 @@
 
 #include <openssl/bio.h>
 
-namespace crypto
+namespace ccf::crypto
 {
   /** Extracts the public key from a certificate signing request (CSR).
    * @param signing_request CSR to extract the public key from

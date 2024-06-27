@@ -9,7 +9,7 @@
 
 namespace ccf
 {
-  using Nonce = crypto::Sha256Hash;
+  using Nonce = ccf::crypto::Sha256Hash;
 
   struct NodeSignature
   {

@@ -284,7 +284,7 @@ PICOBENCH(des_snap<1000>).iterations(map_count).samples(snapshot_sample_size);
 
 int main(int argc, char** argv)
 {
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
 
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);
