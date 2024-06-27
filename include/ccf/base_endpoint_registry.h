@@ -63,6 +63,47 @@ namespace ccf
     }
   }
 
+  /** Lists possible reasons for an ApiResult::InvalidArgs being return in @c
+   * ccf::BaseEndpointRegistry
+   */
+  enum class InvalidArgsReason
+  {
+    NoReason = 0,
+    /** Views start at 1 (one) in CCF */
+    ViewSmallerThanOne,
+    /** Action has already been applied on this instance */
+    ActionAlreadyApplied,
+    /** Action created_at is older than the median of recent action */
+    StaleActionCreatedTimestamp,
+  };
+
+  constexpr char const* invalid_args_reason_to_str(InvalidArgsReason reason)
+  {
+    switch (reason)
+    {
+      case InvalidArgsReason::NoReason:
+      {
+        return "NoReason";
+      }
+      case InvalidArgsReason::ViewSmallerThanOne:
+      {
+        return "ViewSmallerThanOne";
+      }
+      case InvalidArgsReason::ActionAlreadyApplied:
+      {
+        return "ActionAlreadyApplied";
+      }
+      case InvalidArgsReason::StaleActionCreatedTimestamp:
+      {
+        return "StaleActionCreatedTimestamp";
+      }
+      default:
+      {
+        return "Unhandled InvalidArgsReason";
+      }
+    }
+  }
+
   /** Extends the basic @ref ccf::endpoints::EndpointRegistry with helper API
    * methods for retrieving core CCF properties.
    *
@@ -95,6 +136,19 @@ namespace ccf
      */
     ApiResult get_view_history_v1(
       std::vector<ccf::TxID>& history, ccf::View since = 1);
+
+    /** Get the history of the consensus view changes.
+     *
+     * Returns the history of view changes since the given view, which defaults
+     * to the start of time.
+     *
+     * A view change is characterised by the first sequence number in the new
+     * view.
+     */
+    ApiResult get_view_history_v2(
+      std::vector<ccf::TxID>& history,
+      ccf::View since,
+      ccf::InvalidArgsReason& reason);
 
     /** Get the status of a transaction by ID, provided as a view+seqno pair.
      *

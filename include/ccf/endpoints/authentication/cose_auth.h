@@ -22,6 +22,12 @@ namespace ccf
     uint64_t gov_msg_created_at;
   };
 
+  struct TimestampedProtectedHeader : ProtectedHeader
+  {
+    std::optional<std::string> msg_type;
+    std::optional<uint64_t> msg_created_at;
+  };
+
   struct COSESign1AuthnIdentity : public AuthnIdentity
   {
     /** COSE Content */
@@ -83,7 +89,7 @@ namespace ccf
     crypto::Pem user_cert;
 
     /** COSE Protected Header */
-    ProtectedHeader protected_header;
+    TimestampedProtectedHeader protected_header;
 
     UserCOSESign1AuthnIdentity(
       const std::span<const uint8_t>& content_,
@@ -91,7 +97,7 @@ namespace ccf
       const std::span<const uint8_t>& signature_,
       const UserId& user_id_,
       const crypto::Pem& user_cert_,
-      const ProtectedHeader& protected_header_) :
+      const TimestampedProtectedHeader& protected_header_) :
       COSESign1AuthnIdentity(content_, envelope_, signature_),
       user_id(user_id_),
       user_cert(user_cert_),
@@ -163,16 +169,32 @@ namespace ccf
   };
 
   /** User COSE Sign1 Authentication Policy
+   *
+   * Allows parametrising two optional protected header entries
+   * which are exposed to the endpoint if present.
    */
   class UserCOSESign1AuthnPolicy : public AuthnPolicy
   {
+    std::string msg_type_name;
+    std::string msg_created_at_name;
+
   protected:
     static const OpenAPISecuritySchema security_schema;
+
+    virtual std::unique_ptr<UserCOSESign1AuthnIdentity> _authenticate(
+      kv::ReadOnlyTx& tx,
+      const std::shared_ptr<ccf::RpcContext>& ctx,
+      std::string& error_reason);
 
   public:
     static constexpr auto SECURITY_SCHEME_NAME = "user_cose_sign1";
 
-    UserCOSESign1AuthnPolicy();
+    UserCOSESign1AuthnPolicy(
+      const std::string& msg_type_name_ = "ccf.msg.type",
+      const std::string& msg_created_at_name_ = "ccf.msg.created_at") :
+      msg_type_name(msg_type_name_),
+      msg_created_at_name(msg_created_at_name_)
+    {}
     ~UserCOSESign1AuthnPolicy();
 
     std::unique_ptr<AuthnIdentity> authenticate(
@@ -189,6 +211,38 @@ namespace ccf
     {
       return security_schema;
     }
+
+    std::string get_security_scheme_name() override
+    {
+      return SECURITY_SCHEME_NAME;
+    }
+  };
+
+  /** Typed User COSE Sign1 Authentication Policy
+   *
+   * Extends UserCOSESign1AuthPolicy, to require that a specific message
+   * type is present in the corresponding protected header.
+   */
+  class TypedUserCOSESign1AuthnPolicy : public UserCOSESign1AuthnPolicy
+  {
+  private:
+    std::string expected_msg_type;
+
+  public:
+    static constexpr auto SECURITY_SCHEME_NAME = "typed_user_cose_sign1";
+
+    TypedUserCOSESign1AuthnPolicy(
+      const std::string& expected_msg_type_,
+      const std::string& msg_type_name_ = "ccf.msg.type",
+      const std::string& msg_created_at_name_ = "ccf.msg.created_at") :
+      UserCOSESign1AuthnPolicy(msg_type_name_, msg_created_at_name_),
+      expected_msg_type(expected_msg_type_)
+    {}
+
+    std::unique_ptr<AuthnIdentity> authenticate(
+      kv::ReadOnlyTx& tx,
+      const std::shared_ptr<ccf::RpcContext>& ctx,
+      std::string& error_reason) override;
 
     std::string get_security_scheme_name() override
     {

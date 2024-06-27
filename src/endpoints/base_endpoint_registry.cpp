@@ -18,8 +18,10 @@ namespace ccf
     context(context_)
   {}
 
-  ApiResult BaseEndpointRegistry::get_view_history_v1(
-    std::vector<ccf::TxID>& history, ccf::View since)
+  ApiResult BaseEndpointRegistry::get_view_history_v2(
+    std::vector<ccf::TxID>& history,
+    ccf::View since,
+    ccf::InvalidArgsReason& reason)
   {
     try
     {
@@ -27,7 +29,7 @@ namespace ccf
       {
         if (since < 1)
         {
-          // views start at 1
+          reason = ccf::InvalidArgsReason::ViewSmallerThanOne;
           return ApiResult::InvalidArgs;
         }
         auto latest_view = consensus->get_view();
@@ -52,6 +54,13 @@ namespace ccf
       LOG_TRACE_FMT("{}", e.what());
       return ApiResult::InternalError;
     }
+  }
+
+  ApiResult BaseEndpointRegistry::get_view_history_v1(
+    std::vector<ccf::TxID>& history, ccf::View since)
+  {
+    ccf::InvalidArgsReason ignored;
+    return get_view_history_v2(history, since, ignored);
   }
 
   ApiResult BaseEndpointRegistry::get_status_for_txid_v1(
