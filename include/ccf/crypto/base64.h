@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   std::vector<uint8_t> raw_from_b64(const std::string_view& b64_string);
 

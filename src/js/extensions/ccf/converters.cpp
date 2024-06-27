@@ -179,9 +179,9 @@ namespace ccf::js::extensions
 
       try
       {
-        auto pem = crypto::Pem(*pem_str);
-        auto der = crypto::make_verifier(pem)->cert_der();
-        auto id = crypto::Sha256Hash(der).hex_str();
+        auto pem = ccf::crypto::Pem(*pem_str);
+        auto der = ccf::crypto::make_verifier(pem)->cert_der();
+        auto id = ccf::crypto::Sha256Hash(der).hex_str();
 
         return JS_NewString(ctx, id.c_str());
       }

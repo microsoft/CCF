@@ -11,7 +11,7 @@
 #include <chrono>
 #include <openssl/x509.h>
 
-namespace crypto
+namespace ccf::crypto
 {
   class COSEVerifier_OpenSSL : public COSEVerifier
   {

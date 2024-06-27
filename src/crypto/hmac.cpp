@@ -6,7 +6,7 @@
 
 #include <openssl/hmac.h>
 
-namespace crypto
+namespace ccf::crypto
 {
   namespace OpenSSL
   {

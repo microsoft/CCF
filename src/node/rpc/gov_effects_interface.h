@@ -20,8 +20,8 @@ namespace ccf
 
     struct ServiceIdentities
     {
-      std::optional<crypto::Pem> previous;
-      crypto::Pem next;
+      std::optional<ccf::crypto::Pem> previous;
+      ccf::crypto::Pem next;
     };
 
     virtual void transition_service_to_open(

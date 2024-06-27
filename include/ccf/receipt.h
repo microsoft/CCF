@@ -22,12 +22,12 @@ namespace ccf
 
     // Signature over the root digest, signed by the identity described in cert
     std::vector<uint8_t> signature = {};
-    virtual crypto::Sha256Hash calculate_root() = 0;
+    virtual ccf::crypto::Sha256Hash calculate_root() = 0;
 
     ccf::NodeId node_id = {};
-    crypto::Pem cert = {};
+    ccf::crypto::Pem cert = {};
 
-    std::vector<crypto::Pem> service_endorsements = {};
+    std::vector<ccf::crypto::Pem> service_endorsements = {};
 
     virtual bool is_signature_transaction() const = 0;
   };
@@ -42,7 +42,7 @@ namespace ccf
   public:
     struct Components
     {
-      crypto::Sha256Hash write_set_digest;
+      ccf::crypto::Sha256Hash write_set_digest;
       std::string commit_evidence;
       ccf::ClaimsDigest claims_digest;
     };
@@ -56,7 +56,7 @@ namespace ccf
         Right
       } direction;
 
-      crypto::Sha256Hash hash = {};
+      ccf::crypto::Sha256Hash hash = {};
 
       bool operator==(const ProofStep& other) const
       {
@@ -68,7 +68,7 @@ namespace ccf
     // A merkle-tree path from the leaf digest to the signed root
     Proof proof = {};
 
-    crypto::Sha256Hash calculate_root() override
+    ccf::crypto::Sha256Hash calculate_root() override
     {
       auto current = get_leaf_digest();
 
@@ -76,30 +76,31 @@ namespace ccf
       {
         if (element.direction == ProofStep::Left)
         {
-          current = crypto::Sha256Hash(element.hash, current);
+          current = ccf::crypto::Sha256Hash(element.hash, current);
         }
         else
         {
-          current = crypto::Sha256Hash(current, element.hash);
+          current = ccf::crypto::Sha256Hash(current, element.hash);
         }
       }
 
       return current;
     }
 
-    crypto::Sha256Hash get_leaf_digest()
+    ccf::crypto::Sha256Hash get_leaf_digest()
     {
-      crypto::Sha256Hash ce_dgst(leaf_components.commit_evidence);
+      ccf::crypto::Sha256Hash ce_dgst(leaf_components.commit_evidence);
       if (!leaf_components.claims_digest.empty())
       {
-        return crypto::Sha256Hash(
+        return ccf::crypto::Sha256Hash(
           leaf_components.write_set_digest,
           ce_dgst,
           leaf_components.claims_digest.value());
       }
       else
       {
-        return crypto::Sha256Hash(leaf_components.write_set_digest, ce_dgst);
+        return ccf::crypto::Sha256Hash(
+          leaf_components.write_set_digest, ce_dgst);
       }
     }
 
@@ -114,9 +115,9 @@ namespace ccf
   class SignatureReceipt : public Receipt
   {
   public:
-    crypto::Sha256Hash signed_root = {};
+    ccf::crypto::Sha256Hash signed_root = {};
 
-    crypto::Sha256Hash calculate_root() override
+    ccf::crypto::Sha256Hash calculate_root() override
     {
       return signed_root;
     };

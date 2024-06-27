@@ -80,7 +80,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   }
 
   auto thread_fn = [](void* a) {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     auto args = static_cast<ThreadArgs*>(a);
 
     for (size_t i = 0u; i < tx_count; ++i)
@@ -139,7 +139,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 
     // Notify that this thread has finished
     --*args->counter;
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   // Start a thread which continually compacts at the latest version, until all
@@ -268,7 +268,7 @@ DOCTEST_TEST_CASE(
   std::atomic<size_t> conflict_count = 0;
 
   auto point_at_previous_write = [&]() {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     auto sleep_time = std::chrono::microseconds(5);
     while (true)
     {
@@ -310,7 +310,7 @@ DOCTEST_TEST_CASE(
       sleep_time =
         std::chrono::microseconds((size_t)(sleep_time.count() * factor));
     }
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   std::vector<std::thread> threads;

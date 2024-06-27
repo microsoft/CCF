@@ -21,7 +21,7 @@ namespace ccf
     std::vector<uint8_t> request_body = {};
 
     /// Hashing algorithm used to summarise content before signature
-    crypto::MDType md = crypto::MDType::NONE;
+    ccf::crypto::MDType md = ccf::crypto::MDType::NONE;
 
     /// Signer key id, if present in the request
     std::string key_id = {};

@@ -12,7 +12,7 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
-namespace crypto
+namespace ccf::crypto
 {
   namespace OpenSSL
   {

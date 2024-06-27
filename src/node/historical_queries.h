@@ -133,7 +133,7 @@ namespace ccf::historical
     {
       std::chrono::milliseconds time_until_fetch = {};
       RequestStage current_stage = RequestStage::Fetching;
-      crypto::Sha256Hash entry_digest = {};
+      ccf::crypto::Sha256Hash entry_digest = {};
       ccf::ClaimsDigest claims_digest = {};
       kv::StorePtr store = nullptr;
       bool is_signature = false;
@@ -141,7 +141,7 @@ namespace ccf::historical
       ccf::TxID transaction_id;
       bool has_commit_evidence = false;
 
-      crypto::HashBytes get_commit_nonce()
+      ccf::crypto::HashBytes get_commit_nonce()
       {
         if (store != nullptr)
         {
@@ -569,7 +569,7 @@ namespace ccf::historical
     void process_deserialised_store(
       const StoreDetailsPtr& details,
       const kv::StorePtr& store,
-      const crypto::Sha256Hash& entry_digest,
+      const ccf::crypto::Sha256Hash& entry_digest,
       ccf::SeqNo seqno,
       bool is_signature,
       ccf::ClaimsDigest&& claims_digest,
@@ -1084,7 +1084,7 @@ namespace ccf::historical
         "Processing historical store at {} ({})",
         seqno,
         (size_t)deserialise_result);
-      const auto entry_digest = crypto::Sha256Hash({data, size});
+      const auto entry_digest = ccf::crypto::Sha256Hash({data, size});
       process_deserialised_store(
         details,
         store,

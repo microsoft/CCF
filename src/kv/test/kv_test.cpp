@@ -2040,8 +2040,8 @@ TEST_CASE("Deserialise return status")
   ccf::Nodes nodes(ccf::Tables::NODES);
   MapTypes::NumNum data("public:data");
 
-  constexpr auto default_curve = crypto::CurveID::SECP384R1;
-  auto kp = crypto::make_key_pair(default_curve);
+  constexpr auto default_curve = ccf::crypto::CurveID::SECP384R1;
+  auto kp = ccf::crypto::make_key_pair(default_curve);
 
   auto history =
     std::make_shared<ccf::NullTxHistory>(store, kv::test::PrimaryNodeId, *kp);
@@ -3140,8 +3140,8 @@ TEST_CASE("Ledger entry chunk request")
   ccf::Nodes nodes(ccf::Tables::NODES);
   MapTypes::NumNum data("public:data");
 
-  constexpr auto default_curve = crypto::CurveID::SECP384R1;
-  auto kp = crypto::make_key_pair(default_curve);
+  constexpr auto default_curve = ccf::crypto::CurveID::SECP384R1;
+  auto kp = ccf::crypto::make_key_pair(default_curve);
 
   auto history =
     std::make_shared<ccf::NullTxHistory>(store, kv::test::PrimaryNodeId, *kp);
@@ -3310,11 +3310,11 @@ TEST_CASE("Ledger entry chunk request")
 int main(int argc, char** argv)
 {
   logger::config::default_init();
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

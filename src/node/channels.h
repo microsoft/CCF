@@ -94,7 +94,7 @@ FMT_END_NAMESPACE
 namespace ccf
 {
   using MsgNonce = uint64_t;
-  using GcmHdr = crypto::FixedSizeGcmHeader<sizeof(MsgNonce)>;
+  using GcmHdr = ccf::crypto::FixedSizeGcmHeader<sizeof(MsgNonce)>;
 
   // Receive nonces were previously stored per-thread. For backwards
   // compatibility (live communication with nodes still using this format), we
@@ -184,11 +184,11 @@ namespace ccf
     ccf::pal::Mutex lock;
 
     NodeId self;
-    const crypto::Pem& service_cert;
-    crypto::KeyPairPtr node_kp;
-    const crypto::Pem& node_cert;
-    crypto::VerifierPtr peer_cv;
-    crypto::Pem peer_cert;
+    const ccf::crypto::Pem& service_cert;
+    ccf::crypto::KeyPairPtr node_kp;
+    const ccf::crypto::Pem& node_cert;
+    ccf::crypto::VerifierPtr peer_cv;
+    ccf::crypto::Pem peer_cert;
 
     ringbuffer::WriterPtr to_host;
     NodeId peer_id;
@@ -203,8 +203,8 @@ namespace ccf
     size_t message_limit;
 
     // Used for AES GCM authentication/encryption
-    std::unique_ptr<crypto::KeyAesGcm> recv_key = nullptr;
-    std::unique_ptr<crypto::KeyAesGcm> send_key = nullptr;
+    std::unique_ptr<ccf::crypto::KeyAesGcm> recv_key = nullptr;
+    std::unique_ptr<ccf::crypto::KeyAesGcm> send_key = nullptr;
 
     // Incremented for each tagged/encrypted message
     std::atomic<MsgNonce> send_nonce{1};
@@ -485,8 +485,8 @@ namespace ccf
       }
 
       // Validate cert and signature in message
-      crypto::Pem cert;
-      crypto::VerifierPtr verifier;
+      ccf::crypto::Pem cert;
+      ccf::crypto::VerifierPtr verifier;
       if (!verify_peer_certificate(pc, cert, verifier))
       {
         CHANNEL_RECV_FAIL(
@@ -594,8 +594,8 @@ namespace ccf
       }
 
       // Validate cert and signature in message
-      crypto::Pem cert;
-      crypto::VerifierPtr verifier;
+      ccf::crypto::Pem cert;
+      ccf::crypto::VerifierPtr verifier;
       if (!verify_peer_certificate(pc, cert, verifier))
       {
         CHANNEL_RECV_FAIL(
@@ -712,13 +712,13 @@ namespace ccf
 
     bool verify_peer_certificate(
       std::span<const uint8_t> pc,
-      crypto::Pem& cert,
-      crypto::VerifierPtr& verifier)
+      ccf::crypto::Pem& cert,
+      ccf::crypto::VerifierPtr& verifier)
     {
       if (!pc.empty())
       {
-        cert = crypto::Pem(pc);
-        verifier = crypto::make_verifier(cert);
+        cert = ccf::crypto::Pem(pc);
+        verifier = ccf::crypto::make_verifier(cert);
 
         // 'true' is `ignore_time` => These node-to-node channels do not care
         // about certificate times, and should still pass even when given
@@ -745,7 +745,7 @@ namespace ccf
     bool verify_peer_signature(
       std::span<const uint8_t> msg,
       std::span<const uint8_t> sig,
-      crypto::VerifierPtr verifier)
+      ccf::crypto::VerifierPtr verifier)
     {
       CHANNEL_RECV_TRACE(
         "Verifying peer signature with peer certificate serial {}",
@@ -764,13 +764,13 @@ namespace ccf
       const std::string label_to = self.value() + peer_id.value();
       const std::span<const uint8_t> label(
         reinterpret_cast<const uint8_t*>(label_to.c_str()), label_to.size());
-      const auto key_bytes = crypto::hkdf(
-        crypto::MDType::SHA256,
+      const auto key_bytes = ccf::crypto::hkdf(
+        ccf::crypto::MDType::SHA256,
         shared_key_size,
         kex_ctx.get_shared_secret(),
         hkdf_salt,
         label);
-      send_key = crypto::make_key_aes_gcm(key_bytes);
+      send_key = ccf::crypto::make_key_aes_gcm(key_bytes);
 
       send_nonce = 1;
     }
@@ -781,13 +781,13 @@ namespace ccf
       const std::span<const uint8_t> label(
         reinterpret_cast<const uint8_t*>(label_from.c_str()),
         label_from.size());
-      const auto key_bytes = crypto::hkdf(
-        crypto::MDType::SHA256,
+      const auto key_bytes = ccf::crypto::hkdf(
+        ccf::crypto::MDType::SHA256,
         shared_key_size,
         kex_ctx.get_shared_secret(),
         hkdf_salt,
         label);
-      recv_key = crypto::make_key_aes_gcm(key_bytes);
+      recv_key = ccf::crypto::make_key_aes_gcm(key_bytes);
 
       local_recv_nonce = 0;
     }
@@ -832,7 +832,7 @@ namespace ccf
       peer_cert = {};
       peer_cv.reset();
 
-      auto e = crypto::get_entropy();
+      auto e = ccf::crypto::get_entropy();
       hkdf_salt = e->random(salt_len);
 
       // As a future simplification, we would like this to always be true
@@ -855,7 +855,7 @@ namespace ccf
       peer_cert = {};
       peer_cv.reset();
 
-      auto e = crypto::get_entropy();
+      auto e = ccf::crypto::get_entropy();
       hkdf_salt = e->random(salt_len);
     }
 
@@ -958,9 +958,9 @@ namespace ccf
 
     Channel(
       ringbuffer::AbstractWriterFactory& writer_factory,
-      const crypto::Pem& service_cert_,
-      crypto::KeyPairPtr node_kp_,
-      const crypto::Pem& node_cert_,
+      const ccf::crypto::Pem& service_cert_,
+      ccf::crypto::KeyPairPtr node_kp_,
+      const ccf::crypto::Pem& node_cert_,
       const NodeId& self_,
       const NodeId& peer_id_,
       size_t message_limit_) :
@@ -973,7 +973,7 @@ namespace ccf
       status(fmt::format("Channel to {}", peer_id_), INACTIVE),
       message_limit(message_limit_)
     {
-      auto e = crypto::get_entropy();
+      auto e = ccf::crypto::get_entropy();
       hkdf_salt = e->random(salt_len);
     }
 

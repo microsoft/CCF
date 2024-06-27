@@ -85,10 +85,10 @@ namespace ccf::js::extensions
       {
         return ccf::js::core::constants::Exception;
       }
-      crypto::Pem csr;
+      ccf::crypto::Pem csr;
       try
       {
-        csr = crypto::Pem(*csr_cstr);
+        csr = ccf::crypto::Pem(*csr_cstr);
       }
       catch (const std::exception& e)
       {

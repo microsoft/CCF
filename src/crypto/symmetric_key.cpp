@@ -10,7 +10,7 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 
-namespace crypto
+namespace ccf::crypto
 {
   /// GcmHeader implementation
   GcmHeader::GcmHeader(size_t iv_size)

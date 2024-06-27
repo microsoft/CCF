@@ -75,7 +75,7 @@ namespace ccf
       return mi->status == MemberStatus::ACTIVE;
     }
 
-    static std::map<MemberId, crypto::Pem> get_active_recovery_members(
+    static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_members(
       kv::ReadOnlyTx& tx)
     {
       auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
@@ -83,7 +83,7 @@ namespace ccf
         tx.ro<ccf::MemberPublicEncryptionKeys>(
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-      std::map<MemberId, crypto::Pem> active_recovery_members;
+      std::map<MemberId, ccf::crypto::Pem> active_recovery_members;
 
       member_encryption_public_keys->foreach(
         [&active_recovery_members,
@@ -112,8 +112,8 @@ namespace ccf
       auto signatures = tx.ro<ccf::Signatures>(Tables::SIGNATURES);
 
       auto member_cert_der =
-        crypto::make_verifier(member_pub_info.cert)->cert_der();
-      auto id = crypto::Sha256Hash(member_cert_der).hex_str();
+        ccf::crypto::make_verifier(member_pub_info.cert)->cert_der();
+      auto id = ccf::crypto::Sha256Hash(member_cert_der).hex_str();
 
       auto member = member_certs->get(id);
       if (member.has_value())
@@ -234,8 +234,9 @@ namespace ccf
     {
       auto user_certs = tx.rw<ccf::UserCerts>(Tables::USER_CERTS);
 
-      auto user_cert_der = crypto::make_verifier(new_user.cert)->cert_der();
-      auto id = crypto::Sha256Hash(user_cert_der).hex_str();
+      auto user_cert_der =
+        ccf::crypto::make_verifier(new_user.cert)->cert_der();
+      auto id = ccf::crypto::Sha256Hash(user_cert_der).hex_str();
 
       auto user_cert = user_certs->get(id);
       if (user_cert.has_value())
@@ -315,7 +316,7 @@ namespace ccf
     // Service status should use a state machine, very much like NodeState.
     static void create_service(
       kv::Tx& tx,
-      const crypto::Pem& service_cert,
+      const ccf::crypto::Pem& service_cert,
       ccf::TxID create_txid,
       nlohmann::json service_data = nullptr,
       bool recovering = false)
@@ -347,7 +348,7 @@ namespace ccf
     }
 
     static bool is_service_created(
-      kv::ReadOnlyTx& tx, const crypto::Pem& expected_service_cert)
+      kv::ReadOnlyTx& tx, const ccf::crypto::Pem& expected_service_cert)
     {
       auto service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
       return service.has_value() && service->cert == expected_service_cert;
@@ -484,7 +485,7 @@ namespace ccf
       if (security_policy.has_value())
       {
         auto raw_security_policy =
-          crypto::raw_from_b64(security_policy.value());
+          ccf::crypto::raw_from_b64(security_policy.value());
         host_data_table->put(
           host_data, {raw_security_policy.begin(), raw_security_policy.end()});
       }

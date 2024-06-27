@@ -251,10 +251,10 @@ namespace ccf
   }
 
   static std::span<const uint8_t> verify_uvm_endorsements_signature(
-    const crypto::Pem& leaf_cert_pub_key,
+    const ccf::crypto::Pem& leaf_cert_pub_key,
     const std::vector<uint8_t>& uvm_endorsements_raw)
   {
-    auto verifier = crypto::make_cose_verifier_from_key(leaf_cert_pub_key);
+    auto verifier = ccf::crypto::make_cose_verifier_from_key(leaf_cert_pub_key);
 
     std::span<uint8_t> payload;
     if (!verifier->verify(uvm_endorsements_raw, payload))
@@ -282,7 +282,7 @@ namespace ccf
     std::string pem_chain;
     for (auto const& c : phdr.x5_chain)
     {
-      pem_chain += crypto::cert_der_to_pem(c).str();
+      pem_chain += ccf::crypto::cert_der_to_pem(c).str();
     }
 
     const auto& did = phdr.iss;
@@ -297,25 +297,26 @@ namespace ccf
         did_document_str));
     }
 
-    crypto::Pem pubk;
+    ccf::crypto::Pem pubk;
     for (auto const& vm : did_document.verification_method)
     {
       if (vm.controller == did && vm.public_key_jwk.has_value())
       {
-        auto jwk = vm.public_key_jwk.value().get<crypto::JsonWebKey>();
+        auto jwk = vm.public_key_jwk.value().get<ccf::crypto::JsonWebKey>();
         switch (jwk.kty)
         {
-          case crypto::JsonWebKeyType::RSA:
+          case ccf::crypto::JsonWebKeyType::RSA:
           {
             auto rsa_jwk =
-              vm.public_key_jwk->get<crypto::JsonWebKeyRSAPublic>();
-            pubk = crypto::make_rsa_public_key(rsa_jwk)->public_key_pem();
+              vm.public_key_jwk->get<ccf::crypto::JsonWebKeyRSAPublic>();
+            pubk = ccf::crypto::make_rsa_public_key(rsa_jwk)->public_key_pem();
             break;
           }
-          case crypto::JsonWebKeyType::EC:
+          case ccf::crypto::JsonWebKeyType::EC:
           {
-            auto ec_jwk = vm.public_key_jwk->get<crypto::JsonWebKeyECPublic>();
-            pubk = crypto::make_public_key(ec_jwk)->public_key_pem();
+            auto ec_jwk =
+              vm.public_key_jwk->get<ccf::crypto::JsonWebKeyECPublic>();
+            pubk = ccf::crypto::make_public_key(ec_jwk)->public_key_pem();
             break;
           }
           default:

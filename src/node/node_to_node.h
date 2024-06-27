@@ -98,12 +98,12 @@ namespace ccf
 
     virtual void initialize(
       const NodeId& self_id,
-      const crypto::Pem& service_cert,
-      crypto::KeyPairPtr node_kp,
-      const std::optional<crypto::Pem>& node_cert = std::nullopt) = 0;
+      const ccf::crypto::Pem& service_cert,
+      ccf::crypto::KeyPairPtr node_kp,
+      const std::optional<ccf::crypto::Pem>& node_cert = std::nullopt) = 0;
 
     virtual void set_endorsed_node_cert(
-      const crypto::Pem& endorsed_node_cert) = 0;
+      const ccf::crypto::Pem& endorsed_node_cert) = 0;
 
     virtual bool send_encrypted(
       const NodeId& to,
