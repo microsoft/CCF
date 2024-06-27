@@ -461,7 +461,7 @@ namespace loggingapp
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
       // According to manual obvervation it's enough to start evicting old
-      // requests on historical perf test, but not to small to get stuck because
+      // requests on historical perf test, but not too small to get stuck because
       // of a single request being larget than the cache.
       //
       // A much better approach would be to create a new endpoint for
