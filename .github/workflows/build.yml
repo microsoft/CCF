@@ -71,7 +71,7 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
-          ./tests.sh --timeout 480 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite"
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite"
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
 
@@ -87,5 +87,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-${{ matrix.platform.name }}
-          path: build/workspace/
-        if: "(success() || failure()) && ${{ matrix.platform.name }} != 'snp'" # Needs 1ES Pool support
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+          if-no-files-found: ignore
+        if: success() || failure()
