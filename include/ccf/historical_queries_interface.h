@@ -82,7 +82,7 @@ namespace ccf::historical
       ExpiryDuration seconds_until_expiry) = 0;
 
     /** Set the cache limit (in bytes) to evict least recently used requests
-     * from the cache after it's size grows beyond this limit. The limit is not
+     * from the cache after its size grows beyond this limit. The limit is not
      * strict. It is estimated based on serialized states' sizes approximation
      * and is checked once per tick, and so it can overflow for a short time.
      */
