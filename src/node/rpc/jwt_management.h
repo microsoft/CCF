@@ -49,8 +49,8 @@ namespace ccf
     // setting keys from issuer A which will be used to validate iss claims for
     // issuer B, so this doesn't make sense (at least for now).
 
-    const auto issuer_domain = http::parse_url_full(issuer).host;
-    const auto constraint_domain = http::parse_url_full(constraint).host;
+    const auto issuer_domain = ::http::parse_url_full(issuer).host;
+    const auto constraint_domain = ::http::parse_url_full(constraint).host;
 
     if (constraint_domain.empty())
     {

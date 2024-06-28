@@ -49,7 +49,7 @@ namespace asynchost
              thread_id,
              msg] = ringbuffer::read_message<AdminMessage::log_msg>(data, size);
 
-          logger::LogLine ll(
+          ccf::logger::LogLine ll(
             log_level, tag, file_name.c_str(), line_number, thread_id);
           ll.msg = msg;
 
@@ -76,7 +76,7 @@ namespace asynchost
             offset_time = enclave_time_s - host_time_s;
           }
 
-          auto& loggers = logger::config::loggers();
+          auto& loggers = ccf::logger::config::loggers();
           for (auto const& logger : loggers)
           {
             logger->write(ll, offset_time);
