@@ -58,7 +58,7 @@ TEST_CASE("Framework logging macros")
 
   {
     REQUIRE(logs.empty());
-    REQUIRE_THROWS(LOG_FATAL_FMT("Hello C"));
+    LOG_FATAL_FMT("Hello C");
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];
@@ -109,7 +109,7 @@ TEST_CASE("Application logging macros")
 
   {
     REQUIRE(logs.empty());
-    REQUIRE_THROWS(CCF_APP_FATAL("Hello C"));
+    CCF_APP_FATAL("Hello C");
     REQUIRE(logs.size() == 1);
 
     const auto& log = logs[0];

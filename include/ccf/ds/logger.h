@@ -324,13 +324,6 @@ namespace logger
         logger->write(line);
       }
 
-#ifndef INSIDE_ENCLAVE
-      if (line.log_level == LoggerLevel::FATAL)
-      {
-        throw std::logic_error("Fatal: " + format_to_text(line));
-      }
-#endif
-
       return true;
     }
   };

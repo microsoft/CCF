@@ -32,6 +32,7 @@ namespace client
     if (core_id > threads || core_id < 0)
     {
       LOG_FATAL_FMT("Invalid core id: {}", core_id);
+      abort();
       return false;
     }
 
@@ -43,6 +44,7 @@ namespace client
     if (sched_setaffinity(0, sizeof(cpu_set_t), &set) < 0)
     {
       LOG_FATAL_FMT("Unable to set affinity");
+      abort();
       return false;
     }
 
@@ -412,11 +414,11 @@ namespace client
       return r.status == HTTP_STATUS_OK;
     }
 
-    virtual void pre_creation_hook(){};
-    virtual void post_creation_hook(){};
+    virtual void pre_creation_hook() {};
+    virtual void post_creation_hook() {};
 
-    virtual void pre_timing_body_hook(){};
-    virtual void post_timing_body_hook(){};
+    virtual void pre_timing_body_hook() {};
+    virtual void post_timing_body_hook() {};
 
     virtual timing::Results call_raw_batch(
       std::shared_ptr<RpcTlsClient>& connection, const PreparedTxs& txs)

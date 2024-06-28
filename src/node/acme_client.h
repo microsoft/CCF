@@ -351,7 +351,7 @@ namespace ACME
             }
             catch (const std::exception& ex)
             {
-              LOG_FATAL_FMT("ACME: request callback failed: {}", ex.what());
+              LOG_FAIL_FMT("ACME: request callback failed: {}", ex.what());
               return false;
             }
           });
@@ -803,8 +803,7 @@ namespace ACME
             }
             else
             {
-              LOG_FATAL_FMT(
-                "ACME: unknown order status '{}', aborting", status);
+              LOG_FAIL_FMT("ACME: unknown order status '{}', aborting", status);
               guard.unlock();
               remove_order(*order_url_opt);
             }

@@ -62,19 +62,6 @@ void print_version(size_t)
   exit(0);
 }
 
-std::string read_required_environment_variable(
-  const std::string& envvar, const std::string& name)
-{
-  auto ev = std::getenv(envvar.c_str());
-  if (ev == nullptr)
-  {
-    LOG_FATAL_FMT(
-      "Environment variable \"{}\" for {} is not set", envvar, name);
-  }
-  LOG_INFO_FMT("Reading {} from environment {}", name, envvar);
-  return ev;
-}
-
 int main(int argc, char** argv)
 {
   // ignore SIGPIPE
@@ -675,6 +662,7 @@ int main(int argc, char** argv)
     else
     {
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
+      return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
     std::vector<uint8_t> startup_snapshot = {};
