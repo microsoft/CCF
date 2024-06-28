@@ -21,9 +21,9 @@ namespace ccf::js::extensions
   class GovEffectsExtension : public ExtensionInterface
   {
   public:
-    kv::Tx* tx;
+    ccf::kv::Tx* tx;
 
-    GovEffectsExtension(kv::Tx* t) : tx(t) {}
+    GovEffectsExtension(ccf::kv::Tx* t) : tx(t) {}
 
     void install(js::core::Context& ctx) override;
   };

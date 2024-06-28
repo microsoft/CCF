@@ -13,5 +13,5 @@ namespace ccfapp
    * @return an optional claims digest
    */
   std::optional<ccf::ClaimsDigest::Digest> get_create_tx_claims_digest(
-    kv::ReadOnlyTx& tx)
+    ccf::kv::ReadOnlyTx& tx)
 }

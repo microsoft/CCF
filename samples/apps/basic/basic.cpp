@@ -18,7 +18,7 @@ using namespace nlohmann;
 
 namespace basicapp
 {
-  using RecordsMap = kv::Map<string, std::vector<uint8_t>>;
+  using RecordsMap = ccf::kv::Map<string, std::vector<uint8_t>>;
   static constexpr auto PRIVATE_RECORDS = "records";
 
   class BasicHandlers : public ccf::UserEndpointRegistry

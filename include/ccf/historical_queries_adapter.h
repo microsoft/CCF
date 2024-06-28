@@ -9,7 +9,7 @@
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
 
-namespace kv
+namespace ccf::kv
 {
   class Consensus;
 }
@@ -51,7 +51,7 @@ namespace ccf::historical
     ccf::View view, ccf::SeqNo seqno, std::string& error_reason)>;
 
   HistoricalTxStatus is_tx_committed_v2(
-    kv::Consensus* consensus,
+    ccf::kv::Consensus* consensus,
     ccf::View view,
     ccf::SeqNo seqno,
     std::string& error_reason);

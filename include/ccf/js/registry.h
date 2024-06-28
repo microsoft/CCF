@@ -84,7 +84,7 @@ namespace ccf::js
      * later be dispatched to.
      */
     ccf::ApiResult install_custom_endpoints_v1(
-      kv::Tx& tx, const ccf::js::Bundle& bundle);
+      ccf::kv::Tx& tx, const ccf::js::Bundle& bundle);
 
     /**
      * Retrieve all endpoint definitions currently in-use. This returns the same
@@ -93,14 +93,14 @@ namespace ccf::js
      * due to internal normalisation.
      */
     ccf::ApiResult get_custom_endpoints_v1(
-      ccf::js::Bundle& bundle, kv::ReadOnlyTx& tx);
+      ccf::js::Bundle& bundle, ccf::kv::ReadOnlyTx& tx);
 
     /**
      * Retrieve property definition for a single JS endpoint.
      */
     ccf::ApiResult get_custom_endpoint_properties_v1(
       ccf::endpoints::EndpointProperties& properties,
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const ccf::RESTVerb& verb,
       const ccf::endpoints::URI& uri);
 
@@ -108,7 +108,9 @@ namespace ccf::js
      * Retrieve content of a single JS module.
      */
     ccf::ApiResult get_custom_endpoint_module_v1(
-      std::string& code, kv::ReadOnlyTx& tx, const std::string& module_name);
+      std::string& code,
+      ccf::kv::ReadOnlyTx& tx,
+      const std::string& module_name);
 
     /**
      * Pass a function to control which maps can be accessed by JS endpoints.
@@ -121,7 +123,7 @@ namespace ccf::js
      * bound any values specified here.
      */
     ccf::ApiResult set_js_runtime_options_v1(
-      kv::Tx& tx, const ccf::JSRuntimeOptions& options);
+      ccf::kv::Tx& tx, const ccf::JSRuntimeOptions& options);
 
     /**
      * Get the options which currently control JS execution. If no value has
@@ -129,14 +131,14 @@ namespace ccf::js
      * which will be applied instead.
      */
     ccf::ApiResult get_js_runtime_options_v1(
-      ccf::JSRuntimeOptions& options, kv::ReadOnlyTx& tx);
+      ccf::JSRuntimeOptions& options, ccf::kv::ReadOnlyTx& tx);
 
     /**
      * Record action details by storing them in KV maps using a common format,
      * for the purposes of offline audit using the ledger.
      */
     ccf::ApiResult record_action_for_audit_v1(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       ccf::ActionFormat format,
       const std::string& user_id,
       const std::string& action_name,
@@ -148,7 +150,7 @@ namespace ccf::js
      * size, an authenticated timestamp (@p created_at) is required.
      */
     ccf::ApiResult check_action_not_replayed_v1(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       uint64_t created_at,
       const std::span<const uint8_t> action,
       ccf::InvalidArgsReason& reason);
@@ -157,7 +159,7 @@ namespace ccf::js
     /// endpoints before delegating to base implementation.
     ///@{
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
-      kv::Tx& tx, ccf::RpcContext& rpc_ctx) override;
+      ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx) override;
 
     void execute_endpoint(
       ccf::endpoints::EndpointDefinitionPtr e,
@@ -168,7 +170,7 @@ namespace ccf::js
       ccf::endpoints::CommandEndpointContext& endpoint_ctx,
       const ccf::TxID& tx_id) override;
 
-    void build_api(nlohmann::json& document, kv::ReadOnlyTx& tx) override;
+    void build_api(nlohmann::json& document, ccf::kv::ReadOnlyTx& tx) override;
     ///@}
 
     virtual ccf::js::extensions::Extensions get_extensions(

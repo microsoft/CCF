@@ -4,7 +4,7 @@
 
 #include "kv/kv_types.h"
 
-namespace kv
+namespace ccf::kv
 {
   // NullTxEncryptor does not decrypt or verify integrity
   class NullTxEncryptor : public AbstractTxEncryptor

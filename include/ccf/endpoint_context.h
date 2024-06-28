@@ -53,12 +53,12 @@ namespace ccf::endpoints
 
   struct EndpointContext : public CommandEndpointContext
   {
-    EndpointContext(const std::shared_ptr<ccf::RpcContext>& r, kv::Tx& t) :
+    EndpointContext(const std::shared_ptr<ccf::RpcContext>& r, ccf::kv::Tx& t) :
       CommandEndpointContext(r),
       tx(t)
     {}
 
-    kv::Tx& tx;
+    ccf::kv::Tx& tx;
   };
   using EndpointFunction = std::function<void(EndpointContext& args)>;
 
@@ -69,12 +69,12 @@ namespace ccf::endpoints
   struct ReadOnlyEndpointContext : public CommandEndpointContext
   {
     ReadOnlyEndpointContext(
-      const std::shared_ptr<ccf::RpcContext>& r, kv::ReadOnlyTx& t) :
+      const std::shared_ptr<ccf::RpcContext>& r, ccf::kv::ReadOnlyTx& t) :
       CommandEndpointContext(r),
       tx(t)
     {}
 
-    kv::ReadOnlyTx& tx;
+    ccf::kv::ReadOnlyTx& tx;
   };
   using ReadOnlyEndpointFunction =
     std::function<void(ReadOnlyEndpointContext& args)>;
