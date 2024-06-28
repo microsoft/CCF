@@ -15,7 +15,7 @@ namespace ccf
   {
   public:
     ACMERpcEndpoints(
-      NetworkState& network, ccfapp::AbstractNodeContext& context) :
+      NetworkState& network, ccf::AbstractNodeContext& context) :
       CommonEndpointRegistry(
         get_actor_prefix(ActorsType::acme_challenge), context)
     {
@@ -95,7 +95,7 @@ namespace ccf
 
   public:
     ACMERpcFrontend(
-      NetworkState& network, ccfapp::AbstractNodeContext& context) :
+      NetworkState& network, ccf::AbstractNodeContext& context) :
       RpcFrontend(*network.tables, endpoints, context),
       endpoints(network, context)
     {}

@@ -14,7 +14,7 @@ using namespace std;
 using namespace nlohmann;
 using namespace ccf;
 
-namespace ccfapp
+namespace ccf
 {
   class TpccHandlers : public UserEndpointRegistry
   {
@@ -136,7 +136,7 @@ namespace ccfapp
   };
 
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
-    ccfapp::AbstractNodeContext& context)
+    ccf::AbstractNodeContext& context)
   {
     return std::make_unique<TpccHandlers>(context);
   }

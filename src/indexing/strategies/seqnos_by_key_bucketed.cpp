@@ -431,7 +431,7 @@ namespace ccf::indexing::strategies
 
   SeqnosByKey_Bucketed_Untyped::SeqnosByKey_Bucketed_Untyped(
     const std::string& map_name_,
-    ccfapp::AbstractNodeContext& node_context,
+    ccf::AbstractNodeContext& node_context,
     size_t seqnos_per_bucket_,
     size_t max_buckets_) :
     VisitEachEntryInMap(map_name_, "SeqnosByKey")

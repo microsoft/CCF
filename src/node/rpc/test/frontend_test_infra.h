@@ -19,7 +19,7 @@
 #include <iostream>
 #include <string>
 
-using namespace ccfapp;
+using namespace ccf;
 using namespace ccf;
 using namespace std;
 using namespace serdes;

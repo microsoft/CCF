@@ -6,7 +6,7 @@
 #include "ccf/indexing/indexer_interface.h"
 #include "ccf/node_subsystem_interface.h"
 
-namespace ccfapp
+namespace ccf
 {
   struct AbstractNodeContext
   {

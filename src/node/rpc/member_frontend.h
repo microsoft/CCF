@@ -584,7 +584,7 @@ namespace ccf
 
   public:
     MemberEndpoints(
-      NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
+      NetworkState& network_, ccf::AbstractNodeContext& context_) :
       GovEndpointRegistry(network_, context_),
       network(network_),
       share_manager(network_.ledger_secrets)
@@ -1884,7 +1884,7 @@ namespace ccf
 
   public:
     MemberRpcFrontend(
-      NetworkState& network, ccfapp::AbstractNodeContext& context) :
+      NetworkState& network, ccf::AbstractNodeContext& context) :
       RpcFrontend(*network.tables, member_endpoints, context),
       member_endpoints(network, context)
     {}

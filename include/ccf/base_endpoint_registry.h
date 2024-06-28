@@ -120,11 +120,11 @@ namespace ccf
   class BaseEndpointRegistry : public ccf::endpoints::EndpointRegistry
   {
   protected:
-    ccfapp::AbstractNodeContext& context;
+    ccf::AbstractNodeContext& context;
 
   public:
     BaseEndpointRegistry(
-      const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_);
+      const std::string& method_prefix_, ccf::AbstractNodeContext& context_);
 
     /** Get the history of the consensus view changes.
      *

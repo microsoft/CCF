@@ -33,7 +33,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace ccfapp
+namespace ccf
 {
   using namespace std;
   using namespace kv;
@@ -42,7 +42,7 @@ namespace ccfapp
   class JSHandlers : public UserEndpointRegistry
   {
   private:
-    ccfapp::AbstractNodeContext& context;
+    ccf::AbstractNodeContext& context;
     std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache =
       nullptr;
 
@@ -793,9 +793,9 @@ namespace ccfapp
   };
 
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints_impl(
-    ccfapp::AbstractNodeContext& context)
+    ccf::AbstractNodeContext& context)
   {
     return std::make_unique<JSHandlers>(context);
   }
 
-} // namespace ccfapp
+} // namespace ccf

@@ -58,19 +58,19 @@ namespace ccf::historical
 
   ccf::endpoints::EndpointFunction adapter_v3(
     const HandleHistoricalQuery& f,
-    ccfapp::AbstractNodeContext& node_context,
+    ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor = txid_from_header);
 
   ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v3(
     const HandleReadOnlyHistoricalQuery& f,
-    ccfapp::AbstractNodeContext& node_context,
+    ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const ReadOnlyTxIDExtractor& extractor = txid_from_header);
 
   ccf::endpoints::EndpointFunction read_write_adapter_v3(
     const HandleReadWriteHistoricalQuery& f,
-    ccfapp::AbstractNodeContext& node_context,
+    ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor = txid_from_header);
 }

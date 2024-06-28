@@ -755,7 +755,7 @@ TEST_CASE(
     std::make_shared<ringbuffer::Writer>(outbound_reader));
   enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
 
-  ccfapp::AbstractNodeContext node_context;
+  ccf::AbstractNodeContext node_context;
   node_context.install_subsystem(enclave_lfs);
 
   using IndexA_Bucketed =

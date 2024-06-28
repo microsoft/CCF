@@ -5,7 +5,7 @@
 #include <kv/kv_types.h>
 #include <optional>
 
-namespace ccfapp
+namespace ccf
 {
   /** Can be optionally implemented by the application to set the claims digest
    * for the initial network create transaction.

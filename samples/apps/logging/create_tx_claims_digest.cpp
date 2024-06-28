@@ -5,7 +5,7 @@
 #include <ccf/tx.h>
 #include <optional>
 
-namespace ccfapp
+namespace ccf
 {
   std::optional<ccf::ClaimsDigest::Digest> get_create_tx_claims_digest(
     kv::ReadOnlyTx& tx)

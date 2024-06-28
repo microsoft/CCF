@@ -261,7 +261,7 @@ namespace programmabilityapp
     }
 
   public:
-    ProgrammabilityHandlers(ccfapp::AbstractNodeContext& context) :
+    ProgrammabilityHandlers(ccf::AbstractNodeContext& context) :
       ccf::js::DynamicJSEndpointRegistry(
         context,
         CUSTOM_ENDPOINTS_NAMESPACE // Internal KV space will be under
@@ -726,10 +726,10 @@ namespace programmabilityapp
   };
 }
 
-namespace ccfapp
+namespace ccf
 {
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
-    ccfapp::AbstractNodeContext& context)
+    ccf::AbstractNodeContext& context)
   {
     return std::make_unique<programmabilityapp::ProgrammabilityHandlers>(
       context);

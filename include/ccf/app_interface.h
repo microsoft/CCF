@@ -27,7 +27,7 @@ namespace ccf
   class UserEndpointRegistry : public CommonEndpointRegistry
   {
   public:
-    UserEndpointRegistry(ccfapp::AbstractNodeContext& context) :
+    UserEndpointRegistry(ccf::AbstractNodeContext& context) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::users), context)
     {}
 
@@ -48,7 +48,7 @@ namespace ccf
   };
 }
 
-namespace ccfapp
+namespace ccf
 {
   // SNIPPET_START: app_interface
   /** To be implemented by the application. Creates a collection of endpoints
@@ -59,7 +59,7 @@ namespace ccfapp
    * @return Unique pointer to the endpoint registry instance
    */
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
-    ccfapp::AbstractNodeContext& context);
+    ccf::AbstractNodeContext& context);
 
   /** To be implemented by the application.
    *

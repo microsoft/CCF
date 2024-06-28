@@ -441,7 +441,7 @@ namespace loggingapp
     }
 
   public:
-    LoggerHandlers(ccfapp::AbstractNodeContext& context) :
+    LoggerHandlers(ccf::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context),
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
@@ -1948,11 +1948,11 @@ namespace loggingapp
   };
 }
 
-namespace ccfapp
+namespace ccf
 {
   // SNIPPET_START: app_interface
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
-    ccfapp::AbstractNodeContext& context)
+    ccf::AbstractNodeContext& context)
   {
     return std::make_unique<loggingapp::LoggerHandlers>(context);
   }
