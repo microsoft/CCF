@@ -69,15 +69,12 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite"
-        shell: bash
-        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
-
-      - name: "Partitions Test ${{ matrix.platform.name }}"
-        run: |
-          set -ex
-          cd build
-          source env/bin/activate && ctest -VV --timeout 240 -L partitions -C partitions
+          # Unit tests
+          ./tests.sh --output-on-failure -L unit -j16
+          # All other acceptably fast tests, mostly end-to-end
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite|unit"
+          # Partitions tests
+          ./tests.sh --timeout 240 --output-on-failure -L partitions -C partitions
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
 
