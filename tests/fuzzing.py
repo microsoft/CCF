@@ -146,9 +146,16 @@ def fuzz_node_to_node(network, args):
         # Don't try to read any responses
         receive_data_after_fuzz=False,
         receive_data_after_each_request=False,
-        db_filename="/dev/shm/boofuzz.db",
     )
     fuzz_logger.session = session
+
+    # Monkey-patch: Remove any Db loggers from the boofuzz session. We never
+    # use them, and they're reliant on disk IO (for db commits) so sometimes very slow
+    session._fuzz_data_logger._fuzz_loggers = [
+        logger
+        for logger in session._fuzz_data_logger._fuzz_loggers
+        if not isinstance(logger, boofuzz.fuzz_logger_db.FuzzLoggerDb)
+    ]
 
     session.connect(req)
 
