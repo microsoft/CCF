@@ -79,7 +79,7 @@ jobs:
         run: |
           set -ex
           cd build
-          source env/bin/activate && ctest -VV --timeout 240 -L partitions -C partitions
+          ./tests.sh --timeout 240 --output-on-failure -L partitions -C partitions
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
 
