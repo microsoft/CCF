@@ -33,7 +33,7 @@ namespace ccf::kv::untyped
     LocalCommit* next = nullptr;
     LocalCommit* prev = nullptr;
   };
-  using LocalCommits = ds::DLList<LocalCommit>;
+  using LocalCommits = ::ds::DLList<LocalCommit>;
 
   struct Roll
   {
