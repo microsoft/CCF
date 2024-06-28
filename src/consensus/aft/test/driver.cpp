@@ -40,11 +40,11 @@ int main(int argc, char** argv)
   // Log all raft steps to stdout (python wrapper raft_scenario_runner.py
   // filters them).
 #ifdef CCF_RAFT_TRACING
-  logger::config::add_json_console_logger();
+  ccf::logger::config::add_json_console_logger();
 #else
-  logger::config::add_text_console_logger();
+  ccf::logger::config::add_text_console_logger();
 #endif
-  logger::config::level() = LoggerLevel::DEBUG;
+  ccf::logger::config::level() = LoggerLevel::DEBUG;
 
   threading::ThreadMessaging::init(1);
 

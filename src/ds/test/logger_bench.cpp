@@ -18,18 +18,18 @@ enum LoggerKind
 template <LoggerKind LK, bool Absorb = true>
 static void prepare_loggers()
 {
-  logger::config::loggers().clear();
+  ccf::logger::config::loggers().clear();
 
   if constexpr ((LK & LoggerKind::Console) != 0)
   {
-    logger::config::loggers().emplace_back(
-      std::make_unique<logger::TextConsoleLogger>());
+    ccf::logger::config::loggers().emplace_back(
+      std::make_unique<ccf::logger::TextConsoleLogger>());
   }
 
   if constexpr ((LK & LoggerKind::JSON) != 0)
   {
-    logger::config::loggers().emplace_back(
-      std::make_unique<logger::JsonConsoleLogger>());
+    ccf::logger::config::loggers().emplace_back(
+      std::make_unique<ccf::logger::JsonConsoleLogger>());
   }
 
   if constexpr (Absorb)
@@ -41,7 +41,7 @@ static void prepare_loggers()
 
 static void reset_loggers()
 {
-  logger::config::loggers().clear();
+  ccf::logger::config::loggers().clear();
 
   std::cout.clear();
 }
@@ -51,7 +51,7 @@ static void log_accepted(picobench::state& s)
 {
   prepare_loggers<LK, Absorb>();
 
-  logger::config::level() = LoggerLevel::DEBUG;
+  ccf::logger::config::level() = LoggerLevel::DEBUG;
   {
     picobench::scope scope(s);
 
@@ -69,7 +69,7 @@ static void log_accepted_fmt(picobench::state& s)
 {
   prepare_loggers<LK, Absorb>();
 
-  logger::config::level() = LoggerLevel::DEBUG;
+  ccf::logger::config::level() = LoggerLevel::DEBUG;
   {
     picobench::scope scope(s);
 
@@ -87,7 +87,7 @@ static void log_rejected(picobench::state& s)
 {
   prepare_loggers<LK, Absorb>();
 
-  logger::config::level() = LoggerLevel::FAIL;
+  ccf::logger::config::level() = LoggerLevel::FAIL;
   {
     picobench::scope scope(s);
 
@@ -105,7 +105,7 @@ static void log_rejected_fmt(picobench::state& s)
 {
   prepare_loggers<LK, Absorb>();
 
-  logger::config::level() = LoggerLevel::FAIL;
+  ccf::logger::config::level() = LoggerLevel::FAIL;
   {
     picobench::scope scope(s);
 

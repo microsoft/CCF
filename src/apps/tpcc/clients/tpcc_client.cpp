@@ -155,8 +155,8 @@ public:
 
 int main(int argc, char** argv)
 {
-  logger::config::default_init();
-  logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::default_init();
+  ccf::logger::config::level() = LoggerLevel::INFO;
   ccf::crypto::openssl_sha256_init();
 
   CLI::App cli_app{"Tpcc Client"};
