@@ -35,21 +35,21 @@ The following table describes the structure of a serialised transaction as it is
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | uint64_t                                 | Length of serialised public domain                                      |
 +----------+------------------------------------------+-------------------------------------------------------------------------+
-|          | :cpp:type:`kv::EntryType`                | Snapshot, or a WriteSet variant                                         |
+|          | :cpp:type:`ccf::kv::EntryType`           | Snapshot, or a WriteSet variant                                         |
 +          +------------------------------------------+-------------------------------------------------------------------------+
-|          | :cpp:type:`kv::Version`                  | Transaction version                                                     |
+|          | :cpp:type:`ccf::kv::Version`             | Transaction version                                                     |
 +          +------------------------------------------+-------------------------------------------------------------------------+
-|          | :cpp:type:`ccf::crypto::Sha256Hash`           | User-defined claims digest, when entry type is WriteSetWith.*Claims     |
+|          | :cpp:type:`ccf::crypto::Sha256Hash`      | User-defined claims digest, when entry type is WriteSetWith.*Claims     |
 +          +------------------------------------------+-------------------------------------------------------------------------+
-|          | :cpp:type:`ccf::crypto::Sha256Hash`           | Commit evidence digest, when entry type is WriteSetWithCommitEvidence.* |
+|          | :cpp:type:`ccf::crypto::Sha256Hash`      | Commit evidence digest, when entry type is WriteSetWithCommitEvidence.* |
 +          +------------------------------------------+-------------------------------------------------------------------------+
-|          | :cpp:type:`kv::Version`                  | Unused, reserved for compatibility                                      |
+|          | :cpp:type:`ccf::kv::Version`             | Unused, reserved for compatibility                                      |
 +          +------------------------------------------+-------------------------------------------------------------------------+
 |          | **Repeating [0..n]**                     | With ``n`` the number of maps in the transaction                        |
 +          +-----+------------------------------------+-------------------------------------------------------------------------+
-|          |     | std::string                        | Name of the serialised :cpp:type:`kv::Map`                              |
+|          |     | std::string                        | Name of the serialised :cpp:type:`ccf::kv::Map`                         |
 |          +-----+------------------------------------+-------------------------------------------------------------------------+
-|          |     | :cpp:type:`kv::Version`            | Read version                                                            |
+|          |     | :cpp:type:`ccf::kv::Version`       | Read version                                                            |
 |          +-----+------------------------------------+-------------------------------------------------------------------------+
 |          |     | uint64_t                           | Read count                                                              |
 |          |     +------------------------------------+-------------------------------------------------------------------------+

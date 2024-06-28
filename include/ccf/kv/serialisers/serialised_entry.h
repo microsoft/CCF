@@ -3,7 +3,7 @@
 #pragma once
 #include "ccf/byte_vector.h"
 
-namespace kv::serialisers
+namespace ccf::kv::serialisers
 {
   using SerialisedEntry = ccf::ByteVector;
 }

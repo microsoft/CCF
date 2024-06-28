@@ -5,10 +5,10 @@
 #include <ccf/tx.h>
 #include <optional>
 
-namespace ccfapp
+namespace ccf
 {
   std::optional<ccf::ClaimsDigest::Digest> get_create_tx_claims_digest(
-    kv::ReadOnlyTx& tx)
+    ccf::kv::ReadOnlyTx& tx)
   {
     auto constitution =
       tx.ro<ccf::Constitution>(ccf::Tables::CONSTITUTION)->get();

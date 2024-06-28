@@ -4,8 +4,8 @@
 
 #include <memory>
 
-namespace ccfapp
+namespace ccf
 {
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints_impl(
-    ccfapp::AbstractNodeContext& context);
+    ccf::AbstractNodeContext& context);
 }

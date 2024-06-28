@@ -104,7 +104,7 @@ namespace ccf
   UserCertAuthnPolicy::~UserCertAuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> UserCertAuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
@@ -141,7 +141,7 @@ namespace ccf
   MemberCertAuthnPolicy::~MemberCertAuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> MemberCertAuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
@@ -167,7 +167,7 @@ namespace ccf
   }
 
   std::unique_ptr<AuthnIdentity> NodeCertAuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {

@@ -452,7 +452,7 @@ namespace ccf::js
   }
 
   DynamicJSEndpointRegistry::DynamicJSEndpointRegistry(
-    ccfapp::AbstractNodeContext& context, const std::string& kv_prefix) :
+    ccf::AbstractNodeContext& context, const std::string& kv_prefix) :
     ccf::UserEndpointRegistry(context),
     modules_map(fmt::format("{}.modules", kv_prefix)),
     metadata_map(fmt::format("{}.metadata", kv_prefix)),
@@ -505,7 +505,7 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::install_custom_endpoints_v1(
-    kv::Tx& tx, const ccf::js::Bundle& bundle)
+    ccf::kv::Tx& tx, const ccf::js::Bundle& bundle)
   {
     try
     {
@@ -585,7 +585,7 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoints_v1(
-    ccf::js::Bundle& bundle, kv::ReadOnlyTx& tx)
+    ccf::js::Bundle& bundle, ccf::kv::ReadOnlyTx& tx)
   {
     try
     {
@@ -631,7 +631,7 @@ namespace ccf::js
 
   ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoint_properties_v1(
     ccf::endpoints::EndpointProperties& properties,
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const ccf::RESTVerb& verb,
     const ccf::endpoints::URI& uri)
   {
@@ -659,7 +659,7 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoint_module_v1(
-    std::string& code, kv::ReadOnlyTx& tx, const std::string& module_name)
+    std::string& code, ccf::kv::ReadOnlyTx& tx, const std::string& module_name)
   {
     try
     {
@@ -690,7 +690,7 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::set_js_runtime_options_v1(
-    kv::Tx& tx, const ccf::JSRuntimeOptions& options)
+    ccf::kv::Tx& tx, const ccf::JSRuntimeOptions& options)
   {
     try
     {
@@ -704,7 +704,7 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::get_js_runtime_options_v1(
-    ccf::JSRuntimeOptions& options, kv::ReadOnlyTx& tx)
+    ccf::JSRuntimeOptions& options, ccf::kv::ReadOnlyTx& tx)
   {
     try
     {
@@ -721,7 +721,7 @@ namespace ccf::js
   }
 
   ccf::endpoints::EndpointDefinitionPtr DynamicJSEndpointRegistry::
-    find_endpoint(kv::Tx& tx, ccf::RpcContext& rpc_ctx)
+    find_endpoint(ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx)
   {
     // Look up the endpoint definition
     // First in the user-defined endpoints, and then fall-back to built-ins
@@ -847,7 +847,7 @@ namespace ccf::js
   // Since we do our own dispatch (overriding find_endpoint), make sure we
   // describe those operations in the auto-generated OpenAPI
   void DynamicJSEndpointRegistry::build_api(
-    nlohmann::json& document, kv::ReadOnlyTx& tx)
+    nlohmann::json& document, ccf::kv::ReadOnlyTx& tx)
   {
     ccf::UserEndpointRegistry::build_api(document, tx);
 
@@ -883,7 +883,7 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::check_action_not_replayed_v1(
-    kv::Tx& tx,
+    ccf::kv::Tx& tx,
     uint64_t created_at,
     const std::span<const uint8_t> action,
     ccf::InvalidArgsReason& reason)
@@ -894,7 +894,7 @@ namespace ccf::js
       const auto action_digest =
         ccf::crypto::sha256(action.data(), action.size());
 
-      using RecentActions = kv::Set<std::string>;
+      using RecentActions = ccf::kv::Set<std::string>;
 
       auto recent_actions = tx.rw<RecentActions>(recent_actions_map);
       auto key =
@@ -953,7 +953,7 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::record_action_for_audit_v1(
-    kv::Tx& tx,
+    ccf::kv::Tx& tx,
     ccf::ActionFormat format,
     const std::string& user_id,
     const std::string& action_name,
@@ -961,8 +961,8 @@ namespace ccf::js
   {
     try
     {
-      using AuditInputValue = kv::Value<std::vector<uint8_t>>;
-      using AuditInfoValue = kv::Value<AuditInfo>;
+      using AuditInputValue = ccf::kv::Value<std::vector<uint8_t>>;
+      using AuditInfoValue = ccf::kv::Value<AuditInfo>;
 
       auto audit_input = tx.template rw<AuditInputValue>(audit_input_map);
       audit_input->put(action_body);

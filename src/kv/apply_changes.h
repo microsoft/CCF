@@ -9,7 +9,7 @@
 #include <functional>
 #include <map>
 
-namespace kv
+namespace ccf::kv
 {
   // All collections of Map must be ordered so that we lock their contained
   // maps in a stable order. The order here is by map name
@@ -37,7 +37,7 @@ namespace kv
   static inline std::optional<Version> apply_changes(
     OrderedChanges& changes,
     VersionResolver version_resolver_fn,
-    kv::ConsensusHookPtrs& hooks,
+    ccf::kv::ConsensusHookPtrs& hooks,
     const MapCollection& new_maps,
     const std::optional<Version>& new_maps_conflict_version,
     bool track_read_versions,
@@ -115,7 +115,7 @@ namespace kv
 
       // This is to avoid recursively locking version_lock by calling
       // current_version() in the commit_reserved case.
-      kv::Version current_v;
+      ccf::kv::Version current_v;
       if (new_maps_conflict_version.has_value())
       {
         current_v = *new_maps_conflict_version;
@@ -135,7 +135,7 @@ namespace kv
     if (ok && has_writes)
     {
       // Get the version number to be used for this commit.
-      kv::Version version_last_new_map;
+      ccf::kv::Version version_last_new_map;
       std::tie(version, version_last_new_map) =
         version_resolver_fn(!new_maps.empty());
 

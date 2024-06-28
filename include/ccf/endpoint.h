@@ -30,7 +30,7 @@ namespace ccf::endpoints
   };
 }
 
-namespace kv::serialisers
+namespace ccf::kv::serialisers
 {
   template <>
   struct BlitSerialiser<ccf::endpoints::EndpointKey>

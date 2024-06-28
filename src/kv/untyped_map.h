@@ -16,7 +16,7 @@
 #include <optional>
 #include <unordered_set>
 
-namespace kv::untyped
+namespace ccf::kv::untyped
 {
   struct LocalCommit
   {
@@ -33,7 +33,7 @@ namespace kv::untyped
     LocalCommit* next = nullptr;
     LocalCommit* prev = nullptr;
   };
-  using LocalCommits = ds::DLList<LocalCommit>;
+  using LocalCommits = ::ds::DLList<LocalCommit>;
 
   struct Roll
   {
@@ -68,14 +68,14 @@ namespace kv::untyped
   class Map : public AbstractMap
   {
   public:
-    using K = kv::untyped::SerialisedEntry;
-    using V = kv::untyped::SerialisedEntry;
-    using H = kv::untyped::SerialisedKeyHasher;
+    using K = ccf::kv::untyped::SerialisedEntry;
+    using V = ccf::kv::untyped::SerialisedEntry;
+    using H = ccf::kv::untyped::SerialisedKeyHasher;
 
-    using StateSnapshot = kv::untyped::State::Snapshot;
+    using StateSnapshot = ccf::kv::untyped::State::Snapshot;
 
-    using CommitHook = kv::untyped::CommitHook;
-    using MapHook = kv::untyped::MapHook;
+    using CommitHook = ccf::kv::untyped::CommitHook;
+    using MapHook = ccf::kv::untyped::MapHook;
 
   private:
     AbstractStore* store;
@@ -293,7 +293,7 @@ namespace kv::untyped
     private:
       const std::string name;
       const SecurityDomain security_domain;
-      const kv::Version version;
+      const ccf::kv::Version version;
 
       std::unique_ptr<StateSnapshot> map_snapshot;
 
@@ -301,7 +301,7 @@ namespace kv::untyped
       Snapshot(
         const std::string& name_,
         SecurityDomain security_domain_,
-        kv::Version version_,
+        ccf::kv::Version version_,
         std::unique_ptr<StateSnapshot>&& map_snapshot_) :
         name(name_),
         security_domain(security_domain_),
@@ -327,10 +327,10 @@ namespace kv::untyped
     };
 
     // Public typedefs for external consumption
-    using ReadOnlyHandle = kv::untyped::MapHandle;
-    using WriteOnlyHandle = kv::untyped::MapHandle;
-    using Handle = kv::untyped::MapHandle;
-    using Diff = kv::untyped::MapDiff;
+    using ReadOnlyHandle = ccf::kv::untyped::MapHandle;
+    using WriteOnlyHandle = ccf::kv::untyped::MapHandle;
+    using Handle = ccf::kv::untyped::MapHandle;
+    using Diff = ccf::kv::untyped::MapDiff;
 
     Map(
       AbstractStore* store_,
@@ -357,7 +357,7 @@ namespace kv::untyped
       bool include_reads) override
     {
       const auto non_abstract =
-        dynamic_cast<const kv::untyped::ChangeSet*>(changes);
+        dynamic_cast<const ccf::kv::untyped::ChangeSet*>(changes);
       if (non_abstract == nullptr)
       {
         LOG_FAIL_FMT("Unable to serialise map due to type mismatch");
@@ -560,7 +560,7 @@ namespace kv::untyped
 
     /** Get store that the map belongs to
      *
-     * @return Pointer to `kv::AbstractStore`
+     * @return Pointer to `ccf::kv::AbstractStore`
      */
     AbstractStore* get_store() override
     {
@@ -802,7 +802,7 @@ namespace kv::untyped
       {
         if (current->version <= version)
         {
-          kv::untyped::Write writes;
+          ccf::kv::untyped::Write writes;
           if (track_deletes_on_missing_keys)
           {
             writes = current->writes;

@@ -19,15 +19,15 @@ namespace ccf::indexing
       historical_cache(sc)
     {}
 
-    kv::ReadOnlyStorePtr deserialise_transaction(
+    ccf::kv::ReadOnlyStorePtr deserialise_transaction(
       ccf::SeqNo seqno, const uint8_t* data, size_t size) override
     {
-      kv::ApplyResult result;
+      ccf::kv::ApplyResult result;
       ccf::ClaimsDigest claims_digest;
       bool has_commit_evidence;
       auto store = historical_cache->deserialise_ledger_entry(
         seqno, data, size, result, claims_digest, has_commit_evidence);
-      if (store != nullptr && result != kv::ApplyResult::FAIL)
+      if (store != nullptr && result != ccf::kv::ApplyResult::FAIL)
       {
         return store;
       }
@@ -39,7 +39,7 @@ namespace ccf::indexing
       return nullptr;
     }
 
-    std::vector<kv::ReadOnlyStorePtr> fetch_transactions(
+    std::vector<ccf::kv::ReadOnlyStorePtr> fetch_transactions(
       const SeqNoCollection& seqnos) override
     {
       const ccf::historical::CompoundHandle handle{

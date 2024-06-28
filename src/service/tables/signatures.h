@@ -58,7 +58,8 @@ namespace ccf
   using Signatures = ServiceValue<PrimarySignature>;
 
   // Serialised Merkle tree at most recent signature is a single Value in the KV
-  using SerialisedMerkleTree = kv::RawCopySerialisedValue<std::vector<uint8_t>>;
+  using SerialisedMerkleTree =
+    ccf::kv::RawCopySerialisedValue<std::vector<uint8_t>>;
 
   namespace Tables
   {

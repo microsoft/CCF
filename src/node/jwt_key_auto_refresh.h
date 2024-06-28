@@ -18,7 +18,7 @@ namespace ccf
   private:
     size_t refresh_interval_s;
     NetworkState& network;
-    std::shared_ptr<kv::Consensus> consensus;
+    std::shared_ptr<ccf::kv::Consensus> consensus;
     std::shared_ptr<ccf::RPCSessions> rpcsessions;
     std::shared_ptr<ccf::RPCMap> rpc_map;
     ccf::crypto::KeyPairPtr node_sign_kp;
@@ -29,7 +29,7 @@ namespace ccf
     JwtKeyAutoRefresh(
       size_t refresh_interval_s,
       NetworkState& network,
-      const std::shared_ptr<kv::Consensus>& consensus,
+      const std::shared_ptr<ccf::kv::Consensus>& consensus,
       const std::shared_ptr<ccf::RPCSessions>& rpcsessions,
       const std::shared_ptr<ccf::RPCMap>& rpc_map,
       const ccf::crypto::KeyPairPtr& node_sign_kp,
@@ -107,12 +107,13 @@ namespace ccf
     {
       auto body = serdes::pack(msg, serdes::Pack::Text);
 
-      http::Request request(fmt::format(
+      ::http::Request request(fmt::format(
         "/{}/{}",
         ccf::get_actor_prefix(ccf::ActorsType::nodes),
         "jwt_keys/refresh"));
       request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ccf::http::headers::CONTENT_TYPE,
+        ccf::http::headervalues::contenttype::JSON);
       request.set_body(&body);
 
       auto packed = request.build_request();
@@ -122,7 +123,7 @@ namespace ccf
       auto ctx = ccf::make_rpc_context(node_session, packed);
 
       std::shared_ptr<ccf::RpcHandler> search =
-        http::fetch_rpc_handler(ctx, this->rpc_map);
+        ::http::fetch_rpc_handler(ctx, this->rpc_map);
 
       search->process(ctx);
     }
@@ -232,10 +233,10 @@ namespace ccf
         send_refresh_jwt_keys_error();
         return;
       }
-      http::URL jwks_url;
+      ::http::URL jwks_url;
       try
       {
-        jwks_url = http::parse_url_full(jwks_url_str);
+        jwks_url = ::http::parse_url_full(jwks_url_str);
       }
       catch (const std::invalid_argument& e)
       {
@@ -275,8 +276,8 @@ namespace ccf
             issuer, issuer_constraint, status, std::move(data));
           return true;
         });
-      http::Request r(jwks_url.path, HTTP_GET);
-      r.set_header(http::headers::HOST, std::string(jwks_url.host));
+      ::http::Request r(jwks_url.path, HTTP_GET);
+      r.set_header(ccf::http::headers::HOST, std::string(jwks_url.host));
       http_client->send_request(std::move(r));
     }
 
@@ -317,7 +318,7 @@ namespace ccf
         }
 
         auto metadata_url_str = issuer + "/.well-known/openid-configuration";
-        auto metadata_url = http::parse_url_full(metadata_url_str);
+        auto metadata_url = ::http::parse_url_full(metadata_url_str);
         auto metadata_url_port =
           !metadata_url.port.empty() ? metadata_url.port : "443";
 
@@ -338,13 +339,13 @@ namespace ccf
           std::string(metadata_url_port),
           [this, issuer, ca](
             http_status status,
-            http::HeaderMap&&,
+            ccf::http::HeaderMap&&,
             std::vector<uint8_t>&& data) {
             handle_jwt_metadata_response(issuer, ca, status, std::move(data));
             return true;
           });
-        http::Request r(metadata_url.path, HTTP_GET);
-        r.set_header(http::headers::HOST, std::string(metadata_url.host));
+        ::http::Request r(metadata_url.path, HTTP_GET);
+        r.set_header(ccf::http::headers::HOST, std::string(metadata_url.host));
         http_client->send_request(std::move(r));
         return true;
       });

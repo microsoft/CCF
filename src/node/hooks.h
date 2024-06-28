@@ -16,15 +16,15 @@ namespace ccf
     std::string port;
   };
 
-  class ConfigurationChangeHook : public kv::ConsensusHook
+  class ConfigurationChangeHook : public ccf::kv::ConsensusHook
   {
-    kv::Version version;
+    ccf::kv::Version version;
     std::map<NodeId, std::optional<NodeAddr>> cfg_delta;
     std::unordered_set<NodeId> learners;
     std::unordered_set<NodeId> retired_nodes;
 
   public:
-    ConfigurationChangeHook(kv::Version version_, const Nodes::Write& w) :
+    ConfigurationChangeHook(ccf::kv::Version version_, const Nodes::Write& w) :
       version(version_)
     {
       for (const auto& [node_id, opt_ni] : w)
@@ -64,7 +64,7 @@ namespace ccf
       }
     }
 
-    void call(kv::ConfigurableConsensus* consensus) override
+    void call(ccf::kv::ConfigurableConsensus* consensus) override
     {
       auto configuration = consensus->get_latest_configuration_unsafe();
       for (const auto& [node_id, opt_ni] : cfg_delta)

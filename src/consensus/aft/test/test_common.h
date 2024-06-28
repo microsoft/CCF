@@ -24,7 +24,7 @@ static const std::chrono::milliseconds election_timeout = election_timeout_;
 static const ccf::consensus::Configuration raft_settings{
   request_timeout_, election_timeout_, max_uncommitted_tx_count_};
 
-static auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+static auto hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
 
 static aft::ChannelStubProxy* channel_stub_proxy(const TRaft& r)
 {
