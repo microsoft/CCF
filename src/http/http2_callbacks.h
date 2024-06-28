@@ -186,8 +186,8 @@ namespace http2
     auto* p = get_parser(user_data);
     const auto& configuration = p->get_configuration();
 
-    auto const& max_header_size =
-      configuration.max_header_size.value_or(http::default_max_header_size);
+    auto const& max_header_size = configuration.max_header_size.value_or(
+      ccf::http::default_max_header_size);
     if (namelen > max_header_size)
     {
       throw http::RequestHeaderTooLargeException(
@@ -209,8 +209,8 @@ namespace http2
     }
 
     auto* stream_data = get_stream_data(session, stream_id);
-    const auto max_headers_count =
-      configuration.max_headers_count.value_or(http::default_max_headers_count);
+    const auto max_headers_count = configuration.max_headers_count.value_or(
+      ccf::http::default_max_headers_count);
     if (stream_data->incoming.headers.size() >= max_headers_count)
     {
       throw http::RequestHeaderTooLargeException(
@@ -242,7 +242,7 @@ namespace http2
       stream_data->incoming.body.end(), data, data + len);
 
     auto const& max_body_size =
-      configuration.max_body_size.value_or(http::default_max_body_size);
+      configuration.max_body_size.value_or(ccf::http::default_max_body_size);
     if (stream_data->incoming.body.size() > max_body_size)
     {
       throw http::RequestPayloadTooLargeException(
@@ -282,7 +282,7 @@ namespace http2
     auto* p = get_parser(user_data);
     const auto& configuration = p->get_configuration();
     const auto& max_frame_size =
-      configuration.max_frame_size.value_or(http::default_max_frame_size);
+      configuration.max_frame_size.value_or(ccf::http::default_max_frame_size);
 
     LOG_TRACE_FMT(
       "http2::on_data_source_read_length_callback: {}, {}, allowed [1, "

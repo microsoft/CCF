@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `::threading` is now `ccf::threading`, and `ccf/ds/thread_ids.h` has moved to `ccf/threading/thread_ids.h`
   - `::consensus` is now `ccf::consensus`
   - `::tls` is now `ccf::tls`
+  - `::http` is now `ccf::http`
   - `::nonstd` is now `ccf::nonstd`
   - `::crypto` is now `ccf::crypto`
 - The `programmability` sample app now demonstrates how applications can define their own extensions, creating bindings between C++ and JS state, and allowing JS endpoints to call functions implemented in C++.

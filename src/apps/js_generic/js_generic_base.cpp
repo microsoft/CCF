@@ -302,7 +302,7 @@ namespace ccfapp
           if (array_buffer)
           {
             endpoint_ctx.rpc_ctx->set_response_header(
-              http::headers::CONTENT_TYPE,
+              ccf::http::headers::CONTENT_TYPE,
               http::headervalues::contenttype::OCTET_STREAM);
             response_body =
               std::vector<uint8_t>(array_buffer, array_buffer + buf_size);
@@ -313,14 +313,14 @@ namespace ccfapp
             if (response_body_js.is_str())
             {
               endpoint_ctx.rpc_ctx->set_response_header(
-                http::headers::CONTENT_TYPE,
+                ccf::http::headers::CONTENT_TYPE,
                 http::headervalues::contenttype::TEXT);
               str = ctx.to_str(response_body_js);
             }
             else
             {
               endpoint_ctx.rpc_ctx->set_response_header(
-                http::headers::CONTENT_TYPE,
+                ccf::http::headers::CONTENT_TYPE,
                 http::headervalues::contenttype::JSON);
               auto rval = ctx.json_stringify(response_body_js);
               if (rval.is_exception())
