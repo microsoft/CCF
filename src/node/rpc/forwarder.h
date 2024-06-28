@@ -94,7 +94,7 @@ namespace ccf
       auto rpc_responder_shared = rpcresponder.lock();
       if (rpc_responder_shared)
       {
-        auto response = http::Response(HTTP_STATUS_GATEWAY_TIMEOUT);
+        auto response = ::http::Response(HTTP_STATUS_GATEWAY_TIMEOUT);
         auto body = fmt::format(
           "Request was forwarded to node {}, but no response was received "
           "after {}ms",
@@ -190,7 +190,7 @@ namespace ccf
     }
 
     template <typename TFwdHdr>
-    std::shared_ptr<http::HttpRpcContext> recv_forwarded_command(
+    std::shared_ptr<::http::HttpRpcContext> recv_forwarded_command(
       const NodeId& from, const uint8_t* data, size_t size)
     {
       std::pair<TFwdHdr, std::vector<uint8_t>> r;
@@ -237,7 +237,7 @@ namespace ccf
         return ccf::make_fwd_rpc_context(
           session, raw_request, r.first.frame_format);
       }
-      catch (const http::RequestTooLargeException& rexc)
+      catch (const ::http::RequestTooLargeException& rexc)
       {
         LOG_FAIL_FMT("Forwarded request exceeded limit: {}", rexc.what());
         return nullptr;
@@ -312,7 +312,7 @@ namespace ccf
     }
 
     std::shared_ptr<ForwardedRpcHandler> get_forwarder_handler(
-      std::shared_ptr<http::HttpRpcContext>& ctx)
+      std::shared_ptr<::http::HttpRpcContext>& ctx)
     {
       if (ctx == nullptr)
       {
@@ -328,7 +328,7 @@ namespace ccf
       }
 
       std::shared_ptr<ccf::RpcHandler> search =
-        http::fetch_rpc_handler(ctx, rpc_map_shared);
+        ::http::fetch_rpc_handler(ctx, rpc_map_shared);
 
       auto fwd_handler = std::dynamic_pointer_cast<ForwardedRpcHandler>(search);
       if (!fwd_handler)

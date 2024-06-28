@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `::threading` is now `ccf::threading`, and `ccf/ds/thread_ids.h` has moved to `ccf/threading/thread_ids.h`
   - `::consensus` is now `ccf::consensus`
   - `::tls` is now `ccf::tls`
+  - `::http` is now `ccf::http`
   - `::nonstd` is now `ccf::nonstd`
   - `::crypto` is now `ccf::crypto`
   - `::logger` is now `ccf::logger`

@@ -438,7 +438,7 @@ namespace ccf::endpoints
                 const auto& template_name =
                   endpoint->spec.template_component_names[i];
                 const auto& template_value = match[i + 1].str();
-                auto decoded_value = http::url_decode(template_value);
+                auto decoded_value = ::http::url_decode(template_value);
                 path_params[template_name] = template_value;
                 decoded_path_params[template_name] = decoded_value;
               }

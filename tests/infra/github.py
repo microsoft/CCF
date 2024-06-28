@@ -197,12 +197,12 @@ class GitEnv:
         if tag_or_none:
             return tag_or_none
 
-        # ADO
+        # ADO or GHA
         short = None
         if "SYSTEM_PULLREQUEST_SOURCEBRANCH" in os.environ:
             short = os.environ["SYSTEM_PULLREQUEST_SOURCEBRANCH"]
         else:
-            ref = os.environ["BUILD_SOURCEBRANCH"]
+            ref = os.environ.get("BUILD_SOURCEBRANCH") or os.environ.get("GITHUB_REF")
             for prefix in ["refs/heads/", "refs/tags/", "refs/pull/"]:
                 if ref.startswith(prefix):
                     short = ref[len(prefix) :]
