@@ -18,10 +18,11 @@ namespace http
     const auto s = body.dump();
 
     std::vector<uint8_t> data(s.begin(), s.end());
-    auto response = http::Response(error.status);
+    auto response = ::http::Response(error.status);
 
     response.set_header(
-      http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+      ccf::http::headers::CONTENT_TYPE,
+      ccf::http::headervalues::contenttype::JSON);
     response.set_body(&data);
 
     return response.build_response();
@@ -44,16 +45,16 @@ namespace http
     std::string query = {};
     std::string fragment = {};
 
-    http::HeaderMap request_headers = {};
+    ccf::http::HeaderMap request_headers = {};
 
     std::vector<uint8_t> request_body = {};
 
-    std::shared_ptr<HTTPResponder> responder = nullptr;
+    std::shared_ptr<ccf::http::HTTPResponder> responder = nullptr;
 
     std::vector<uint8_t> serialised_request = {};
 
-    http::HeaderMap response_headers;
-    http::HeaderMap response_trailers;
+    ccf::http::HeaderMap response_headers;
+    ccf::http::HeaderMap response_trailers;
     std::vector<uint8_t> response_body = {};
     http_status response_status = HTTP_STATUS_OK;
 
@@ -71,7 +72,7 @@ namespace http
           "\r\n",
           verb.c_str(),
           url,
-          http::get_header_string(request_headers));
+          ::http::get_header_string(request_headers));
 
         serialised_request.resize(request_prefix.size() + request_body.size());
         ::memcpy(
@@ -96,9 +97,9 @@ namespace http
       ccf::HttpVersion http_version,
       llhttp_method verb_,
       const std::string_view& url_,
-      const http::HeaderMap& headers_,
+      const ccf::http::HeaderMap& headers_,
       const std::vector<uint8_t>& body_,
-      const std::shared_ptr<HTTPResponder>& responder_ = nullptr,
+      const std::shared_ptr<ccf::http::HTTPResponder>& responder_ = nullptr,
       const std::vector<uint8_t>& raw_request_ = {}) :
       RpcContextImpl(s, http_version),
       verb(verb_),
@@ -120,12 +121,12 @@ namespace http
       }
     }
 
-    http::HeaderMap get_response_headers() const
+    ccf::http::HeaderMap get_response_headers() const
     {
       return response_headers;
     }
 
-    http::HeaderMap get_response_trailers() const
+    ccf::http::HeaderMap get_response_trailers() const
     {
       return response_trailers;
     }
@@ -147,7 +148,7 @@ namespace http
 
     virtual void set_tx_id(const ccf::TxID& tx_id) override
     {
-      set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
+      set_response_header(ccf::http::headers::CCF_TX_ID, tx_id.to_str());
     }
 
     virtual const std::vector<uint8_t>& get_request_body() const override
@@ -186,7 +187,7 @@ namespace http
       path = p;
     }
 
-    virtual const http::HeaderMap& get_request_headers() const override
+    virtual const ccf::http::HeaderMap& get_request_headers() const override
     {
       return request_headers;
     }
@@ -208,7 +209,8 @@ namespace http
       return url;
     }
 
-    virtual std::shared_ptr<http::HTTPResponder> get_responder() const override
+    virtual std::shared_ptr<ccf::http::HTTPResponder> get_responder()
+      const override
     {
       return responder;
     }
@@ -286,7 +288,7 @@ namespace http
 
     virtual std::vector<uint8_t> serialise_response() const override
     {
-      auto http_response = http::Response(response_status);
+      auto http_response = ::http::Response(response_status);
 
       for (const auto& [k, v] : response_headers)
       {
@@ -370,11 +372,11 @@ namespace http
 
 namespace ccf
 {
-  inline std::shared_ptr<http::HttpRpcContext> make_rpc_context(
+  inline std::shared_ptr<::http::HttpRpcContext> make_rpc_context(
     std::shared_ptr<ccf::SessionContext> s, const std::vector<uint8_t>& packed)
   {
-    http::SimpleRequestProcessor processor;
-    http::RequestParser parser(processor, http::permissive_configuration());
+    ::http::SimpleRequestProcessor processor;
+    ::http::RequestParser parser(processor, http::permissive_configuration());
     parser.execute(packed.data(), packed.size());
 
     if (processor.received.size() != 1)
@@ -387,7 +389,7 @@ namespace ccf
 
     const auto& msg = processor.received.front();
 
-    return std::make_shared<http::HttpRpcContext>(
+    return std::make_shared<::http::HttpRpcContext>(
       s,
       ccf::HttpVersion::HTTP1,
       msg.method,
@@ -398,7 +400,7 @@ namespace ccf
       packed);
   }
 
-  inline std::shared_ptr<http::HttpRpcContext> make_fwd_rpc_context(
+  inline std::shared_ptr<::http::HttpRpcContext> make_fwd_rpc_context(
     std::shared_ptr<ccf::SessionContext> s,
     const std::vector<uint8_t>& packed,
     ccf::FrameFormat frame_format)

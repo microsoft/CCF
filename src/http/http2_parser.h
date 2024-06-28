@@ -21,7 +21,7 @@ namespace http2
     // reject new streams ids less than this value.
     StreamId last_stream_id = 0;
     DataHandlerCB handle_outgoing_data;
-    http::ParserConfiguration configuration;
+    ccf::http::ParserConfiguration configuration;
 
   protected:
     std::map<StreamId, std::shared_ptr<StreamData>> streams;
@@ -29,7 +29,8 @@ namespace http2
 
   public:
     Parser(
-      const http::ParserConfiguration& configuration_, bool is_client = false) :
+      const ccf::http::ParserConfiguration& configuration_,
+      bool is_client = false) :
       configuration(configuration_)
     {
       LOG_TRACE_FMT("Creating HTTP2 parser");
@@ -74,25 +75,25 @@ namespace http2
       settings.push_back(
         {NGHTTP2_SETTINGS_MAX_FRAME_SIZE,
          static_cast<uint32_t>(configuration.max_frame_size.value_or(
-           http::default_max_frame_size))});
+           ccf::http::default_max_frame_size))});
       settings.push_back(
         {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS,
          static_cast<uint32_t>(
            configuration.max_concurrent_streams_count.value_or(
-             http::default_max_concurrent_streams_count))});
+             ccf::http::default_max_concurrent_streams_count))});
       settings.push_back(
         {NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE,
          static_cast<uint32_t>(configuration.initial_window_size.value_or(
-           http::default_initial_window_size))});
+           ccf::http::default_initial_window_size))});
       // NGHTTP2_SETTINGS_MAX_HEADER_LIST_SIZE is only a hint to client
       // (https://www.rfc-editor.org/rfc/rfc7540#section-10.5.1)
       settings.push_back(
         {NGHTTP2_SETTINGS_MAX_HEADER_LIST_SIZE,
          static_cast<uint32_t>(
            configuration.max_headers_count.value_or(
-             http::default_max_headers_count) *
+             ccf::http::default_max_headers_count) *
            configuration.max_header_size.value_or(
-             http::default_max_header_size))});
+             ccf::http::default_max_header_size))});
 
       auto rv = nghttp2_submit_settings(
         session, NGHTTP2_FLAG_NONE, settings.data(), settings.size());
@@ -116,7 +117,7 @@ namespace http2
       return last_stream_id;
     }
 
-    http::ParserConfiguration get_configuration() const override
+    ccf::http::ParserConfiguration get_configuration() const override
     {
       return configuration;
     }
@@ -240,7 +241,7 @@ namespace http2
   private:
     http::RequestProcessor& proc;
 
-    void submit_trailers(StreamId stream_id, http::HeaderMap&& trailers)
+    void submit_trailers(StreamId stream_id, ccf::http::HeaderMap&& trailers)
     {
       if (trailers.empty())
       {
@@ -267,14 +268,15 @@ namespace http2
     void submit_response(
       StreamId stream_id,
       http_status status,
-      const http::HeaderMap& base_headers,
-      const http::HeaderMap& extra_headers = {})
+      const ccf::http::HeaderMap& base_headers,
+      const ccf::http::HeaderMap& extra_headers = {})
     {
       std::vector<nghttp2_nv> hdrs = {};
 
       auto status_str = fmt::format(
         "{}", static_cast<std::underlying_type<http_status>::type>(status));
-      hdrs.emplace_back(make_nv(http2::headers::STATUS, status_str.data()));
+      hdrs.emplace_back(
+        make_nv(ccf::http2::headers::STATUS, status_str.data()));
 
       for (auto& [k, v] : base_headers)
       {
@@ -301,7 +303,7 @@ namespace http2
   public:
     ServerParser(
       http::RequestProcessor& proc_,
-      const http::ParserConfiguration& configuration_) :
+      const ccf::http::ParserConfiguration& configuration_) :
       Parser(configuration_, false),
       proc(proc_)
     {}
@@ -324,8 +326,8 @@ namespace http2
     void respond(
       StreamId stream_id,
       http_status status,
-      const http::HeaderMap& headers,
-      http::HeaderMap&& trailers,
+      const ccf::http::HeaderMap& headers,
+      ccf::http::HeaderMap&& trailers,
       std::span<const uint8_t> body)
     {
       LOG_TRACE_FMT(
@@ -348,13 +350,13 @@ namespace http2
 
       stream_data->outgoing.state = StreamResponseState::Closing;
 
-      http::HeaderMap extra_headers = {};
-      extra_headers[http::headers::CONTENT_LENGTH] =
+      ccf::http::HeaderMap extra_headers = {};
+      extra_headers[ccf::http::headers::CONTENT_LENGTH] =
         std::to_string(body.size());
       auto thv = make_trailer_header_value(trailers);
       if (thv.has_value())
       {
-        extra_headers[http::headers::TRAILER] = thv.value();
+        extra_headers[ccf::http::headers::TRAILER] = thv.value();
       }
 
       stream_data->outgoing.body = DataSource(body);
@@ -371,7 +373,9 @@ namespace http2
     }
 
     void start_stream(
-      StreamId stream_id, http_status status, const http::HeaderMap& headers)
+      StreamId stream_id,
+      http_status status,
+      const ccf::http::HeaderMap& headers)
     {
       LOG_TRACE_FMT(
         "http2::start_stream: stream {} - {} headers",
@@ -427,7 +431,7 @@ namespace http2
       send_all_submitted();
     }
 
-    void close_stream(StreamId stream_id, http::HeaderMap&& trailers)
+    void close_stream(StreamId stream_id, ccf::http::HeaderMap&& trailers)
     {
       LOG_TRACE_FMT(
         "http2::close: stream {} - {} trailers ", stream_id, trailers.size());
@@ -467,7 +471,7 @@ namespace http2
 
       std::string url = {};
       {
-        const auto url_it = headers.find(http2::headers::PATH);
+        const auto url_it = headers.find(ccf::http2::headers::PATH);
         if (url_it != headers.end())
         {
           url = url_it->second;
@@ -476,7 +480,7 @@ namespace http2
 
       llhttp_method method = {};
       {
-        const auto method_it = headers.find(http2::headers::METHOD);
+        const auto method_it = headers.find(ccf::http2::headers::METHOD);
         if (method_it != headers.end())
         {
           method = ccf::http_method_from_str(method_it->second.c_str());
@@ -495,24 +499,24 @@ namespace http2
   class ClientParser : public Parser
   {
   private:
-    http::ResponseProcessor& proc;
+    ::http::ResponseProcessor& proc;
 
   public:
-    ClientParser(http::ResponseProcessor& proc_) :
-      Parser(http::ParserConfiguration{}, true),
+    ClientParser(::http::ResponseProcessor& proc_) :
+      Parser(ccf::http::ParserConfiguration{}, true),
       proc(proc_)
     {}
 
     void send_structured_request(
       llhttp_method method,
       const std::string& route,
-      const http::HeaderMap& headers,
+      const ccf::http::HeaderMap& headers,
       std::span<const uint8_t> body)
     {
       std::vector<nghttp2_nv> hdrs;
       hdrs.emplace_back(
-        make_nv(http2::headers::METHOD, llhttp_method_name(method)));
-      hdrs.emplace_back(make_nv(http2::headers::PATH, route.data()));
+        make_nv(ccf::http2::headers::METHOD, llhttp_method_name(method)));
+      hdrs.emplace_back(make_nv(ccf::http2::headers::PATH, route.data()));
       hdrs.emplace_back(make_nv(":scheme", "https"));
       hdrs.emplace_back(make_nv(":authority", "localhost:8080"));
       for (auto const& [k, v] : headers)
@@ -557,7 +561,7 @@ namespace http2
 
       http_status status = {};
       {
-        const auto status_it = headers.find(http2::headers::STATUS);
+        const auto status_it = headers.find(ccf::http2::headers::STATUS);
         if (status_it != headers.end())
         {
           status = http_status(std::stoi(status_it->second));

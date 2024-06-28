@@ -135,7 +135,7 @@ void record_snapshot_evidence(
 
 TEST_CASE("Regular snapshotting")
 {
-  logger::config::default_init();
+  ccf::logger::config::default_init();
 
   ccf::NetworkState network;
 
@@ -429,7 +429,7 @@ TEST_CASE("Rollback before snapshot is committed")
 // https://github.com/microsoft/CCF/issues/3796
 TEST_CASE("Rekey ledger while snapshot is in progress")
 {
-  logger::config::default_init();
+  ccf::logger::config::default_init();
 
   ccf::NetworkState network;
 
