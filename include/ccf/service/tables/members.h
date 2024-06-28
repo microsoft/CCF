@@ -76,9 +76,9 @@ namespace ccf
 
   using MemberInfo = ServiceMap<MemberId, MemberDetails>;
 
-  using MemberCerts = kv::RawCopySerialisedMap<MemberId, ccf::crypto::Pem>;
+  using MemberCerts = ccf::kv::RawCopySerialisedMap<MemberId, ccf::crypto::Pem>;
   using MemberPublicEncryptionKeys =
-    kv::RawCopySerialisedMap<MemberId, ccf::crypto::Pem>;
+    ccf::kv::RawCopySerialisedMap<MemberId, ccf::crypto::Pem>;
 
   namespace Tables
   {

@@ -41,11 +41,11 @@ static std::vector<ActionDesc> create_actions(
   ExpectedSeqNos& seqnos_2)
 {
   std::vector<ActionDesc> actions;
-  actions.push_back({seqnos_hello, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_hello, [](size_t i, ccf::kv::Tx& tx) {
                        tx.wo(map_a)->put("hello", "value doesn't matter");
                        return true;
                      }});
-  actions.push_back({seqnos_saluton, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_saluton, [](size_t i, ccf::kv::Tx& tx) {
                        if (i % 2 == 0)
                        {
                          tx.wo(map_a)->put("saluton", "value doesn't matter");
@@ -53,7 +53,7 @@ static std::vector<ActionDesc> create_actions(
                        }
                        return false;
                      }});
-  actions.push_back({seqnos_1, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_1, [](size_t i, ccf::kv::Tx& tx) {
                        if (i % 3 == 0)
                        {
                          tx.wo(map_b)->put(1, 42);
@@ -61,7 +61,7 @@ static std::vector<ActionDesc> create_actions(
                        }
                        return false;
                      }});
-  actions.push_back({seqnos_2, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_2, [](size_t i, ccf::kv::Tx& tx) {
                        if (i % 4 == 0)
                        {
                          tx.wo(map_b)->put(2, 42);
@@ -75,7 +75,7 @@ static std::vector<ActionDesc> create_actions(
 template <typename AA>
 void run_tests(
   const std::function<void()>& tick_until_caught_up,
-  kv::Store& kv_store,
+  ccf::kv::Store& kv_store,
   ccf::indexing::Indexer& indexer,
   ExpectedSeqNos& seqnos_hello,
   ExpectedSeqNos& seqnos_saluton,
@@ -172,7 +172,7 @@ void run_tests(
 // Uses stub classes to test just indexing logic in isolation
 TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
 {
-  kv::Store kv_store;
+  ccf::kv::Store kv_store;
 
   auto consensus = std::make_shared<AllCommittableConsensus>();
   kv_store.set_consensus(consensus);
@@ -180,7 +180,7 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
   auto fetcher = std::make_shared<TestTransactionFetcher>();
   ccf::indexing::Indexer indexer(fetcher);
 
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
   REQUIRE_THROWS(indexer.install_strategy(nullptr));
@@ -253,8 +253,8 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
     index_b);
 }
 
-kv::Version rekey(
-  kv::Store& kv_store,
+ccf::kv::Version rekey(
+  ccf::kv::Store& kv_store,
   const std::shared_ptr<ccf::LedgerSecrets>& ledger_secrets)
 {
   ccf::ShareManager share_manager(ledger_secrets);
@@ -262,7 +262,7 @@ kv::Version rekey(
   auto tx = kv_store.create_tx();
   auto new_ledger_secret = ccf::make_ledger_secret();
   share_manager.issue_recovery_shares(tx, new_ledger_secret);
-  REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
   auto tx_version = tx.commit_version();
 
@@ -275,7 +275,7 @@ kv::Version rekey(
 }
 
 aft::LedgerStubProxy* add_raft_consensus(
-  std::shared_ptr<kv::Store> kv_store,
+  std::shared_ptr<ccf::kv::Store> kv_store,
   std::shared_ptr<ccf::indexing::Indexer> indexer)
 {
   using TRaft = aft::Aft<aft::LedgerStubProxy>;
@@ -285,7 +285,7 @@ aft::LedgerStubProxy* add_raft_consensus(
   const ccf::consensus::Configuration settings{{"20ms"}, {"100ms"}};
   auto consensus = std::make_shared<AllCommittableRaftConsensus>(
     settings,
-    std::make_unique<aft::Adaptor<kv::Store>>(kv_store),
+    std::make_unique<aft::Adaptor<ccf::kv::Store>>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id),
@@ -309,7 +309,7 @@ TEST_CASE_TEMPLATE(
   IndexA,
   LazyIndexA)
 {
-  auto kv_store_p = std::make_shared<kv::Store>();
+  auto kv_store_p = std::make_shared<ccf::kv::Store>();
   auto& kv_store = *kv_store_p;
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
@@ -350,7 +350,7 @@ TEST_CASE_TEMPLATE(
     member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
     member_public_encryption_keys->put(
       member_id, ccf::crypto::make_rsa_key_pair()->public_key_pem());
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
@@ -457,7 +457,7 @@ const auto max_multithread_run_time = 100s;
 TEST_CASE(
   "multi-threaded indexing - in memory" * doctest::test_suite("indexing"))
 {
-  auto kv_store_p = std::make_shared<kv::Store>();
+  auto kv_store_p = std::make_shared<ccf::kv::Store>();
   auto& kv_store = *kv_store_p;
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
@@ -501,7 +501,7 @@ TEST_CASE(
     member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
     member_public_encryption_keys->put(
       member_id, ccf::crypto::make_rsa_key_pair()->public_key_pem());
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   std::atomic<bool> finished = false;
@@ -528,7 +528,7 @@ TEST_CASE(
         tx.wo(map_b)->put(42, i);
       }
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       ++i;
       std::this_thread::yield();
     }
@@ -661,19 +661,20 @@ TEST_CASE(
 
 class MockTransactionFetcher : public ccf::indexing::TransactionFetcher
 {
-  std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
+  std::shared_ptr<ccf::kv::AbstractTxEncryptor> encryptor;
 
 public:
   aft::LedgerStubProxy* ledger;
 
-  MockTransactionFetcher(const std::shared_ptr<kv::AbstractTxEncryptor>& e) :
+  MockTransactionFetcher(
+    const std::shared_ptr<ccf::kv::AbstractTxEncryptor>& e) :
     encryptor(e)
   {}
 
-  kv::ReadOnlyStorePtr deserialise_transaction(
+  ccf::kv::ReadOnlyStorePtr deserialise_transaction(
     ccf::SeqNo seqno, const uint8_t* data, size_t size) override
   {
-    auto store = std::make_shared<kv::Store>(
+    auto store = std::make_shared<ccf::kv::Store>(
       false /* Do not start from very first seqno */,
       true /* Make use of historical secrets */);
 
@@ -687,7 +688,7 @@ public:
     }
 
     auto result = exec->apply();
-    if (result == kv::ApplyResult::FAIL)
+    if (result == ccf::kv::ApplyResult::FAIL)
     {
       return nullptr;
     }
@@ -695,10 +696,10 @@ public:
     return store;
   }
 
-  std::vector<kv::ReadOnlyStorePtr> fetch_transactions(
+  std::vector<ccf::kv::ReadOnlyStorePtr> fetch_transactions(
     const ccf::SeqNoCollection& seqnos) override
   {
-    std::vector<kv::ReadOnlyStorePtr> ret;
+    std::vector<ccf::kv::ReadOnlyStorePtr> ret;
 
     for (const auto& seqno : seqnos)
     {
@@ -723,7 +724,7 @@ TEST_CASE(
   INFO("Using seed: ", seed);
   srand(seed);
 
-  auto kv_store_p = std::make_shared<kv::Store>();
+  auto kv_store_p = std::make_shared<ccf::kv::Store>();
   auto& kv_store = *kv_store_p;
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
@@ -755,7 +756,7 @@ TEST_CASE(
     std::make_shared<ringbuffer::Writer>(outbound_reader));
   enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
 
-  ccfapp::AbstractNodeContext node_context;
+  ccf::AbstractNodeContext node_context;
   node_context.install_subsystem(enclave_lfs);
 
   using IndexA_Bucketed =
@@ -790,7 +791,7 @@ TEST_CASE(
     member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
     member_public_encryption_keys->put(
       member_id, ccf::crypto::make_rsa_key_pair()->public_key_pem());
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   std::atomic<bool> all_submitted = false;
@@ -824,7 +825,7 @@ TEST_CASE(
         tx.wo(map_b)->put(42, i);
       }
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       ++i;
       std::this_thread::yield();
     }

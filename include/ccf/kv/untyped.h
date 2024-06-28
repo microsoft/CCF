@@ -8,13 +8,13 @@
 #include <map>
 #include <optional>
 
-namespace kv::untyped
+namespace ccf::kv::untyped
 {
   // nullopt values represent deletions
   using Write = std::map<
-    kv::serialisers::SerialisedEntry,
-    std::optional<kv::serialisers::SerialisedEntry>>;
+    ccf::kv::serialisers::SerialisedEntry,
+    std::optional<ccf::kv::serialisers::SerialisedEntry>>;
 
-  using CommitHook = kv::CommitHook<Write>;
-  using MapHook = kv::MapHook<Write>;
+  using CommitHook = ccf::kv::CommitHook<Write>;
+  using MapHook = ccf::kv::MapHook<Write>;
 }

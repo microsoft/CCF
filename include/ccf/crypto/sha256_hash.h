@@ -76,7 +76,7 @@ struct formatter<ccf::crypto::Sha256Hash>
 };
 FMT_END_NAMESPACE
 
-namespace kv::serialisers
+namespace ccf::kv::serialisers
 {
   template <>
   struct BlitSerialiser<ccf::crypto::Sha256Hash>

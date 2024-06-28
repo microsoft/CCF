@@ -28,7 +28,7 @@ namespace ccf
   DECLARE_JSON_TYPE(UserDetails)
   DECLARE_JSON_REQUIRED_FIELDS(UserDetails, user_data)
 
-  using UserCerts = kv::RawCopySerialisedMap<UserId, ccf::crypto::Pem>;
+  using UserCerts = ccf::kv::RawCopySerialisedMap<UserId, ccf::crypto::Pem>;
   using UserInfo = ServiceMap<UserId, UserDetails>;
 
   namespace Tables

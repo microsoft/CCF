@@ -16,7 +16,7 @@
 
 namespace client
 {
-  class HttpRpcTlsClient : public TlsClient, public http::ResponseProcessor
+  class HttpRpcTlsClient : public TlsClient, public ::http::ResponseProcessor
   {
   public:
     struct PreparedRpc
@@ -29,12 +29,12 @@ namespace client
     {
       size_t id;
       http_status status;
-      http::HeaderMap headers;
+      ccf::http::HeaderMap headers;
       std::vector<uint8_t> body;
     };
 
   protected:
-    http::ResponseParser parser;
+    ::http::ResponseParser parser;
     std::optional<std::string> prefix;
     ccf::crypto::KeyPairPtr key_pair = nullptr;
     std::string key_id = "Invalid";
@@ -57,12 +57,13 @@ namespace client
 
       auto r = http::Request(path, verb);
       r.set_body(params.data(), params.size());
-      r.set_header(http::headers::CONTENT_TYPE, content_type);
+      r.set_header(ccf::http::headers::CONTENT_TYPE, content_type);
       r.set_header("Host", host);
       if (auth_token != nullptr)
       {
         r.set_header(
-          http::headers::AUTHORIZATION, fmt::format("Bearer {}", auth_token));
+          ccf::http::headers::AUTHORIZATION,
+          fmt::format("Bearer {}", auth_token));
       }
 
       return r.build_request();
@@ -142,7 +143,11 @@ namespace client
       }
 
       return call_raw(gen_request(
-        method, body, http::headervalues::contenttype::JSON, verb, nullptr));
+        method,
+        body,
+        ccf::http::headervalues::contenttype::JSON,
+        verb,
+        nullptr));
     }
 
     Response call(
@@ -151,7 +156,7 @@ namespace client
       llhttp_method verb = HTTP_POST)
     {
       return call_raw(gen_request(
-        method, params, http::headervalues::contenttype::JSON, verb));
+        method, params, ccf::http::headervalues::contenttype::JSON, verb));
     }
 
     Response post(const std::string& method, const nlohmann::json& params)
@@ -188,7 +193,7 @@ namespace client
       else if (http::status_success(resp.status))
       {
         const auto& content_type =
-          resp.headers.find(http::headers::CONTENT_TYPE);
+          resp.headers.find(ccf::http::headers::CONTENT_TYPE);
         return nlohmann::json::parse(resp.body);
       }
       else
@@ -227,7 +232,7 @@ namespace client
 
     virtual void handle_response(
       http_status status,
-      http::HeaderMap&& headers,
+      ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
       last_response = {

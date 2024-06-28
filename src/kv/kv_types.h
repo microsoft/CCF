@@ -36,7 +36,7 @@ namespace aft
   struct Request;
 }
 
-namespace kv
+namespace ccf::kv
 {
   // Term describes an epoch of Versions. It is incremented when global kv's
   // writer(s) changes. Term and Version combined give a unique identifier for
@@ -401,16 +401,16 @@ namespace kv
     virtual Result verify_and_sign(
       ccf::PrimarySignature& signature,
       Term* term,
-      kv::Configuration::Nodes& nodes) = 0;
+      ccf::kv::Configuration::Nodes& nodes) = 0;
     virtual bool verify(
       Term* term = nullptr, ccf::PrimarySignature* sig = nullptr) = 0;
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
     virtual ccf::crypto::Sha256Hash get_replicated_state_root() = 0;
     virtual std::tuple<
-      kv::TxID /* TxID of last transaction seen by history */,
+      ccf::kv::TxID /* TxID of last transaction seen by history */,
       ccf::crypto::Sha256Hash /* root as of TxID */,
-      kv::Term /* term_of_next_version */>
+      ccf::kv::Term /* term_of_next_version */>
     get_replicated_state_txid_and_root() = 0;
     virtual std::vector<uint8_t> get_proof(Version v) = 0;
     virtual bool verify_proof(const std::vector<uint8_t>& proof) = 0;
@@ -420,11 +420,11 @@ namespace kv
     virtual void append(const std::vector<uint8_t>& data) = 0;
     virtual void append_entry(
       const ccf::crypto::Sha256Hash& digest,
-      std::optional<kv::Term> expected_term = std::nullopt) = 0;
+      std::optional<ccf::kv::Term> expected_term = std::nullopt) = 0;
     virtual void rollback(
-      const kv::TxID& tx_id, kv::Term term_of_next_version_) = 0;
+      const ccf::kv::TxID& tx_id, ccf::kv::Term term_of_next_version_) = 0;
     virtual void compact(Version v) = 0;
-    virtual void set_term(kv::Term) = 0;
+    virtual void set_term(ccf::kv::Term) = 0;
     virtual std::vector<uint8_t> serialise_tree(size_t to) = 0;
     virtual void set_endorsed_certificate(const ccf::crypto::Pem& cert) = 0;
     virtual void start_signature_emit_timer() = 0;
@@ -578,9 +578,9 @@ namespace kv
   public:
     virtual ~AbstractSnapshotter(){};
 
-    virtual bool record_committable(kv::Version v) = 0;
-    virtual void commit(kv::Version v, bool generate_snapshot) = 0;
-    virtual void rollback(kv::Version v) = 0;
+    virtual bool record_committable(ccf::kv::Version v) = 0;
+    virtual void commit(ccf::kv::Version v, bool generate_snapshot) = 0;
+    virtual void rollback(ccf::kv::Version v) = 0;
   };
   using SnapshotterPtr = std::shared_ptr<AbstractSnapshotter>;
 
@@ -649,12 +649,12 @@ namespace kv
   {
   public:
     virtual ~AbstractExecutionWrapper() = default;
-    virtual kv::ApplyResult apply(
+    virtual ccf::kv::ApplyResult apply(
       bool track_deletes_on_missing_keys = false) = 0;
-    virtual kv::ConsensusHookPtrs& get_hooks() = 0;
+    virtual ccf::kv::ConsensusHookPtrs& get_hooks() = 0;
     virtual const std::vector<uint8_t>& get_entry() = 0;
-    virtual kv::Term get_term() = 0;
-    virtual kv::Version get_index() = 0;
+    virtual ccf::kv::Term get_term() = 0;
+    virtual ccf::kv::Version get_index() = 0;
     virtual bool support_async_execution() = 0;
     virtual bool is_public_only() = 0;
     virtual ccf::ClaimsDigest&& consume_claims_digest() = 0;
@@ -782,7 +782,7 @@ namespace kv
 FMT_BEGIN_NAMESPACE
 
 template <>
-struct formatter<kv::Configuration::Nodes>
+struct formatter<ccf::kv::Configuration::Nodes>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -791,8 +791,8 @@ struct formatter<kv::Configuration::Nodes>
   }
 
   template <typename FormatContext>
-  auto format(const kv::Configuration::Nodes& nodes, FormatContext& ctx) const
-    -> decltype(ctx.out())
+  auto format(const ccf::kv::Configuration::Nodes& nodes, FormatContext& ctx)
+    const -> decltype(ctx.out())
   {
     std::set<ccf::NodeId> node_ids;
     for (auto& [nid, _] : nodes)
@@ -804,7 +804,7 @@ struct formatter<kv::Configuration::Nodes>
 };
 
 template <>
-struct formatter<kv::MembershipState>
+struct formatter<ccf::kv::MembershipState>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -813,7 +813,7 @@ struct formatter<kv::MembershipState>
   }
 
   template <typename FormatContext>
-  auto format(const kv::MembershipState& state, FormatContext& ctx) const
+  auto format(const ccf::kv::MembershipState& state, FormatContext& ctx) const
     -> decltype(ctx.out())
   {
     const auto s = nlohmann::json(state).get<std::string>();
@@ -822,7 +822,7 @@ struct formatter<kv::MembershipState>
 };
 
 template <>
-struct formatter<kv::LeadershipState>
+struct formatter<ccf::kv::LeadershipState>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -831,7 +831,7 @@ struct formatter<kv::LeadershipState>
   }
 
   template <typename FormatContext>
-  auto format(const kv::LeadershipState& state, FormatContext& ctx) const
+  auto format(const ccf::kv::LeadershipState& state, FormatContext& ctx) const
     -> decltype(ctx.out())
   {
     const auto s = nlohmann::json(state).get<std::string>();

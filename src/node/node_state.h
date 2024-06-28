@@ -124,15 +124,15 @@ namespace ccf
 
     NetworkState& network;
 
-    std::shared_ptr<kv::Consensus> consensus;
+    std::shared_ptr<ccf::kv::Consensus> consensus;
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<indexing::Indexer> indexer;
     std::shared_ptr<NodeToNode> n2n_channels;
     std::shared_ptr<Forwarder<NodeToNode>> cmd_forwarder;
     std::shared_ptr<RPCSessions> rpcsessions;
 
-    std::shared_ptr<kv::TxHistory> history;
-    std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
+    std::shared_ptr<ccf::kv::TxHistory> history;
+    std::shared_ptr<ccf::kv::AbstractTxEncryptor> encryptor;
 
     ShareManager share_manager;
     std::shared_ptr<Snapshotter> snapshotter;
@@ -140,11 +140,11 @@ namespace ccf
     //
     // recovery
     //
-    std::shared_ptr<kv::Store> recovery_store;
+    std::shared_ptr<ccf::kv::Store> recovery_store;
 
-    kv::Version recovery_v;
+    ccf::kv::Version recovery_v;
     ccf::crypto::Sha256Hash recovery_root;
-    std::vector<kv::Version> view_history;
+    std::vector<ccf::kv::Version> view_history;
     ::consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets = {};
     LedgerSecretsMap recovered_ledger_secrets = {};
@@ -159,7 +159,7 @@ namespace ccf
     std::unique_ptr<StartupSnapshotInfo> startup_snapshot_info = nullptr;
     // Set to the snapshot seqno when a node starts from one and remembered for
     // the lifetime of the node
-    kv::Version startup_seqno = 0;
+    ccf::kv::Version startup_seqno = 0;
 
     // ACME certificate endorsement client
     std::map<NodeInfoNetwork::RpcInterfaceID, std::shared_ptr<ACMEClient>>
@@ -170,10 +170,10 @@ namespace ccf
       acme_challenge_handlers;
     size_t num_acme_interfaces = 0;
 
-    std::shared_ptr<kv::AbstractTxEncryptor> make_encryptor()
+    std::shared_ptr<ccf::kv::AbstractTxEncryptor> make_encryptor()
     {
 #ifdef USE_NULL_ENCRYPTOR
-      return std::make_shared<kv::NullTxEncryptor>();
+      return std::make_shared<ccf::kv::NullTxEncryptor>();
 #else
       return std::make_shared<NodeEncryptor>(network.ledger_secrets);
 #endif
@@ -182,7 +182,7 @@ namespace ccf
     // Returns true if the snapshot is already verified (via embedded receipt)
     void initialise_startup_snapshot(bool recovery = false)
     {
-      std::shared_ptr<kv::Store> snapshot_store;
+      std::shared_ptr<ccf::kv::Store> snapshot_store;
       if (!recovery)
       {
         // Create a new store to verify the snapshot only
@@ -205,7 +205,7 @@ namespace ccf
         snapshot_store = network.tables;
       }
 
-      kv::ConsensusHookPtrs hooks;
+      ccf::kv::ConsensusHookPtrs hooks;
       startup_snapshot_info = initialise_from_snapshot(
         snapshot_store,
         std::move(startup_snapshot),
@@ -238,7 +238,7 @@ namespace ccf
     {}
 
     QuoteVerificationResult verify_quote(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info_,
       const std::vector<uint8_t>& expected_node_public_key_der,
       pal::PlatformAttestationMeasurement& measurement) override
@@ -600,7 +600,7 @@ namespace ccf
                status == HTTP_STATUS_TEMPORARY_REDIRECT) &&
               location != headers.end())
             {
-              const auto& url = http::parse_url_full(location->second);
+              const auto& url = ::http::parse_url_full(location->second);
               config.join.target_rpc_address =
                 make_net_address(url.host, url.port);
               LOG_INFO_FMT("Target node redirected to {}", location->second);
@@ -669,12 +669,12 @@ namespace ccf
             }
 
             View view = VIEW_UNKNOWN;
-            std::vector<kv::Version> view_history_ = {};
+            std::vector<ccf::kv::Version> view_history_ = {};
             if (startup_snapshot_info)
             {
               // It is only possible to deserialise the entire snapshot then,
               // once the ledger secrets have been passed in by the network
-              kv::ConsensusHookPtrs hooks;
+              ccf::kv::ConsensusHookPtrs hooks;
               deserialise_snapshot(
                 network.tables,
                 startup_snapshot_info->raw,
@@ -776,7 +776,7 @@ namespace ccf
 
       LOG_DEBUG_FMT("Sending join request body: {}", body);
 
-      http::Request r(
+      ::http::Request r(
         fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "join"));
       r.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
@@ -835,9 +835,10 @@ namespace ccf
 
       network.tables->set_map_hook(
         network.jwt_issuers.get_name(),
-        [this](kv::Version, const kv::untyped::Write&) -> kv::ConsensusHookPtr {
+        [this](ccf::kv::Version, const ccf::kv::untyped::Write&)
+          -> ccf::kv::ConsensusHookPtr {
           jwt_key_auto_refresh->schedule_once();
-          return kv::ConsensusHookPtr(nullptr);
+          return ccf::kv::ConsensusHookPtr(nullptr);
         });
     }
 
@@ -887,12 +888,12 @@ namespace ccf
 
         // When reading the private ledger, deserialise in the recovery store
 
-        kv::ApplyResult result = kv::ApplyResult::FAIL;
+        ccf::kv::ApplyResult result = ccf::kv::ApplyResult::FAIL;
         try
         {
           auto r = network.tables->deserialize(entry, true);
           result = r->apply();
-          if (result == kv::ApplyResult::FAIL)
+          if (result == ccf::kv::ApplyResult::FAIL)
           {
             LOG_FAIL_FMT(
               "Failed to deserialise public ledger entry: {}", result);
@@ -916,7 +917,7 @@ namespace ccf
         }
 
         // If the ledger entry is a signature, it is safe to compact the store
-        if (result == kv::ApplyResult::PASS_SIGNATURE)
+        if (result == ccf::kv::ApplyResult::PASS_SIGNATURE)
         {
           // If the ledger entry is a signature, it is safe to compact the store
           network.tables->compact(last_recovered_idx);
@@ -1007,8 +1008,8 @@ namespace ccf
       snapshotter->init_after_public_recovery();
       snapshotter->set_snapshot_generation(false);
 
-      kv::Version index = 0;
-      kv::Term view = 0;
+      ccf::kv::Version index = 0;
+      ccf::kv::Term view = 0;
 
       auto ls = tx.ro(network.signatures)->get();
       if (ls.has_value())
@@ -1067,11 +1068,11 @@ namespace ccf
         LOG_INFO_FMT("Deserialising private ledger entry [{}]", entry.size());
 
         // When reading the private ledger, deserialise in the recovery store
-        kv::ApplyResult result = kv::ApplyResult::FAIL;
+        ccf::kv::ApplyResult result = ccf::kv::ApplyResult::FAIL;
         try
         {
           result = recovery_store->deserialize(entry)->apply();
-          if (result == kv::ApplyResult::FAIL)
+          if (result == ccf::kv::ApplyResult::FAIL)
           {
             LOG_FAIL_FMT(
               "Failed to deserialise private ledger entry: {}", result);
@@ -1091,7 +1092,7 @@ namespace ccf
           return;
         }
 
-        if (result == kv::ApplyResult::PASS_SIGNATURE)
+        if (result == ccf::kv::ApplyResult::PASS_SIGNATURE)
         {
           recovery_store->compact(last_recovered_idx);
         }
@@ -1167,7 +1168,7 @@ namespace ccf
         // we need to recover soon again.
         trigger_snapshot(tx);
 
-        if (tx.commit() != kv::CommitResult::SUCCESS)
+        if (tx.commit() != ccf::kv::CommitResult::SUCCESS)
         {
           throw std::logic_error(
             "Could not commit transaction when finishing network recovery");
@@ -1189,8 +1190,9 @@ namespace ccf
         network.encrypted_ledger_secrets.get_name(),
         network.encrypted_ledger_secrets.wrap_map_hook(
           [this](
-            kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
-            -> kv::ConsensusHookPtr {
+            ccf::kv::Version version,
+            const EncryptedLedgerSecretsInfo::Write& w)
+            -> ccf::kv::ConsensusHookPtr {
             if (!w.has_value())
             {
               throw std::logic_error(fmt::format(
@@ -1204,7 +1206,7 @@ namespace ccf
             network.tables->unset_map_hook(
               network.encrypted_ledger_secrets.get_name());
 
-            return kv::ConsensusHookPtr(nullptr);
+            return ccf::kv::ConsensusHookPtr(nullptr);
           }));
     }
 
@@ -1236,7 +1238,7 @@ namespace ccf
     //
     void setup_private_recovery_store()
     {
-      recovery_store = std::make_shared<kv::Store>(
+      recovery_store = std::make_shared<ccf::kv::Store>(
         true /* Check transactions in order */,
         true /* Make use of historical secrets */);
       auto recovery_history = std::make_shared<MerkleTxHistory>(
@@ -1259,8 +1261,8 @@ namespace ccf
 
       if (startup_snapshot_info)
       {
-        std::vector<kv::Version> view_history_;
-        kv::ConsensusHookPtrs hooks;
+        std::vector<ccf::kv::Version> view_history_;
+        ccf::kv::ConsensusHookPtrs hooks;
         deserialise_snapshot(
           recovery_store,
           startup_snapshot_info->raw,
@@ -1277,34 +1279,35 @@ namespace ccf
         recovery_v);
     }
 
-    void trigger_recovery_shares_refresh(kv::Tx& tx) override
+    void trigger_recovery_shares_refresh(ccf::kv::Tx& tx) override
     {
       share_manager.shuffle_recovery_shares(tx);
     }
 
-    void trigger_ledger_chunk(kv::Tx& tx) override
+    void trigger_ledger_chunk(ccf::kv::Tx& tx) override
     {
-      auto tx_ = static_cast<kv::CommittableTx*>(&tx);
+      auto tx_ = static_cast<ccf::kv::CommittableTx*>(&tx);
       if (tx_ == nullptr)
       {
         throw std::logic_error("Could not cast tx to CommittableTx");
       }
-      tx_->set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      tx_->set_flag(
+        ccf::kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
     }
 
-    void trigger_snapshot(kv::Tx& tx) override
+    void trigger_snapshot(ccf::kv::Tx& tx) override
     {
-      auto committable_tx = static_cast<kv::CommittableTx*>(&tx);
+      auto committable_tx = static_cast<ccf::kv::CommittableTx*>(&tx);
       if (committable_tx == nullptr)
       {
         throw std::logic_error("Could not cast tx to CommittableTx");
       }
       committable_tx->set_flag(
-        kv::CommittableTx::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+        ccf::kv::CommittableTx::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
     }
 
     void trigger_acme_refresh(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const std::optional<std::vector<std::string>>& interfaces =
         std::nullopt) override
     {
@@ -1391,7 +1394,7 @@ namespace ccf
     }
 
     void transition_service_to_open(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       AbstractGovernanceEffects::ServiceIdentities identities) override
     {
       std::lock_guard<pal::Mutex> guard(lock);
@@ -1490,7 +1493,7 @@ namespace ccf
       }
     }
 
-    void initiate_private_recovery(kv::Tx& tx) override
+    void initiate_private_recovery(ccf::kv::Tx& tx) override
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfPublicNetwork);
@@ -1669,7 +1672,7 @@ namespace ccf
       }
     }
 
-    bool rekey_ledger(kv::Tx& tx) override
+    bool rekey_ledger(ccf::kv::Tx& tx) override
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfNetwork);
@@ -1706,7 +1709,7 @@ namespace ccf
       return self;
     }
 
-    kv::Version get_startup_snapshot_seqno() override
+    ccf::kv::Version get_startup_snapshot_seqno() override
     {
       std::lock_guard<pal::Mutex> guard(lock);
       return startup_seqno;
@@ -1902,10 +1905,11 @@ namespace ccf
 
       const auto body = nlohmann::json(create_params).dump();
 
-      http::Request request(
+      ::http::Request request(
         fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "create"));
       request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ccf::http::headers::CONTENT_TYPE,
+        ccf::http::headervalues::contenttype::JSON);
 
       request.set_body(body);
 
@@ -1949,7 +1953,7 @@ namespace ccf
       auto ctx = make_rpc_context(node_session, packed);
 
       std::shared_ptr<ccf::RpcHandler> search =
-        http::fetch_rpc_handler(ctx, this->rpc_map);
+        ::http::fetch_rpc_handler(ctx, this->rpc_map);
 
       search->process(ctx);
 
@@ -2014,13 +2018,13 @@ namespace ccf
       network.tables->set_map_hook(
         network.secrets.get_name(),
         network.secrets.wrap_map_hook(
-          [this](kv::Version hook_version, const Secrets::Write& w)
-            -> kv::ConsensusHookPtr {
+          [this](ccf::kv::Version hook_version, const Secrets::Write& w)
+            -> ccf::kv::ConsensusHookPtr {
             // Used to rekey the ledger on a live service
             if (!is_part_of_network())
             {
               // Ledger rekey is not allowed during recovery
-              return kv::ConsensusHookPtr(nullptr);
+              return ccf::kv::ConsensusHookPtr(nullptr);
             }
 
             const auto& ledger_secrets_for_nodes = w;
@@ -2056,13 +2060,13 @@ namespace ccf
               }
             }
 
-            return kv::ConsensusHookPtr(nullptr);
+            return ccf::kv::ConsensusHookPtr(nullptr);
           }));
 
       network.tables->set_global_hook(
         network.secrets.get_name(),
         network.secrets.wrap_commit_hook([this](
-                                           kv::Version hook_version,
+                                           ccf::kv::Version hook_version,
                                            const Secrets::Write& w) {
           // Used on recovery to initiate private recovery on backup nodes.
           if (!is_part_of_public_network())
@@ -2127,7 +2131,7 @@ namespace ccf
         network.encrypted_submitted_shares.get_name(),
         network.encrypted_submitted_shares.wrap_commit_hook(
           [this](
-            kv::Version hook_version,
+            ccf::kv::Version hook_version,
             const EncryptedSubmittedShares::Write& w) {
             // Initiate recovery procedure from global hook, once all recovery
             // shares have been submitted (i.e. recovered_ledger_secrets is
@@ -2157,7 +2161,7 @@ namespace ccf
       network.tables->set_global_hook(
         network.nodes.get_name(),
         network.nodes.wrap_commit_hook(
-          [this](kv::Version hook_version, const Nodes::Write& w) {
+          [this](ccf::kv::Version hook_version, const Nodes::Write& w) {
             std::vector<NodeId> retired_committed_nodes;
             for (const auto& [node_id, node_info] : w)
             {
@@ -2180,8 +2184,9 @@ namespace ccf
         network.node_endorsed_certificates.get_name(),
         network.node_endorsed_certificates.wrap_map_hook(
           [this](
-            kv::Version hook_version,
-            const NodeEndorsedCertificates::Write& w) -> kv::ConsensusHookPtr {
+            ccf::kv::Version hook_version,
+            const NodeEndorsedCertificates::Write& w)
+            -> ccf::kv::ConsensusHookPtr {
             for (auto const& [node_id, endorsed_certificate] : w)
             {
               if (node_id != self)
@@ -2202,14 +2207,14 @@ namespace ccf
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
             }
 
-            return kv::ConsensusHookPtr(nullptr);
+            return ccf::kv::ConsensusHookPtr(nullptr);
           }));
 
       network.tables->set_global_hook(
         network.node_endorsed_certificates.get_name(),
         network.node_endorsed_certificates.wrap_commit_hook(
           [this](
-            kv::Version hook_version,
+            ccf::kv::Version hook_version,
             const NodeEndorsedCertificates::Write& w) {
             for (auto const& [node_id, endorsed_certificate] : w)
             {
@@ -2255,7 +2260,7 @@ namespace ccf
       network.tables->set_global_hook(
         network.service.get_name(),
         network.service.wrap_commit_hook(
-          [this](kv::Version hook_version, const Service::Write& w) {
+          [this](ccf::kv::Version hook_version, const Service::Write& w) {
             if (!w.has_value())
             {
               throw std::logic_error("Unexpected deletion in service value");
@@ -2289,7 +2294,8 @@ namespace ccf
       network.tables->set_global_hook(
         network.acme_certificates.get_name(),
         network.acme_certificates.wrap_commit_hook(
-          [this](kv::Version hook_version, const ACMECertificates::Write& w) {
+          [this](
+            ccf::kv::Version hook_version, const ACMECertificates::Write& w) {
             for (auto const& [interface_id, interface] :
                  config.network.rpc_interfaces)
             {
@@ -2314,7 +2320,7 @@ namespace ccf
           }));
     }
 
-    kv::Version get_last_recovered_signed_idx() override
+    ccf::kv::Version get_last_recovered_signed_idx() override
     {
       // On recovery, only one node recovers the public ledger and is thus
       // aware of the version at which the new ledger secret is applicable
@@ -2331,8 +2337,9 @@ namespace ccf
         network.encrypted_ledger_secrets.get_name(),
         network.encrypted_ledger_secrets.wrap_map_hook(
           [this](
-            kv::Version version, const EncryptedLedgerSecretsInfo::Write& w)
-            -> kv::ConsensusHookPtr {
+            ccf::kv::Version version,
+            const EncryptedLedgerSecretsInfo::Write& w)
+            -> ccf::kv::ConsensusHookPtr {
             auto encrypted_ledger_secret_info = w;
             if (!encrypted_ledger_secret_info.has_value())
             {
@@ -2359,7 +2366,7 @@ namespace ccf
             recovered_encrypted_ledger_secrets.emplace_back(
               std::move(encrypted_ledger_secret_info.value()));
 
-            return kv::ConsensusHookPtr(nullptr);
+            return ccf::kv::ConsensusHookPtr(nullptr);
           }));
     }
 
@@ -2429,11 +2436,12 @@ namespace ccf
       auto node_client = std::make_shared<HTTPNodeClient>(
         rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
 
-      kv::MembershipState membership_state = kv::MembershipState::Active;
+      ccf::kv::MembershipState membership_state =
+        ccf::kv::MembershipState::Active;
 
       consensus = std::make_shared<RaftType>(
         consensus_config,
-        std::make_unique<aft::Adaptor<kv::Store>>(network.tables),
+        std::make_unique<aft::Adaptor<ccf::kv::Store>>(network.tables),
         std::make_unique<::consensus::LedgerEnclave>(writer_factory),
         n2n_channels,
         shared_state,
@@ -2450,8 +2458,8 @@ namespace ccf
       network.tables->set_map_hook(
         network.nodes.get_name(),
         network.nodes.wrap_map_hook(
-          [](kv::Version version, const Nodes::Write& w)
-            -> kv::ConsensusHookPtr {
+          [](ccf::kv::Version version, const Nodes::Write& w)
+            -> ccf::kv::ConsensusHookPtr {
             return std::make_unique<ConfigurationChangeHook>(version, w);
           }));
 
@@ -2465,33 +2473,33 @@ namespace ccf
         network.signatures.get_name(),
         network.signatures.wrap_map_hook(
           [s = this->snapshotter](
-            kv::Version version, const Signatures::Write& w) {
+            ccf::kv::Version version, const Signatures::Write& w) {
             assert(w.has_value());
             auto sig = w.value();
             s->record_signature(version, sig.sig, sig.node, sig.cert);
-            return kv::ConsensusHookPtr(nullptr);
+            return ccf::kv::ConsensusHookPtr(nullptr);
           }));
 
       network.tables->set_map_hook(
         network.serialise_tree.get_name(),
         network.serialise_tree.wrap_map_hook(
           [s = this->snapshotter](
-            kv::Version version, const SerialisedMerkleTree::Write& w) {
+            ccf::kv::Version version, const SerialisedMerkleTree::Write& w) {
             assert(w.has_value());
             auto tree = w.value();
             s->record_serialised_tree(version, tree);
-            return kv::ConsensusHookPtr(nullptr);
+            return ccf::kv::ConsensusHookPtr(nullptr);
           }));
 
       network.tables->set_map_hook(
         network.snapshot_evidence.get_name(),
         network.snapshot_evidence.wrap_map_hook(
           [s = this->snapshotter](
-            kv::Version version, const SnapshotEvidence::Write& w) {
+            ccf::kv::Version version, const SnapshotEvidence::Write& w) {
             assert(w.has_value());
             auto snapshot_evidence = w.value();
             s->record_snapshot_evidence_idx(version, snapshot_evidence);
-            return kv::ConsensusHookPtr(nullptr);
+            return ccf::kv::ConsensusHookPtr(nullptr);
           }));
 
       setup_basic_hooks();
@@ -2610,8 +2618,8 @@ namespace ccf
 
     // Stop-gap until it becomes easier to use other HTTP clients
     virtual void make_http_request(
-      const http::URL& url,
-      http::Request&& req,
+      const ::http::URL& url,
+      ::http::Request&& req,
       std::function<
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
@@ -2649,7 +2657,7 @@ namespace ccf
       snapshotter->write_snapshot(snapshot_buf, request_id);
     }
 
-    virtual std::shared_ptr<kv::Store> get_store() override
+    virtual std::shared_ptr<ccf::kv::Store> get_store() override
     {
       return network.tables;
     }

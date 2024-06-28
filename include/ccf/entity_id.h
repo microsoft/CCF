@@ -202,7 +202,7 @@ struct formatter<ccf::EntityId<FmtExtender>>
 };
 FMT_END_NAMESPACE
 
-namespace kv::serialisers
+namespace ccf::kv::serialisers
 {
   template <typename FmtExtender>
   struct BlitSerialiser<ccf::EntityId<FmtExtender>>

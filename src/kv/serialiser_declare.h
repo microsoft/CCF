@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-namespace kv
+namespace ccf::kv
 {
   // This awkward forward declaration allows the <K,V>-templated serialisers to
   // depend on kv_types.h, and removes the reverse dependency. Once these

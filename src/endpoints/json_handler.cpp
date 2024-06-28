@@ -63,7 +63,7 @@ namespace ccf
             if (accept_it.has_value())
             {
               const auto accept_options =
-                http::parse_accept_header(accept_it.value());
+                ::http::parse_accept_header(accept_it.value());
               bool matched = false;
               for (const auto& option : accept_options)
               {

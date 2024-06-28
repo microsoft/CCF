@@ -31,6 +31,6 @@ namespace ccf
 
     virtual ~NodeClient() {}
 
-    virtual bool make_request(http::Request& request) = 0;
+    virtual bool make_request(::http::Request& request) = 0;
   };
 }

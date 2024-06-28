@@ -66,9 +66,9 @@ namespace ccf
       return true;
     }
 
-    kv::Version get_last_recovered_signed_idx() override
+    ccf::kv::Version get_last_recovered_signed_idx() override
     {
-      return kv::NoVersion;
+      return ccf::kv::NoVersion;
     }
 
     SessionMetrics get_session_metrics() override
@@ -82,7 +82,7 @@ namespace ccf
     }
 
     QuoteVerificationResult verify_quote(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
       pal::PlatformAttestationMeasurement& measurement) override
@@ -90,12 +90,12 @@ namespace ccf
       return QuoteVerificationResult::Verified;
     }
 
-    kv::Version get_startup_snapshot_seqno() override
+    ccf::kv::Version get_startup_snapshot_seqno() override
     {
       return 0;
     }
 
-    void initiate_private_recovery(kv::Tx& tx) override
+    void initiate_private_recovery(ccf::kv::Tx& tx) override
     {
       throw std::logic_error("Unimplemented");
     }
@@ -109,33 +109,33 @@ namespace ccf
   class StubGovernanceEffects : public ccf::AbstractGovernanceEffects
   {
   public:
-    void transition_service_to_open(kv::Tx& tx, ServiceIdentities) override
+    void transition_service_to_open(ccf::kv::Tx& tx, ServiceIdentities) override
     {
       return;
     }
 
-    bool rekey_ledger(kv::Tx& tx) override
+    bool rekey_ledger(ccf::kv::Tx& tx) override
     {
       return true;
     }
 
-    void trigger_recovery_shares_refresh(kv::Tx& tx) override
+    void trigger_recovery_shares_refresh(ccf::kv::Tx& tx) override
     {
       return;
     }
 
-    void trigger_ledger_chunk(kv::Tx& tx) override
+    void trigger_ledger_chunk(ccf::kv::Tx& tx) override
     {
       return;
     }
 
-    void trigger_snapshot(kv::Tx& tx) override
+    void trigger_snapshot(ccf::kv::Tx& tx) override
     {
       return;
     }
 
     void trigger_acme_refresh(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const std::optional<std::vector<std::string>>& interfaces =
         std::nullopt) override
     {
@@ -163,7 +163,7 @@ namespace ccf
 
     void track_deletes_on_missing_keys(bool track) {}
 
-    kv::ReadOnlyStorePtr get_store_at(
+    ccf::kv::ReadOnlyStorePtr get_store_at(
       historical::RequestHandle handle,
       ccf::SeqNo seqno,
       historical::ExpiryDuration seconds_until_expiry)
@@ -171,7 +171,7 @@ namespace ccf
       return nullptr;
     }
 
-    kv::ReadOnlyStorePtr get_store_at(
+    ccf::kv::ReadOnlyStorePtr get_store_at(
       historical::RequestHandle handle, ccf::SeqNo seqno)
     {
       return nullptr;
@@ -191,7 +191,7 @@ namespace ccf
       return nullptr;
     }
 
-    std::vector<kv::ReadOnlyStorePtr> get_store_range(
+    std::vector<ccf::kv::ReadOnlyStorePtr> get_store_range(
       historical::RequestHandle handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno,
@@ -200,7 +200,7 @@ namespace ccf
       return {};
     }
 
-    std::vector<kv::ReadOnlyStorePtr> get_store_range(
+    std::vector<ccf::kv::ReadOnlyStorePtr> get_store_range(
       historical::RequestHandle handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno)
@@ -225,7 +225,7 @@ namespace ccf
       return {};
     }
 
-    std::vector<kv::ReadOnlyStorePtr> get_stores_for(
+    std::vector<ccf::kv::ReadOnlyStorePtr> get_stores_for(
       historical::RequestHandle handle,
       const SeqNoCollection& seqnos,
       historical::ExpiryDuration seconds_until_expiry)
@@ -233,7 +233,7 @@ namespace ccf
       return {};
     }
 
-    std::vector<kv::ReadOnlyStorePtr> get_stores_for(
+    std::vector<ccf::kv::ReadOnlyStorePtr> get_stores_for(
       historical::RequestHandle handle, const SeqNoCollection& seqnos)
     {
       return {};
@@ -259,7 +259,7 @@ namespace ccf
     }
   };
 
-  struct StubNodeContext : public ccfapp::AbstractNodeContext
+  struct StubNodeContext : public ccf::AbstractNodeContext
   {
   public:
     std::shared_ptr<StubNodeOperation> node_operation = nullptr;
@@ -284,7 +284,7 @@ namespace ccf
 
     ccf::NodeId get_node_id() const override
     {
-      return kv::test::PrimaryNodeId;
+      return ccf::kv::test::PrimaryNodeId;
     }
   };
 }

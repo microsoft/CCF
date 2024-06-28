@@ -5,7 +5,7 @@
 
 #include "kv/untyped_change_set.h"
 
-namespace kv::untyped
+namespace ccf::kv::untyped
 {
   void MapDiff::foreach_(const MapDiff::ElementVisitorWithEarlyOut& f)
   {
@@ -20,7 +20,8 @@ namespace kv::untyped
     }
   }
 
-  MapDiff::MapDiff(kv::untyped::ChangeSet& cs, const std::string& map_name) :
+  MapDiff::MapDiff(
+    ccf::kv::untyped::ChangeSet& cs, const std::string& map_name) :
     writes(cs.writes),
     map_name(map_name)
   {}

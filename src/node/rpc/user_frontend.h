@@ -18,7 +18,7 @@ namespace ccf
     UserRpcFrontend(
       NetworkState& network,
       std::unique_ptr<ccf::endpoints::EndpointRegistry>&& endpoints_,
-      ccfapp::AbstractNodeContext& context_) :
+      ccf::AbstractNodeContext& context_) :
       RpcFrontend(*network.tables, *endpoints_, context_),
       endpoints(std::move(endpoints_))
     {}

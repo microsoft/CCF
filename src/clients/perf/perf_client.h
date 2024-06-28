@@ -343,7 +343,7 @@ namespace client
         rpc_connection->gen_request(
           method,
           params,
-          http::headervalues::contenttype::JSON,
+          ccf::http::headervalues::contenttype::JSON,
           HTTP_POST,
           options.bearer_token.size() == 0 ? nullptr :
                                              options.bearer_token.c_str()),
@@ -376,11 +376,11 @@ namespace client
       return r.status == HTTP_STATUS_OK;
     }
 
-    virtual void pre_creation_hook(){};
-    virtual void post_creation_hook(){};
+    virtual void pre_creation_hook() {};
+    virtual void post_creation_hook() {};
 
-    virtual void pre_timing_body_hook(){};
-    virtual void post_timing_body_hook(){};
+    virtual void pre_timing_body_hook() {};
+    virtual void post_timing_body_hook() {};
 
     virtual timing::Results call_raw_batch(
       std::shared_ptr<RpcTlsClient>& connection, const PreparedTxs& txs)

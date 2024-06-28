@@ -17,7 +17,7 @@ namespace ccf
   namespace historical
   {
     std::optional<ServiceInfo> find_previous_service_identity(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       ccf::historical::StatePtr& state,
       AbstractStateCache& state_cache)
     {
@@ -61,7 +61,7 @@ namespace ccf
     }
 
     bool populate_service_endorsements(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       ccf::historical::StatePtr& state,
       AbstractStateCache& state_cache,
       std::shared_ptr<NetworkIdentitySubsystemInterface>

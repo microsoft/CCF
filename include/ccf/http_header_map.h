@@ -5,7 +5,7 @@
 #include <map>
 #include <string>
 
-namespace http
+namespace ccf::http
 {
   using HeaderMap = std::map<std::string, std::string, std::less<>>;
   using HeaderKeyValue = HeaderMap::value_type;

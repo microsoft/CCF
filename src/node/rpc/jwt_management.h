@@ -24,7 +24,7 @@
 namespace ccf
 {
   static void legacy_remove_jwt_public_signing_keys(
-    kv::Tx& tx, std::string issuer)
+    ccf::kv::Tx& tx, std::string issuer)
   {
     auto keys =
       tx.rw<JwtPublicSigningKeys>(Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS);
@@ -49,8 +49,8 @@ namespace ccf
     // setting keys from issuer A which will be used to validate iss claims for
     // issuer B, so this doesn't make sense (at least for now).
 
-    const auto issuer_domain = http::parse_url_full(issuer).host;
-    const auto constraint_domain = http::parse_url_full(constraint).host;
+    const auto issuer_domain = ::http::parse_url_full(issuer).host;
+    const auto constraint_domain = ::http::parse_url_full(constraint).host;
 
     if (constraint_domain.empty())
     {
@@ -73,7 +73,8 @@ namespace ccf
     return true;
   }
 
-  static void remove_jwt_public_signing_keys(kv::Tx& tx, std::string issuer)
+  static void remove_jwt_public_signing_keys(
+    ccf::kv::Tx& tx, std::string issuer)
   {
     // Unlike resetting JWT keys for a particular issuer, removing keys can be
     // safely done on both table revisions, as soon as the application shouldn't
@@ -123,7 +124,7 @@ namespace ccf
 #endif
 
   static bool set_jwt_public_signing_keys(
-    kv::Tx& tx,
+    ccf::kv::Tx& tx,
     const std::string& log_prefix,
     std::string issuer,
     const JwtIssuerMetadata& issuer_metadata,
