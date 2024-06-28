@@ -452,7 +452,7 @@ namespace ccf::js
   }
 
   DynamicJSEndpointRegistry::DynamicJSEndpointRegistry(
-    ccfapp::AbstractNodeContext& context, const std::string& kv_prefix) :
+    ccf::AbstractNodeContext& context, const std::string& kv_prefix) :
     ccf::UserEndpointRegistry(context),
     modules_map(fmt::format("{}.modules", kv_prefix)),
     metadata_map(fmt::format("{}.metadata", kv_prefix)),

@@ -209,7 +209,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     std::make_shared<ringbuffer::Writer>(outbound_reader));
   enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
 
-  ccfapp::AbstractNodeContext node_context;
+  ccf::AbstractNodeContext node_context;
   node_context.install_subsystem(enclave_lfs);
 
   auto flush_ringbuffers = [&]() {
@@ -533,7 +533,7 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
     std::make_shared<ringbuffer::Writer>(outbound_reader));
   enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
 
-  ccfapp::AbstractNodeContext node_context;
+  ccf::AbstractNodeContext node_context;
   node_context.install_subsystem(enclave_lfs);
 
   auto flush_ringbuffers = [&]() {

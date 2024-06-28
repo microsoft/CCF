@@ -30,7 +30,7 @@ namespace ccf::indexing::strategies
   public:
     SeqnosByKey_Bucketed_Untyped(
       const std::string& map_name_,
-      ccfapp::AbstractNodeContext& node_context,
+      ccf::AbstractNodeContext& node_context,
       size_t seqnos_per_bucket_ = 1000,
       size_t max_buckets_ = 10);
 
@@ -45,7 +45,7 @@ namespace ccf::indexing::strategies
 
     SeqnosByKey_Bucketed(
       const M& map,
-      ccfapp::AbstractNodeContext& node_context,
+      ccf::AbstractNodeContext& node_context,
       size_t seqnos_per_bucket_ = 1000,
       size_t max_buckets_ = 10) :
       SeqnosByKey_Bucketed_Untyped(
@@ -67,7 +67,7 @@ namespace ccf::indexing::strategies
 
     SeqnosForValue_Bucketed(
       const V& value,
-      ccfapp::AbstractNodeContext& node_context,
+      ccf::AbstractNodeContext& node_context,
       size_t seqnos_per_bucket_ = 1000,
       size_t max_buckets_ = 10) :
       SeqnosByKey_Bucketed_Untyped(

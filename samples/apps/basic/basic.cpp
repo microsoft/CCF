@@ -24,7 +24,7 @@ namespace basicapp
   class BasicHandlers : public ccf::UserEndpointRegistry
   {
   public:
-    BasicHandlers(ccfapp::AbstractNodeContext& context) :
+    BasicHandlers(ccf::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {
       openapi_info.title = "CCF Basic App";
@@ -110,10 +110,10 @@ namespace basicapp
   };
 }
 
-namespace ccfapp
+namespace ccf
 {
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
-    ccfapp::AbstractNodeContext& context)
+    ccf::AbstractNodeContext& context)
   {
     return std::make_unique<basicapp::BasicHandlers>(context);
   }

@@ -76,7 +76,7 @@ namespace ccf::js
 
   public:
     DynamicJSEndpointRegistry(
-      ccfapp::AbstractNodeContext& context,
+      ccf::AbstractNodeContext& context,
       const std::string& kv_prefix = "public:custom_endpoints");
 
     /**

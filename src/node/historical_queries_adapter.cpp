@@ -242,7 +242,7 @@ namespace ccf::historical
     class TTxIDExtractor>
   TEndpointFunction _adapter_v3(
     const TQueryHandler& f,
-    ccfapp::AbstractNodeContext& node_context,
+    ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TTxIDExtractor& extractor)
   {
@@ -340,7 +340,7 @@ namespace ccf::historical
 
   ccf::endpoints::EndpointFunction adapter_v3(
     const HandleHistoricalQuery& f,
-    ccfapp::AbstractNodeContext& node_context,
+    ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor)
   {
@@ -352,7 +352,7 @@ namespace ccf::historical
 
   ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v3(
     const HandleReadOnlyHistoricalQuery& f,
-    ccfapp::AbstractNodeContext& node_context,
+    ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const ReadOnlyTxIDExtractor& extractor)
   {
@@ -365,7 +365,7 @@ namespace ccf::historical
 
   ccf::endpoints::EndpointFunction read_write_adapter_v3(
     const HandleReadWriteHistoricalQuery& f,
-    ccfapp::AbstractNodeContext& node_context,
+    ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor)
   {

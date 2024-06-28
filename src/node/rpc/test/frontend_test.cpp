@@ -43,7 +43,7 @@ public:
   Registry registry;
 
   TSimpleFrontend(
-    ccf::kv::Store& tables, ccfapp::AbstractNodeContext& context) :
+    ccf::kv::Store& tables, ccf::AbstractNodeContext& context) :
     RpcFrontend(tables, registry, context),
     registry(context)
   {}
@@ -1504,7 +1504,7 @@ public:
     }
   }
 
-  TestManualConflictsRegistry(ccfapp::AbstractNodeContext& context) :
+  TestManualConflictsRegistry(ccf::AbstractNodeContext& context) :
     UserEndpointRegistry(context)
   {
     auto pausable = [this](auto& ctx) {

@@ -37,7 +37,7 @@ namespace ccf
   protected:
     ccf::kv::Store& tables;
     endpoints::EndpointRegistry& endpoints;
-    ccfapp::AbstractNodeContext& node_context;
+    ccf::AbstractNodeContext& node_context;
 
   private:
     ccf::pal::Mutex open_lock;
@@ -914,7 +914,7 @@ namespace ccf
     RpcFrontend(
       ccf::kv::Store& tables_,
       endpoints::EndpointRegistry& handlers_,
-      ccfapp::AbstractNodeContext& node_context_) :
+      ccf::AbstractNodeContext& node_context_) :
       tables(tables_),
       endpoints(handlers_),
       node_context(node_context_),

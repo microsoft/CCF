@@ -395,8 +395,7 @@ namespace ccf
     }
 
   public:
-    NodeEndpoints(
-      NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
+    NodeEndpoints(NetworkState& network_, ccf::AbstractNodeContext& context_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), context_),
       network(network_),
       node_operation(*context_.get_subsystem<ccf::AbstractNodeOperation>())
@@ -1583,7 +1582,7 @@ namespace ccf
         }
 
         std::optional<ccf::ClaimsDigest::Digest> digest =
-          ccfapp::get_create_tx_claims_digest(ctx.tx);
+          ccf::get_create_tx_claims_digest(ctx.tx);
         if (digest.has_value())
         {
           auto digest_value = digest.value();
@@ -1800,8 +1799,7 @@ namespace ccf
     NodeEndpoints node_endpoints;
 
   public:
-    NodeRpcFrontend(
-      NetworkState& network, ccfapp::AbstractNodeContext& context) :
+    NodeRpcFrontend(NetworkState& network, ccf::AbstractNodeContext& context) :
       RpcFrontend(*network.tables, node_endpoints, context),
       node_endpoints(network, context)
     {}

@@ -3,7 +3,7 @@
 
 #include <optional>
 
-namespace ccfapp
+namespace ccf
 {
   std::optional<ccf::ClaimsDigest::Digest> __attribute__((weak))
   get_create_tx_claims_digest(ccf::kv::ReadOnlyTx& tx)

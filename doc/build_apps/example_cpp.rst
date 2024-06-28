@@ -46,7 +46,7 @@ The Logging example application simply has:
 Application Endpoints
 ~~~~~~~~~~~~~~~~~~~~~
 
-The implementation of :cpp:func:`ccfapp::make_user_endpoints()` should return a subclass of :cpp:class:`ccf::endpoints::EndpointRegistry`, containing the endpoints that constitute the app.
+The implementation of :cpp:func:`ccf::make_user_endpoints()` should return a subclass of :cpp:class:`ccf::endpoints::EndpointRegistry`, containing the endpoints that constitute the app.
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp
@@ -54,7 +54,7 @@ The implementation of :cpp:func:`ccfapp::make_user_endpoints()` should return a 
     :lines: 1
     :dedent:
 
-The logging app defines :cpp:class:`ccfapp::LoggerHandlers`, which creates and installs handler functions or lambdas for several different HTTP endpoints. Each of these functions takes as input the details of the current request (such as the URI which was called, the query string, the request body), interacts with the KV tables using the given :cpp:class:`ccf::kv::Tx` object, and returns a result:
+The logging app defines :cpp:class:`ccf::LoggerHandlers`, which creates and installs handler functions or lambdas for several different HTTP endpoints. Each of these functions takes as input the details of the current request (such as the URI which was called, the query string, the request body), interacts with the KV tables using the given :cpp:class:`ccf::kv::Tx` object, and returns a result:
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp

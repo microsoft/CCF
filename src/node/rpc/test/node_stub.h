@@ -259,7 +259,7 @@ namespace ccf
     }
   };
 
-  struct StubNodeContext : public ccfapp::AbstractNodeContext
+  struct StubNodeContext : public ccf::AbstractNodeContext
   {
   public:
     std::shared_ptr<StubNodeOperation> node_operation = nullptr;
