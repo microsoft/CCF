@@ -80,7 +80,7 @@ namespace http
     {
       llhttp_method method;
       std::string url;
-      http::HeaderMap headers;
+      ccf::http::HeaderMap headers;
       std::vector<uint8_t> body;
     };
 
@@ -89,7 +89,7 @@ namespace http
     virtual void handle_request(
       llhttp_method method,
       const std::string_view& url,
-      http::HeaderMap&& headers,
+      ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body,
       int32_t) override
     {
@@ -97,13 +97,13 @@ namespace http
     }
   };
 
-  struct SimpleResponseProcessor : public http::ResponseProcessor
+  struct SimpleResponseProcessor : public ::http::ResponseProcessor
   {
   public:
     struct Response
     {
       http_status status;
-      http::HeaderMap headers;
+      ccf::http::HeaderMap headers;
       std::vector<uint8_t> body;
     };
 
@@ -111,7 +111,7 @@ namespace http
 
     virtual void handle_response(
       http_status status,
-      http::HeaderMap&& headers,
+      ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
       received.emplace(Response{status, headers, body});
@@ -183,11 +183,11 @@ namespace http
   protected:
     llhttp_t parser;
     llhttp_settings_t settings;
-    ParserConfiguration configuration;
+    ccf::http::ParserConfiguration configuration;
     State state = DONE;
 
     std::vector<uint8_t> body_buf;
-    HeaderMap headers;
+    ccf::http::HeaderMap headers;
 
     std::pair<std::string, std::string> partial_parsed_header = {};
 
@@ -200,7 +200,8 @@ namespace http
 
     Parser(
       llhttp_type_t type,
-      const ParserConfiguration& config = ParserConfiguration{}) :
+      const ccf::http::ParserConfiguration& config =
+        ccf::http::ParserConfiguration{}) :
       configuration(config)
     {
       llhttp_settings_init(&settings);
@@ -245,8 +246,8 @@ namespace http
         LOG_TRACE_FMT("Appending chunk [{} bytes]", length);
         std::copy(at, at + length, std::back_inserter(body_buf));
 
-        auto const& max_body_size =
-          configuration.max_body_size.value_or(default_max_body_size);
+        auto const& max_body_size = configuration.max_body_size.value_or(
+          ccf::http::default_max_body_size);
         if (body_buf.size() > max_body_size)
         {
           throw RequestPayloadTooLargeException(fmt::format(
@@ -299,8 +300,8 @@ namespace http
         complete_header();
       }
 
-      const auto max_headers_count =
-        configuration.max_headers_count.value_or(default_max_headers_count);
+      const auto max_headers_count = configuration.max_headers_count.value_or(
+        ccf::http::default_max_headers_count);
       if (headers.size() >= max_headers_count)
       {
         throw RequestHeaderTooLargeException(fmt::format(
@@ -314,8 +315,8 @@ namespace http
       auto& partial_header_key = partial_parsed_header.first;
       partial_header_key.append(f);
 
-      auto const& max_header_size =
-        configuration.max_header_size.value_or(default_max_header_size);
+      auto const& max_header_size = configuration.max_header_size.value_or(
+        ccf::http::default_max_header_size);
       if (partial_header_key.size() > max_header_size)
       {
         throw RequestHeaderTooLargeException(fmt::format(
@@ -329,8 +330,8 @@ namespace http
     {
       auto& partial_header_value = partial_parsed_header.second;
       partial_header_value.append(at, length);
-      auto const& max_header_size =
-        configuration.max_header_size.value_or(default_max_header_size);
+      auto const& max_header_size = configuration.max_header_size.value_or(
+        ccf::http::default_max_header_size);
       if (partial_header_value.size() > max_header_size)
       {
         throw RequestHeaderTooLargeException(fmt::format(
@@ -399,7 +400,8 @@ namespace http
   public:
     RequestParser(
       RequestProcessor& proc_,
-      const ParserConfiguration& config = ParserConfiguration{}) :
+      const ccf::http::ParserConfiguration& config =
+        ccf::http::ParserConfiguration{}) :
       Parser(HTTP_REQUEST, config),
       proc(proc_)
     {
@@ -453,7 +455,7 @@ namespace http
 
   public:
     ResponseParser(ResponseProcessor& proc_) :
-      Parser(HTTP_RESPONSE, ParserConfiguration{}),
+      Parser(HTTP_RESPONSE, ccf::http::ParserConfiguration{}),
       proc(proc_)
     {}
 

@@ -154,7 +154,7 @@ namespace timing
     const client::RpcTlsClient::Response& response)
   {
     const auto& h = response.headers;
-    const auto it = h.find(http::headers::CCF_TX_ID);
+    const auto it = h.find(ccf::http::headers::CCF_TX_ID);
     if (it == h.end())
     {
       return std::nullopt;

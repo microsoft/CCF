@@ -68,10 +68,10 @@ namespace ccf
     virtual bool is_accessible_to_members() const = 0;
 
     virtual void make_http_request(
-      const http::URL& url,
-      http::Request&& req,
-      std::function<
-        bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
+      const ::http::URL& url,
+      ::http::Request&& req,
+      std::function<bool(
+        http_status status, ccf::http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
       const std::vector<std::string>& ca_certs = {},
       const std::string& app_protocol = "HTTP1",

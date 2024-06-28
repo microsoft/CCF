@@ -17,7 +17,8 @@
 #ifdef CCF_RAFT_TRACING
 #  define RAFT_DRIVER_PRINT(...) \
     std::cout << "<RaftDriver>  " << fmt::format(__VA_ARGS__) \
-              << fmt::format(" (ts={})", logger::logical_clock) << std::endl;
+              << fmt::format(" (ts={})", ccf::logger::logical_clock) \
+              << std::endl;
 #else
 #  define RAFT_DRIVER_PRINT(...) \
     std::cout << "<RaftDriver>  " << fmt::format(__VA_ARGS__) << std::endl;

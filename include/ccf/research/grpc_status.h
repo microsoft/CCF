@@ -97,7 +97,7 @@ static grpc_status http_status_to_grpc(http_status s)
 namespace ccf::grpc
 {
   static const http::HeaderMap default_response_headers = {
-    {http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC}};
+    {ccf::http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC}};
 
   static constexpr auto TRAILER_STATUS = "grpc-status";
   static constexpr auto TRAILER_MESSAGE = "grpc-message";

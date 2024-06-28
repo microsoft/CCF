@@ -7,8 +7,6 @@ parameters:
 steps:
   - script: |
       set -ex
-      df -h /dev/shm
-      du -sh /dev/shm/*
       ASAN_SYMBOLIZER=/usr/bin/llvm-symbolizer-15
       export ASAN_SYMBOLIZER_PATH=$(realpath ${ASAN_SYMBOLIZERS})
       ./tests.sh -VV --timeout ${{ parameters.ctest_timeout }} --no-compress-output -T Test ${{ parameters.ctest_filter }}

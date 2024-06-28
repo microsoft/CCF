@@ -780,7 +780,7 @@ DOCTEST_TEST_CASE("Recv append entries logic" * doctest::test_suite("multiple"))
 
 DOCTEST_TEST_CASE("Exceed append entries limit")
 {
-  logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::level() = LoggerLevel::INFO;
 
   ccf::NodeId node_id0 = ccf::kv::test::PrimaryNodeId;
   ccf::NodeId node_id1 = ccf::kv::test::FirstBackupNodeId;
