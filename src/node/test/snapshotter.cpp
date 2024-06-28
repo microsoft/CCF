@@ -23,7 +23,7 @@ std::unique_ptr<threading::ThreadMessaging>
 constexpr auto buffer_size = 1024 * 16;
 auto kp = ccf::crypto::make_key_pair();
 
-using StringString = kv::Map<std::string, std::string>;
+using StringString = ccf::kv::Map<std::string, std::string>;
 using rb_msg = std::pair<ringbuffer::Message, size_t>;
 
 auto read_ringbuffer_out(ringbuffer::Circuit& circuit)
@@ -92,11 +92,12 @@ void issue_transactions(ccf::NetworkState& network, size_t tx_count)
     auto tx = network.tables->create_tx();
     auto map = tx.rw<StringString>("public:map");
     map->put("foo", "bar");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 }
 
-size_t read_latest_snapshot_evidence(const std::shared_ptr<kv::Store>& store)
+size_t read_latest_snapshot_evidence(
+  const std::shared_ptr<ccf::kv::Store>& store)
 {
   auto tx = store->create_read_only_tx();
   auto h = tx.ro<ccf::SnapshotEvidence>(ccf::Tables::SNAPSHOT_EVIDENCE);
@@ -118,7 +119,7 @@ bool record_signature(
 
   bool requires_snapshot = snapshotter->record_committable(idx);
   snapshotter->record_signature(
-    idx, dummy_signature, kv::test::PrimaryNodeId, node_cert);
+    idx, dummy_signature, ccf::kv::test::PrimaryNodeId, node_cert);
   snapshotter->record_serialised_tree(idx, history->serialise_tree(idx));
 
   return requires_snapshot;
@@ -139,13 +140,13 @@ TEST_CASE("Regular snapshotting")
 
   ccf::NetworkState network;
 
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   auto history = std::make_shared<ccf::MerkleTxHistory>(
-    *network.tables.get(), kv::test::PrimaryNodeId, *kp);
+    *network.tables.get(), ccf::kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
   network.tables->initialise_term(2);
   network.tables->set_consensus(consensus);
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
 
   auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
@@ -302,13 +303,13 @@ TEST_CASE("Regular snapshotting")
 TEST_CASE("Rollback before snapshot is committed")
 {
   ccf::NetworkState network;
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   auto history = std::make_shared<ccf::MerkleTxHistory>(
-    *network.tables.get(), kv::test::PrimaryNodeId, *kp);
+    *network.tables.get(), ccf::kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
   network.tables->initialise_term(2);
   network.tables->set_consensus(consensus);
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
 
   auto in_buffer = std::make_unique<ringbuffer::TestBuffer>(buffer_size);
@@ -394,7 +395,7 @@ TEST_CASE("Rollback before snapshot is committed")
     size_t snapshot_idx = network.tables->current_version();
 
     network.tables->set_flag(
-      kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+      ccf::kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
     REQUIRE_FALSE(record_signature(history, snapshotter, snapshot_idx));
     snapshotter->commit(snapshot_idx, true);
@@ -410,7 +411,7 @@ TEST_CASE("Rollback before snapshot is committed")
     REQUIRE(snapshotter->write_snapshot(snapshot, snapshot_count));
 
     REQUIRE(!network.tables->flag_enabled(
-      kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE));
+      ccf::kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE));
 
     // Commit evidence
     issue_transactions(network, 1);
@@ -433,9 +434,9 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
 
   ccf::NetworkState network;
 
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   auto history = std::make_shared<ccf::MerkleTxHistory>(
-    *network.tables.get(), kv::test::PrimaryNodeId, *kp);
+    *network.tables.get(), ccf::kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
   network.tables->initialise_term(2);
   network.tables->set_consensus(consensus);
@@ -467,7 +468,7 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
     auto sigs = tx.rw<ccf::Signatures>(ccf::Tables::SIGNATURES);
     auto trees =
       tx.rw<ccf::SerialisedMerkleTree>(ccf::Tables::SERIALISED_MERKLE_TREE);
-    sigs->put({kv::test::PrimaryNodeId, 0, 0, {}, {}, {}, {}});
+    sigs->put({ccf::kv::test::PrimaryNodeId, 0, 0, {}, {}, {}, {}});
     auto tree = history->serialise_tree(snapshot_idx - 1);
     trees->put(tree);
     tx.commit();
@@ -501,7 +502,7 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
     // Snapshot can be deserialised to backup store
     ccf::NetworkState backup_network;
     auto backup_history = std::make_shared<ccf::MerkleTxHistory>(
-      *backup_network.tables.get(), kv::test::FirstBackupNodeId, *kp);
+      *backup_network.tables.get(), ccf::kv::test::FirstBackupNodeId, *kp);
     backup_network.tables->set_history(backup_history);
     auto tx = network.tables->create_read_only_tx();
 
@@ -511,12 +512,12 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
       std::make_shared<ccf::NodeEncryptor>(backup_ledger_secrets);
     backup_network.tables->set_encryptor(backup_encryptor);
 
-    kv::ConsensusHookPtrs hooks;
-    std::vector<kv::Version> view_history;
+    ccf::kv::ConsensusHookPtrs hooks;
+    std::vector<ccf::kv::Version> view_history;
     REQUIRE(
       backup_network.tables->deserialise_snapshot(
         snapshot.data(), snapshot.size(), hooks, &view_history) ==
-      kv::ApplyResult::PASS);
+      ccf::kv::ApplyResult::PASS);
   }
 }
 

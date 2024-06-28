@@ -113,7 +113,7 @@ namespace ccf
     }
 
     void remove_all_other_non_open_proposals(
-      kv::Tx& tx, const ProposalId& proposal_id)
+      ccf::kv::Tx& tx, const ProposalId& proposal_id)
     {
       auto p = tx.rw<ccf::jsgov::ProposalMap>(jsgov::Tables::PROPOSALS);
       auto pi =
@@ -136,7 +136,7 @@ namespace ccf
     }
 
     ccf::jsgov::ProposalInfoSummary resolve_proposal(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const ProposalId& proposal_id,
       const std::span<const uint8_t>& proposal_bytes,
       const std::string& constitution)
@@ -359,13 +359,13 @@ namespace ccf
       }
     }
 
-    bool check_member_active(kv::ReadOnlyTx& tx, const MemberId& id)
+    bool check_member_active(ccf::kv::ReadOnlyTx& tx, const MemberId& id)
     {
       return check_member_status(tx, id, {MemberStatus::ACTIVE});
     }
 
     bool check_member_status(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const MemberId& id,
       std::initializer_list<MemberStatus> allowed)
     {
@@ -385,14 +385,16 @@ namespace ccf
     }
 
     void record_voting_history(
-      kv::Tx& tx, const MemberId& caller_id, const SignedReq& signed_request)
+      ccf::kv::Tx& tx,
+      const MemberId& caller_id,
+      const SignedReq& signed_request)
     {
       auto governance_history = tx.rw(network.governance_history);
       governance_history->put(caller_id, {signed_request});
     }
 
     void record_cose_governance_history(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const MemberId& caller_id,
       const std::span<const uint8_t>& cose_sign1)
     {
@@ -402,7 +404,7 @@ namespace ccf
     }
 
     ProposalSubmissionStatus is_proposal_submission_acceptable(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const std::string& created_at,
       const std::vector<uint8_t>& request_digest,
       const ccf::ProposalId& proposal_id,
@@ -482,9 +484,9 @@ namespace ccf
     void add_kv_wrapper_endpoint(T table)
     {
       constexpr bool is_map =
-        ccf::nonstd::is_specialization<T, kv::TypedMap>::value;
+        ccf::nonstd::is_specialization<T, ccf::kv::TypedMap>::value;
       constexpr bool is_value =
-        ccf::nonstd::is_specialization<T, kv::TypedValue>::value;
+        ccf::nonstd::is_specialization<T, ccf::kv::TypedValue>::value;
 
       if constexpr (!(is_map || is_value))
       {

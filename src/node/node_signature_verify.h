@@ -9,7 +9,7 @@
 namespace ccf
 {
   static bool verify_node_signature(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const NodeId& node_id,
     const uint8_t* expected_sig,
     size_t expected_sig_size,
@@ -57,7 +57,7 @@ namespace ccf
   }
 
   static bool verify_node_signature(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const NodeId& node_id,
     const std::vector<uint8_t>& expected_sig,
     const ccf::crypto::Sha256Hash& expected_root)

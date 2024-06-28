@@ -7,7 +7,7 @@
 #include <functional>
 #include <memory>
 
-namespace kv
+namespace ccf::kv
 {
   class ConfigurableConsensus;
 

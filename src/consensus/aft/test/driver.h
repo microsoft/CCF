@@ -47,8 +47,8 @@ struct LedgerStubProxy_Mermaid : public aft::LedgerStubProxy
   void put_entry(
     const std::vector<uint8_t>& data,
     bool globally_committable,
-    kv::Term term,
-    kv::Version index) override
+    ccf::kv::Term term,
+    ccf::kv::Version index) override
   {
     RAFT_DRIVER_PRINT(
       "{}->>{}: [ledger] appending: {}.{}={}",
@@ -77,7 +77,7 @@ struct LoggingStubStore_Mermaid : public aft::LoggingStubStoreConfig
     aft::LoggingStubStoreConfig::compact(idx);
   }
 
-  void rollback(const kv::TxID& tx_id, aft::Term t) override
+  void rollback(const ccf::kv::TxID& tx_id, aft::Term t) override
   {
     RAFT_DRIVER_PRINT(
       "{}->>{}: [KV] rolling back to {}.{}, in term {}",
@@ -123,8 +123,9 @@ private:
     std::vector<uint8_t> data,
     const size_t lineno,
     bool committable = false,
-    const std::optional<kv::Configuration::Nodes>& configuration = std::nullopt,
-    const std::optional<kv::Configuration::Nodes>& retired_committed =
+    const std::optional<ccf::kv::Configuration::Nodes>& configuration =
+      std::nullopt,
+    const std::optional<ccf::kv::Configuration::Nodes>& retired_committed =
       std::nullopt)
   {
     const auto opt = find_primary_in_term(term_s, lineno);
@@ -149,7 +150,7 @@ private:
       configuration.has_value() ? "reconfiguration" : "raw");
 
     aft::ReplicatedDataType type = aft::ReplicatedDataType::raw;
-    auto hooks = std::make_shared<kv::ConsensusHookPtrs>();
+    auto hooks = std::make_shared<ccf::kv::ConsensusHookPtrs>();
     if (configuration.has_value() && retired_committed.has_value())
     {
       throw std::logic_error(
@@ -183,7 +184,7 @@ private:
 
     auto s = nlohmann::json(aft::ReplicatedData{type, data}).dump();
     auto d = std::make_shared<std::vector<uint8_t>>(s.begin(), s.end());
-    raft->replicate(kv::BatchVector{{idx, d, committable, hooks}}, term);
+    raft->replicate(ccf::kv::BatchVector{{idx, d, committable, hooks}}, term);
   }
 
   void add_node(ccf::NodeId node_id)
@@ -198,7 +199,7 @@ private:
       std::make_shared<aft::State>(node_id),
       nullptr);
     kv->set_set_retired_committed_hook(
-      [raft](aft::Index idx, const std::vector<kv::NodeId>& node_ids) {
+      [raft](aft::Index idx, const std::vector<ccf::kv::NodeId>& node_ids) {
         raft->set_retired_committed(idx, node_ids);
       });
     raft->start_ticking();
@@ -219,7 +220,7 @@ public:
   {
     // Unrealistic way to create network. Initial configuration is automatically
     // added to all nodes.
-    kv::Configuration::Nodes configuration;
+    ccf::kv::Configuration::Nodes configuration;
     for (auto const& n : node_ids)
     {
       add_node(n);
@@ -247,7 +248,7 @@ public:
     {
       throw std::logic_error("Start node already exists");
     }
-    kv::Configuration::Nodes configuration;
+    ccf::kv::Configuration::Nodes configuration;
     add_node(start_node_id);
     configuration.try_emplace(start_node_id);
     _nodes[start_node_id].raft->force_become_primary();
@@ -263,7 +264,7 @@ public:
     const std::vector<std::string>& node_ids,
     const size_t lineno)
   {
-    kv::Configuration::Nodes retired_committed;
+    ccf::kv::Configuration::Nodes retired_committed;
     for (const auto& id : node_ids)
     {
       if (_nodes.find(id) == _nodes.end())
@@ -287,7 +288,7 @@ public:
       RAFT_DRIVER_PRINT(
         "Note over {}: Node {} trusted", ccf::NodeId(node_id), node_id);
     }
-    kv::Configuration::Nodes configuration;
+    ccf::kv::Configuration::Nodes configuration;
     for (const auto& [id, node] : _nodes)
     {
       configuration.try_emplace(id);
@@ -324,7 +325,7 @@ public:
     }
     std::set<std::string> out(nodes_out.begin(), nodes_out.end());
 
-    kv::Configuration::Nodes configuration;
+    ccf::kv::Configuration::Nodes configuration;
     for (const auto& [id, node] : _nodes)
     {
       if (out.find(id) == out.end())
@@ -351,7 +352,7 @@ public:
     std::vector<std::string> node_ids,
     const size_t lineno)
   {
-    kv::Configuration::Nodes configuration;
+    ccf::kv::Configuration::Nodes configuration;
     for (const auto& node_id_s : node_ids)
     {
       ccf::NodeId node_id(node_id_s);

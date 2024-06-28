@@ -300,7 +300,7 @@ namespace ccf
   MemberCOSESign1AuthnPolicy::~MemberCOSESign1AuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> MemberCOSESign1AuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
@@ -406,7 +406,7 @@ namespace ccf
          "Signer must be a member identity registered with this service."}});
 
   std::unique_ptr<AuthnIdentity> ActiveMemberCOSESign1AuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
@@ -441,7 +441,7 @@ namespace ccf
 
   std::unique_ptr<UserCOSESign1AuthnIdentity> UserCOSESign1AuthnPolicy::
     _authenticate(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const std::shared_ptr<ccf::RpcContext>& ctx,
       std::string& error_reason)
   {
@@ -502,7 +502,7 @@ namespace ccf
   }
 
   std::unique_ptr<AuthnIdentity> UserCOSESign1AuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
@@ -533,7 +533,7 @@ namespace ccf
          "Signer must be a user identity registered with this service."}});
 
   std::unique_ptr<AuthnIdentity> TypedUserCOSESign1AuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {

@@ -8,7 +8,7 @@
 
 namespace ccf::js::extensions::kvhelpers
 {
-  using KVMap = ::kv::untyped::Map;
+  using KVMap = ::ccf::kv::untyped::Map;
 
   using ROHandleGetter =
     KVMap::ReadOnlyHandle* (*)(js::core::Context& jsctx, JSValueConst this_val);

@@ -6,7 +6,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace kv::serialisers
+namespace ccf::kv::serialisers
 {
   // Converts values to and from JSON, using nlohmann JSON. To add support for
   // custom types, make them convertible to nlohmann::json. You may do this

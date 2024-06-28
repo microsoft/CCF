@@ -28,7 +28,7 @@ using namespace nlohmann;
 namespace loggingapp
 {
   // SNIPPET: table_definition
-  using RecordsMap = kv::Map<size_t, string>;
+  using RecordsMap = ccf::kv::Map<size_t, string>;
   static constexpr auto PUBLIC_RECORDS = "public:records";
   static constexpr auto PRIVATE_RECORDS = "records";
 
@@ -71,7 +71,7 @@ namespace loggingapp
   {
   public:
     std::unique_ptr<ccf::AuthnIdentity> authenticate(
-      kv::ReadOnlyTx&,
+      ccf::kv::ReadOnlyTx&,
       const std::shared_ptr<ccf::RpcContext>& ctx,
       std::string& error_reason) override
     {
@@ -169,7 +169,7 @@ namespace loggingapp
     {}
 
     void handle_committed_transaction(
-      const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store)
+      const ccf::TxID& tx_id, const ccf::kv::ReadOnlyStorePtr& store)
     {
       std::lock_guard<std::mutex> lock(txid_lock);
       auto tx_diff = store->create_tx_diff();
@@ -1568,7 +1568,7 @@ namespace loggingapp
         // Fetch the requested range
         auto& historical_cache = context.get_historical_state();
 
-        std::vector<kv::ReadOnlyStorePtr> stores;
+        std::vector<ccf::kv::ReadOnlyStorePtr> stores;
         if (!interesting_seqnos->empty())
         {
           stores =

@@ -16,7 +16,7 @@
 #include <regex>
 #include <set>
 
-namespace kv
+namespace ccf::kv
 {
   class Consensus;
   class TxHistory;
@@ -162,8 +162,8 @@ namespace ccf::endpoints
       std::map<RESTVerb, std::shared_ptr<PathTemplatedEndpoint>>>
       templated_endpoints;
 
-    kv::Consensus* consensus = nullptr;
-    kv::TxHistory* history = nullptr;
+    ccf::kv::Consensus* consensus = nullptr;
+    ccf::kv::TxHistory* history = nullptr;
 
   public:
     EndpointRegistry(const std::string& method_prefix_) :
@@ -255,12 +255,12 @@ namespace ccf::endpoints
      * internally, so must be able to populate the document
      * with the supported endpoints however it defines them.
      */
-    virtual void build_api(nlohmann::json& document, kv::ReadOnlyTx&);
+    virtual void build_api(nlohmann::json& document, ccf::kv::ReadOnlyTx&);
 
     virtual void init_handlers();
 
     virtual EndpointDefinitionPtr find_endpoint(
-      kv::Tx&, ccf::RpcContext& rpc_ctx);
+      ccf::kv::Tx&, ccf::RpcContext& rpc_ctx);
 
     virtual void execute_endpoint(
       EndpointDefinitionPtr e, EndpointContext& args);
@@ -269,7 +269,7 @@ namespace ccf::endpoints
       EndpointDefinitionPtr e, CommandEndpointContext& args, const TxID& tx_id);
 
     virtual std::set<RESTVerb> get_allowed_verbs(
-      kv::Tx&, const ccf::RpcContext& rpc_ctx);
+      ccf::kv::Tx&, const ccf::RpcContext& rpc_ctx);
 
     virtual bool request_needs_root(const ccf::RpcContext& rpc_ctx);
 
@@ -279,9 +279,9 @@ namespace ccf::endpoints
 
     virtual void tick(std::chrono::milliseconds);
 
-    void set_consensus(kv::Consensus* c);
+    void set_consensus(ccf::kv::Consensus* c);
 
-    void set_history(kv::TxHistory* h);
+    void set_history(ccf::kv::TxHistory* h);
 
     // Override these methods to log or report request metrics.
     virtual void handle_event_request_completed(

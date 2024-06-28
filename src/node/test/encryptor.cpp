@@ -16,29 +16,29 @@
 #include <random>
 #include <string>
 
-kv::ConsensusHookPtrs hooks;
-using StringString = kv::Map<std::string, std::string>;
+ccf::kv::ConsensusHookPtrs hooks;
+using StringString = ccf::kv::Map<std::string, std::string>;
 
-void commit_one(kv::Store& store, StringString& map)
+void commit_one(ccf::kv::Store& store, StringString& map)
 {
   auto tx = store.create_tx();
   auto m = tx.rw(map);
   m->put("key", "value");
-  REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 }
 
 bool encrypt_round_trip(
   ccf::NodeEncryptor& encryptor,
   std::vector<uint8_t>& plain,
-  kv::Version version)
+  ccf::kv::Version version)
 {
   std::vector<uint8_t> aad;
   std::vector<uint8_t> header;
   std::vector<uint8_t> cipher(plain.size());
   std::vector<uint8_t> decrypted(plain.size());
 
-  kv::Term term = 1;
-  kv::Term ret_term = 0;
+  ccf::kv::Term term = 1;
+  ccf::kv::Term ret_term = 0;
   encryptor.encrypt(plain, aad, header, cipher, {term, version});
   encryptor.decrypt(cipher, aad, header, decrypted, version, ret_term);
 
@@ -114,8 +114,8 @@ TEST_CASE("Subsequent ciphers from same plaintext are different")
   std::vector<uint8_t> serialised_header;
   std::vector<uint8_t> serialised_header2;
   std::vector<uint8_t> additional_data; // No additional data
-  kv::Version version = 10;
-  kv::Term term = 1;
+  ccf::kv::Version version = 10;
+  ccf::kv::Term term = 1;
 
   encryptor.encrypt(
     plain, additional_data, serialised_header, cipher, {term, version});
@@ -141,8 +141,8 @@ TEST_CASE("Ciphers at same seqno with different terms are different")
   std::vector<uint8_t> serialised_header;
   std::vector<uint8_t> serialised_header2;
   std::vector<uint8_t> additional_data; // No additional data
-  kv::Version version = 10;
-  kv::Term term = 1;
+  ccf::kv::Version version = 10;
+  ccf::kv::Term term = 1;
 
   encryptor.encrypt(
     plain, additional_data, serialised_header, cipher, {term, version});
@@ -167,8 +167,8 @@ TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
   std::vector<uint8_t> serialised_header;
   std::vector<uint8_t> serialised_header2;
   std::vector<uint8_t> additional_data; // No additional data
-  kv::Version version = 10;
-  kv::Term term = 1;
+  ccf::kv::Version version = 10;
+  ccf::kv::Term term = 1;
 
   encryptor.encrypt(
     plain,
@@ -176,7 +176,7 @@ TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
     serialised_header,
     cipher,
     {term, version},
-    kv::EntryType::Snapshot);
+    ccf::kv::EntryType::Snapshot);
 
   encryptor.encrypt(
     plain,
@@ -184,7 +184,7 @@ TEST_CASE("Ciphers at same seqno/term with and without snapshot are different")
     serialised_header2,
     cipher2,
     {term, version},
-    kv::EntryType::WriteSet);
+    ccf::kv::EntryType::WriteSet);
 
   // Ciphers are different because IV is different
   REQUIRE(cipher != cipher2);
@@ -201,8 +201,8 @@ TEST_CASE("Additional data")
   std::vector<uint8_t> cipher;
   std::vector<uint8_t> serialised_header;
   std::vector<uint8_t> additional_data(256, 0x10);
-  kv::Version version = 10;
-  kv::Term term = 1;
+  ccf::kv::Version version = 10;
+  ccf::kv::Term term = 1;
 
   // Encrypting plain at version 10
   encryptor.encrypt(
@@ -236,10 +236,10 @@ TEST_CASE("Additional data")
 
 TEST_CASE("KV encryption/decryption")
 {
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   StringString map("map");
-  kv::Store primary_store;
-  kv::Store backup_store;
+  ccf::kv::Store primary_store;
+  ccf::kv::Store backup_store;
 
   std::shared_ptr<ccf::LedgerSecrets> primary_ledger_secrets;
   std::shared_ptr<ccf::LedgerSecrets> backup_ledger_secrets;
@@ -270,7 +270,7 @@ TEST_CASE("KV encryption/decryption")
     commit_one(primary_store, map);
     REQUIRE(
       backup_store.deserialize(*consensus->get_latest_data())->apply() ==
-      kv::ApplyResult::PASS);
+      ccf::kv::ApplyResult::PASS);
   }
 
   INFO("Rekeys");
@@ -295,17 +295,17 @@ TEST_CASE("KV encryption/decryption")
 
       REQUIRE(
         backup_store.deserialize(*consensus->get_latest_data())->apply() ==
-        kv::ApplyResult::PASS);
+        ccf::kv::ApplyResult::PASS);
     }
   }
 }
 
 TEST_CASE("Backup catchup from many ledger secrets")
 {
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   StringString map("map");
-  kv::Store primary_store;
-  kv::Store backup_store;
+  ccf::kv::Store primary_store;
+  ccf::kv::Store backup_store;
 
   std::shared_ptr<ccf::LedgerSecrets> primary_ledger_secrets;
   std::shared_ptr<ccf::LedgerSecrets> backup_ledger_secrets;
@@ -352,7 +352,7 @@ TEST_CASE("Backup catchup from many ledger secrets")
     {
       REQUIRE(
         backup_store.deserialize(*std::get<1>(next_entry.value()))->apply() ==
-        kv::ApplyResult::PASS);
+        ccf::kv::ApplyResult::PASS);
 
       auto tx_id = backup_store.current_txid();
       tx_id.version--;
@@ -362,7 +362,7 @@ TEST_CASE("Backup catchup from many ledger secrets")
 
       REQUIRE(
         backup_store.deserialize(*std::get<1>(next_entry.value()))->apply() ==
-        kv::ApplyResult::PASS);
+        ccf::kv::ApplyResult::PASS);
 
       next_entry = consensus->pop_oldest_entry();
     }
@@ -371,10 +371,10 @@ TEST_CASE("Backup catchup from many ledger secrets")
 
 TEST_CASE("KV integrity verification")
 {
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   StringString map("map");
-  kv::Store primary_store;
-  kv::Store backup_store;
+  ccf::kv::Store primary_store;
+  ccf::kv::Store backup_store;
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
   ledger_secrets->init();
@@ -400,14 +400,14 @@ TEST_CASE("KV integrity verification")
 
   auto r = backup_store.deserialize(latest_data.value());
   auto rr = r->apply();
-  REQUIRE(rr == kv::ApplyResult::FAIL);
+  REQUIRE(rr == ccf::kv::ApplyResult::FAIL);
 }
 
 TEST_CASE("Encryptor rollback")
 {
   StringString map("map");
   constexpr auto store_term = 2;
-  kv::Store store;
+  ccf::kv::Store store;
   store.initialise_term(2);
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();

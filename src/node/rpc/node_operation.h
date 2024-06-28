@@ -65,12 +65,12 @@ namespace ccf
       return impl.can_replicate();
     }
 
-    kv::Version get_last_recovered_signed_idx() override
+    ccf::kv::Version get_last_recovered_signed_idx() override
     {
       return impl.get_last_recovered_signed_idx();
     }
 
-    kv::Version get_startup_snapshot_seqno() override
+    ccf::kv::Version get_startup_snapshot_seqno() override
     {
       return impl.get_startup_snapshot_seqno();
     }
@@ -86,7 +86,7 @@ namespace ccf
     }
 
     QuoteVerificationResult verify_quote(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
       pal::PlatformAttestationMeasurement& measurement) override
@@ -95,7 +95,7 @@ namespace ccf
         tx, quote_info, expected_node_public_key_der, measurement);
     }
 
-    void initiate_private_recovery(kv::Tx& tx) override
+    void initiate_private_recovery(ccf::kv::Tx& tx) override
     {
       impl.initiate_private_recovery(tx);
     }

@@ -11,15 +11,15 @@
 #include <optional>
 #include <string>
 
-namespace kv::untyped
+namespace ccf::kv::untyped
 {
   struct ChangeSet;
 
-  class MapDiff : public kv::AbstractHandle
+  class MapDiff : public ccf::kv::AbstractHandle
   {
   public:
-    using KeyType = kv::serialisers::SerialisedEntry;
-    using ValueType = kv::serialisers::SerialisedEntry;
+    using KeyType = ccf::kv::serialisers::SerialisedEntry;
+    using ValueType = ccf::kv::serialisers::SerialisedEntry;
 
     using ElementVisitor =
       std::function<void(const KeyType& k, const std::optional<ValueType>& V)>;
@@ -28,13 +28,13 @@ namespace kv::untyped
       std::function<bool(const KeyType& k, const std::optional<ValueType>& V)>;
 
   protected:
-    kv::untyped::Write& writes;
+    ccf::kv::untyped::Write& writes;
     std::string map_name;
 
     void foreach_(const ElementVisitorWithEarlyOut& fn);
 
   public:
-    MapDiff(kv::untyped::ChangeSet& cs, const std::string& map_name);
+    MapDiff(ccf::kv::untyped::ChangeSet& cs, const std::string& map_name);
 
     std::optional<std::optional<ValueType>> get(const KeyType& key);
 

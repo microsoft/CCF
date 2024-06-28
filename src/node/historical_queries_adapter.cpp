@@ -191,7 +191,7 @@ namespace ccf::historical
   }
 
   HistoricalTxStatus is_tx_committed_v2(
-    kv::Consensus* consensus,
+    ccf::kv::Consensus* consensus,
     ccf::View view,
     ccf::SeqNo seqno,
     std::string& error_reason)
