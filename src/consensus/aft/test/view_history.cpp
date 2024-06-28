@@ -19,8 +19,8 @@ TEST_CASE("Advancing view history" * doctest::test_suite("viewhistory"))
     CHECK(history.view_at(3) == ViewHistory::InvalidView);
     CHECK(history.view_at(4) == ViewHistory::InvalidView);
 
-    CHECK(history.start_of_view(1) == kv::NoVersion);
-    CHECK(history.end_of_view(1) == kv::NoVersion);
+    CHECK(history.start_of_view(1) == ccf::kv::NoVersion);
+    CHECK(history.end_of_view(1) == ccf::kv::NoVersion);
   }
 
   {
@@ -64,9 +64,9 @@ TEST_CASE("Advancing view history" * doctest::test_suite("viewhistory"))
     CHECK(history.start_of_view(2) == 3);
     CHECK(history.end_of_view(2) == 3);
     CHECK(history.start_of_view(3) == 4);
-    CHECK(history.end_of_view(3) == kv::NoVersion);
-    CHECK(history.start_of_view(4) == kv::NoVersion);
-    CHECK(history.end_of_view(4) == kv::NoVersion);
+    CHECK(history.end_of_view(3) == ccf::kv::NoVersion);
+    CHECK(history.start_of_view(4) == ccf::kv::NoVersion);
+    CHECK(history.end_of_view(4) == ccf::kv::NoVersion);
   }
 }
 
@@ -143,14 +143,14 @@ TEST_CASE("Edge case view histories" * doctest::test_suite("viewhistory"))
     CHECK(history.view_at(4) == 4);
 
     CHECK(history.start_of_view(4) == 2);
-    CHECK(history.end_of_view(4) == kv::NoVersion);
+    CHECK(history.end_of_view(4) == ccf::kv::NoVersion);
 
-    CHECK(history.start_of_view(1) == kv::NoVersion);
-    CHECK(history.end_of_view(1) == kv::NoVersion);
-    CHECK(history.start_of_view(2) == kv::NoVersion);
-    CHECK(history.end_of_view(2) == kv::NoVersion);
-    CHECK(history.start_of_view(3) == kv::NoVersion);
-    CHECK(history.end_of_view(3) == kv::NoVersion);
+    CHECK(history.start_of_view(1) == ccf::kv::NoVersion);
+    CHECK(history.end_of_view(1) == ccf::kv::NoVersion);
+    CHECK(history.start_of_view(2) == ccf::kv::NoVersion);
+    CHECK(history.end_of_view(2) == ccf::kv::NoVersion);
+    CHECK(history.start_of_view(3) == ccf::kv::NoVersion);
+    CHECK(history.end_of_view(3) == ccf::kv::NoVersion);
   }
 }
 
@@ -168,12 +168,12 @@ TEST_CASE("Initialised view histories" * doctest::test_suite("viewhistory"))
 
     CHECK(history.start_of_view(1) == 2);
     CHECK(history.end_of_view(1) == 3);
-    CHECK(history.start_of_view(2) == kv::NoVersion);
-    CHECK(history.end_of_view(2) == kv::NoVersion);
+    CHECK(history.start_of_view(2) == ccf::kv::NoVersion);
+    CHECK(history.end_of_view(2) == ccf::kv::NoVersion);
     CHECK(history.start_of_view(3) == 4);
     CHECK(history.end_of_view(3) == 9);
     CHECK(history.start_of_view(4) == 10);
-    CHECK(history.end_of_view(4) == kv::NoVersion);
+    CHECK(history.end_of_view(4) == ccf::kv::NoVersion);
 
     CHECK_THROWS(history.initialise({2, 1}));
     CHECK_THROWS(history.initialise({1, 2, 1}));
@@ -203,8 +203,8 @@ TEST_CASE("Initialised view histories" * doctest::test_suite("viewhistory"))
     CHECK(history.view_at(19) == 6);
     CHECK(history.view_at(20) == 6);
 
-    CHECK(history.start_of_view(1) == kv::NoVersion);
-    CHECK(history.end_of_view(1) == kv::NoVersion);
+    CHECK(history.start_of_view(1) == ccf::kv::NoVersion);
+    CHECK(history.end_of_view(1) == ccf::kv::NoVersion);
     CHECK(history.start_of_view(3) == 3);
     CHECK(history.end_of_view(3) == 4);
     CHECK(history.start_of_view(4) == 5);
@@ -212,7 +212,7 @@ TEST_CASE("Initialised view histories" * doctest::test_suite("viewhistory"))
     CHECK(history.start_of_view(5) == 6);
     CHECK(history.end_of_view(5) == 11);
     CHECK(history.start_of_view(6) == 12);
-    CHECK(history.end_of_view(6) == kv::NoVersion);
+    CHECK(history.end_of_view(6) == ccf::kv::NoVersion);
   }
 }
 
@@ -234,23 +234,28 @@ TEST_CASE(
   {
     INFO("Test that view history is correct");
 
-    REQUIRE(history.get_history_until(kv::NoVersion).size() == 0);
-    REQUIRE(history.get_history_until(1) == std::vector<kv::Version>({1}));
-    REQUIRE(history.get_history_until(2) == std::vector<kv::Version>({1, 2}));
-    REQUIRE(history.get_history_until(3) == std::vector<kv::Version>({1, 2}));
-    REQUIRE(history.get_history_until(4) == std::vector<kv::Version>({1, 2}));
+    REQUIRE(history.get_history_until(ccf::kv::NoVersion).size() == 0);
+    REQUIRE(history.get_history_until(1) == std::vector<ccf::kv::Version>({1}));
     REQUIRE(
-      history.get_history_until(5) == std::vector<kv::Version>({1, 2, 5, 5}));
+      history.get_history_until(2) == std::vector<ccf::kv::Version>({1, 2}));
     REQUIRE(
-      history.get_history_until(9) == std::vector<kv::Version>({1, 2, 5, 5}));
+      history.get_history_until(3) == std::vector<ccf::kv::Version>({1, 2}));
+    REQUIRE(
+      history.get_history_until(4) == std::vector<ccf::kv::Version>({1, 2}));
+    REQUIRE(
+      history.get_history_until(5) ==
+      std::vector<ccf::kv::Version>({1, 2, 5, 5}));
+    REQUIRE(
+      history.get_history_until(9) ==
+      std::vector<ccf::kv::Version>({1, 2, 5, 5}));
     REQUIRE(
       history.get_history_until(10) ==
-      std::vector<kv::Version>({1, 2, 5, 5, 10}));
+      std::vector<ccf::kv::Version>({1, 2, 5, 5, 10}));
     REQUIRE(
       history.get_history_until(11) ==
-      std::vector<kv::Version>({1, 2, 5, 5, 10}));
+      std::vector<ccf::kv::Version>({1, 2, 5, 5, 10}));
     REQUIRE(
       history.get_history_until() ==
-      std::vector<kv::Version>({1, 2, 5, 5, 10}));
+      std::vector<ccf::kv::Version>({1, 2, 5, 5, 10}));
   }
 }

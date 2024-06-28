@@ -68,7 +68,7 @@ namespace nobuiltins
   class NoBuiltinsRegistry : public ccf::BaseEndpointRegistry
   {
   public:
-    NoBuiltinsRegistry(ccfapp::AbstractNodeContext& context) :
+    NoBuiltinsRegistry(ccf::AbstractNodeContext& context) :
       ccf::BaseEndpointRegistry("app", context)
     {
       auto node_summary = [this](auto& ctx) {
@@ -328,10 +328,10 @@ namespace nobuiltins
   };
 }
 
-namespace ccfapp
+namespace ccf
 {
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
-    ccfapp::AbstractNodeContext& context)
+    ccf::AbstractNodeContext& context)
   {
     return std::make_unique<nobuiltins::NoBuiltinsRegistry>(context);
   }

@@ -42,7 +42,8 @@ class TSimpleFrontend : public RpcFrontend
 public:
   Registry registry;
 
-  TSimpleFrontend(kv::Store& tables, ccfapp::AbstractNodeContext& context) :
+  TSimpleFrontend(
+    ccf::kv::Store& tables, ccf::AbstractNodeContext& context) :
     RpcFrontend(tables, registry, context),
     registry(context)
   {}
@@ -55,7 +56,8 @@ class BaseTestFrontend : public SimpleUserRpcFrontend
 public:
   ccf::StubNodeContext context;
 
-  BaseTestFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables, context)
+  BaseTestFrontend(ccf::kv::Store& tables) :
+    SimpleUserRpcFrontend(tables, context)
   {}
 
   // For testing only, we don't need to specify auth policies everywhere and
@@ -73,7 +75,7 @@ public:
 class TestUserFrontend : public BaseTestFrontend
 {
 public:
-  TestUserFrontend(kv::Store& tables) : BaseTestFrontend(tables)
+  TestUserFrontend(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -101,7 +103,8 @@ public:
 class TestJsonWrappedEndpointFunction : public BaseTestFrontend
 {
 public:
-  TestJsonWrappedEndpointFunction(kv::Store& tables) : BaseTestFrontend(tables)
+  TestJsonWrappedEndpointFunction(ccf::kv::Store& tables) :
+    BaseTestFrontend(tables)
   {
     open();
 
@@ -150,7 +153,7 @@ public:
 class TestRestrictedVerbsFrontend : public BaseTestFrontend
 {
 public:
-  TestRestrictedVerbsFrontend(kv::Store& tables) : BaseTestFrontend(tables)
+  TestRestrictedVerbsFrontend(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -175,9 +178,9 @@ public:
 class TestExplicitCommitability : public BaseTestFrontend
 {
 public:
-  kv::Map<size_t, size_t> values;
+  ccf::kv::Map<size_t, size_t> values;
 
-  TestExplicitCommitability(kv::Store& tables) :
+  TestExplicitCommitability(ccf::kv::Store& tables) :
     BaseTestFrontend(tables),
     values("test_values")
   {
@@ -208,7 +211,7 @@ public:
 class TestAlternativeHandlerTypes : public BaseTestFrontend
 {
 public:
-  TestAlternativeHandlerTypes(kv::Store& tables) : BaseTestFrontend(tables)
+  TestAlternativeHandlerTypes(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -236,7 +239,7 @@ public:
 class TestTemplatedPaths : public BaseTestFrontend
 {
 public:
-  TestTemplatedPaths(kv::Store& tables) : BaseTestFrontend(tables)
+  TestTemplatedPaths(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -252,7 +255,7 @@ public:
 class TestDecodedTemplatedPaths : public BaseTestFrontend
 {
 public:
-  TestDecodedTemplatedPaths(kv::Store& tables) : BaseTestFrontend(tables)
+  TestDecodedTemplatedPaths(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -292,7 +295,7 @@ class TestNoCertsFrontend : public RpcFrontend
   ccf::endpoints::EndpointRegistry endpoints;
 
 public:
-  TestNoCertsFrontend(kv::Store& tables) :
+  TestNoCertsFrontend(ccf::kv::Store& tables) :
     RpcFrontend(tables, endpoints, context),
     endpoints("test")
   {
@@ -343,7 +346,7 @@ class TestForwardingUserFrontEnd : public BaseTestFrontend,
                                    public RpcContextRecorder
 {
 public:
-  TestForwardingUserFrontEnd(kv::Store& tables) : BaseTestFrontend(tables)
+  TestForwardingUserFrontEnd(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -478,7 +481,8 @@ void prepare_callers(NetworkState& network)
   // It is necessary to set a consensus before committing the first transaction,
   // so that the KV batching done before calling into replicate() stays in
   // order.
-  auto backup_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
+  auto backup_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
   auto tx = network.tables->create_tx();
@@ -490,7 +494,7 @@ void prepare_callers(NetworkState& network)
   user_id = InternalTablesAccess::add_user(tx, {user_caller});
   member_id = InternalTablesAccess::add_member(tx, member_cert);
   invalid_member_id = InternalTablesAccess::add_member(tx, invalid_caller);
-  CHECK(tx.commit() == kv::CommitResult::SUCCESS);
+  CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 }
 
 TEST_CASE("SignedReq to and from json")
@@ -869,7 +873,7 @@ TEST_CASE("Explicit commitability")
   {
     auto tx = network.tables->create_tx();
     tx.rw(frontend.values)->put(0, next_value);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   for (const auto status : all_statuses)
@@ -1060,7 +1064,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   TestForwardingUserFrontEnd user_frontend_primary(*network_primary.tables);
   TestForwardingUserFrontEnd user_frontend_backup(*network_backup.tables);
 
-  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
+  auto primary_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
@@ -1068,7 +1073,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   auto rpc_map = std::weak_ptr<ccf::RPCMap>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     rpc_responder, channel_stub, rpc_map);
-  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
+  auto backup_consensus =
+    std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto simple_call = create_simple_request();
@@ -1116,7 +1122,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto forwarded_msg = channel_stub->get_pop_back();
     auto fwd_ctx =
       backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-        kv::test::FirstBackupNodeId,
+        ccf::kv::test::FirstBackupNodeId,
         forwarded_msg.data(),
         forwarded_msg.size());
 
@@ -1148,7 +1154,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto forwarded_msg = channel_stub->get_pop_back();
     auto fwd_ctx =
       backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-        kv::test::FirstBackupNodeId,
+        ccf::kv::test::FirstBackupNodeId,
         forwarded_msg.data(),
         forwarded_msg.size());
 
@@ -1206,7 +1212,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
+  auto primary_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
@@ -1214,7 +1221,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     rpc_responder, channel_stub, rpc_map);
   node_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
+  auto backup_consensus =
+    std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
@@ -1230,7 +1238,9 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto forwarded_msg = channel_stub->get_pop_back();
   auto fwd_ctx =
     backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-      kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
+      ccf::kv::test::FirstBackupNodeId,
+      forwarded_msg.data(),
+      forwarded_msg.size());
 
   node_frontend_primary.process_forwarded(fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
@@ -1253,7 +1263,8 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
+  auto primary_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
@@ -1261,7 +1272,8 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     rpc_responder, channel_stub, rpc_map);
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
+  auto backup_consensus =
+    std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
@@ -1275,7 +1287,9 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto forwarded_msg = channel_stub->get_pop_back();
   auto fwd_ctx =
     backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-      kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
+      ccf::kv::test::FirstBackupNodeId,
+      forwarded_msg.data(),
+      forwarded_msg.size());
 
   user_frontend_primary.process_forwarded(fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
@@ -1300,7 +1314,8 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   TestForwardingMemberFrontEnd member_frontend_backup(network_backup, context);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
+  auto primary_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
@@ -1308,7 +1323,8 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     rpc_responder, channel_stub, rpc_map);
   member_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
+  auto backup_consensus =
+    std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
@@ -1322,7 +1338,9 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto forwarded_msg = channel_stub->get_pop_back();
   auto fwd_ctx =
     backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-      kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
+      ccf::kv::test::FirstBackupNodeId,
+      forwarded_msg.data(),
+      forwarded_msg.size());
 
   member_frontend_primary.process_forwarded(fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
@@ -1335,10 +1353,10 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
 class TestConflictFrontend : public BaseTestFrontend
 {
 public:
-  using Values = kv::Map<size_t, size_t>;
+  using Values = ccf::kv::Map<size_t, size_t>;
   size_t execution_count = 0;
 
-  TestConflictFrontend(kv::Store& tables) : BaseTestFrontend(tables)
+  TestConflictFrontend(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -1358,7 +1376,7 @@ public:
         auto tx = this->tables.create_tx();
         auto conflict_map = tx.template rw<Values>("test_values_conflict");
         conflict_map->put(0, 42);
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
         // Indicate that the execution conflicted
         ctx.rpc_ctx->set_response_header("test-has-conflicted", "true");
@@ -1429,7 +1447,7 @@ TEST_CASE("Retry on conflict")
 class TestManualConflictsRegistry : public UserEndpointRegistry
 {
 public:
-  using MyVals = kv::Map<size_t, size_t>;
+  using MyVals = ccf::kv::Map<size_t, size_t>;
   static constexpr auto SRC = "source";
   static constexpr auto DST = "destination";
 
@@ -1486,7 +1504,7 @@ public:
     }
   }
 
-  TestManualConflictsRegistry(ccfapp::AbstractNodeContext& context) :
+  TestManualConflictsRegistry(ccf::AbstractNodeContext& context) :
     UserEndpointRegistry(context)
   {
     auto pausable = [this](auto& ctx) {
@@ -1531,7 +1549,7 @@ public:
 
   ccf::StubNodeContext context;
 
-  TestManualConflictsFrontend(kv::Store& tables) :
+  TestManualConflictsFrontend(ccf::kv::Store& tables) :
     TSimpleFrontend<TestManualConflictsRegistry>(tables, context)
   {
     open();
@@ -1582,7 +1600,7 @@ TEST_CASE("Manual conflicts")
     auto tx = network.tables->create_tx();
     auto handle = tx.ro<TF::MyVals>(table);
     auto ret = handle->get(TF::KEY);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     ccf::crypto::openssl_sha256_shutdown();
     return ret;
   };
@@ -1594,7 +1612,7 @@ TEST_CASE("Manual conflicts")
       using TF = TestManualConflictsFrontend;
       auto handle = tx.wo<TF::MyVals>(table);
       handle->put(key, n);
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       ccf::crypto::openssl_sha256_shutdown();
     };
 
@@ -1715,7 +1733,7 @@ TEST_CASE("Manual conflicts")
       using TF = TestManualConflictsFrontend;
       auto handle = tx.wo<TF::MyVals>(TF::SRC);
       handle->remove(TF::KEY);
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     });
     const auto metrics_after = get_metrics();
 
@@ -1738,7 +1756,7 @@ TEST_CASE("Manual conflicts")
       using TF = TestManualConflictsFrontend;
       auto handle = tx.wo<TF::MyVals>(TF::SRC);
       handle->clear();
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     });
     const auto metrics_after = get_metrics();
 
@@ -1761,7 +1779,7 @@ TEST_CASE("Manual conflicts")
       [&]() {
         auto tx = network.tables->create_tx();
         InternalTablesAccess::remove_user(tx, user_id);
-        CHECK(tx.commit() == kv::CommitResult::SUCCESS);
+        CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       },
       user_session,
       HTTP_STATUS_UNAUTHORIZED);

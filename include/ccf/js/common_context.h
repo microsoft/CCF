@@ -48,7 +48,7 @@ namespace ccf::js
   class WithKVExtension : public Base
   {
   public:
-    WithKVExtension(TxAccess acc, kv::Tx* tx) : Base(acc)
+    WithKVExtension(TxAccess acc, ccf::kv::Tx* tx) : Base(acc)
     {
       // add ccf.kv.*
       Base::add_extension(

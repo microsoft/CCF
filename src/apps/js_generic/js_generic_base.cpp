@@ -33,16 +33,16 @@
 #include <stdexcept>
 #include <vector>
 
-namespace ccfapp
+namespace ccf
 {
   using namespace std;
-  using namespace kv;
+  using namespace ccf::kv;
   using namespace ccf;
 
   class JSHandlers : public UserEndpointRegistry
   {
   private:
-    ccfapp::AbstractNodeContext& context;
+    ccf::AbstractNodeContext& context;
     std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache =
       nullptr;
 
@@ -592,7 +592,7 @@ namespace ccfapp
     }
 
     ccf::endpoints::EndpointDefinitionPtr find_endpoint(
-      kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
+      ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx) override
     {
       const auto method = rpc_ctx.get_method();
       const auto verb = rpc_ctx.get_request_verb();
@@ -685,7 +685,7 @@ namespace ccfapp
     }
 
     std::set<RESTVerb> get_allowed_verbs(
-      kv::Tx& tx, const ccf::RpcContext& rpc_ctx) override
+      ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx) override
     {
       const auto method = rpc_ctx.get_method();
 
@@ -751,7 +751,7 @@ namespace ccfapp
 
     // Since we do our own dispatch within the default handler, report the
     // supported methods here
-    void build_api(nlohmann::json& document, kv::ReadOnlyTx& tx) override
+    void build_api(nlohmann::json& document, ccf::kv::ReadOnlyTx& tx) override
     {
       UserEndpointRegistry::build_api(document, tx);
 
@@ -793,9 +793,9 @@ namespace ccfapp
   };
 
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints_impl(
-    ccfapp::AbstractNodeContext& context)
+    ccf::AbstractNodeContext& context)
   {
     return std::make_unique<JSHandlers>(context);
   }
 
-} // namespace ccfapp
+} // namespace ccf

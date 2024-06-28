@@ -89,10 +89,10 @@ static inline void add_committable_indices_start_and_end(
 
 namespace aft
 {
-  using Configuration = kv::Configuration;
+  using Configuration = ccf::kv::Configuration;
 
   template <class LedgerProxy>
-  class Aft : public kv::Consensus
+  class Aft : public ccf::kv::Consensus
   {
   private:
     struct NodeState
@@ -216,8 +216,8 @@ namespace aft
       std::shared_ptr<aft::State> state_,
       std::shared_ptr<ccf::NodeClient> rpc_request_context_,
       bool public_only_ = false,
-      kv::MembershipState initial_membership_state_ =
-        kv::MembershipState::Active,
+      ccf::kv::MembershipState initial_membership_state_ =
+        ccf::kv::MembershipState::Active,
       ReconfigurationType reconfiguration_type_ =
         ReconfigurationType::ONE_TRANSACTION) :
       store(std::move(store_)),
@@ -258,12 +258,12 @@ namespace aft
 
     bool is_primary() override
     {
-      return state->leadership_state == kv::LeadershipState::Leader;
+      return state->leadership_state == ccf::kv::LeadershipState::Leader;
     }
 
     bool is_candidate() override
     {
-      return state->leadership_state == kv::LeadershipState::Candidate;
+      return state->leadership_state == ccf::kv::LeadershipState::Candidate;
     }
 
     bool can_replicate() override
@@ -284,7 +284,7 @@ namespace aft
         return false;
       }
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);
-      return state->leadership_state == kv::LeadershipState::Leader &&
+      return state->leadership_state == ccf::kv::LeadershipState::Leader &&
         (state->last_idx - state->commit_idx >= max_uncommitted_tx_count);
     }
 
@@ -310,46 +310,46 @@ namespace aft
 
     bool is_backup() override
     {
-      return state->leadership_state == kv::LeadershipState::Follower;
+      return state->leadership_state == ccf::kv::LeadershipState::Follower;
     }
 
     bool is_active() const
     {
-      return state->membership_state == kv::MembershipState::Active;
+      return state->membership_state == ccf::kv::MembershipState::Active;
     }
 
     bool is_retired() const
     {
-      return state->membership_state == kv::MembershipState::Retired;
+      return state->membership_state == ccf::kv::MembershipState::Retired;
     }
 
     bool is_retired_committed() const
     {
-      return state->membership_state == kv::MembershipState::Retired &&
-        state->retirement_phase == kv::RetirementPhase::RetiredCommitted;
+      return state->membership_state == ccf::kv::MembershipState::Retired &&
+        state->retirement_phase == ccf::kv::RetirementPhase::RetiredCommitted;
     }
 
     bool is_retired_completed() const
     {
-      return state->membership_state == kv::MembershipState::Retired &&
-        state->retirement_phase == kv::RetirementPhase::Completed;
+      return state->membership_state == ccf::kv::MembershipState::Retired &&
+        state->retirement_phase == ccf::kv::RetirementPhase::Completed;
     }
 
     void set_retired_committed(
-      ccf::SeqNo seqno, const std::vector<kv::NodeId>& node_ids) override
+      ccf::SeqNo seqno, const std::vector<ccf::kv::NodeId>& node_ids) override
     {
       for (auto& node_id : node_ids)
       {
         if (id() == node_id)
         {
           CCF_ASSERT(
-            state->membership_state == kv::MembershipState::Retired,
+            state->membership_state == ccf::kv::MembershipState::Retired,
             "Node is not retired, cannot become retired committed");
           CCF_ASSERT(
-            state->retirement_phase == kv::RetirementPhase::Completed,
+            state->retirement_phase == ccf::kv::RetirementPhase::Completed,
             "Node is not retired, cannot become retired committed");
           state->retired_committed_idx = seqno;
-          become_retired(seqno, kv::RetirementPhase::RetiredCommitted);
+          become_retired(seqno, ccf::kv::RetirementPhase::RetiredCommitted);
         }
         else
         {
@@ -531,7 +531,7 @@ namespace aft
   public:
     void add_configuration(
       Index idx,
-      const kv::Configuration::Nodes& conf,
+      const ccf::kv::Configuration::Nodes& conf,
       const std::unordered_set<ccf::NodeId>& new_learner_nodes = {},
       const std::unordered_set<ccf::NodeId>& new_retired_nodes = {}) override
     {
@@ -561,7 +561,7 @@ namespace aft
           configurations.back().nodes.end() &&
         conf.find(state->node_id) == conf.end())
       {
-        become_retired(idx, kv::RetirementPhase::Ordered);
+        become_retired(idx, ccf::kv::RetirementPhase::Ordered);
       }
 
       if (conf != configurations.back().nodes)
@@ -606,9 +606,9 @@ namespace aft
       return get_latest_configuration_unsafe();
     }
 
-    kv::ConsensusDetails get_details() override
+    ccf::kv::ConsensusDetails get_details() override
     {
-      kv::ConsensusDetails details;
+      ccf::kv::ConsensusDetails details;
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
       details.primary_id = leader_id;
       details.current_view = state->current_view;
@@ -632,11 +632,11 @@ namespace aft
       return details;
     }
 
-    bool replicate(const kv::BatchVector& entries, Term term) override
+    bool replicate(const ccf::kv::BatchVector& entries, Term term) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state->lock);
 
-      if (state->leadership_state != kv::LeadershipState::Leader)
+      if (state->leadership_state != ccf::kv::LeadershipState::Leader)
       {
         RAFT_DEBUG_FMT(
           "Failed to replicate {} items: not leader", entries.size());
@@ -702,10 +702,10 @@ namespace aft
             state->membership_state,
             state->leadership_state);
           if (
-            state->membership_state == kv::MembershipState::Retired &&
-            state->retirement_phase == kv::RetirementPhase::Ordered)
+            state->membership_state == ccf::kv::MembershipState::Retired &&
+            state->retirement_phase == ccf::kv::RetirementPhase::Ordered)
           {
-            become_retired(index, kv::RetirementPhase::Signed);
+            become_retired(index, ccf::kv::RetirementPhase::Signed);
           }
           state->committable_indices.push_back(index);
           start_ticking_if_necessary();
@@ -825,7 +825,7 @@ namespace aft
       std::unique_lock<ccf::pal::Mutex> guard(state->lock);
       timeout_elapsed += elapsed;
 
-      if (state->leadership_state == kv::LeadershipState::Leader)
+      if (state->leadership_state == ccf::kv::LeadershipState::Leader)
       {
         if (timeout_elapsed >= request_timeout)
         {
@@ -962,13 +962,13 @@ namespace aft
 
     bool can_replicate_unsafe()
     {
-      return state->leadership_state == kv::LeadershipState::Leader &&
+      return state->leadership_state == ccf::kv::LeadershipState::Leader &&
         !is_retired_committed();
     }
 
     bool can_sign_unsafe()
     {
-      return state->leadership_state == kv::LeadershipState::Leader &&
+      return state->leadership_state == ccf::kv::LeadershipState::Leader &&
         !is_retired_committed();
     }
 
@@ -998,7 +998,7 @@ namespace aft
         const auto term_of_ae = state->view_history.view_at(start);
         const auto index_at_end_of_term =
           state->view_history.end_of_view(term_of_ae);
-        if (index_at_end_of_term != kv::NoVersion)
+        if (index_at_end_of_term != ccf::kv::NoVersion)
         {
           max_idx = index_at_end_of_term;
         }
@@ -1116,7 +1116,7 @@ namespace aft
       // follower if necessary
       if (
         state->current_view == r.term &&
-        state->leadership_state == kv::LeadershipState::Candidate)
+        state->leadership_state == ccf::kv::LeadershipState::Candidate)
       {
         become_aware_of_new_term(r.term);
       }
@@ -1216,8 +1216,9 @@ namespace aft
         r.idx,
         r.prev_idx);
 
-      std::vector<
-        std::tuple<std::unique_ptr<kv::AbstractExecutionWrapper>, kv::Version>>
+      std::vector<std::tuple<
+        std::unique_ptr<ccf::kv::AbstractExecutionWrapper>,
+        ccf::kv::Version>>
         append_entries;
       // Finally, deserialise each entry in the batch
       for (Index i = r.prev_idx + 1; i <= r.idx; i++)
@@ -1299,7 +1300,7 @@ namespace aft
           return;
         }
 
-        kv::TxID expected{r.term_of_idx, i};
+        ccf::kv::TxID expected{r.term_of_idx, i};
         auto ds = store->deserialize(entry, public_only, expected);
         if (ds == nullptr)
         {
@@ -1321,8 +1322,8 @@ namespace aft
 
     void execute_append_entries_sync(
       std::vector<std::tuple<
-        std::unique_ptr<kv::AbstractExecutionWrapper>,
-        kv::Version>>&& append_entries,
+        std::unique_ptr<ccf::kv::AbstractExecutionWrapper>,
+        ccf::kv::Version>>&& append_entries,
       const ccf::NodeId& from,
       AppendEntries&& r)
     {
@@ -1341,9 +1342,9 @@ namespace aft
 #endif
 
         bool track_deletes_on_missing_keys = false;
-        kv::ApplyResult apply_success =
+        ccf::kv::ApplyResult apply_success =
           ds->apply(track_deletes_on_missing_keys);
-        if (apply_success == kv::ApplyResult::FAIL)
+        if (apply_success == ccf::kv::ApplyResult::FAIL)
         {
           ledger->truncate(i - 1);
           send_append_entries_response_nack(from);
@@ -1357,7 +1358,7 @@ namespace aft
         }
 
         bool globally_committable =
-          (apply_success == kv::ApplyResult::PASS_SIGNATURE);
+          (apply_success == ccf::kv::ApplyResult::PASS_SIGNATURE);
         if (globally_committable)
         {
           start_ticking_if_necessary();
@@ -1370,7 +1371,7 @@ namespace aft
 
         switch (apply_success)
         {
-          case kv::ApplyResult::FAIL:
+          case ccf::kv::ApplyResult::FAIL:
           {
             RAFT_FAIL_FMT("Follower failed to apply log entry: {}", i);
             state->last_idx--;
@@ -1379,14 +1380,14 @@ namespace aft
             break;
           }
 
-          case kv::ApplyResult::PASS_SIGNATURE:
+          case ccf::kv::ApplyResult::PASS_SIGNATURE:
           {
             RAFT_DEBUG_FMT("Deserialising signature at {}", i);
             if (
-              state->membership_state == kv::MembershipState::Retired &&
-              state->retirement_phase == kv::RetirementPhase::Ordered)
+              state->membership_state == ccf::kv::MembershipState::Retired &&
+              state->retirement_phase == ccf::kv::RetirementPhase::Ordered)
             {
-              become_retired(i, kv::RetirementPhase::Signed);
+              become_retired(i, ccf::kv::RetirementPhase::Signed);
             }
             state->committable_indices.push_back(i);
 
@@ -1416,12 +1417,12 @@ namespace aft
             break;
           }
 
-          case kv::ApplyResult::PASS:
+          case ccf::kv::ApplyResult::PASS:
           {
             break;
           }
 
-          case kv::ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET:
+          case ccf::kv::ApplyResult::PASS_ENCRYPTED_PAST_LEDGER_SECRET:
           {
             break;
           }
@@ -1560,7 +1561,7 @@ namespace aft
 #endif
 
       // Ignore if we're not the leader.
-      if (state->leadership_state != kv::LeadershipState::Leader)
+      if (state->leadership_state != ccf::kv::LeadershipState::Leader)
       {
         RAFT_FAIL_FMT(
           "Recv append entries response to {} from {}: no longer leader",
@@ -1811,7 +1812,7 @@ namespace aft
       RAFT_TRACE_JSON_OUT(j);
 #endif
 
-      if (state->leadership_state != kv::LeadershipState::Candidate)
+      if (state->leadership_state != ccf::kv::LeadershipState::Candidate)
       {
         RAFT_INFO_FMT(
           "Recv request vote response to {} from: {}: we aren't a candidate",
@@ -1929,7 +1930,7 @@ namespace aft
         return;
       }
 
-      state->leadership_state = kv::LeadershipState::Candidate;
+      state->leadership_state = ccf::kv::LeadershipState::Candidate;
       leader_id.reset();
 
       voted_for = state->node_id;
@@ -1986,7 +1987,7 @@ namespace aft
         store->initialise_term(state->current_view);
       }
 
-      state->leadership_state = kv::LeadershipState::Leader;
+      state->leadership_state = ccf::kv::LeadershipState::Leader;
       leader_id = state->node_id;
       should_sign = true;
 
@@ -2045,7 +2046,7 @@ namespace aft
       // receiving a conflicting AppendEntries
       rollback(last_committable_index());
 
-      state->leadership_state = kv::LeadershipState::Follower;
+      state->leadership_state = ccf::kv::LeadershipState::Follower;
       RAFT_INFO_FMT(
         "Becoming follower {}: {}.{}",
         state->node_id,
@@ -2077,7 +2078,7 @@ namespace aft
     }
 
   private:
-    void become_retired(Index idx, kv::RetirementPhase phase)
+    void become_retired(Index idx, ccf::kv::RetirementPhase phase)
     {
       RAFT_INFO_FMT(
         "Becoming retired, phase {} (leadership {}): {}: {} at {}",
@@ -2087,7 +2088,7 @@ namespace aft
         state->current_view,
         idx);
 
-      if (phase == kv::RetirementPhase::Ordered)
+      if (phase == ccf::kv::RetirementPhase::Ordered)
       {
         CCF_ASSERT_FMT(
           !state->retirement_idx.has_value(),
@@ -2096,7 +2097,7 @@ namespace aft
         state->retirement_idx = idx;
         RAFT_INFO_FMT("Node retiring at {}", idx);
       }
-      else if (phase == kv::RetirementPhase::Signed)
+      else if (phase == ccf::kv::RetirementPhase::Signed)
       {
         assert(state->retirement_idx.has_value());
         CCF_ASSERT_FMT(
@@ -2107,15 +2108,15 @@ namespace aft
         state->retirement_committable_idx = idx;
         RAFT_INFO_FMT("Node retirement committable at {}", idx);
       }
-      else if (phase == kv::RetirementPhase::RetiredCommitted)
+      else if (phase == ccf::kv::RetirementPhase::RetiredCommitted)
       {
-        if (state->leadership_state == kv::LeadershipState::Leader)
+        if (state->leadership_state == ccf::kv::LeadershipState::Leader)
         {
           ProposeRequestVote prv{.term = state->current_view};
 
           std::optional<ccf::NodeId> successor = std::nullopt;
           Index max_match_idx = 0;
-          kv::ReconfigurationId reconf_id_of_max_match = 0;
+          ccf::kv::ReconfigurationId reconf_id_of_max_match = 0;
 
           // Pick the node that has the highest match_idx, and break
           // ties by looking at the highest reconfiguration id they are
@@ -2131,7 +2132,7 @@ namespace aft
           {
             if (node_state.match_idx >= max_match_idx)
             {
-              kv::ReconfigurationId latest_reconf_id = 0;
+              ccf::kv::ReconfigurationId latest_reconf_id = 0;
               auto conf = configurations.rbegin();
               while (conf != configurations.rend())
               {
@@ -2160,10 +2161,10 @@ namespace aft
         }
 
         leader_id.reset();
-        state->leadership_state = kv::LeadershipState::None;
+        state->leadership_state = ccf::kv::LeadershipState::None;
       }
 
-      state->membership_state = kv::MembershipState::Retired;
+      state->membership_state = ccf::kv::MembershipState::Retired;
       state->retirement_phase = phase;
     }
 
@@ -2221,7 +2222,7 @@ namespace aft
     // idx.
     void update_commit()
     {
-      if (state->leadership_state != kv::LeadershipState::Leader)
+      if (state->leadership_state != ccf::kv::LeadershipState::Leader)
       {
         throw std::logic_error(
           "update_commit() must only be called while this node is leader");
@@ -2357,11 +2358,11 @@ namespace aft
       state->commit_idx = idx;
       if (
         is_retired() &&
-        state->retirement_phase == kv::RetirementPhase::Signed &&
+        state->retirement_phase == ccf::kv::RetirementPhase::Signed &&
         state->retirement_committable_idx.has_value() &&
         idx >= state->retirement_committable_idx.value())
       {
-        become_retired(idx, kv::RetirementPhase::Completed);
+        become_retired(idx, ccf::kv::RetirementPhase::Completed);
       }
 
       RAFT_DEBUG_FMT("Compacting...");
@@ -2457,27 +2458,27 @@ namespace aft
       }
 
       if (
-        state->membership_state == kv::MembershipState::Retired &&
-        state->retirement_phase == kv::RetirementPhase::Signed)
+        state->membership_state == ccf::kv::MembershipState::Retired &&
+        state->retirement_phase == ccf::kv::RetirementPhase::Signed)
       {
         assert(state->retirement_committable_idx.has_value());
         if (state->retirement_committable_idx.value() > idx)
         {
           state->retirement_committable_idx = std::nullopt;
-          state->retirement_phase = kv::RetirementPhase::Ordered;
+          state->retirement_phase = ccf::kv::RetirementPhase::Ordered;
         }
       }
 
       if (
-        state->membership_state == kv::MembershipState::Retired &&
-        state->retirement_phase == kv::RetirementPhase::Ordered)
+        state->membership_state == ccf::kv::MembershipState::Retired &&
+        state->retirement_phase == ccf::kv::RetirementPhase::Ordered)
       {
         assert(state->retirement_idx.has_value());
         if (state->retirement_idx.value() > idx)
         {
           state->retirement_idx = std::nullopt;
           state->retirement_phase = std::nullopt;
-          state->membership_state = kv::MembershipState::Active;
+          state->membership_state = ccf::kv::MembershipState::Active;
           RAFT_DEBUG_FMT("Becoming Active after rollback");
         }
       }
@@ -2558,7 +2559,7 @@ namespace aft
           all_other_nodes.try_emplace(
             node_info.first, node_info.second, index, 0);
 
-          if (state->leadership_state == kv::LeadershipState::Leader)
+          if (state->leadership_state == ccf::kv::LeadershipState::Leader)
           {
             send_append_entries(node_info.first, index);
           }

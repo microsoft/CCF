@@ -4,7 +4,7 @@
 
 #include <string>
 
-namespace kv
+namespace ccf::kv
 {
   struct GetName
   {

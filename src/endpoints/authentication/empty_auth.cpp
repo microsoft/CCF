@@ -6,7 +6,7 @@
 namespace ccf
 {
   std::unique_ptr<AuthnIdentity> EmptyAuthnPolicy::authenticate(
-    kv::ReadOnlyTx&, const std::shared_ptr<ccf::RpcContext>&, std::string&)
+    ccf::kv::ReadOnlyTx&, const std::shared_ptr<ccf::RpcContext>&, std::string&)
   {
     return std::make_unique<EmptyAuthnIdentity>();
   }

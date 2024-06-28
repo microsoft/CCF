@@ -19,12 +19,12 @@ namespace aft
   class ViewHistory
   {
     // Entry i stores the first version in view i+1
-    std::vector<kv::Version> views;
+    std::vector<ccf::kv::Version> views;
 
   public:
     static constexpr ccf::View InvalidView = ccf::VIEW_UNKNOWN;
 
-    void initialise(const std::vector<kv::Version>& terms_)
+    void initialise(const std::vector<ccf::kv::Version>& terms_)
     {
       views.clear();
       for (size_t i = 0; i < terms_.size(); ++i)
@@ -34,7 +34,7 @@ namespace aft
       LOG_DEBUG_FMT("Initialised views: {}", fmt::join(views, ", "));
     }
 
-    void update(kv::Version idx, ccf::View view)
+    void update(ccf::kv::Version idx, ccf::View view)
     {
       LOG_DEBUG_FMT("Updating view to: {} at version: {}", view, idx);
       if (!views.empty())
@@ -56,7 +56,7 @@ namespace aft
       LOG_DEBUG_FMT("Resulting views: {}", fmt::join(views, ", "));
     }
 
-    ccf::View view_at(kv::Version idx)
+    ccf::View view_at(ccf::kv::Version idx)
     {
       auto it = upper_bound(views.begin(), views.end(), idx);
 
@@ -69,11 +69,11 @@ namespace aft
       return (it - views.begin());
     }
 
-    kv::Version start_of_view(ccf::View view)
+    ccf::kv::Version start_of_view(ccf::View view)
     {
       if (view > views.size() || view == InvalidView)
       {
-        return kv::NoVersion;
+        return ccf::kv::NoVersion;
       }
 
       // NB: If views == {5, 10, 10}, then view 2 doesn't start at 10. View 2
@@ -81,23 +81,23 @@ namespace aft
       const auto tentative = views[view - 1];
       if (view + 1 <= views.size() && views[view] == tentative)
       {
-        return kv::NoVersion;
+        return ccf::kv::NoVersion;
       }
       return tentative;
     }
 
-    kv::Version end_of_view(ccf::View view)
+    ccf::kv::Version end_of_view(ccf::View view)
     {
       // If this view has no start (potentially because it contains no
       // transactions), then it can't have an end
-      if (start_of_view(view) == kv::NoVersion)
+      if (start_of_view(view) == ccf::kv::NoVersion)
       {
-        return kv::NoVersion;
+        return ccf::kv::NoVersion;
       }
 
       if (view >= views.size() || view == InvalidView)
       {
-        return kv::NoVersion;
+        return ccf::kv::NoVersion;
       }
 
       // Otherwise the end of this view is the transaction before (- 1) the
@@ -105,14 +105,14 @@ namespace aft
       return views[view] - 1;
     }
 
-    std::vector<kv::Version> get_history_until(
-      kv::Version idx = std::numeric_limits<kv::Version>::max())
+    std::vector<ccf::kv::Version> get_history_until(
+      ccf::kv::Version idx = std::numeric_limits<ccf::kv::Version>::max())
     {
       return {views.begin(), std::upper_bound(views.begin(), views.end(), idx)};
     }
 
     // view should be non-zero as views start at one in here
-    std::vector<kv::Version> get_history_since(uint64_t view)
+    std::vector<ccf::kv::Version> get_history_since(uint64_t view)
     {
       if (view > views.size())
       {
@@ -121,7 +121,7 @@ namespace aft
       return {views.begin() + view - 1, views.end()};
     }
 
-    void rollback(kv::Version idx)
+    void rollback(ccf::kv::Version idx)
     {
       auto it = upper_bound(views.begin(), views.end(), idx);
       views.erase(it, views.end());
@@ -157,8 +157,8 @@ namespace aft
 
     ccf::NodeId node_id;
     ccf::View current_view = 0;
-    kv::Version last_idx = 0;
-    kv::Version commit_idx = 0;
+    ccf::kv::Version last_idx = 0;
+    ccf::kv::Version commit_idx = 0;
     ViewHistory view_history;
 
     // Indices that are eligible for global commit, from a Node's perspective
@@ -176,10 +176,11 @@ namespace aft
     // the node
     // Leader -> Follower, when receiving entries for a newer term
     // Candidate -> Follower, when receiving entries for a newer term
-    kv::LeadershipState leadership_state = kv::LeadershipState::None;
-    kv::MembershipState membership_state = kv::MembershipState::Active;
+    ccf::kv::LeadershipState leadership_state = ccf::kv::LeadershipState::None;
+    ccf::kv::MembershipState membership_state =
+      ccf::kv::MembershipState::Active;
 
-    std::optional<kv::RetirementPhase> retirement_phase = std::nullopt;
+    std::optional<ccf::kv::RetirementPhase> retirement_phase = std::nullopt;
     // Index at which this node observes its retirement
     std::optional<ccf::SeqNo> retirement_idx = std::nullopt;
     // Earliest index at which this node's retirement can be committed

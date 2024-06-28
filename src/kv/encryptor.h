@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <map>
 
-namespace kv
+namespace ccf::kv
 {
   template <typename T, typename S>
   class TxEncryptor : public AbstractTxEncryptor

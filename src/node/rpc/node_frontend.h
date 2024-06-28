@@ -117,7 +117,7 @@ namespace ccf
 
   struct ConsensusConfigDetails
   {
-    kv::ConsensusDetails details;
+    ccf::kv::ConsensusDetails details;
   };
 
   DECLARE_JSON_TYPE(ConsensusConfigDetails);
@@ -194,12 +194,12 @@ namespace ccf
     struct ExistingNodeInfo
     {
       NodeId node_id;
-      std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
+      std::optional<ccf::kv::Version> ledger_secret_seqno = std::nullopt;
       std::optional<ccf::crypto::Pem> endorsed_certificate = std::nullopt;
     };
 
     std::optional<ExistingNodeInfo> check_node_exists(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const std::vector<uint8_t>& self_signed_node_der,
       std::optional<NodeStatus> node_status = std::nullopt)
     {
@@ -234,7 +234,7 @@ namespace ccf
     }
 
     std::optional<NodeId> check_conflicting_node_network(
-      kv::Tx& tx, const NodeInfoNetwork& node_info_network)
+      ccf::kv::Tx& tx, const NodeInfoNetwork& node_info_network)
     {
       auto nodes = tx.rw(network.nodes);
 
@@ -261,7 +261,7 @@ namespace ccf
     }
 
     auto add_node(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const std::vector<uint8_t>& node_der,
       const JoinNetworkNodeToNode::In& in,
       NodeStatus node_status,
@@ -299,7 +299,7 @@ namespace ccf
         return make_error(code, ccf::errors::InvalidQuote, message);
       }
 
-      std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
+      std::optional<ccf::kv::Version> ledger_secret_seqno = std::nullopt;
       if (node_status == NodeStatus::TRUSTED)
       {
         ledger_secret_seqno =
@@ -395,8 +395,7 @@ namespace ccf
     }
 
   public:
-    NodeEndpoints(
-      NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
+    NodeEndpoints(NetworkState& network_, ccf::AbstractNodeContext& context_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), context_),
       network(network_),
       node_operation(*context_.get_subsystem<ccf::AbstractNodeOperation>())
@@ -1539,12 +1538,13 @@ namespace ccf
         else
         {
           // On recovery, force a new ledger chunk
-          auto tx_ = static_cast<kv::CommittableTx*>(&ctx.tx);
+          auto tx_ = static_cast<ccf::kv::CommittableTx*>(&ctx.tx);
           if (tx_ == nullptr)
           {
             throw std::logic_error("Could not cast tx to CommittableTx");
           }
-          tx_->set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
+          tx_->set_flag(
+            ccf::kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
         }
 
         auto endorsed_certificates =
@@ -1582,7 +1582,7 @@ namespace ccf
         }
 
         std::optional<ccf::ClaimsDigest::Digest> digest =
-          ccfapp::get_create_tx_claims_digest(ctx.tx);
+          ccf::get_create_tx_claims_digest(ctx.tx);
         if (digest.has_value())
         {
           auto digest_value = digest.value();
@@ -1799,8 +1799,7 @@ namespace ccf
     NodeEndpoints node_endpoints;
 
   public:
-    NodeRpcFrontend(
-      NetworkState& network, ccfapp::AbstractNodeContext& context) :
+    NodeRpcFrontend(NetworkState& network, ccf::AbstractNodeContext& context) :
       RpcFrontend(*network.tables, node_endpoints, context),
       node_endpoints(network, context)
     {}
