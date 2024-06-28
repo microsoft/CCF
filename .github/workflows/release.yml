@@ -16,7 +16,6 @@ jobs:
   check_release_notes:
     name: "Check Release Notes"
     runs-on: ubuntu-latest
-    container: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
     steps:
       - uses: actions/checkout@v4
         with:
