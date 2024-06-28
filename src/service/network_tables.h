@@ -36,14 +36,14 @@
 
 namespace ccf
 {
-  inline std::shared_ptr<kv::Store> make_store()
+  inline std::shared_ptr<ccf::kv::Store> make_store()
   {
-    return std::make_shared<kv::Store>();
+    return std::make_shared<ccf::kv::Store>();
   }
 
   struct NetworkTables
   {
-    std::shared_ptr<kv::Store> tables;
+    std::shared_ptr<ccf::kv::Store> tables;
 
     //
     // Governance tables (public:ccf.gov.*)

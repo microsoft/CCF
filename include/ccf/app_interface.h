@@ -17,7 +17,7 @@ namespace ccf
   class RpcFrontend;
 }
 
-namespace kv
+namespace ccf::kv
 {
   class Store;
 }

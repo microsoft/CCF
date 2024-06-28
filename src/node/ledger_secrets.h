@@ -16,7 +16,7 @@
 
 namespace ccf
 {
-  using LedgerSecretsMap = std::map<kv::Version, LedgerSecretPtr>;
+  using LedgerSecretsMap = std::map<ccf::kv::Version, LedgerSecretPtr>;
   using VersionedLedgerSecret = LedgerSecretsMap::value_type;
 
   class LedgerSecrets
@@ -30,13 +30,13 @@ namespace ccf
     // All rollback that would result in the removal of some of these secrets
     // would imply that the transaction that added the node itself was rolled
     // back.
-    kv::Version initial_latest_ledger_secret_version = 0;
+    ccf::kv::Version initial_latest_ledger_secret_version = 0;
 
     std::optional<LedgerSecretsMap::iterator> last_used_secret_it =
       std::nullopt;
 
     LedgerSecretPtr get_secret_for_version(
-      kv::Version version, bool historical_hint = false)
+      ccf::kv::Version version, bool historical_hint = false)
     {
       if (ledger_secrets.empty())
       {
@@ -91,7 +91,7 @@ namespace ccf
       return std::prev(search)->second;
     }
 
-    void take_dependency_on_secrets(kv::ReadOnlyTx& tx)
+    void take_dependency_on_secrets(ccf::kv::ReadOnlyTx& tx)
     {
       // Ledger secrets are not stored in the KV. Instead, they are
       // cached in a unique LedgerSecrets instance that can be accessed
@@ -107,7 +107,7 @@ namespace ccf
   public:
     LedgerSecrets() = default;
 
-    void init(kv::Version initial_version = 1)
+    void init(ccf::kv::Version initial_version = 1)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
@@ -126,7 +126,7 @@ namespace ccf
       initial_latest_ledger_secret_version = ledger_secrets.rbegin()->first;
     }
 
-    void adjust_previous_secret_stored_version(kv::Version version)
+    void adjust_previous_secret_stored_version(ccf::kv::Version version)
     {
       // To be able to lookup the last active ledger secret before the service
       // crashed, the ledger secret created after the public recovery is
@@ -166,7 +166,7 @@ namespace ccf
       return *ledger_secrets.begin();
     }
 
-    VersionedLedgerSecret get_latest(kv::ReadOnlyTx& tx)
+    VersionedLedgerSecret get_latest(ccf::kv::ReadOnlyTx& tx)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
@@ -182,7 +182,7 @@ namespace ccf
     }
 
     std::pair<VersionedLedgerSecret, std::optional<VersionedLedgerSecret>>
-    get_latest_and_penultimate(kv::ReadOnlyTx& tx)
+    get_latest_and_penultimate(ccf::kv::ReadOnlyTx& tx)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
@@ -204,7 +204,8 @@ namespace ccf
     }
 
     LedgerSecretsMap get(
-      kv::ReadOnlyTx& tx, std::optional<kv::Version> up_to = std::nullopt)
+      ccf::kv::ReadOnlyTx& tx,
+      std::optional<ccf::kv::Version> up_to = std::nullopt)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
@@ -245,7 +246,7 @@ namespace ccf
     }
 
     std::shared_ptr<ccf::crypto::KeyAesGcm> get_encryption_key_for(
-      kv::Version version, bool historical_hint = false)
+      ccf::kv::Version version, bool historical_hint = false)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       auto ls = get_secret_for_version(version, historical_hint);
@@ -257,13 +258,13 @@ namespace ccf
     }
 
     LedgerSecretPtr get_secret_for(
-      kv::Version version, bool historical_hint = false)
+      ccf::kv::Version version, bool historical_hint = false)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       return get_secret_for_version(version, historical_hint);
     }
 
-    void set_secret(kv::Version version, LedgerSecretPtr&& secret)
+    void set_secret(ccf::kv::Version version, LedgerSecretPtr&& secret)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
 
@@ -277,7 +278,7 @@ namespace ccf
       LOG_INFO_FMT("Added new ledger secret at seqno {}", version);
     }
 
-    void rollback(kv::Version version)
+    void rollback(ccf::kv::Version version)
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       if (ledger_secrets.empty())

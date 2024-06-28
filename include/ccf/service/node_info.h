@@ -37,7 +37,7 @@ namespace ccf
 
     /** Set to the seqno of the latest ledger secret at the time the node is
         trusted */
-    std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
+    std::optional<ccf::kv::Version> ledger_secret_seqno = std::nullopt;
 
     /// Code identity for the node
     std::optional<std::string> code_digest = std::nullopt;

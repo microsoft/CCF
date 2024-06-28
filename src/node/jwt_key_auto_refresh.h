@@ -18,7 +18,7 @@ namespace ccf
   private:
     size_t refresh_interval_s;
     NetworkState& network;
-    std::shared_ptr<kv::Consensus> consensus;
+    std::shared_ptr<ccf::kv::Consensus> consensus;
     std::shared_ptr<ccf::RPCSessions> rpcsessions;
     std::shared_ptr<ccf::RPCMap> rpc_map;
     ccf::crypto::KeyPairPtr node_sign_kp;
@@ -29,7 +29,7 @@ namespace ccf
     JwtKeyAutoRefresh(
       size_t refresh_interval_s,
       NetworkState& network,
-      const std::shared_ptr<kv::Consensus>& consensus,
+      const std::shared_ptr<ccf::kv::Consensus>& consensus,
       const std::shared_ptr<ccf::RPCSessions>& rpcsessions,
       const std::shared_ptr<ccf::RPCMap>& rpc_map,
       const ccf::crypto::KeyPairPtr& node_sign_kp,

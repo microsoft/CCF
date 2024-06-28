@@ -34,7 +34,7 @@ namespace ccf::indexing::strategies
     virtual ~VisitEachEntryInMap() = default;
 
     void handle_committed_transaction(
-      const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) override;
+      const ccf::TxID& tx_id, const ccf::kv::ReadOnlyStorePtr& store) override;
     std::optional<ccf::SeqNo> next_requested() override;
 
     nlohmann::json describe() override;

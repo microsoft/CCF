@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   - `::http` is now `ccf::http`
   - `::nonstd` is now `ccf::nonstd`
   - `::crypto` is now `ccf::crypto`
+  - `::kv` is now `ccf::kv`
   - `::logger` is now `ccf::logger`
   - `::ccfapp` is now `::ccf`
 - The `programmability` sample app now demonstrates how applications can define their own extensions, creating bindings between C++ and JS state, and allowing JS endpoints to call functions implemented in C++.

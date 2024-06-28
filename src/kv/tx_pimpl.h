@@ -4,7 +4,7 @@
 
 #include "ccf/tx.h"
 
-namespace kv
+namespace ccf::kv
 {
   struct BaseTx::PrivateImpl
   {

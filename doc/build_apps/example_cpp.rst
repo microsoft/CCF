@@ -19,7 +19,7 @@ The Logging example application simply has:
 
 .. note::
 
-    :cpp:type:`kv::Map` tables are the only interface between CCF and the replicated application, and the sole mechanism for it to have distributed state.
+    :cpp:type:`ccf::kv::Map` tables are the only interface between CCF and the replicated application, and the sole mechanism for it to have distributed state.
 
     The Logging application keeps its state in a pair of tables, one containing private encrypted logs and the other containing public unencrypted logs. Their type is defined as:
 
@@ -54,7 +54,7 @@ The implementation of :cpp:func:`ccf::make_user_endpoints()` should return a sub
     :lines: 1
     :dedent:
 
-The logging app defines :cpp:class:`ccf::LoggerHandlers`, which creates and installs handler functions or lambdas for several different HTTP endpoints. Each of these functions takes as input the details of the current request (such as the URI which was called, the query string, the request body), interacts with the KV tables using the given :cpp:class:`kv::Tx` object, and returns a result:
+The logging app defines :cpp:class:`ccf::LoggerHandlers`, which creates and installs handler functions or lambdas for several different HTTP endpoints. Each of these functions takes as input the details of the current request (such as the URI which was called, the query string, the request body), interacts with the KV tables using the given :cpp:class:`ccf::kv::Tx` object, and returns a result:
 
 .. literalinclude:: ../../samples/apps/logging/logging.cpp
     :language: cpp

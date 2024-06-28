@@ -47,5 +47,5 @@ namespace ccf
     }
   };
 
-  using NodeEncryptor = kv::TxEncryptor<ccf::LedgerSecrets, TxGcmHeader>;
+  using NodeEncryptor = ccf::kv::TxEncryptor<ccf::LedgerSecrets, TxGcmHeader>;
 }

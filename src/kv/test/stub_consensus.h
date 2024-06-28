@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <iostream>
 
-namespace kv::test
+namespace ccf::kv::test
 {
   static NodeId PrimaryNodeId = std::string("PrimaryNodeId");
   static NodeId FirstBackupNodeId = std::string("FirstBackupNodeId");

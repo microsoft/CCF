@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-namespace kv
+namespace ccf::kv
 {
   using Version = uint64_t;
 

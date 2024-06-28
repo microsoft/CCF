@@ -65,7 +65,7 @@ void require_ledger_secrets_equal(
 TEST_CASE("Add a node to an opening service")
 {
   NetworkState network;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
   InternalTablesAccess::init_configuration(
@@ -80,7 +80,7 @@ TEST_CASE("Add a node to an opening service")
   frontend.open();
 
   // New node should not be given ledger secret past this one via join request
-  kv::Version up_to_ledger_secret_seqno = 4;
+  ccf::kv::Version up_to_ledger_secret_seqno = 4;
   network.ledger_secrets->set_secret(
     up_to_ledger_secret_seqno, make_ledger_secret());
 
@@ -103,7 +103,7 @@ TEST_CASE("Add a node to an opening service")
 
   InternalTablesAccess::create_service(
     gen_tx, network.identity->cert, ccf::TxID{});
-  REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
+  REQUIRE(gen_tx.commit() == ccf::kv::CommitResult::SUCCESS);
   auto tx = network.tables->create_tx();
 
   INFO("Add first node which should be trusted straight away");
@@ -185,7 +185,7 @@ TEST_CASE("Add a node to an open service")
 {
   NetworkState network;
   auto gen_tx = network.tables->create_tx();
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
 
   network.identity = make_test_network_ident();
@@ -198,7 +198,7 @@ TEST_CASE("Add a node to an open service")
   frontend.open();
 
   // New node should not be given ledger secret past this one via join request
-  kv::Version up_to_ledger_secret_seqno = 4;
+  ccf::kv::Version up_to_ledger_secret_seqno = 4;
   network.ledger_secrets->set_secret(
     up_to_ledger_secret_seqno, make_ledger_secret());
 
@@ -211,7 +211,7 @@ TEST_CASE("Add a node to an open service")
       gen_tx,
       {member_cert, ccf::crypto::make_rsa_key_pair()->public_key_pem()}));
   REQUIRE(InternalTablesAccess::open_service(gen_tx));
-  REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
+  REQUIRE(gen_tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
   // Node certificate
   ccf::crypto::KeyPairPtr kp = ccf::crypto::make_key_pair();
@@ -289,7 +289,7 @@ TEST_CASE("Add a node to an open service")
         "CN=dummy endorsed certificate", valid_from, valid_to);
     auto endorsed_certificate = tx.rw(network.node_endorsed_certificates);
     endorsed_certificate->put(joining_node_id, {dummy_endorsed_certificate});
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     // In the meantime, a new ledger secret is added. The new ledger secret
     // should not be passed to the new joiner via the join

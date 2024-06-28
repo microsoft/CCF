@@ -115,7 +115,7 @@ namespace ccf
   JwtAuthnPolicy::~JwtAuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> JwtAuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {

@@ -3,7 +3,6 @@
 
 #include "ccf/base_endpoint_registry.h"
 
-#include "ccf/pal/locking.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/users.h"
@@ -116,7 +115,7 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::generate_openapi_document_v1(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::string& title,
     const std::string& description,
     const std::string& document_version,
@@ -137,7 +136,7 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_quote_for_this_node_v1(
-    kv::ReadOnlyTx& tx, QuoteInfo& quote_info)
+    ccf::kv::ReadOnlyTx& tx, QuoteInfo& quote_info)
   {
     try
     {
@@ -176,7 +175,7 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_quotes_for_all_trusted_nodes_v1(
-    kv::ReadOnlyTx& tx, std::map<NodeId, QuoteInfo>& quotes)
+    ccf::kv::ReadOnlyTx& tx, std::map<NodeId, QuoteInfo>& quotes)
   {
     try
     {
@@ -231,7 +230,7 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_user_data_v1(
-    kv::ReadOnlyTx& tx, const UserId& user_id, nlohmann::json& user_data)
+    ccf::kv::ReadOnlyTx& tx, const UserId& user_id, nlohmann::json& user_data)
   {
     try
     {
@@ -253,7 +252,9 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_member_data_v1(
-    kv::ReadOnlyTx& tx, const MemberId& member_id, nlohmann::json& member_data)
+    ccf::kv::ReadOnlyTx& tx,
+    const MemberId& member_id,
+    nlohmann::json& member_data)
   {
     try
     {
@@ -275,7 +276,9 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_user_cert_v1(
-    kv::ReadOnlyTx& tx, const UserId& user_id, ccf::crypto::Pem& user_cert_pem)
+    ccf::kv::ReadOnlyTx& tx,
+    const UserId& user_id,
+    ccf::crypto::Pem& user_cert_pem)
   {
     try
     {
@@ -297,7 +300,7 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_member_cert_v1(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const MemberId& member_id,
     ccf::crypto::Pem& member_cert_pem)
   {

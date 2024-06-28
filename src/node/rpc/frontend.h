@@ -35,7 +35,7 @@ namespace ccf
   class RpcFrontend : public RpcHandler, public ForwardedRpcHandler
   {
   protected:
-    kv::Store& tables;
+    ccf::kv::Store& tables;
     endpoints::EndpointRegistry& endpoints;
     ccf::AbstractNodeContext& node_context;
 
@@ -43,9 +43,9 @@ namespace ccf
     ccf::pal::Mutex open_lock;
     bool is_open_ = false;
 
-    kv::Consensus* consensus;
+    ccf::kv::Consensus* consensus;
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
-    kv::TxHistory* history;
+    ccf::kv::TxHistory* history;
 
     size_t sig_tx_interval = 5000;
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
@@ -72,7 +72,7 @@ namespace ccf
     }
 
     endpoints::EndpointDefinitionPtr find_endpoint(
-      std::shared_ptr<ccf::RpcContextImpl> ctx, kv::CommittableTx& tx)
+      std::shared_ptr<ccf::RpcContextImpl> ctx, ccf::kv::CommittableTx& tx)
     {
       const auto endpoint = endpoints.find_endpoint(tx, *ctx);
       if (endpoint == nullptr)
@@ -186,7 +186,7 @@ namespace ccf
 
     std::optional<std::string> resolve_redirect_location(
       const RedirectionResolverConfig& resolver,
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const ccf::ListenInterfaceID& incoming_interface)
     {
       switch (resolver.kind)
@@ -263,7 +263,7 @@ namespace ccf
     }
 
     bool check_redirect(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       std::shared_ptr<ccf::RpcContextImpl> ctx,
       const endpoints::EndpointDefinitionPtr& endpoint,
       const ccf::NodeInfoNetwork_v2::NetInterface::Redirections& redirections)
@@ -418,7 +418,7 @@ namespace ccf
 
     std::unique_ptr<AuthnIdentity> get_authenticated_identity(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
-      kv::CommittableTx& tx,
+      ccf::kv::CommittableTx& tx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
       if (endpoint->authn_policies.empty())
@@ -493,7 +493,7 @@ namespace ccf
 
     void forward(
       std::shared_ptr<ccf::RpcContextImpl> ctx,
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const endpoints::EndpointDefinitionPtr& endpoint)
     {
       // HTTP/2 does not support forwarding
@@ -632,7 +632,7 @@ namespace ccf
           }
         }
 
-        std::unique_ptr<kv::CommittableTx> tx_p = tables.create_tx_ptr();
+        std::unique_ptr<ccf::kv::CommittableTx> tx_p = tables.create_tx_ptr();
         set_root_on_proposals(*ctx, *tx_p);
 
         if (attempts > 0)
@@ -771,12 +771,12 @@ namespace ccf
           }
           // else args owns a valid Tx relating to a non-pending response, which
           // should be applied
-          kv::CommittableTx& tx = *args.owned_tx;
-          kv::CommitResult result = tx.commit(ctx->claims, false);
+          ccf::kv::CommittableTx& tx = *args.owned_tx;
+          ccf::kv::CommitResult result = tx.commit(ctx->claims, false);
 
           switch (result)
           {
-            case kv::CommitResult::SUCCESS:
+            case ccf::kv::CommitResult::SUCCESS:
             {
               auto tx_id = tx.get_txid();
               if (tx_id.has_value() && consensus != nullptr)
@@ -826,12 +826,12 @@ namespace ccf
               return;
             }
 
-            case kv::CommitResult::FAIL_CONFLICT:
+            case ccf::kv::CommitResult::FAIL_CONFLICT:
             {
               break;
             }
 
-            case kv::CommitResult::FAIL_NO_REPLICATE:
+            case ccf::kv::CommitResult::FAIL_NO_REPLICATE:
             {
               ctx->clear_response_headers();
               ctx->set_error(
@@ -843,7 +843,7 @@ namespace ccf
             }
           }
         }
-        catch (const kv::CompactedVersionConflict& e)
+        catch (const ccf::kv::CompactedVersionConflict& e)
         {
           // The executing transaction failed because of a conflicting
           // compaction. Reset and retry
@@ -874,7 +874,7 @@ namespace ccf
 
           return;
         }
-        catch (const kv::KvSerialiserException& e)
+        catch (const ccf::kv::KvSerialiserException& e)
         {
           // If serialising the committed transaction fails, there is no way
           // to recover safely (https://github.com/microsoft/CCF/issues/338).
@@ -912,7 +912,7 @@ namespace ccf
 
   public:
     RpcFrontend(
-      kv::Store& tables_,
+      ccf::kv::Store& tables_,
       endpoints::EndpointRegistry& handlers_,
       ccf::AbstractNodeContext& node_context_) :
       tables(tables_),
@@ -950,7 +950,7 @@ namespace ccf
     }
 
     void set_root_on_proposals(
-      const ccf::RpcContextImpl& ctx, kv::CommittableTx& tx)
+      const ccf::RpcContextImpl& ctx, ccf::kv::CommittableTx& tx)
     {
       if (endpoints.request_needs_root(ctx))
       {
