@@ -430,7 +430,7 @@ namespace ccf::js::extensions
         }
         else
         {
-          static_assert(nonstd::dependent_false_v<T>, "Unknown type");
+          static_assert(ccf::nonstd::dependent_false_v<T>, "Unknown type");
         }
       }
       catch (const std::exception& ex)
@@ -507,7 +507,7 @@ namespace ccf::js::extensions
         }
         else
         {
-          static_assert(nonstd::dependent_false_v<T>, "Unknown type");
+          static_assert(ccf::nonstd::dependent_false_v<T>, "Unknown type");
         }
       }
       catch (const std::exception& ex)

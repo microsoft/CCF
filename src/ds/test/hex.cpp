@@ -35,7 +35,7 @@ TEST_CASE("Hex string to and from conversion")
 
     std::string uppercase_hex_str("0123456789ABCDEF");
     std::string lowercase_hex_str = uppercase_hex_str;
-    nonstd::to_lower(lowercase_hex_str);
+    ccf::nonstd::to_lower(lowercase_hex_str);
 
     auto data = ccf::ds::from_hex(uppercase_hex_str);
     REQUIRE(data.size() == uppercase_hex_str.size() / 2);

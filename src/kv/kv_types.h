@@ -112,7 +112,7 @@ namespace kv
   inline void from_json(const nlohmann::json& j, Configuration::NodeInfo& ni)
   {
     const std::string addr(j["address"]);
-    const auto& [h, p] = nonstd::split_1(addr, ":");
+    const auto& [h, p] = ccf::nonstd::split_1(addr, ":");
     ni.hostname = h;
     ni.port = p;
   }

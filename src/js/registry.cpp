@@ -517,7 +517,7 @@ namespace ccf::js
         for (const auto& [method, metadata] : methods)
         {
           std::string method_upper = method;
-          nonstd::to_upper(method_upper);
+          ccf::nonstd::to_upper(method_upper);
           const auto key = ccf::endpoints::EndpointKey{url, method_upper};
           endpoints->put(key, metadata);
         }
@@ -919,8 +919,8 @@ namespace ccf::js
       if (!replay_keys.empty())
       {
         const auto [min_created_at, _] =
-          nonstd::split_1(replay_keys[replay_keys.size() / 2], ":");
-        auto [key_ts, __] = nonstd::split_1(key, ":");
+          ccf::nonstd::split_1(replay_keys[replay_keys.size() / 2], ":");
+        auto [key_ts, __] = ccf::nonstd::split_1(key, ":");
         if (key_ts < min_created_at)
         {
           reason = ccf::InvalidArgsReason::StaleActionCreatedTimestamp;
