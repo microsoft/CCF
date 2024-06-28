@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+      - gha_release
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
+jobs:
+  check_release_notes:
+    name: "Check Release Notes"
+    runs-on: ubuntu-latest
+    container: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: "Check Release Notes"
+        run: |
+          set -ex
+          python3.8 scripts/extract-release-notes.py --target-git-version
+        shell: bash
+
+  build_release:
+    needs: check_release_notes
+    name: Release
+    strategy:
+      matrix:
+        platform:
+          - name: virtual
+            image: default
+            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
+          - name: snp
+            image: default
+            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
+          - name: sgx
+            image: sgx
+            nodes: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
+    runs-on: ${{ matrix.platform.nodes }}
+    container:
+      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-26-06-2024
+      options: ${{ matrix.platform.options }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Build Release ${{ matrix.platform.name }}"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} ..
+          ninja
+        shell: bash
