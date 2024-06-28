@@ -132,7 +132,7 @@ extern "C"
     auto new_logger = std::make_unique<ccf::RingbufferLogger>(
       writer_factory->create_writer_to_outside());
     auto ringbuffer_logger = new_logger.get();
-    logger::config::loggers().push_back(std::move(new_logger));
+    ccf::logger::config::loggers().push_back(std::move(new_logger));
 
     ccf::pal::redirect_platform_logging();
 
@@ -234,7 +234,7 @@ extern "C"
     // minimum logging level (maximum verbosity) restricted at compile-time,
     // while other platforms can permit any level at compile-time and then bind
     // the run-time choice in attestations.
-    const auto mv = logger::MOST_VERBOSE;
+    const auto mv = ccf::logger::MOST_VERBOSE;
     const auto requested = enclave_log_level;
     const auto permitted = std::max(mv, requested);
     if (requested != permitted)
@@ -242,12 +242,12 @@ extern "C"
       LOG_FAIL_FMT(
         "Unable to set requested enclave logging level '{}'. Most verbose "
         "permitted level is '{}', so setting level to '{}'.",
-        logger::to_string(requested),
-        logger::to_string(mv),
-        logger::to_string(permitted));
+        ccf::logger::to_string(requested),
+        ccf::logger::to_string(mv),
+        ccf::logger::to_string(permitted));
     }
 
-    logger::config::level() = permitted;
+    ccf::logger::config::level() = permitted;
 
     ccf::Enclave* enclave = nullptr;
 

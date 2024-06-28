@@ -162,7 +162,7 @@ namespace ccf::gov::endpoints
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(std::move(constitution.value()));
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE,
+            ccf::http::headers::CONTENT_TYPE,
             http::headervalues::contenttype::JAVASCRIPT);
           return;
         }

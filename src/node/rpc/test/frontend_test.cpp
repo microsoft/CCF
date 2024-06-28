@@ -115,7 +115,7 @@ public:
 
     auto echo_query_function = [this](auto& ctx, nlohmann::json&&) {
       const auto parsed_query =
-        http::parse_query(ctx.rpc_ctx->get_request_query());
+        ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
       return make_success(std::move(parsed_query));
     };
     make_endpoint(
@@ -419,16 +419,18 @@ auto create_simple_request(
   const std::string& method = "/empty_function",
   serdes::Pack pack = default_pack)
 {
-  http::Request request(method);
+  ::http::Request request(method);
   request.set_header(
-    http::headers::CONTENT_TYPE, ccf::jsonhandler::pack_to_content_type(pack));
+    ccf::http::headers::CONTENT_TYPE,
+    ccf::jsonhandler::pack_to_content_type(pack));
   return request;
 }
 
-http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
+::http::SimpleResponseProcessor::Response parse_response(
+  const vector<uint8_t>& v)
 {
-  http::SimpleResponseProcessor processor;
-  http::ResponseParser parser(processor);
+  ::http::SimpleResponseProcessor processor;
+  ::http::ResponseParser parser(processor);
 
   parser.execute(v.data(), v.size());
   REQUIRE(processor.received.size() == 1);
@@ -753,8 +755,8 @@ TEST_CASE("JsonWrappedEndpointFunction")
       auto response = parse_response(rpc_ctx->serialise_response());
       CHECK(response.status == err);
       CHECK(
-        response.headers[http::headers::CONTENT_TYPE] ==
-        http::headervalues::contenttype::JSON);
+        response.headers[ccf::http::headers::CONTENT_TYPE] ==
+        ccf::http::headervalues::contenttype::JSON);
       const std::string body_s(response.body.begin(), response.body.end());
       auto body_j = nlohmann::json::parse(body_s);
       CHECK(body_j["error"]["message"] == msg);
@@ -778,7 +780,7 @@ TEST_CASE("Restricted verbs")
       HTTP_STATUS_METHOD_NOT_ALLOWED;
 
     {
-      http::Request get("get_only", verb);
+      ::http::Request get("get_only", verb);
       const auto serialized_get = get.build_request();
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_get);
       frontend.process(rpc_ctx);
@@ -791,7 +793,7 @@ TEST_CASE("Restricted verbs")
       else
       {
         CHECK(response.status == other_verb_status);
-        const auto it = response.headers.find(http::headers::ALLOW);
+        const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
         CHECK(v.find(llhttp_method_name(HTTP_GET)) != std::string::npos);
@@ -799,7 +801,7 @@ TEST_CASE("Restricted verbs")
     }
 
     {
-      http::Request post("post_only", verb);
+      ::http::Request post("post_only", verb);
       const auto serialized_post = post.build_request();
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_post);
       frontend.process(rpc_ctx);
@@ -812,7 +814,7 @@ TEST_CASE("Restricted verbs")
       else
       {
         CHECK(response.status == other_verb_status);
-        const auto it = response.headers.find(http::headers::ALLOW);
+        const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
         CHECK(v.find(llhttp_method_name(HTTP_POST)) != std::string::npos);
@@ -820,7 +822,7 @@ TEST_CASE("Restricted verbs")
     }
 
     {
-      http::Request put_or_delete("put_or_delete", verb);
+      ::http::Request put_or_delete("put_or_delete", verb);
       const auto serialized_put_or_delete = put_or_delete.build_request();
       auto rpc_ctx =
         ccf::make_rpc_context(user_session, serialized_put_or_delete);
@@ -834,7 +836,7 @@ TEST_CASE("Restricted verbs")
       else
       {
         CHECK(response.status == other_verb_status);
-        const auto it = response.headers.find(http::headers::ALLOW);
+        const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
         CHECK(v.find(llhttp_method_name(HTTP_PUT)) != std::string::npos);
@@ -882,7 +884,7 @@ TEST_CASE("Explicit commitability")
       INFO("Without override...");
       const auto new_value = ++next_value;
 
-      http::Request request("maybe_commit", HTTP_POST);
+      ::http::Request request("maybe_commit", HTTP_POST);
 
       const nlohmann::json request_body = {
         {"value", new_value}, {"status", status}};
@@ -918,7 +920,7 @@ TEST_CASE("Explicit commitability")
       {
         const auto new_value = ++next_value;
 
-        http::Request request("maybe_commit", HTTP_POST);
+        ::http::Request request("maybe_commit", HTTP_POST);
 
         const nlohmann::json request_body = {
           {"value", new_value}, {"apply", apply}, {"status", status}};
@@ -968,7 +970,7 @@ TEST_CASE("Alternative endpoints")
 
   for (auto verb : {HTTP_GET, HTTP_POST})
   {
-    http::Request read_only("read_only", verb);
+    ::http::Request read_only("read_only", verb);
     const auto serialized_read_only = read_only.build_request();
 
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_read_only);

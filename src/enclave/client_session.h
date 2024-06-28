@@ -34,7 +34,7 @@ namespace ccf
       to_host(writer_factory.create_writer_to_outside())
     {}
 
-    virtual void send_request(http::Request&& request) = 0;
+    virtual void send_request(::http::Request&& request) = 0;
 
     virtual void connect(
       const std::string& hostname,

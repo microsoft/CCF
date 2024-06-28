@@ -54,7 +54,7 @@ std::string build_map_name(
 template <ccf::kv::SecurityDomain SD>
 static void serialise(picobench::state& s)
 {
-  logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::level() = LoggerLevel::INFO;
 
   ccf::kv::Store kv_store;
   auto secrets = create_ledger_secrets();
@@ -86,7 +86,7 @@ static void serialise(picobench::state& s)
 template <ccf::kv::SecurityDomain SD>
 static void deserialise(picobench::state& s)
 {
-  logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::level() = LoggerLevel::INFO;
 
   ccf::kv::Store kv_store;
   ccf::kv::Store kv_store2;
@@ -127,7 +127,7 @@ static void deserialise(picobench::state& s)
 template <size_t S>
 static void commit_latency(picobench::state& s)
 {
-  logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::level() = LoggerLevel::INFO;
 
   ccf::kv::Store kv_store;
   auto secrets = create_ledger_secrets();
@@ -165,7 +165,7 @@ static void commit_latency(picobench::state& s)
 template <size_t KEY_COUNT>
 static void ser_snap(picobench::state& s)
 {
-  logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::level() = LoggerLevel::INFO;
 
   ccf::kv::Store kv_store;
   auto secrets = create_ledger_secrets();
@@ -203,7 +203,7 @@ static void ser_snap(picobench::state& s)
 template <size_t KEY_COUNT>
 static void des_snap(picobench::state& s)
 {
-  logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::level() = LoggerLevel::INFO;
 
   ccf::kv::Store kv_store;
   ccf::kv::Store kv_store2;

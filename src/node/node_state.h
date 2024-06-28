@@ -601,7 +601,7 @@ namespace ccf
                status == HTTP_STATUS_TEMPORARY_REDIRECT) &&
               location != headers.end())
             {
-              const auto& url = http::parse_url_full(location->second);
+              const auto& url = ::http::parse_url_full(location->second);
               config.join.target_rpc_address =
                 make_net_address(url.host, url.port);
               LOG_INFO_FMT("Target node redirected to {}", location->second);
@@ -778,7 +778,7 @@ namespace ccf
       LOG_DEBUG_FMT(
         "Sending join request body: {}", std::string(body.begin(), body.end()));
 
-      http::Request r(
+      ::http::Request r(
         fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "join"));
       r.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
@@ -1907,10 +1907,11 @@ namespace ccf
 
       const auto body = serdes::pack(create_params, serdes::Pack::Text);
 
-      http::Request request(
+      ::http::Request request(
         fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "create"));
       request.set_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ccf::http::headers::CONTENT_TYPE,
+        ccf::http::headervalues::contenttype::JSON);
 
       request.set_body(&body);
 
@@ -1955,7 +1956,7 @@ namespace ccf
       auto ctx = make_rpc_context(node_session, packed);
 
       std::shared_ptr<ccf::RpcHandler> search =
-        http::fetch_rpc_handler(ctx, this->rpc_map);
+        ::http::fetch_rpc_handler(ctx, this->rpc_map);
 
       search->process(ctx);
 
@@ -2620,8 +2621,8 @@ namespace ccf
 
     // Stop-gap until it becomes easier to use other HTTP clients
     virtual void make_http_request(
-      const http::URL& url,
-      http::Request&& req,
+      const ::http::URL& url,
+      ::http::Request&& req,
       std::function<
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,

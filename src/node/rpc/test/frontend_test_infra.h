@@ -25,7 +25,7 @@ using namespace std;
 using namespace serdes;
 using namespace nlohmann;
 
-using TResponse = http::SimpleResponseProcessor::Response;
+using TResponse = ::http::SimpleResponseProcessor::Response;
 
 // used throughout
 constexpr size_t certificate_validity_period_days = 365;
@@ -81,7 +81,7 @@ void check_error_message(const TResponse& r, const std::string& msg)
 std::vector<uint8_t> create_request(
   const json& params, const string& method_name, llhttp_method verb = HTTP_POST)
 {
-  http::Request r(fmt::format("/gov/{}", method_name), verb);
+  ::http::Request r(fmt::format("/gov/{}", method_name), verb);
   const auto body = params.is_null() ? std::vector<uint8_t>() :
                                        serdes::pack(params, default_pack);
   r.set_body(&body);
@@ -96,14 +96,14 @@ auto frontend_process(
   auto session = std::make_shared<ccf::SessionContext>(
     ccf::InvalidSessionId, ccf::crypto::make_verifier(caller)->cert_der());
   auto rpc_ctx = ccf::make_rpc_context(session, serialized_request);
-  http::extract_actor(*rpc_ctx);
+  ::http::extract_actor(*rpc_ctx);
   frontend.process(rpc_ctx);
   DOCTEST_CHECK(!rpc_ctx->response_is_pending);
 
   auto serialized_response = rpc_ctx->serialise_response();
 
-  http::SimpleResponseProcessor processor;
-  http::ResponseParser parser(processor);
+  ::http::SimpleResponseProcessor processor;
+  ::http::ResponseParser parser(processor);
 
   parser.execute(serialized_response.data(), serialized_response.size());
   DOCTEST_REQUIRE(processor.received.size() == 1);
