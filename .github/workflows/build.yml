@@ -20,14 +20,14 @@ jobs:
             image: default
             nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
             options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro -v /dev/shm:/dev/shm
-          # - name: snp
-          #   image: default
-          #   nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-          #   options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro -v /dev/shm:/dev/shm
-          # - name: sgx
-          #   image: sgx
-          #   nodes: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
-          #   options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro -v /dev/shm:/dev/shm
+          - name: snp
+            image: default
+            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro -v /dev/shm:/dev/shm
+          - name: sgx
+            image: sgx
+            nodes: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro -v /dev/shm:/dev/shm
     runs-on: ${{ matrix.platform.nodes }}
     container:
       image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-26-06-2024
@@ -71,8 +71,7 @@ jobs:
           rm -rf /dev/shm/*
           df -h /dev/shm
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
-          env
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite" -R lts
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite"
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
 
