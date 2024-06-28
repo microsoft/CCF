@@ -125,8 +125,7 @@ namespace ccf::js::extensions
           dynamic_cast<const ccf::JwtAuthnIdentity*>(ident.get()))
       {
         caller.set(
-          "policy",
-          ctx.new_string(ccf::get_policy_name_from_ident(jwt_ident)));
+          "policy", ctx.new_string(ccf::get_policy_name_from_ident(jwt_ident)));
 
         auto jwt = ctx.new_obj();
         jwt.set(

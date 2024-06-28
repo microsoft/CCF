@@ -395,8 +395,7 @@ namespace ccf
     }
 
   public:
-    NodeEndpoints(
-      NetworkState& network_, ccf::AbstractNodeContext& context_) :
+    NodeEndpoints(NetworkState& network_, ccf::AbstractNodeContext& context_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::nodes), context_),
       network(network_),
       node_operation(*context_.get_subsystem<ccf::AbstractNodeOperation>())
@@ -1799,8 +1798,7 @@ namespace ccf
     NodeEndpoints node_endpoints;
 
   public:
-    NodeRpcFrontend(
-      NetworkState& network, ccf::AbstractNodeContext& context) :
+    NodeRpcFrontend(NetworkState& network, ccf::AbstractNodeContext& context) :
       RpcFrontend(*network.tables, node_endpoints, context),
       node_endpoints(network, context)
     {}
