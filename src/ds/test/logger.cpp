@@ -20,14 +20,14 @@ public:
   }
 };
 
-using TestTextLogger = TestLogger<logger::TextConsoleLogger>;
-using TestJsonLogger = TestLogger<logger::JsonConsoleLogger>;
+using TestTextLogger = TestLogger<ccf::logger::TextConsoleLogger>;
+using TestJsonLogger = TestLogger<ccf::logger::JsonConsoleLogger>;
 
 TEST_CASE("Framework logging macros")
 {
   std::vector<std::string> logs;
 
-  logger::config::loggers().emplace_back(
+  ccf::logger::config::loggers().emplace_back(
     std::make_unique<TestTextLogger>(logs));
 
   {
@@ -69,14 +69,14 @@ TEST_CASE("Framework logging macros")
     logs.clear();
   }
 
-  logger::config::loggers().clear();
+  ccf::logger::config::loggers().clear();
 }
 
 TEST_CASE("Application logging macros")
 {
   std::vector<std::string> logs;
 
-  logger::config::loggers().emplace_back(
+  ccf::logger::config::loggers().emplace_back(
     std::make_unique<TestTextLogger>(logs));
 
   {
@@ -121,7 +121,7 @@ TEST_CASE("Application logging macros")
     logs.clear();
   }
 
-  logger::config::loggers().clear();
+  ccf::logger::config::loggers().clear();
 }
 
 constexpr auto custom_tag = "my tag";
@@ -135,7 +135,7 @@ TEST_CASE("Custom logging macros")
 {
   std::vector<std::string> logs;
 
-  logger::config::loggers().emplace_back(
+  ccf::logger::config::loggers().emplace_back(
     std::make_unique<TestTextLogger>(logs));
 
   {
@@ -177,5 +177,5 @@ TEST_CASE("Custom logging macros")
     logs.clear();
   }
 
-  logger::config::loggers().clear();
+  ccf::logger::config::loggers().clear();
 }

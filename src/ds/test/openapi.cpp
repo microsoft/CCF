@@ -43,14 +43,14 @@ TEST_CASE("Manual construction")
   auto& foo_post = openapi::path_operation(foo, HTTP_POST);
   auto& foo_post_request = openapi::request_body(foo_post);
   auto& foo_post_request_json = openapi::media_type(
-    foo_post_request, http::headervalues::contenttype::JSON);
+    foo_post_request, ccf::http::headervalues::contenttype::JSON);
   auto& foo_post_request_json_schema = openapi::schema(foo_post_request_json);
   foo_post_request_json_schema = string_schema;
 
   auto& foo_post_response_ok = openapi::response(
     foo_post, HTTP_STATUS_OK, "Indicates that everything went ok");
   auto& foo_post_response_ok_json = openapi::media_type(
-    foo_post_response_ok, http::headervalues::contenttype::JSON);
+    foo_post_response_ok, ccf::http::headervalues::contenttype::JSON);
   auto& foo_post_response_ok_json_schema =
     openapi::schema(foo_post_response_ok_json);
   foo_post_response_ok_json_schema = string_schema;

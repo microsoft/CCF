@@ -7,7 +7,7 @@
 
 #include <optional>
 
-namespace http
+namespace ccf::http
 {
   // Default parser limits, used as a DoS protection against
   // requests that are too large.
