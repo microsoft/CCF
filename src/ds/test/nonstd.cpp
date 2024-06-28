@@ -19,7 +19,7 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
 
     {
       INFO("Split by spaces");
-      auto v = nonstd::split(s, " ");
+      auto v = ccf::nonstd::split(s, " ");
       REQUIRE(v.size() == 7);
       REQUIRE(v[0] == "Good");
       REQUIRE(v[1] == "afternoon,");
@@ -32,7 +32,7 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
 
     {
       INFO("Split by commas");
-      auto v = nonstd::split(s, ",");
+      auto v = ccf::nonstd::split(s, ",");
       REQUIRE(v.size() == 3);
       REQUIRE(v[0] == "Good afternoon");
       REQUIRE(v[1] == " good evening");
@@ -41,7 +41,7 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
 
     {
       INFO("Split by comma-with-space");
-      auto v = nonstd::split(s, ", ");
+      auto v = ccf::nonstd::split(s, ", ");
       REQUIRE(v.size() == 3);
       REQUIRE(v[0] == "Good afternoon");
       REQUIRE(v[1] == "good evening");
@@ -50,7 +50,7 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
       {
         INFO("split(max_splits=3)");
         {
-          auto v = nonstd::split(s, " ", 3);
+          auto v = ccf::nonstd::split(s, " ", 3);
           // NB: max_splits=3 => 4 returned segments
           REQUIRE(v.size() == 4);
           REQUIRE(v[0] == "Good");
@@ -60,7 +60,7 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
         }
 
         {
-          auto v = nonstd::split(s, "afternoon", 3);
+          auto v = ccf::nonstd::split(s, "afternoon", 3);
           // NB: max_splits=3, but only 1 split possible => 2 returned segments
           REQUIRE(v.size() == 2);
           REQUIRE(v[0] == "Good ");
@@ -70,7 +70,7 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
 
       {
         INFO("split_1");
-        auto t = nonstd::split_1(s, ", ");
+        auto t = ccf::nonstd::split_1(s, ", ");
         REQUIRE(std::get<0>(t) == "Good afternoon");
         REQUIRE(std::get<1>(t) == "good evening, and good night!");
       }
@@ -78,7 +78,7 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
 
     {
       INFO("Split by commas");
-      auto v = nonstd::split(s, ",");
+      auto v = ccf::nonstd::split(s, ",");
       REQUIRE(v.size() == 3);
       REQUIRE(v[0] == "Good afternoon");
       REQUIRE(v[1] == " good evening");
@@ -87,7 +87,7 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
 
     {
       INFO("Split by 'oo'");
-      auto v = nonstd::split(s, "oo");
+      auto v = ccf::nonstd::split(s, "oo");
       REQUIRE(v.size() == 5);
       REQUIRE(v[0] == "G");
       REQUIRE(v[1] == "d aftern");
@@ -102,7 +102,7 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
 
     {
       const auto s = "  bob ";
-      auto v = nonstd::split(s, " ");
+      auto v = ccf::nonstd::split(s, " ");
       REQUIRE(v.size() == 4);
       REQUIRE(v[0].empty());
       REQUIRE(v[1].empty());
@@ -113,13 +113,13 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
     {
       const auto s = "bobbob";
       {
-        auto v = nonstd::split(s, " ");
+        auto v = ccf::nonstd::split(s, " ");
         REQUIRE(v.size() == 1);
         REQUIRE(v[0] == "bobbob");
       }
 
       {
-        auto v = nonstd::split(s, "bob");
+        auto v = ccf::nonstd::split(s, "bob");
         REQUIRE(v.size() == 3);
         REQUIRE(v[0].empty());
         REQUIRE(v[1].empty());
@@ -127,7 +127,7 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
       }
 
       {
-        auto t = nonstd::split_1(s, "bob");
+        auto t = ccf::nonstd::split_1(s, "bob");
         REQUIRE(std::get<0>(t).empty());
         REQUIRE(std::get<1>(t) == "bob");
       }
@@ -136,19 +136,19 @@ TEST_CASE("split" * doctest::test_suite("nonstd"))
     {
       const auto s = "";
       {
-        auto v = nonstd::split(s, " ");
+        auto v = ccf::nonstd::split(s, " ");
         REQUIRE(v.size() == 1);
         REQUIRE(v[0].empty());
       }
 
       {
-        auto v = nonstd::split(s, "bob");
+        auto v = ccf::nonstd::split(s, "bob");
         REQUIRE(v.size() == 1);
         REQUIRE(v[0].empty());
       }
 
       {
-        auto t = nonstd::split_1(s, " ");
+        auto t = ccf::nonstd::split_1(s, " ");
         REQUIRE(std::get<0>(t).empty());
         REQUIRE(std::get<1>(t).empty());
       }
@@ -165,7 +165,7 @@ TEST_CASE("rsplit" * doctest::test_suite("nonstd"))
 
     {
       INFO("rsplit by spaces");
-      auto v = nonstd::rsplit(s, " ");
+      auto v = ccf::nonstd::rsplit(s, " ");
       REQUIRE(v.size() == 7);
       REQUIRE(v[0] == "night!");
       REQUIRE(v[1] == "good");
@@ -179,7 +179,7 @@ TEST_CASE("rsplit" * doctest::test_suite("nonstd"))
     {
       INFO("rsplit(max_splits=3)");
       {
-        auto v = nonstd::rsplit(s, " ", 3);
+        auto v = ccf::nonstd::rsplit(s, " ", 3);
         // NB: max_splits=3 => 4 returned segments
         REQUIRE(v.size() == 4);
         REQUIRE(v[0] == "night!");
@@ -189,7 +189,7 @@ TEST_CASE("rsplit" * doctest::test_suite("nonstd"))
       }
 
       {
-        auto v = nonstd::rsplit(s, "afternoon", 3);
+        auto v = ccf::nonstd::rsplit(s, "afternoon", 3);
         // NB: max_splits=3, but only 1 split possible => 2 returned segments
         REQUIRE(v.size() == 2);
         REQUIRE(v[0] == ", good evening, and good night!");
@@ -199,7 +199,7 @@ TEST_CASE("rsplit" * doctest::test_suite("nonstd"))
 
     {
       INFO("rsplit_1");
-      auto t = nonstd::rsplit_1(s, ", ");
+      auto t = ccf::nonstd::rsplit_1(s, ", ");
       REQUIRE(std::get<0>(t) == "Good afternoon, good evening");
       REQUIRE(std::get<1>(t) == "and good night!");
     }
@@ -210,7 +210,7 @@ TEST_CASE("rsplit" * doctest::test_suite("nonstd"))
 
     {
       const auto s = "  bob ";
-      auto v = nonstd::rsplit(s, " ");
+      auto v = ccf::nonstd::rsplit(s, " ");
       REQUIRE(v.size() == 4);
       REQUIRE(v[0].empty());
       REQUIRE(v[1] == "bob");
@@ -221,13 +221,13 @@ TEST_CASE("rsplit" * doctest::test_suite("nonstd"))
     {
       const auto s = "bobbob";
       {
-        auto v = nonstd::rsplit(s, " ");
+        auto v = ccf::nonstd::rsplit(s, " ");
         REQUIRE(v.size() == 1);
         REQUIRE(v[0] == "bobbob");
       }
 
       {
-        auto v = nonstd::rsplit(s, "bob");
+        auto v = ccf::nonstd::rsplit(s, "bob");
         REQUIRE(v.size() == 3);
         REQUIRE(v[0].empty());
         REQUIRE(v[1].empty());
@@ -235,7 +235,7 @@ TEST_CASE("rsplit" * doctest::test_suite("nonstd"))
       }
 
       {
-        auto t = nonstd::rsplit_1(s, "bob");
+        auto t = ccf::nonstd::rsplit_1(s, "bob");
         REQUIRE(std::get<0>(t) == "bob");
         REQUIRE(std::get<1>(t).empty());
       }
@@ -244,19 +244,19 @@ TEST_CASE("rsplit" * doctest::test_suite("nonstd"))
     {
       const auto s = "";
       {
-        auto v = nonstd::rsplit(s, " ");
+        auto v = ccf::nonstd::rsplit(s, " ");
         REQUIRE(v.size() == 1);
         REQUIRE(v[0].empty());
       }
 
       {
-        auto v = nonstd::rsplit(s, "bob");
+        auto v = ccf::nonstd::rsplit(s, "bob");
         REQUIRE(v.size() == 1);
         REQUIRE(v[0].empty());
       }
 
       {
-        auto t = nonstd::rsplit_1(s, " ");
+        auto t = ccf::nonstd::rsplit_1(s, " ");
         REQUIRE(std::get<0>(t).empty());
         REQUIRE(std::get<1>(t).empty());
       }
@@ -272,14 +272,15 @@ TEST_CASE("envvars" * doctest::test_suite("nonstd"))
     std::string test_value("test_value");
     ::setenv("TEST_ENV_VAR", test_value.c_str(), 1);
 
-    REQUIRE("" == nonstd::expand_envvar(""));
-    REQUIRE("not an env var" == nonstd::expand_envvar("not an env var"));
-    REQUIRE("$ENV_VAR_NOT_SET" == nonstd::expand_envvar("$ENV_VAR_NOT_SET"));
-    REQUIRE(test_value == nonstd::expand_envvar("$TEST_ENV_VAR"));
+    REQUIRE("" == ccf::nonstd::expand_envvar(""));
+    REQUIRE("not an env var" == ccf::nonstd::expand_envvar("not an env var"));
+    REQUIRE(
+      "$ENV_VAR_NOT_SET" == ccf::nonstd::expand_envvar("$ENV_VAR_NOT_SET"));
+    REQUIRE(test_value == ccf::nonstd::expand_envvar("$TEST_ENV_VAR"));
 
     // ${} syntax is not supported
     REQUIRE(
-      "${ENV_VAR_NOT_SET}" == nonstd::expand_envvar("${ENV_VAR_NOT_SET}"));
+      "${ENV_VAR_NOT_SET}" == ccf::nonstd::expand_envvar("${ENV_VAR_NOT_SET}"));
   }
   {
     INFO("Expand path");
@@ -289,33 +290,33 @@ TEST_CASE("envvars" * doctest::test_suite("nonstd"))
     std::string test_value2("test_value2");
     ::setenv("TEST_ENV_VAR2", test_value2.c_str(), 1);
 
-    REQUIRE("" == nonstd::expand_envvars_in_path(""));
-    REQUIRE("foo" == nonstd::expand_envvars_in_path("foo"));
-    REQUIRE("foo/" == nonstd::expand_envvars_in_path("foo/"));
-    REQUIRE("foo/bar" == nonstd::expand_envvars_in_path("foo/bar"));
-    REQUIRE("/" == nonstd::expand_envvars_in_path("/"));
-    REQUIRE("/foo" == nonstd::expand_envvars_in_path("/foo"));
-    REQUIRE("/foo/" == nonstd::expand_envvars_in_path("/foo/"));
-    REQUIRE("/foo/bar" == nonstd::expand_envvars_in_path("/foo/bar"));
+    REQUIRE("" == ccf::nonstd::expand_envvars_in_path(""));
+    REQUIRE("foo" == ccf::nonstd::expand_envvars_in_path("foo"));
+    REQUIRE("foo/" == ccf::nonstd::expand_envvars_in_path("foo/"));
+    REQUIRE("foo/bar" == ccf::nonstd::expand_envvars_in_path("foo/bar"));
+    REQUIRE("/" == ccf::nonstd::expand_envvars_in_path("/"));
+    REQUIRE("/foo" == ccf::nonstd::expand_envvars_in_path("/foo"));
+    REQUIRE("/foo/" == ccf::nonstd::expand_envvars_in_path("/foo/"));
+    REQUIRE("/foo/bar" == ccf::nonstd::expand_envvars_in_path("/foo/bar"));
 
     REQUIRE(
       fmt::format("{}", test_value1) ==
-      nonstd::expand_envvars_in_path("$TEST_ENV_VAR1"));
+      ccf::nonstd::expand_envvars_in_path("$TEST_ENV_VAR1"));
     REQUIRE(
       fmt::format("{}/", test_value1) ==
-      nonstd::expand_envvars_in_path("$TEST_ENV_VAR1/"));
+      ccf::nonstd::expand_envvars_in_path("$TEST_ENV_VAR1/"));
     REQUIRE(
       fmt::format("{}/{}", test_value1, test_value2) ==
-      nonstd::expand_envvars_in_path("$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
+      ccf::nonstd::expand_envvars_in_path("$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
 
     REQUIRE(
       fmt::format("/{}", test_value1) ==
-      nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1"));
+      ccf::nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1"));
     REQUIRE(
       fmt::format("/{}/", test_value1) ==
-      nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1/"));
+      ccf::nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1/"));
     REQUIRE(
       fmt::format("/{}/{}", test_value1, test_value2) ==
-      nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
+      ccf::nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
   }
 }

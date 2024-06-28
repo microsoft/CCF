@@ -2,9 +2,7 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
-      - gha_ci
+  pull_request:
   workflow_dispatch:
 
 permissions:

@@ -1733,7 +1733,8 @@ namespace ccf
       // throw. Attempts to handle IPv6 by also splitting on ':', but this is
       // untested.
       const auto final_component =
-        nonstd::split(nonstd::split(hostname, ".").back(), ":").back();
+        ccf::nonstd::split(ccf::nonstd::split(hostname, ".").back(), ":")
+          .back();
       if (final_component.empty())
       {
         throw std::runtime_error(fmt::format(
