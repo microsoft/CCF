@@ -25,7 +25,7 @@ jobs:
       - name: "Check Release Notes"
         run: |
           set -ex
-          python3.8 scripts/extract-release-notes.py --target-git-version
+          python scripts/extract-release-notes.py --target-git-version
         shell: bash
 
   build_release:
