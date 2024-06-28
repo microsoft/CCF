@@ -3,7 +3,6 @@
 
 #include "ccf/base_endpoint_registry.h"
 
-#include "ccf/pal/locking.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/users.h"
