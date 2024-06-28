@@ -17,7 +17,7 @@
  * some are proposed, some are purely custom. They are defined here to avoid
  * repetition in other locations.
  */
-namespace nonstd
+namespace ccf::nonstd
 {
   /** is_specialization detects type-specialized templates. This does not work
    * for value-dependent types (eg - std::array)
@@ -96,7 +96,7 @@ namespace nonstd
   }
 
   /* split_1 wraps split and allows writing things like:
-   * auto [host, port] = nonstd::split_1("1.2.3.4:8000", ":")
+   * auto [host, port] = ccf::nonstd::split_1("1.2.3.4:8000", ":")
    */
   static inline std::tuple<std::string_view, std::string_view> split_1(
     const std::string_view& s, const std::string_view& separator)
@@ -153,7 +153,7 @@ namespace nonstd
 
   /* rsplit_1 wraps rsplit _and reverses the result order_ and allows writing
    * things like:
-   * auto [host, port] = nonstd::rsplit_1("[1:2:3:4]:8000", ":")
+   * auto [host, port] = ccf::nonstd::rsplit_1("[1:2:3:4]:8000", ":")
    */
   static inline std::tuple<std::string_view, std::string_view> rsplit_1(
     const std::string_view& s, const std::string_view& separator)

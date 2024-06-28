@@ -425,8 +425,8 @@ namespace ccf
       if (!replay_keys.empty())
       {
         min_created_at = std::get<0>(
-          nonstd::split_1(replay_keys[replay_keys.size() / 2], ":"));
-        auto [key_ts, __] = nonstd::split_1(key, ":");
+          ccf::nonstd::split_1(replay_keys[replay_keys.size() / 2], ":"));
+        auto [key_ts, __] = ccf::nonstd::split_1(key, ":");
         if (key_ts < min_created_at)
         {
           return ProposalSubmissionStatus::TooOld;
@@ -481,13 +481,15 @@ namespace ccf
     template <typename T>
     void add_kv_wrapper_endpoint(T table)
     {
-      constexpr bool is_map = nonstd::is_specialization<T, kv::TypedMap>::value;
+      constexpr bool is_map =
+        ccf::nonstd::is_specialization<T, kv::TypedMap>::value;
       constexpr bool is_value =
-        nonstd::is_specialization<T, kv::TypedValue>::value;
+        ccf::nonstd::is_specialization<T, kv::TypedValue>::value;
 
       if constexpr (!(is_map || is_value))
       {
-        static_assert(nonstd::dependent_false_v<T>, "Unsupported table type");
+        static_assert(
+          ccf::nonstd::dependent_false_v<T>, "Unsupported table type");
       }
 
       auto getter =
@@ -573,7 +575,7 @@ namespace ccf
     void add_kv_wrapper_endpoints()
     {
       const auto all_gov_tables = network.get_all_builtin_governance_tables();
-      nonstd::tuple_for_each(
+      ccf::nonstd::tuple_for_each(
         all_gov_tables, [this](auto table) { add_kv_wrapper_endpoint(table); });
     }
 

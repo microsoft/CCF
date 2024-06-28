@@ -34,7 +34,7 @@ namespace ccf::grpc
           http::headervalues::contenttype::GRPC));
     }
 
-    if constexpr (nonstd::is_std_vector<In>::value)
+    if constexpr (ccf::nonstd::is_std_vector<In>::value)
     {
       using Message = typename In::value_type;
       In messages;
@@ -117,7 +117,7 @@ namespace ccf::grpc
     {
       std::vector<uint8_t> v;
 
-      if constexpr (nonstd::is_std_vector<Out>::value)
+      if constexpr (ccf::nonstd::is_std_vector<Out>::value)
       {
         v = serialise_grpc_messages(success_response->body);
       }

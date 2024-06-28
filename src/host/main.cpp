@@ -201,7 +201,7 @@ int main(int argc, char** argv)
   nlohmann::json environment;
   for (int i = 0; environ[i] != nullptr; i++)
   {
-    auto [k, v] = nonstd::split_1(environ[i], "=");
+    auto [k, v] = ccf::nonstd::split_1(environ[i], "=");
     environment[k] = v;
   }
 
@@ -511,7 +511,7 @@ int main(int argc, char** argv)
       LOG_DEBUG_FMT(
         "Resolving snp_security_policy_file: {}", security_policy_file);
       security_policy_file =
-        nonstd::expand_envvars_in_path(security_policy_file);
+        ccf::nonstd::expand_envvars_in_path(security_policy_file);
       LOG_DEBUG_FMT(
         "Resolved snp_security_policy_file: {}", security_policy_file);
 
@@ -526,7 +526,7 @@ int main(int argc, char** argv)
       LOG_DEBUG_FMT(
         "Resolving snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
       snp_uvm_endorsements_file =
-        nonstd::expand_envvars_in_path(snp_uvm_endorsements_file);
+        ccf::nonstd::expand_envvars_in_path(snp_uvm_endorsements_file);
       LOG_DEBUG_FMT(
         "Resolved snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
 
@@ -549,14 +549,14 @@ int main(int argc, char** argv)
         auto pos = url.find(':');
         if (pos == std::string::npos)
         {
-          endorsement_servers_it->url = nonstd::expand_envvar(url);
+          endorsement_servers_it->url = ccf::nonstd::expand_envvar(url);
         }
         else
         {
           endorsement_servers_it->url = fmt::format(
             "{}:{}",
-            nonstd::expand_envvar(url.substr(0, pos)),
-            nonstd::expand_envvar(url.substr(pos + 1)));
+            ccf::nonstd::expand_envvar(url.substr(0, pos)),
+            ccf::nonstd::expand_envvar(url.substr(pos + 1)));
         }
         LOG_DEBUG_FMT(
           "Resolved snp_endorsements_server url: {}",

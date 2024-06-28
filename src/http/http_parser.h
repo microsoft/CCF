@@ -310,7 +310,7 @@ namespace http
       // HTTP headers are stored lowercase as it is easier to verify HTTP
       // signatures later on
       auto f = std::string(at, length);
-      nonstd::to_lower(f);
+      ccf::nonstd::to_lower(f);
       auto& partial_header_key = partial_parsed_header.first;
       partial_header_key.append(f);
 

@@ -18,7 +18,7 @@ namespace kv::serialisers
       {
         return SerialisedEntry(t.begin(), t.end());
       }
-      else if constexpr (nonstd::is_std_array<T>::value)
+      else if constexpr (ccf::nonstd::is_std_array<T>::value)
       {
         return SerialisedEntry(t.begin(), t.end());
       }
@@ -35,7 +35,7 @@ namespace kv::serialisers
       else
       {
         static_assert(
-          nonstd::dependent_false<T>::value, "Can't serialise this type");
+          ccf::nonstd::dependent_false<T>::value, "Can't serialise this type");
       }
     }
 
@@ -45,7 +45,7 @@ namespace kv::serialisers
       {
         return T(rep.begin(), rep.end());
       }
-      else if constexpr (nonstd::is_std_array<T>::value)
+      else if constexpr (ccf::nonstd::is_std_array<T>::value)
       {
         T t;
         if (rep.size() != t.size())
@@ -77,7 +77,8 @@ namespace kv::serialisers
       else
       {
         static_assert(
-          nonstd::dependent_false<T>::value, "Can't deserialise this type");
+          ccf::nonstd::dependent_false<T>::value,
+          "Can't deserialise this type");
       }
     }
   };
