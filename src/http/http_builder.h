@@ -45,7 +45,7 @@ namespace http
     void set_header(std::string k, const std::string& v)
     {
       // Store all headers lower-cased to simplify case-insensitive lookup
-      nonstd::to_lower(k);
+      ccf::nonstd::to_lower(k);
       headers[k] = v;
     }
 

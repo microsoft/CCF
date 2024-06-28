@@ -1716,7 +1716,7 @@ namespace loggingapp
             return;
           }
 
-          const auto terms = nonstd::split(seqnos_s, ",");
+          const auto terms = ccf::nonstd::split(seqnos_s, ",");
           for (const auto& term : terms)
           {
             size_t val;

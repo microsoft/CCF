@@ -26,7 +26,7 @@ std::vector<uint8_t> s_to_v(char const* s)
 
 std::string to_lowercase(std::string s)
 {
-  nonstd::to_lower(s);
+  ccf::nonstd::to_lower(s);
   return s;
 }
 

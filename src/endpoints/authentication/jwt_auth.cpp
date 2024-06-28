@@ -76,7 +76,7 @@ namespace ccf
     // https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens#validate-the-issuer.
 
     const auto url = ::http::parse_url_full(iss);
-    const auto tenant_id = first_non_empty_chunk(nonstd::split(url.path, "/"));
+    const auto tenant_id = first_non_empty_chunk(ccf::nonstd::split(url.path, "/"));
 
     return tenant_id && tid && *tid == *tenant_id;
   }

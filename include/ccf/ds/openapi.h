@@ -94,7 +94,7 @@ namespace ccf::ds
     {
       // HTTP_GET becomes the string "get"
       std::string s = llhttp_method_name(verb);
-      nonstd::to_lower(s);
+      ccf::nonstd::to_lower(s);
       auto& po = access::get_object(path, s);
 
       if (default_responses)
@@ -275,13 +275,13 @@ namespace ccf::ds
       nlohmann::json add_schema_component()
       {
         nlohmann::json schema;
-        if constexpr (nonstd::is_specialization<T, std::optional>::value)
+        if constexpr (ccf::nonstd::is_specialization<T, std::optional>::value)
         {
           return add_schema_component<typename T::value_type>();
         }
         else if constexpr (
-          nonstd::is_specialization<T, std::vector>::value ||
-          nonstd::is_specialization<T, std::set>::value)
+          ccf::nonstd::is_specialization<T, std::vector>::value ||
+          ccf::nonstd::is_specialization<T, std::set>::value)
         {
           if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
           {
@@ -299,8 +299,8 @@ namespace ccf::ds
             document, ccf::ds::json::schema_name<T>(), schema);
         }
         else if constexpr (
-          nonstd::is_specialization<T, std::map>::value ||
-          nonstd::is_specialization<T, std::unordered_map>::value)
+          ccf::nonstd::is_specialization<T, std::map>::value ||
+          ccf::nonstd::is_specialization<T, std::unordered_map>::value)
         {
           if constexpr (nlohmann::detail::
                           is_compatible_object_type<nlohmann::json, T>::value)
@@ -330,7 +330,7 @@ namespace ccf::ds
           return add_schema_to_components(
             document, ccf::ds::json::schema_name<T>(), schema);
         }
-        else if constexpr (nonstd::is_specialization<T, std::pair>::value)
+        else if constexpr (ccf::nonstd::is_specialization<T, std::pair>::value)
         {
           schema["type"] = "array";
           auto items = nlohmann::json::array();

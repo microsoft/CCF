@@ -103,7 +103,7 @@ namespace ccf
   void AllOfAuthnPolicy::set_unauthenticated_error(
     std::shared_ptr<ccf::RpcContext> ctx, std::string&& error_reason)
   {
-    auto [pn, er] = nonstd::split_1(error_reason, ":");
+    auto [pn, er] = ccf::nonstd::split_1(error_reason, ":");
 
     std::string policy_name(pn);
     auto it = policies.find(policy_name);

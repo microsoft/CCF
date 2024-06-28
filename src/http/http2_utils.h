@@ -41,7 +41,8 @@ namespace http2
     }
 
     using HeaderKeysIt =
-      nonstd::KeyIterator<ccf::http::HeaderMap::const_iterator>;
+      ccf::nonstd::KeyIterator<ccf::http::HeaderMap::const_iterator>;
+
     const auto trailer_header_val = fmt::format(
       "{}",
       fmt::join(

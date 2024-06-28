@@ -27,7 +27,7 @@ namespace tpcc
   template <typename T>
   constexpr size_t serialised_size()
   {
-    if constexpr (nonstd::is_std_array<T>::value)
+    if constexpr (ccf::nonstd::is_std_array<T>::value)
     {
       return std::tuple_size_v<T> * serialised_size<typename T::value_type>();
     }
@@ -40,7 +40,7 @@ namespace tpcc
   template <typename T>
   void write_value(const T& v, uint8_t*& data, size_t& size)
   {
-    if constexpr (nonstd::is_std_array<T>::value)
+    if constexpr (ccf::nonstd::is_std_array<T>::value)
     {
       if constexpr (std::is_integral_v<typename T::value_type>)
       {
@@ -64,7 +64,7 @@ namespace tpcc
   template <typename T>
   void read_value(T& v, const uint8_t*& data, size_t& size)
   {
-    if constexpr (nonstd::is_std_array<T>::value)
+    if constexpr (ccf::nonstd::is_std_array<T>::value)
     {
       if constexpr (std::is_integral_v<typename T::value_type>)
       {
