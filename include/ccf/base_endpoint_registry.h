@@ -120,11 +120,11 @@ namespace ccf
   class BaseEndpointRegistry : public ccf::endpoints::EndpointRegistry
   {
   protected:
-    ccfapp::AbstractNodeContext& context;
+    ccf::AbstractNodeContext& context;
 
   public:
     BaseEndpointRegistry(
-      const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_);
+      const std::string& method_prefix_, ccf::AbstractNodeContext& context_);
 
     /** Get the history of the consensus view changes.
      *
@@ -188,7 +188,7 @@ namespace ccf
      * does not affect the OpenAPI version of the format of the document.
      */
     ApiResult generate_openapi_document_v1(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const std::string& title,
       const std::string& description,
       const std::string& document_version,
@@ -197,7 +197,7 @@ namespace ccf
     /** Get a quote attesting to the hardware this node is running on.
      */
     ApiResult get_quote_for_this_node_v1(
-      kv::ReadOnlyTx& tx, QuoteInfo& quote_info);
+      ccf::kv::ReadOnlyTx& tx, QuoteInfo& quote_info);
 
     /** Get the id of the currently executing node.
      */
@@ -207,7 +207,7 @@ namespace ccf
      * running on.
      */
     ApiResult get_quotes_for_all_trusted_nodes_v1(
-      kv::ReadOnlyTx& tx, std::map<NodeId, QuoteInfo>& quotes);
+      ccf::kv::ReadOnlyTx& tx, std::map<NodeId, QuoteInfo>& quotes);
 
     /** Get the view associated with a given seqno, to construct a valid TxID.
      */
@@ -216,26 +216,28 @@ namespace ccf
     /** Get the user data associated with a given user id.
      */
     ApiResult get_user_data_v1(
-      kv::ReadOnlyTx& tx, const UserId& user_id, nlohmann::json& user_data);
+      ccf::kv::ReadOnlyTx& tx,
+      const UserId& user_id,
+      nlohmann::json& user_data);
 
     /** Get the member data associated with a given member id.
      */
     ApiResult get_member_data_v1(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const MemberId& member_id,
       nlohmann::json& member_data);
 
     /** Get the certificate (PEM) of a given user id.
      */
     ApiResult get_user_cert_v1(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const UserId& user_id,
       ccf::crypto::Pem& user_cert_pem);
 
     /** Get the certificate (PEM) of a given member id.
      */
     ApiResult get_member_cert_v1(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const MemberId& member_id,
       ccf::crypto::Pem& member_cert_pem);
 

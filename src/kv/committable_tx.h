@@ -12,7 +12,7 @@
 
 #include <list>
 
-namespace kv
+namespace ccf::kv
 {
   class CommittableTx : public Tx, public AbstractChangeContainer
   {
@@ -32,7 +32,7 @@ namespace kv
 
     Version version = NoVersion;
 
-    kv::TxHistory::RequestID req_id;
+    ccf::kv::TxHistory::RequestID req_id;
 
     TxFlags flags = 0;
     SerialisedEntryFlags entry_flags = 0;
@@ -119,9 +119,10 @@ namespace kv
      * replication
      *
      * A transaction can either succeed and replicate
-     * (`kv::CommitResult::SUCCESS`), fail because of a conflict with other
-     * transactions (`kv::CommitResult::FAIL_CONFLICT`), or succeed locally, but
-     * fail to replicate (`kv::CommitResult::FAIL_NO_REPLICATE`).
+     * (`ccf::kv::CommitResult::SUCCESS`), fail because of a conflict with other
+     * transactions (`ccf::kv::CommitResult::FAIL_CONFLICT`), or succeed
+     * locally, but fail to replicate
+     * (`ccf::kv::CommitResult::FAIL_NO_REPLICATE`).
      *
      * Transactions that fail are rolled back, no matter the reason.
      *
@@ -154,7 +155,7 @@ namespace kv
         this->pimpl->store->lock_map_set();
       }
 
-      kv::ConsensusHookPtrs hooks;
+      ccf::kv::ConsensusHookPtrs hooks;
 
       std::optional<Version> new_maps_conflict_version = std::nullopt;
 
@@ -297,7 +298,7 @@ namespace kv
 
     /** Version for the transaction set
      *
-     * @return Committed version, or `kv::NoVersion` otherwise
+     * @return Committed version, or `ccf::kv::NoVersion` otherwise
      */
     Version get_version()
     {
@@ -344,12 +345,12 @@ namespace kv
       pimpl->commit_view = view_;
     }
 
-    void set_req_id(const kv::TxHistory::RequestID& req_id_)
+    void set_req_id(const ccf::kv::TxHistory::RequestID& req_id_)
     {
       req_id = req_id_;
     }
 
-    const kv::TxHistory::RequestID& get_req_id()
+    const ccf::kv::TxHistory::RequestID& get_req_id()
     {
       return req_id;
     }

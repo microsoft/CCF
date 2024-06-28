@@ -19,7 +19,7 @@ namespace ccf
 
     void send_cleanup_retired_nodes()
     {
-      http::Request request(
+      ::http::Request request(
         fmt::format(
           "/{}/{}",
           ccf::get_actor_prefix(ccf::ActorsType::nodes),

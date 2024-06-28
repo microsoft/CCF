@@ -3,11 +3,11 @@
 #include "ccf/app_interface.h"
 #include "js_generic_base.h"
 
-namespace ccfapp
+namespace ccf
 {
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
-    ccfapp::AbstractNodeContext& context)
+    ccf::AbstractNodeContext& context)
   {
     return make_user_endpoints_impl(context);
   }
-} // namespace ccfapp
+} // namespace ccf

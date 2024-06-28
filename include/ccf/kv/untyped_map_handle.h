@@ -10,17 +10,17 @@
 #include <optional>
 #include <string>
 
-namespace kv::untyped
+namespace ccf::kv::untyped
 {
   struct ChangeSet;
 
-  class MapHandle : public kv::AbstractHandle
+  class MapHandle : public ccf::kv::AbstractHandle
   {
   public:
     // Expose these types so that other code can use them as MyTx::KeyType or
     // MyMap::MapHandle::KeyType, templated on the MapHandle or Map type
-    using KeyType = kv::serialisers::SerialisedEntry;
-    using ValueType = kv::serialisers::SerialisedEntry;
+    using KeyType = ccf::kv::serialisers::SerialisedEntry;
+    using ValueType = ccf::kv::serialisers::SerialisedEntry;
 
     using ElementVisitor =
       std::function<void(const KeyType& k, const ValueType& V)>;
@@ -29,7 +29,7 @@ namespace kv::untyped
       std::function<bool(const KeyType& k, const ValueType& V)>;
 
   protected:
-    kv::untyped::ChangeSet& tx_changes;
+    ccf::kv::untyped::ChangeSet& tx_changes;
     std::string map_name;
 
     /** Get pointer to current value if this key exists, else nullptr if it does
@@ -45,7 +45,7 @@ namespace kv::untyped
       const ElementVisitorWithEarlyOut& fn, bool always_consider_writes);
 
   public:
-    MapHandle(kv::untyped::ChangeSet& cs, const std::string& map_name);
+    MapHandle(ccf::kv::untyped::ChangeSet& cs, const std::string& map_name);
 
     std::string get_name_of_map() const;
 

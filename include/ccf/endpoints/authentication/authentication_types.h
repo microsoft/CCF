@@ -30,7 +30,7 @@ namespace ccf
     virtual ~AuthnPolicy() = default;
 
     virtual std::unique_ptr<AuthnIdentity> authenticate(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const std::shared_ptr<ccf::RpcContext>& ctx,
       std::string& error_reason) = 0;
 

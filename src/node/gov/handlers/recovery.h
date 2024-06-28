@@ -12,7 +12,7 @@ namespace ccf::gov::endpoints
   void init_recovery_handlers(
     ccf::BaseEndpointRegistry& registry,
     ShareManager& share_manager,
-    ccfapp::AbstractNodeContext& node_context)
+    ccf::AbstractNodeContext& node_context)
   {
     auto get_encrypted_share_for_member =
       [&](auto& ctx, ApiVersion api_version) {

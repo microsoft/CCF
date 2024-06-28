@@ -18,13 +18,13 @@ using namespace nlohmann;
 
 namespace basicapp
 {
-  using RecordsMap = kv::Map<string, std::vector<uint8_t>>;
+  using RecordsMap = ccf::kv::Map<string, std::vector<uint8_t>>;
   static constexpr auto PRIVATE_RECORDS = "records";
 
   class BasicHandlers : public ccf::UserEndpointRegistry
   {
   public:
-    BasicHandlers(ccfapp::AbstractNodeContext& context) :
+    BasicHandlers(ccf::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context)
     {
       openapi_info.title = "CCF Basic App";
@@ -74,7 +74,8 @@ namespace basicapp
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::TEXT);
           ctx.rpc_ctx->set_response_body(record.value());
           return;
         }
@@ -109,10 +110,10 @@ namespace basicapp
   };
 }
 
-namespace ccfapp
+namespace ccf
 {
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
-    ccfapp::AbstractNodeContext& context)
+    ccf::AbstractNodeContext& context)
   {
     return std::make_unique<basicapp::BasicHandlers>(context);
   }
