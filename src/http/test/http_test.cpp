@@ -277,7 +277,7 @@ DOCTEST_TEST_CASE("URL parsing")
 
 DOCTEST_TEST_CASE("Pessimal transport")
 {
-  logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::level() = LoggerLevel::INFO;
 
   const http::HeaderMap h1 = {{"foo", "bar"}, {"baz", "42"}};
   const http::HeaderMap h2 = {

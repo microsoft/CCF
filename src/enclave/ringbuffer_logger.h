@@ -6,7 +6,7 @@
 
 namespace ccf
 {
-  class RingbufferLogger : public logger::AbstractLogger
+  class RingbufferLogger : public ccf::logger::AbstractLogger
   {
   protected:
     ringbuffer::WriterPtr writer;
@@ -19,7 +19,7 @@ namespace ccf
     RingbufferLogger(const ringbuffer::WriterPtr& writer_) : writer(writer_) {}
 
     void write(
-      const logger::LogLine& line,
+      const ccf::logger::LogLine& line,
       const std::optional<double>& enclave_offset = std::nullopt) override
     {
       writer->write(

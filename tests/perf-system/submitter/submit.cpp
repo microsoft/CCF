@@ -265,8 +265,8 @@ int main(int argc, char** argv)
   // Ignore SIGPIPE as it can be raised by write to a socket
   signal(SIGPIPE, SIG_IGN);
 
-  logger::config::default_init();
-  logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::default_init();
+  ccf::logger::config::level() = LoggerLevel::INFO;
   ccf::crypto::openssl_sha256_init();
   CLI::App cli_app{"Perf Tool"};
   ArgumentParser args("Perf Tool", cli_app);
