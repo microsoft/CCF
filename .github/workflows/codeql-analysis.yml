@@ -21,6 +21,8 @@ jobs:
     name: Analyze
     # Insufficient space to run on public runner, so use custom pool
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ccfmsrc.azurecr.io/ccf/ci:2024-06-26-virtual-clang15
 
     permissions:
       security-events: write
