@@ -23,6 +23,7 @@ jobs:
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ccfmsrc.azurecr.io/ccf/ci:2024-06-26-virtual-clang15
+      options: --user root
 
     permissions:
       security-events: write
