@@ -104,15 +104,15 @@ namespace ccf
     template <typename T>
     void send_refresh_jwt_keys(T msg)
     {
-      auto body = nlohmann::json(msg);
-
       ::http::Request request(fmt::format(
         "/{}/{}",
         ccf::get_actor_prefix(ccf::ActorsType::nodes),
         "jwt_keys/refresh"));
       request.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-      request.set_body(body.dump());
+
+      auto body = nlohmann::json(msg).dump();
+      request.set_body(body);
 
       auto packed = request.build_request();
 
