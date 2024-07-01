@@ -42,8 +42,7 @@ class TSimpleFrontend : public RpcFrontend
 public:
   Registry registry;
 
-  TSimpleFrontend(
-    ccf::kv::Store& tables, ccf::AbstractNodeContext& context) :
+  TSimpleFrontend(ccf::kv::Store& tables, ccf::AbstractNodeContext& context) :
     RpcFrontend(tables, registry, context),
     registry(context)
   {}
