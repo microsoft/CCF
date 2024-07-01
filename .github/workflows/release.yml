@@ -85,4 +85,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pkg-${{ matrix.platform.name }}
-          path: ${{ steps.make_deb.outputs.name }}
+          path: build/${{ steps.make_deb.outputs.name }}
