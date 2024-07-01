@@ -143,7 +143,7 @@ namespace ccf::pal
   DECLARE_JSON_REQUIRED_FIELDS(PlatformAttestationMeasurement, data);
 }
 
-namespace kv::serialisers
+namespace ccf::kv::serialisers
 {
   template <size_t N>
   struct BlitSerialiser<ccf::pal::AttestationMeasurement<N>>

@@ -19,7 +19,8 @@ namespace ccf
   {
     std::vector<uint8_t> raw_key;
     std::shared_ptr<ccf::crypto::KeyAesGcm> key;
-    std::optional<kv::Version> previous_secret_stored_version = std::nullopt;
+    std::optional<ccf::kv::Version> previous_secret_stored_version =
+      std::nullopt;
     std::optional<ccf::crypto::HashBytes> commit_secret = std::nullopt;
 
     const ccf::crypto::HashBytes& get_commit_secret()
@@ -59,7 +60,7 @@ namespace ccf
 
     LedgerSecret(
       std::vector<uint8_t>&& raw_key_,
-      std::optional<kv::Version> previous_secret_stored_version_ =
+      std::optional<ccf::kv::Version> previous_secret_stored_version_ =
         std::nullopt) :
       raw_key(raw_key_),
       key(ccf::crypto::make_key_aes_gcm(std::move(raw_key_))),

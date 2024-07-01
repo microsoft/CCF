@@ -73,9 +73,9 @@ TEST_CASE("Enclave record")
 
   bool globally_committable = false;
   const std::vector<uint8_t> entry = {'a', 'b', 'c'};
-  kv::SerialisedEntryHeader entry_header;
+  ccf::kv::SerialisedEntryHeader entry_header;
 
-  std::vector<uint8_t> tx(kv::serialised_entry_header_size + entry.size());
+  std::vector<uint8_t> tx(ccf::kv::serialised_entry_header_size + entry.size());
   auto tx_ = tx.data();
   auto size_ = tx.size();
   serialized::write(tx_, size_, entry_header);

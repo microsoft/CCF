@@ -19,7 +19,7 @@
 #include <iostream>
 #include <string>
 
-using namespace ccfapp;
+using namespace ccf;
 using namespace ccf;
 using namespace std;
 using namespace serdes;
@@ -41,7 +41,7 @@ auto verifier_mem = ccf::crypto::make_verifier(member_cert);
 auto user_cert = kp -> self_sign("CN=name_user", valid_from, valid_to);
 auto dummy_enc_pubk = ccf::crypto::make_rsa_key_pair() -> public_key_pem();
 
-auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
 constexpr auto default_pack = serdes::Pack::Text;
 
@@ -133,9 +133,9 @@ void init_network(NetworkState& network)
 {
   network.tables->set_encryptor(encryptor);
   auto history = std::make_shared<ccf::NullTxHistory>(
-    *network.tables, kv::test::PrimaryNodeId, *kp);
+    *network.tables, ccf::kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
-  auto consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network.tables->set_consensus(consensus);
   network.identity = make_test_network_ident();
 }

@@ -3,84 +3,84 @@ Key-Value Store API
 
 This page presents the API that a CCF application must use to access and mutate the replicated key-value store.
 
-A CCF application should store its data in one or more :cpp:type:`kv::Map`. The name, type, and serialisation of these maps is under the application's control. Each invocation of an :cpp:class:`ccf::EndpointRegistry::Endpoint` is given a :cpp:class:`kv::Tx` transaction object, through which it can read and write to its :cpp:type:`kv::Map`.
+A CCF application should store its data in one or more :cpp:type:`ccf::kv::Map`. The name, type, and serialisation of these maps is under the application's control. Each invocation of an :cpp:class:`ccf::EndpointRegistry::Endpoint` is given a :cpp:class:`ccf::kv::Tx` transaction object, through which it can read and write to its :cpp:type:`ccf::kv::Map`.
 
 Map
 ---
 
-.. doxygentypedef:: kv::Version
+.. doxygentypedef:: ccf::kv::Version
    :project: CCF
 
-.. doxygenvariable:: kv::NoVersion
+.. doxygenvariable:: ccf::kv::NoVersion
    :project: CCF
 
-.. doxygenclass:: kv::TypedMap
+.. doxygenclass:: ccf::kv::TypedMap
    :project: CCF
 
-.. doxygentypedef:: kv::Map
+.. doxygentypedef:: ccf::kv::Map
    :project: CCF
 
-.. doxygenclass:: kv::TypedValue
+.. doxygenclass:: ccf::kv::TypedValue
    :project: CCF
 
-.. doxygentypedef:: kv::Value
+.. doxygentypedef:: ccf::kv::Value
    :project: CCF
 
-.. doxygenclass:: kv::TypedSet
+.. doxygenclass:: ccf::kv::TypedSet
    :project: CCF
 
-.. doxygentypedef:: kv::Set
+.. doxygentypedef:: ccf::kv::Set
    :project: CCF
 
 Transaction
 -----------
 
-.. doxygenclass:: kv::ReadOnlyTx
+.. doxygenclass:: ccf::kv::ReadOnlyTx
    :project: CCF
    :members: ro
 
-.. doxygenclass:: kv::Tx
+.. doxygenclass:: ccf::kv::Tx
    :project: CCF
    :members: rw, wo
 
 Handles
 -------
 
-.. doxygenclass:: kv::ReadableMapHandle
+.. doxygenclass:: ccf::kv::ReadableMapHandle
    :project: CCF
    :members:
 
-.. doxygenclass:: kv::WriteableMapHandle
+.. doxygenclass:: ccf::kv::WriteableMapHandle
    :project: CCF
    :members:
 
-.. doxygenclass:: kv::MapHandle
+.. doxygenclass:: ccf::kv::MapHandle
    :project: CCF
 
-.. doxygenclass:: kv::ReadableValueHandle
-   :project: CCF
-   :members:
-
-.. doxygenclass:: kv::WriteableValueHandle
+.. doxygenclass:: ccf::kv::ReadableValueHandle
    :project: CCF
    :members:
 
-.. doxygenclass:: kv::ValueHandle
-   :project: CCF
-
-.. doxygenclass:: kv::ReadableSetHandle
+.. doxygenclass:: ccf::kv::WriteableValueHandle
    :project: CCF
    :members:
 
-.. doxygenclass:: kv::WriteableSetHandle
+.. doxygenclass:: ccf::kv::ValueHandle
+   :project: CCF
+
+.. doxygenclass:: ccf::kv::ReadableSetHandle
    :project: CCF
    :members:
 
-.. doxygenclass:: kv::SetHandle
+.. doxygenclass:: ccf::kv::WriteableSetHandle
+   :project: CCF
+   :members:
+
+.. doxygenclass:: ccf::kv::SetHandle
    :project: CCF
 
 Serialisation
 -------------
 
-.. doxygenenum:: kv::EntryType
+.. doxygenenum:: ccf::kv::EntryType
    :project: CCF

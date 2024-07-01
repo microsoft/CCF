@@ -17,11 +17,11 @@ namespace ccf::js
     // source of truth for these restrictions. This code is formatted to attempt
     // to make it clear how it maps directly to that table.
     const auto [privacy_of_table, namespace_of_table] =
-      kv::parse_map_name(table_name);
+      ccf::kv::parse_map_name(table_name);
 
     switch (privacy_of_table)
     {
-      case (kv::SecurityDomain::PRIVATE):
+      case (ccf::kv::SecurityDomain::PRIVATE):
       {
         // The only time private tables can be used, is on private application
         // tables in an application context. Governance should neither read from
@@ -29,13 +29,13 @@ namespace ccf::js
         // tables exist then applications should not be able to read them.
         if (
           execution_context == TxAccess::APP_RW &&
-          namespace_of_table == kv::AccessCategory::APPLICATION)
+          namespace_of_table == ccf::kv::AccessCategory::APPLICATION)
         {
           return KVAccessPermissions::READ_WRITE;
         }
         else if (
           execution_context == TxAccess::APP_RO &&
-          namespace_of_table == kv::AccessCategory::APPLICATION)
+          namespace_of_table == ccf::kv::AccessCategory::APPLICATION)
         {
           return KVAccessPermissions::READ_ONLY;
         }
@@ -45,16 +45,16 @@ namespace ccf::js
         }
       }
 
-      case (kv::SecurityDomain::PUBLIC):
+      case (ccf::kv::SecurityDomain::PUBLIC):
       {
         switch (namespace_of_table)
         {
-          case kv::AccessCategory::INTERNAL:
+          case ccf::kv::AccessCategory::INTERNAL:
           {
             return KVAccessPermissions::READ_ONLY;
           }
 
-          case kv::AccessCategory::GOVERNANCE:
+          case ccf::kv::AccessCategory::GOVERNANCE:
           {
             if (execution_context == TxAccess::GOV_RW)
             {
@@ -66,7 +66,7 @@ namespace ccf::js
             }
           }
 
-          case kv::AccessCategory::APPLICATION:
+          case ccf::kv::AccessCategory::APPLICATION:
           {
             switch (execution_context)
             {
@@ -87,7 +87,7 @@ namespace ccf::js
         }
       }
 
-      case (kv::SecurityDomain::SECURITY_DOMAIN_MAX):
+      case (ccf::kv::SecurityDomain::SECURITY_DOMAIN_MAX):
       {
         throw std::logic_error(fmt::format(
           "Unexpected security domain (max) for table {}", table_name));

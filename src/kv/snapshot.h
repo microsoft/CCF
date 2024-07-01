@@ -4,21 +4,22 @@
 
 #include "kv/kv_types.h"
 
-namespace kv
+namespace ccf::kv
 {
   class StoreSnapshot : public AbstractStore::AbstractSnapshot
   {
   private:
     Version version;
 
-    std::vector<std::unique_ptr<kv::AbstractMap::Snapshot>> snapshots;
+    std::vector<std::unique_ptr<ccf::kv::AbstractMap::Snapshot>> snapshots;
     std::optional<std::vector<uint8_t>> hash_at_snapshot = std::nullopt;
     std::optional<std::vector<Version>> view_history = std::nullopt;
 
   public:
     StoreSnapshot(Version version_) : version(version_) {}
 
-    void add_map_snapshot(std::unique_ptr<kv::AbstractMap::Snapshot> snapshot)
+    void add_map_snapshot(
+      std::unique_ptr<ccf::kv::AbstractMap::Snapshot> snapshot)
     {
       snapshots.push_back(std::move(snapshot));
     }
@@ -53,7 +54,7 @@ namespace kv
       KvStoreSerialiser serialiser(
         encryptor,
         {0, version},
-        kv::EntryType::Snapshot,
+        ccf::kv::EntryType::Snapshot,
         0,
         {},
         ccf::no_claims(),

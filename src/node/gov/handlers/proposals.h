@@ -29,7 +29,7 @@ namespace ccf::gov::endpoints
     };
 
     ProposalSubmissionResult validate_proposal_submission_time(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const std::string& created_at,
       const std::vector<uint8_t>& request_digest,
       const ccf::ProposalId& proposal_id)
@@ -93,7 +93,7 @@ namespace ccf::gov::endpoints
     }
 
     void record_cose_governance_history(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const MemberId& caller_id,
       const std::span<const uint8_t>& cose_sign1)
     {
@@ -104,7 +104,7 @@ namespace ccf::gov::endpoints
     }
 
     void remove_all_other_non_open_proposals(
-      kv::Tx& tx, const ProposalId& proposal_id)
+      ccf::kv::Tx& tx, const ProposalId& proposal_id)
     {
       auto p = tx.rw<ccf::jsgov::ProposalMap>(jsgov::Tables::PROPOSALS);
       auto pi =
@@ -129,9 +129,9 @@ namespace ccf::gov::endpoints
     // Evaluate JS functions on this proposal. Result is presented in modified
     // proposal_info argument, which is written back to the KV by this function
     void resolve_proposal(
-      ccfapp::AbstractNodeContext& context,
+      ccf::AbstractNodeContext& context,
       ccf::NetworkState& network,
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const ProposalId& proposal_id,
       const std::span<const uint8_t>& proposal_bytes,
       ccf::jsgov::ProposalInfo& proposal_info,
@@ -387,7 +387,7 @@ namespace ccf::gov::endpoints
   void init_proposals_handlers(
     ccf::BaseEndpointRegistry& registry,
     NetworkState& network,
-    ccfapp::AbstractNodeContext& node_context)
+    ccf::AbstractNodeContext& node_context)
   {
     //// implementation of TSP interface Proposals
     auto create_proposal = [&](auto& ctx, ApiVersion api_version) {

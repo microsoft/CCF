@@ -23,19 +23,19 @@
 
 struct MapTypes
 {
-  using StringString = kv::Map<std::string, std::string>;
-  using NumNum = kv::Map<size_t, size_t>;
-  using NumString = kv::Map<size_t, std::string>;
-  using StringNum = kv::Map<std::string, size_t>;
-  using UntypedMap = kv::untyped::Map;
+  using StringString = ccf::kv::Map<std::string, std::string>;
+  using NumNum = ccf::kv::Map<size_t, size_t>;
+  using NumString = ccf::kv::Map<size_t, std::string>;
+  using StringNum = ccf::kv::Map<std::string, size_t>;
+  using UntypedMap = ccf::kv::untyped::Map;
 };
 
 TEST_CASE("Map name parsing")
 {
-  using SD = kv::SecurityDomain;
-  using AC = kv::AccessCategory;
+  using SD = ccf::kv::SecurityDomain;
+  using AC = ccf::kv::AccessCategory;
 
-  auto parse = kv::parse_map_name;
+  auto parse = ccf::kv::parse_map_name;
   auto mp = std::make_pair<SD, AC>;
 
   REQUIRE(parse("foo") == mp(SD::PRIVATE, AC::APPLICATION));
@@ -58,8 +58,8 @@ TEST_CASE("Map name parsing")
 
 TEST_CASE("Reads/writes and deletions")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
   MapTypes::StringString map("public:map");
@@ -71,7 +71,7 @@ TEST_CASE("Reads/writes and deletions")
   INFO("Start empty transaction");
   {
     auto tx = kv_store.create_tx();
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE_THROWS_AS(tx.commit(), std::logic_error);
   }
 
@@ -89,7 +89,7 @@ TEST_CASE("Reads/writes and deletions")
     REQUIRE(va.has_value());
     REQUIRE(va.value() == v1);
     REQUIRE(!handle->get_version_of_previous_write(k).has_value());
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   const auto commit_v = kv_store.current_version();
@@ -105,7 +105,7 @@ TEST_CASE("Reads/writes and deletions")
     const auto ver = handle->get_version_of_previous_write(k);
     REQUIRE(ver.has_value());
     REQUIRE(ver.value() == commit_v);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   INFO("Remove keys");
@@ -128,7 +128,7 @@ TEST_CASE("Reads/writes and deletions")
       REQUIRE(!va.has_value());
 
       handle->put(k, v1);
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -147,7 +147,7 @@ TEST_CASE("Reads/writes and deletions")
       handle->put(k, v1);
       auto va = handle->get_globally_committed(k);
       REQUIRE(!va.has_value());
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -156,7 +156,7 @@ TEST_CASE("Reads/writes and deletions")
       REQUIRE(handle2->has(k));
       handle2->remove(k);
       REQUIRE(!handle2->has(k));
-      REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx2.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -171,13 +171,13 @@ TEST_CASE("Reads/writes and deletions")
 
 TEST_CASE("sets and values")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
   {
-    INFO("kv::Set");
-    using Set = kv::Set<std::string>;
+    INFO("ccf::kv::Set");
+    using Set = ccf::kv::Set<std::string>;
     Set set("public:set");
     constexpr auto k1 = "key1";
     constexpr auto k2 = "key2";
@@ -209,7 +209,7 @@ TEST_CASE("sets and values")
       REQUIRE(!set_handle->contains_globally_committed(k1));
       REQUIRE(!set_handle->contains_globally_committed(k2));
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -232,7 +232,7 @@ TEST_CASE("sets and values")
       REQUIRE(std_set.size() == 1);
       REQUIRE(std_set.find(k1) != std_set.end());
       REQUIRE(std_set.find(k2) == std_set.end());
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -275,7 +275,7 @@ TEST_CASE("sets and values")
       REQUIRE(set_handle->contains_globally_committed(k1));
       REQUIRE(!set_handle->contains_globally_committed(k2));
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -305,12 +305,13 @@ TEST_CASE("sets and values")
       std::vector<Set::Write> local_writes;
       std::vector<Set::Write> global_writes;
 
-      auto map_hook =
-        [&](kv::Version v, const Set::Write& w) -> kv::ConsensusHookPtr {
+      auto map_hook = [&](
+                        ccf::kv::Version v,
+                        const Set::Write& w) -> ccf::kv::ConsensusHookPtr {
         local_writes.push_back(w);
-        return kv::ConsensusHookPtr(nullptr);
+        return ccf::kv::ConsensusHookPtr(nullptr);
       };
-      auto global_hook = [&](kv::Version v, const Set::Write& w) {
+      auto global_hook = [&](ccf::kv::Version v, const Set::Write& w) {
         global_writes.push_back(w);
       };
 
@@ -326,7 +327,7 @@ TEST_CASE("sets and values")
         set_handle->insert(k1);
         set_handle->insert(k2);
         set_handle->remove(k2);
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
         REQUIRE(global_writes.size() == 0);
         REQUIRE(local_writes.size() == 1);
@@ -345,7 +346,7 @@ TEST_CASE("sets and values")
         auto set_handle = tx.rw(set);
         set_handle->remove(k1);
         set_handle->insert(k2);
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
         REQUIRE(local_writes.size() == 1);
         const auto& latest_writes = local_writes.front();
@@ -362,7 +363,7 @@ TEST_CASE("sets and values")
         auto tx = kv_store.create_tx();
         auto set_handle = tx.rw(set);
         set_handle->insert(k1);
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
         kv_store.compact(kv_store.current_version());
 
@@ -383,8 +384,8 @@ TEST_CASE("sets and values")
   }
 
   {
-    INFO("kv::Value");
-    using Value = kv::Value<std::string>;
+    INFO("ccf::kv::Value");
+    using Value = ccf::kv::Value<std::string>;
     Value val1("public:value1");
     Value val2("public:value2");
 
@@ -415,7 +416,7 @@ TEST_CASE("sets and values")
       h2->clear();
       REQUIRE(!h2->has());
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -429,7 +430,7 @@ TEST_CASE("sets and values")
       auto h2 = tx.rw(val2);
       REQUIRE(!h2->has());
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -441,7 +442,7 @@ TEST_CASE("sets and values")
       h1->clear();
       REQUIRE(!h1->has());
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -452,12 +453,13 @@ TEST_CASE("sets and values")
       std::vector<Value::Write> local_writes;
       std::vector<Value::Write> global_writes;
 
-      auto map_hook =
-        [&](kv::Version v, const Value::Write& w) -> kv::ConsensusHookPtr {
+      auto map_hook = [&](
+                        ccf::kv::Version v,
+                        const Value::Write& w) -> ccf::kv::ConsensusHookPtr {
         local_writes.push_back(w);
-        return kv::ConsensusHookPtr(nullptr);
+        return ccf::kv::ConsensusHookPtr(nullptr);
       };
-      auto global_hook = [&](kv::Version v, const Value::Write& w) {
+      auto global_hook = [&](ccf::kv::Version v, const Value::Write& w) {
         global_writes.push_back(w);
       };
 
@@ -470,7 +472,7 @@ TEST_CASE("sets and values")
 
         {
           auto tx = kv_store.create_tx();
-          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+          REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
           REQUIRE(local_writes.size() == 0); // Commit without puts
         }
 
@@ -479,7 +481,7 @@ TEST_CASE("sets and values")
           auto h1 = tx.rw(val1);
           h1->put(v1);
           h1->put(v2); // Override previous value
-          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+          REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
           REQUIRE(global_writes.size() == 0);
           REQUIRE(local_writes.size() == 1);
@@ -492,7 +494,7 @@ TEST_CASE("sets and values")
           auto tx = kv_store.create_tx();
           auto h1 = tx.rw(val1);
           h1->clear();
-          REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+          REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
           REQUIRE(local_writes.size() == 1);
           auto latest_writes = local_writes.front();
@@ -507,7 +509,7 @@ TEST_CASE("sets and values")
         auto tx = kv_store.create_tx();
         auto h1 = tx.rw(val1);
         h1->put(v3);
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
         kv_store.compact(kv_store.current_version());
 
@@ -524,10 +526,10 @@ TEST_CASE("sets and values")
     // Sanity check that transactions can handle a mix of maps, sets, and values
     INFO("Mixed");
 
-    using TMap = kv::Map<std::string, size_t>;
-    using TSet = kv::Set<size_t>;
-    kv::Value<std::string> map_name_val("public:map_name");
-    kv::Value<std::string> set_name_val("public:set_name");
+    using TMap = ccf::kv::Map<std::string, size_t>;
+    using TSet = ccf::kv::Set<size_t>;
+    ccf::kv::Value<std::string> map_name_val("public:map_name");
+    ccf::kv::Value<std::string> set_name_val("public:set_name");
 
     constexpr auto n_entries = 10;
 
@@ -554,7 +556,7 @@ TEST_CASE("sets and values")
       REQUIRE(map_handle->size() == n_entries);
       REQUIRE(set_handle->size() == n_entries);
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -594,16 +596,16 @@ TEST_CASE("sets and values")
       REQUIRE(map_handle->size() == n_entries);
       REQUIRE(set_handle->size() == n_entries);
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
   }
 }
 
 struct CustomUnitCreator
 {
-  static kv::serialisers::SerialisedEntry get()
+  static ccf::kv::serialisers::SerialisedEntry get()
   {
-    kv::serialisers::SerialisedEntry e;
+    ccf::kv::serialisers::SerialisedEntry e;
 
     for (size_t i = 0; i < 42; ++i)
     {
@@ -624,16 +626,16 @@ TEST_CASE("serialisation of Unit type")
   const auto v3 = "saluton";
 
   {
-    INFO("The default unit type allows migration to/from a kv::Map");
+    INFO("The default unit type allows migration to/from a ccf::kv::Map");
 
-    using TValue = kv::RawCopySerialisedValue<std::string>;
-    using TValueEquivalent = kv::RawCopySerialisedMap<size_t, std::string>;
+    using TValue = ccf::kv::RawCopySerialisedValue<std::string>;
+    using TValueEquivalent = ccf::kv::RawCopySerialisedMap<size_t, std::string>;
 
-    using TSet = kv::RawCopySerialisedSet<std::string>;
-    using TSetEquivalent = kv::RawCopySerialisedMap<std::string, size_t>;
+    using TSet = ccf::kv::RawCopySerialisedSet<std::string>;
+    using TSetEquivalent = ccf::kv::RawCopySerialisedMap<std::string, size_t>;
 
-    kv::Store kv_store;
-    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    ccf::kv::Store kv_store;
+    auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
     kv_store.set_encryptor(encryptor);
 
     {
@@ -648,7 +650,7 @@ TEST_CASE("serialisation of Unit type")
       set_handle->put(v2, 1); // Will be visible in TSet handle, but would be
                               // written with different value
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -665,7 +667,7 @@ TEST_CASE("serialisation of Unit type")
       set_handle->insert(v2);
       set_handle->insert(v3);
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -685,68 +687,68 @@ TEST_CASE("serialisation of Unit type")
       REQUIRE(set_handle->has(v3));
       REQUIRE(*set_handle->get(v3) == 0);
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
   }
 
   {
     INFO("Custom UnitCreators produce distinct ledger entries");
 
-    using ValueA = kv::TypedValue<
+    using ValueA = ccf::kv::TypedValue<
       std::string,
-      kv::serialisers::BlitSerialiser<std::string>,
-      kv::serialisers::ZeroBlitUnitCreator>;
+      ccf::kv::serialisers::BlitSerialiser<std::string>,
+      ccf::kv::serialisers::ZeroBlitUnitCreator>;
     std::vector<uint8_t> entry_a;
     {
-      auto consensus = std::make_shared<kv::test::StubConsensus>();
-      kv::Store kv_store;
-      auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+      auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+      ccf::kv::Store kv_store;
+      auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
       kv_store.set_encryptor(encryptor);
       kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueA>(value_name);
       val_handle->put(v1);
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       const auto e = consensus->get_latest_data();
       REQUIRE(e.has_value());
       entry_a = e.value();
     }
 
-    using ValueB = kv::TypedValue<
+    using ValueB = ccf::kv::TypedValue<
       std::string,
-      kv::serialisers::BlitSerialiser<std::string>,
-      kv::serialisers::EmptyUnitCreator>;
+      ccf::kv::serialisers::BlitSerialiser<std::string>,
+      ccf::kv::serialisers::EmptyUnitCreator>;
     std::vector<uint8_t> entry_b;
     {
-      auto consensus = std::make_shared<kv::test::StubConsensus>();
-      kv::Store kv_store;
-      auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+      auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+      ccf::kv::Store kv_store;
+      auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
       kv_store.set_encryptor(encryptor);
       kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueB>(value_name);
       val_handle->put(v1);
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       const auto e = consensus->get_latest_data();
       REQUIRE(e.has_value());
       entry_b = e.value();
     }
 
-    using ValueC = kv::TypedValue<
+    using ValueC = ccf::kv::TypedValue<
       std::string,
-      kv::serialisers::BlitSerialiser<std::string>,
+      ccf::kv::serialisers::BlitSerialiser<std::string>,
       CustomUnitCreator>;
     std::vector<uint8_t> entry_c;
     {
-      auto consensus = std::make_shared<kv::test::StubConsensus>();
-      kv::Store kv_store;
-      auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+      auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+      ccf::kv::Store kv_store;
+      auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
       kv_store.set_encryptor(encryptor);
       kv_store.set_consensus(consensus);
       auto tx = kv_store.create_tx();
       auto val_handle = tx.rw<ValueC>(value_name);
       val_handle->put(v1);
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       const auto e = consensus->get_latest_data();
       REQUIRE(e.has_value());
       entry_c = e.value();
@@ -760,8 +762,8 @@ TEST_CASE("serialisation of Unit type")
 
 TEST_CASE("multiple handles")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
   MapTypes::NumString map("public:map");
@@ -796,8 +798,8 @@ TEST_CASE("multiple handles")
 
 TEST_CASE("clear")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
@@ -812,7 +814,7 @@ TEST_CASE("clear")
     auto handle = tx.rw(map);
     handle->put(k1, v);
 
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   SUBCASE("Basic")
@@ -831,7 +833,7 @@ TEST_CASE("clear")
       REQUIRE(!handle->has(k1));
       REQUIRE(!handle->has(k2));
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -841,7 +843,7 @@ TEST_CASE("clear")
 
       REQUIRE(!handle->has(k1));
       REQUIRE(!handle->has(k2));
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
   }
 
@@ -855,17 +857,17 @@ TEST_CASE("clear")
     auto tx2 = kv_store.create_tx();
     auto handle2 = tx2.rw(map);
     handle2->put(k2, v);
-    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx2.commit() == ccf::kv::CommitResult::SUCCESS);
 
     INFO("clear() conflicts and must be retried");
-    REQUIRE(tx1.commit() == kv::CommitResult::FAIL_CONFLICT);
+    REQUIRE(tx1.commit() == ccf::kv::CommitResult::FAIL_CONFLICT);
   }
 }
 
 TEST_CASE("get_version_of_previous_write")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
@@ -883,7 +885,7 @@ TEST_CASE("get_version_of_previous_write")
     handle->put(k1, v1);
     handle->put(k2, v1);
 
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   const auto first_version = kv_store.current_version();
@@ -894,7 +896,7 @@ TEST_CASE("get_version_of_previous_write")
     handle->put(k1, v2);
     handle->remove(k2);
 
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   const auto second_version = kv_store.current_version();
@@ -966,7 +968,7 @@ TEST_CASE("get_version_of_previous_write")
       }
 
       // This conflicts with tx_other so is not committed
-      REQUIRE(tx.commit() == kv::CommitResult::FAIL_CONFLICT);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::FAIL_CONFLICT);
     }
   }
 
@@ -990,8 +992,8 @@ TEST_CASE("get_version_of_previous_write")
 
 TEST_CASE("size")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
@@ -1021,7 +1023,7 @@ TEST_CASE("size")
     handle->put(k1, v);
     REQUIRE(handle->size() == 2);
 
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   {
@@ -1052,7 +1054,7 @@ TEST_CASE("size")
     }
 
     REQUIRE(handle->size() == 0);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   {
@@ -1082,15 +1084,15 @@ TEST_CASE("size")
       });
 
       REQUIRE(claimed_size == manual_size);
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
   }
 }
 
 TEST_CASE("foreach")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
@@ -1138,7 +1140,7 @@ TEST_CASE("foreach")
     auto handle = tx.rw(map);
     handle->put("key1", "value1");
     handle->put("key2", "value2");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     auto tx2 = kv_store.create_tx();
     auto handle2 = tx2.rw(map);
@@ -1154,7 +1156,7 @@ TEST_CASE("foreach")
     auto handle = tx.rw(map);
     handle->put("key1", "value1");
     handle->put("key2", "value2");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     auto tx2 = kv_store.create_tx();
     auto handle2 = tx2.rw(map);
@@ -1175,14 +1177,14 @@ TEST_CASE("foreach")
       handle->put("key1", "value1");
       handle->put("key2", "value2");
       handle->put("key3", "value3");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
       auto tx = kv_store.create_tx();
       auto handle = tx.rw(map);
       handle->remove("key1");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -1227,7 +1229,7 @@ TEST_CASE("foreach")
                         // never see the third)
       });
       REQUIRE(ctr == 2);
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     {
@@ -1273,12 +1275,12 @@ TEST_CASE("foreach")
 template <typename T>
 struct NoDeserialise
 {
-  static kv::serialisers::SerialisedEntry to_serialised(const T& t)
+  static ccf::kv::serialisers::SerialisedEntry to_serialised(const T& t)
   {
-    return kv::serialisers::JsonSerialiser<T>::to_serialised(t);
+    return ccf::kv::serialisers::JsonSerialiser<T>::to_serialised(t);
   }
 
-  static T from_serialised(const kv::serialisers::SerialisedEntry& s)
+  static T from_serialised(const ccf::kv::serialisers::SerialisedEntry& s)
   {
     throw std::logic_error("This deserialiser should not be called");
   }
@@ -1286,14 +1288,14 @@ struct NoDeserialise
 
 TEST_CASE("foreach_key")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
-  kv::MapSerialisedWith<
+  ccf::kv::MapSerialisedWith<
     std::string,
     std::string,
-    kv::serialisers::JsonSerialiser,
+    ccf::kv::serialisers::JsonSerialiser,
     NoDeserialise>
     map("public:map");
 
@@ -1303,7 +1305,7 @@ TEST_CASE("foreach_key")
     handle->put("k1", "v1");
     handle->put("k2", "v2");
     handle->put("k3", "v3");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   {
@@ -1323,15 +1325,15 @@ TEST_CASE("foreach_key")
 
 TEST_CASE("foreach_value")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
-  kv::MapSerialisedWith<
+  ccf::kv::MapSerialisedWith<
     std::string,
     std::string,
     NoDeserialise,
-    kv::serialisers::JsonSerialiser>
+    ccf::kv::serialisers::JsonSerialiser>
     map("public:map");
 
   {
@@ -1340,7 +1342,7 @@ TEST_CASE("foreach_value")
     handle->put("k1", "v1");
     handle->put("k2", "v2");
     handle->put("k3", "v3");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   {
@@ -1359,8 +1361,8 @@ TEST_CASE("foreach_value")
 
 TEST_CASE("Modifications during foreach iteration")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   MapTypes::NumString map("public:map");
 
@@ -1379,7 +1381,7 @@ TEST_CASE("Modifications during foreach iteration")
       handle->put(i, value1);
     }
 
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   auto tx = kv_store.create_tx();
@@ -1622,8 +1624,8 @@ TEST_CASE("Modifications during foreach iteration")
 
 TEST_CASE("Read-only tx")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
@@ -1641,7 +1643,7 @@ TEST_CASE("Read-only tx")
     auto va = handle->get(k);
     REQUIRE(va.has_value());
     REQUIRE(va.value() == v1);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   INFO("Do only reads with an overpowered Tx");
@@ -1697,8 +1699,8 @@ TEST_CASE("Read-only tx")
 
 TEST_CASE("Rollback and compact")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
@@ -1711,13 +1713,13 @@ TEST_CASE("Rollback and compact")
     auto tx2 = kv_store.create_tx();
     auto handle = tx.rw(map);
     handle->put(k, v1);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     kv_store.rollback({kv_store.commit_view(), 0}, kv_store.commit_view());
     auto handle2 = tx2.rw(map);
     auto v = handle2->get(k);
     REQUIRE(!v.has_value());
-    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx2.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   INFO("Read committed key");
@@ -1726,7 +1728,7 @@ TEST_CASE("Rollback and compact")
     auto tx2 = kv_store.create_tx();
     auto handle = tx.rw(map);
     handle->put(k, v1);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     kv_store.compact(kv_store.current_version());
 
     auto handle2 = tx2.rw(map);
@@ -1741,7 +1743,7 @@ TEST_CASE("Rollback and compact")
     auto tx2 = kv_store.create_tx();
     auto handle = tx.rw(map);
     handle->remove(k);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     kv_store.compact(kv_store.current_version());
 
     auto handle2 = tx2.rw(map);
@@ -1756,16 +1758,17 @@ TEST_CASE("Local commit hooks")
   std::vector<Write> local_writes;
   std::vector<Write> global_writes;
 
-  auto map_hook = [&](kv::Version v, const Write& w) -> kv::ConsensusHookPtr {
+  auto map_hook =
+    [&](ccf::kv::Version v, const Write& w) -> ccf::kv::ConsensusHookPtr {
     local_writes.push_back(w);
-    return kv::ConsensusHookPtr(nullptr);
+    return ccf::kv::ConsensusHookPtr(nullptr);
   };
-  auto global_hook = [&](kv::Version v, const Write& w) {
+  auto global_hook = [&](ccf::kv::Version v, const Write& w) {
     global_writes.push_back(w);
   };
 
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   constexpr auto map_name = "public:map";
   MapTypes::StringString map(map_name);
@@ -1780,7 +1783,7 @@ TEST_CASE("Local commit hooks")
       handle->put("key1", "value1");
       handle->put("key2", "value2");
       handle->remove("key2");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
       REQUIRE(global_writes.size() == 0);
       REQUIRE(local_writes.size() == 1);
@@ -1797,7 +1800,7 @@ TEST_CASE("Local commit hooks")
       auto tx = kv_store.create_tx();
       auto handle = tx.rw(map);
       handle->remove("key1");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
       REQUIRE(global_writes.size() == 0);
       REQUIRE(local_writes.size() == 1);
@@ -1818,7 +1821,7 @@ TEST_CASE("Local commit hooks")
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
     handle->put("key2", "value2");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     REQUIRE(local_writes.size() == 0);
     REQUIRE(global_writes.size() == 0);
@@ -1833,7 +1836,7 @@ TEST_CASE("Local commit hooks")
     auto handle = tx.rw(map);
     handle->remove("key2");
     handle->put("key3", "value3");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     REQUIRE(global_writes.size() == 0);
     REQUIRE(local_writes.size() == 1);
@@ -1860,20 +1863,20 @@ TEST_CASE("Global commit hooks")
 
   struct GlobalHookInput
   {
-    kv::Version version;
+    ccf::kv::Version version;
     Write writes;
   };
 
   std::vector<GlobalHookInput> global_writes;
 
-  auto global_hook = [&](kv::Version v, const Write& w) {
+  auto global_hook = [&](ccf::kv::Version v, const Write& w) {
     global_writes.emplace_back(GlobalHookInput({v, w}));
   };
 
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
-  using MapT = kv::Map<std::string, std::string>;
+  using MapT = ccf::kv::Map<std::string, std::string>;
   MapT map_with_hook("public:map_with_hook");
   kv_store.set_global_hook(
     map_with_hook.get_name(), map_with_hook.wrap_commit_hook(global_hook));
@@ -1892,7 +1895,7 @@ TEST_CASE("Global commit hooks")
     auto tx1 = kv_store.create_tx();
     auto handle_hook = tx1.rw(map_with_hook);
     handle_hook->put("key1", "value1");
-    REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx1.commit() == ccf::kv::CommitResult::SUCCESS);
 
     kv_store.compact(1);
 
@@ -1912,11 +1915,11 @@ TEST_CASE("Global commit hooks")
     auto tx3 = kv_store.create_tx();
     auto handle_hook = tx1.rw(map_with_hook);
     handle_hook->put("key1", "value1");
-    REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx1.commit() == ccf::kv::CommitResult::SUCCESS);
 
     handle_hook = tx2.rw(map_with_hook);
     handle_hook->put("key2", "value2");
-    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx2.commit() == ccf::kv::CommitResult::SUCCESS);
 
     const auto compact_version = kv_store.current_version();
 
@@ -1924,7 +1927,7 @@ TEST_CASE("Global commit hooks")
     // version of the store
     auto handle_no_hook = tx3.rw(map_no_hook);
     handle_no_hook->put("key3", "value3");
-    REQUIRE(tx3.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx3.commit() == ccf::kv::CommitResult::SUCCESS);
 
     kv_store.compact(compact_version);
 
@@ -1949,19 +1952,19 @@ TEST_CASE("Global commit hooks")
     auto tx3 = kv_store.create_tx();
     auto handle_hook = tx1.rw(map_with_hook);
     handle_hook->put("key1", "value1");
-    REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx1.commit() == ccf::kv::CommitResult::SUCCESS);
 
     // This does not affect map_with_hook but still increments the current
     // version of the store
     auto handle_no_hook = tx2.rw(map_no_hook);
     handle_no_hook->put("key2", "value2");
-    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx2.commit() == ccf::kv::CommitResult::SUCCESS);
 
     const auto compact_version = kv_store.current_version();
 
     handle_hook = tx3.rw(map_with_hook);
     handle_hook->put("key3", "value3");
-    REQUIRE(tx3.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx3.commit() == ccf::kv::CommitResult::SUCCESS);
 
     kv_store.compact(compact_version);
 
@@ -1981,14 +1984,14 @@ TEST_CASE("Global commit hooks")
     auto tx2 = kv_store.create_tx();
     auto handle_hook = tx1.rw(map_with_hook);
     handle_hook->put("key1", "value1");
-    REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx1.commit() == ccf::kv::CommitResult::SUCCESS);
 
     kv_store.compact(kv_store.current_version());
     global_writes.clear();
 
     handle_hook = tx2.rw(map_with_hook);
     handle_hook->put("key2", "value2");
-    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx2.commit() == ccf::kv::CommitResult::SUCCESS);
 
     kv_store.compact(kv_store.current_version());
 
@@ -2004,8 +2007,8 @@ TEST_CASE("Global commit hooks")
 
 TEST_CASE("Deserialising from other Store")
 {
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-  kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  ccf::kv::Store store;
   store.set_encryptor(encryptor);
 
   MapTypes::NumString public_map("public:public");
@@ -2019,18 +2022,18 @@ TEST_CASE("Deserialising from other Store")
     tx1.commit_reserved();
   auto& success = success_;
   auto& data = data_;
-  REQUIRE(success == kv::CommitResult::SUCCESS);
+  REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
 
-  kv::Store clone;
+  ccf::kv::Store clone;
   clone.set_encryptor(encryptor);
 
-  REQUIRE(clone.deserialize(data)->apply() == kv::ApplyResult::PASS);
+  REQUIRE(clone.deserialize(data)->apply() == ccf::kv::ApplyResult::PASS);
 }
 
 TEST_CASE("Deserialise return status")
 {
-  kv::Store store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   store.set_encryptor(encryptor);
 
   ccf::Signatures signatures(ccf::Tables::SIGNATURES);
@@ -2043,8 +2046,8 @@ TEST_CASE("Deserialise return status")
   constexpr auto default_curve = ccf::crypto::CurveID::SECP384R1;
   auto kp = ccf::crypto::make_key_pair(default_curve);
 
-  auto history =
-    std::make_shared<ccf::NullTxHistory>(store, kv::test::PrimaryNodeId, *kp);
+  auto history = std::make_shared<ccf::NullTxHistory>(
+    store, ccf::kv::test::PrimaryNodeId, *kp);
   store.set_history(history);
 
   {
@@ -2055,26 +2058,26 @@ TEST_CASE("Deserialise return status")
       tx.commit_reserved();
     auto& success = success_;
     auto& data = data_;
-    REQUIRE(success == kv::CommitResult::SUCCESS);
+    REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
 
-    REQUIRE(store.deserialize(data)->apply() == kv::ApplyResult::PASS);
+    REQUIRE(store.deserialize(data)->apply() == ccf::kv::ApplyResult::PASS);
   }
 
   {
     auto tx = store.create_reserved_tx(store.next_txid());
     auto sig_handle = tx.rw(signatures);
     auto tree_handle = tx.rw(serialised_tree);
-    ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
+    ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, 2);
     sig_handle->put(sigv);
     tree_handle->put({});
     auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
       tx.commit_reserved();
     auto& success = success_;
     auto& data = data_;
-    REQUIRE(success == kv::CommitResult::SUCCESS);
+    REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
 
     REQUIRE(
-      store.deserialize(data)->apply() == kv::ApplyResult::PASS_SIGNATURE);
+      store.deserialize(data)->apply() == ccf::kv::ApplyResult::PASS_SIGNATURE);
   }
 
   INFO("Signature transactions with additional contents should fail");
@@ -2082,26 +2085,26 @@ TEST_CASE("Deserialise return status")
     auto tx = store.create_reserved_tx(store.next_txid());
     auto sig_handle = tx.rw(signatures);
     auto data_handle = tx.rw(data);
-    ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, 2);
+    ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, 2);
     sig_handle->put(sigv);
     data_handle->put(43, 43);
     auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
       tx.commit_reserved();
     auto& success = success_;
     auto& data = data_;
-    REQUIRE(success == kv::CommitResult::SUCCESS);
+    REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
 
-    REQUIRE(store.deserialize(data)->apply() == kv::ApplyResult::FAIL);
+    REQUIRE(store.deserialize(data)->apply() == ccf::kv::ApplyResult::FAIL);
   }
 }
 
 TEST_CASE("Map swap between stores")
 {
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-  kv::Store s1;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  ccf::kv::Store s1;
   s1.set_encryptor(encryptor);
 
-  kv::Store s2;
+  ccf::kv::Store s2;
   s2.set_encryptor(encryptor);
 
   MapTypes::NumNum d("data");
@@ -2111,14 +2114,14 @@ TEST_CASE("Map swap between stores")
     auto tx = s1.create_tx();
     auto v = tx.rw(d);
     v->put(42, 42);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   {
     auto tx = s1.create_tx();
     auto v = tx.rw(pd);
     v->put(14, 14);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   const auto target_version = s1.current_version();
@@ -2127,7 +2130,7 @@ TEST_CASE("Map swap between stores")
     auto tx = s2.create_tx();
     auto v = tx.rw(d);
     v->put(41, 41);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   s2.swap_private_maps(s1);
@@ -2167,13 +2170,13 @@ TEST_CASE("Map swap between stores")
 
 TEST_CASE("Private recovery map swap")
 {
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-  kv::Store s1;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  ccf::kv::Store s1;
   s1.set_encryptor(encryptor);
   MapTypes::NumNum priv1("private");
   MapTypes::NumString pub1("public:data");
 
-  kv::Store s2;
+  ccf::kv::Store s2;
   s2.set_encryptor(encryptor);
   MapTypes::NumNum priv2("private");
   MapTypes::NumString pub2("public:data");
@@ -2309,8 +2312,8 @@ TEST_CASE("Private recovery map swap")
 
 TEST_CASE("Conflict resolution")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   MapTypes::StringString map("public:map");
 
@@ -2319,10 +2322,10 @@ TEST_CASE("Conflict resolution")
     auto tx = kv_store.create_tx();
     auto handle = tx.rw(map);
     handle->put("foo", "initial");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
-  auto try_write = [&](kv::Tx& tx, const std::string& s) {
+  auto try_write = [&](ccf::kv::Tx& tx, const std::string& s) {
     auto handle = tx.rw(map);
 
     // Introduce read-dependency
@@ -2365,14 +2368,14 @@ TEST_CASE("Conflict resolution")
     // A second transaction is committed, conflicting with the first
     try_write(tx2, "baz");
     const auto res2 = tx2.commit();
-    REQUIRE(res2 == kv::CommitResult::SUCCESS);
+    REQUIRE(res2 == ccf::kv::CommitResult::SUCCESS);
 
     confirm_state({"baz"}, {"bar"});
   }
 
   // Trying to commit first transaction produces a conflict
   auto res1 = tx1.commit();
-  REQUIRE(res1 == kv::CommitResult::FAIL_CONFLICT);
+  REQUIRE(res1 == ccf::kv::CommitResult::FAIL_CONFLICT);
   confirm_state({"baz"}, {"bar"});
 
   // A third transaction just wants to read the value
@@ -2386,13 +2389,13 @@ TEST_CASE("Conflict resolution")
 
   // Expected results are committed
   res1 = tx1.commit();
-  REQUIRE(res1 == kv::CommitResult::SUCCESS);
+  REQUIRE(res1 == ccf::kv::CommitResult::SUCCESS);
   confirm_state({"baz", "buzz"}, {"bar"});
 
   // Third transaction completes later, has no conflicts but reports the earlier
   // version it read
   auto res3 = tx3.commit();
-  REQUIRE(res3 == kv::CommitResult::SUCCESS);
+  REQUIRE(res3 == ccf::kv::CommitResult::SUCCESS);
 
   REQUIRE(tx1.commit_version() > tx2.commit_version());
   REQUIRE(tx3.get_txid()->version >= tx2.get_txid()->version);
@@ -2419,8 +2422,8 @@ TEST_CASE("Conflict resolution - removals")
     auto c = Cases(i);
     INFO("Considering case " << c);
 
-    kv::Store kv_store;
-    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    ccf::kv::Store kv_store;
+    auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
     kv_store.set_encryptor(encryptor);
     MapTypes::StringString map("public:map");
 
@@ -2428,7 +2431,7 @@ TEST_CASE("Conflict resolution - removals")
       // Ensure maps already exist, by making prior writes
       auto tx = kv_store.create_tx();
       tx.rw(map)->put("", "");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     // Simulate parallel execution by interleaving tx steps
@@ -2477,12 +2480,12 @@ TEST_CASE("Conflict resolution - removals")
     {
       auto handle = tx2.rw(map);
       handle->put(k, "hello");
-      REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx2.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     const auto expected = c == Cases::ReadSameKey ?
-      kv::CommitResult::FAIL_CONFLICT :
-      kv::CommitResult::SUCCESS;
+      ccf::kv::CommitResult::FAIL_CONFLICT :
+      ccf::kv::CommitResult::SUCCESS;
 
     CHECK_EQ(tx1.commit(), expected);
 
@@ -2508,8 +2511,8 @@ TEST_CASE("Conflict resolution - removals")
 
 TEST_CASE("Cross-map conflicts")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   MapTypes::StringString source("public:source");
   MapTypes::StringString dest("public:dest");
@@ -2520,7 +2523,7 @@ TEST_CASE("Cross-map conflicts")
     auto tx = kv_store.create_tx();
     auto source_handle = tx.wo(source);
     source_handle->put("hello", "world");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   {
@@ -2541,11 +2544,11 @@ TEST_CASE("Cross-map conflicts")
       auto interfere_tx = kv_store.create_tx();
       auto src_handle = interfere_tx.wo(source);
       src_handle->put("hello", "alice");
-      REQUIRE(interfere_tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(interfere_tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     INFO("Copying operation should conflict on commit");
-    REQUIRE(copy_tx.commit() == kv::CommitResult::FAIL_CONFLICT);
+    REQUIRE(copy_tx.commit() == ccf::kv::CommitResult::FAIL_CONFLICT);
   }
 
   {
@@ -2570,11 +2573,11 @@ TEST_CASE("Cross-map conflicts")
       auto interfere_tx = kv_store.create_tx();
       auto src_handle = interfere_tx.wo(source);
       src_handle->put("hello", "bob");
-      REQUIRE(interfere_tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(interfere_tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     INFO("Moving operation should conflict on commit");
-    REQUIRE(move_tx.commit() == kv::CommitResult::FAIL_CONFLICT);
+    REQUIRE(move_tx.commit() == ccf::kv::CommitResult::FAIL_CONFLICT);
   }
 }
 
@@ -2585,8 +2588,8 @@ std::string rand_string(size_t i)
 
 TEST_CASE("Mid-tx compaction")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   MapTypes::StringNum map_a("public:A");
   MapTypes::StringNum map_b("public:B");
@@ -2610,7 +2613,7 @@ TEST_CASE("Mid-tx compaction")
     handle_b->put(key_b, new_val);
 
     const auto result = tx.commit();
-    REQUIRE(result == kv::CommitResult::SUCCESS);
+    REQUIRE(result == ccf::kv::CommitResult::SUCCESS);
   };
 
   increment_vals();
@@ -2631,7 +2634,7 @@ TEST_CASE("Mid-tx compaction")
     REQUIRE(a_opt == b_opt);
 
     const auto result = tx.commit();
-    REQUIRE(result == kv::CommitResult::SUCCESS);
+    REQUIRE(result == ccf::kv::CommitResult::SUCCESS);
   }
 
   {
@@ -2649,7 +2652,7 @@ TEST_CASE("Mid-tx compaction")
     REQUIRE(a_opt == b_opt);
 
     const auto result = tx.commit();
-    REQUIRE(result == kv::CommitResult::SUCCESS);
+    REQUIRE(result == ccf::kv::CommitResult::SUCCESS);
   }
 
   {
@@ -2679,9 +2682,9 @@ TEST_CASE("Mid-tx compaction")
       REQUIRE(a_opt == b_opt);
 
       const auto result = tx.commit();
-      REQUIRE(result == kv::CommitResult::SUCCESS);
+      REQUIRE(result == ccf::kv::CommitResult::SUCCESS);
     }
-    catch (const kv::CompactedVersionConflict& e)
+    catch (const ccf::kv::CompactedVersionConflict& e)
     {
       threw = true;
     }
@@ -2694,8 +2697,8 @@ TEST_CASE("Mid-tx compaction")
 
 TEST_CASE("Store clear")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   kv_store.initialise_term(42);
 
@@ -2715,7 +2718,7 @@ TEST_CASE("Store clear")
 
       handle_a->put("key" + std::to_string(i), 42);
       handle_b->put("key" + std::to_string(i), 42);
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     auto current_version = kv_store.current_version();
@@ -2749,18 +2752,18 @@ TEST_CASE("Store clear")
 
 TEST_CASE("Reported TxID after commit")
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   kv_store.set_consensus(consensus);
 
   const auto map_name = "public:map";
   MapTypes::StringString map(map_name);
   auto store_last_seqno = kv_store.current_version();
-  kv::Term initial_term = 2;
-  kv::Term store_commit_term = initial_term;
-  kv::Term store_read_term = 0;
+  ccf::kv::Term initial_term = 2;
+  ccf::kv::Term store_commit_term = initial_term;
+  ccf::kv::Term store_read_term = 0;
 
   INFO("Initialise store");
   {
@@ -2772,13 +2775,14 @@ TEST_CASE("Reported TxID after commit")
       auto tx = kv_store.create_tx();
       auto handle = tx.rw(map);
       handle->put("key", "value");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       store_read_term = store_commit_term;
     }
 
     REQUIRE(kv_store.current_version() == store_last_seqno);
     REQUIRE_EQ(
-      kv_store.current_txid(), kv::TxID(store_read_term, store_last_seqno));
+      kv_store.current_txid(),
+      ccf::kv::TxID(store_read_term, store_last_seqno));
   }
 
   INFO("Empty committed tx");
@@ -2790,7 +2794,7 @@ TEST_CASE("Reported TxID after commit")
     // Tx is not yet committed
     REQUIRE_THROWS_AS(tx.get_txid(), std::logic_error);
 
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     // Committed transaction was not assigned a TxID because it was empty
     REQUIRE_FALSE(tx.get_txid().has_value());
@@ -2807,7 +2811,7 @@ TEST_CASE("Reported TxID after commit")
     // No need to read a key, acquiring a map handle is sufficient to acquire a
     // valid TxID
 
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     // Reported TxID includes store read term and last seqno
     auto tx_id = tx.get_txid();
@@ -2827,7 +2831,7 @@ TEST_CASE("Reported TxID after commit")
     // Rollback at the current TxID, in the next term
     kv_store.rollback(kv_store.current_txid(), ++store_commit_term);
 
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     auto tx_id = tx.get_txid();
     REQUIRE(tx_id.has_value());
@@ -2845,7 +2849,7 @@ TEST_CASE("Reported TxID after commit")
 
     auto tx = kv_store.create_tx();
     auto handle = tx.ro(map);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     auto tx_id = tx.get_txid();
     REQUIRE(tx_id.has_value());
@@ -2862,7 +2866,7 @@ TEST_CASE("Reported TxID after commit")
 
     auto tx = kv_store.create_tx();
     auto handle = tx.ro(map);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     auto tx_id = tx.get_txid();
     REQUIRE(tx_id.has_value());
@@ -2877,7 +2881,7 @@ TEST_CASE("Reported TxID after commit")
       auto tx = kv_store.create_tx();
       auto handle = tx.rw(map);
       handle->put("key", "value");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       store_last_seqno = kv_store.current_version();
       store_read_term = store_commit_term;
 
@@ -2893,7 +2897,7 @@ TEST_CASE("Reported TxID after commit")
       // Read-only tx should report the new term
       auto tx = kv_store.create_tx();
       auto handle = tx.ro(map);
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
       auto tx_id = tx.get_txid();
       REQUIRE(tx_id.has_value());
@@ -2907,7 +2911,7 @@ TEST_CASE("Reported TxID after commit")
 
       auto tx = kv_store.create_tx();
       auto handle = tx.ro(map);
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
       auto tx_id = tx.get_txid();
       REQUIRE(tx_id.has_value());
@@ -2926,7 +2930,7 @@ TEST_CASE("Reported TxID after commit")
 
     auto tx = kv_store.create_tx();
     auto handle = tx.ro(map);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     auto tx_id = tx.get_txid();
     REQUIRE(tx_id.has_value());
@@ -2986,19 +2990,19 @@ std::map<T, T> kv_map_range(H& h, std::optional<T> from, std::optional<T> to)
 
 TEST_CASE("Range")
 {
-  using KVMap = kv::untyped::Map;
+  using KVMap = ccf::kv::untyped::Map;
   using KeyType = KVMap::K;
   using ValueType = KVMap::V;
   using RefMap = std::map<KeyType, ValueType>;
-  using Serialiser = kv::serialisers::JsonSerialiser<size_t>;
+  using Serialiser = ccf::kv::serialisers::JsonSerialiser<size_t>;
 
   size_t size = 100;
   size_t entries_space_size = size * 10;
   const auto map_name = "public:map";
   const ValueType empty_value = {};
 
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   RefMap ref;
 
@@ -3020,7 +3024,7 @@ TEST_CASE("Range")
       h->put(serialised_key, empty_value);
       ref[serialised_key] = empty_value;
     }
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   INFO("Compare ranges between KV map and reference");
@@ -3076,7 +3080,7 @@ TEST_CASE("Range")
         h->remove(key_to_remove);
         REQUIRE(ref.erase(key_to_remove) == 1);
       }
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     INFO("Range does not include key");
@@ -3127,9 +3131,9 @@ TEST_CASE("Range")
 
 TEST_CASE("Ledger entry chunk request")
 {
-  kv::Store store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   store.set_encryptor(encryptor);
   store.set_consensus(consensus);
 
@@ -3143,15 +3147,15 @@ TEST_CASE("Ledger entry chunk request")
   constexpr auto default_curve = ccf::crypto::CurveID::SECP384R1;
   auto kp = ccf::crypto::make_key_pair(default_curve);
 
-  auto history =
-    std::make_shared<ccf::NullTxHistory>(store, kv::test::PrimaryNodeId, *kp);
+  auto history = std::make_shared<ccf::NullTxHistory>(
+    store, ccf::kv::test::PrimaryNodeId, *kp);
   store.set_history(history);
 
   SUBCASE("Chunk at next signature")
   {
     // Ledger chunk flag is not set in the store
     REQUIRE(!store.flag_enabled(
-      kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+      ccf::kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
 
     INFO("Add a transaction with the chunking flag enabled");
     {
@@ -3159,16 +3163,16 @@ TEST_CASE("Ledger entry chunk request")
       auto tx = store.create_tx();
 
       // Request a ledger chunk at the next signature
-      tx.set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      tx.set_flag(ccf::kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
 
       auto h1 = tx.rw(map);
       h1->put("key", "value");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     // Flag is now set in the store
     REQUIRE(store.flag_enabled(
-      kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+      ccf::kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
 
     INFO("Roll back the last transaction");
     {
@@ -3178,7 +3182,7 @@ TEST_CASE("Ledger entry chunk request")
 
       // Ledger chunk flag is still set in the store
       REQUIRE(store.flag_enabled(
-        kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+        ccf::kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
 
       // Roll the last transaction back to clear the flag in the store
       store.rollback(
@@ -3187,7 +3191,7 @@ TEST_CASE("Ledger entry chunk request")
 
       // Ledger chunk flag is not set in the store anymore
       REQUIRE(!store.flag_enabled(
-        kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+        ccf::kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
     }
 
     INFO("Add another transaction with the chunking flag enabled");
@@ -3196,16 +3200,16 @@ TEST_CASE("Ledger entry chunk request")
       auto tx = store.create_tx();
 
       // Request a ledger chunk at the next signature again
-      tx.set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      tx.set_flag(ccf::kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
 
       auto h1 = tx.rw(map);
       h1->put("key", "value");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     // Ledger chunk flag is now set in the store
     REQUIRE(store.flag_enabled(
-      kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+      ccf::kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
 
     INFO(
       "Add a signature transaction which triggers chunk via entry header flag");
@@ -3214,29 +3218,31 @@ TEST_CASE("Ledger entry chunk request")
       auto tx = store.create_reserved_tx(txid);
       auto sig_handle = tx.rw(signatures);
       auto tree_handle = tx.rw(serialised_tree);
-      ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, txid.version);
+      ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, txid.version);
       sig_handle->put(sigv);
       tree_handle->put({});
       auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
         tx.commit_reserved();
       auto& success = success_;
       auto& data = data_;
-      REQUIRE(success == kv::CommitResult::SUCCESS);
+      REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
 
       REQUIRE(
-        store.deserialize(data)->apply() == kv::ApplyResult::PASS_SIGNATURE);
+        store.deserialize(data)->apply() ==
+        ccf::kv::ApplyResult::PASS_SIGNATURE);
 
       // Header flag is set in the last entry
       const uint8_t* entry_data = data.data();
       size_t entry_data_size = data.size();
-      auto header = serialized::peek<kv::SerialisedEntryHeader>(
+      auto header = serialized::peek<ccf::kv::SerialisedEntryHeader>(
         entry_data, entry_data_size);
-      REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER) != 0);
+      REQUIRE(
+        (header.flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER) != 0);
     }
 
     // Ledger chunk flag is not set in the store anymore
     REQUIRE(!store.flag_enabled(
-      kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
+      ccf::kv::AbstractStore::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE));
   }
 
   SUBCASE("Chunk before this transaction")
@@ -3249,11 +3255,11 @@ TEST_CASE("Ledger entry chunk request")
       auto tx = store.create_tx();
 
       // Request a ledger chunk before tx
-      tx.set_flag(kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
+      tx.set_flag(ccf::kv::CommittableTx::Flag::LEDGER_CHUNK_BEFORE_THIS_TX);
 
       auto h1 = tx.rw(map);
       h1->put("key", "value");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     INFO("Verify that flag is included in serialised entry");
@@ -3264,15 +3270,16 @@ TEST_CASE("Ledger entry chunk request")
 
       const uint8_t* entry_data = data.data();
       size_t entry_data_size = data.size();
-      auto header = serialized::peek<kv::SerialisedEntryHeader>(
+      auto header = serialized::peek<ccf::kv::SerialisedEntryHeader>(
         entry_data, entry_data_size);
-      REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE) != 0);
+      REQUIRE(
+        (header.flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE) != 0);
     }
   }
 
   SUBCASE("Chunk when the snapshotter requires one")
   {
-    store.set_flag(kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
+    store.set_flag(ccf::kv::AbstractStore::Flag::SNAPSHOT_AT_NEXT_SIGNATURE);
 
     INFO("Add a signature that triggers a snapshot");
     {
@@ -3285,24 +3292,26 @@ TEST_CASE("Ledger entry chunk request")
       // Add the signature
       auto sig_handle = tx.rw(signatures);
       auto tree_handle = tx.rw(serialised_tree);
-      ccf::PrimarySignature sigv(kv::test::PrimaryNodeId, txid.version);
+      ccf::PrimarySignature sigv(ccf::kv::test::PrimaryNodeId, txid.version);
       sig_handle->put(sigv);
       tree_handle->put({});
       auto [success_, data_, claims_digest, commit_evidence_digest, hooks] =
         tx.commit_reserved();
       auto& success = success_;
       auto& data = data_;
-      REQUIRE(success == kv::CommitResult::SUCCESS);
+      REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
 
       REQUIRE(
-        store.deserialize(data)->apply() == kv::ApplyResult::PASS_SIGNATURE);
+        store.deserialize(data)->apply() ==
+        ccf::kv::ApplyResult::PASS_SIGNATURE);
 
       // Check that the ledger chunk header flag is set in the last entry
       const uint8_t* entry_data = data.data();
       size_t entry_data_size = data.size();
-      auto header = serialized::peek<kv::SerialisedEntryHeader>(
+      auto header = serialized::peek<ccf::kv::SerialisedEntryHeader>(
         entry_data, entry_data_size);
-      REQUIRE((header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER) != 0);
+      REQUIRE(
+        (header.flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER) != 0);
     }
   }
 }

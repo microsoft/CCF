@@ -17,12 +17,12 @@
 #include <thread>
 #include <vector>
 
-class SlowStubConsensus : public kv::test::StubConsensus
+class SlowStubConsensus : public ccf::kv::test::StubConsensus
 {
 public:
-  using kv::test::StubConsensus::StubConsensus;
+  using ccf::kv::test::StubConsensus::StubConsensus;
 
-  bool replicate(const kv::BatchVector& entries, ccf::View view) override
+  bool replicate(const ccf::kv::BatchVector& entries, ccf::View view) override
   {
     if (rand() % 2 == 0)
     {
@@ -30,7 +30,7 @@ public:
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
 
-    return kv::test::StubConsensus::replicate(entries, view);
+    return ccf::kv::test::StubConsensus::replicate(entries, view);
   }
 };
 
@@ -42,7 +42,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   // commit them. A single thread continually compacts the kv to the latest
   // entry. The goal is for these commits and compactions to avoid deadlock
 
-  using MapType = kv::Map<size_t, size_t>;
+  using MapType = ccf::kv::Map<size_t, size_t>;
   constexpr size_t max_k = 32;
 
   constexpr size_t thread_count = 16;
@@ -54,7 +54,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   struct ThreadArgs
   {
     std::vector<MapType> maps;
-    kv::Store* kv_store;
+    ccf::kv::Store* kv_store;
     std::atomic<size_t>* counter;
   };
   ThreadArgs args[thread_count] = {};
@@ -124,12 +124,12 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 
           // Try to commit
           const auto result = tx.commit();
-          if (result == kv::CommitResult::SUCCESS)
+          if (result == ccf::kv::CommitResult::SUCCESS)
           {
             break;
           }
         }
-        catch (const kv::CompactedVersionConflict& e)
+        catch (const ccf::kv::CompactedVersionConflict& e)
         {
           // Retry on conflict
           continue;
@@ -154,7 +154,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 
   struct CompactArgs
   {
-    kv::Store* kv_store;
+    ccf::kv::Store* kv_store;
     std::atomic<size_t>* tx_counter;
     std::atomic<CompacterState>* compact_state;
   };
@@ -162,10 +162,10 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
   static constexpr auto iterations = 20;
   for (auto i = 0; i < iterations; ++i)
   {
-    kv::Store kv_store;
+    ccf::kv::Store kv_store;
     auto consensus = std::make_shared<SlowStubConsensus>();
     kv_store.set_consensus(consensus);
-    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
     kv_store.set_encryptor(encryptor);
 
     // Keep atomic count of running threads
@@ -254,13 +254,13 @@ DOCTEST_TEST_CASE(
 {
   // Many threads attempt to produce a chain of transactions pointing at the
   // previous write to a single key, at that key.
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
   constexpr auto store_commit_term = 2;
   kv_store.initialise_term(store_commit_term);
 
-  using MapType = kv::Map<size_t, nlohmann::json>;
+  using MapType = ccf::kv::Map<size_t, nlohmann::json>;
   MapType map("public:foo");
 
   constexpr size_t k = 42;
@@ -293,13 +293,13 @@ DOCTEST_TEST_CASE(
       h->put(k, j);
 
       const auto result = tx.commit();
-      if (result == kv::CommitResult::SUCCESS)
+      if (result == ccf::kv::CommitResult::SUCCESS)
       {
         // Succeeded
         break;
       }
 
-      DOCTEST_REQUIRE(result == kv::CommitResult::FAIL_CONFLICT);
+      DOCTEST_REQUIRE(result == ccf::kv::CommitResult::FAIL_CONFLICT);
       ++conflict_count;
 
       // Sleep before retrying

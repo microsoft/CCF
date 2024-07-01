@@ -79,7 +79,7 @@ Glossary
     `Transport Layer Security <https://en.wikipedia.org/wiki/Transport_Layer_Security>`_ is an IETF cryptographic protocol standard designed to secure communications between a client and a server over a computer network.
 
   Transaction ID
-    Unique transaction identifier in CCF, composed of a View and a Sequence Number separated by a period. Sequence Numbers start from 1, and are contiguous. Views are monotonic. E.g. The transaction ID ``2.15`` indicates the View is ``2`` and the Sequence Number is ``15``. Sequence Numbers are also referred to as a :cpp:type:`kv::Version` in the context of the Key-Value store.
+    Unique transaction identifier in CCF, composed of a View and a Sequence Number separated by a period. Sequence Numbers start from 1, and are contiguous. Views are monotonic. E.g. The transaction ID ``2.15`` indicates the View is ``2`` and the Sequence Number is ``15``. Sequence Numbers are also referred to as a :cpp:type:`ccf::kv::Version` in the context of the Key-Value store.
 
   Users
     Directly interact with the application running in CCF. Their public identity should be voted in by members before they are allowed to issue requests.

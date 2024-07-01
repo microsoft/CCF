@@ -9,7 +9,7 @@
 #include <small_vector/SmallVector.h>
 #include <type_traits>
 
-namespace kv
+namespace ccf::kv
 {
   class RawWriter
   {
@@ -82,7 +82,7 @@ namespace kv
     {
       if constexpr (
         ccf::nonstd::is_std_vector<T>::value ||
-        std::is_same_v<T, kv::serialisers::SerialisedEntry>)
+        std::is_same_v<T, ccf::kv::serialisers::SerialisedEntry>)
       {
         serialise_entry(entry.size() * sizeof(typename T::value_type));
         if (entry.size() > 0)
@@ -184,7 +184,7 @@ namespace kv
     {
       if constexpr (
         ccf::nonstd::is_std_vector<T>::value ||
-        std::is_same_v<T, kv::serialisers::SerialisedEntry>)
+        std::is_same_v<T, ccf::kv::serialisers::SerialisedEntry>)
       {
         size_t entry_offset = 0;
         size_t entry_size = read_size_prefixed_entry(entry_offset);
@@ -207,14 +207,14 @@ namespace kv
 
         return ret;
       }
-      else if constexpr (std::is_same_v<T, kv::EntryType>)
+      else if constexpr (std::is_same_v<T, ccf::kv::EntryType>)
       {
         uint8_t entry_type = read_entry<uint8_t>();
-        if (entry_type > static_cast<uint8_t>(kv::EntryType::MAX))
+        if (entry_type > static_cast<uint8_t>(ccf::kv::EntryType::MAX))
           throw std::logic_error(
             fmt::format("Invalid EntryType: {}", entry_type));
 
-        return kv::EntryType(entry_type);
+        return ccf::kv::EntryType(entry_type);
       }
       else if constexpr (std::is_same_v<T, std::string>)
       {

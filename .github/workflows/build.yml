@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -19,15 +20,15 @@ jobs:
           - name: virtual
             image: default
             nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro -v /dev/shm:/dev/shm
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
           - name: snp
             image: default
             nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro -v /dev/shm:/dev/shm
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
           - name: sgx
             image: sgx
             nodes: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro -v /dev/shm:/dev/shm
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
     runs-on: ${{ matrix.platform.nodes }}
     container:
       image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-26-06-2024
@@ -68,18 +69,13 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          rm -rf /dev/shm/*
-          df -h /dev/shm
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
+          # Unit tests
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          # All other acceptably fast tests, mostly end-to-end
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite|unit"
+          # Partitions tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite"
-        shell: bash
-        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
-
-      - name: "Partitions Test ${{ matrix.platform.name }}"
-        run: |
-          set -ex
-          cd build
-          source env/bin/activate && ctest -VV --timeout 240 -L partitions -C partitions
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
 

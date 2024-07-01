@@ -22,8 +22,8 @@ struct CollisionHash
   }
 };
 
-using K = kv::serialisers::SerialisedEntry;
-using V = kv::serialisers::SerialisedEntry;
+using K = ccf::kv::serialisers::SerialisedEntry;
+using V = ccf::kv::serialisers::SerialisedEntry;
 constexpr static size_t max_key_value_size = 128;
 
 namespace map
