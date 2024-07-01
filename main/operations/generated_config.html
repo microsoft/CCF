@@ -1,0 +1,1302 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" />
+
+    <link rel="shortcut icon" href="../_static/favicon.ico"/><!-- Generated with Sphinx 7.1.2 and Furo 2024.05.06 -->
+        <title>Configuration Options - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=387cc868" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/tabs.css?v=4c969af8" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css?v=45cf7dbc" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css?v=2a6c4383" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css?v=d290406d" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=36a5483c" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=ffbb6935" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #3f3f3f;
+  --color-code-foreground: #dcdccc;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #3f3f3f;
+  --color-code-foreground: #dcdccc;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" /
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="../_static/ccf.svg" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="../_static/ccf.svg" alt="Dark Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded", function(){
+      let selectedVersion = "main";
+      const thisURL = window.location.toString();
+      const splitUrl = thisURL.split("/");
+      const indexOfRelease = splitUrl.indexOf("release");
+      if (indexOfRelease > 0) {
+        selectedVersion = splitUrl[indexOfRelease + 1];
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<label for="versions">
+  <div class="visually-hidden">Select Version:</div>
+</label>
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="generated_config.html">
+      
+        main
+      
+    </option>
+    <option value="../../release/3.x/index.html">
+      
+        3.x
+      
+    </option>
+    <option value="../../release/4.x/index.html">
+      
+        4.x
+      
+    </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of Overview</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/what_is_ccf.html">What is CCF?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/governance.html">Governance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/faq.html">Frequently Asked Questions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/maintenance.html">Maintenance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../build_apps/index.html">Build Apps</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Build Apps</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/get_started.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/install_bin.html">Install CCF</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of C++ Application</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/example_cpp.html">Example app (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/example_rpc_api.html">Example app RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/js_app_bundle.html">JavaScript Application Bundle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/logging.html">Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle navigation of User Authentication</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/cert.html">Certificate Authentication</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle navigation of Key-Value Store</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/api.html">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/crypto.html">Cryptography API</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/release_policy.html">Release and compatibility policy</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle navigation of Release and compatibility policy</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/migration_4_x_to_5_0.html">4.x to 5.0 Migration Guide</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle navigation of Use Apps</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_tx.html">Verifying Transactions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="index.html">Operations</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle navigation of Operations</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration.html">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="data_persistence.html">Data Persistence</a></li>
+<li class="toctree-l2"><a class="reference internal" href="code_upgrade.html">Code Upgrade</a></li>
+<li class="toctree-l2"><a class="reference internal" href="certificates.html">Certificates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network.html">Networking</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="platforms/index.html">Platforms</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle navigation of Platforms</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="platforms/sgx.html">Intel SGX</a></li>
+<li class="toctree-l3"><a class="reference internal" href="platforms/snp.html">AMD SEV-SNP</a></li>
+<li class="toctree-l3"><a class="reference internal" href="platforms/virtual.html">Insecure Virtual</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="troubleshooting.html">Troubleshooting CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../governance/index.html">Governance</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle navigation of Governance</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../governance/constitution.html">Constitution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/js_runtime.html">JavaScript Runtime Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../governance/member_rpc_api.html">Member RPC API</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle navigation of Member RPC API</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../governance/gov_api_schemas/2023-06-01-preview.html">2023-06-01-preview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../governance/gov_api_schemas/classic.html">Classic API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../governance/gov_api_schemas/upgrading_from_classic.html">Upgrading From Classic API</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../audit/index.html">Audit</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of Audit</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../audit/receipts.html">Receipts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/python_library.html">Python Library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/read_write_restrictions.html">Read-Write Permissions On KV Maps</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Contribute</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/onboarding.html">Onboarding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_ccf.html">Build CCF from Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/release_ccf.html">Release or patch a CCF release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_images.html">CCF Build Images</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../architecture/index.html">Architecture</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Architecture</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/consensus/index.html">Consensus Protocol</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/request_flow.html">Request Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/threading.html">Threading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/ledger.html">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/raft_tla.html">TLA+ Specifications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/node_to_node.html">Node-to-Node Channels</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/indexing.html">Indexing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/receipts.html">Receipts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/tls_internals.html">TLS Internals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/tcp_internals.html">TCP Internals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/quic_internals.html">QUIC Internals</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../architecture/performance/index.html">Piccolo</a><input class="toctree-checkbox" id="toctree-checkbox-15" name="toctree-checkbox-15" role="switch" type="checkbox"/><label for="toctree-checkbox-15"><div class="visually-hidden">Toggle navigation of Piccolo</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../architecture/performance/generator.html">Generator</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture/performance/submitter.html">Submitter</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture/performance/analysis.html">Analyzer</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../research/index.html">Research</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="../_sources/operations/generated_config.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="configuration-options">
+<h1>Configuration Options<a class="headerlink" href="#configuration-options" title="Permalink to this heading">¶</a></h1>
+<section id="enclave">
+<h2><code class="docutils literal notranslate"><span class="pre">enclave</span></code><a class="headerlink" href="#enclave" title="Permalink to this heading">¶</a></h2>
+<p>This section includes configuration for the enclave application launched by this node.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">file</span></code></dt><dd><div class="line-block">
+<div class="line">DEPRECATED: Replaced by –enclave-file CLI argument. Path to enclave application.</div>
+<div class="line"><strong>Type</strong>: string</div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">platform</span></code></dt><dd><div class="line-block">
+<div class="line">Trusted Execution Environment platform.</div>
+<div class="line"><strong>Required</strong></div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Values</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;SGX&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;SNP&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Virtual&quot;</span></code></div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;SGX&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">type</span></code></dt><dd><div class="line-block">
+<div class="line">Type of enclave application (only if platform is SGX). “Virtual” is deprecated (use <code class="docutils literal notranslate"><span class="pre">platform</span></code> instead).</div>
+<div class="line"><strong>Required</strong></div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Values</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;Release&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Debug&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Virtual&quot;</span></code></div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;Release&quot;</span></code></div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="network">
+<h2><code class="docutils literal notranslate"><span class="pre">network</span></code><a class="headerlink" href="#network" title="Permalink to this heading">¶</a></h2>
+<p>This section includes configuration for the interfaces a node listens on (for both client and node-to-node communications).</p>
+<section id="network-node-to-node-interface">
+<h3><code class="docutils literal notranslate"><span class="pre">network.node_to_node_interface</span></code><a class="headerlink" href="#network-node-to-node-interface" title="Permalink to this heading">¶</a></h3>
+<p>Addresses (host:port) to listen on for incoming node-to-node connections (e.g. internal consensus messages).</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">bind_address</span></code></dt><dd><div class="line-block">
+<div class="line">Local address the node binds to and listens on.</div>
+<div class="line"><strong>Required</strong></div>
+<div class="line"><strong>Type</strong>: string</div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">published_address</span></code></dt><dd><div class="line-block">
+<div class="line">The published node address advertised to other nodes. This must be different on each node.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;Value</span> <span class="pre">of</span> <span class="pre">'bind_address'&quot;</span></code></div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="network-rpc-interfaces">
+<h3><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces</span></code><a class="headerlink" href="#network-rpc-interfaces" title="Permalink to this heading">¶</a></h3>
+<p>Interfaces to listen on for incoming client TLS connections, as a dictionary from unique interface name to RPC interface information.</p>
+<section id="network-rpc-interfaces-name">
+<h4><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name]</span></code><a class="headerlink" href="#network-rpc-interfaces-name" title="Permalink to this heading">¶</a></h4>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">bind_address</span></code></dt><dd><div class="line-block">
+<div class="line">Local address the node binds to and listens on.</div>
+<div class="line"><strong>Required</strong></div>
+<div class="line"><strong>Type</strong>: string</div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">published_address</span></code></dt><dd><div class="line-block">
+<div class="line">The published RPC address advertised to clients.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;Value</span> <span class="pre">of</span> <span class="pre">'bind_address'&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">protocol</span></code></dt><dd><div class="line-block">
+<div class="line">The RPC protocol used (udp | tcp).</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;tcp&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">app_protocol</span></code></dt><dd><div class="line-block">
+<div class="line">The application protocol used by all sessions on this interface.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;HTTP1&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">max_open_sessions_soft</span></code></dt><dd><div class="line-block">
+<div class="line">The maximum number of active client sessions on that interface after which clients will receive an HTTP 503 error.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">1000</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">max_open_sessions_hard</span></code></dt><dd><div class="line-block">
+<div class="line">The maximum number of active client sessions on that interface after which clients sessions will be terminated, before the TLS handshake is complete. Note that its value must be greater than the value of <code class="docutils literal notranslate"><span class="pre">max_open_sessions_soft</span></code>.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">1010</span></code></div>
+</div>
+</dd>
+</dl>
+<section id="network-rpc-interfaces-name-http-configuration">
+<h5><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].http_configuration</span></code><a class="headerlink" href="#network-rpc-interfaces-name-http-configuration" title="Permalink to this heading">¶</a></h5>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">max_body_size</span></code></dt><dd><div class="line-block">
+<div class="line">Maximum size (size string) of a single HTTP request body. Submitting a request with a payload larger than this value will result in the client session being automatically closed.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;1MB&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">max_header_size</span></code></dt><dd><div class="line-block">
+<div class="line">Maximum size (size string) of a single HTTP request header (key or value). Submitting a request with a header larger than this value will result in the client session being automatically closed.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;16KB&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">max_headers_count</span></code></dt><dd><div class="line-block">
+<div class="line">Maximum number of headers in a single HTTP request. Submitting a request with more headers than this value will result in the session being automatically closed.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">256</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">max_concurrent_streams_count</span></code></dt><dd><div class="line-block">
+<div class="line">HTTP/2 only. Maximum number of concurrent streams allowed per session.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">100</span></code></div>
+<div class="line"><strong>Minimum</strong>: <code class="docutils literal notranslate"><span class="pre">1</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">initial_window_size</span></code></dt><dd><div class="line-block">
+<div class="line">HTTP/2 only. Initial size (size string) of flow-control window per stream.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;64KB&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">max_frame_size</span></code></dt><dd><div class="line-block">
+<div class="line">HTTP/2 only. Maximum allowed size (size string) of HTTP/2 frames (min: 16KB, max: 16MB).</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;16KB&quot;</span></code></div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="network-rpc-interfaces-name-endorsement">
+<h5><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].endorsement</span></code><a class="headerlink" href="#network-rpc-interfaces-name-endorsement" title="Permalink to this heading">¶</a></h5>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">authority</span></code></dt><dd><div class="line-block">
+<div class="line">The type of endorsement for the TLS certificate used in client sessions. If the endorsement is not available, client sessions will be terminated, before the TLS handshake is complete. ‘Node’ means self-signed, ‘Service’ means service-endorsed, ‘ACME’ means an ACME-capable CA, ‘Unsecured’ means unencrypted traffic and no endorsement authority.</div>
+<div class="line"><strong>Required</strong></div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Values</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;Node&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Service&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;ACME&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Unsecured&quot;</span></code></div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;Service&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">acme_configuration</span></code></dt><dd><div class="line-block">
+<div class="line">Name of the ACME configuration defined in the network.acme.configurations section.</div>
+<div class="line"><strong>Type</strong>: string</div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="network-rpc-interfaces-name-accepted-endpoints">
+<h5><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].accepted_endpoints</span></code><a class="headerlink" href="#network-rpc-interfaces-name-accepted-endpoints" title="Permalink to this heading">¶</a></h5>
+<p>An array of regular expressions that specify which URL paths are served on the interface. Optional; if not present, all paths are served.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">forwarding_timeout_ms</span></code></dt><dd><div class="line-block">
+<div class="line">Timeout for forwarded RPC calls (in milliseconds).</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">3000</span></code></div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="network-rpc-interfaces-name-redirections">
+<h5><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections</span></code><a class="headerlink" href="#network-rpc-interfaces-name-redirections" title="Permalink to this heading">¶</a></h5>
+<p>Configure how redirect responses should be produced on this interface. If this is omitted, then forwarding will be used instead.</p>
+<section id="network-rpc-interfaces-name-redirections-to-primary">
+<h6><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections.to_primary</span></code><a class="headerlink" href="#network-rpc-interfaces-name-redirections-to-primary" title="Permalink to this heading">¶</a></h6>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">kind</span></code></dt><dd><div class="line-block">
+<div class="line"><br /></div>
+<div class="line-block">
+<div class="line"><strong>Required</strong></div>
+<div class="line"><strong>Type</strong>: None</div>
+<div class="line"><strong>Values</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;NodeByRole&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;StaticAddress&quot;</span></code></div>
+</div>
+</div>
+</dd>
+</dl>
+<section id="network-rpc-interfaces-name-redirections-to-primary-target">
+<h6 aria-level="7"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections.to_primary.target</span></code><a class="headerlink" href="#network-rpc-interfaces-name-redirections-to-primary-target" title="Permalink to this heading">¶</a></h6>
+<p>(Only applies if network.rpc_interfaces.[name].redirections.to_primary.kind is <code class="docutils literal notranslate"><span class="pre">&quot;NodeByRole&quot;</span></code>)</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">role</span></code></dt><dd><div class="line-block">
+<div class="line"><br /></div>
+<div class="line-block">
+<div class="line"><strong>Type</strong>: None</div>
+<div class="line"><strong>Values</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;primary&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;backup&quot;</span></code></div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;primary&quot;</span></code></div>
+</div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="id1">
+<h6 aria-level="7"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections.to_primary.target</span></code><a class="headerlink" href="#id1" title="Permalink to this heading">¶</a></h6>
+<p>(Only applies if network.rpc_interfaces.[name].redirections.to_primary.kind is <code class="docutils literal notranslate"><span class="pre">&quot;StaticAddress&quot;</span></code>)</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">address</span></code></dt><dd><div class="line-block">
+<div class="line"><br /></div>
+<div class="line-block">
+<div class="line"><strong>Required</strong></div>
+<div class="line"><strong>Type</strong>: string</div>
+</div>
+</div>
+</dd>
+</dl>
+</section>
+</section>
+<section id="network-rpc-interfaces-name-redirections-to-backup">
+<h6><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections.to_backup</span></code><a class="headerlink" href="#network-rpc-interfaces-name-redirections-to-backup" title="Permalink to this heading">¶</a></h6>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">kind</span></code></dt><dd><div class="line-block">
+<div class="line"><br /></div>
+<div class="line-block">
+<div class="line"><strong>Required</strong></div>
+<div class="line"><strong>Type</strong>: None</div>
+<div class="line"><strong>Values</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;NodeByRole&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;StaticAddress&quot;</span></code></div>
+</div>
+</div>
+</dd>
+</dl>
+<section id="network-rpc-interfaces-name-redirections-to-backup-target">
+<h6 aria-level="7"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections.to_backup.target</span></code><a class="headerlink" href="#network-rpc-interfaces-name-redirections-to-backup-target" title="Permalink to this heading">¶</a></h6>
+<p>(Only applies if network.rpc_interfaces.[name].redirections.to_backup.kind is <code class="docutils literal notranslate"><span class="pre">&quot;NodeByRole&quot;</span></code>)</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">role</span></code></dt><dd><div class="line-block">
+<div class="line"><br /></div>
+<div class="line-block">
+<div class="line"><strong>Type</strong>: None</div>
+<div class="line"><strong>Values</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;primary&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;backup&quot;</span></code></div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;primary&quot;</span></code></div>
+</div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="id2">
+<h6 aria-level="7"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections.to_backup.target</span></code><a class="headerlink" href="#id2" title="Permalink to this heading">¶</a></h6>
+<p>(Only applies if network.rpc_interfaces.[name].redirections.to_backup.kind is <code class="docutils literal notranslate"><span class="pre">&quot;StaticAddress&quot;</span></code>)</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">address</span></code></dt><dd><div class="line-block">
+<div class="line"><br /></div>
+<div class="line-block">
+<div class="line"><strong>Required</strong></div>
+<div class="line"><strong>Type</strong>: string</div>
+</div>
+</div>
+</dd>
+</dl>
+</section>
+</section>
+</section>
+</section>
+</section>
+<section id="network-acme">
+<h3><code class="docutils literal notranslate"><span class="pre">network.acme</span></code><a class="headerlink" href="#network-acme" title="Permalink to this heading">¶</a></h3>
+<p>Configuration for the ACME client(s) to obtain globally valid TLS certificates, e.g. from Let’s Encrypt.</p>
+<section id="network-acme-configurations">
+<h4><code class="docutils literal notranslate"><span class="pre">network.acme.configurations</span></code><a class="headerlink" href="#network-acme-configurations" title="Permalink to this heading">¶</a></h4>
+<section id="network-acme-configurations-name">
+<h5><code class="docutils literal notranslate"><span class="pre">network.acme.configurations.[name]</span></code><a class="headerlink" href="#network-acme-configurations-name" title="Permalink to this heading">¶</a></h5>
+<p>ACME Configurations.</p>
+<section id="network-acme-configurations-name-ca-certs">
+<h6><code class="docutils literal notranslate"><span class="pre">network.acme.configurations.[name].ca_certs</span></code><a class="headerlink" href="#network-acme-configurations-name-ca-certs" title="Permalink to this heading">¶</a></h6>
+<p>Root certificate(s) of the CA to connect to in PEM format (for TLS connections to the CA, e.g. Let’s Encrypt’s ISRG Root X1).</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">directory_url</span></code></dt><dd><div class="line-block">
+<div class="line">URL of the ACME server’s directory.</div>
+<div class="line"><strong>Type</strong>: string</div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">service_dns_name</span></code></dt><dd><div class="line-block">
+<div class="line">DNS name of the service we represent.</div>
+<div class="line"><strong>Type</strong>: string</div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="network-acme-configurations-name-alternative-names">
+<h6><code class="docutils literal notranslate"><span class="pre">network.acme.configurations.[name].alternative_names</span></code><a class="headerlink" href="#network-acme-configurations-name-alternative-names" title="Permalink to this heading">¶</a></h6>
+<p>Alternative names for the service we represent (X509 SANs).</p>
+</section>
+<section id="network-acme-configurations-name-contact">
+<h6><code class="docutils literal notranslate"><span class="pre">network.acme.configurations.[name].contact</span></code><a class="headerlink" href="#network-acme-configurations-name-contact" title="Permalink to this heading">¶</a></h6>
+<p>Contact addresses (see RFC8555 7.3, e.g. <a class="reference external" href="mailto:john&#37;&#52;&#48;example&#46;com">mailto:john<span>&#64;</span>example<span>&#46;</span>com</a>).</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">terms_of_service_agreed</span></code></dt><dd><div class="line-block">
+<div class="line">Indication that the user/operator is aware of the latest terms and conditions for the CA.</div>
+<div class="line"><strong>Type</strong>: boolean</div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">challenge_type</span></code></dt><dd><div class="line-block">
+<div class="line">Type of the ACME challenge (usually http-01; others are supported but require a custom challenge handler).</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;http-01&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">challenge_server_interface</span></code></dt><dd><div class="line-block">
+<div class="line">Name of the interface for the http-01 challenge frontend to listen on.</div>
+<div class="line"><strong>Type</strong>: string</div>
+</div>
+</dd>
+</dl>
+</section>
+</section>
+</section>
+</section>
+</section>
+<section id="command">
+<h2><code class="docutils literal notranslate"><span class="pre">command</span></code><a class="headerlink" href="#command" title="Permalink to this heading">¶</a></h2>
+<p>This section includes configuration of how the node should start (either start, join or recover) and associated information.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">type</span></code></dt><dd><div class="line-block">
+<div class="line">Type of CCF node.</div>
+<div class="line"><strong>Required</strong></div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Values</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;Start&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Join&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Recover&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">service_certificate_file</span></code></dt><dd><div class="line-block">
+<div class="line">For <code class="docutils literal notranslate"><span class="pre">Start</span></code> and <code class="docutils literal notranslate"><span class="pre">Recover</span></code> nodes, path to which service certificate will be written to on startup. For <code class="docutils literal notranslate"><span class="pre">Join</span></code> nodes, path to the certificate of the existing service to join.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;service_cert.pem&quot;</span></code></div>
+</div>
+</dd>
+</dl>
+<section id="command-start">
+<h3><code class="docutils literal notranslate"><span class="pre">command.start</span></code><a class="headerlink" href="#command-start" title="Permalink to this heading">¶</a></h3>
+<p>(Only applies if command.type is <code class="docutils literal notranslate"><span class="pre">&quot;Start&quot;</span></code>)</p>
+<section id="command-start-constitution-files">
+<h4><code class="docutils literal notranslate"><span class="pre">command.start.constitution_files</span></code><a class="headerlink" href="#command-start-constitution-files" title="Permalink to this heading">¶</a></h4>
+<p>List of constitution files. These typically include actions.js, validate.js, resolve.js and apply.js.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">initial_service_certificate_validity_days</span></code></dt><dd><div class="line-block">
+<div class="line">Initial validity period (days) for service certificate.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">1</span></code></div>
+<div class="line"><strong>Minimum</strong>: <code class="docutils literal notranslate"><span class="pre">1</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">service_subject_name</span></code></dt><dd><div class="line-block">
+<div class="line">Subject name to include in service certificate. Can only be set once on service start.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;CN=CCF</span> <span class="pre">Service&quot;</span></code></div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="command-start-members">
+<h4><code class="docutils literal notranslate"><span class="pre">command.start.members</span></code><a class="headerlink" href="#command-start-members" title="Permalink to this heading">¶</a></h4>
+<p>List of initial consortium members files, including identity certificates, public encryption keys and member data files.</p>
+</section>
+<section id="command-start-service-configuration">
+<h4><code class="docutils literal notranslate"><span class="pre">command.start.service_configuration</span></code><a class="headerlink" href="#command-start-service-configuration" title="Permalink to this heading">¶</a></h4>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">recovery_threshold</span></code></dt><dd><div class="line-block">
+<div class="line">Number of recovery members required to recover the service. Note that if the recovery threshold is set to 0, it is automatically set to the number of recovery members specified in ‘members’.</div>
+<div class="line"><strong>Required</strong></div>
+<div class="line"><strong>Type</strong>: integer</div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">maximum_node_certificate_validity_days</span></code></dt><dd><div class="line-block">
+<div class="line">The maximum number of days allowed for node certificate validity period.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">365</span></code></div>
+<div class="line"><strong>Minimum</strong>: <code class="docutils literal notranslate"><span class="pre">1</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">maximum_service_certificate_validity_days</span></code></dt><dd><div class="line-block">
+<div class="line">The maximum number of days allowed for service certificate validity period.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">365</span></code></div>
+<div class="line"><strong>Minimum</strong>: <code class="docutils literal notranslate"><span class="pre">1</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">recent_cose_proposals_window_size</span></code></dt><dd><div class="line-block">
+<div class="line">Size of the window of COSE proposals recently received by the service, kept for the purpose of replay protection.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">100</span></code></div>
+<div class="line"><strong>Minimum</strong>: <code class="docutils literal notranslate"><span class="pre">1</span></code></div>
+</div>
+</dd>
+</dl>
+</section>
+</section>
+<section id="command-join">
+<h3><code class="docutils literal notranslate"><span class="pre">command.join</span></code><a class="headerlink" href="#command-join" title="Permalink to this heading">¶</a></h3>
+<p>(Only applies if command.type is <code class="docutils literal notranslate"><span class="pre">&quot;Join&quot;</span></code>)</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">target_rpc_address</span></code></dt><dd><div class="line-block">
+<div class="line">Address (host:port) of a node of the existing service to join.</div>
+<div class="line"><strong>Required</strong></div>
+<div class="line"><strong>Type</strong>: string</div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">retry_timeout</span></code></dt><dd><div class="line-block">
+<div class="line">Interval (time string) at which the node sends join requests to the existing service. This should be less than the value of ‘consensus.election_timeout’ set on the primary node of the existing service to join.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;1000ms&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">follow_redirect</span></code></dt><dd><div class="line-block">
+<div class="line">Whether to follow redirects to the primary node of the existing service to join.</div>
+<div class="line"><strong>Type</strong>: boolean</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">true</span></code></div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="command-recover">
+<h3><code class="docutils literal notranslate"><span class="pre">command.recover</span></code><a class="headerlink" href="#command-recover" title="Permalink to this heading">¶</a></h3>
+<p>(Only applies if command.type is <code class="docutils literal notranslate"><span class="pre">&quot;Recover&quot;</span></code>)</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">initial_service_certificate_validity_days</span></code></dt><dd><div class="line-block">
+<div class="line">Initial validity period (days) for service certificate.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">1</span></code></div>
+<div class="line"><strong>Minimum</strong>: <code class="docutils literal notranslate"><span class="pre">1</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">previous_service_identity_file</span></code></dt><dd><div class="line-block">
+<div class="line">Path to the previous service certificate (PEM) file.</div>
+<div class="line"><strong>Required</strong></div>
+<div class="line"><strong>Type</strong>: string</div>
+</div>
+</dd>
+</dl>
+</section>
+</section>
+<section id="node-certificate">
+<h2><code class="docutils literal notranslate"><span class="pre">node_certificate</span></code><a class="headerlink" href="#node-certificate" title="Permalink to this heading">¶</a></h2>
+<p>This section includes configuration for the node x509 identity certificate.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">subject_name</span></code></dt><dd><div class="line-block">
+<div class="line">Subject name to include in node certificate.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;CN=CCF</span> <span class="pre">Node&quot;</span></code></div>
+</div>
+</dd>
+</dl>
+<section id="node-certificate-subject-alt-names">
+<h3><code class="docutils literal notranslate"><span class="pre">node_certificate.subject_alt_names</span></code><a class="headerlink" href="#node-certificate-subject-alt-names" title="Permalink to this heading">¶</a></h3>
+<p>List of <code class="docutils literal notranslate"><span class="pre">iPAddress:</span></code> or <code class="docutils literal notranslate"><span class="pre">dNSName:</span></code> strings to include as Subject Alternative Names (SAN) in node certificates. If none are set, the node certificate will automatically include the value of the main RPC interface ‘published_address’.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">curve_id</span></code></dt><dd><div class="line-block">
+<div class="line">Elliptic curve to use for node identity key.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Values</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;Secp384R1&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Secp256R1&quot;</span></code></div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;Secp384R1&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">initial_validity_days</span></code></dt><dd><div class="line-block">
+<div class="line">Initial validity period (days) for node certificate.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">1</span></code></div>
+<div class="line"><strong>Minimum</strong>: <code class="docutils literal notranslate"><span class="pre">1</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">node_data_json_file</span></code></dt><dd><div class="line-block">
+<div class="line">Path to file (JSON) containing initial node data. It is intended to store correlation IDs describing the node’s deployment, such as a VM name or Pod identifier.</div>
+<div class="line"><strong>Type</strong>: string | null</div>
+</div>
+</dd>
+</dl>
+</section>
+</section>
+<section id="attestation">
+<h2><code class="docutils literal notranslate"><span class="pre">attestation</span></code><a class="headerlink" href="#attestation" title="Permalink to this heading">¶</a></h2>
+<p>This section includes configuration for the attestation for AMD SEV-SNP platform (ignored for SGX).</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">snp_security_policy_file</span></code></dt><dd><div class="line-block">
+<div class="line">Path to file containing the security policy (SEV-SNP only), can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR.</div>
+<div class="line"><strong>Type</strong>: string | null</div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">snp_uvm_endorsements_file</span></code></dt><dd><div class="line-block">
+<div class="line">Path to file containing UVM endorsements as a base64-encoded COSE Sign1 (SEV-SNP only). Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR.</div>
+<div class="line"><strong>Type</strong>: string | null</div>
+</div>
+</dd>
+</dl>
+<section id="attestation-snp-endorsements-servers">
+<h3><code class="docutils literal notranslate"><span class="pre">attestation.snp_endorsements_servers</span></code><a class="headerlink" href="#attestation-snp-endorsements-servers" title="Permalink to this heading">¶</a></h3>
+<p>List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. If set, attestation endorsements from <code class="docutils literal notranslate"><span class="pre">--snp-security-context-dir-var</span></code> are ignored, but uvm endorsements from that directory are still used.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">service_data_json_file</span></code></dt><dd><div class="line-block">
+<div class="line">Path to file (JSON) containing initial service data. It is used when the node starts in ‘Start’ or ‘Recover’ mode and is intended to store arbitrary information about the service.</div>
+<div class="line"><strong>Type</strong>: string | null</div>
+</div>
+</dd>
+</dl>
+</section>
+</section>
+<section id="ledger">
+<h2><code class="docutils literal notranslate"><span class="pre">ledger</span></code><a class="headerlink" href="#ledger" title="Permalink to this heading">¶</a></h2>
+<p>This section includes configuration for the ledger directories and files.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">directory</span></code></dt><dd><div class="line-block">
+<div class="line">Path to main ledger directory.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;ledger&quot;</span></code></div>
+</div>
+</dd>
+</dl>
+<section id="ledger-read-only-directories">
+<h3><code class="docutils literal notranslate"><span class="pre">ledger.read_only_directories</span></code><a class="headerlink" href="#ledger-read-only-directories" title="Permalink to this heading">¶</a></h3>
+<p>Paths to read-only ledger directories. Note that only ‘.committed’ files will be read from these directories.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">chunk_size</span></code></dt><dd><div class="line-block">
+<div class="line">Minimum size (size string) of the current ledger file after which a new ledger file (chunk) is created.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;5MB&quot;</span></code></div>
+</div>
+</dd>
+</dl>
+</section>
+</section>
+<section id="snapshots">
+<h2><code class="docutils literal notranslate"><span class="pre">snapshots</span></code><a class="headerlink" href="#snapshots" title="Permalink to this heading">¶</a></h2>
+<p>This section includes configuration for the snapshot directories and files.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">directory</span></code></dt><dd><div class="line-block">
+<div class="line">Path to snapshots directory.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;snapshots&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">tx_count</span></code></dt><dd><div class="line-block">
+<div class="line">Number of transactions after which a snapshot is automatically generated.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">10000</span></code></div>
+<div class="line"><strong>Minimum</strong>: <code class="docutils literal notranslate"><span class="pre">1</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">read_only_directory</span></code></dt><dd><div class="line-block">
+<div class="line">Path to read-only snapshots directory.</div>
+<div class="line"><strong>Type</strong>: string | null</div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="logging">
+<h2><code class="docutils literal notranslate"><span class="pre">logging</span></code><a class="headerlink" href="#logging" title="Permalink to this heading">¶</a></h2>
+<p>This section includes configuration for the logging of the node process.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">host_level</span></code></dt><dd><div class="line-block">
+<div class="line">Logging level for the untrusted host.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Values</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;Trace&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Debug&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Info&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Fail&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Fatal&quot;</span></code></div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;Info&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">format</span></code></dt><dd><div class="line-block">
+<div class="line">If ‘json’, node logs will be formatted as JSON.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Values</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;Text&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;Json&quot;</span></code></div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;Text&quot;</span></code></div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="consensus">
+<h2><code class="docutils literal notranslate"><span class="pre">consensus</span></code><a class="headerlink" href="#consensus" title="Permalink to this heading">¶</a></h2>
+<p>This section includes configuration for the consensus protocol (note: should be the same for all other nodes in the service).</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">message_timeout</span></code></dt><dd><div class="line-block">
+<div class="line">Maximum interval (time string) at which the primary node sends messages to backup nodes to maintain its primary-ship. This should be set to a significantly lower value than ‘election_timeout’.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;100ms&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">election_timeout</span></code></dt><dd><div class="line-block">
+<div class="line">Maximum timeout (time string) after which backup nodes that have not received any message from the primary node (or voted for a candidate) will trigger a new election. This timeout is also used by candidates to restart unsuccessful elections. This should be set to a significantly greater value than ‘message_timeout’ plus the expected network delay.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;5000ms&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">max_uncommitted_tx_count</span></code></dt><dd><div class="line-block">
+<div class="line">Maximum number of uncommitted transactions allowed before the primary refuses new transactions. Unlimited if set to 0.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">10000</span></code></div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="ledger-signatures">
+<h2><code class="docutils literal notranslate"><span class="pre">ledger_signatures</span></code><a class="headerlink" href="#ledger-signatures" title="Permalink to this heading">¶</a></h2>
+<p>This section includes configuration for the ledger signatures emitted by this node (note: should be the same for all other nodes in the service). Transaction commit latency in a CCF network is primarily a function of signature frequency. A network emitting signatures more frequently will be able to commit transactions faster, but will spend a larger proportion of its execution resources creating and verifying signatures. Setting signature frequency is a trade-off between transaction latency and throughput.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">tx_count</span></code></dt><dd><div class="line-block">
+<div class="line">Number of transactions after which a signature transaction is automatically generated.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">5000</span></code></div>
+<div class="line"><strong>Minimum</strong>: <code class="docutils literal notranslate"><span class="pre">1</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">delay</span></code></dt><dd><div class="line-block">
+<div class="line">Maximum duration after which a signature transaction is automatically generated.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;1000ms&quot;</span></code></div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="jwt">
+<h2><code class="docutils literal notranslate"><span class="pre">jwt</span></code><a class="headerlink" href="#jwt" title="Permalink to this heading">¶</a></h2>
+<p>This section includes configuration for JWT issuers automatic refresh.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">key_refresh_interval</span></code></dt><dd><div class="line-block">
+<div class="line">Interval at which JWT keys for issuers registered with auto-refresh are automatically refreshed.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;30min&quot;</span></code></div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="output-files">
+<h2><code class="docutils literal notranslate"><span class="pre">output_files</span></code><a class="headerlink" href="#output-files" title="Permalink to this heading">¶</a></h2>
+<p>This section includes configuration for additional files output by the node.</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">node_certificate_file</span></code></dt><dd><div class="line-block">
+<div class="line">Path to self-signed node certificate output by node on startup.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;nodecert.pem&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">pid_file</span></code></dt><dd><div class="line-block">
+<div class="line">Path to file in which ‘cchost’ process identifier (PID) will be written to on startup.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;cchost.pid&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">node_to_node_address_file</span></code></dt><dd><div class="line-block">
+<div class="line">Path to file in which node address (hostname and port) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified.</div>
+<div class="line"><strong>Type</strong>: string</div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">rpc_addresses_file</span></code></dt><dd><div class="line-block">
+<div class="line">Path to file in which all RPC addresses (hostnames and ports) will be written to on startup. This option is particularly useful when binding to port 0 and getting auto-assigned a port by the OS. No file is created if this entry is not specified.</div>
+<div class="line"><strong>Type</strong>: string</div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">tick_interval</span></code></dt><dd><div class="line-block">
+<div class="line">Interval at which the enclave time will be updated by the host (modify with care!).</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;10ms&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">slow_io_logging_threshold</span></code></dt><dd><div class="line-block">
+<div class="line">Maximum duration of I/O operations (ledger and snapshots) after which slow operations will be logged to node log.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;10000us&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">node_client_interface</span></code></dt><dd><div class="line-block">
+<div class="line">Address to bind to for node-to-node client connections. If unspecified, this is automatically assigned by the OS. This option is particularly useful for testing purposes (e.g. establishing network partitions between nodes).</div>
+<div class="line"><strong>Type</strong>: string | null</div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">client_connection_timeout</span></code></dt><dd><div class="line-block">
+<div class="line">Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;2000ms&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">worker_threads</span></code></dt><dd><div class="line-block">
+<div class="line">Experimental. Number of additional threads processing incoming client requests in the enclave (modify with care!).</div>
+<div class="line"><strong>Type</strong>: integer</div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="memory">
+<h2><code class="docutils literal notranslate"><span class="pre">memory</span></code><a class="headerlink" href="#memory" title="Permalink to this heading">¶</a></h2>
+<p>This section includes configuration for the host-enclave ring-buffer memory (modify with care!).</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">circuit_size</span></code></dt><dd><div class="line-block">
+<div class="line">Size (size string) of the internal host-enclave ringbuffers (must be a power of 2).</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;16MB&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">max_msg_size</span></code></dt><dd><div class="line-block">
+<div class="line">Maximum size (size string) for a message sent over the ringbuffer. Messages may be split into multiple fragments, but this limits the total size of the sum of those fragments.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;64MB&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">max_fragment_size</span></code></dt><dd><div class="line-block">
+<div class="line">Maximum size (size string) of individual ringbuffer message fragments. Messages larger than this will be split into multiple fragments.</div>
+<div class="line"><strong>Type</strong>: string</div>
+<div class="line"><strong>Default</strong>: <code class="docutils literal notranslate"><span class="pre">&quot;256KB&quot;</span></code></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">ignore_first_sigterm</span></code></dt><dd><div class="line-block">
+<div class="line">Ignore the first SIGTERM received by the process, but set “stop_notice” in /node/state.</div>
+<div class="line"><strong>Type</strong>: boolean</div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">node_to_node_message_limit</span></code></dt><dd><div class="line-block">
+<div class="line">Cap at which node-to-node message channels will be closed, and a new channel will be created. Can be used to limit use of single cryptographic key.</div>
+<div class="line"><strong>Type</strong>: integer</div>
+</div>
+</dd>
+</dl>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+  
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2018, Microsoft Research
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+  <script>
+    // Edit this page, on GitHub
+    var contentIconContainer = document.querySelector(".content-icon-container");
+    const editContent = `
+    <div class="edit-this-page">
+      <a class="muted-link" href="https://github.com/Microsoft/CCF/edit/main/doc/operations/generated_config.rst">
+        <svg viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+          <path d="M4 20h4l10.5 -10.5a1.5 1.5 0 0 0 -4 -4l-10.5 10.5v4" />
+          <line x1="13.5" y1="6.5" x2="17.5" y2="10.5" />
+        </svg>
+      </a>
+    </div>`;
+    contentIconContainer.insertAdjacentHTML("afterbegin", editContent);
+
+    // Show GitHub repository home
+    var icons = document.querySelector(".icons")
+    const repoLinkContent = `
+    <a class="muted-link" href="https://github.com/Microsoft/CCF" aria-label="On GitHub">
+      <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+        <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+      </svg>
+    </a>`;
+    icons.insertAdjacentHTML("beforeend", repoLinkContent);
+  </script>
+
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Configuration Options</a><ul>
+<li><a class="reference internal" href="#enclave"><code class="docutils literal notranslate"><span class="pre">enclave</span></code></a></li>
+<li><a class="reference internal" href="#network"><code class="docutils literal notranslate"><span class="pre">network</span></code></a><ul>
+<li><a class="reference internal" href="#network-node-to-node-interface"><code class="docutils literal notranslate"><span class="pre">network.node_to_node_interface</span></code></a></li>
+<li><a class="reference internal" href="#network-rpc-interfaces"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces</span></code></a><ul>
+<li><a class="reference internal" href="#network-rpc-interfaces-name"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name]</span></code></a><ul>
+<li><a class="reference internal" href="#network-rpc-interfaces-name-http-configuration"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].http_configuration</span></code></a></li>
+<li><a class="reference internal" href="#network-rpc-interfaces-name-endorsement"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].endorsement</span></code></a></li>
+<li><a class="reference internal" href="#network-rpc-interfaces-name-accepted-endpoints"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].accepted_endpoints</span></code></a></li>
+<li><a class="reference internal" href="#network-rpc-interfaces-name-redirections"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections</span></code></a><ul>
+<li><a class="reference internal" href="#network-rpc-interfaces-name-redirections-to-primary"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections.to_primary</span></code></a><ul>
+<li><a class="reference internal" href="#network-rpc-interfaces-name-redirections-to-primary-target"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections.to_primary.target</span></code></a></li>
+<li><a class="reference internal" href="#id1"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections.to_primary.target</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#network-rpc-interfaces-name-redirections-to-backup"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections.to_backup</span></code></a><ul>
+<li><a class="reference internal" href="#network-rpc-interfaces-name-redirections-to-backup-target"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections.to_backup.target</span></code></a></li>
+<li><a class="reference internal" href="#id2"><code class="docutils literal notranslate"><span class="pre">network.rpc_interfaces.[name].redirections.to_backup.target</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#network-acme"><code class="docutils literal notranslate"><span class="pre">network.acme</span></code></a><ul>
+<li><a class="reference internal" href="#network-acme-configurations"><code class="docutils literal notranslate"><span class="pre">network.acme.configurations</span></code></a><ul>
+<li><a class="reference internal" href="#network-acme-configurations-name"><code class="docutils literal notranslate"><span class="pre">network.acme.configurations.[name]</span></code></a><ul>
+<li><a class="reference internal" href="#network-acme-configurations-name-ca-certs"><code class="docutils literal notranslate"><span class="pre">network.acme.configurations.[name].ca_certs</span></code></a></li>
+<li><a class="reference internal" href="#network-acme-configurations-name-alternative-names"><code class="docutils literal notranslate"><span class="pre">network.acme.configurations.[name].alternative_names</span></code></a></li>
+<li><a class="reference internal" href="#network-acme-configurations-name-contact"><code class="docutils literal notranslate"><span class="pre">network.acme.configurations.[name].contact</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#command"><code class="docutils literal notranslate"><span class="pre">command</span></code></a><ul>
+<li><a class="reference internal" href="#command-start"><code class="docutils literal notranslate"><span class="pre">command.start</span></code></a><ul>
+<li><a class="reference internal" href="#command-start-constitution-files"><code class="docutils literal notranslate"><span class="pre">command.start.constitution_files</span></code></a></li>
+<li><a class="reference internal" href="#command-start-members"><code class="docutils literal notranslate"><span class="pre">command.start.members</span></code></a></li>
+<li><a class="reference internal" href="#command-start-service-configuration"><code class="docutils literal notranslate"><span class="pre">command.start.service_configuration</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#command-join"><code class="docutils literal notranslate"><span class="pre">command.join</span></code></a></li>
+<li><a class="reference internal" href="#command-recover"><code class="docutils literal notranslate"><span class="pre">command.recover</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#node-certificate"><code class="docutils literal notranslate"><span class="pre">node_certificate</span></code></a><ul>
+<li><a class="reference internal" href="#node-certificate-subject-alt-names"><code class="docutils literal notranslate"><span class="pre">node_certificate.subject_alt_names</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#attestation"><code class="docutils literal notranslate"><span class="pre">attestation</span></code></a><ul>
+<li><a class="reference internal" href="#attestation-snp-endorsements-servers"><code class="docutils literal notranslate"><span class="pre">attestation.snp_endorsements_servers</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#ledger"><code class="docutils literal notranslate"><span class="pre">ledger</span></code></a><ul>
+<li><a class="reference internal" href="#ledger-read-only-directories"><code class="docutils literal notranslate"><span class="pre">ledger.read_only_directories</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#snapshots"><code class="docutils literal notranslate"><span class="pre">snapshots</span></code></a></li>
+<li><a class="reference internal" href="#logging"><code class="docutils literal notranslate"><span class="pre">logging</span></code></a></li>
+<li><a class="reference internal" href="#consensus"><code class="docutils literal notranslate"><span class="pre">consensus</span></code></a></li>
+<li><a class="reference internal" href="#ledger-signatures"><code class="docutils literal notranslate"><span class="pre">ledger_signatures</span></code></a></li>
+<li><a class="reference internal" href="#jwt"><code class="docutils literal notranslate"><span class="pre">jwt</span></code></a></li>
+<li><a class="reference internal" href="#output-files"><code class="docutils literal notranslate"><span class="pre">output_files</span></code></a></li>
+<li><a class="reference internal" href="#memory"><code class="docutils literal notranslate"><span class="pre">memory</span></code></a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../_static/scripts/furo.js?v=4e2eecee"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/tabs.js?v=3ee01567"></script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>

@@ -1,0 +1,663 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Resource Usage" href="resource_usage.html" /><link rel="prev" title="Insecure Virtual" href="platforms/virtual.html" />
+
+    <link rel="shortcut icon" href="../_static/favicon.ico"/><!-- Generated with Sphinx 7.1.2 and Furo 2024.05.06 -->
+        <title>Troubleshooting CCF - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=387cc868" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/tabs.css?v=4c969af8" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css?v=45cf7dbc" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css?v=2a6c4383" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css?v=d290406d" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=36a5483c" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=ffbb6935" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #3f3f3f;
+  --color-code-foreground: #dcdccc;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #3f3f3f;
+  --color-code-foreground: #dcdccc;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" /
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="../_static/ccf.svg" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="../_static/ccf.svg" alt="Dark Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded", function(){
+      let selectedVersion = "main";
+      const thisURL = window.location.toString();
+      const splitUrl = thisURL.split("/");
+      const indexOfRelease = splitUrl.indexOf("release");
+      if (indexOfRelease > 0) {
+        selectedVersion = splitUrl[indexOfRelease + 1];
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<label for="versions">
+  <div class="visually-hidden">Select Version:</div>
+</label>
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="../../../main/operations/troubleshooting.html">
+      
+        main
+      
+    </option>
+    <option value="../../3.x/operations/troubleshooting.html">
+      
+        3.x
+      
+    </option>
+    <option value="troubleshooting.html">
+      
+        4.x
+      
+    </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of Overview</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/what_is_ccf.html">What is CCF?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/governance.html">Governance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/faq.html">Frequently Asked Questions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/maintenance.html">Maintenance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../build_apps/index.html">Build Apps</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Build Apps</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/get_started.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/install_bin.html">Install CCF</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of C++ Application</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/example_cpp.html">Example app (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/example_rpc_api.html">Example app RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/js_app_bundle.html">JavaScript Application Bundle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/logging.html">Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle navigation of User Authentication</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/cert.html">Certificate Authentication</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle navigation of Key-Value Store</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/api.html">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/crypto.html">Cryptography API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/release_policy.html">Release and compatibility policy</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../use_apps/index.html">Use Apps</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle navigation of Use Apps</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_tx.html">Verifying Transactions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../use_apps/rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Operations</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle navigation of Operations</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration.html">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="code_upgrade.html">Code Upgrade</a></li>
+<li class="toctree-l2"><a class="reference internal" href="certificates.html">Certificates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="data_persistence.html">Data Persistence</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network.html">Networking</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="platforms/index.html">Platforms</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle navigation of Platforms</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="platforms/sgx.html">Intel SGX</a></li>
+<li class="toctree-l3"><a class="reference internal" href="platforms/snp.html">AMD SEV-SNP</a></li>
+<li class="toctree-l3"><a class="reference internal" href="platforms/virtual.html">Insecure Virtual</a></li>
+</ul>
+</li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Troubleshooting CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../governance/index.html">Governance</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle navigation of Governance</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../governance/constitution.html">Constitution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/js_runtime.html">JavaScript Runtime Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/member_rpc_api.html">Member RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../audit/index.html">Audit</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle navigation of Audit</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../audit/receipts.html">Receipts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/python_library.html">Python Library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/read_write_restrictions.html">Read-Write Permissions On KV Maps</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle navigation of Contribute</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/onboarding.html">Onboarding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_ccf.html">Build CCF from Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/release_ccf.html">Release or patch a CCF release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_images.html">CCF Build Images</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../architecture/index.html">Architecture</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of Architecture</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../architecture/consensus/index.html">Consensus Protocol</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Consensus Protocol</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../architecture/consensus/1tx-reconfig.html">One-transaction Reconfiguration</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/request_flow.html">Request Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/threading.html">Threading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/ledger.html">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/raft_tla.html">TLA+ Specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/node_to_node.html">Node-to-Node Channels</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/indexing.html">Indexing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/receipts.html">Receipts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/tls_internals.html">TLS Internals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/tcp_internals.html">TCP Internals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/quic_internals.html">QUIC Internals</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../architecture/performance/index.html">Piccolo</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Piccolo</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../architecture/performance/generator.html">Generator</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture/performance/submitter.html">Submitter</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture/performance/analysis.html">Analyzer</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../research/index.html">Research</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="../_sources/operations/troubleshooting.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="troubleshooting-ccf">
+<h1>Troubleshooting CCF<a class="headerlink" href="#troubleshooting-ccf" title="Permalink to this heading">¶</a></h1>
+<p>This page contains troubleshooting tips for CCF.</p>
+<section id="tips-for-interacting-with-ccf-to-diagnose-issues">
+<h2>Tips for interacting with CCF to diagnose issues<a class="headerlink" href="#tips-for-interacting-with-ccf-to-diagnose-issues" title="Permalink to this heading">¶</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In the examples below this documentation uses <code class="docutils literal notranslate"><span class="pre">example-ccf-domain.com</span></code> as an example CCF domain, you will need to replace that with your own CCF domain when using these commands. You will also need to add authentication parameters such as <code class="docutils literal notranslate"><span class="pre">--cacert</span></code> to the curl commands, see <a class="reference internal" href="../use_apps/issue_commands.html"><span class="doc">Issuing commands</span></a> for an example.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>CCF may be deployed with a load balancer which may cache the node which last responded to a query from an IP address. Until the cache clears, the load balancer will direct any subsequent queries from that IP address to the same node. As an example, if the cache clears after one minute, then in order to get a response from a different node, an operator must wait one minute between queries.</p>
+</div>
+<p>Below are descriptions of CLI commands and how they are useful for diagnosing CCF issues:</p>
+<p><strong>“What node is handling my requests?”</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>https://example-ccf-domain.com/node/network/nodes/self<span class="w"> </span>-i
+</pre></div>
+</div>
+<p>This is useful to identify which node is handling queries. The node ID can be found in the <code class="docutils literal notranslate"><span class="pre">location</span></code> header as shown in the example command output below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>HTTP/1.1<span class="w"> </span><span class="m">308</span><span class="w"> </span>Permanent<span class="w"> </span>Redirect
+content-length:<span class="w"> </span><span class="m">0</span>
+location:<span class="w"> </span>https://example-ccf-domain/node/network/nodes/&lt;Node<span class="w"> </span>ID&gt;
+</pre></div>
+</div>
+<p><strong>“What CCF version is running?”</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>https://example-ccf-domain.com/node/version
+</pre></div>
+</div>
+<p>This is useful to confirm the version that is running.</p>
+<p><strong>“What nodes are part of the current network?”</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>https://example-ccf-domain.com/node/network/nodes
+</pre></div>
+</div>
+<p>This will show information for all nodes in the network. In a healthy network all nodes will show <code class="docutils literal notranslate"><span class="pre">“status”:</span> <span class="pre">“Trusted”</span></code>, and one node only will show <code class="docutils literal notranslate"><span class="pre">“primary”</span> <span class="pre">=</span> <span class="pre">true</span></code>. This is the healthy state of the network.
+Around upgrades/restarts/migrations nodes will transition through unhealthy states temporarily. If the network remains in an unhealthly state for a long time, this indicates there is an issue.</p>
+<p>You can obtain this information for a single node by querying the <a class="reference internal" href="operator_rpc_api.html#get--node-network-nodes-node_id" title="GET /node/network/nodes/{node_id}"><code class="xref http http-get docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/node/network/nodes/{node_id}</span></code></a> endpoint, where <code class="docutils literal notranslate"><span class="pre">{node</span> <span class="pre">id}</span></code> can be obtained from the <a class="reference internal" href="operator_rpc_api.html#get--node-network-nodes-self" title="GET /node/network/nodes/self"><code class="xref http http-get docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/node/network/nodes/self</span></code></a> endpoint described above. Take note of the <code class="docutils literal notranslate"><span class="pre">node_data</span></code> field in the response which contains useful correlation IDs.</p>
+<p><strong>“Is the network in the middle of a reconfiguration?”</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>https://example-ccf-domain.com/node/consensus
+</pre></div>
+</div>
+<p>This has a few bits of data that might help us diagnose a partitioned/faulty network. In particular, most of the time there should be a single entry in the <code class="docutils literal notranslate"><span class="pre">configs</span></code> list. During an upgrade/restart/migration, there may be multiple values. If multiple values persist for a long time, it suggests something went wrong during the reconfiguration.</p>
+<p><strong>“Is the CCF network stable?”</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>https://example-ccf-domain.com/node/commit
+</pre></div>
+</div>
+<p>This is a good endpoint to query to check if the CCF service is reachable. Additionally, a large and increasing difference between the <code class="docutils literal notranslate"><span class="pre">View</span></code> in the <a class="reference internal" href="../overview/glossary.html#term-Transaction-ID"><span class="xref std std-term">Transaction ID</span></a> in this response, and the <code class="docutils literal notranslate"><span class="pre">current_view</span></code> from the <a class="reference internal" href="operator_rpc_api.html#get--node-consensus" title="GET /node/consensus"><code class="xref http http-get docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/node/consensus</span></code></a> response, indicates a partitioned node. For example, if the response from <a class="reference internal" href="operator_rpc_api.html#get--node-commit" title="GET /node/commit"><code class="xref http http-get docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/node/commit</span></code></a> shows the <code class="docutils literal notranslate"><span class="pre">View</span></code> is <code class="docutils literal notranslate"><span class="pre">15</span></code>, and the response from <a class="reference internal" href="operator_rpc_api.html#get--node-consensus" title="GET /node/consensus"><code class="xref http http-get docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/node/consensus</span></code></a> states the <code class="docutils literal notranslate"><span class="pre">current</span> <span class="pre">view</span></code> is <code class="docutils literal notranslate"><span class="pre">78967</span></code> and that number is constantly increasing, then this indicates the node is unable to make consensus progress, which likely indicates it is unable to contact other nodes.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>See <a class="reference external" href="https://github.com/microsoft/CCF/tree/release/4.x/tests/infra/health_watcher.py">tests/infra/health_watcher.py</a> for a detailed technical example of how the health of the network can be monitored.</p>
+</div>
+</section>
+<section id="node-output">
+<h2>Node Output<a class="headerlink" href="#node-output" title="Permalink to this heading">¶</a></h2>
+<p>By default node output is written to <code class="docutils literal notranslate"><span class="pre">stdout</span></code> and to <code class="docutils literal notranslate"><span class="pre">stderr</span></code> and can be handled accordingly.</p>
+<p>There is an option to generate machine-readable logs for monitoring. To enable this, set the <code class="docutils literal notranslate"><span class="pre">logging.format</span></code> configuration entry to <code class="docutils literal notranslate"><span class="pre">&quot;Json&quot;</span></code>. The generated logs will be in JSON format as displayed below:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;e_ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2019-09-02T14:47:24.589386Z&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;file&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;../src/consensus/aft/raft.h&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;h_ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2019-09-02T14:47:24.589384Z&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;info&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;msg&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Deserialising signature at 24\n&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;number&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">651</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">e_ts</span></code> is the ISO 8601 UTC timestamp of the log if logged inside the enclave (field will be missing if line was logged on the host side)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">h_ts</span></code> is the ISO 8601 UTC timestamp of the log when logged on the host side</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">file</span></code> is the file the log originated from</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">number</span></code> is the line number in the file the log originated from</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">level</span></code> is the level of the log message [info, debug, trace, fail, fatal]</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">msg</span></code> is the log message</p></li>
+</ul>
+<p>See <a class="reference internal" href="../build_apps/logging.html#logging"><span class="std std-ref">this page</span></a> for steps to add application-specific logging, which will have an additional <code class="docutils literal notranslate"><span class="pre">tag</span></code> field set to <code class="docutils literal notranslate"><span class="pre">app</span></code>.</p>
+</section>
+<section id="error-codes">
+<h2>Error Codes<a class="headerlink" href="#error-codes" title="Permalink to this heading">¶</a></h2>
+<section id="startupseqnoisold">
+<h3><code class="docutils literal notranslate"><span class="pre">StartupSeqnoIsOld</span></code><a class="headerlink" href="#startupseqnoisold" title="Permalink to this heading">¶</a></h3>
+<p>Returned when a node tries to join a network with too old a snapshot, or no snapshot at all.
+See <a class="reference internal" href="ledger_snapshot.html#join-or-recover-from-snapshot"><span class="std std-ref">this page</span></a> for more information.</p>
+<p><strong>Resolution:</strong> This can be resolved by trying to join again with a fresh snapshot.
+The seqno of the snapshot a node started from is available as <code class="docutils literal notranslate"><span class="pre">startup_seqno</span></code> in <a class="reference internal" href="operator_rpc_api.html#get--node-state" title="GET /node/state"><code class="xref http http-get docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/node/state</span></code></a>.</p>
+</section>
+</section>
+<section id="node-startup-issues">
+<h2>Node Startup Issues<a class="headerlink" href="#node-startup-issues" title="Permalink to this heading">¶</a></h2>
+<section id="oe-service-unavailable">
+<h3><code class="docutils literal notranslate"><span class="pre">OE_SERVICE_UNAVAILABLE</span></code><a class="headerlink" href="#oe-service-unavailable" title="Permalink to this heading">¶</a></h3>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Complete node logs on startup</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">01</span><span class="n">T12</span><span class="p">:</span><span class="mi">00</span><span class="p">:</span><span class="mf">00.000000</span><span class="n">Z</span>        <span class="mi">100</span> <span class="p">[</span><span class="n">info</span> <span class="p">]</span> <span class="o">../</span><span class="n">src</span><span class="o">/</span><span class="n">host</span><span class="o">/</span><span class="n">main</span><span class="o">.</span><span class="n">cpp</span><span class="p">:</span><span class="mi">519</span>             <span class="o">|</span> <span class="n">Initialising</span> <span class="n">enclave</span><span class="p">:</span> <span class="n">enclave_create_node</span>
+<span class="p">[</span><span class="n">init</span> <span class="o">../../../</span><span class="n">psw</span><span class="o">/</span><span class="n">ae</span><span class="o">/</span><span class="n">aesm_service</span><span class="o">/</span><span class="n">source</span><span class="o">/</span><span class="n">core</span><span class="o">/</span><span class="n">ipc</span><span class="o">/</span><span class="n">UnixCommunicationSocket</span><span class="o">.</span><span class="n">cpp</span><span class="p">:</span><span class="mi">225</span><span class="p">]</span> <span class="n">Failed</span> <span class="n">to</span> <span class="n">connect</span> <span class="n">to</span> <span class="n">socket</span> <span class="o">/</span><span class="n">var</span><span class="o">/</span><span class="n">run</span><span class="o">/</span><span class="n">aesmd</span><span class="o">/</span><span class="n">aesm</span><span class="o">.</span><span class="n">socket</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">01</span><span class="n">T12</span><span class="p">:</span><span class="mi">00</span><span class="p">:</span><span class="mf">00.000000</span><span class="n">Z</span> <span class="p">[(</span><span class="n">H</span><span class="p">)</span><span class="n">ERROR</span><span class="p">]</span> <span class="n">tid</span><span class="p">(</span><span class="mh">0x7f277c35b740</span><span class="p">)</span> <span class="o">|</span> <span class="n">SGX</span> <span class="n">AESM</span> <span class="n">service</span> <span class="n">unavailable</span> <span class="p">(</span><span class="n">oe_result_t</span><span class="o">=</span><span class="n">OE_SERVICE_UNAVAILABLE</span><span class="p">)</span> <span class="p">[</span><span class="o">/</span><span class="n">source</span><span class="o">/</span><span class="n">openenclave</span><span class="o">/</span><span class="n">host</span><span class="o">/</span><span class="n">sgx</span><span class="o">/</span><span class="n">sgxquote</span><span class="o">.</span><span class="n">c</span><span class="p">:</span><span class="n">_load_quote_ex_library_once</span><span class="p">:</span><span class="mi">479</span><span class="p">]</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">01</span><span class="n">T12</span><span class="p">:</span><span class="mi">00</span><span class="p">:</span><span class="mf">00.000000</span><span class="n">Z</span> <span class="p">[(</span><span class="n">H</span><span class="p">)</span><span class="n">ERROR</span><span class="p">]</span> <span class="n">tid</span><span class="p">(</span><span class="mh">0x7f277c35b740</span><span class="p">)</span> <span class="o">|</span> <span class="n">Failed</span> <span class="n">to</span> <span class="n">load</span> <span class="n">SGX</span> <span class="n">quote</span><span class="o">-</span><span class="n">ex</span> <span class="n">library</span>
+<span class="p">(</span><span class="n">oe_result_t</span><span class="o">=</span><span class="n">OE_SERVICE_UNAVAILABLE</span><span class="p">)</span> <span class="p">[</span><span class="o">/</span><span class="n">source</span><span class="o">/</span><span class="n">openenclave</span><span class="o">/</span><span class="n">host</span><span class="o">/</span><span class="n">sgx</span><span class="o">/</span><span class="n">sgxquote</span><span class="o">.</span><span class="n">c</span><span class="p">:</span><span class="n">oe_sgx_qe_get_target_info</span><span class="p">:</span><span class="mi">688</span><span class="p">]</span>
+<span class="mi">2022</span><span class="o">-</span><span class="mi">01</span><span class="o">-</span><span class="mi">01</span><span class="n">T12</span><span class="p">:</span><span class="mi">00</span><span class="p">:</span><span class="mf">00.000000</span><span class="n">Z</span> <span class="p">[(</span><span class="n">H</span><span class="p">)</span><span class="n">ERROR</span><span class="p">]</span> <span class="n">tid</span><span class="p">(</span><span class="mh">0x7f277c35b740</span><span class="p">)</span> <span class="o">|</span> <span class="p">:</span><span class="n">OE_SERVICE_UNAVAILABLE</span> <span class="p">[</span><span class="o">/</span><span class="n">source</span><span class="o">/</span><span class="n">openenclave</span><span class="o">/</span><span class="n">host</span><span class="o">/</span><span class="n">sgx</span><span class="o">/</span><span class="n">quote</span><span class="o">.</span><span class="n">c</span><span class="p">:</span><span class="n">sgx_get_qetarget_info</span><span class="p">:</span><span class="mi">37</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>This may occur on SGX deployments where the <code class="docutils literal notranslate"><span class="pre">SGX_AESM_ADDR</span></code> environment variable is set. By default, this variable is automatically set when installing CCF dependencies (specifically, Open Enclave) and indicates that out-of-process attestation quote generation should be used (<a class="reference external" href="https://github.com/openenclave/openenclave/blob/753e3227b9721851d363f028e37e5431f2311ca3/docs/GettingStartedDocs/Contributors/SGX1FLCGettingStarted.md#determine-call-path-for-sgx-quote-generation-in-attestation-sample">using the AESM service</a>).</p>
+<p>While CCF supports out-of-process attestation, the AESM service is not installed as part of the CCF dependencies. For local deployments, it is expected that operators use in-process quote generation.</p>
+<p><strong>Resolution:</strong> Unset the <code class="docutils literal notranslate"><span class="pre">SGX_AESM_ADDR</span></code> environment variable: <code class="docutils literal notranslate"><span class="pre">$</span> <span class="pre">unset</span> <span class="pre">SGX_AESM_ADDR</span></code>.</p>
+</section>
+</section>
+<section id="info-messages">
+<h2>Info Messages<a class="headerlink" href="#info-messages" title="Permalink to this heading">¶</a></h2>
+<section id="ignoring-signal-13">
+<h3><code class="docutils literal notranslate"><span class="pre">Ignoring</span> <span class="pre">signal:</span> <span class="pre">13</span></code><a class="headerlink" href="#ignoring-signal-13" title="Permalink to this heading">¶</a></h3>
+<p>Signal 13 (<cite>SIGPIPE</cite>) is emitted on writes to closed fds. It is superfluous in programs that handle write errors, such as CCF, and is therefore ignored. This message does not indicate a malfunction.</p>
+<p>Most CCF releases set the <cite>SIG_IGN</cite> handler, but a bug introduced in Open Enclave <cite>0.18.0 &lt;https://github.com/openenclave/openenclave/releases/tag/v0.18.0&gt;</cite> caused the process to crash rather than ignore the signal. CCF installed an alternative handler as a workaround in <a class="reference external" href="https://github.com/microsoft/CCF/releases/tag/ccf-2.0.2">2.0.2</a> , which produces this log line.</p>
+<p>The issue was fixed upstream in Open Enclave <a class="reference external" href="https://github.com/openenclave/openenclave/releases/tag/v0.18.1">0.18.1</a> (see <a class="reference external" href="https://github.com/openenclave/openenclave/issues/4542">#4542</a>). This log line is now redundant and will be removed from later releases.</p>
+</section>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+  
+        <div class="related-pages">
+          <a class="next-page" href="resource_usage.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Resource Usage</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="platforms/virtual.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Insecure Virtual</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2018, Microsoft Research
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+  <script>
+    // Edit this page, on GitHub
+    var contentIconContainer = document.querySelector(".content-icon-container");
+    const editContent = `
+    <div class="edit-this-page">
+      <a class="muted-link" href="https://github.com/Microsoft/CCF/edit/main/doc/operations/troubleshooting.rst">
+        <svg viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+          <path d="M4 20h4l10.5 -10.5a1.5 1.5 0 0 0 -4 -4l-10.5 10.5v4" />
+          <line x1="13.5" y1="6.5" x2="17.5" y2="10.5" />
+        </svg>
+      </a>
+    </div>`;
+    contentIconContainer.insertAdjacentHTML("afterbegin", editContent);
+
+    // Show GitHub repository home
+    var icons = document.querySelector(".icons")
+    const repoLinkContent = `
+    <a class="muted-link" href="https://github.com/Microsoft/CCF" aria-label="On GitHub">
+      <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+        <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+      </svg>
+    </a>`;
+    icons.insertAdjacentHTML("beforeend", repoLinkContent);
+  </script>
+
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Troubleshooting CCF</a><ul>
+<li><a class="reference internal" href="#tips-for-interacting-with-ccf-to-diagnose-issues">Tips for interacting with CCF to diagnose issues</a></li>
+<li><a class="reference internal" href="#node-output">Node Output</a></li>
+<li><a class="reference internal" href="#error-codes">Error Codes</a><ul>
+<li><a class="reference internal" href="#startupseqnoisold"><code class="docutils literal notranslate"><span class="pre">StartupSeqnoIsOld</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#node-startup-issues">Node Startup Issues</a><ul>
+<li><a class="reference internal" href="#oe-service-unavailable"><code class="docutils literal notranslate"><span class="pre">OE_SERVICE_UNAVAILABLE</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#info-messages">Info Messages</a><ul>
+<li><a class="reference internal" href="#ignoring-signal-13"><code class="docutils literal notranslate"><span class="pre">Ignoring</span> <span class="pre">signal:</span> <span class="pre">13</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../_static/scripts/furo.js?v=4e2eecee"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/tabs.js?v=3ee01567"></script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>

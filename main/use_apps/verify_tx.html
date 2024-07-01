@@ -1,0 +1,682 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Verifying Quote" href="verify_quote.html" /><link rel="prev" title="Issuing Commands" href="issue_commands.html" />
+
+    <link rel="shortcut icon" href="../_static/favicon.ico"/><!-- Generated with Sphinx 7.1.2 and Furo 2024.05.06 -->
+        <title>Verifying Transactions - CCF documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=387cc868" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/tabs.css?v=4c969af8" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-bootstrap.5fd3999ee7762ccc51105388f4a9d115.css?v=45cf7dbc" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-main.c949a650a448cc0ae9fd3441c0e17fb0.css?v=2a6c4383" />
+    <link rel="stylesheet" type="text/css" href="../_static/panels-variables.06eb56fa6e07937060861dad626602ad.css?v=d290406d" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=36a5483c" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=ffbb6935" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #3f3f3f;
+  --color-code-foreground: #dcdccc;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #3f3f3f;
+  --color-code-foreground: #dcdccc;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-half" viewBox="0 0 24 24">
+    <title>Auto light/dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-shadow">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M13 12h5" />
+      <path d="M13 15h4" />
+      <path d="M13 18h1" />
+      <path d="M13 9h4" />
+      <path d="M13 6h1" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" /
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">CCF  documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
+  
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="../_static/ccf.svg" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="../_static/ccf.svg" alt="Dark Logo"/>
+  </div>
+  
+</a>
+
+<script>
+  function onVersionChange() {
+    window.location.href = document.getElementById("versions").value;
+  }
+
+  window.addEventListener("DOMContentLoaded", function(){
+      let selectedVersion = "main";
+      const thisURL = window.location.toString();
+      const splitUrl = thisURL.split("/");
+      const indexOfRelease = splitUrl.indexOf("release");
+      if (indexOfRelease > 0) {
+        selectedVersion = splitUrl[indexOfRelease + 1];
+      }
+      let sel = document.getElementById("versions");
+      if (sel != null) {
+          let opts = sel.options;
+          for (var opt, j = 0; opt = opts[j]; j++) {
+              if (opt.text == selectedVersion) {
+                  sel.selectedIndex = j;
+                  break;
+              }
+          }
+      }
+  }, false);
+</script>
+
+
+<label for="versions">
+  <div class="visually-hidden">Select Version:</div>
+</label>
+<select name="versions" id="versions" class="custom-select custom-select-sm" style="margin: 0em 1em;" onchange="onVersionChange()">
+    <option value="verify_tx.html">
+      
+        main
+      
+    </option>
+    <option value="../../release/3.x/use_apps/verify_tx.html">
+      
+        3.x
+      
+    </option>
+    <option value="../../release/4.x/use_apps/verify_tx.html">
+      
+        4.x
+      
+    </option>
+</select>
+<form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../overview/index.html">Overview</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of Overview</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../overview/what_is_ccf.html">What is CCF?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/governance.html">Governance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/performance.html">Performance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/faq.html">Frequently Asked Questions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/maintenance.html">Maintenance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../overview/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../build_apps/index.html">Build Apps</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of Build Apps</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/get_started.html">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/install_bin.html">Install CCF</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/example.html">C++ Application</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of C++ Application</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/example_cpp.html">Example app (C++)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/example_rpc_api.html">Example app RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/js_app_ts.html">TypeScript Application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/js_app_bundle.html">JavaScript Application Bundle</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/logging.html">Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/build_app.html">Build and Sign CCF Applications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/run_app.html">Running CCF Applications</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/auth/index.html">User Authentication</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle navigation of User Authentication</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/jwt.html">JWT Authentication</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/auth/cert.html">Certificate Authentication</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/kv/index.html">Key-Value Store</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle navigation of Key-Value Store</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_how_to.html">Key-Value Store How-To</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/kv_serialisation.html">Key-Value Serialisation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/kv/api.html">Key-Value Store API</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/api.html">Developer API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../build_apps/crypto.html">Cryptography API</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../build_apps/release_policy.html">Release and compatibility policy</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle navigation of Release and compatibility policy</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../build_apps/migration_4_x_to_5_0.html">4.x to 5.0 Migration Guide</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Use Apps</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle navigation of Use Apps</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="issue_commands.html">Issuing Commands</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Verifying Transactions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="verify_quote.html">Verifying Quote</a></li>
+<li class="toctree-l2"><a class="reference internal" href="rpc_api.html">RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../operations/index.html">Operations</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle navigation of Operations</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../operations/run_setup.html">Setup CCF Runtime Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/start_network.html">Running a CCF Service</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/configuration.html">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/ledger_snapshot.html">Ledger and Snapshots</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/data_persistence.html">Data Persistence</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/code_upgrade.html">Code Upgrade</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/certificates.html">Certificates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/recovery.html">Disaster Recovery</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/network.html">Networking</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../operations/platforms/index.html">Platforms</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle navigation of Platforms</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../operations/platforms/sgx.html">Intel SGX</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../operations/platforms/snp.html">AMD SEV-SNP</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../operations/platforms/virtual.html">Insecure Virtual</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/troubleshooting.html">Troubleshooting CCF</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/resource_usage.html">Resource Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../operations/operator_rpc_api.html">Operator RPC API</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../governance/index.html">Governance</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle navigation of Governance</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../governance/constitution.html">Constitution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/proposals.html">Proposing and Voting for a Proposal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/js_runtime.html">JavaScript Runtime Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/open_network.html">Opening a Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/accept_recovery.html">Accepting Recovery and Submitting Shares</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/common_member_operations.html">Common Governance Operations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/adding_member.html">Adding New Members</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../governance/hsm_keys.html">Using Member Keys Stored in HSM</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../governance/member_rpc_api.html">Member RPC API</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle navigation of Member RPC API</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../governance/gov_api_schemas/2023-06-01-preview.html">2023-06-01-preview</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../governance/gov_api_schemas/classic.html">Classic API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../governance/gov_api_schemas/upgrading_from_classic.html">Upgrading From Classic API</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../audit/index.html">Audit</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of Audit</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../audit/receipts.html">Receipts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/builtin_maps.html">Built-in Maps</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/python_library.html">Python Library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../audit/read_write_restrictions.html">Read-Write Permissions On KV Maps</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../contribute/index.html">Contribute</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of Contribute</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/onboarding.html">Onboarding</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/create_vm.html">Create Azure SGX VM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_setup.html">CCF Development Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_ccf.html">Build CCF from Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/release_ccf.html">Release or patch a CCF release</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../contribute/build_images.html">CCF Build Images</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../architecture/index.html">Architecture</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of Architecture</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/consensus/index.html">Consensus Protocol</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/cryptography.html">Cryptography</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/request_flow.html">Request Flow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/threading.html">Threading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/merkle_tree.html">Merkle Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/ledger.html">Ledger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/raft_tla.html">TLA+ Specifications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/node_to_node.html">Node-to-Node Channels</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/indexing.html">Indexing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/receipts.html">Receipts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/tls_internals.html">TLS Internals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/tcp_internals.html">TCP Internals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../architecture/quic_internals.html">QUIC Internals</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../architecture/performance/index.html">Piccolo</a><input class="toctree-checkbox" id="toctree-checkbox-15" name="toctree-checkbox-15" role="switch" type="checkbox"/><label for="toctree-checkbox-15"><div class="visually-hidden">Toggle navigation of Piccolo</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../architecture/performance/generator.html">Generator</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture/performance/submitter.html">Submitter</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../architecture/performance/analysis.html">Analyzer</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../research/index.html">Research</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="../_sources/use_apps/verify_tx.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="verifying-transactions">
+<h1>Verifying Transactions<a class="headerlink" href="#verifying-transactions" title="Permalink to this heading">¶</a></h1>
+<section id="checking-for-commit">
+<h2>Checking for Commit<a class="headerlink" href="#checking-for-commit" title="Permalink to this heading">¶</a></h2>
+<p>Because of the decentralised nature of CCF, a request is committed to the ledger only once a number of nodes have agreed on that request.</p>
+<p>To guarantee that their request is successfully committed to the ledger, a user should issue a <a class="reference internal" href="rpc_api.html#get--app-tx" title="GET /app/tx"><code class="xref http http-get docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/app/tx</span></code></a> request, specifying the version received in the response. This version is constructed from a view and a sequence number.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>curl<span class="w"> </span>-X<span class="w"> </span>GET<span class="w"> </span><span class="s2">&quot;https://&lt;ccf-node-address&gt;/app/tx?transaction_id=2.18&quot;</span><span class="w"> </span>--cacert<span class="w"> </span>service_cert.pem<span class="w"> </span>--key<span class="w"> </span>user0_privk.pem<span class="w"> </span>--cert<span class="w"> </span>user0_cert.pem<span class="w"> </span>-i
+HTTP/1.1<span class="w"> </span><span class="m">200</span><span class="w"> </span>OK
+content-length:<span class="w"> </span><span class="m">23</span>
+content-type:<span class="w"> </span>application/json
+x-ms-ccf-transaction-id:<span class="w"> </span><span class="m">5</span>.42
+
+<span class="o">{</span><span class="s2">&quot;status&quot;</span>:<span class="s2">&quot;Committed&quot;</span><span class="o">}</span>
+</pre></div>
+</div>
+<p>This example queries the status of <a class="reference internal" href="../overview/glossary.html#term-Transaction-ID"><span class="xref std std-term">Transaction ID</span></a> <code class="docutils literal notranslate"><span class="pre">2.18</span></code> (constructed from view <code class="docutils literal notranslate"><span class="pre">2</span></code> and sequence number <code class="docutils literal notranslate"><span class="pre">18</span></code>). The response indicates this was successfully committed. The headers also show that the service has since made progress with other requests and changed view (<code class="docutils literal notranslate"><span class="pre">x-ms-ccf-transaction-id:</span> <span class="pre">5.42</span></code>).</p>
+<p>The possible statuses returned by <a class="reference internal" href="rpc_api.html#get--app-tx" title="GET /app/tx"><code class="xref http http-get docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/app/tx</span></code></a> are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Unknown</span></code> - this node has not received a transaction with the given ID</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Pending</span></code> - this node has received a transaction with the given ID, but does not yet know if the transaction has been committed</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Committed</span></code> - this node knows that this transaction is committed, it is an irrevocable and durable part of the service’s transaction history</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Invalid</span></code> - this node knows that the given transaction cannot be committed. This occurs when the view changes, and some pending transactions may be lost and must be resubmitted, but also applies to IDs which are known to be impossible given the current committed IDs</p></li>
+</ul>
+<p>On a given node, the possible transitions between states are described in the following diagram:</p>
+<div class="mermaid">
+            stateDiagram
+    Unknown --&gt; Pending
+    Pending --&gt; Unknown
+    Pending --&gt; Committed
+    Pending --&gt; Invalid
+        </div><p>It is possible that intermediate states are not visible (e.g. a transition from <code class="docutils literal notranslate"><span class="pre">Unknown</span></code> to <code class="docutils literal notranslate"><span class="pre">Committed</span></code> may never publically show a <code class="docutils literal notranslate"><span class="pre">Pending</span></code> result). Nodes may disagree on the current state due to communication delays, but will never disagree on transitions (in other words, they may believe a <code class="docutils literal notranslate"><span class="pre">COMMITTED</span></code> transaction is still <code class="docutils literal notranslate"><span class="pre">Unknown</span></code> or <code class="docutils literal notranslate"><span class="pre">Pending</span></code>, but will never report it as <code class="docutils literal notranslate"><span class="pre">Invalid</span></code>). A transition from <code class="docutils literal notranslate"><span class="pre">Pending</span></code> to <code class="docutils literal notranslate"><span class="pre">Unknown</span></code> can only occur immediately after an election, while the node is confirming where the new view starts, and will usually resolve to <code class="docutils literal notranslate"><span class="pre">Committed</span></code> or <code class="docutils literal notranslate"><span class="pre">Pending</span></code> quickly afterwards.</p>
+<p>Note that transaction IDs are uniquely assigned by the service - once a request has been assigned an ID, this ID will never be associated with a different write transaction. In normal operation, the next requests will be given versions 2.19, then 2.20, and so on, and after a short delay <code class="docutils literal notranslate"><span class="pre">2.18</span></code> will be committed. If requests are submitted in parallel, they will be applied in a consistent order indicated by their assigned versions.</p>
+<p>If the network is unable to reach consensus, it will trigger a leadership election which increments the view. In this case the user’s next request may be given a version <code class="docutils literal notranslate"><span class="pre">3.16</span></code>, followed by <code class="docutils literal notranslate"><span class="pre">3.17</span></code>, then <code class="docutils literal notranslate"><span class="pre">3.18</span></code>. The sequence number is reused, but in a different view; the service knows that <code class="docutils literal notranslate"><span class="pre">2.18</span></code> can never be assigned, so it can report this as an invalid ID. Read-only transactions are an exception - they do not get a unique <a class="reference internal" href="../overview/glossary.html#term-Transaction-ID"><span class="xref std std-term">Transaction ID</span></a> but instead return the ID of the last write transaction whose state they may have read.</p>
+</section>
+<section id="write-receipts">
+<h2>Write Receipts<a class="headerlink" href="#write-receipts" title="Permalink to this heading">¶</a></h2>
+<p>Once a transaction has been committed, it is possible to get a cryptographic receipt over the entry produced in the ledger. That receipt can be verified offline.</p>
+<p>To obtain a receipt, a user needs to call a <a class="reference internal" href="rpc_api.html#get--app-receipt" title="GET /app/receipt"><code class="xref http http-get docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/app/receipt</span></code></a> for a particular <a class="reference internal" href="../overview/glossary.html#term-Transaction-ID"><span class="xref std std-term">Transaction ID</span></a>. Because fetching the information necessary to produce a receipt likely involves a round trip to the ledger, the endpoint is implemented as a historical query.
+This means that the request may return <code class="docutils literal notranslate"><span class="pre">202</span> <span class="pre">Accepted</span></code> at first, with a suggested <code class="docutils literal notranslate"><span class="pre">Retry-After</span></code> header. A subsequent call will return the actual receipt, for example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>curl<span class="w"> </span>-X<span class="w"> </span>GET<span class="w"> </span><span class="s2">&quot;https://&lt;ccf-node-address&gt;/app/receipt?transaction_id=2.643&quot;</span><span class="w"> </span>--cacert<span class="w"> </span>service_cert.pem<span class="w"> </span>--key<span class="w"> </span>user0_privk.pem<span class="w"> </span>--cert<span class="w"> </span>user0_cert.pem
+
+<span class="o">{</span><span class="s1">&#39;cert&#39;</span>:<span class="w"> </span><span class="s1">&#39;-----BEGIN CERTIFICATE-----\n&#39;</span>
+<span class="w">        </span><span class="s1">&#39;MIIBzzCCAVWgAwIBAgIRANoNTgf6hwugwIZgb/vrSXcwCgYIKoZIzj0EAwMwFjEU\n&#39;</span>
+<span class="w">        </span><span class="s1">&#39;MBIGA1UEAwwLQ0NGIE5ldHdvcmswHhcNMjIwNDI1MTUwMTMzWhcNMjIwNDI2MTUw\n&#39;</span>
+<span class="w">        </span><span class="s1">&#39;MTMyWjATMREwDwYDVQQDDAhDQ0YgTm9kZTB2MBAGByqGSM49AgEGBSuBBAAiA2IA\n&#39;</span>
+<span class="w">        </span><span class="s1">&#39;BCbH0j1tcyHeyBVxThuzwyk6IesLFe6CXBqOYBbEvrLCrdR+wj400UR0xWBcVroY\n&#39;</span>
+<span class="w">        </span><span class="s1">&#39;8GqF+tLS8YQPt+kepG82lZuRjAbaBn2BL8g6cdKGOew5fo9LCL9+NlH+W6bz83E/\n&#39;</span>
+<span class="w">        </span><span class="s1">&#39;Z6NqMGgwCQYDVR0TBAIwADAdBgNVHQ4EFgQUlMCr5/1LIzGegZPJfHwzFl5GCwUw\n&#39;</span>
+<span class="w">        </span><span class="s1">&#39;HwYDVR0jBBgwFoAUuzKYZ+UZum8NaytcWRfirw8TA+MwGwYDVR0RBBQwEocEfwAA\n&#39;</span>
+<span class="w">        </span><span class="s1">&#39;AYcEf7i1MYcEfwAAAjAKBggqhkjOPQQDAwNoADBlAjEAyLPRWCR4Nn0Z3q/1rKCc\n&#39;</span>
+<span class="w">        </span><span class="s1">&#39;ppiSwPrMQ/asHoUAUgmnAGkxgJ6A8iGJXa/WFal/PDtdAjBfp+AIkuVcBjmWfLxF\n&#39;</span>
+<span class="w">        </span><span class="s1">&#39;MKN7njz6Q9m10APn+KigsvS4aIRbHZHbYTkAOyFEdipm5gA=\n&#39;</span>
+<span class="w">        </span><span class="s1">&#39;-----END CERTIFICATE-----\n&#39;</span>,
+<span class="s1">&#39;leaf_components&#39;</span>:<span class="w"> </span><span class="o">{</span><span class="s1">&#39;claims_digest&#39;</span>:<span class="w"> </span><span class="s1">&#39;0000000000000000000000000000000000000000000000000000000000000000&#39;</span>,
+<span class="w">                    </span><span class="s1">&#39;commit_evidence&#39;</span>:<span class="w"> </span><span class="s1">&#39;ce:2.500:a4e526cef8d1155e8a8c5f4c0dd8d1220c924cea620e1cc737c4039c8abc8d6b&#39;</span>,
+<span class="w">                    </span><span class="s1">&#39;write_set_digest&#39;</span>:<span class="w"> </span><span class="s1">&#39;56f1f53e61a80606fec984cbfadaf833b3bb2e68f464f3b7c641e163fcb1f647&#39;</span><span class="o">}</span>,
+<span class="s1">&#39;node_id&#39;</span>:<span class="w"> </span><span class="s1">&#39;c0718b67b986748d074a293201fa2f9bc3a29e07d204ccc24167afdc59bdf0c3&#39;</span>,
+<span class="s1">&#39;proof&#39;</span>:<span class="w"> </span><span class="o">[{</span><span class="s1">&#39;left&#39;</span>:<span class="w"> </span><span class="s1">&#39;26e7edf1065e23a387b8d6fd3743b4885aae1919c4c347d73b792e3e77b57695&#39;</span><span class="o">}</span>,
+<span class="w">        </span><span class="o">{</span><span class="s1">&#39;left&#39;</span>:<span class="w"> </span><span class="s1">&#39;76c79df9146479c0aebdd51f228e1d304d60f382f61571a729f2fba7d93ce2a7&#39;</span><span class="o">}</span>,
+<span class="w">        </span><span class="o">{</span><span class="s1">&#39;left&#39;</span>:<span class="w"> </span><span class="s1">&#39;6b54d109e3f474f9f546d5d462de40440ca335b133d3899c228532fcc535e732&#39;</span><span class="o">}</span>,
+<span class="w">        </span><span class="o">{</span><span class="s1">&#39;left&#39;</span>:<span class="w"> </span><span class="s1">&#39;bf3e529174209df204342224fc39ffee68189c30db03e53ba1d4baa053e02471&#39;</span><span class="o">}</span>,
+<span class="w">        </span><span class="o">{</span><span class="s1">&#39;left&#39;</span>:<span class="w"> </span><span class="s1">&#39;740dcdb82afe5f2b311056c96bd6afcc1b571e1cdb8e918bfe24eda48213eb1a&#39;</span><span class="o">}</span>,
+<span class="w">        </span><span class="o">{</span><span class="s1">&#39;left&#39;</span>:<span class="w"> </span><span class="s1">&#39;05efd90dfd3bf86a3efa185c6a869342cb0d9af4dd92256d37dc826b86e99684&#39;</span><span class="o">}]</span>,
+<span class="s1">&#39;signature&#39;</span>:<span class="w"> </span><span class="s1">&#39;MGYCMQCI1yY5xhGNFXyKjO6mFhxZCjAsuTsquO1agIzKkxh/Uf9Em+P7AwnxuQ2uC7WU++QCMQCSzpE9k8xkSku5BlkUelDPBHxLuokLIpKAyn73HXtXiz+zXOVWIZkYftUEoQ31pG0=&#39;</span><span class="o">}</span>
+</pre></div>
+</div>
+<p><cite>cert</cite> contains the certificate of the signing node, endorsed by the <a class="reference internal" href="../overview/glossary.html#term-Service-identity"><span class="xref std std-term">Service Identity</span></a>. <cite>node_id</cite> is the node’s ID inside CCF, a digest of its public key.</p>
+<p>Note that receipts over signature transactions are a special case, for example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>curl<span class="w"> </span>-X<span class="w"> </span>GET<span class="w"> </span><span class="s2">&quot;https://&lt;ccf-node-address&gt;/app/receipt?transaction_id=2.35&quot;</span><span class="w"> </span>--cacert<span class="w"> </span>service_cert.pem<span class="w"> </span>--key<span class="w"> </span>user0_privk.pem<span class="w"> </span>--cert<span class="w"> </span>user0_cert.pem
+
+<span class="o">{</span><span class="s1">&#39;leaf&#39;</span>:<span class="w"> </span><span class="s1">&#39;fdc977c49d3a8bdf986176984e9432a09b5f6fe0c04e0b1c2dd177c03fdca9ec&#39;</span>,
+<span class="w"> </span><span class="s1">&#39;node_id&#39;</span>:<span class="w"> </span><span class="s1">&#39;06fef62c80b6471c7005c1b114166fd1b0e077845f5ad544ad4eea4fb1d31f78&#39;</span>,
+<span class="w"> </span><span class="s1">&#39;proof&#39;</span>:<span class="w"> </span><span class="o">[]</span>,
+<span class="w"> </span><span class="s1">&#39;signature&#39;</span>:<span class="w"> </span><span class="s1">&#39;MGQCMACklXqd0ge+gBS8WzewrwtwzRzSKy+bfrLZVx0YHmQvtsqs7dExYESsqrUrB8ZcKwIwS3NPKaGq0w2QlPlCqUC3vQoQvhcZgPHPu2GkFYa7JEOdSKLknNPHaCRv80zx2RGF&#39;</span>,
+<span class="w"> </span><span class="s1">&#39;cert&#39;</span>:<span class="w"> </span><span class="s1">&#39;&lt;PEM string&gt;&#39;</span><span class="o">}</span>
+</pre></div>
+</div>
+<p>The proof is empty, and the <code class="docutils literal notranslate"><span class="pre">leaf</span></code> field is set to the value being signed, which is the root of the Merkle Tree covering all transactions until the signature.
+This allows writing verification code that handles both regular and signature receipts similarly, but it is worth noting that the ‘leaf’ value for signatures is <cite>not</cite>
+the digest of the signature transaction itself.</p>
+<p>From version 2.0, CCF also includes endorsement certificates for previous service identities, by the current <a class="reference internal" href="../overview/glossary.html#term-Service-identity"><span class="xref std std-term">Service Identity</span></a>, in <cite>service_endorsements</cite>. Thus, after at least one recovery, the endorsement check now takes the form of a certificate chain verification instead of a single endorsement check.</p>
+</section>
+<section id="receipt-verification">
+<h2>Receipt Verification<a class="headerlink" href="#receipt-verification" title="Permalink to this heading">¶</a></h2>
+<p>Verifying a receipt consists of the following steps:</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>Digest <code class="docutils literal notranslate"><span class="pre">commit_evidence</span></code> to produce <code class="docutils literal notranslate"><span class="pre">commit_evidence_digest</span></code> and <code class="docutils literal notranslate"><span class="pre">claims</span></code> to produce <code class="docutils literal notranslate"><span class="pre">claims_digest</span></code> when applicable.</p></li>
+<li><p>If the receipt contains <code class="docutils literal notranslate"><span class="pre">leaf_components</span></code>, digest the concatenation <code class="docutils literal notranslate"><span class="pre">write_set_digest</span> <span class="pre">+</span> <span class="pre">commit_evidence_digest</span> <span class="pre">+</span> <span class="pre">claims_digest</span></code> to produce <code class="docutils literal notranslate"><span class="pre">leaf</span></code>.</p></li>
+<li><p>Combine <code class="docutils literal notranslate"><span class="pre">leaf</span></code> with the successive elements in <code class="docutils literal notranslate"><span class="pre">proof</span></code> to calculate the value of <code class="docutils literal notranslate"><span class="pre">root</span></code>. See <a class="reference internal" href="../audit/python_library.html#ccf.receipt.root" title="ccf.receipt.root"><code class="xref py py-func docutils literal notranslate"><span class="pre">ccf.receipt.root()</span></code></a> for a reference implementation.</p></li>
+<li><p>Verify <code class="docutils literal notranslate"><span class="pre">signature</span></code> over the <code class="docutils literal notranslate"><span class="pre">root</span></code> using the certificate of the node identified by <code class="docutils literal notranslate"><span class="pre">node_id</span></code> and <code class="docutils literal notranslate"><span class="pre">cert</span></code>. See <a class="reference internal" href="../audit/python_library.html#ccf.receipt.verify" title="ccf.receipt.verify"><code class="xref py py-func docutils literal notranslate"><span class="pre">ccf.receipt.verify()</span></code></a> for a reference implementation.</p></li>
+<li><p>Check that the certificate <code class="docutils literal notranslate"><span class="pre">cert</span></code> of <code class="docutils literal notranslate"><span class="pre">node_id</span></code> used to sign the receipt is endorsed by the CCF network. See <a class="reference internal" href="../audit/python_library.html#ccf.receipt.check_endorsements" title="ccf.receipt.check_endorsements"><code class="xref py py-func docutils literal notranslate"><span class="pre">ccf.receipt.check_endorsements()</span></code></a> for a reference implementation.</p></li>
+</ol>
+</div></blockquote>
+<p>Note that since a receipt is a committment by a service to a transaction, a verifier must know the <a class="reference internal" href="../overview/glossary.html#term-Service-identity"><span class="xref std std-term">Service Identity</span></a>, and provide it as an input to step 5.</p>
+</section>
+<section id="application-claims">
+<h2>Application Claims<a class="headerlink" href="#application-claims" title="Permalink to this heading">¶</a></h2>
+<p>CCF allows application code to attach arbitrary claims to a transaction, via the <code class="xref cpp cpp-func docutils literal notranslate"><span class="pre">enclave::RpcContext::set_claims_digest()</span></code> API, as illustrated in <a class="reference internal" href="../build_apps/example_cpp.html#user-defined-claims-in-receipts"><span class="std std-ref">User-Defined Claims in Receipts</span></a>.</p>
+<p>This is useful to allow the reveal and verification of application-related claims offline, ie. without access to the CCF network.
+For example, a logging application may choose to set the digest of the payload being logged as <code class="docutils literal notranslate"><span class="pre">claims_digest</span></code>.
+A user who logs a payload can then present the receipt and the payload to a third party, who can confirm that they match, having verified the receipt. They can perform this verification without access to the service.</p>
+<p>Multiple claims can be registered by storing them in a collection or object whose digest is set as <code class="docutils literal notranslate"><span class="pre">claims_digest</span></code>. It is possible to reveal them selectively, by capturing their digest in turn, rather than their raw value directly, eg:</p>
+<p><code class="docutils literal notranslate"><span class="pre">claims_digest</span> <span class="pre">=</span> <span class="pre">hash(</span> <span class="pre">hash(claim_a)</span> <span class="pre">+</span> <span class="pre">hash(claim_b)</span> <span class="pre">)</span></code></p>
+<p>Revealing <code class="docutils literal notranslate"><span class="pre">hash(claim_a)</span></code> and <code class="docutils literal notranslate"><span class="pre">claim_b</span></code> allows verification without revealing <code class="docutils literal notranslate"><span class="pre">claim_a</span></code> in this case.</p>
+<p>Although CCF takes the approach of concatenating leaf components to keep its implementation simple and format-agnostic, an application may choose to encode its claims in a structured way for convenience, for example as JSON, CBOR etc.</p>
+<p>Applications may wish to expose dedicated endpoints, besides CCF’s built-in <a class="reference internal" href="../operations/operator_rpc_api.html#get--node-receipt" title="GET /node/receipt"><code class="xref http http-get docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/node/receipt</span></code></a>, in which they can selectively expand claims, as illustrated in <a class="reference internal" href="../build_apps/example_cpp.html#user-defined-claims-in-receipts"><span class="std std-ref">User-Defined Claims in Receipts</span></a>.
+If some claims must stay confidential, applications should encrypt them rather than merely digest them. They key can be kept in a private table for example, which like the claim will be available through the historical query API. The application logic can then decide whether to decrypt the claim for the caller depending on its authorisation policy.</p>
+</section>
+<section id="commit-evidence">
+<h2>Commit Evidence<a class="headerlink" href="#commit-evidence" title="Permalink to this heading">¶</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">commit_evidence</span></code> field in receipts fulfills two purposes:</p>
+<ol class="arabic simple">
+<li><p>It exposes the full <a class="reference internal" href="../overview/glossary.html#term-Transaction-ID"><span class="xref std std-term">Transaction ID</span></a> in a format that is easy for a user to extract, and does not require parsing the ledger entry.</p></li>
+<li><p>Because it cannot be extracted from the ledger without access to the ledger secrets, it guarantees the transaction is committed.</p></li>
+</ol>
+<p>Entries are written out to the ledger as early as possible, to relieve memory pressure inside the enclave. If receipts could be produced from these entries regardless of their replication status, a malicious actor could emit them for transactions that have been tentatively run by a primary, appended to its local ledger, but since rolled back.
+By including a committment to the digest of <code class="docutils literal notranslate"><span class="pre">commit_evidence</span></code> as a leaf component in the Merkle Tree, which is effectively a nonce derived from ledger secrets and TxID, we ensure that only receipts produced by nodes that can reveal this nonce are verifiable.</p>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+  
+        <div class="related-pages">
+          <a class="next-page" href="verify_quote.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Verifying Quote</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="issue_commands.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Issuing Commands</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2018, Microsoft Research
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+  <script>
+    // Edit this page, on GitHub
+    var contentIconContainer = document.querySelector(".content-icon-container");
+    const editContent = `
+    <div class="edit-this-page">
+      <a class="muted-link" href="https://github.com/Microsoft/CCF/edit/main/doc/use_apps/verify_tx.rst">
+        <svg viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+          <path d="M4 20h4l10.5 -10.5a1.5 1.5 0 0 0 -4 -4l-10.5 10.5v4" />
+          <line x1="13.5" y1="6.5" x2="17.5" y2="10.5" />
+        </svg>
+      </a>
+    </div>`;
+    contentIconContainer.insertAdjacentHTML("afterbegin", editContent);
+
+    // Show GitHub repository home
+    var icons = document.querySelector(".icons")
+    const repoLinkContent = `
+    <a class="muted-link" href="https://github.com/Microsoft/CCF" aria-label="On GitHub">
+      <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+        <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+      </svg>
+    </a>`;
+    icons.insertAdjacentHTML("beforeend", repoLinkContent);
+  </script>
+
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Verifying Transactions</a><ul>
+<li><a class="reference internal" href="#checking-for-commit">Checking for Commit</a></li>
+<li><a class="reference internal" href="#write-receipts">Write Receipts</a></li>
+<li><a class="reference internal" href="#receipt-verification">Receipt Verification</a></li>
+<li><a class="reference internal" href="#application-claims">Application Claims</a></li>
+<li><a class="reference internal" href="#commit-evidence">Commit Evidence</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=b3ba4146"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../_static/scripts/furo.js?v=4e2eecee"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/tabs.js?v=3ee01567"></script>
+    <script src="https://unpkg.com/mermaid@10.2.0/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});
+
+// Remove height from all mermaid diagrams
+window.addEventListener(
+  'load',
+  function() {
+    let nodes = document.querySelectorAll('.mermaid');
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i];
+      const svg = element.firstChild;
+      svg.removeAttribute('height');
+    }
+  },
+  false
+);</script>
+    <script src="https://kit.fontawesome.com/c75a35380d.js"></script>
+    </body>
+</html>
