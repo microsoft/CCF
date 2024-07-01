@@ -21,6 +21,9 @@ jobs:
     name: Analyze
     # Insufficient space to run on public runner, so use custom pool
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ccfmsrc.azurecr.io/ccf/ci:2024-06-26-virtual-clang15
+      options: --user root
 
     permissions:
       security-events: write
@@ -74,6 +77,8 @@ jobs:
         name: Install dependencies
 
       - run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
           cmake -DCOMPILE_TARGET=virtual -DREQUIRE_OPENENCLAVE=OFF -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DLVI_MITIGATIONS=OFF -DCMAKE_C_COMPILER=`which clang-11` -DCMAKE_CXX_COMPILER=`which clang++-11` ..
