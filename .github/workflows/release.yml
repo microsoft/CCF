@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   actions: read
   checks: write
 
@@ -118,3 +118,5 @@ jobs:
     - run: |
         gh release create --title "CCF ${{ github.ref }}" --draft --notes-file rel-notes.md pkg/*
       shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
