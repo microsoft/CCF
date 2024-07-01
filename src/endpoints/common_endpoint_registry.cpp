@@ -62,7 +62,7 @@ namespace ccf
   }
 
   CommonEndpointRegistry::CommonEndpointRegistry(
-    const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_) :
+    const std::string& method_prefix_, ccf::AbstractNodeContext& context_) :
     BaseEndpointRegistry(method_prefix_, context_)
   {}
 

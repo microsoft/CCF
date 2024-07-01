@@ -17,10 +17,11 @@ namespace ccf::js::extensions
 {
   struct KvExtension::Impl
   {
-    kv::Tx* tx;
-    std::unordered_map<std::string, kv::untyped::Map::Handle*> kv_handles = {};
+    ccf::kv::Tx* tx;
+    std::unordered_map<std::string, ccf::kv::untyped::Map::Handle*> kv_handles =
+      {};
 
-    Impl(kv::Tx* t) : tx(t){};
+    Impl(ccf::kv::Tx* t) : tx(t){};
   };
 
   namespace
@@ -54,7 +55,7 @@ namespace ccf::js::extensions
 
       if (it->second == nullptr)
       {
-        kv::Tx* tx = extension->impl->tx;
+        ccf::kv::Tx* tx = extension->impl->tx;
         if (tx == nullptr)
         {
           LOG_FAIL_FMT("Can't rehydrate MapHandle - no transaction context");
@@ -129,7 +130,8 @@ namespace ccf::js::extensions
     }
   }
 
-  KvExtension::KvExtension(kv::Tx* t, const ccf::js::NamespaceRestriction& nr) :
+  KvExtension::KvExtension(
+    ccf::kv::Tx* t, const ccf::js::NamespaceRestriction& nr) :
     namespace_restriction(nr)
   {
     impl = std::make_unique<KvExtension::Impl>(t);

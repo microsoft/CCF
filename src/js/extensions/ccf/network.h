@@ -19,9 +19,9 @@ namespace ccf::js::extensions
   {
   public:
     ccf::NetworkState* network_state;
-    kv::Tx* tx;
+    ccf::kv::Tx* tx;
 
-    NetworkExtension(ccf::NetworkState* ns, kv::Tx* t) :
+    NetworkExtension(ccf::NetworkState* ns, ccf::kv::Tx* t) :
       network_state(ns),
       tx(t)
     {}

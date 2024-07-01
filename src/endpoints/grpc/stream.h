@@ -18,10 +18,10 @@ namespace ccf::grpc
   class BaseStream
   {
   private:
-    std::shared_ptr<http::HTTPResponder> http_responder;
+    std::shared_ptr<ccf::http::HTTPResponder> http_responder;
 
   protected:
-    BaseStream(const std::shared_ptr<http::HTTPResponder>& r) :
+    BaseStream(const std::shared_ptr<ccf::http::HTTPResponder>& r) :
       http_responder(r)
     {}
 
@@ -55,7 +55,7 @@ namespace ccf::grpc
   {
   public:
     Stream(
-      const std::shared_ptr<http::HTTPResponder>& r,
+      const std::shared_ptr<ccf::http::HTTPResponder>& r,
       http_status s = HTTP_STATUS_OK,
       const http::HeaderMap& h = default_response_headers) :
       BaseStream(r)
@@ -116,7 +116,7 @@ namespace ccf::grpc
   template <typename T>
   using DetachedStreamPtr = std::unique_ptr<DetachedStream<T>>;
 
-  static std::shared_ptr<http::HTTPResponder> get_http_responder(
+  static std::shared_ptr<ccf::http::HTTPResponder> get_http_responder(
     const std::shared_ptr<ccf::RpcContext>& rpc_ctx)
   {
     auto http_responder = rpc_ctx->get_responder();

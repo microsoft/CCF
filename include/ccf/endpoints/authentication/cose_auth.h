@@ -125,7 +125,7 @@ namespace ccf
     ~MemberCOSESign1AuthnPolicy();
 
     std::unique_ptr<AuthnIdentity> authenticate(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const std::shared_ptr<ccf::RpcContext>& ctx,
       std::string& error_reason) override;
 
@@ -158,7 +158,7 @@ namespace ccf
     using MemberCOSESign1AuthnPolicy::MemberCOSESign1AuthnPolicy;
 
     std::unique_ptr<AuthnIdentity> authenticate(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const std::shared_ptr<ccf::RpcContext>& ctx,
       std::string& error_reason) override;
 
@@ -182,7 +182,7 @@ namespace ccf
     static const OpenAPISecuritySchema security_schema;
 
     virtual std::unique_ptr<UserCOSESign1AuthnIdentity> _authenticate(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const std::shared_ptr<ccf::RpcContext>& ctx,
       std::string& error_reason);
 
@@ -198,7 +198,7 @@ namespace ccf
     ~UserCOSESign1AuthnPolicy();
 
     std::unique_ptr<AuthnIdentity> authenticate(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const std::shared_ptr<ccf::RpcContext>& ctx,
       std::string& error_reason) override;
 
@@ -240,7 +240,7 @@ namespace ccf
     {}
 
     std::unique_ptr<AuthnIdentity> authenticate(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const std::shared_ptr<ccf::RpcContext>& ctx,
       std::string& error_reason) override;
 

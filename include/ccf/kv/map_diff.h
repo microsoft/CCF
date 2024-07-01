@@ -4,21 +4,21 @@
 
 #include "ccf/kv/untyped_map_diff.h"
 
-namespace kv
+namespace ccf::kv
 {
   template <typename K, typename V, typename KSerialiser, typename VSerialiser>
   class MapDiff : public AbstractHandle
   {
   protected:
-    kv::untyped::MapDiff map_diff;
+    ccf::kv::untyped::MapDiff map_diff;
 
   public:
     using KeyType = K;
     using ValueType = V;
 
-    MapDiff(kv::untyped::MapDiff map_diff_) : map_diff(map_diff_) {}
+    MapDiff(ccf::kv::untyped::MapDiff map_diff_) : map_diff(map_diff_) {}
 
-    MapDiff(kv::untyped::ChangeSet& changes, const std::string& map_name) :
+    MapDiff(ccf::kv::untyped::ChangeSet& changes, const std::string& map_name) :
       map_diff(changes, map_name)
     {}
 
@@ -86,8 +86,8 @@ namespace kv
     {
       const auto& g =
         [&](
-          const kv::serialisers::SerialisedEntry& k_rep,
-          const std::optional<kv::serialisers::SerialisedEntry>& v_rep)
+          const ccf::kv::serialisers::SerialisedEntry& k_rep,
+          const std::optional<ccf::kv::serialisers::SerialisedEntry>& v_rep)
         -> bool {
         const auto k = KSerialiser::from_serialised(k_rep);
         if (v_rep.has_value())
@@ -116,8 +116,8 @@ namespace kv
     void foreach_key(F&& f)
     {
       auto g = [&](
-                 const kv::serialisers::SerialisedEntry& k_rep,
-                 const kv::serialisers::SerialisedEntry&) {
+                 const ccf::kv::serialisers::SerialisedEntry& k_rep,
+                 const ccf::kv::serialisers::SerialisedEntry&) {
         return f(KSerialiser::from_serialised(k_rep));
       };
       map_diff.foreach(g);
@@ -133,18 +133,19 @@ namespace kv
     template <class F>
     void foreach_value(F&& f)
     {
-      auto g = [&](
-                 const kv::serialisers::SerialisedEntry&,
-                 const std::optional<kv::serialisers::SerialisedEntry>& v_rep) {
-        if (v_rep.has_value())
-        {
-          return f(VSerialiser::from_serialised(v_rep));
-        }
-        else
-        {
-          return f(std::nullopt);
-        }
-      };
+      auto g =
+        [&](
+          const ccf::kv::serialisers::SerialisedEntry&,
+          const std::optional<ccf::kv::serialisers::SerialisedEntry>& v_rep) {
+          if (v_rep.has_value())
+          {
+            return f(VSerialiser::from_serialised(v_rep));
+          }
+          else
+          {
+            return f(std::nullopt);
+          }
+        };
       map_diff.foreach(g);
     }
 

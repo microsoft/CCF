@@ -11,11 +11,11 @@ namespace ccf
   // to user apps)
   struct EndpointContextImpl : public ccf::endpoints::EndpointContext
   {
-    std::unique_ptr<kv::CommittableTx> owned_tx = nullptr;
+    std::unique_ptr<ccf::kv::CommittableTx> owned_tx = nullptr;
 
     EndpointContextImpl(
       const std::shared_ptr<ccf::RpcContext>& r,
-      std::unique_ptr<kv::CommittableTx> t) :
+      std::unique_ptr<ccf::kv::CommittableTx> t) :
       ccf::endpoints::EndpointContext(r, *t),
       owned_tx(std::move(t))
     {}

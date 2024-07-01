@@ -25,7 +25,7 @@ namespace ccf
 
   public:
     GovEndpointRegistry(
-      NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
+      NetworkState& network_, ccf::AbstractNodeContext& context_) :
       CommonEndpointRegistry(get_actor_prefix(ActorsType::members), context_),
       network(network_),
       share_manager(network_.ledger_secrets)

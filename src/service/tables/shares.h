@@ -23,7 +23,8 @@ namespace ccf
     EncryptedSharesMap encrypted_shares;
 
     // Version at which the previous ledger secret was written to the store
-    std::optional<kv::Version> previous_secret_stored_version = std::nullopt;
+    std::optional<ccf::kv::Version> previous_secret_stored_version =
+      std::nullopt;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(RecoverySharesInfo)
@@ -38,18 +39,19 @@ namespace ccf
     std::vector<uint8_t> encrypted_data = {};
 
     // Version at which the ledger secret is applicable from
-    kv::Version version = kv::NoVersion;
+    ccf::kv::Version version = ccf::kv::NoVersion;
 
     // Version at which the ledger secret _before_ this one was written to the
     // store
-    std::optional<kv::Version> previous_secret_stored_version = std::nullopt;
+    std::optional<ccf::kv::Version> previous_secret_stored_version =
+      std::nullopt;
 
     PreviousLedgerSecretInfo() = default;
 
     PreviousLedgerSecretInfo(
       std::vector<uint8_t>&& encrypted_data_,
-      kv::Version version_,
-      std::optional<kv::Version> stored_version_) :
+      ccf::kv::Version version_,
+      std::optional<ccf::kv::Version> stored_version_) :
       encrypted_data(std::move(encrypted_data_)),
       version(version_),
       previous_secret_stored_version(stored_version_)
@@ -89,7 +91,7 @@ namespace ccf
     // integrity on the public-only transactions. However, the corresponding
     // shares are only written at a later version, once the previous ledger
     // secrets have been restored.
-    std::optional<kv::Version> next_version = std::nullopt;
+    std::optional<ccf::kv::Version> next_version = std::nullopt;
   };
 
   // Note: Both fields are never empty at the same time

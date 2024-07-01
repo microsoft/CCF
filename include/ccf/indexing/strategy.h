@@ -38,7 +38,7 @@ namespace ccf::indexing
      * transaction.
      */
     virtual void handle_committed_transaction(
-      const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store) = 0;
+      const ccf::TxID& tx_id, const ccf::kv::ReadOnlyStorePtr& store) = 0;
 
     virtual void tick() {}
 

@@ -19,7 +19,7 @@ namespace ccf::historical
   // additional entries have been requested, in which case the caller should
   // retry later.
   bool populate_service_endorsements(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     ccf::historical::StatePtr& state,
     AbstractStateCache& state_cache,
     std::shared_ptr<NetworkIdentitySubsystemInterface>

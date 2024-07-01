@@ -44,7 +44,7 @@ namespace ccf
       tid,
       constraint);
 
-    const auto issuer_url = http::parse_url_full(constraint);
+    const auto issuer_url = ::http::parse_url_full(constraint);
     if (issuer_url.host != microsoft_entra_domain)
     {
       return iss == constraint &&
@@ -75,7 +75,7 @@ namespace ccf
     // Check for details here:
     // https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens#validate-the-issuer.
 
-    const auto url = http::parse_url_full(iss);
+    const auto url = ::http::parse_url_full(iss);
     const auto tenant_id =
       first_non_empty_chunk(ccf::nonstd::split(url.path, "/"));
 
@@ -115,14 +115,14 @@ namespace ccf
   JwtAuthnPolicy::~JwtAuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> JwtAuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
     const auto& headers = ctx->get_request_headers();
 
     const auto token_opt =
-      http::JwtVerifier::extract_token(headers, error_reason);
+      ::http::JwtVerifier::extract_token(headers, error_reason);
 
     if (!token_opt)
     {
@@ -163,7 +163,7 @@ namespace ccf
     for (const auto& metadata : *token_keys)
     {
       auto verifier = verifiers->get_verifier(metadata.cert);
-      if (!http::JwtVerifier::validate_token_signature(token, verifier))
+      if (!::http::JwtVerifier::validate_token_signature(token, verifier))
       {
         continue;
       }

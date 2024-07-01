@@ -31,7 +31,8 @@ namespace ccf
     /// Status of the service
     ServiceStatus status = ServiceStatus::OPENING;
     /// Version (seqno) of previous service identity (before the last recovery)
-    std::optional<kv::Version> previous_service_identity_version = std::nullopt;
+    std::optional<ccf::kv::Version> previous_service_identity_version =
+      std::nullopt;
     /// Number of disaster recoveries performed on this service
     std::optional<size_t> recovery_count = std::nullopt;
     /// Free-form user data, can be used by members to store additional
