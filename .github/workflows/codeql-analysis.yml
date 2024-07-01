@@ -39,6 +39,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Done before CodeQL init to let it find the commit successfully
+      - name: Work around git warning
+        run: git config --global --add safe.directory /__w/CCF/CCF
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
@@ -47,9 +51,6 @@ jobs:
 
       - run: |
           set -ex
-          rm -rf build
-          git config --global --add safe.directory /__w/CCF/CCF
-          ls build
           mkdir build
           cd build
           cmake -DCOMPILE_TARGET=virtual -DREQUIRE_OPENENCLAVE=OFF -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DLVI_MITIGATIONS=OFF ..
@@ -57,7 +58,7 @@ jobs:
 
       - run: |
           cd build
-          make
+          make -j16
         name: Run Make
 
       - name: Perform CodeQL Analysis
