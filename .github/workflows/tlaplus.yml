@@ -2,8 +2,7 @@ name: "TLA+ Spec Verification"
 
 on:
   push:
-    paths:
-      - "tla/**"
+    branches: [main]
   pull_request:
     paths:
       - "tla/**"
