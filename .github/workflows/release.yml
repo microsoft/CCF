@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   release_notes:
-    name: "Release Notes"
+    name: Release Notes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
 
   build_release:
     needs: release_notes
-    name: Release
+    name: Build Release
     strategy:
       matrix:
         platform:
@@ -97,8 +97,9 @@ jobs:
           name: pkg-${{ matrix.platform.name }}
           path: build/${{ steps.make_deb.outputs.name }}
 
-  download:
+  create_release:
     needs: build_release
+    name: Create Release
     runs-on: ubuntu-latest
     steps:
     - name: Download Packages
@@ -114,3 +115,6 @@ jobs:
     - run: |
         ls
         ls -R pkg
+    - run: |
+        gh release create --title "CCF ${{ github.ref }}" --draft --notes-file rel-notes.md pkg/*
+      shell: bash
