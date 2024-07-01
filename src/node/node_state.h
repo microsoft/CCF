@@ -11,7 +11,6 @@
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/locking.h"
 #include "ccf/pal/platform.h"
-#include "ccf/serdes.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/service.h"
@@ -619,7 +618,7 @@ namespace ccf
             return;
           }
 
-          auto j = serdes::unpack(data, serdes::Pack::Text);
+          auto j = nlohmann::json::parse(data);
 
           JoinNetworkNodeToNode::Out resp;
           try
@@ -773,16 +772,15 @@ namespace ccf
       LOG_DEBUG_FMT(
         "Sending join request to {}", config.join.target_rpc_address);
 
-      const auto body = serdes::pack(join_params, serdes::Pack::Text);
+      const auto body = nlohmann::json(join_params).dump();
 
-      LOG_DEBUG_FMT(
-        "Sending join request body: {}", std::string(body.begin(), body.end()));
+      LOG_DEBUG_FMT("Sending join request body: {}", body);
 
       ::http::Request r(
         fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "join"));
       r.set_header(
         http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
-      r.set_body(&body);
+      r.set_body(body);
 
       join_client->send_request(std::move(r));
     }
@@ -1905,7 +1903,7 @@ namespace ccf
       create_params.service_data = config.service_data;
       create_params.create_txid = {create_view, last_recovered_signed_idx + 1};
 
-      const auto body = serdes::pack(create_params, serdes::Pack::Text);
+      const auto body = nlohmann::json(create_params).dump();
 
       ::http::Request request(
         fmt::format("/{}/{}", get_actor_prefix(ActorsType::nodes), "create"));
@@ -1913,7 +1911,7 @@ namespace ccf
         ccf::http::headers::CONTENT_TYPE,
         ccf::http::headervalues::contenttype::JSON);
 
-      request.set_body(&body);
+      request.set_body(body);
 
       return request.build_request();
     }
@@ -1936,8 +1934,7 @@ namespace ccf
         return false;
       }
 
-      const auto body =
-        serdes::unpack(ctx->get_response_body(), serdes::Pack::Text);
+      const auto body = nlohmann::json::parse(ctx->get_response_body());
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT("Expected boolean body in create response");
