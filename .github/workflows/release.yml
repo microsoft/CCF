@@ -15,8 +15,8 @@ permissions:
   checks: write
 
 jobs:
-  check_release_notes:
-    name: "Check Release Notes"
+  release_notes:
+    name: "Release Notes"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,11 +25,21 @@ jobs:
       - name: "Check Release Notes"
         run: |
           set -ex
-          # python scripts/extract-release-notes.py --target-git-version
+          python scripts/extract-release-notes.py --target-git-version
         shell: bash
+      - name: "Produce Release Notes"
+        run: |
+          set -ex
+          set -o pipefail
+          python3.8 ./scripts/extract-release-notes.py --target-git-version --append-mcr-images --describe-path-changes "./samples/constitution" | tee rel-notes.md
+      - name: "Upload .deb Package"
+        uses: actions/upload-artifact@v4
+        with:
+          name: relnotes
+          path: rel-notes.md
 
   build_release:
-    needs: check_release_notes
+    needs: release_notes
     name: Release
     strategy:
       matrix:
@@ -91,10 +101,16 @@ jobs:
     needs: build_release
     runs-on: ubuntu-latest
     steps:
-    - name: Download All Artifacts
+    - name: Download Packages
       uses: actions/download-artifact@v4
       with:
         path: pkg
         pattern: pkg-*
         merge-multiple: true
-    - run: ls -R pkg
+    - name: Download Release notes
+      uses: actions/download-artifact@v4
+      with:
+        name: relnotes
+    - run: |
+        ls
+        ls -R pkg
