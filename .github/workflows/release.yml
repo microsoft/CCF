@@ -70,6 +70,7 @@ jobs:
         run: |
           set -ex
           set -o pipefail
+          cd build
           cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
           cpack -V -G DEB
           INITIAL_PKG=`ls *.deb`
