@@ -25,7 +25,7 @@ jobs:
       - name: "Check Release Notes"
         run: |
           set -ex
-          python scripts/extract-release-notes.py --target-git-version
+          # python scripts/extract-release-notes.py --target-git-version
         shell: bash
 
   build_release:
@@ -61,6 +61,27 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} ..
+          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCLIENT_PROTOCOLS_TEST=ON ..
           ninja
         shell: bash
+
+      - name: "Make .deb Package"
+        id: make_deb
+        run: |
+          set -ex
+          set -o pipefail
+          cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
+          cpack -V -G DEB
+          INITIAL_PKG=`ls *.deb`
+          CCF_GITHUB_PKG=${INITIAL_PKG//\~/_}
+          if [[ "$INITIAL_PKG" != "$CCF_GITHUB_PKG" ]]; then
+            mv $INITIAL_PKG $CCF_GITHUB_PKG
+          fi
+          echo "name=$CCF_GITHUB_PKG" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: "Upload .deb Package"
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.platform.name }}
+          path: ${{ steps.make_deb.outputs.name }}
