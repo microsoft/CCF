@@ -29,7 +29,7 @@ std::optional<PathTemplateSpec> require_parsed_components(
 
 TEST_CASE("URL template parsing")
 {
-  logger::config::default_init();
+  ccf::logger::config::default_init();
 
   std::optional<PathTemplateSpec> parsed;
   std::string path;

@@ -12,7 +12,7 @@
 namespace ccf
 {
   bool verify_enclave_measurement_against_uvm_endorsements(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const pal::PlatformAttestationMeasurement& quote_measurement,
     const std::vector<uint8_t>& uvm_endorsements)
   {
@@ -44,7 +44,7 @@ namespace ccf
   }
 
   QuoteVerificationResult verify_enclave_measurement_against_store(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const pal::PlatformAttestationMeasurement& quote_measurement,
     const QuoteFormat& quote_format,
     const std::optional<std::vector<uint8_t>>& uvm_endorsements = std::nullopt)
@@ -155,7 +155,7 @@ namespace ccf
   }
 
   QuoteVerificationResult verify_host_data_against_store(
-    kv::ReadOnlyTx& tx, const QuoteInfo& quote_info)
+    ccf::kv::ReadOnlyTx& tx, const QuoteInfo& quote_info)
   {
     if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
     {
@@ -180,7 +180,7 @@ namespace ccf
   }
 
   QuoteVerificationResult AttestationProvider::verify_quote_against_store(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const QuoteInfo& quote_info,
     const std::vector<uint8_t>& expected_node_public_key_der,
     pal::PlatformAttestationMeasurement& measurement)

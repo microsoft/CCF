@@ -28,12 +28,12 @@ namespace ccf
     {
       ccf::NodeId node_id;
       ccf::NodeStartupState state;
-      kv::Version last_signed_seqno;
-      kv::Version startup_seqno;
+      ccf::kv::Version last_signed_seqno;
+      ccf::kv::Version startup_seqno;
 
       // Only on recovery
-      std::optional<kv::Version> recovery_target_seqno;
-      std::optional<kv::Version> last_recovered_seqno;
+      std::optional<ccf::kv::Version> recovery_target_seqno;
+      std::optional<ccf::kv::Version> last_recovered_seqno;
 
       bool stop_notice;
     };
@@ -86,7 +86,7 @@ namespace ccf
       // Always set by the joiner (node_state.h), but defaults to nullopt here
       // to make sure serialisation does take place now that it is OPTIONAL.
       std::optional<ConsensusType> consensus_type = std::nullopt;
-      std::optional<kv::Version> startup_seqno = std::nullopt;
+      std::optional<ccf::kv::Version> startup_seqno = std::nullopt;
       std::optional<ccf::crypto::Pem> certificate_signing_request =
         std::nullopt;
       nlohmann::json node_data = nullptr;
@@ -102,7 +102,7 @@ namespace ccf
       struct NetworkInfo
       {
         bool public_only = false;
-        kv::Version last_recovered_signed_idx = kv::NoVersion;
+        ccf::kv::Version last_recovered_signed_idx = ccf::kv::NoVersion;
         ConsensusType consensus_type = ConsensusType::CFT;
         std::optional<ReconfigurationType> reconfiguration_type =
           std::nullopt; // Unused, but kept for backwards compatibility
@@ -117,7 +117,7 @@ namespace ccf
 
         NetworkInfo(
           bool public_only,
-          kv::Version last_recovered_signed_idx,
+          ccf::kv::Version last_recovered_signed_idx,
           ReconfigurationType reconfiguration_type,
           const LedgerSecretsMap& ledger_secrets,
           const NetworkIdentity& identity,

@@ -90,7 +90,7 @@ namespace ccf
       const EndpointInfo& endpoint)
     {
       {
-        http::Request r(endpoint.uri, HTTP_GET);
+        ::http::Request r(endpoint.uri, HTTP_GET);
         for (auto const& [k, v] : endpoint.params)
         {
           r.set_query_param(k, v);

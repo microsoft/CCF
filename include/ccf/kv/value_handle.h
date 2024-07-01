@@ -5,20 +5,20 @@
 #include "ccf/kv/unit.h"
 #include "ccf/kv/untyped_map_handle.h"
 
-namespace kv
+namespace ccf::kv
 {
-  /** Grants read access to a @c kv::Value, as part of a @c kv::Tx.
+  /** Grants read access to a @c ccf::kv::Value, as part of a @c ccf::kv::Tx.
    */
   template <typename V, typename VSerialiser, typename Unit>
   class ReadableValueHandle
   {
   protected:
-    kv::untyped::MapHandle& read_handle;
+    ccf::kv::untyped::MapHandle& read_handle;
 
   public:
     using ValueType = V;
 
-    ReadableValueHandle(kv::untyped::MapHandle& uh) : read_handle(uh) {}
+    ReadableValueHandle(ccf::kv::untyped::MapHandle& uh) : read_handle(uh) {}
 
     /** Get the stored value.
      *
@@ -73,7 +73,7 @@ namespace kv
     /** Get version when this value was last written to, by a previous
      * transaction.
      *
-     * @see kv::ReadableMapHandle::get_version_of_previous_write
+     * @see ccf::kv::ReadableMapHandle::get_version_of_previous_write
      *
      * @return Optional containing version of applied transaction which last
      * wrote to this value, or nullopt if such a version does not exist
@@ -84,16 +84,16 @@ namespace kv
     }
   };
 
-  /** Grants write access to a @c kv::Value, as part of a @c kv::Tx.
+  /** Grants write access to a @c ccf::kv::Value, as part of a @c ccf::kv::Tx.
    */
   template <typename V, typename VSerialiser, typename Unit>
   class WriteableValueHandle
   {
   protected:
-    kv::untyped::MapHandle& write_handle;
+    ccf::kv::untyped::MapHandle& write_handle;
 
   public:
-    WriteableValueHandle(kv::untyped::MapHandle& uh) : write_handle(uh) {}
+    WriteableValueHandle(ccf::kv::untyped::MapHandle& uh) : write_handle(uh) {}
 
     /** Modify this value.
      *
@@ -116,10 +116,11 @@ namespace kv
     }
   };
 
-  /** Grants read and write access to a @c kv::Value, as part of a @c kv::Tx.
+  /** Grants read and write access to a @c ccf::kv::Value, as part of a @c
+   * ccf::kv::Tx.
    *
-   * @see kv::ReadableValueHandle
-   * @see kv::WriteableValueHandle
+   * @see ccf::kv::ReadableValueHandle
+   * @see ccf::kv::WriteableValueHandle
    */
   template <typename V, typename VSerialiser, typename Unit>
   class ValueHandle : public AbstractHandle,
@@ -127,13 +128,14 @@ namespace kv
                       public WriteableValueHandle<V, VSerialiser, Unit>
   {
   protected:
-    kv::untyped::MapHandle untyped_handle;
+    ccf::kv::untyped::MapHandle untyped_handle;
 
     using ReadableBase = ReadableValueHandle<V, VSerialiser, Unit>;
     using WriteableBase = WriteableValueHandle<V, VSerialiser, Unit>;
 
   public:
-    ValueHandle(kv::untyped::ChangeSet& changes, const std::string& map_name) :
+    ValueHandle(
+      ccf::kv::untyped::ChangeSet& changes, const std::string& map_name) :
       ReadableBase(untyped_handle),
       WriteableBase(untyped_handle),
       untyped_handle(changes, map_name)

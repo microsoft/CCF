@@ -67,7 +67,7 @@ namespace ccf::historical
   static constexpr size_t soft_to_raw_ratio{5};
 
   static std::optional<ccf::PrimarySignature> get_signature(
-    const kv::StorePtr& sig_store)
+    const ccf::kv::StorePtr& sig_store)
   {
     auto tx = sig_store->create_read_only_tx();
     auto signatures = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
@@ -75,7 +75,7 @@ namespace ccf::historical
   }
 
   static std::optional<std::vector<uint8_t>> get_tree(
-    const kv::StorePtr& sig_store)
+    const ccf::kv::StorePtr& sig_store)
   {
     auto tx = sig_store->create_read_only_tx();
     auto tree =
@@ -86,7 +86,7 @@ namespace ccf::historical
   class StateCacheImpl
   {
   protected:
-    kv::Store& source_store;
+    ccf::kv::Store& source_store;
     std::shared_ptr<ccf::LedgerSecrets> source_ledger_secrets;
     ringbuffer::WriterPtr to_host;
 
@@ -135,7 +135,7 @@ namespace ccf::historical
       StoreStage current_stage = StoreStage::Fetching;
       ccf::crypto::Sha256Hash entry_digest = {};
       ccf::ClaimsDigest claims_digest = {};
-      kv::StorePtr store = nullptr;
+      ccf::kv::StorePtr store = nullptr;
       bool is_signature = false;
       TxReceiptImplPtr receipt = nullptr;
       ccf::TxID transaction_id;
@@ -704,7 +704,7 @@ namespace ccf::historical
 
     void process_deserialised_store(
       const StoreDetailsPtr& details,
-      const kv::StorePtr& store,
+      const ccf::kv::StorePtr& store,
       const ccf::crypto::Sha256Hash& entry_digest,
       ccf::SeqNo seqno,
       bool is_signature,
@@ -803,7 +803,7 @@ namespace ccf::historical
     }
 
     bool handle_encrypted_past_ledger_secret(
-      const kv::StorePtr& store, LedgerSecretPtr encrypting_secret)
+      const ccf::kv::StorePtr& store, LedgerSecretPtr encrypting_secret)
     {
       // Read encrypted secrets from store
       auto tx = store->create_read_only_tx();
@@ -979,10 +979,10 @@ namespace ccf::historical
       }
     }
 
-    std::vector<kv::ReadOnlyStorePtr> states_to_stores(
+    std::vector<ccf::kv::ReadOnlyStorePtr> states_to_stores(
       const std::vector<StatePtr>& states)
     {
-      std::vector<kv::ReadOnlyStorePtr> stores;
+      std::vector<ccf::kv::ReadOnlyStorePtr> stores;
       for (size_t i = 0; i < states.size(); i++)
       {
         stores.push_back(states[i]->store);
@@ -992,7 +992,7 @@ namespace ccf::historical
 
   public:
     StateCacheImpl(
-      kv::Store& store,
+      ccf::kv::Store& store,
       const std::shared_ptr<ccf::LedgerSecrets>& secrets,
       const ringbuffer::WriterPtr& host_writer) :
       source_store(store),
@@ -1003,7 +1003,7 @@ namespace ccf::historical
         std::make_shared<ccf::NodeEncryptor>(historical_ledger_secrets))
     {}
 
-    kv::ReadOnlyStorePtr get_store_at(
+    ccf::kv::ReadOnlyStorePtr get_store_at(
       const CompoundHandle& handle,
       ccf::SeqNo seqno,
       ExpiryDuration seconds_until_expiry)
@@ -1017,7 +1017,7 @@ namespace ccf::historical
       return range[0];
     }
 
-    kv::ReadOnlyStorePtr get_store_at(
+    ccf::kv::ReadOnlyStorePtr get_store_at(
       const CompoundHandle& handle, ccf::SeqNo seqno)
     {
       return get_store_at(handle, seqno, default_expiry_duration);
@@ -1042,7 +1042,7 @@ namespace ccf::historical
       return get_state_at(handle, seqno, default_expiry_duration);
     }
 
-    std::vector<kv::ReadOnlyStorePtr> get_store_range(
+    std::vector<ccf::kv::ReadOnlyStorePtr> get_store_range(
       const CompoundHandle& handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno,
@@ -1055,7 +1055,7 @@ namespace ccf::historical
         false));
     }
 
-    std::vector<kv::ReadOnlyStorePtr> get_store_range(
+    std::vector<ccf::kv::ReadOnlyStorePtr> get_store_range(
       const CompoundHandle& handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno)
@@ -1086,7 +1086,7 @@ namespace ccf::historical
         handle, start_seqno, end_seqno, default_expiry_duration);
     }
 
-    std::vector<kv::ReadOnlyStorePtr> get_stores_for(
+    std::vector<ccf::kv::ReadOnlyStorePtr> get_stores_for(
       const CompoundHandle& handle,
       const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry)
@@ -1095,7 +1095,7 @@ namespace ccf::historical
         get_states_internal(handle, seqnos, seconds_until_expiry, false));
     }
 
-    std::vector<kv::ReadOnlyStorePtr> get_stores_for(
+    std::vector<ccf::kv::ReadOnlyStorePtr> get_stores_for(
       const CompoundHandle& handle, const SeqNoCollection& seqnos)
     {
       return get_stores_for(handle, seqnos, default_expiry_duration);
@@ -1160,7 +1160,7 @@ namespace ccf::historical
         return false;
       }
 
-      kv::ApplyResult deserialise_result;
+      ccf::kv::ApplyResult deserialise_result;
       ccf::ClaimsDigest claims_digest;
       bool has_commit_evidence;
       auto store = deserialise_ledger_entry(
@@ -1171,7 +1171,7 @@ namespace ccf::historical
         claims_digest,
         has_commit_evidence);
 
-      if (deserialise_result == kv::ApplyResult::FAIL)
+      if (deserialise_result == ccf::kv::ApplyResult::FAIL)
       {
         return false;
       }
@@ -1213,7 +1213,7 @@ namespace ccf::historical
       }
 
       const auto is_signature =
-        deserialise_result == kv::ApplyResult::PASS_SIGNATURE;
+        deserialise_result == ccf::kv::ApplyResult::PASS_SIGNATURE;
 
       update_earliest_known_ledger_secret();
 
@@ -1270,8 +1270,9 @@ namespace ccf::historical
       while (size > 0)
       {
         const auto header =
-          serialized::peek<kv::SerialisedEntryHeader>(data, size);
-        const auto whole_size = header.size + kv::serialised_entry_header_size;
+          serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
+        const auto whole_size =
+          header.size + ccf::kv::serialised_entry_header_size;
         all_accepted &= handle_ledger_entry(seqno, data, whole_size);
         data += whole_size;
         size -= whole_size;
@@ -1318,16 +1319,16 @@ namespace ccf::historical
       }
     }
 
-    kv::StorePtr deserialise_ledger_entry(
+    ccf::kv::StorePtr deserialise_ledger_entry(
       ccf::SeqNo seqno,
       const uint8_t* data,
       size_t size,
-      kv::ApplyResult& result,
+      ccf::kv::ApplyResult& result,
       ccf::ClaimsDigest& claims_digest,
       bool& has_commit_evidence)
     {
       // Create a new store and try to deserialise this entry into it
-      kv::StorePtr store = std::make_shared<kv::Store>(
+      ccf::kv::StorePtr store = std::make_shared<ccf::kv::Store>(
         false /* Do not start from very first seqno */,
         true /* Make use of historical secrets */);
 
@@ -1362,7 +1363,7 @@ namespace ccf::historical
         auto exec = store->deserialize({data, data + size}, public_only);
         if (exec == nullptr)
         {
-          result = kv::ApplyResult::FAIL;
+          result = ccf::kv::ApplyResult::FAIL;
           return nullptr;
         }
 
@@ -1379,7 +1380,7 @@ namespace ccf::historical
           "Exception while attempting to deserialise entry {}: {}",
           seqno,
           e.what());
-        result = kv::ApplyResult::FAIL;
+        result = ccf::kv::ApplyResult::FAIL;
       }
 
       return store;
@@ -1480,7 +1481,7 @@ namespace ccf::historical
     StateCache(Ts&&... ts) : StateCacheImpl(std::forward<Ts>(ts)...)
     {}
 
-    kv::ReadOnlyStorePtr get_store_at(
+    ccf::kv::ReadOnlyStorePtr get_store_at(
       RequestHandle handle,
       ccf::SeqNo seqno,
       ExpiryDuration seconds_until_expiry) override
@@ -1489,7 +1490,7 @@ namespace ccf::historical
         make_compound_handle(handle), seqno, seconds_until_expiry);
     }
 
-    kv::ReadOnlyStorePtr get_store_at(
+    ccf::kv::ReadOnlyStorePtr get_store_at(
       RequestHandle handle, ccf::SeqNo seqno) override
     {
       return StateCacheImpl::get_store_at(make_compound_handle(handle), seqno);
@@ -1509,7 +1510,7 @@ namespace ccf::historical
       return StateCacheImpl::get_state_at(make_compound_handle(handle), seqno);
     }
 
-    std::vector<kv::ReadOnlyStorePtr> get_store_range(
+    std::vector<ccf::kv::ReadOnlyStorePtr> get_store_range(
       RequestHandle handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno,
@@ -1522,7 +1523,7 @@ namespace ccf::historical
         seconds_until_expiry);
     }
 
-    std::vector<kv::ReadOnlyStorePtr> get_store_range(
+    std::vector<ccf::kv::ReadOnlyStorePtr> get_store_range(
       RequestHandle handle,
       ccf::SeqNo start_seqno,
       ccf::SeqNo end_seqno) override
@@ -1553,7 +1554,7 @@ namespace ccf::historical
         make_compound_handle(handle), start_seqno, end_seqno);
     }
 
-    std::vector<kv::ReadOnlyStorePtr> get_stores_for(
+    std::vector<ccf::kv::ReadOnlyStorePtr> get_stores_for(
       RequestHandle handle,
       const SeqNoCollection& seqnos,
       ExpiryDuration seconds_until_expiry) override
@@ -1562,7 +1563,7 @@ namespace ccf::historical
         make_compound_handle(handle), seqnos, seconds_until_expiry);
     }
 
-    std::vector<kv::ReadOnlyStorePtr> get_stores_for(
+    std::vector<ccf::kv::ReadOnlyStorePtr> get_stores_for(
       RequestHandle handle, const SeqNoCollection& seqnos) override
     {
       return StateCacheImpl::get_stores_for(

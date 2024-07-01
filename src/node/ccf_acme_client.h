@@ -77,7 +77,7 @@ namespace ccf
       std::shared_ptr<RPCMap> rpc_map,
       std::shared_ptr<RPCSessions> rpc_sessions,
       std::shared_ptr<ACMERpcFrontend> challenge_frontend,
-      std::shared_ptr<kv::Store> store,
+      std::shared_ptr<ccf::kv::Store> store,
       std::shared_ptr<ccf::crypto::KeyPair> account_key_pair = nullptr,
       std::shared_ptr<ACMEChallengeHandler> challenge_handler_ = nullptr) :
       ACME::Client(get_client_config(config), account_key_pair),
@@ -105,7 +105,7 @@ namespace ccf
     }
 
     virtual void check_expiry(
-      std::shared_ptr<kv::Store> tables,
+      std::shared_ptr<ccf::kv::Store> tables,
       std::unique_ptr<NetworkIdentity>& identity)
     {
       auto now = std::chrono::system_clock::now();
@@ -143,7 +143,7 @@ namespace ccf
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpc_sessions;
     std::shared_ptr<ACMERpcFrontend> challenge_frontend;
-    std::shared_ptr<kv::Store> store;
+    std::shared_ptr<ccf::kv::Store> store;
     std::shared_ptr<ACMEChallengeHandler> challenge_handler;
 
     void install_wildcard_response()
@@ -158,8 +158,8 @@ namespace ccf
     }
 
     virtual void on_http_request(
-      const http::URL& url,
-      http::Request&& req,
+      const ::http::URL& url,
+      ::http::Request&& req,
       std::function<
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback) override

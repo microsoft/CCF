@@ -18,7 +18,7 @@ namespace ccf
 {
   using Nodes = ServiceMap<NodeId, NodeInfo>;
   using NodeEndorsedCertificates =
-    kv::RawCopySerialisedMap<NodeId, ccf::crypto::Pem>;
+    ccf::kv::RawCopySerialisedMap<NodeId, ccf::crypto::Pem>;
 
   namespace Tables
   {

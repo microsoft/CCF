@@ -22,7 +22,7 @@ namespace http
     virtual void handle_request(
       llhttp_method method,
       const std::string_view& url,
-      HeaderMap&& headers,
+      ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body,
       int32_t stream_id = http2::DEFAULT_STREAM_ID) = 0;
   };
@@ -31,6 +31,8 @@ namespace http
   {
   public:
     virtual void handle_response(
-      http_status status, HeaderMap&& headers, std::vector<uint8_t>&& body) = 0;
+      http_status status,
+      ccf::http::HeaderMap&& headers,
+      std::vector<uint8_t>&& body) = 0;
   };
 }

@@ -7,7 +7,7 @@
 
 #include <memory>
 
-namespace kv
+namespace ccf::kv
 {
   class Tx;
 }
@@ -28,7 +28,7 @@ namespace ccf::js::extensions
 
     ccf::js::NamespaceRestriction namespace_restriction;
 
-    KvExtension(kv::Tx* t, const ccf::js::NamespaceRestriction& nr = {});
+    KvExtension(ccf::kv::Tx* t, const ccf::js::NamespaceRestriction& nr = {});
     ~KvExtension();
 
     void install(js::core::Context& ctx);

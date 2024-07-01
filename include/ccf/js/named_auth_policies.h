@@ -6,7 +6,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/endpoint_registry.h"
 
-namespace ccfapp
+namespace ccf
 {
   using NamedAuthPolicies =
     std::unordered_map<std::string, std::shared_ptr<ccf::AuthnPolicy>>;

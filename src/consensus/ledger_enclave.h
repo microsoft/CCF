@@ -25,8 +25,9 @@ namespace consensus
      */
     static std::vector<uint8_t> get_entry(const uint8_t*& data, size_t& size)
     {
-      auto header = serialized::peek<kv::SerialisedEntryHeader>(data, size);
-      size_t entry_size = kv::serialised_entry_header_size + header.size;
+      auto header =
+        serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
+      size_t entry_size = ccf::kv::serialised_entry_header_size + header.size;
       std::vector<uint8_t> entry(data, data + entry_size);
       serialized::skip(data, size, entry_size);
       return entry;
@@ -51,8 +52,8 @@ namespace consensus
     void put_entry(
       const std::vector<uint8_t>& entry,
       bool globally_committable,
-      kv::Term term,
-      kv::Version index)
+      ccf::kv::Term term,
+      ccf::kv::Version index)
     {
       put_entry(entry.data(), entry.size(), globally_committable, term, index);
     }
@@ -72,8 +73,8 @@ namespace consensus
       const uint8_t* data,
       size_t size,
       bool globally_committable,
-      kv::Term term,
-      kv::Version index)
+      ccf::kv::Term term,
+      ccf::kv::Version index)
     {
       serializer::ByteRange byte_range = {data, size};
       RINGBUFFER_WRITE_MESSAGE(
@@ -90,7 +91,8 @@ namespace consensus
      */
     static void skip_entry(const uint8_t*& data, size_t& size)
     {
-      auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
+      auto header =
+        serialized::read<ccf::kv::SerialisedEntryHeader>(data, size);
       serialized::skip(data, size, header.size);
     }
 
