@@ -1499,15 +1499,7 @@ const actions = new Map([
     new Action(
       function (args) {
         // Validate that no arguments are passed
-        if (
-          args !== undefined &&
-          args !== null &&
-          Object.keys(args).length > 0
-        ) {
-          throw new Error(
-            "remove_old_jwt_tables does not accept any arguments",
-          );
-        }
+        checkNone(args);
       },
       function (args) {
         // Clear the JWT public signing key table
