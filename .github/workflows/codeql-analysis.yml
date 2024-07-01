@@ -47,6 +47,7 @@ jobs:
 
       - run: |
           set -ex
+          rm -rf build
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
