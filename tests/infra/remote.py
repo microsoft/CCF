@@ -383,12 +383,10 @@ class LocalRemote(CmdMixin):
 
     @property
     def shutdown_timeout(self):
-        breakpoint()
         return self._shutdown_timeout
 
     @shutdown_timeout.setter
     def shutdown_timeout(self, value):
-        breakpoint()
         self._shutdown_timeout = value
 
     @staticmethod
