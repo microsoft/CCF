@@ -19,7 +19,7 @@ using namespace nlohmann;
 
 namespace programmabilityapp
 {
-  using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
+  using RecordsMap = ccf::kv::Map<std::string, std::vector<uint8_t>>;
   static constexpr auto PRIVATE_RECORDS = "programmability.records";
   static constexpr auto CUSTOM_ENDPOINTS_NAMESPACE = "public:custom_endpoints";
 
@@ -43,9 +43,11 @@ namespace programmabilityapp
   // This is a pure helper function which can be called from either C++ or JS,
   // to implement common functionality in a single place
   static inline bool has_role_permitting_action(
-    kv::ReadOnlyTx& tx, const std::string& user_id, const std::string& action)
+    ccf::kv::ReadOnlyTx& tx,
+    const std::string& user_id,
+    const std::string& action)
   {
-    using RoleSet = kv::Set<std::string>;
+    using RoleSet = ccf::kv::Set<std::string>;
 
     auto users_handle = tx.ro<ccf::UserInfo>(ccf::Tables::USER_INFO);
     const auto user_info = users_handle->get(user_id);
@@ -77,9 +79,9 @@ namespace programmabilityapp
     // this extension object.
     // In this case, since the extension adds a function that wants to read from
     // the KV, it needs the current request's Tx.
-    kv::ReadOnlyTx* tx;
+    ccf::kv::ReadOnlyTx* tx;
 
-    MyExtension(kv::ReadOnlyTx* t) : tx(t) {}
+    MyExtension(ccf::kv::ReadOnlyTx* t) : tx(t) {}
 
     void install(ccf::js::core::Context& ctx) override;
   };
@@ -113,7 +115,7 @@ namespace programmabilityapp
       return JS_ThrowInternalError(ctx, "No transaction available");
     }
 
-    kv::ReadOnlyTx& tx = *tx_ptr;
+    ccf::kv::ReadOnlyTx& tx = *tx_ptr;
 
     // Process the arguments passed to the JS function, confirming they're both
     // strings
@@ -261,7 +263,7 @@ namespace programmabilityapp
     }
 
   public:
-    ProgrammabilityHandlers(ccfapp::AbstractNodeContext& context) :
+    ProgrammabilityHandlers(ccf::AbstractNodeContext& context) :
       ccf::js::DynamicJSEndpointRegistry(
         context,
         CUSTOM_ENDPOINTS_NAMESPACE // Internal KV space will be under
@@ -317,7 +319,8 @@ namespace programmabilityapp
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::TEXT);
           ctx.rpc_ctx->set_response_body(record.value());
           return;
         }
@@ -499,7 +502,8 @@ namespace programmabilityapp
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(bundle).dump(2));
       };
 
@@ -517,10 +521,10 @@ namespace programmabilityapp
 
           {
             const auto parsed_query =
-              http::parse_query(ctx.rpc_ctx->get_request_query());
+              ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
             std::string error;
-            if (!http::get_query_value(
+            if (!ccf::http::get_query_value(
                   parsed_query, "module_name", module_name, error))
             {
               ctx.rpc_ctx->set_error(
@@ -547,8 +551,8 @@ namespace programmabilityapp
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE,
-            http::headervalues::contenttype::JAVASCRIPT);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::JAVASCRIPT);
           ctx.rpc_ctx->set_response_body(std::move(code));
         };
 
@@ -671,7 +675,8 @@ namespace programmabilityapp
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(options).dump(2));
         };
       make_endpoint(
@@ -698,7 +703,8 @@ namespace programmabilityapp
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(options).dump(2));
       };
       make_endpoint(
@@ -722,10 +728,10 @@ namespace programmabilityapp
   };
 }
 
-namespace ccfapp
+namespace ccf
 {
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
-    ccfapp::AbstractNodeContext& context)
+    ccf::AbstractNodeContext& context)
   {
     return std::make_unique<programmabilityapp::ProgrammabilityHandlers>(
       context);

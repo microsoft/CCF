@@ -12,7 +12,7 @@
 #include <optional>
 #include <string>
 
-namespace kv
+namespace ccf::kv
 {
   class AbstractHandle;
   class AbstractMap;
@@ -196,7 +196,7 @@ namespace kv
    * type-safety, prefer restricted handles returned by @c ro or @c wo where
    * possible, rather than the general @c rw.
    *
-   * @see kv::ReadOnlyTx
+   * @see ccf::kv::ReadOnlyTx
    */
   class Tx : public ReadOnlyTx
   {

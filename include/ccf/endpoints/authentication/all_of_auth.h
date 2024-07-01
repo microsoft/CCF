@@ -37,7 +37,7 @@ namespace ccf
       const std::vector<std::shared_ptr<AuthnPolicy>>& _policies);
 
     std::unique_ptr<AuthnIdentity> authenticate(
-      kv::ReadOnlyTx&,
+      ccf::kv::ReadOnlyTx&,
       const std::shared_ptr<ccf::RpcContext>&,
       std::string&) override;
 

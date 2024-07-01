@@ -17,7 +17,7 @@ function(add_unit_test name)
   set_property(
     TEST ${name}
     APPEND
-    PROPERTY LABELS unit_test
+    PROPERTY LABELS unit
   )
 
   set_property(

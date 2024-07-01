@@ -2,7 +2,7 @@
 
 <img alt="ccf" align="right" src="doc/_static/ccf.svg" width="200">
 
-- Continuous Build: [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20Github%20CI?branchName=main)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=3&branchName=main)
+- Continuous Build: [![CI](https://github.com/microsoft/CCF/actions/workflows/build.yml/badge.svg)](https://github.com/microsoft/CCF/actions/workflows/build.yml)
 - Daily Build: [![Build Status](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Daily?branchName=main)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=7&branchName=main)
 - Doc Build: [![docs](https://dev.azure.com/MSRC-CCF/CCF/_apis/build/status/CCF%20GitHub%20Pages?branchName=main)](https://dev.azure.com/MSRC-CCF/CCF/_build/latest?definitionId=4&branchName=main)
 - Containers: [![Build and Publish Release Containers](https://github.com/microsoft/CCF/actions/workflows/containers.yml/badge.svg)](https://github.com/microsoft/CCF/actions/workflows/containers.yml)

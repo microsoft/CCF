@@ -78,7 +78,7 @@ namespace ccf
       std::string&& msg,
       const std::vector<nlohmann::json>& details = {}) override
     {
-      auto content_type = get_request_header(http::headers::CONTENT_TYPE);
+      auto content_type = get_request_header(ccf::http::headers::CONTENT_TYPE);
       if (
         content_type.has_value() &&
         content_type.value() == http::headervalues::contenttype::GRPC)
@@ -110,7 +110,8 @@ namespace ccf
       set_response_status(status);
       set_response_body(std::vector<uint8_t>(s.begin(), s.end()));
       set_response_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+        ccf::http::headers::CONTENT_TYPE,
+        http::headervalues::contenttype::JSON);
     }
 
     void set_grpc_error(grpc_status grpc_status, std::string&& msg)
@@ -122,7 +123,8 @@ namespace ccf
 
       set_response_status(HTTP_STATUS_OK);
       set_response_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::GRPC);
+        ccf::http::headers::CONTENT_TYPE,
+        http::headervalues::contenttype::GRPC);
       set_response_trailer(grpc::make_status_trailer(grpc_status));
       set_response_trailer(grpc::make_message_trailer(msg));
     }

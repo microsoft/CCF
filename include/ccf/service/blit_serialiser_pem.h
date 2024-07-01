@@ -5,7 +5,7 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/kv/serialisers/blit_serialiser.h"
 
-namespace kv::serialisers
+namespace ccf::kv::serialisers
 {
   template <>
   struct BlitSerialiser<ccf::crypto::Pem>

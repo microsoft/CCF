@@ -431,12 +431,14 @@ namespace ccf::indexing::strategies
 
   SeqnosByKey_Bucketed_Untyped::SeqnosByKey_Bucketed_Untyped(
     const std::string& map_name_,
-    ccfapp::AbstractNodeContext& node_context,
+    ccf::AbstractNodeContext& node_context,
     size_t seqnos_per_bucket_,
     size_t max_buckets_) :
     VisitEachEntryInMap(map_name_, "SeqnosByKey")
   {
-    if (kv::get_security_domain(map_name_) != kv::SecurityDomain::PUBLIC)
+    if (
+      ccf::kv::get_security_domain(map_name_) !=
+      ccf::kv::SecurityDomain::PUBLIC)
     {
       throw std::logic_error(fmt::format(
         "This Strategy ({}) is currently only implemented for public tables, "

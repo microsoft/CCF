@@ -288,12 +288,13 @@ namespace asynchost
         total_len = sizeof(positions_offset_header_t);
         auto len = total_file_size - total_len;
 
-        kv::SerialisedEntryHeader entry_header = {};
+        ccf::kv::SerialisedEntryHeader entry_header = {};
         size_t current_idx = start_idx;
-        while (len >= kv::serialised_entry_header_size)
+        while (len >= ccf::kv::serialised_entry_header_size)
         {
           if (
-            fread(&entry_header, kv::serialised_entry_header_size, 1, file) !=
+            fread(
+              &entry_header, ccf::kv::serialised_entry_header_size, 1, file) !=
             1)
           {
             LOG_FAIL_FMT(
@@ -303,7 +304,7 @@ namespace asynchost
             return;
           }
 
-          len -= kv::serialised_entry_header_size;
+          len -= ccf::kv::serialised_entry_header_size;
 
           const auto& entry_size = entry_header.size;
           if (len < entry_size)
@@ -330,7 +331,7 @@ namespace asynchost
 
           current_idx++;
           positions.push_back(total_len);
-          total_len += (kv::serialised_entry_header_size + entry_size);
+          total_len += (ccf::kv::serialised_entry_header_size + entry_size);
         }
         completed = false;
       }
@@ -1297,9 +1298,10 @@ namespace asynchost
       TimeBoundLogger log_if_slow(fmt::format(
         "Writing ledger entry - {} bytes, committable={}", size, committable));
 
-      auto header = serialized::peek<kv::SerialisedEntryHeader>(data, size);
+      auto header =
+        serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
 
-      if (header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE)
+      if (header.flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE)
       {
         LOG_TRACE_FMT(
           "Forcing ledger chunk before entry as required by the entry header "
@@ -1314,7 +1316,7 @@ namespace asynchost
       }
 
       bool force_chunk_after =
-        header.flags & kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
+        header.flags & ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER;
       if (force_chunk_after)
       {
         if (!committable)

@@ -19,13 +19,13 @@ std::unique_ptr<threading::ThreadMessaging>
 
 TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 {
-  auto source_consensus = std::make_shared<kv::test::StubConsensus>();
-  kv::Store source_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto source_consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  ccf::kv::Store source_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   source_store.set_encryptor(encryptor);
   source_store.set_consensus(source_consensus);
 
-  ccf::NodeId source_node_id = kv::test::PrimaryNodeId;
+  ccf::NodeId source_node_id = ccf::kv::test::PrimaryNodeId;
   auto source_node_kp = ccf::crypto::make_key_pair();
 
   auto source_history = std::make_shared<ccf::MerkleTxHistory>(
@@ -34,10 +34,10 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   source_store.set_history(source_history);
   source_store.initialise_term(2);
 
-  kv::Map<std::string, std::string> string_map("public:string_map");
+  ccf::kv::Map<std::string, std::string> string_map("public:string_map");
 
   size_t transactions_count = 3;
-  kv::Version snapshot_version = kv::NoVersion;
+  ccf::kv::Version snapshot_version = ccf::kv::NoVersion;
 
   INFO("Apply transactions to original store");
   {
@@ -46,7 +46,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       auto tx = source_store.create_tx();
       auto map = tx.rw(string_map);
       map->put(fmt::format("key#{}", i), "value");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
   }
 
@@ -88,15 +88,15 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
   INFO("Snapshot at signature");
   {
-    kv::Store target_store;
-    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    ccf::kv::Store target_store;
+    auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
     target_store.set_encryptor(encryptor);
     INFO("Setup target store");
     {
       auto target_node_kp = ccf::crypto::make_key_pair();
 
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
-        target_store, kv::test::PrimaryNodeId, *target_node_kp);
+        target_store, ccf::kv::test::PrimaryNodeId, *target_node_kp);
       target_history->set_endorsed_certificate({});
       target_store.set_history(target_history);
     }
@@ -105,43 +105,45 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
 
     INFO("Apply snapshot taken before any signature was emitted");
     {
-      std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
+      std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot =
+        nullptr;
       {
-        kv::ScopedStoreMapsLock maps_lock(&source_store);
+        ccf::kv::ScopedStoreMapsLock maps_lock(&source_store);
         snapshot = source_store.snapshot_unsafe_maps(snapshot_version - 1);
       }
       auto serialised_snapshot =
         source_store.serialise_snapshot(std::move(snapshot));
 
       // There is no signature to read to seed the target history
-      std::vector<kv::Version> view_history;
-      kv::ConsensusHookPtrs hooks;
+      std::vector<ccf::kv::Version> view_history;
+      ccf::kv::ConsensusHookPtrs hooks;
       REQUIRE(
         target_store.deserialise_snapshot(
           serialised_snapshot.data(),
           serialised_snapshot.size(),
           hooks,
-          &view_history) == kv::ApplyResult::FAIL);
+          &view_history) == ccf::kv::ApplyResult::FAIL);
     }
 
     INFO("Apply snapshot taken at signature");
     {
-      std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
+      std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot =
+        nullptr;
       {
-        kv::ScopedStoreMapsLock maps_lock(&source_store);
+        ccf::kv::ScopedStoreMapsLock maps_lock(&source_store);
         snapshot = source_store.snapshot_unsafe_maps(snapshot_version);
       }
       auto serialised_snapshot =
         source_store.serialise_snapshot(std::move(snapshot));
 
-      std::vector<kv::Version> view_history;
-      kv::ConsensusHookPtrs hooks;
+      std::vector<ccf::kv::Version> view_history;
+      ccf::kv::ConsensusHookPtrs hooks;
       REQUIRE(
         target_store.deserialise_snapshot(
           serialised_snapshot.data(),
           serialised_snapshot.size(),
           hooks,
-          &view_history) == kv::ApplyResult::PASS);
+          &view_history) == ccf::kv::ApplyResult::PASS);
 
       // Merkle history and view history thus far are restored when applying
       // snapshot
@@ -157,7 +159,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       auto tx = source_store.create_tx();
       auto map = tx.rw(string_map);
       map->put("key", "value");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
       auto serialised_tx = source_consensus->get_latest_data().value();
 

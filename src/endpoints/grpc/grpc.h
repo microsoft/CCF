@@ -187,8 +187,8 @@ namespace ccf
     };
   }
 
-  // Note: For now, only command endpoints (i.e. with no kv::Tx) support gRPC
-  // server streaming.
+  // Note: For now, only command endpoints (i.e. with no ccf::kv::Tx) support
+  // gRPC server streaming.
   template <typename In, typename Out>
   endpoints::CommandEndpointFunction grpc_command_unary_stream_adapter(
     const GrpcCommandUnaryStreamEndpoint<In, Out>& f)

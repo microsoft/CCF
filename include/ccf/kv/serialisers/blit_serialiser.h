@@ -5,7 +5,7 @@
 #include "ccf/ds/nonstd.h"
 #include "ccf/kv/serialisers/serialised_entry.h"
 
-namespace kv::serialisers
+namespace ccf::kv::serialisers
 {
   // Converts values to their raw, in-memory representation. To add support for
   // custom types, add a specialization of BlitSerialiser for them.

@@ -93,10 +93,11 @@ int main(int argc, char** argv)
 
   LoggerLevel enclave_log_level = LoggerLevel::INFO;
   std::map<std::string, LoggerLevel> log_level_options;
-  for (size_t i = logger::MOST_VERBOSE; i < LoggerLevel::MAX_LOG_LEVEL; ++i)
+  for (size_t i = ccf::logger::MOST_VERBOSE; i < LoggerLevel::MAX_LOG_LEVEL;
+       ++i)
   {
     const auto l = (LoggerLevel)i;
-    log_level_options[logger::to_string(l)] = l;
+    log_level_options[ccf::logger::to_string(l)] = l;
   }
 
   app
@@ -166,11 +167,11 @@ int main(int argc, char** argv)
 
   if (config.logging.format == host::LogFormat::JSON)
   {
-    logger::config::add_json_console_logger();
+    ccf::logger::config::add_json_console_logger();
   }
   else
   {
-    logger::config::add_text_console_logger();
+    ccf::logger::config::add_text_console_logger();
   }
 
   LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
@@ -258,7 +259,7 @@ int main(int argc, char** argv)
   files::dump(fmt::format("{}", ::getpid()), config.output_files.pid_file);
 
   // set the host log level
-  logger::config::level() = config.logging.host_level;
+  ccf::logger::config::level() = config.logging.host_level;
 
   asynchost::TimeBoundLogger::default_max_time =
     config.slow_io_logging_threshold;
