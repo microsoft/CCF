@@ -10,7 +10,7 @@ A CCF application is composed of the following:
 Application Entry Point
 -----------------------
 
-.. doxygenfunction:: ccfapp::make_user_endpoints
+.. doxygenfunction:: ccf::make_user_endpoints
    :project: CCF
 
 
@@ -149,7 +149,7 @@ Indexing
 JavaScript FFI Plugins
 ----------------------
 
-.. doxygenfunction:: ccfapp::get_js_plugins
+.. doxygenfunction:: ccf::get_js_plugins
    :project: CCF
 
 HTTP Entity Tags Matching

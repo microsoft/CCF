@@ -5,7 +5,7 @@
 
 #include <vector>
 
-namespace ccfapp
+namespace ccf
 {
   std::vector<ccf::js::FFIPlugin> __attribute__((weak)) get_js_plugins()
   {

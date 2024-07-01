@@ -42,11 +42,11 @@ static std::vector<ActionDesc> create_actions(
   ExpectedSeqNos& seqnos_value)
 {
   std::vector<ActionDesc> actions;
-  actions.push_back({seqnos_hello, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_hello, [](size_t i, ccf::kv::Tx& tx) {
                        tx.wo(map_a)->put("hello", "value doesn't matter");
                        return true;
                      }});
-  actions.push_back({seqnos_saluton, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_saluton, [](size_t i, ccf::kv::Tx& tx) {
                        if (i % 2 == 0)
                        {
                          tx.wo(map_a)->put("saluton", "value doesn't matter");
@@ -54,7 +54,7 @@ static std::vector<ActionDesc> create_actions(
                        }
                        return false;
                      }});
-  actions.push_back({seqnos_1, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_1, [](size_t i, ccf::kv::Tx& tx) {
                        if (i % 3 == 0)
                        {
                          tx.wo(map_b)->put(1, 42);
@@ -62,7 +62,7 @@ static std::vector<ActionDesc> create_actions(
                        }
                        return false;
                      }});
-  actions.push_back({seqnos_2, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_2, [](size_t i, ccf::kv::Tx& tx) {
                        if (i % 4 == 0)
                        {
                          tx.wo(map_b)->put(2, 42);
@@ -70,7 +70,7 @@ static std::vector<ActionDesc> create_actions(
                        }
                        return false;
                      }});
-  actions.push_back({seqnos_set, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_set, [](size_t i, ccf::kv::Tx& tx) {
                        if (i % 5 == 0)
                        {
                          tx.wo(set_a)->insert("set key");
@@ -78,7 +78,7 @@ static std::vector<ActionDesc> create_actions(
                        }
                        return false;
                      }});
-  actions.push_back({seqnos_value, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_value, [](size_t i, ccf::kv::Tx& tx) {
                        if (i % 6 == 0)
                        {
                          tx.wo(value_a)->put("value doesn't matter");
@@ -181,7 +181,7 @@ TEST_CASE("Basic cache" * doctest::test_suite("lfs"))
 
 TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 {
-  kv::Store kv_store;
+  ccf::kv::Store kv_store;
 
   auto consensus = std::make_shared<AllCommittableConsensus>();
   kv_store.set_consensus(consensus);
@@ -189,7 +189,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
   auto fetcher = std::make_shared<TestTransactionFetcher>();
   ccf::indexing::Indexer indexer(fetcher);
 
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
   messaging::BufferProcessor host_bp("lfs_host");
@@ -209,7 +209,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
     std::make_shared<ringbuffer::Writer>(outbound_reader));
   enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
 
-  ccfapp::AbstractNodeContext node_context;
+  ccf::AbstractNodeContext node_context;
   node_context.install_subsystem(enclave_lfs);
 
   auto flush_ringbuffers = [&]() {
@@ -394,7 +394,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
   auto index_b = std::make_shared<StratB>(map_b, node_context, 100, 4);
   REQUIRE(indexer.install_strategy(index_b));
 
-  kv::TxID current_ = kv_store.current_txid();
+  ccf::kv::TxID current_ = kv_store.current_txid();
   ccf::TxID current{current_.term, current_.version};
   REQUIRE(index_a->get_indexed_watermark() == current);
   REQUIRE(index_b->get_indexed_watermark() == ccf::TxID());
@@ -505,7 +505,7 @@ TEST_CASE("Integrated cache" * doctest::test_suite("lfs"))
 
 void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
 {
-  kv::Store kv_store;
+  ccf::kv::Store kv_store;
 
   auto consensus = std::make_shared<AllCommittableConsensus>();
   kv_store.set_consensus(consensus);
@@ -513,7 +513,7 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
   auto fetcher = std::make_shared<TestTransactionFetcher>();
   ccf::indexing::Indexer indexer(fetcher);
 
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
   messaging::BufferProcessor host_bp("lfs_host");
@@ -533,7 +533,7 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
     std::make_shared<ringbuffer::Writer>(outbound_reader));
   enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
 
-  ccfapp::AbstractNodeContext node_context;
+  ccf::AbstractNodeContext node_context;
   node_context.install_subsystem(enclave_lfs);
 
   auto flush_ringbuffers = [&]() {
@@ -565,7 +565,7 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
       {
         handle_b->put(k, k);
       }
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       const auto seqno = tx.get_txid()->version;
       for (const auto& k : keys)
       {
@@ -580,7 +580,7 @@ void run_sparse_index_test(size_t bucket_size, size_t num_buckets)
       auto tx = kv_store.create_tx();
       auto handle_a = tx.wo(map_a);
       handle_a->put("ignore", "ignore");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
   };
 

@@ -62,7 +62,7 @@ namespace ccf
   }
 
   CommonEndpointRegistry::CommonEndpointRegistry(
-    const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_) :
+    const std::string& method_prefix_, ccf::AbstractNodeContext& context_) :
     BaseEndpointRegistry(method_prefix_, context_)
   {}
 
@@ -285,13 +285,12 @@ namespace ccf
 
     auto get_receipt =
       [](auto& ctx, ccf::historical::StatePtr historical_state) {
-        const auto [pack, params] =
-          ccf::jsonhandler::get_json_params(ctx.rpc_ctx);
+        const auto params = ccf::jsonhandler::get_json_params(ctx.rpc_ctx);
 
         assert(historical_state->receipt);
         auto out = ccf::describe_receipt_v1(*historical_state->receipt);
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ccf::jsonhandler::set_response(out, ctx.rpc_ctx, pack);
+        ccf::jsonhandler::set_response(out, ctx.rpc_ctx);
       };
 
     make_read_only_endpoint(

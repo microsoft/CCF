@@ -10,10 +10,10 @@
 
 #include <optional>
 
-namespace kv
+namespace ccf::kv
 {
-  using SerialisedKey = kv::serialisers::SerialisedEntry;
-  using SerialisedValue = kv::serialisers::SerialisedEntry;
+  using SerialisedKey = ccf::kv::serialisers::SerialisedEntry;
+  using SerialisedValue = ccf::kv::serialisers::SerialisedEntry;
 
   template <typename W>
   class GenericSerialiseWrapper
@@ -299,7 +299,7 @@ namespace kv
     std::optional<Version> init(
       const uint8_t* data,
       size_t size,
-      kv::Term& term,
+      ccf::kv::Term& term,
       bool historical_hint = false)
     {
       current_reader = &public_reader;

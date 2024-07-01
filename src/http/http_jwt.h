@@ -62,11 +62,11 @@ namespace http
         return false;
       }
       auto auth_scheme = auth_header_value.substr(0, next_space);
-      if (auth_scheme != auth::BEARER_AUTH_SCHEME)
+      if (auth_scheme != ccf::http::auth::BEARER_AUTH_SCHEME)
       {
         error_reason = fmt::format(
           "Authorization header does not have {} scheme",
-          auth::BEARER_AUTH_SCHEME);
+          ccf::http::auth::BEARER_AUTH_SCHEME);
         return false;
       }
       auth_header_value = auth_header_value.substr(next_space + 1);
@@ -156,12 +156,13 @@ namespace http
     }
 
     static std::optional<Token> extract_token(
-      const http::HeaderMap& headers, std::string& error_reason)
+      const ccf::http::HeaderMap& headers, std::string& error_reason)
     {
-      const auto auth_it = headers.find(headers::AUTHORIZATION);
+      const auto auth_it = headers.find(ccf::http::headers::AUTHORIZATION);
       if (auth_it == headers.end())
       {
-        error_reason = fmt::format("Missing {} header", headers::AUTHORIZATION);
+        error_reason =
+          fmt::format("Missing {} header", ccf::http::headers::AUTHORIZATION);
         return std::nullopt;
       }
       std::string_view token = auth_it->second;

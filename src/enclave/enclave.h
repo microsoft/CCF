@@ -59,7 +59,7 @@ namespace ccf
 
     StartType start_type;
 
-    struct NodeContext : public ccfapp::AbstractNodeContext
+    struct NodeContext : public ccf::AbstractNodeContext
     {
       const ccf::NodeId this_node;
 
@@ -178,7 +178,7 @@ namespace ccf
 
       rpc_map->register_frontend<ccf::ActorsType::users>(
         std::make_unique<ccf::UserRpcFrontend>(
-          network, ccfapp::make_user_endpoints(*context), *context));
+          network, ccf::make_user_endpoints(*context), *context));
 
       rpc_map->register_frontend<ccf::ActorsType::nodes>(
         std::make_unique<ccf::NodeRpcFrontend>(network, *context));
@@ -189,7 +189,7 @@ namespace ccf
       rpc_map->register_frontend<ccf::ActorsType::acme_challenge>(
         std::make_unique<ccf::ACMERpcFrontend>(network, *context));
 
-      ccf::js::register_ffi_plugins(ccfapp::get_js_plugins());
+      ccf::js::register_ffi_plugins(ccf::get_js_plugins());
 
       LOG_TRACE_FMT("Initialize node");
       node->initialize(

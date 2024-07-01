@@ -5,20 +5,20 @@
 #include "ccf/kv/unit.h"
 #include "ccf/kv/untyped_map_handle.h"
 
-namespace kv
+namespace ccf::kv
 {
-  /** Grants read access to a @c kv::Set, as part of a @c kv::Tx.
+  /** Grants read access to a @c ccf::kv::Set, as part of a @c ccf::kv::Tx.
    */
   template <typename K, typename KSerialiser>
   class ReadableSetHandle
   {
   protected:
-    kv::untyped::MapHandle& read_handle;
+    ccf::kv::untyped::MapHandle& read_handle;
 
   public:
     using KeyType = K;
 
-    ReadableSetHandle(kv::untyped::MapHandle& uh) : read_handle(uh) {}
+    ReadableSetHandle(ccf::kv::untyped::MapHandle& uh) : read_handle(uh) {}
 
     /** Test whether a key is present in the set.
      *
@@ -37,7 +37,7 @@ namespace kv
     /** Test whether a key's presence is globally committed, meaning it has been
      * replciated and acknowledged by consensus protocol.
      *
-     * @see kv::ReadableMapHandle::get_globally_committed
+     * @see ccf::kv::ReadableMapHandle::get_globally_committed
      *
      * @param key Key to test
      *
@@ -53,7 +53,7 @@ namespace kv
      *
      * Returns nullopt if the key is not present.
      *
-     * @see kv::ReadableMapHandle::get_version_of_previous_write
+     * @see ccf::kv::ReadableMapHandle::get_version_of_previous_write
      *
      * @param key Key to read
      *
@@ -68,7 +68,7 @@ namespace kv
 
     /** Iterate over all entries in this set.
      *
-     * @see kv::ReadableMapHandle::foreach
+     * @see ccf::kv::ReadableMapHandle::foreach
      *
      * @tparam F Functor type. Should usually be derived implicitly from f
      * @param f Functor instance, taking (const K& k) and returning a
@@ -79,8 +79,8 @@ namespace kv
     void foreach(F&& f)
     {
       auto g = [&](
-                 const kv::serialisers::SerialisedEntry& k_rep,
-                 const kv::serialisers::SerialisedEntry&) {
+                 const ccf::kv::serialisers::SerialisedEntry& k_rep,
+                 const ccf::kv::serialisers::SerialisedEntry&) {
         return f(KSerialiser::from_serialised(k_rep));
       };
       read_handle.foreach(g);
@@ -100,16 +100,16 @@ namespace kv
     }
   };
 
-  /** Grants write access to a @c kv::Set, as part of a @c kv::Tx.
+  /** Grants write access to a @c ccf::kv::Set, as part of a @c ccf::kv::Tx.
    */
   template <typename K, typename KSerialiser, typename Unit>
   class WriteableSetHandle
   {
   protected:
-    kv::untyped::MapHandle& write_handle;
+    ccf::kv::untyped::MapHandle& write_handle;
 
   public:
-    WriteableSetHandle(kv::untyped::MapHandle& uh) : write_handle(uh) {}
+    WriteableSetHandle(ccf::kv::untyped::MapHandle& uh) : write_handle(uh) {}
 
     /** Insert an element into this set.
      *
@@ -143,24 +143,26 @@ namespace kv
     }
   };
 
-  /** Grants read and write access to a @c kv::Set, as part of a @c kv::Tx.
+  /** Grants read and write access to a @c ccf::kv::Set, as part of a @c
+   * ccf::kv::Tx.
    *
-   * @see kv::ReadableSetHandle
-   * @see kv::WriteableSetHandle
+   * @see ccf::kv::ReadableSetHandle
+   * @see ccf::kv::WriteableSetHandle
    */
   template <typename K, typename KSerialiser, typename Unit>
-  class SetHandle : public kv::AbstractHandle,
+  class SetHandle : public ccf::kv::AbstractHandle,
                     public ReadableSetHandle<K, KSerialiser>,
                     public WriteableSetHandle<K, KSerialiser, Unit>
   {
   protected:
-    kv::untyped::MapHandle untyped_handle;
+    ccf::kv::untyped::MapHandle untyped_handle;
 
     using ReadableBase = ReadableSetHandle<K, KSerialiser>;
     using WriteableBase = WriteableSetHandle<K, KSerialiser, Unit>;
 
   public:
-    SetHandle(kv::untyped::ChangeSet& changes, const std::string& map_name) :
+    SetHandle(
+      ccf::kv::untyped::ChangeSet& changes, const std::string& map_name) :
       ReadableBase(untyped_handle),
       WriteableBase(untyped_handle),
       untyped_handle(changes, map_name)

@@ -343,49 +343,13 @@ namespace client
         rpc_connection->gen_request(
           method,
           params,
-          http::headervalues::contenttype::JSON,
+          ccf::http::headervalues::contenttype::JSON,
           HTTP_POST,
           options.bearer_token.size() == 0 ? nullptr :
                                              options.bearer_token.c_str()),
         method,
         expects_commit};
 
-      append_prepared_tx(tx, index);
-    }
-
-    void add_prepared_tx(
-      const std::string& method,
-      const nlohmann::json& params,
-      bool expects_commit,
-      const std::optional<size_t>& index,
-      const serdes::Pack& serdes)
-    {
-      auto body = serdes::pack(params, serdes);
-
-      const PreparedTx tx{
-        rpc_connection->gen_request(
-          method,
-          body,
-          serdes == serdes::Pack::Text ?
-            http::headervalues::contenttype::JSON :
-            http::headervalues::contenttype::MSGPACK,
-          HTTP_POST,
-          options.bearer_token.size() == 0 ? nullptr :
-                                             options.bearer_token.c_str()),
-        method,
-        expects_commit};
-
-      append_prepared_tx(tx, index);
-    }
-
-    void add_prepared_tx(
-      const std::string& method,
-      const nlohmann::json& params,
-      bool expects_commit,
-      const std::optional<size_t>& index)
-    {
-      const PreparedTx tx{
-        rpc_connection->gen_request(method, params), method, expects_commit};
       append_prepared_tx(tx, index);
     }
 

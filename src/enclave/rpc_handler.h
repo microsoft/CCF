@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <vector>
 
-namespace kv
+namespace ccf::kv
 {
   class CommittableTx;
 }

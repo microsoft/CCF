@@ -66,7 +66,7 @@ namespace ccf
   }
 
   std::unique_ptr<AuthnIdentity> AllOfAuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {

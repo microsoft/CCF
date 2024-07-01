@@ -8,7 +8,6 @@
 #include "ccf/ds/logger.h"
 #include "ccf/json_handler.h"
 #include "ccf/kv/map.h"
-#include "ccf/serdes.h"
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "enclave/enclave_time.h"
@@ -42,7 +41,7 @@ class TSimpleFrontend : public RpcFrontend
 public:
   Registry registry;
 
-  TSimpleFrontend(kv::Store& tables, ccfapp::AbstractNodeContext& context) :
+  TSimpleFrontend(ccf::kv::Store& tables, ccf::AbstractNodeContext& context) :
     RpcFrontend(tables, registry, context),
     registry(context)
   {}
@@ -55,7 +54,8 @@ class BaseTestFrontend : public SimpleUserRpcFrontend
 public:
   ccf::StubNodeContext context;
 
-  BaseTestFrontend(kv::Store& tables) : SimpleUserRpcFrontend(tables, context)
+  BaseTestFrontend(ccf::kv::Store& tables) :
+    SimpleUserRpcFrontend(tables, context)
   {}
 
   // For testing only, we don't need to specify auth policies everywhere and
@@ -73,7 +73,7 @@ public:
 class TestUserFrontend : public BaseTestFrontend
 {
 public:
-  TestUserFrontend(kv::Store& tables) : BaseTestFrontend(tables)
+  TestUserFrontend(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -101,7 +101,8 @@ public:
 class TestJsonWrappedEndpointFunction : public BaseTestFrontend
 {
 public:
-  TestJsonWrappedEndpointFunction(kv::Store& tables) : BaseTestFrontend(tables)
+  TestJsonWrappedEndpointFunction(ccf::kv::Store& tables) :
+    BaseTestFrontend(tables)
   {
     open();
 
@@ -112,7 +113,7 @@ public:
 
     auto echo_query_function = [this](auto& ctx, nlohmann::json&&) {
       const auto parsed_query =
-        http::parse_query(ctx.rpc_ctx->get_request_query());
+        ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
       return make_success(std::move(parsed_query));
     };
     make_endpoint(
@@ -150,7 +151,7 @@ public:
 class TestRestrictedVerbsFrontend : public BaseTestFrontend
 {
 public:
-  TestRestrictedVerbsFrontend(kv::Store& tables) : BaseTestFrontend(tables)
+  TestRestrictedVerbsFrontend(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -175,9 +176,9 @@ public:
 class TestExplicitCommitability : public BaseTestFrontend
 {
 public:
-  kv::Map<size_t, size_t> values;
+  ccf::kv::Map<size_t, size_t> values;
 
-  TestExplicitCommitability(kv::Store& tables) :
+  TestExplicitCommitability(ccf::kv::Store& tables) :
     BaseTestFrontend(tables),
     values("test_values")
   {
@@ -185,7 +186,7 @@ public:
 
     auto maybe_commit = [this](ccf::endpoints::EndpointContext& ctx) {
       const auto parsed =
-        serdes::unpack(ctx.rpc_ctx->get_request_body(), default_pack);
+        nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
 
       const auto new_value = parsed["value"].get<size_t>();
       auto vs = ctx.tx.rw(values);
@@ -208,7 +209,7 @@ public:
 class TestAlternativeHandlerTypes : public BaseTestFrontend
 {
 public:
-  TestAlternativeHandlerTypes(kv::Store& tables) : BaseTestFrontend(tables)
+  TestAlternativeHandlerTypes(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -236,7 +237,7 @@ public:
 class TestTemplatedPaths : public BaseTestFrontend
 {
 public:
-  TestTemplatedPaths(kv::Store& tables) : BaseTestFrontend(tables)
+  TestTemplatedPaths(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -252,7 +253,7 @@ public:
 class TestDecodedTemplatedPaths : public BaseTestFrontend
 {
 public:
-  TestDecodedTemplatedPaths(kv::Store& tables) : BaseTestFrontend(tables)
+  TestDecodedTemplatedPaths(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -292,7 +293,7 @@ class TestNoCertsFrontend : public RpcFrontend
   ccf::endpoints::EndpointRegistry endpoints;
 
 public:
-  TestNoCertsFrontend(kv::Store& tables) :
+  TestNoCertsFrontend(ccf::kv::Store& tables) :
     RpcFrontend(tables, endpoints, context),
     endpoints("test")
   {
@@ -343,7 +344,7 @@ class TestForwardingUserFrontEnd : public BaseTestFrontend,
                                    public RpcContextRecorder
 {
 public:
-  TestForwardingUserFrontEnd(kv::Store& tables) : BaseTestFrontend(tables)
+  TestForwardingUserFrontEnd(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -412,20 +413,20 @@ public:
   }
 };
 
-auto create_simple_request(
-  const std::string& method = "/empty_function",
-  serdes::Pack pack = default_pack)
+auto create_simple_request(const std::string& method = "/empty_function")
 {
-  http::Request request(method);
+  ::http::Request request(method);
   request.set_header(
-    http::headers::CONTENT_TYPE, ccf::jsonhandler::pack_to_content_type(pack));
+    ccf::http::headers::CONTENT_TYPE,
+    ccf::http::headervalues::contenttype::JSON);
   return request;
 }
 
-http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
+::http::SimpleResponseProcessor::Response parse_response(
+  const vector<uint8_t>& v)
 {
-  http::SimpleResponseProcessor processor;
-  http::ResponseParser parser(processor);
+  ::http::SimpleResponseProcessor processor;
+  ::http::ResponseParser parser(processor);
 
   parser.execute(v.data(), v.size());
   REQUIRE(processor.received.size() == 1);
@@ -433,10 +434,9 @@ http::SimpleResponseProcessor::Response parse_response(const vector<uint8_t>& v)
   return processor.received.front();
 }
 
-nlohmann::json parse_response_body(
-  const vector<uint8_t>& body, serdes::Pack pack = default_pack)
+nlohmann::json parse_response_body(const vector<uint8_t>& body)
 {
-  return serdes::unpack(body, pack);
+  return nlohmann::json::parse(body);
 }
 
 // callers used throughout
@@ -476,7 +476,8 @@ void prepare_callers(NetworkState& network)
   // It is necessary to set a consensus before committing the first transaction,
   // so that the KV batching done before calling into replicate() stays in
   // order.
-  auto backup_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
+  auto backup_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network.tables->set_consensus(backup_consensus);
 
   auto tx = network.tables->create_tx();
@@ -488,7 +489,7 @@ void prepare_callers(NetworkState& network)
   user_id = InternalTablesAccess::add_user(tx, {user_caller});
   member_id = InternalTablesAccess::add_member(tx, member_cert);
   invalid_member_id = InternalTablesAccess::add_member(tx, invalid_caller);
-  CHECK(tx.commit() == kv::CommitResult::SUCCESS);
+  CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 }
 
 TEST_CASE("SignedReq to and from json")
@@ -657,105 +658,102 @@ TEST_CASE("JsonWrappedEndpointFunction")
   NetworkState network;
   prepare_callers(network);
   TestJsonWrappedEndpointFunction frontend(*network.tables);
-  for (const auto pack_type : {serdes::Pack::Text, serdes::Pack::MsgPack})
+  {{INFO("Calling echo, with params in body");
+  auto echo_call = create_simple_request("/echo");
+  const nlohmann::json j_body = {
+    {"data", {"nested", "Some string"}}, {"other", "Another string"}};
+  const auto serialized_body = j_body.dump();
+  echo_call.set_body(serialized_body);
+  const auto serialized_call = echo_call.build_request();
+
+  auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
+  frontend.process(rpc_ctx);
+  auto response = parse_response(rpc_ctx->serialise_response());
+  CHECK(response.status == HTTP_STATUS_OK);
+
+  const auto response_body = parse_response_body(response.body);
+  CHECK(response_body == j_body);
+}
+
+{
+  INFO("Calling echo_query, with params in query");
+  auto echo_call = create_simple_request("/echo_parsed_query");
+  const std::map<std::string, std::string> query_params = {
+    {"foo", "helloworld"},
+    {"bar", "1"},
+    {"fooz", "\"2\""},
+    {"baz", "\"awkward\"\"escapes"}};
+  for (const auto& [k, v] : query_params)
   {
-    {
-      INFO("Calling echo, with params in body");
-      auto echo_call = create_simple_request("/echo", pack_type);
-      const nlohmann::json j_body = {
-        {"data", {"nested", "Some string"}}, {"other", "Another string"}};
-      const auto serialized_body = serdes::pack(j_body, pack_type);
-      echo_call.set_body(serialized_body.data(), serialized_body.size());
-      const auto serialized_call = echo_call.build_request();
-
-      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-      frontend.process(rpc_ctx);
-      auto response = parse_response(rpc_ctx->serialise_response());
-      CHECK(response.status == HTTP_STATUS_OK);
-
-      const auto response_body = parse_response_body(response.body, pack_type);
-      CHECK(response_body == j_body);
-    }
-
-    {
-      INFO("Calling echo_query, with params in query");
-      auto echo_call = create_simple_request("/echo_parsed_query", pack_type);
-      const std::map<std::string, std::string> query_params = {
-        {"foo", "helloworld"},
-        {"bar", "1"},
-        {"fooz", "\"2\""},
-        {"baz", "\"awkward\"\"escapes"}};
-      for (const auto& [k, v] : query_params)
-      {
-        echo_call.set_query_param(k, v);
-      }
-
-      const auto serialized_call = echo_call.build_request();
-
-      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-      frontend.process(rpc_ctx);
-      auto response = parse_response(rpc_ctx->serialise_response());
-      CHECK(response.status == HTTP_STATUS_OK);
-
-      const auto response_body = parse_response_body(response.body, pack_type);
-      const auto response_map = response_body.get<decltype(query_params)>();
-      CHECK(response_map == query_params);
-    }
-
-    {
-      INFO("Calling get_caller");
-      const auto get_caller = create_simple_request("/get_caller", pack_type);
-      const auto serialized_call = get_caller.build_request();
-
-      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-      frontend.process(rpc_ctx);
-      auto response = parse_response(rpc_ctx->serialise_response());
-      CHECK(response.status == HTTP_STATUS_OK);
-
-      const auto response_body = parse_response_body(response.body, pack_type);
-      CHECK(response_body == user_id);
-    }
+    echo_call.set_query_param(k, v);
   }
 
+  const auto serialized_call = echo_call.build_request();
+
+  auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
+  frontend.process(rpc_ctx);
+  auto response = parse_response(rpc_ctx->serialise_response());
+  CHECK(response.status == HTTP_STATUS_OK);
+
+  const auto response_body = parse_response_body(response.body);
+  const auto response_map = response_body.get<decltype(query_params)>();
+  CHECK(response_map == query_params);
+}
+
+{
+  INFO("Calling get_caller");
+  const auto get_caller = create_simple_request("/get_caller");
+  const auto serialized_call = get_caller.build_request();
+
+  auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
+  frontend.process(rpc_ctx);
+  auto response = parse_response(rpc_ctx->serialise_response());
+  CHECK(response.status == HTTP_STATUS_OK);
+
+  const auto response_body = parse_response_body(response.body);
+  CHECK(response_body == user_id);
+}
+}
+
+{
+  INFO("Calling failable, without failing");
+  auto dont_fail = create_simple_request("/failable");
+  const auto serialized_call = dont_fail.build_request();
+
+  auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
+  frontend.process(rpc_ctx);
+  auto response = parse_response(rpc_ctx->serialise_response());
+  CHECK(response.status == HTTP_STATUS_OK);
+}
+
+{
+  for (const auto err : {
+         HTTP_STATUS_INTERNAL_SERVER_ERROR,
+         HTTP_STATUS_BAD_REQUEST,
+         (http_status)418 // Teapot
+       })
   {
-    INFO("Calling failable, without failing");
-    auto dont_fail = create_simple_request("/failable");
-    const auto serialized_call = dont_fail.build_request();
+    INFO("Calling failable, with error");
+    const auto msg = fmt::format("An error message about {}", err);
+    auto fail = create_simple_request("/failable");
+    const nlohmann::json j_body = {
+      {"error", {{"code", err}, {"message", msg}}}};
+    const auto serialized_body = j_body.dump();
+    fail.set_body(serialized_body);
+    const auto serialized_call = fail.build_request();
 
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
     frontend.process(rpc_ctx);
     auto response = parse_response(rpc_ctx->serialise_response());
-    CHECK(response.status == HTTP_STATUS_OK);
+    CHECK(response.status == err);
+    CHECK(
+      response.headers[ccf::http::headers::CONTENT_TYPE] ==
+      ccf::http::headervalues::contenttype::JSON);
+    const std::string body_s(response.body.begin(), response.body.end());
+    auto body_j = nlohmann::json::parse(body_s);
+    CHECK(body_j["error"]["message"] == msg);
   }
-
-  {
-    for (const auto err : {
-           HTTP_STATUS_INTERNAL_SERVER_ERROR,
-           HTTP_STATUS_BAD_REQUEST,
-           (http_status)418 // Teapot
-         })
-    {
-      INFO("Calling failable, with error");
-      const auto msg = fmt::format("An error message about {}", err);
-      auto fail = create_simple_request("/failable");
-      const nlohmann::json j_body = {
-        {"error", {{"code", err}, {"message", msg}}}};
-      const auto serialized_body = serdes::pack(j_body, default_pack);
-      fail.set_body(serialized_body.data(), serialized_body.size());
-      const auto serialized_call = fail.build_request();
-
-      auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_call);
-      frontend.process(rpc_ctx);
-      auto response = parse_response(rpc_ctx->serialise_response());
-      CHECK(response.status == err);
-      CHECK(
-        response.headers[http::headers::CONTENT_TYPE] ==
-        http::headervalues::contenttype::JSON);
-      const std::string body_s(response.body.begin(), response.body.end());
-      auto body_j = nlohmann::json::parse(body_s);
-      CHECK(body_j["error"]["message"] == msg);
-    }
-  }
+}
 }
 
 TEST_CASE("Restricted verbs")
@@ -774,7 +772,7 @@ TEST_CASE("Restricted verbs")
       HTTP_STATUS_METHOD_NOT_ALLOWED;
 
     {
-      http::Request get("get_only", verb);
+      ::http::Request get("get_only", verb);
       const auto serialized_get = get.build_request();
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_get);
       frontend.process(rpc_ctx);
@@ -787,7 +785,7 @@ TEST_CASE("Restricted verbs")
       else
       {
         CHECK(response.status == other_verb_status);
-        const auto it = response.headers.find(http::headers::ALLOW);
+        const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
         CHECK(v.find(llhttp_method_name(HTTP_GET)) != std::string::npos);
@@ -795,7 +793,7 @@ TEST_CASE("Restricted verbs")
     }
 
     {
-      http::Request post("post_only", verb);
+      ::http::Request post("post_only", verb);
       const auto serialized_post = post.build_request();
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_post);
       frontend.process(rpc_ctx);
@@ -808,7 +806,7 @@ TEST_CASE("Restricted verbs")
       else
       {
         CHECK(response.status == other_verb_status);
-        const auto it = response.headers.find(http::headers::ALLOW);
+        const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
         CHECK(v.find(llhttp_method_name(HTTP_POST)) != std::string::npos);
@@ -816,7 +814,7 @@ TEST_CASE("Restricted verbs")
     }
 
     {
-      http::Request put_or_delete("put_or_delete", verb);
+      ::http::Request put_or_delete("put_or_delete", verb);
       const auto serialized_put_or_delete = put_or_delete.build_request();
       auto rpc_ctx =
         ccf::make_rpc_context(user_session, serialized_put_or_delete);
@@ -830,7 +828,7 @@ TEST_CASE("Restricted verbs")
       else
       {
         CHECK(response.status == other_verb_status);
-        const auto it = response.headers.find(http::headers::ALLOW);
+        const auto it = response.headers.find(ccf::http::headers::ALLOW);
         REQUIRE(it != response.headers.end());
         const auto v = it->second;
         CHECK(v.find(llhttp_method_name(HTTP_PUT)) != std::string::npos);
@@ -867,7 +865,7 @@ TEST_CASE("Explicit commitability")
   {
     auto tx = network.tables->create_tx();
     tx.rw(frontend.values)->put(0, next_value);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   for (const auto status : all_statuses)
@@ -878,12 +876,12 @@ TEST_CASE("Explicit commitability")
       INFO("Without override...");
       const auto new_value = ++next_value;
 
-      http::Request request("maybe_commit", HTTP_POST);
+      ::http::Request request("maybe_commit", HTTP_POST);
 
       const nlohmann::json request_body = {
         {"value", new_value}, {"status", status}};
-      const auto serialized_body = serdes::pack(request_body, default_pack);
-      request.set_body(&serialized_body);
+      const auto serialized_body = request_body.dump();
+      request.set_body(serialized_body);
 
       const auto serialized_request = request.build_request();
       auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
@@ -914,12 +912,12 @@ TEST_CASE("Explicit commitability")
       {
         const auto new_value = ++next_value;
 
-        http::Request request("maybe_commit", HTTP_POST);
+        ::http::Request request("maybe_commit", HTTP_POST);
 
         const nlohmann::json request_body = {
           {"value", new_value}, {"apply", apply}, {"status", status}};
-        const auto serialized_body = serdes::pack(request_body, default_pack);
-        request.set_body(&serialized_body);
+        const auto serialized_body = request_body.dump();
+        request.set_body(serialized_body);
 
         const auto serialized_request = request.build_request();
         auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_request);
@@ -964,7 +962,7 @@ TEST_CASE("Alternative endpoints")
 
   for (auto verb : {HTTP_GET, HTTP_POST})
   {
-    http::Request read_only("read_only", verb);
+    ::http::Request read_only("read_only", verb);
     const auto serialized_read_only = read_only.build_request();
 
     auto rpc_ctx = ccf::make_rpc_context(user_session, serialized_read_only);
@@ -1058,7 +1056,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   TestForwardingUserFrontEnd user_frontend_primary(*network_primary.tables);
   TestForwardingUserFrontEnd user_frontend_backup(*network_backup.tables);
 
-  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
+  auto primary_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
@@ -1066,7 +1065,8 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
   auto rpc_map = std::weak_ptr<ccf::RPCMap>();
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     rpc_responder, channel_stub, rpc_map);
-  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
+  auto backup_consensus =
+    std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto simple_call = create_simple_request();
@@ -1114,7 +1114,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto forwarded_msg = channel_stub->get_pop_back();
     auto fwd_ctx =
       backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-        kv::test::FirstBackupNodeId,
+        ccf::kv::test::FirstBackupNodeId,
         forwarded_msg.data(),
         forwarded_msg.size());
 
@@ -1146,7 +1146,7 @@ TEST_CASE("Forwarding" * doctest::test_suite("forwarding"))
     auto forwarded_msg = channel_stub->get_pop_back();
     auto fwd_ctx =
       backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-        kv::test::FirstBackupNodeId,
+        ccf::kv::test::FirstBackupNodeId,
         forwarded_msg.data(),
         forwarded_msg.size());
 
@@ -1204,7 +1204,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
+  auto primary_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
@@ -1212,7 +1213,8 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     rpc_responder, channel_stub, rpc_map);
   node_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
+  auto backup_consensus =
+    std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
@@ -1228,7 +1230,9 @@ TEST_CASE("Nodefrontend forwarding" * doctest::test_suite("forwarding"))
   auto forwarded_msg = channel_stub->get_pop_back();
   auto fwd_ctx =
     backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-      kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
+      ccf::kv::test::FirstBackupNodeId,
+      forwarded_msg.data(),
+      forwarded_msg.size());
 
   node_frontend_primary.process_forwarded(fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
@@ -1251,7 +1255,8 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
 
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
+  auto primary_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
@@ -1259,7 +1264,8 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     rpc_responder, channel_stub, rpc_map);
   user_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
+  auto backup_consensus =
+    std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
@@ -1273,7 +1279,9 @@ TEST_CASE("Userfrontend forwarding" * doctest::test_suite("forwarding"))
   auto forwarded_msg = channel_stub->get_pop_back();
   auto fwd_ctx =
     backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-      kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
+      ccf::kv::test::FirstBackupNodeId,
+      forwarded_msg.data(),
+      forwarded_msg.size());
 
   user_frontend_primary.process_forwarded(fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
@@ -1298,7 +1306,8 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   TestForwardingMemberFrontEnd member_frontend_backup(network_backup, context);
   auto channel_stub = std::make_shared<ChannelStubProxy>();
 
-  auto primary_consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
+  auto primary_consensus =
+    std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network_primary.tables->set_consensus(primary_consensus);
 
   auto rpc_responder = std::weak_ptr<ccf::AbstractRPCResponder>();
@@ -1306,7 +1315,8 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto backup_forwarder = std::make_shared<Forwarder<ChannelStubProxy>>(
     rpc_responder, channel_stub, rpc_map);
   member_frontend_backup.set_cmd_forwarder(backup_forwarder);
-  auto backup_consensus = std::make_shared<kv::test::BackupStubConsensus>();
+  auto backup_consensus =
+    std::make_shared<ccf::kv::test::BackupStubConsensus>();
   network_backup.tables->set_consensus(backup_consensus);
 
   auto write_req = create_simple_request();
@@ -1320,7 +1330,9 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
   auto forwarded_msg = channel_stub->get_pop_back();
   auto fwd_ctx =
     backup_forwarder->recv_forwarded_command<ccf::ForwardedHeader_v1>(
-      kv::test::FirstBackupNodeId, forwarded_msg.data(), forwarded_msg.size());
+      ccf::kv::test::FirstBackupNodeId,
+      forwarded_msg.data(),
+      forwarded_msg.size());
 
   member_frontend_primary.process_forwarded(fwd_ctx);
   auto response = parse_response(fwd_ctx->serialise_response());
@@ -1333,10 +1345,10 @@ TEST_CASE("Memberfrontend forwarding" * doctest::test_suite("forwarding"))
 class TestConflictFrontend : public BaseTestFrontend
 {
 public:
-  using Values = kv::Map<size_t, size_t>;
+  using Values = ccf::kv::Map<size_t, size_t>;
   size_t execution_count = 0;
 
-  TestConflictFrontend(kv::Store& tables) : BaseTestFrontend(tables)
+  TestConflictFrontend(ccf::kv::Store& tables) : BaseTestFrontend(tables)
   {
     open();
 
@@ -1356,7 +1368,7 @@ public:
         auto tx = this->tables.create_tx();
         auto conflict_map = tx.template rw<Values>("test_values_conflict");
         conflict_map->put(0, 42);
-        REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+        REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
         // Indicate that the execution conflicted
         ctx.rpc_ctx->set_response_header("test-has-conflicted", "true");
@@ -1427,7 +1439,7 @@ TEST_CASE("Retry on conflict")
 class TestManualConflictsRegistry : public UserEndpointRegistry
 {
 public:
-  using MyVals = kv::Map<size_t, size_t>;
+  using MyVals = ccf::kv::Map<size_t, size_t>;
   static constexpr auto SRC = "source";
   static constexpr auto DST = "destination";
 
@@ -1484,7 +1496,7 @@ public:
     }
   }
 
-  TestManualConflictsRegistry(ccfapp::AbstractNodeContext& context) :
+  TestManualConflictsRegistry(ccf::AbstractNodeContext& context) :
     UserEndpointRegistry(context)
   {
     auto pausable = [this](auto& ctx) {
@@ -1529,7 +1541,7 @@ public:
 
   ccf::StubNodeContext context;
 
-  TestManualConflictsFrontend(kv::Store& tables) :
+  TestManualConflictsFrontend(ccf::kv::Store& tables) :
     TSimpleFrontend<TestManualConflictsRegistry>(tables, context)
   {
     open();
@@ -1580,7 +1592,7 @@ TEST_CASE("Manual conflicts")
     auto tx = network.tables->create_tx();
     auto handle = tx.ro<TF::MyVals>(table);
     auto ret = handle->get(TF::KEY);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     ccf::crypto::openssl_sha256_shutdown();
     return ret;
   };
@@ -1592,7 +1604,7 @@ TEST_CASE("Manual conflicts")
       using TF = TestManualConflictsFrontend;
       auto handle = tx.wo<TF::MyVals>(table);
       handle->put(key, n);
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       ccf::crypto::openssl_sha256_shutdown();
     };
 
@@ -1713,7 +1725,7 @@ TEST_CASE("Manual conflicts")
       using TF = TestManualConflictsFrontend;
       auto handle = tx.wo<TF::MyVals>(TF::SRC);
       handle->remove(TF::KEY);
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     });
     const auto metrics_after = get_metrics();
 
@@ -1736,7 +1748,7 @@ TEST_CASE("Manual conflicts")
       using TF = TestManualConflictsFrontend;
       auto handle = tx.wo<TF::MyVals>(TF::SRC);
       handle->clear();
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     });
     const auto metrics_after = get_metrics();
 
@@ -1759,7 +1771,7 @@ TEST_CASE("Manual conflicts")
       [&]() {
         auto tx = network.tables->create_tx();
         InternalTablesAccess::remove_user(tx, user_id);
-        CHECK(tx.commit() == kv::CommitResult::SUCCESS);
+        CHECK(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       },
       user_session,
       HTTP_STATUS_UNAUTHORIZED);

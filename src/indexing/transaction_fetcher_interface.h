@@ -12,10 +12,10 @@ namespace ccf::indexing
   public:
     virtual ~TransactionFetcher() = default;
 
-    virtual kv::ReadOnlyStorePtr deserialise_transaction(
+    virtual ccf::kv::ReadOnlyStorePtr deserialise_transaction(
       ccf::SeqNo seqno, const uint8_t* data, size_t size) = 0;
 
-    virtual std::vector<kv::ReadOnlyStorePtr> fetch_transactions(
+    virtual std::vector<ccf::kv::ReadOnlyStorePtr> fetch_transactions(
       const SeqNoCollection& seqnos) = 0;
   };
 }

@@ -5,7 +5,7 @@
 
 #include "kv/untyped_change_set.h"
 
-namespace kv::untyped
+namespace ccf::kv::untyped
 {
   const MapHandle::ValueType* MapHandle::read_key(const KeyType& key)
   {
@@ -85,7 +85,7 @@ namespace kv::untyped
   }
 
   MapHandle::MapHandle(
-    kv::untyped::ChangeSet& cs, const std::string& map_name) :
+    ccf::kv::untyped::ChangeSet& cs, const std::string& map_name) :
     tx_changes(cs),
     map_name(map_name)
   {}

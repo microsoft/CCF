@@ -4,7 +4,6 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
-#include "ccf/serdes.h"
 #include "crypto/openssl/hash.h"
 #include "frontend_test_infra.h"
 #include "kv/test/null_encryptor.h"
@@ -15,9 +14,8 @@
 
 using namespace ccf;
 using namespace nlohmann;
-using namespace serdes;
 
-using TResponse = http::SimpleResponseProcessor::Response;
+using TResponse = ::http::SimpleResponseProcessor::Response;
 
 auto node_id = 0;
 
@@ -27,11 +25,9 @@ TResponse frontend_process(
   const std::string& method,
   const ccf::crypto::Pem& caller)
 {
-  http::Request r(method);
-  const auto body = json_params.is_null() ?
-    std::vector<uint8_t>() :
-    serdes::pack(json_params, Pack::Text);
-  r.set_body(&body);
+  ::http::Request r(method);
+  const auto body = json_params.is_null() ? std::string() : json_params.dump();
+  r.set_body(body);
   auto serialise_request = r.build_request();
 
   auto session =
@@ -42,8 +38,8 @@ TResponse frontend_process(
   CHECK(!rpc_ctx->response_is_pending);
   const auto serialised_response = rpc_ctx->serialise_response();
 
-  http::SimpleResponseProcessor processor;
-  http::ResponseParser parser(processor);
+  ::http::SimpleResponseProcessor processor;
+  ::http::ResponseParser parser(processor);
 
   parser.execute(serialised_response.data(), serialised_response.size());
   REQUIRE(processor.received.size() == 1);
@@ -65,7 +61,7 @@ void require_ledger_secrets_equal(
 TEST_CASE("Add a node to an opening service")
 {
   NetworkState network;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
   auto gen_tx = network.tables->create_tx();
   InternalTablesAccess::init_configuration(
@@ -80,7 +76,7 @@ TEST_CASE("Add a node to an opening service")
   frontend.open();
 
   // New node should not be given ledger secret past this one via join request
-  kv::Version up_to_ledger_secret_seqno = 4;
+  ccf::kv::Version up_to_ledger_secret_seqno = 4;
   network.ledger_secrets->set_secret(
     up_to_ledger_secret_seqno, make_ledger_secret());
 
@@ -103,7 +99,7 @@ TEST_CASE("Add a node to an opening service")
 
   InternalTablesAccess::create_service(
     gen_tx, network.identity->cert, ccf::TxID{});
-  REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
+  REQUIRE(gen_tx.commit() == ccf::kv::CommitResult::SUCCESS);
   auto tx = network.tables->create_tx();
 
   INFO("Add first node which should be trusted straight away");
@@ -185,7 +181,7 @@ TEST_CASE("Add a node to an open service")
 {
   NetworkState network;
   auto gen_tx = network.tables->create_tx();
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   network.tables->set_encryptor(encryptor);
 
   network.identity = make_test_network_ident();
@@ -198,7 +194,7 @@ TEST_CASE("Add a node to an open service")
   frontend.open();
 
   // New node should not be given ledger secret past this one via join request
-  kv::Version up_to_ledger_secret_seqno = 4;
+  ccf::kv::Version up_to_ledger_secret_seqno = 4;
   network.ledger_secrets->set_secret(
     up_to_ledger_secret_seqno, make_ledger_secret());
 
@@ -211,7 +207,7 @@ TEST_CASE("Add a node to an open service")
       gen_tx,
       {member_cert, ccf::crypto::make_rsa_key_pair()->public_key_pem()}));
   REQUIRE(InternalTablesAccess::open_service(gen_tx));
-  REQUIRE(gen_tx.commit() == kv::CommitResult::SUCCESS);
+  REQUIRE(gen_tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
   // Node certificate
   ccf::crypto::KeyPairPtr kp = ccf::crypto::make_key_pair();
@@ -289,7 +285,7 @@ TEST_CASE("Add a node to an open service")
         "CN=dummy endorsed certificate", valid_from, valid_to);
     auto endorsed_certificate = tx.rw(network.node_endorsed_certificates);
     endorsed_certificate->put(joining_node_id, {dummy_endorsed_certificate});
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     // In the meantime, a new ledger secret is added. The new ledger secret
     // should not be passed to the new joiner via the join

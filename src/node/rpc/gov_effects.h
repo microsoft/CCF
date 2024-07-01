@@ -16,33 +16,33 @@ namespace ccf
     GovernanceEffects(AbstractNodeState& impl_) : impl(impl_) {}
 
     void transition_service_to_open(
-      kv::Tx& tx, ServiceIdentities identities) override
+      ccf::kv::Tx& tx, ServiceIdentities identities) override
     {
       impl.transition_service_to_open(tx, identities);
     }
 
-    bool rekey_ledger(kv::Tx& tx) override
+    bool rekey_ledger(ccf::kv::Tx& tx) override
     {
       return impl.rekey_ledger(tx);
     }
 
-    void trigger_recovery_shares_refresh(kv::Tx& tx) override
+    void trigger_recovery_shares_refresh(ccf::kv::Tx& tx) override
     {
       impl.trigger_recovery_shares_refresh(tx);
     }
 
-    void trigger_ledger_chunk(kv::Tx& tx) override
+    void trigger_ledger_chunk(ccf::kv::Tx& tx) override
     {
       impl.trigger_ledger_chunk(tx);
     }
 
-    void trigger_snapshot(kv::Tx& tx) override
+    void trigger_snapshot(ccf::kv::Tx& tx) override
     {
       impl.trigger_snapshot(tx);
     }
 
     void trigger_acme_refresh(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const std::optional<std::vector<std::string>>& interfaces =
         std::nullopt) override
     {

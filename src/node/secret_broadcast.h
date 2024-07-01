@@ -18,7 +18,7 @@ namespace ccf
     static void broadcast_some(
       NetworkState& network,
       NodeId self,
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const LedgerSecretsMap& some_ledger_secrets)
     {
       auto secrets = tx.rw(network.secrets);
@@ -46,7 +46,9 @@ namespace ccf
     }
 
     static void broadcast_new(
-      NetworkState& network, kv::Tx& tx, LedgerSecretPtr&& new_ledger_secret)
+      NetworkState& network,
+      ccf::kv::Tx& tx,
+      LedgerSecretPtr&& new_ledger_secret)
     {
       auto secrets = tx.rw(network.secrets);
 
