@@ -86,3 +86,15 @@ jobs:
         with:
           name: pkg-${{ matrix.platform.name }}
           path: build/${{ steps.make_deb.outputs.name }}
+
+  download:
+    needs: build_release
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download All Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: pkg
+        pattern: pkg-*
+        merge-multiple: true
+    - run: ls -R pkg
