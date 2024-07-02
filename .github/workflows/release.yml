@@ -124,7 +124,7 @@ jobs:
         run: |
           set -ex
           cd build
-          sudo apt -y install ${{ steps.make_deb.outputs.name }}
+          sudo apt -y install ./${{ steps.make_deb.outputs.name }}
         shell: bash
 
       - name: "Test Installed CCF"
