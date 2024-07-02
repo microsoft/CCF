@@ -398,7 +398,7 @@ namespace asynchost
 
         if (connection_timeout.has_value())
         {
-          const unsigned int ms = connection_timeout->count;
+          const unsigned int ms = connection_timeout->count();
           const auto ret =
             setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &ms, sizeof(ms));
           if (ret != 0)
