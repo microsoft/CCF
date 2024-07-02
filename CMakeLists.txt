@@ -1147,19 +1147,26 @@ if(BUILD_TESTS)
 
     if(LONG_TESTS)
       set(ADDITIONAL_RECOVERY_ARGS --with-load)
-    endif()
 
-    add_e2e_test(
-      NAME recovery_test_cft_api_0
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "classic"
-    )
+      add_e2e_test(
+        NAME recovery_test_cft_api_0
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+        ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "classic"
+      )
+
+      add_e2e_test(
+        NAME recovery_test_cft_api_preview_1
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+        ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version
+                        "2023-06-01-preview"
+      )
+    endif()
 
     add_e2e_test(
       NAME recovery_test_cft_api_1
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
       ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version
-                      "2023-06-01-preview"
+                      "2024-07-01"
     )
 
     add_e2e_test(
@@ -1369,7 +1376,7 @@ if(BUILD_TESTS)
     )
 
     add_e2e_test(
-      NAME membership_api_1_preview
+      NAME membership_api_preview_1
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
       ADDITIONAL_ARGS --gov-api-version "2023-06-01-preview"
     )
