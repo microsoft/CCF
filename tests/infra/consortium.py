@@ -876,9 +876,9 @@ class Consortium:
                     recovery_count is None or current_recovery_count == recovery_count
                 ), f"Current recovery count {current_recovery_count} is not expected {recovery_count}"
 
-    def remove_old_jwt_tables(self, remote_node, issuer):
+    def remove_old_jwt_tables(self, remote_node):
         proposal_body, careful_vote = self.make_proposal(
-            "remove_old_jwt_tables", issuer=issuer
+            "remove_old_jwt_tables"
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

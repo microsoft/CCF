@@ -528,6 +528,93 @@ def test_share_resilience(network, args, from_snapshot=False):
         recovered_network.service_load.set_network(recovered_network)
     return recovered_network
 
+@reqs.description("Remove JWT Tables")
+def test_recovered_ledger_remove_jwt_tables(
+    args, directory, expected_recovery_count, test_receipt=True
+):
+    service_dir = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "testdata", directory
+    )
+
+    old_common = os.path.join(service_dir, "common")
+    new_common = infra.network.get_common_folder_name(args.workspace, args.label)
+    copy_tree(old_common, new_common)
+
+    network = infra.network.Network(args.nodes, args.binary_dir)
+
+    args.previous_service_identity_file = os.path.join(old_common, "service_cert.pem")
+
+    network.start_in_recovery(
+        args,
+        ledger_dir=os.path.join(service_dir, "ledger"),
+        committed_ledger_dirs=[os.path.join(service_dir, "ledger")],
+        snapshots_dir=os.path.join(service_dir, "snapshots"),
+        common_dir=new_common,
+    )
+
+    network.recover(args, expected_recovery_count=expected_recovery_count)
+
+    primary, _ = network.find_primary()
+
+    # The member and user certs stored on this service are all currently expired.
+    # Remove user certs and add new users before attempting any user requests
+    primary, _ = network.find_primary()
+
+    user_certs = [
+        os.path.join(old_common, file)
+        for file in os.listdir(old_common)
+        if file.startswith("user") and file.endswith("_cert.pem")
+    ]
+    user_ids = [
+        infra.crypto.compute_cert_der_hash_hex_from_pem(open(cert).read())
+        for cert in user_certs
+    ]
+    for user_id in user_ids:
+        LOG.info(f"Removing expired user {user_id}")
+        network.consortium.remove_user(primary, user_id)
+
+    new_user_local_id = "recovery_user"
+    new_user = network.create_user(new_user_local_id, args.participants_curve)
+    LOG.info(f"Adding new user {new_user.service_id}")
+    network.consortium.add_user(primary, new_user.local_id)
+
+    infra.checker.check_can_progress(primary, local_user_id=new_user_local_id)
+
+    if test_receipt:
+        r = primary.get_receipt(2, 3)
+        verify_receipt(r.json(), network.cert)
+    
+    # Get State
+    network.get_latest_ledger_public_state()
+    ledger_directories = primary.remote.ledger_paths()
+    ledger = ccf.ledger.Ledger(ledger_directories)
+
+    for chunk in ledger:
+        for tx in chunk:
+            txid = TxID(tx.gcm_header.view, tx.gcm_header.seqno)
+            tables = tx.get_public_domain().get_tables()
+            pub_keys = tables["public:ccf.gov.jwt.public_signing_key"]
+            assert (pub_keys is not None), "PubKeys is not None"
+            pub_key_issuer = tables["public:ccf.gov.jwt.public_signing_key_issuer"]
+            assert (pub_key_issuer is not None), "PubKeys is not None"
+    
+    # Submit Proposal to remove old JWT Tables
+    network.consortium.remove_old_jwt_tables(primary)
+
+    # Get New State after submitting proposal to remove older JWT tables
+    network.get_latest_ledger_public_state()
+    ledger_directories = primary.remote.ledger_paths()
+    ledger = ccf.ledger.Ledger(ledger_directories)
+
+    for chunk in ledger:
+        for tx in chunk:
+            txid = TxID(tx.gcm_header.view, tx.gcm_header.seqno)
+            tables = tx.get_public_domain().get_tables()
+            pub_keys = tables["public:ccf.gov.jwt.public_signing_key"]
+            assert (pub_keys is None), "PubKeys is None"
+            pub_key_issuer = tables["public:ccf.gov.jwt.public_signing_key_issuer"]
+            assert (pub_key_issuer is None), "PubKeys is None"
+
 
 @reqs.description("Recover a service from malformed ledger")
 @reqs.recover(number_txs=2)
