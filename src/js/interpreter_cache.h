@@ -74,9 +74,12 @@ namespace ccf::js
             auto it = lru.find(key);
             if (it == lru.end())
             {
-              LOG_TRACE_FMT(
-                "Inserting new interpreter into cache, with key {}", key);
               it = lru.insert(key, make_interpreter(access));
+              LOG_INFO_FMT(
+                "Constructed cached JS interpreter at key {}. Cache now "
+                "contains {} interpreters",
+                key,
+                lru.size());
             }
             else
             {
