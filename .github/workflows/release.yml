@@ -157,6 +157,20 @@ jobs:
           name: pkg-${{ matrix.platform.name }}
           path: build/${{ steps.make_deb.outputs.name }}
 
+      - name: "Upload Compatibility Report"
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility
+          path: build/compatibility_report.json
+        if: "${{ matrix.platform.name == 'sgx' }}"
+
+      - name: "Upload TLS Report"
+        uses: actions/upload-artifact@v4
+        with:
+          name: tls
+          path: build/tls_report.html
+        if: "${{ matrix.platform.name == 'sgx' }}"
+
   create_release:
     needs: build_release
     name: Create Release
@@ -171,10 +185,22 @@ jobs:
           path: pkg
           pattern: pkg-*
           merge-multiple: true
-      - name: Download Release notes
+      - name: Download Release Notes
         uses: actions/download-artifact@v4
         with:
           name: relnotes
+      - name: Download Compatibility Report
+        uses: actions/download-artifact@v4
+        with:
+          name: compatibility
+          path: pkg
+          merge-multiple: true
+      - name: Download TLS Report
+        uses: actions/download-artifact@v4
+        with:
+          name: tls
+          path: pkg
+          merge-multiple: true
       - run: |
           set -ex
           CCF_VERSION=${${{ github.ref_name }}#ccf-}
