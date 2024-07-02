@@ -1494,4 +1494,20 @@ const actions = new Map([
       function (args) {},
     ),
   ],
+  [
+    "remove_old_jwt_tables",
+    new Action(
+      function (args) {
+        // Validate that no arguments are passed
+        checkNone(args);
+      },
+      function (args) {
+        // Clear the JWT public signing key table
+        ccf.kv["public:ccf.gov.jwt.public_signing_key"].clear();
+
+        // Clear the JWT public signing key issuer table
+        ccf.kv["public:ccf.gov.jwt.public_signing_key_issuer"].clear();
+      },
+    ),
+  ],
 ]);

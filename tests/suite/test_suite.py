@@ -110,6 +110,7 @@ all_tests_suite = [
     # recovery:
     recovery.test_recover_service,
     recovery.test_recover_service_aborted,
+    recovery.test_recovered_ledger_remove_jwt_tables,
     # rekey:
     e2e_logging.test_rekey,
     # election:

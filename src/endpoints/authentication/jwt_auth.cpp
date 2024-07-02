@@ -138,23 +138,6 @@ namespace ccf
 
     if (!token_keys)
     {
-      auto fallback_keys = tx.ro<Tables::Legacy::JwtPublicSigningKeys>(
-        ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS);
-      auto fallback_issuers = tx.ro<Tables::Legacy::JwtPublicSigningKeyIssuer>(
-        ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEY_ISSUER);
-
-      auto fallback_key = fallback_keys->get(key_id);
-      if (fallback_key)
-      {
-        token_keys = std::vector<OpenIDJWKMetadata>{OpenIDJWKMetadata{
-          .cert = *fallback_key,
-          .issuer = *fallback_issuers->get(key_id),
-          .constraint = std::nullopt}};
-      }
-    }
-
-    if (!token_keys)
-    {
       error_reason =
         fmt::format("JWT signing key not found for kid {}", key_id);
       return nullptr;
