@@ -264,8 +264,9 @@ class LoggingTxs:
                 if r.status_code == http.HTTPStatus.OK:
                     j_body = r.body.json()
                     entries += j_body["entries"]
-                    if "@nextLink" in j_body:
-                        path = j_body["@nextLink"]
+                    next_link = j_body.get("@nextLink", None)
+                    if next_link:
+                        path = next_link
                         continue
                     else:
                         # No @nextLink means we've reached end of range

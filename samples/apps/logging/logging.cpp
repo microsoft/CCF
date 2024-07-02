@@ -1658,6 +1658,13 @@ namespace loggingapp
 
         // Construct the HTTP response
         nlohmann::json j_response = response;
+
+        // Prefer missing field to null, in this case
+        if (!response.next_link.has_value())
+        {
+          j_response.erase("@nextLink");
+        }
+
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
           ccf::http::headers::CONTENT_TYPE,

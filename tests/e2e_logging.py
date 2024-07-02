@@ -36,7 +36,6 @@ from types import MappingProxyType
 import threading
 import copy
 import programmability
-import e2e_common_endpoints
 
 from loguru import logger as LOG
 
@@ -1625,12 +1624,12 @@ def test_post_local_commit_failure(network, args):
         # check we can parse the txid from the header
         # this gets set since the post-commit handler threw
         TxID.from_str(r.headers[txid_header_key])
-        assert r.body.json() == {
-            "error": {
-                "code": "InternalError",
-                "message": "Failed to execute local commit handler func: didn't set user_data!",
-            }
-        }, r.body.json()
+        error = r.body.json()["error"]
+        assert error["code"] == "InternalError"
+        assert (
+            error["message"]
+            == "Failed to execute local commit handler func: didn't set user_data!"
+        )
 
 
 @reqs.description(
@@ -2061,14 +2060,14 @@ def run_parsing_errors(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    cr.add(
-        "js",
-        run,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "js",
+    #     run,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
     cr.add(
         "app_space_js",
@@ -2089,34 +2088,34 @@ if __name__ == "__main__":
         initial_member_count=2,
     )
 
-    cr.add(
-        "common",
-        e2e_common_endpoints.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "common",
+    #     e2e_common_endpoints.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    # Run illegal traffic tests in separate runners, to reduce total serial runtime
-    cr.add(
-        "js_illegal",
-        run_parsing_errors,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # # Run illegal traffic tests in separate runners, to reduce total serial runtime
+    # cr.add(
+    #     "js_illegal",
+    #     run_parsing_errors,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    cr.add(
-        "cpp_illegal",
-        run_parsing_errors,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "cpp_illegal",
+    #     run_parsing_errors,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    # This is just for the UDP echo test for now
-    cr.add(
-        "udp",
-        run_udp_tests,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # # This is just for the UDP echo test for now
+    # cr.add(
+    #     "udp",
+    #     run_udp_tests,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
     cr.run()

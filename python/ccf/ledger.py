@@ -421,8 +421,9 @@ class LedgerValidator:
                 node_info = json.loads(node_info)
                 # Add the self-signed node certificate (only available in 1.x,
                 # refer to node endorsed certificates table otherwise)
-                if "cert" in node_info:
-                    node_certs[node_id] = node_info["cert"].encode()
+                cert = node_info.get("cert", None)
+                if cert:
+                    node_certs[node_id] = cert.encode()
                     self.node_certificates[node_id] = node_certs[node_id]
                 # Update node trust status
                 # Also record the seqno at which the node status changed to

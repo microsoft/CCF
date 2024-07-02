@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Updated Open Enclave to [0.19.7](https://github.com/openenclave/openenclave/releases/tag/v0.19.7).
 
+### Changed
+
+- Serialisation of C++ types to JSON has changed. Fields which are marked as optional in the CCF JSON serdes macros (ie - those in `DECLARE_JSON_OPTIONAL_FIELDS`) will now always be present in the resulting JSON object. Previously they would be omitted from the object if they matched the default value. They are still optional on deserialisation (ie - if these fields are missing, the object can still be deserialised).
+
 ### Removed
 
 - Removed the existing metrics endpoint and API (`GET /api/metrics`, `get_metrics_v1`). Stats for request execution can instead be gathered by overriding the `EndpointRegistry::handle_event_request_completed()` method.

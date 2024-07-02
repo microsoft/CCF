@@ -383,7 +383,6 @@ namespace std
 
 #define WRITE_OPTIONAL_WITH_RENAMES_FOR_JSON_NEXT(TYPE, C_FIELD, JSON_FIELD) \
   { \
-    if (t.C_FIELD != t_default.C_FIELD) \
     { \
       j[JSON_FIELD] = t.C_FIELD; \
     } \
