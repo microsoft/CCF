@@ -12,10 +12,12 @@ namespace ccf::gov::endpoints
   enum class ApiVersion
   {
     preview_v1,
+    v1,
   };
 
   static constexpr std::pair<ApiVersion, char const*> api_version_strings[] = {
-    {ApiVersion::preview_v1, "2023-06-01-preview"}};
+    {ApiVersion::preview_v1, "2023-06-01-preview"},
+    {ApiVersion::v1, "2024-07-01"}};
 
   std::optional<ApiVersion> get_api_version(
     ccf::endpoints::CommandEndpointContext& ctx)
