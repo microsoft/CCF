@@ -110,10 +110,12 @@ namespace ccf::endpoints
   {
     if (installer == nullptr)
     {
-      LOG_FATAL_FMT(
+      auto msg = fmt::format(
         "Can't install this endpoint ({}) - it is not associated with an "
         "installer",
         full_uri_path);
+      LOG_FATAL_FMT("{}", msg);
+      throw std::logic_error(msg);
     }
     else
     {

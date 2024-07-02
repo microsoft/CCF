@@ -32,6 +32,7 @@ namespace client
     if (core_id > threads || core_id < 0)
     {
       LOG_FATAL_FMT("Invalid core id: {}", core_id);
+      abort();
       return false;
     }
 
@@ -43,6 +44,7 @@ namespace client
     if (sched_setaffinity(0, sizeof(cpu_set_t), &set) < 0)
     {
       LOG_FATAL_FMT("Unable to set affinity");
+      abort();
       return false;
     }
 
