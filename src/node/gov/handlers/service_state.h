@@ -142,6 +142,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto constitution_handle =
@@ -181,6 +182,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -272,6 +274,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -334,6 +337,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -424,6 +428,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -531,6 +536,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -579,6 +585,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           ccf::MemberId member_id;
@@ -630,6 +637,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -671,6 +679,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           ccf::UserId user_id;
@@ -717,6 +726,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -759,6 +769,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           ccf::NodeId node_id;
