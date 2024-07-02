@@ -237,6 +237,19 @@ std::map<ccf::SeqNo, std::vector<uint8_t>> construct_host_ledger(
   return ledger;
 }
 
+size_t get_cache_limit_for_entries(
+  const std::vector<std::vector<uint8_t>>& entries)
+{
+  return ccf::historical::soft_to_raw_ratio *
+    std::accumulate(
+           entries.begin(),
+           entries.end(),
+           0ll,
+           [&](size_t prev, const std::vector<uint8_t>& entry) {
+             return prev + entry.size();
+           });
+}
+
 TEST_CASE("StateCache point queries")
 {
   auto state = create_and_init_state();
@@ -947,6 +960,134 @@ TEST_CASE("Incremental progress")
 
     sub_range_begin = next_sub_range_begin;
   }
+}
+
+TEST_CASE("StateCache soft zero limit with increasing")
+{
+  // Try get two states. Shouldn't be able to retrieve anything with 0 cache
+  // limit. After increasing to the size of first state only that one is
+  // available, but later overwritten by the second one, and finally all are
+  // evicted after setting again to 0.
+  //
+  // ! DISCLAIMER ! If you change this bear in mind that each attempt to get the
+  // store promotes the handle, and so requests eviction order changes,
+  // therefore this test in particular is quite fragile.
+
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  auto seq_low = write_transactions_and_signature(kv_store, 1);
+  auto seq_high = write_transactions_and_signature(kv_store, 1);
+  REQUIRE(kv_store.current_version() == seq_high);
+
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  REQUIRE(ledger.size() == seq_high);
+
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCache cache(
+    kv_store, state.ledger_secrets, stub_writer);
+
+  cache.set_soft_cache_limit(0);
+
+  REQUIRE(!cache.get_state_at(0, seq_low));
+  cache.tick(std::chrono::milliseconds(100));
+
+  cache.handle_ledger_entry(seq_low, ledger.at(seq_low));
+  cache.tick(std::chrono::milliseconds(100));
+
+  // Ledger entry fecthed and instantly removed because of the parent request
+  // eviction due to zero cache limit.
+  REQUIRE(!cache.get_state_at(0, seq_low));
+
+  cache.set_soft_cache_limit(
+    get_cache_limit_for_entries({ledger.at(seq_low), ledger.at(seq_high)}) - 1);
+
+  cache.handle_ledger_entry(seq_low, ledger.at(seq_low));
+  cache.tick(std::chrono::milliseconds(100));
+
+  REQUIRE(cache.get_state_at(0, seq_low));
+  REQUIRE(!cache.get_state_at(1, seq_high));
+
+  cache.tick(std::chrono::milliseconds(100));
+
+  cache.handle_ledger_entry(seq_high, ledger.at(seq_high));
+
+  // Both available because tick hasn't been called yet.
+  REQUIRE(cache.get_state_at(0, seq_low));
+  REQUIRE(cache.get_state_at(1, seq_high));
+
+  cache.tick(std::chrono::milliseconds(100));
+
+  REQUIRE(!cache.get_state_at(0, seq_low));
+  REQUIRE(cache.get_state_at(1, seq_high));
+
+  cache.set_soft_cache_limit(0);
+  cache.tick(std::chrono::milliseconds(100));
+
+  REQUIRE(!cache.get_state_at(0, seq_low));
+  REQUIRE(!cache.get_state_at(1, seq_high));
+}
+
+TEST_CASE("StateCache dropping state explicitly")
+{
+  // Adding two states to the cache (limit is hit). Drop state2 and add state3.
+  // State1 should remain available, as well as state3, state2 was force-evicted
+  // from LRU because it's been dropped explicitly.
+  //
+  // ! DISCLAIMER ! If you change this bear in mind that each attempt to get the
+  // store promotes the handle, and so requests eviction order changes,
+  // therefore this test in particular is quite fragile.
+
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  auto seq_low = write_transactions_and_signature(kv_store, 1);
+  auto seq_mid = write_transactions_and_signature(kv_store, 1);
+  auto seq_high = write_transactions_and_signature(kv_store, 1);
+  REQUIRE(kv_store.current_version() == seq_high);
+
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  REQUIRE(ledger.size() == seq_high);
+
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCache cache(
+    kv_store, state.ledger_secrets, stub_writer);
+
+  REQUIRE(!cache.get_state_at(0, seq_low));
+  REQUIRE(!cache.get_state_at(1, seq_mid));
+
+  cache.tick(std::chrono::milliseconds(100));
+
+  cache.handle_ledger_entry(seq_low, ledger.at(seq_low));
+  cache.handle_ledger_entry(seq_mid, ledger.at(seq_mid));
+
+  REQUIRE(cache.get_state_at(0, seq_low));
+  REQUIRE(cache.get_state_at(1, seq_mid));
+
+  cache.set_soft_cache_limit(
+    get_cache_limit_for_entries(
+      {ledger.at(seq_low), ledger.at(seq_mid), ledger.at(seq_high)}) -
+    1);
+
+  cache.tick(std::chrono::milliseconds(100));
+
+  REQUIRE(!cache.get_state_at(2, seq_high));
+  cache.tick(std::chrono::milliseconds(100));
+
+  // Ledger entries not provided yet, so previous are not evicted.
+  REQUIRE(cache.get_state_at(0, seq_low));
+  REQUIRE(cache.get_state_at(1, seq_mid));
+  REQUIRE(!cache.get_state_at(2, seq_high));
+
+  cache.drop_cached_states(1);
+  cache.tick(std::chrono::milliseconds(100));
+
+  cache.handle_ledger_entry(seq_high, ledger.at(seq_high));
+  cache.tick(std::chrono::milliseconds(100));
+
+  REQUIRE(cache.get_state_at(0, seq_low));
+  REQUIRE(!cache.get_state_at(1, seq_mid));
+  REQUIRE(cache.get_state_at(2, seq_high));
 }
 
 TEST_CASE("StateCache sparse queries")

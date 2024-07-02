@@ -5,7 +5,6 @@
 #include "ccf/app_interface.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/ds/logger.h"
-#include "ccf/serdes.h"
 #include "ccf/service/signed_req.h"
 #include "ds/files.h"
 #include "kv/test/null_encryptor.h"
@@ -22,7 +21,6 @@
 using namespace ccf;
 using namespace ccf;
 using namespace std;
-using namespace serdes;
 using namespace nlohmann;
 
 using TResponse = ::http::SimpleResponseProcessor::Response;
@@ -43,15 +41,13 @@ auto dummy_enc_pubk = ccf::crypto::make_rsa_key_pair() -> public_key_pem();
 
 auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
-constexpr auto default_pack = serdes::Pack::Text;
-
 template <typename T>
 T parse_response_body(const TResponse& r)
 {
   nlohmann::json body_j;
   try
   {
-    body_j = serdes::unpack(r.body, serdes::Pack::Text);
+    body_j = nlohmann::json::parse(r.body);
   }
   catch (const nlohmann::json::parse_error& e)
   {
@@ -82,9 +78,8 @@ std::vector<uint8_t> create_request(
   const json& params, const string& method_name, llhttp_method verb = HTTP_POST)
 {
   ::http::Request r(fmt::format("/gov/{}", method_name), verb);
-  const auto body = params.is_null() ? std::vector<uint8_t>() :
-                                       serdes::pack(params, default_pack);
-  r.set_body(&body);
+  const auto body = params.is_null() ? std::string() : params.dump();
+  r.set_body(body);
   return r.build_request();
 }
 
