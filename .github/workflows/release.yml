@@ -2,9 +2,6 @@ name: Release
 
 on:
   push:
-    branches:
-      - main
-      - gha_release
     tags:
       - "ccf-0.*"
   workflow_dispatch:
