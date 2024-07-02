@@ -203,7 +203,8 @@ jobs:
           merge-multiple: true
       - run: |
           set -ex
-          CCF_VERSION=${${{ github.ref_name }}#ccf-}
+          CCF_VERSION=${{ github.ref_name }}
+          CCF_VERSION=${CCF_VERSION#ccf-}
           gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md pkg/*
         shell: bash
         env:
