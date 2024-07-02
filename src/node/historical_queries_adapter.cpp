@@ -190,6 +190,57 @@ namespace ccf::historical
     return tx_id_opt;
   }
 
+  void default_error_handler(
+    HistoricalQueryErrorCode err,
+    std::string reason,
+    endpoints::CommandEndpointContext& args)
+  {
+    if (err == HistoricalQueryErrorCode::InternalError)
+    {
+      args.rpc_ctx->set_error(
+        HTTP_STATUS_INTERNAL_SERVER_ERROR,
+        ccf::errors::TransactionPendingOrUnknown,
+        std::move(reason));
+    }
+    else if (err == HistoricalQueryErrorCode::TransactionPending)
+    {
+      args.rpc_ctx->set_response_header(
+        http::headers::CACHE_CONTROL, "no-cache");
+      args.rpc_ctx->set_error(
+        HTTP_STATUS_NOT_FOUND,
+        ccf::errors::TransactionPendingOrUnknown,
+        std::move(reason));
+    }
+    else if (err == HistoricalQueryErrorCode::TransactionInvalid)
+    {
+      args.rpc_ctx->set_error(
+        HTTP_STATUS_NOT_FOUND,
+        ccf::errors::TransactionInvalid,
+        std::move(reason));
+    }
+    else if (err == HistoricalQueryErrorCode::TransactionIdMissing)
+    {
+      args.rpc_ctx->set_error(
+        HTTP_STATUS_NOT_FOUND,
+        ccf::errors::TransactionInvalid,
+        std::move(reason));
+    }
+    else if (err == HistoricalQueryErrorCode::TransactionPartiallyReady)
+    {
+      args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+      constexpr size_t retry_after_seconds = 3;
+      args.rpc_ctx->set_response_header(
+        http::headers::RETRY_AFTER, retry_after_seconds);
+      args.rpc_ctx->set_response_header(
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+      args.rpc_ctx->set_response_body(std::move(reason));
+    }
+    else
+    {
+      LOG_FAIL_FMT("Unexpected historical query error {}", err);
+    }
+  }
+
   HistoricalTxStatus is_tx_committed_v2(
     ccf::kv::Consensus* consensus,
     ccf::View view,
@@ -373,5 +424,133 @@ namespace ccf::historical
       HandleReadWriteHistoricalQuery,
       ccf::endpoints::EndpointFunction,
       ccf::endpoints::EndpointContext>(f, node_context, available, extractor);
+  }
+
+  template <
+    class TQueryHandler,
+    class TEndpointFunction,
+    class TEndpointContext>
+  TEndpointFunction _adapter_v4(
+    const TQueryHandler& f,
+    ccf::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const CommandTxIDExtractor& extractor,
+    const ErrorHandler& ehandler)
+  {
+    auto& state_cache = node_context.get_historical_state();
+    auto network_identity_subsystem =
+      node_context.get_subsystem<NetworkIdentitySubsystemInterface>();
+
+    return [f,
+            &state_cache,
+            network_identity_subsystem,
+            available,
+            extractor,
+            ehandler](TEndpointContext& args) {
+      // Extract the requested transaction ID
+      ccf::TxID target_tx_id;
+      {
+        const auto tx_id_opt = extractor(args);
+        if (tx_id_opt.has_value())
+        {
+          target_tx_id = tx_id_opt.value();
+        }
+        else
+        {
+          ehandler(
+            HistoricalQueryErrorCode::TransactionIdMissing,
+            "Could not extract TX ID",
+            args);
+          return;
+        }
+      }
+
+      // Check that the requested transaction ID is available
+      {
+        auto error_reason = fmt::format(
+          "Transaction {} is not available.", target_tx_id.to_str());
+        auto is_available =
+          available(target_tx_id.view, target_tx_id.seqno, error_reason);
+
+        switch (is_available)
+        {
+          case HistoricalTxStatus::Error:
+            ehandler(
+              HistoricalQueryErrorCode::InternalError,
+              std::move(error_reason),
+              args);
+            return;
+          case HistoricalTxStatus::PendingOrUnknown:
+            ehandler(
+              HistoricalQueryErrorCode::TransactionPending,
+              std::move(error_reason),
+              args);
+            return;
+          case HistoricalTxStatus::Invalid:
+            ehandler(
+              HistoricalQueryErrorCode::TransactionInvalid,
+              std::move(error_reason),
+              args);
+            return;
+          case HistoricalTxStatus::Valid:
+            break;
+        }
+      }
+
+      // We need a handle to determine whether this request is the 'same' as a
+      // previous one. For simplicity we use target_tx_id.seqno. This means we
+      // keep a lot of state around for old requests! It should be cleaned up
+      // manually
+      const auto historic_request_handle = target_tx_id.seqno;
+
+      // Get a state at the target version from the cache, if it is present
+      auto historical_state =
+        state_cache.get_state_at(historic_request_handle, target_tx_id.seqno);
+      if (
+        historical_state == nullptr ||
+        (!populate_service_endorsements(
+          args.tx, historical_state, state_cache, network_identity_subsystem)))
+      {
+        auto reason = fmt::format(
+          "Historical transaction {} is not currently available.",
+          target_tx_id.to_str());
+        ehandler(
+          HistoricalQueryErrorCode::TransactionPartiallyReady,
+          std::move(reason),
+          args);
+        return;
+      }
+
+      // Call the provided handler
+      f(args, historical_state);
+    };
+  }
+
+  ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v4(
+    const HandleReadOnlyHistoricalQuery& f,
+    ccf::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const CommandTxIDExtractor& extractor,
+    const ErrorHandler& ehandler)
+  {
+    return _adapter_v4<
+      HandleReadOnlyHistoricalQuery,
+      ccf::endpoints::ReadOnlyEndpointFunction,
+      ccf::endpoints::ReadOnlyEndpointContext>(
+      f, node_context, available, extractor, ehandler);
+  }
+
+  ccf::endpoints::EndpointFunction read_write_adapter_v4(
+    const HandleReadWriteHistoricalQuery& f,
+    ccf::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const CommandTxIDExtractor& extractor,
+    const ErrorHandler& ehandler)
+  {
+    return _adapter_v4<
+      HandleReadWriteHistoricalQuery,
+      ccf::endpoints::EndpointFunction,
+      ccf::endpoints::EndpointContext>(
+      f, node_context, available, extractor, ehandler);
   }
 }
