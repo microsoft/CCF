@@ -71,7 +71,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} ${{ matrix.platform.cmake_options }} -DCLIENT_PROTOCOLS_TEST=ON ..
-          ninja -v | build.log
+          ninja -v | tee build.log
         shell: bash
 
       - name: "Check Mitigation Flags"
