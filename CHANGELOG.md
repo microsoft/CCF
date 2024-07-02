@@ -42,6 +42,7 @@ This is a test release.
 ### Removed
 
 - Removed the existing metrics endpoint and API (`GET /api/metrics`, `get_metrics_v1`). Stats for request execution can instead be gathered by overriding the `EndpointRegistry::handle_event_request_completed()` method.
+- Removed automatic msgpack support from JSON endpoint adapters, and related `include/ccf/serdes.h` file.
 
 ## [5.0.0-dev18]
 

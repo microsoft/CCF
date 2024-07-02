@@ -4,7 +4,6 @@
 
 #include "ccf/crypto/key_pair.h"
 #include "ccf/http_consts.h"
-#include "ccf/serdes.h"
 #include "http/http_builder.h"
 #include "http/http_parser.h"
 #include "tls_client.h"
@@ -131,31 +130,24 @@ namespace client
         next_send_id++};
     }
 
-    PreparedRpc gen_request(
-      const std::string& method,
-      const nlohmann::json& params = nullptr,
-      llhttp_method verb = HTTP_POST,
-      const char* auth_token = nullptr)
-    {
-      std::vector<uint8_t> body;
-      if (!params.is_null())
-      {
-        body = serdes::pack(params, serdes::Pack::MsgPack);
-      }
-      return gen_request(
-        method,
-        {body.data(), body.size()},
-        ccf::http::headervalues::contenttype::MSGPACK,
-        verb,
-        auth_token);
-    }
-
     Response call(
       const std::string& method,
       const nlohmann::json& params = nullptr,
       llhttp_method verb = HTTP_POST)
     {
-      return call_raw(gen_request(method, params, verb, nullptr));
+      std::vector<uint8_t> body;
+      if (!params.is_null())
+      {
+        auto body_s = params.dump();
+        body = {body_s.begin(), body_s.end()};
+      }
+
+      return call_raw(gen_request(
+        method,
+        body,
+        ccf::http::headervalues::contenttype::JSON,
+        verb,
+        nullptr));
     }
 
     Response call(
@@ -202,7 +194,7 @@ namespace client
       {
         const auto& content_type =
           resp.headers.find(ccf::http::headers::CONTENT_TYPE);
-        return serdes::unpack(resp.body, serdes::Pack::MsgPack);
+        return nlohmann::json::parse(resp.body);
       }
       else
       {

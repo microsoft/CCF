@@ -31,11 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Override automatic language detection by changing the below list
-        # Supported options are ['csharp', 'cpp', 'go', 'java', 'javascript', 'python']
         language: ["cpp"]
-        # Learn more...
-        # https://docs.github.com/en/github/finding-security-vulnerabilities-and-errors-in-your-code/configuring-code-scanning#overriding-automatic-language-detection
 
     steps:
       - name: Checkout repository
@@ -43,50 +39,26 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Initializes the CodeQL tools for scanning.
+      # Done before CodeQL init to let it find the commit successfully
+      - name: Work around git warning
+        run: git config --global --add safe.directory /__w/CCF/CCF
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           queries: security-extended
-          # If you wish to specify custom queries, you can do so here or in a config file.
-          # By default, queries listed here will override any specified in a config file.
-          # Prefix the list here with "+" to use these queries and those in the config file.
-          # queries: ./path/to/local/query, your-org/your-repo/queries@main
-
-      # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
-      # If this step fails, then you should remove it and run the build manually (see below)
-      #- name: Autobuild
-      #  uses: github/codeql-action/autobuild@v2
-
-      # ℹ️ Command-line programs to run using the OS shell.
-      # 📚 https://git.io/JvXDl
-
-      # ✏️ If the Autobuild fails above, remove it and uncomment the following three lines
-      #    and modify them (or add more) to build your code if your project
-      #    uses a compiled language
-
-      #- run: |
-      #   make bootstrap
-      #   make release
-      - run: |
-          cd getting_started/setup_vm
-          sudo apt update
-          sudo apt install -y ansible software-properties-common bsdmainutils dnsutils
-          sudo ansible-playbook ccf-dev.yml --extra-vars "platform=virtual" --extra-vars "require_open_enclave=false"
-        name: Install dependencies
 
       - run: |
           set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -DCOMPILE_TARGET=virtual -DREQUIRE_OPENENCLAVE=OFF -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DLVI_MITIGATIONS=OFF -DCMAKE_C_COMPILER=`which clang-11` -DCMAKE_CXX_COMPILER=`which clang++-11` ..
+          cmake -DCOMPILE_TARGET=virtual -DREQUIRE_OPENENCLAVE=OFF -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DLVI_MITIGATIONS=OFF ..
         name: Run CMake
 
       - run: |
           cd build
-          make
+          make -j16
         name: Run Make
 
       - name: Perform CodeQL Analysis
