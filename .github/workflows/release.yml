@@ -31,7 +31,7 @@ jobs:
         run: |
           set -ex
           set -o pipefail
-          python ./scripts/extract-release-notes.py --target-git-version --append-mcr-images --describe-path-changes "./samples/constitution" | tee rel-notes.md
+          python ./scripts/extract-release-notes.py --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
       - name: "Upload .deb Package"
         uses: actions/upload-artifact@v4
         with:
