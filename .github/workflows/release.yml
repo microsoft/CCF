@@ -71,8 +71,38 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} ${{ matrix.platform.cmake_options }} -DCLIENT_PROTOCOLS_TEST=ON ..
-          ninja
+          ninja -v | build.log
         shell: bash
+
+      - name: "Check Mitigation Flags"
+        run: |
+          cd build
+          python3 ../scripts/build-check.py < build.log SNPCC
+        shell: bash
+        if: ${{ matrix.platform.name == 'snp' }}
+
+      - name: "Install Extended Testing Tools"
+        run: |
+          set -ex
+          sudo apt-get -y update
+          sudo apt install ansible -y
+          cd getting_started/setup_vm
+          ansible-playbook ccf-extended-testing.yml
+        shell: bash
+        if: ${{ matrix.platform.name != 'snp' }}
+
+      - name: "Test ${{ matrix.platform.name }}"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
+          # Unit tests
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|unit"
+        shell: bash
+        if: "${{ matrix.platform.name != 'snp' }}"
 
       - name: "Make .deb Package"
         id: make_deb
@@ -88,6 +118,36 @@ jobs:
             mv $INITIAL_PKG $CCF_GITHUB_PKG
           fi
           echo "name=$CCF_GITHUB_PKG" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: "Install CCF Debian package"
+        run: |
+          set -ex
+          sudo apt -y install ${{ steps.make_deb.outputs.name }}
+        shell: bash
+
+      - name: "Test Installed CCF"
+        run: |
+          set -ex
+          set -o pipefail
+          cd build
+          cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
+        shell: bash
+        if: "${{ matrix.platform.name != 'snp' }}"
+
+      - name: "Recovery Benchmark for Installed CCF"
+        run: |
+          set -ex
+          set -o pipefail
+          cd build
+          cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
+        shell: bash
+        if: "${{ matrix.platform.name != 'snp' }}"
+
+      - name: "Test Building a Sample Against Installed CCF"
+        run: |
+          set -ex
+          ./tests/test_install_build.sh -DCOMPILE_TARGET=${{ matrix.platform.name }}
         shell: bash
 
       - name: "Upload .deb Package"
