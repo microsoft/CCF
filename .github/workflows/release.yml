@@ -123,6 +123,7 @@ jobs:
       - name: "Install CCF Debian package"
         run: |
           set -ex
+          cd build
           sudo apt -y install ${{ steps.make_deb.outputs.name }}
         shell: bash
 
