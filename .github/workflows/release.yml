@@ -47,19 +47,18 @@ jobs:
           - name: virtual
             image: default
             nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
           - name: snp
             image: default
             nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
           - name: sgx
             image: sgx
             nodes: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
+            container_options: --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx
+            cmake_options: -DLVI_MITIGATIONS=ON
     runs-on: ${{ matrix.platform.nodes }}
     container:
       image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-26-06-2024
-      options: ${{ matrix.platform.options }}
+      options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro ${{ matrix.platform.container_options }}"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,7 +70,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCLIENT_PROTOCOLS_TEST=ON ..
+          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} ${{ matrix.platform.cmake_options }} -DCLIENT_PROTOCOLS_TEST=ON ..
           ninja
         shell: bash
 
@@ -102,24 +101,21 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 1
-    - name: Download Packages
-      uses: actions/download-artifact@v4
-      with:
-        path: pkg
-        pattern: pkg-*
-        merge-multiple: true
-    - name: Download Release notes
-      uses: actions/download-artifact@v4
-      with:
-        name: relnotes
-    - run: |
-        ls
-        ls -R pkg
-    - run: |
-        gh release create --title "CCF ${{ github.ref }}" --draft --notes-file rel-notes.md pkg/*
-      shell: bash
-      env:
-        GH_TOKEN: ${{ github.token }}
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Download Packages
+        uses: actions/download-artifact@v4
+        with:
+          path: pkg
+          pattern: pkg-*
+          merge-multiple: true
+      - name: Download Release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: relnotes
+      - run: |
+          gh release create --title "CCF ${{ github.ref }}" --draft --notes-file rel-notes.md pkg/*
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
