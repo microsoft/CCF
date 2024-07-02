@@ -176,7 +176,9 @@ jobs:
         with:
           name: relnotes
       - run: |
-          gh release create --title "CCF ${{ github.ref }}" --draft --notes-file rel-notes.md pkg/*
+          set -ex
+          CCF_VERSION=${${{ github.ref_name }}#ccf-}
+          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md pkg/*
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
