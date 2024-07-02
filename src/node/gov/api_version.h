@@ -12,13 +12,17 @@ namespace ccf::gov::endpoints
   enum class ApiVersion
   {
     preview_v1,
+    v1,
   };
 
   static constexpr std::pair<ApiVersion, char const*> api_version_strings[] = {
-    {ApiVersion::preview_v1, "2023-06-01-preview"}};
+    {ApiVersion::preview_v1, "2023-06-01-preview"},
+    {ApiVersion::v1, "2024-07-01"}};
 
   std::optional<ApiVersion> get_api_version(
-    ccf::endpoints::CommandEndpointContext& ctx)
+    ccf::endpoints::CommandEndpointContext& ctx,
+    // Optional out-parameter indicating why API version wasn't found
+    const char** error_code = nullptr)
   {
     static std::string accepted_versions_suffix = "";
     if (accepted_versions_suffix.empty())
@@ -53,6 +57,10 @@ namespace ccf::gov::endpoints
           "requests. {}",
           param_name,
           accepted_versions_suffix));
+      if (error_code != nullptr)
+      {
+        *error_code = ccf::errors::MissingApiVersionParameter;
+      }
       return std::nullopt;
     }
 
@@ -70,6 +78,10 @@ namespace ccf::gov::endpoints
         HTTP_STATUS_BAD_REQUEST,
         ccf::errors::UnsupportedApiVersionValue,
         std::move(message));
+      if (error_code != nullptr)
+      {
+        *error_code = ccf::errors::UnsupportedApiVersionValue;
+      }
       return std::nullopt;
     }
 

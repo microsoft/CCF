@@ -18,6 +18,9 @@ namespace ccf::gov::endpoints::schema
   static constexpr auto v2023_06_01_preview =
     R"!!!(@GOV_API_SCHEMA_2023_06_01_PREVIEW@)!!!";
 
+  static constexpr auto v2024_07_01 =
+    R"!!!(@GOV_API_SCHEMA_2024_07_01@)!!!";
+
 #pragma clang diagnostic pop
 
   // clang-format on

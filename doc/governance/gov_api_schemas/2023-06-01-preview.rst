@@ -5,5 +5,5 @@ This API is available by passing the query parameter ``api-version=2023-06-01-pr
 
 This is available from CCF 5.0.0-dev3.
 
-.. openapi:: ../../schemas/mccf/2023-06-01-preview/mccfgov.json
+.. openapi:: ../../schemas/gov/2023-06-01-preview/gov.json
   
