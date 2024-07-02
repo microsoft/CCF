@@ -379,6 +379,15 @@ class LocalRemote(CmdMixin):
         self.name = name
         self.out = os.path.join(self.root, "out")
         self.err = os.path.join(self.root, "err")
+        self._shutdown_timeout = 10
+
+    @property
+    def shutdown_timeout(self):
+        return self._shutdown_timeout
+
+    @shutdown_timeout.setter
+    def shutdown_timeout(self, value):
+        self._shutdown_timeout = value
 
     @staticmethod
     def make_host(host):
@@ -515,12 +524,11 @@ class LocalRemote(CmdMixin):
         LOG.info("[{}] closing".format(self.hostname))
         if self.proc:
             self.proc.terminate()
-            timeout = 10
             try:
-                self.proc.wait(timeout)
+                self.proc.wait(self._shutdown_timeout)
             except subprocess.TimeoutExpired:
                 LOG.exception(
-                    f"Process didn't finish within {timeout} seconds. Trying to get stack trace..."
+                    f"Process didn't finish within {self._shutdown_timeout} seconds. Trying to get stack trace..."
                 )
                 self._print_stack_trace()
                 raise
