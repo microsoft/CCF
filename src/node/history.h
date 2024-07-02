@@ -24,7 +24,7 @@
 
 FMT_BEGIN_NAMESPACE
 template <>
-struct formatter<kv::TxHistory::RequestID>
+struct formatter<ccf::kv::TxHistory::RequestID>
 {
   template <typename ParseContext>
   constexpr auto parse(ParseContext& ctx)
@@ -33,7 +33,7 @@ struct formatter<kv::TxHistory::RequestID>
   }
 
   template <typename FormatContext>
-  auto format(const kv::TxHistory::RequestID& p, FormatContext& ctx) const
+  auto format(const ccf::kv::TxHistory::RequestID& p, FormatContext& ctx) const
   {
     return format_to(
       ctx.out(), "<RID {0}, {1}>", std::get<0>(p), std::get<1>(p));
@@ -81,26 +81,26 @@ namespace ccf
     return os;
   }
 
-  static inline void log_hash(const crypto::Sha256Hash& h, HashOp flag)
+  static inline void log_hash(const ccf::crypto::Sha256Hash& h, HashOp flag)
   {
     LOG_TRACE_FMT("History [{}] {}", flag, h);
   }
 
-  class NullTxHistoryPendingTx : public kv::PendingTx
+  class NullTxHistoryPendingTx : public ccf::kv::PendingTx
   {
-    kv::TxID txid;
-    kv::Store& store;
+    ccf::kv::TxID txid;
+    ccf::kv::Store& store;
     NodeId id;
 
   public:
     NullTxHistoryPendingTx(
-      kv::TxID txid_, kv::Store& store_, const NodeId& id_) :
+      ccf::kv::TxID txid_, ccf::kv::Store& store_, const NodeId& id_) :
       txid(txid_),
       store(store_),
       id(id_)
     {}
 
-    kv::PendingTxInfo call() override
+    ccf::kv::PendingTxInfo call() override
     {
       auto sig = store.create_reserved_tx(txid);
       auto signatures =
@@ -114,18 +114,19 @@ namespace ccf
     }
   };
 
-  class NullTxHistory : public kv::TxHistory
+  class NullTxHistory : public ccf::kv::TxHistory
   {
-    kv::Store& store;
+    ccf::kv::Store& store;
     NodeId id;
 
   protected:
-    kv::Version version = 0;
-    kv::Term term_of_last_version = 0;
-    kv::Term term_of_next_version = 0;
+    ccf::kv::Version version = 0;
+    ccf::kv::Term term_of_last_version = 0;
+    ccf::kv::Term term_of_next_version = 0;
 
   public:
-    NullTxHistory(kv::Store& store_, const NodeId& id_, crypto::KeyPair&) :
+    NullTxHistory(
+      ccf::kv::Store& store_, const NodeId& id_, ccf::crypto::KeyPair&) :
       store(store_),
       id(id_)
     {}
@@ -136,37 +137,41 @@ namespace ccf
     }
 
     void append_entry(
-      const crypto::Sha256Hash& digest,
-      std::optional<kv::Term> term_of_next_version_ = std::nullopt) override
+      const ccf::crypto::Sha256Hash& digest,
+      std::optional<ccf::kv::Term> term_of_next_version_ =
+        std::nullopt) override
     {
       version++;
     }
 
-    kv::TxHistory::Result verify_and_sign(
-      PrimarySignature&, kv::Term*, kv::Configuration::Nodes&) override
+    ccf::kv::TxHistory::Result verify_and_sign(
+      PrimarySignature&,
+      ccf::kv::Term*,
+      ccf::kv::Configuration::Nodes&) override
     {
-      return kv::TxHistory::Result::OK;
+      return ccf::kv::TxHistory::Result::OK;
     }
 
-    bool verify(kv::Term*, ccf::PrimarySignature*) override
+    bool verify(ccf::kv::Term*, ccf::PrimarySignature*) override
     {
       return true;
     }
 
-    void set_term(kv::Term t) override
+    void set_term(ccf::kv::Term t) override
     {
       term_of_last_version = t;
       term_of_next_version = t;
     }
 
-    void rollback(const kv::TxID& tx_id, kv::Term commit_term_) override
+    void rollback(
+      const ccf::kv::TxID& tx_id, ccf::kv::Term commit_term_) override
     {
       version = tx_id.version;
       term_of_last_version = tx_id.term;
       term_of_next_version = commit_term_;
     }
 
-    void compact(kv::Version) override {}
+    void compact(ccf::kv::Version) override {}
 
     bool init_from_snapshot(const std::vector<uint8_t>&) override
     {
@@ -190,21 +195,21 @@ namespace ccf
 
     void start_signature_emit_timer() override {}
 
-    crypto::Sha256Hash get_replicated_state_root() override
+    ccf::crypto::Sha256Hash get_replicated_state_root() override
     {
-      return crypto::Sha256Hash(std::to_string(version));
+      return ccf::crypto::Sha256Hash(std::to_string(version));
     }
 
-    std::tuple<kv::TxID, crypto::Sha256Hash, kv::Term>
+    std::tuple<ccf::kv::TxID, ccf::crypto::Sha256Hash, ccf::kv::Term>
     get_replicated_state_txid_and_root() override
     {
       return {
         {term_of_last_version, version},
-        crypto::Sha256Hash(std::to_string(version)),
+        ccf::crypto::Sha256Hash(std::to_string(version)),
         term_of_next_version};
     }
 
-    std::vector<uint8_t> get_proof(kv::Version) override
+    std::vector<uint8_t> get_proof(ccf::kv::Version) override
     {
       return {};
     }
@@ -219,7 +224,7 @@ namespace ccf
       return {};
     }
 
-    void set_endorsed_certificate(const crypto::Pem& cert) override {}
+    void set_endorsed_certificate(const ccf::crypto::Pem& cert) override {}
   };
 
   // Use optimised CCF openssl_sha256 function to avoid performance regression
@@ -235,7 +240,7 @@ namespace ccf
     memcpy(&block[0], l.bytes, sha256_byte_size);
     memcpy(&block[sha256_byte_size], r.bytes, sha256_byte_size);
 
-    crypto::openssl_sha256(block, out.bytes);
+    ccf::crypto::openssl_sha256(block, out.bytes);
   }
 
   using HistoryTree = merkle::TreeT<sha256_byte_size, ccf::sha256_history>;
@@ -301,23 +306,23 @@ namespace ccf
   };
 
   template <class T>
-  class MerkleTreeHistoryPendingTx : public kv::PendingTx
+  class MerkleTreeHistoryPendingTx : public ccf::kv::PendingTx
   {
-    kv::TxID txid;
-    kv::Store& store;
-    kv::TxHistory& history;
+    ccf::kv::TxID txid;
+    ccf::kv::Store& store;
+    ccf::kv::TxHistory& history;
     NodeId id;
-    crypto::KeyPair& kp;
-    crypto::Pem& endorsed_cert;
+    ccf::crypto::KeyPair& kp;
+    ccf::crypto::Pem& endorsed_cert;
 
   public:
     MerkleTreeHistoryPendingTx(
-      kv::TxID txid_,
-      kv::Store& store_,
-      kv::TxHistory& history_,
+      ccf::kv::TxID txid_,
+      ccf::kv::Store& store_,
+      ccf::kv::TxHistory& history_,
       const NodeId& id_,
-      crypto::KeyPair& kp_,
-      crypto::Pem& endorsed_cert_) :
+      ccf::crypto::KeyPair& kp_,
+      ccf::crypto::Pem& endorsed_cert_) :
       txid(txid_),
       store(store_),
       history(history_),
@@ -326,14 +331,14 @@ namespace ccf
       endorsed_cert(endorsed_cert_)
     {}
 
-    kv::PendingTxInfo call() override
+    ccf::kv::PendingTxInfo call() override
     {
       auto sig = store.create_reserved_tx(txid);
       auto signatures =
         sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
-      crypto::Sha256Hash root = history.get_replicated_state_root();
+      ccf::crypto::Sha256Hash root = history.get_replicated_state_root();
 
       std::vector<uint8_t> primary_sig;
 
@@ -366,7 +371,7 @@ namespace ccf
       tree = new HistoryTree(serialised);
     }
 
-    MerkleTreeHistory(crypto::Sha256Hash first_hash = {})
+    MerkleTreeHistory(ccf::crypto::Sha256Hash first_hash = {})
     {
       tree = new HistoryTree(merkle::Hash(first_hash.h));
     }
@@ -383,15 +388,15 @@ namespace ccf
       tree = new HistoryTree(serialised);
     }
 
-    void append(const crypto::Sha256Hash& hash)
+    void append(const ccf::crypto::Sha256Hash& hash)
     {
       tree->insert(merkle::Hash(hash.h));
     }
 
-    crypto::Sha256Hash get_root() const
+    ccf::crypto::Sha256Hash get_root() const
     {
       const merkle::Hash& root = tree->root();
-      crypto::Sha256Hash result;
+      ccf::crypto::Sha256Hash result;
       std::copy(root.bytes, root.bytes + root.size(), result.h.begin());
       return result;
     }
@@ -399,7 +404,7 @@ namespace ccf
     void operator=(const MerkleTreeHistory& rhs)
     {
       delete (tree);
-      crypto::Sha256Hash root(rhs.get_root());
+      ccf::crypto::Sha256Hash root(rhs.get_root());
       tree = new HistoryTree(merkle::Hash(root.h));
     }
 
@@ -475,23 +480,23 @@ namespace ccf
       return index >= begin_index() && index <= end_index();
     }
 
-    crypto::Sha256Hash get_leaf(uint64_t index)
+    ccf::crypto::Sha256Hash get_leaf(uint64_t index)
     {
       const merkle::Hash& leaf = tree->leaf(index);
-      crypto::Sha256Hash result;
+      ccf::crypto::Sha256Hash result;
       std::copy(leaf.bytes, leaf.bytes + leaf.size(), result.h.begin());
       return result;
     }
   };
 
   template <class T>
-  class HashedTxHistory : public kv::TxHistory
+  class HashedTxHistory : public ccf::kv::TxHistory
   {
-    kv::Store& store;
+    ccf::kv::Store& store;
     NodeId id;
     T replicated_state_tree;
 
-    crypto::KeyPair& kp;
+    ccf::crypto::KeyPair& kp;
 
     std::optional<::threading::TaskQueue::TimerEntry>
       emit_signature_timer_entry = std::nullopt;
@@ -499,16 +504,16 @@ namespace ccf
     size_t sig_ms_interval;
 
     ccf::pal::Mutex state_lock;
-    kv::Term term_of_last_version = 0;
-    kv::Term term_of_next_version;
+    ccf::kv::Term term_of_last_version = 0;
+    ccf::kv::Term term_of_next_version;
 
-    std::optional<crypto::Pem> endorsed_cert = std::nullopt;
+    std::optional<ccf::crypto::Pem> endorsed_cert = std::nullopt;
 
   public:
     HashedTxHistory(
-      kv::Store& store_,
+      ccf::kv::Store& store_,
       const NodeId& id_,
-      crypto::KeyPair& kp_,
+      ccf::crypto::KeyPair& kp_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0,
       bool signature_timer = false) :
@@ -549,11 +554,11 @@ namespace ccf
               auto sig_disp = consensus->get_signature_disposition();
               switch (sig_disp)
               {
-                case kv::Consensus::SignatureDisposition::CANT_REPLICATE:
+                case ccf::kv::Consensus::SignatureDisposition::CANT_REPLICATE:
                 {
                   break;
                 }
-                case kv::Consensus::SignatureDisposition::CAN_SIGN:
+                case ccf::kv::Consensus::SignatureDisposition::CAN_SIGN:
                 {
                   if (self->store.committable_gap() > 0)
                   {
@@ -561,7 +566,7 @@ namespace ccf
                   }
                   break;
                 }
-                case kv::Consensus::SignatureDisposition::SHOULD_SIGN:
+                case ccf::kv::Consensus::SignatureDisposition::SHOULD_SIGN:
                 {
                   should_emit_signature = true;
                   break;
@@ -623,41 +628,43 @@ namespace ccf
 
       replicated_state_tree.deserialise(tree.value());
 
-      crypto::Sha256Hash hash;
+      ccf::crypto::Sha256Hash hash;
       std::copy_n(
-        hash_at_snapshot.begin(), crypto::Sha256Hash::SIZE, hash.h.begin());
+        hash_at_snapshot.begin(),
+        ccf::crypto::Sha256Hash::SIZE,
+        hash.h.begin());
       replicated_state_tree.append(hash);
       return true;
     }
 
-    crypto::Sha256Hash get_replicated_state_root() override
+    ccf::crypto::Sha256Hash get_replicated_state_root() override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
       return replicated_state_tree.get_root();
     }
 
-    std::tuple<kv::TxID, crypto::Sha256Hash, kv::Term>
+    std::tuple<ccf::kv::TxID, ccf::crypto::Sha256Hash, ccf::kv::Term>
     get_replicated_state_txid_and_root() override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
       return {
         {term_of_last_version,
-         static_cast<kv::Version>(replicated_state_tree.end_index())},
+         static_cast<ccf::kv::Version>(replicated_state_tree.end_index())},
         replicated_state_tree.get_root(),
         term_of_next_version};
     }
 
-    kv::TxHistory::Result verify_and_sign(
+    ccf::kv::TxHistory::Result verify_and_sign(
       PrimarySignature& sig,
-      kv::Term* term,
-      kv::Configuration::Nodes& config) override
+      ccf::kv::Term* term,
+      ccf::kv::Configuration::Nodes& config) override
     {
       if (!verify(term, &sig))
       {
-        return kv::TxHistory::Result::FAIL;
+        return ccf::kv::TxHistory::Result::FAIL;
       }
 
-      kv::TxHistory::Result result = kv::TxHistory::Result::OK;
+      ccf::kv::TxHistory::Result result = ccf::kv::TxHistory::Result::OK;
 
       sig.node = id;
       sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
@@ -666,7 +673,8 @@ namespace ccf
     }
 
     bool verify(
-      kv::Term* term = nullptr, PrimarySignature* signature = nullptr) override
+      ccf::kv::Term* term = nullptr,
+      PrimarySignature* signature = nullptr) override
     {
       auto tx = store.create_read_only_tx();
       auto signatures =
@@ -707,7 +715,7 @@ namespace ccf
       }
     }
 
-    void set_term(kv::Term t) override
+    void set_term(ccf::kv::Term t) override
     {
       // This should only be called once, when the store first knows about its
       // term
@@ -717,7 +725,7 @@ namespace ccf
     }
 
     void rollback(
-      const kv::TxID& tx_id, kv::Term term_of_next_version_) override
+      const ccf::kv::TxID& tx_id, ccf::kv::Term term_of_next_version_) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
       LOG_TRACE_FMT("Rollback to {}.{}", tx_id.term, tx_id.version);
@@ -727,7 +735,7 @@ namespace ccf
       log_hash(replicated_state_tree.get_root(), ROLLBACK);
     }
 
-    void compact(kv::Version v) override
+    void compact(ccf::kv::Version v) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
       // Receipts can only be retrieved to the flushed index. Keep a range of
@@ -782,7 +790,7 @@ namespace ccf
         true);
     }
 
-    std::vector<uint8_t> get_proof(kv::Version index) override
+    std::vector<uint8_t> get_proof(ccf::kv::Version index) override
     {
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
       return replicated_state_tree.get_proof(index).to_v();
@@ -804,15 +812,15 @@ namespace ccf
 
     void append(const std::vector<uint8_t>& data) override
     {
-      crypto::Sha256Hash rh(data);
+      ccf::crypto::Sha256Hash rh(data);
       log_hash(rh, APPEND);
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
       replicated_state_tree.append(rh);
     }
 
     void append_entry(
-      const crypto::Sha256Hash& digest,
-      std::optional<kv::Term> expected_term_of_next_version =
+      const ccf::crypto::Sha256Hash& digest,
+      std::optional<ccf::kv::Term> expected_term_of_next_version =
         std::nullopt) override
     {
       log_hash(digest, APPEND);
@@ -827,7 +835,7 @@ namespace ccf
       replicated_state_tree.append(digest);
     }
 
-    void set_endorsed_certificate(const crypto::Pem& cert) override
+    void set_endorsed_certificate(const ccf::crypto::Pem& cert) override
     {
       if (cert.empty())
       {

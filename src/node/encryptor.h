@@ -13,9 +13,9 @@ namespace ccf
   // - 8 LSB are unique sequence number
   // - 4 MSB (except final bit) are the 4 LSB of term
   // - Final bit indicates a snapshot
-  struct TxGcmHeader : public crypto::StandardGcmHeader
+  struct TxGcmHeader : public ccf::crypto::StandardGcmHeader
   {
-    using crypto::StandardGcmHeader::StandardGcmHeader;
+    using ccf::crypto::StandardGcmHeader::StandardGcmHeader;
     constexpr static uint8_t IV_DELIMITER = 8;
 
     void set_iv_seq(uint64_t seq)
@@ -47,5 +47,5 @@ namespace ccf
     }
   };
 
-  using NodeEncryptor = kv::TxEncryptor<ccf::LedgerSecrets, TxGcmHeader>;
+  using NodeEncryptor = ccf::kv::TxEncryptor<ccf::LedgerSecrets, TxGcmHeader>;
 }

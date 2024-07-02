@@ -18,7 +18,7 @@
 #include <fmt/format.h>
 #include <memory>
 
-namespace kv
+namespace ccf::kv
 {
   class StoreState
   {
@@ -26,14 +26,15 @@ namespace kv
     // All collections of Map must be ordered so that we lock their contained
     // maps in a stable order. The order here is by map name. The version
     // indicates the version at which the Map was created.
-    using Maps = std::
-      map<std::string, std::pair<kv::Version, std::shared_ptr<untyped::Map>>>;
+    using Maps = std::map<
+      std::string,
+      std::pair<ccf::kv::Version, std::shared_ptr<untyped::Map>>>;
     ccf::pal::Mutex maps_lock;
     Maps maps;
 
     ccf::pal::Mutex version_lock;
     std::atomic<Version> version = 0;
-    Version last_new_map = kv::NoVersion;
+    Version last_new_map = ccf::kv::NoVersion;
     std::atomic<Version> compacted = 0;
 
     // Calls to Store::commit are made atomic by taking this lock.
@@ -68,7 +69,7 @@ namespace kv
       pending_txs.clear();
 
       version = 0;
-      last_new_map = kv::NoVersion;
+      last_new_map = ccf::kv::NoVersion;
       compacted = 0;
       term_of_next_version = 0;
       term_of_last_version = 0;
@@ -85,8 +86,8 @@ namespace kv
                 public ReadOnlyStore
   {
   private:
-    using Hooks = std::map<std::string, kv::untyped::Map::CommitHook>;
-    using MapHooks = std::map<std::string, kv::untyped::Map::MapHook>;
+    using Hooks = std::map<std::string, ccf::kv::untyped::Map::CommitHook>;
+    using MapHooks = std::map<std::string, ccf::kv::untyped::Map::MapHook>;
     Hooks global_hooks;
     MapHooks map_hooks;
 
@@ -113,7 +114,7 @@ namespace kv
       Version v,
       Term term,
       const MapCollection& new_maps,
-      kv::ConsensusHookPtrs& hooks,
+      ccf::kv::ConsensusHookPtrs& hooks,
       bool track_deletes_on_missing_keys) override
     {
       auto c = apply_changes(
@@ -232,20 +233,20 @@ namespace kv
      * such map exists
      */
     std::shared_ptr<AbstractMap> get_map(
-      kv::Version v, const std::string& map_name) override
+      ccf::kv::Version v, const std::string& map_name) override
     {
       std::lock_guard<ccf::pal::Mutex> mguard(maps_lock);
       return get_map_internal(v, map_name);
     }
 
     std::shared_ptr<AbstractMap> get_map_unsafe(
-      kv::Version v, const std::string& map_name) override
+      ccf::kv::Version v, const std::string& map_name) override
     {
       return get_map_internal(v, map_name);
     }
 
-    std::shared_ptr<kv::untyped::Map> get_map_internal(
-      kv::Version v, const std::string& map_name)
+    std::shared_ptr<ccf::kv::untyped::Map> get_map_internal(
+      ccf::kv::Version v, const std::string& map_name)
     {
       auto search = maps.find(map_name);
       if (search != maps.end())
@@ -271,9 +272,9 @@ namespace kv
      * @param map_ Map to add
      */
     void add_dynamic_map(
-      kv::Version v, const std::shared_ptr<AbstractMap>& map_) override
+      ccf::kv::Version v, const std::shared_ptr<AbstractMap>& map_) override
     {
-      auto map = std::dynamic_pointer_cast<kv::untyped::Map>(map_);
+      auto map = std::dynamic_pointer_cast<ccf::kv::untyped::Map>(map_);
       if (map == nullptr)
       {
         throw std::logic_error(fmt::format(
@@ -383,17 +384,17 @@ namespace kv
     ApplyResult deserialise_snapshot(
       const uint8_t* data,
       size_t size,
-      kv::ConsensusHookPtrs& hooks,
+      ccf::kv::ConsensusHookPtrs& hooks,
       std::vector<Version>* view_history = nullptr,
       bool public_only = false) override
     {
       auto e = get_encryptor();
       auto d = KvStoreDeserialiser(
         e,
-        public_only ? kv::SecurityDomain::PUBLIC :
-                      std::optional<kv::SecurityDomain>());
+        public_only ? ccf::kv::SecurityDomain::PUBLIC :
+                      std::optional<ccf::kv::SecurityDomain>());
 
-      kv::Term term;
+      ccf::kv::Term term;
       auto v_ = d.init(data, size, term, is_historical);
       if (!v_.has_value())
       {
@@ -431,12 +432,12 @@ namespace kv
         {
           const auto map_name = r.value();
 
-          std::shared_ptr<kv::untyped::Map> map = nullptr;
+          std::shared_ptr<ccf::kv::untyped::Map> map = nullptr;
 
           auto search = maps.find(map_name);
           if (search == maps.end())
           {
-            map = std::make_shared<kv::untyped::Map>(
+            map = std::make_shared<ccf::kv::untyped::Map>(
               this, map_name, get_security_domain(map_name));
             new_maps[map_name] = map;
             LOG_DEBUG_FMT(
@@ -688,12 +689,12 @@ namespace kv
     bool fill_maps(
       const std::vector<uint8_t>& data,
       bool public_only,
-      kv::Version& v,
-      kv::Term& view,
+      ccf::kv::Version& v,
+      ccf::kv::Term& view,
       OrderedChanges& changes,
       MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
-      std::optional<crypto::Sha256Hash>& commit_evidence_digest,
+      std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest,
       bool ignore_strict_versions = false) override
     {
       // This will return FAILED if the serialised transaction is being
@@ -705,8 +706,8 @@ namespace kv
 
       auto d = KvStoreDeserialiser(
         e,
-        public_only ? kv::SecurityDomain::PUBLIC :
-                      std::optional<kv::SecurityDomain>());
+        public_only ? ccf::kv::SecurityDomain::PUBLIC :
+                      std::optional<ccf::kv::SecurityDomain>());
 
       auto v_ = d.init(data.data(), data.size(), view, is_historical);
       if (!v_.has_value())
@@ -757,7 +758,7 @@ namespace kv
         auto map = get_map_internal(v, map_name);
         if (map == nullptr)
         {
-          auto new_map = std::make_shared<kv::untyped::Map>(
+          auto new_map = std::make_shared<ccf::kv::untyped::Map>(
             this, map_name, get_security_domain(map_name));
           map = new_map;
           new_maps[map_name] = new_map;
@@ -795,7 +796,7 @@ namespace kv
       return true;
     }
 
-    std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
+    std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       bool public_only = false,
       const std::optional<TxID>& expected_txid = std::nullopt) override
@@ -839,7 +840,7 @@ namespace kv
       return version;
     }
 
-    kv::TxID current_txid() override
+    ccf::kv::TxID current_txid() override
     {
       // Must lock in case the version or read term is being incremented.
       std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
@@ -965,7 +966,7 @@ namespace kv
         auto data_shared =
           std::make_shared<std::vector<uint8_t>>(std::move(data_));
         auto hooks_shared =
-          std::make_shared<kv::ConsensusHookPtrs>(std::move(hooks_));
+          std::make_shared<ccf::kv::ConsensusHookPtrs>(std::move(hooks_));
 
         // NB: this cannot happen currently. Regular Tx only make it here if
         // they did succeed, and signatures cannot conflict because they
@@ -1147,7 +1148,7 @@ namespace kv
           // rollback
           auto new_map = std::make_pair(
             NoVersion,
-            std::make_shared<kv::untyped::Map>(
+            std::make_shared<ccf::kv::untyped::Map>(
               this, name, SecurityDomain::PRIVATE));
           maps[name] = new_map;
           map = new_map.second;
@@ -1181,7 +1182,7 @@ namespace kv
     }
 
     void set_map_hook(
-      const std::string& map_name, const kv::untyped::Map::MapHook& hook)
+      const std::string& map_name, const ccf::kv::untyped::Map::MapHook& hook)
     {
       map_hooks[map_name] = hook;
 
@@ -1204,7 +1205,8 @@ namespace kv
     }
 
     void set_global_hook(
-      const std::string& map_name, const kv::untyped::Map::CommitHook& hook)
+      const std::string& map_name,
+      const ccf::kv::untyped::Map::CommitHook& hook)
     {
       global_hooks[map_name] = hook;
 
@@ -1292,5 +1294,5 @@ namespace kv
     }
   };
 
-  using StorePtr = std::shared_ptr<kv::Store>;
+  using StorePtr = std::shared_ptr<ccf::kv::Store>;
 }

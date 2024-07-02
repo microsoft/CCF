@@ -106,10 +106,11 @@ int main(int argc, char** argv)
 
   LoggerLevel enclave_log_level = LoggerLevel::INFO;
   std::map<std::string, LoggerLevel> log_level_options;
-  for (size_t i = logger::MOST_VERBOSE; i < LoggerLevel::MAX_LOG_LEVEL; ++i)
+  for (size_t i = ccf::logger::MOST_VERBOSE; i < LoggerLevel::MAX_LOG_LEVEL;
+       ++i)
   {
     const auto l = (LoggerLevel)i;
-    log_level_options[logger::to_string(l)] = l;
+    log_level_options[ccf::logger::to_string(l)] = l;
   }
 
   app
@@ -179,11 +180,11 @@ int main(int argc, char** argv)
 
   if (config.logging.format == host::LogFormat::JSON)
   {
-    logger::config::add_json_console_logger();
+    ccf::logger::config::add_json_console_logger();
   }
   else
   {
-    logger::config::add_text_console_logger();
+    ccf::logger::config::add_text_console_logger();
   }
 
   LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
@@ -201,7 +202,7 @@ int main(int argc, char** argv)
   nlohmann::json environment;
   for (int i = 0; environ[i] != nullptr; i++)
   {
-    auto [k, v] = nonstd::split_1(environ[i], "=");
+    auto [k, v] = ccf::nonstd::split_1(environ[i], "=");
     environment[k] = v;
   }
 
@@ -271,7 +272,7 @@ int main(int argc, char** argv)
   files::dump(fmt::format("{}", ::getpid()), config.output_files.pid_file);
 
   // set the host log level
-  logger::config::level() = config.logging.host_level;
+  ccf::logger::config::level() = config.logging.host_level;
 
   asynchost::TimeBoundLogger::default_max_time =
     config.slow_io_logging_threshold;
@@ -511,7 +512,7 @@ int main(int argc, char** argv)
       LOG_DEBUG_FMT(
         "Resolving snp_security_policy_file: {}", security_policy_file);
       security_policy_file =
-        nonstd::expand_envvars_in_path(security_policy_file);
+        ccf::nonstd::expand_envvars_in_path(security_policy_file);
       LOG_DEBUG_FMT(
         "Resolved snp_security_policy_file: {}", security_policy_file);
 
@@ -526,7 +527,7 @@ int main(int argc, char** argv)
       LOG_DEBUG_FMT(
         "Resolving snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
       snp_uvm_endorsements_file =
-        nonstd::expand_envvars_in_path(snp_uvm_endorsements_file);
+        ccf::nonstd::expand_envvars_in_path(snp_uvm_endorsements_file);
       LOG_DEBUG_FMT(
         "Resolved snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
 
@@ -549,14 +550,14 @@ int main(int argc, char** argv)
         auto pos = url.find(':');
         if (pos == std::string::npos)
         {
-          endorsement_servers_it->url = nonstd::expand_envvar(url);
+          endorsement_servers_it->url = ccf::nonstd::expand_envvar(url);
         }
         else
         {
           endorsement_servers_it->url = fmt::format(
             "{}:{}",
-            nonstd::expand_envvar(url.substr(0, pos)),
-            nonstd::expand_envvar(url.substr(pos + 1)));
+            ccf::nonstd::expand_envvar(url.substr(0, pos)),
+            ccf::nonstd::expand_envvar(url.substr(pos + 1)));
         }
         LOG_DEBUG_FMT(
           "Resolved snp_endorsements_server url: {}",
@@ -591,19 +592,19 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
     startup_config.startup_host_time =
-      ds::to_x509_time_string(startup_host_time);
+      ::ds::to_x509_time_string(startup_host_time);
 
     if (config.command.type == StartType::Start)
     {
       for (auto const& m : config.command.start.members)
       {
-        std::optional<crypto::Pem> public_encryption_key = std::nullopt;
+        std::optional<ccf::crypto::Pem> public_encryption_key = std::nullopt;
         if (
           m.encryption_public_key_file.has_value() &&
           !m.encryption_public_key_file.value().empty())
         {
-          public_encryption_key =
-            crypto::Pem(files::slurp(m.encryption_public_key_file.value()));
+          public_encryption_key = ccf::crypto::Pem(
+            files::slurp(m.encryption_public_key_file.value()));
         }
 
         nlohmann::json md = nullptr;
@@ -613,7 +614,7 @@ int main(int argc, char** argv)
         }
 
         startup_config.start.members.emplace_back(
-          crypto::Pem(files::slurp(m.certificate_file)),
+          ccf::crypto::Pem(files::slurp(m.certificate_file)),
           public_encryption_key,
           md);
       }

@@ -41,8 +41,8 @@ namespace ccf
 
   class RPCSessions : public std::enable_shared_from_this<RPCSessions>,
                       public AbstractRPCResponder,
-                      public http::ErrorReporter,
-                      public http::ResponderLookup
+                      public ::http::ErrorReporter,
+                      public ::http::ResponderLookup
   {
   private:
     struct ListenInterface
@@ -148,7 +148,7 @@ namespace ccf
     {
       if (app_protocol == "HTTP2")
       {
-        return std::make_shared<http::HTTP2ServerSession>(
+        return std::make_shared<::http::HTTP2ServerSession>(
           rpc_map,
           id,
           listen_interface_id,
@@ -160,7 +160,7 @@ namespace ccf
       }
       else if (app_protocol == "HTTP1")
       {
-        return std::make_shared<http::HTTPServerSession>(
+        return std::make_shared<::http::HTTPServerSession>(
           rpc_map,
           id,
           listen_interface_id,
@@ -287,20 +287,22 @@ namespace ccf
       return listening_interfaces.begin()->second.app_protocol;
     }
 
-    void set_node_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
+    void set_node_cert(
+      const ccf::crypto::Pem& cert_, const ccf::crypto::Pem& pk)
     {
       set_cert(ccf::Authority::NODE, cert_, pk);
     }
 
-    void set_network_cert(const crypto::Pem& cert_, const crypto::Pem& pk)
+    void set_network_cert(
+      const ccf::crypto::Pem& cert_, const ccf::crypto::Pem& pk)
     {
       set_cert(ccf::Authority::SERVICE, cert_, pk);
     }
 
     void set_cert(
       ccf::Authority authority,
-      const crypto::Pem& cert_,
-      const crypto::Pem& pk,
+      const ccf::crypto::Pem& cert_,
+      const ccf::crypto::Pem& pk,
       const std::string& acme_configuration = "")
     {
       // Caller authentication is done by each frontend by looking up
@@ -397,7 +399,7 @@ namespace ccf
         if (per_listen_interface.app_protocol == "HTTP2")
         {
           capped_session =
-            std::make_shared<NoMoreSessionsImpl<http::HTTP2ServerSession>>(
+            std::make_shared<NoMoreSessionsImpl<::http::HTTP2ServerSession>>(
               rpc_map,
               id,
               listen_interface_id,
@@ -410,7 +412,7 @@ namespace ccf
         else
         {
           capped_session =
-            std::make_shared<NoMoreSessionsImpl<http::HTTPServerSession>>(
+            std::make_shared<NoMoreSessionsImpl<::http::HTTPServerSession>>(
               rpc_map,
               id,
               listen_interface_id,
@@ -563,7 +565,7 @@ namespace ccf
       // want it to succeed even when we are busy.
       if (app_protocol == "HTTP2")
       {
-        auto session = std::make_shared<http::HTTP2ClientSession>(
+        auto session = std::make_shared<::http::HTTP2ClientSession>(
           id, writer_factory, std::move(ctx));
         sessions.insert(std::make_pair(id, std::make_pair("", session)));
         sessions_peak = std::max(sessions_peak, sessions.size());
@@ -571,7 +573,7 @@ namespace ccf
       }
       else if (app_protocol == "HTTP1")
       {
-        auto session = std::make_shared<http::HTTPClientSession>(
+        auto session = std::make_shared<::http::HTTPClientSession>(
           id, writer_factory, std::move(ctx));
         sessions.insert(std::make_pair(id, std::make_pair("", session)));
         sessions_peak = std::max(sessions_peak, sessions.size());
@@ -587,7 +589,7 @@ namespace ccf
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       auto id = get_next_client_id();
-      auto session = std::make_shared<http::UnencryptedHTTPClientSession>(
+      auto session = std::make_shared<::http::UnencryptedHTTPClientSession>(
         id, writer_factory);
       sessions.insert(std::make_pair(id, std::make_pair("", session)));
       sessions_peak = std::max(sessions_peak, sessions.size());

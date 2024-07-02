@@ -40,7 +40,7 @@ namespace ccf
       auto it = periods.find(der);
       if (it == periods.end())
       {
-        auto verifier = crypto::make_unique_verifier(der);
+        auto verifier = ccf::crypto::make_unique_verifier(der);
 
         const auto [valid_from_timestring, valid_to_timestring] =
           verifier->validity_period();
@@ -104,7 +104,7 @@ namespace ccf
   UserCertAuthnPolicy::~UserCertAuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> UserCertAuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
@@ -120,7 +120,7 @@ namespace ccf
       return nullptr;
     }
 
-    auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
+    auto caller_id = ccf::crypto::Sha256Hash(caller_cert).hex_str();
 
     auto user_certs = tx.ro<UserCerts>(Tables::USER_CERTS);
     if (user_certs->has(caller_id))
@@ -141,7 +141,7 @@ namespace ccf
   MemberCertAuthnPolicy::~MemberCertAuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> MemberCertAuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
@@ -152,7 +152,7 @@ namespace ccf
       return nullptr;
     }
 
-    auto caller_id = crypto::Sha256Hash(caller_cert).hex_str();
+    auto caller_id = ccf::crypto::Sha256Hash(caller_cert).hex_str();
 
     auto member_certs = tx.ro<MemberCerts>(Tables::MEMBER_CERTS);
     if (member_certs->has(caller_id))
@@ -167,7 +167,7 @@ namespace ccf
   }
 
   std::unique_ptr<AuthnIdentity> NodeCertAuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {

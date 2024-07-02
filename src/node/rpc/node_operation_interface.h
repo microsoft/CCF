@@ -15,8 +15,8 @@ namespace ccf
 {
   using ExtendedState = std::tuple<
     NodeStartupState,
-    std::optional<kv::Version> /* recovery_target_seqno */,
-    std::optional<kv::Version> /* last_recovered_seqno */>;
+    std::optional<ccf::kv::Version> /* recovery_target_seqno */,
+    std::optional<ccf::kv::Version> /* last_recovered_seqno */>;
 
   class AbstractNodeOperation : public ccf::AbstractNodeSubSystem
   {
@@ -42,20 +42,20 @@ namespace ccf
 
     virtual bool can_replicate() = 0;
 
-    virtual kv::Version get_last_recovered_signed_idx() = 0;
-    virtual kv::Version get_startup_snapshot_seqno() = 0;
+    virtual ccf::kv::Version get_last_recovered_signed_idx() = 0;
+    virtual ccf::kv::Version get_startup_snapshot_seqno() = 0;
 
     virtual SessionMetrics get_session_metrics() = 0;
     virtual size_t get_jwt_attempts() = 0;
 
     virtual QuoteVerificationResult verify_quote(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
       pal::PlatformAttestationMeasurement& measurement) = 0;
 
-    virtual void initiate_private_recovery(kv::Tx& tx) = 0;
+    virtual void initiate_private_recovery(ccf::kv::Tx& tx) = 0;
 
-    virtual crypto::Pem get_self_signed_node_certificate() = 0;
+    virtual ccf::crypto::Pem get_self_signed_node_certificate() = 0;
   };
 }

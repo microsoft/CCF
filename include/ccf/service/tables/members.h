@@ -30,17 +30,17 @@ namespace ccf
 
   struct NewMember
   {
-    crypto::Pem cert;
+    ccf::crypto::Pem cert;
 
     // If encryption public key is set, the member is a recovery member
-    std::optional<crypto::Pem> encryption_pub_key = std::nullopt;
+    std::optional<ccf::crypto::Pem> encryption_pub_key = std::nullopt;
     nlohmann::json member_data = nullptr;
 
     NewMember() {}
 
     NewMember(
-      const crypto::Pem& cert_,
-      const std::optional<crypto::Pem>& encryption_pub_key_ = std::nullopt,
+      const ccf::crypto::Pem& cert_,
+      const std::optional<ccf::crypto::Pem>& encryption_pub_key_ = std::nullopt,
       const nlohmann::json& member_data_ = nullptr) :
       cert(cert_),
       encryption_pub_key(encryption_pub_key_),
@@ -76,9 +76,9 @@ namespace ccf
 
   using MemberInfo = ServiceMap<MemberId, MemberDetails>;
 
-  using MemberCerts = kv::RawCopySerialisedMap<MemberId, crypto::Pem>;
+  using MemberCerts = ccf::kv::RawCopySerialisedMap<MemberId, ccf::crypto::Pem>;
   using MemberPublicEncryptionKeys =
-    kv::RawCopySerialisedMap<MemberId, crypto::Pem>;
+    ccf::kv::RawCopySerialisedMap<MemberId, ccf::crypto::Pem>;
 
   namespace Tables
   {
@@ -98,7 +98,8 @@ namespace ccf
 
     StateDigest() {}
 
-    StateDigest(const crypto::Sha256Hash& root) : state_digest(root.hex_str())
+    StateDigest(const ccf::crypto::Sha256Hash& root) :
+      state_digest(root.hex_str())
     {}
   };
   DECLARE_JSON_TYPE(StateDigest)
@@ -114,15 +115,16 @@ namespace ccf
 
     MemberAck() {}
 
-    MemberAck(const crypto::Sha256Hash& root) : StateDigest(root) {}
+    MemberAck(const ccf::crypto::Sha256Hash& root) : StateDigest(root) {}
 
-    MemberAck(const crypto::Sha256Hash& root, const SignedReq& signed_req_) :
+    MemberAck(
+      const ccf::crypto::Sha256Hash& root, const SignedReq& signed_req_) :
       StateDigest(root),
       signed_req(signed_req_)
     {}
 
     MemberAck(
-      const crypto::Sha256Hash& root,
+      const ccf::crypto::Sha256Hash& root,
       const std::vector<uint8_t>& cose_sign1_req_) :
       StateDigest(root),
       cose_sign1_req(cose_sign1_req_)

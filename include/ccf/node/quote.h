@@ -36,7 +36,7 @@ namespace ccf
     static std::optional<HostData> get_host_data(const QuoteInfo& quote_info);
 
     static QuoteVerificationResult verify_quote_against_store(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
       pal::PlatformAttestationMeasurement& measurement);

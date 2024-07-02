@@ -26,17 +26,17 @@
 #  include <openssl/core_names.h>
 #endif
 
-namespace crypto
+namespace ccf::crypto
 {
   using namespace OpenSSL;
 
   static std::map<std::string, std::string> parse_name(const std::string& name)
   {
     std::map<std::string, std::string> result;
-    const auto ns = nonstd::split(name, ",");
+    const auto ns = ccf::nonstd::split(name, ",");
     for (const auto& n : ns)
     {
-      const auto& [key, value] = nonstd::split_1(n, "=");
+      const auto& [key, value] = ccf::nonstd::split_1(n, "=");
       result.emplace(
         std::string(key.data(), key.size()),
         std::string(value.data(), value.size()));
@@ -457,8 +457,8 @@ namespace crypto
   std::vector<uint8_t> KeyPair_OpenSSL::derive_shared_secret(
     const PublicKey& peer_key)
   {
-    crypto::CurveID cid = peer_key.get_curve_id();
-    int nid = crypto::PublicKey_OpenSSL::get_openssl_group_id(cid);
+    ccf::crypto::CurveID cid = peer_key.get_curve_id();
+    int nid = ccf::crypto::PublicKey_OpenSSL::get_openssl_group_id(cid);
     auto pk = key_from_raw_ec_point(peer_key.public_key_raw(), nid);
 
     std::vector<uint8_t> shared_secret;

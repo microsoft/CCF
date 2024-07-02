@@ -34,7 +34,7 @@ namespace ccf
     // instantiated
     InternalTablesAccess() = delete;
 
-    static void retire_active_nodes(kv::Tx& tx)
+    static void retire_active_nodes(ccf::kv::Tx& tx)
     {
       auto nodes = tx.rw<ccf::Nodes>(Tables::NODES);
 
@@ -54,7 +54,7 @@ namespace ccf
     }
 
     static bool is_recovery_member(
-      kv::ReadOnlyTx& tx, const MemberId& member_id)
+      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
     {
       auto member_encryption_public_keys =
         tx.ro<ccf::MemberPublicEncryptionKeys>(
@@ -63,7 +63,8 @@ namespace ccf
       return member_encryption_public_keys->get(member_id).has_value();
     }
 
-    static bool is_active_member(kv::ReadOnlyTx& tx, const MemberId& member_id)
+    static bool is_active_member(
+      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
     {
       auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto mi = member_info->get(member_id);
@@ -75,15 +76,15 @@ namespace ccf
       return mi->status == MemberStatus::ACTIVE;
     }
 
-    static std::map<MemberId, crypto::Pem> get_active_recovery_members(
-      kv::ReadOnlyTx& tx)
+    static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_members(
+      ccf::kv::ReadOnlyTx& tx)
     {
       auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto member_encryption_public_keys =
         tx.ro<ccf::MemberPublicEncryptionKeys>(
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-      std::map<MemberId, crypto::Pem> active_recovery_members;
+      std::map<MemberId, ccf::crypto::Pem> active_recovery_members;
 
       member_encryption_public_keys->foreach(
         [&active_recovery_members,
@@ -104,7 +105,8 @@ namespace ccf
       return active_recovery_members;
     }
 
-    static MemberId add_member(kv::Tx& tx, const NewMember& member_pub_info)
+    static MemberId add_member(
+      ccf::kv::Tx& tx, const NewMember& member_pub_info)
     {
       auto member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
       auto member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
@@ -112,8 +114,8 @@ namespace ccf
       auto signatures = tx.ro<ccf::Signatures>(Tables::SIGNATURES);
 
       auto member_cert_der =
-        crypto::make_verifier(member_pub_info.cert)->cert_der();
-      auto id = crypto::Sha256Hash(member_cert_der).hex_str();
+        ccf::crypto::make_verifier(member_pub_info.cert)->cert_der();
+      auto id = ccf::crypto::Sha256Hash(member_cert_der).hex_str();
 
       auto member = member_certs->get(id);
       if (member.has_value())
@@ -147,7 +149,7 @@ namespace ccf
       return id;
     }
 
-    static bool activate_member(kv::Tx& tx, const MemberId& member_id)
+    static bool activate_member(ccf::kv::Tx& tx, const MemberId& member_id)
     {
       auto member_info = tx.rw<ccf::MemberInfo>(Tables::MEMBER_INFO);
 
@@ -176,7 +178,7 @@ namespace ccf
       return newly_active;
     }
 
-    static bool remove_member(kv::Tx& tx, const MemberId& member_id)
+    static bool remove_member(ccf::kv::Tx& tx, const MemberId& member_id)
     {
       auto member_certs = tx.rw<ccf::MemberCerts>(Tables::MEMBER_CERTS);
       auto member_encryption_public_keys =
@@ -230,12 +232,13 @@ namespace ccf
       return true;
     }
 
-    static UserId add_user(kv::Tx& tx, const NewUser& new_user)
+    static UserId add_user(ccf::kv::Tx& tx, const NewUser& new_user)
     {
       auto user_certs = tx.rw<ccf::UserCerts>(Tables::USER_CERTS);
 
-      auto user_cert_der = crypto::make_verifier(new_user.cert)->cert_der();
-      auto id = crypto::Sha256Hash(user_cert_der).hex_str();
+      auto user_cert_der =
+        ccf::crypto::make_verifier(new_user.cert)->cert_der();
+      auto id = ccf::crypto::Sha256Hash(user_cert_der).hex_str();
 
       auto user_cert = user_certs->get(id);
       if (user_cert.has_value())
@@ -262,7 +265,7 @@ namespace ccf
       return id;
     }
 
-    static void remove_user(kv::Tx& tx, const UserId& user_id)
+    static void remove_user(ccf::kv::Tx& tx, const UserId& user_id)
     {
       // Has no effect if the user does not exist
       auto user_certs = tx.rw<ccf::UserCerts>(Tables::USER_CERTS);
@@ -273,14 +276,15 @@ namespace ccf
     }
 
     static void add_node(
-      kv::Tx& tx, const NodeId& id, const NodeInfo& node_info)
+      ccf::kv::Tx& tx, const NodeId& id, const NodeInfo& node_info)
     {
       auto node = tx.rw<ccf::Nodes>(Tables::NODES);
       node->put(id, node_info);
     }
 
     static auto get_trusted_nodes(
-      kv::ReadOnlyTx& tx, std::optional<NodeId> self_to_exclude = std::nullopt)
+      ccf::kv::ReadOnlyTx& tx,
+      std::optional<NodeId> self_to_exclude = std::nullopt)
     {
       // Returns the list of trusted nodes. If self_to_exclude is set,
       // self_to_exclude is not included in the list of returned nodes.
@@ -314,8 +318,8 @@ namespace ccf
 
     // Service status should use a state machine, very much like NodeState.
     static void create_service(
-      kv::Tx& tx,
-      const crypto::Pem& service_cert,
+      ccf::kv::Tx& tx,
+      const ccf::crypto::Pem& service_cert,
       ccf::TxID create_txid,
       nlohmann::json service_data = nullptr,
       bool recovering = false)
@@ -347,13 +351,13 @@ namespace ccf
     }
 
     static bool is_service_created(
-      kv::ReadOnlyTx& tx, const crypto::Pem& expected_service_cert)
+      ccf::kv::ReadOnlyTx& tx, const ccf::crypto::Pem& expected_service_cert)
     {
       auto service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
       return service.has_value() && service->cert == expected_service_cert;
     }
 
-    static bool open_service(kv::Tx& tx)
+    static bool open_service(ccf::kv::Tx& tx)
     {
       auto service = tx.rw<ccf::Service>(Tables::SERVICE);
 
@@ -400,7 +404,8 @@ namespace ccf
       return true;
     }
 
-    static std::optional<ServiceStatus> get_service_status(kv::ReadOnlyTx& tx)
+    static std::optional<ServiceStatus> get_service_status(
+      ccf::kv::ReadOnlyTx& tx)
     {
       auto service = tx.ro<ccf::Service>(Tables::SERVICE);
       auto active_service = service->get();
@@ -414,7 +419,9 @@ namespace ccf
     }
 
     static void trust_node(
-      kv::Tx& tx, const NodeId& node_id, kv::Version latest_ledger_secret_seqno)
+      ccf::kv::Tx& tx,
+      const NodeId& node_id,
+      ccf::kv::Version latest_ledger_secret_seqno)
     {
       auto nodes = tx.rw<ccf::Nodes>(Tables::NODES);
       auto node_info = nodes->get(node_id);
@@ -436,13 +443,14 @@ namespace ccf
       LOG_INFO_FMT("Node {} is now {}", node_id, node_info->status);
     }
 
-    static void set_constitution(kv::Tx& tx, const std::string& constitution)
+    static void set_constitution(
+      ccf::kv::Tx& tx, const std::string& constitution)
     {
       tx.rw<ccf::Constitution>(Tables::CONSTITUTION)->put(constitution);
     }
 
     static void trust_node_measurement(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const pal::PlatformAttestationMeasurement& node_measurement,
       const QuoteFormat& platform)
     {
@@ -476,7 +484,7 @@ namespace ccf
     }
 
     static void trust_node_host_data(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const HostData& host_data,
       const std::optional<HostDataMetadata>& security_policy = std::nullopt)
     {
@@ -484,7 +492,7 @@ namespace ccf
       if (security_policy.has_value())
       {
         auto raw_security_policy =
-          crypto::raw_from_b64(security_policy.value());
+          ccf::crypto::raw_from_b64(security_policy.value());
         host_data_table->put(
           host_data, {raw_security_policy.begin(), raw_security_policy.end()});
       }
@@ -496,7 +504,7 @@ namespace ccf
     }
 
     static void trust_node_uvm_endorsements(
-      kv::Tx& tx, const std::optional<UVMEndorsements>& uvm_endorsements)
+      ccf::kv::Tx& tx, const std::optional<UVMEndorsements>& uvm_endorsements)
     {
       if (!uvm_endorsements.has_value())
       {
@@ -512,7 +520,7 @@ namespace ccf
     }
 
     static void init_configuration(
-      kv::Tx& tx, const ServiceConfiguration& configuration)
+      ccf::kv::Tx& tx, const ServiceConfiguration& configuration)
     {
       auto config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
       if (config->has())
@@ -525,7 +533,7 @@ namespace ccf
       config->put(configuration);
     }
 
-    static bool set_recovery_threshold(kv::Tx& tx, size_t threshold)
+    static bool set_recovery_threshold(ccf::kv::Tx& tx, size_t threshold)
     {
       auto config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
 
@@ -578,7 +586,7 @@ namespace ccf
       return true;
     }
 
-    static size_t get_recovery_threshold(kv::ReadOnlyTx& tx)
+    static size_t get_recovery_threshold(ccf::kv::ReadOnlyTx& tx)
     {
       auto config = tx.ro<ccf::Configuration>(Tables::CONFIGURATION);
       auto current_config = config->get();

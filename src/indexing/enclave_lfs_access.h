@@ -27,12 +27,12 @@
 namespace ccf::indexing
 {
   static inline bool verify_and_decrypt(
-    crypto::KeyAesGcm& encryption_key,
+    ccf::crypto::KeyAesGcm& encryption_key,
     const LFSKey& key,
     LFSEncryptedContents&& encrypted,
     std::vector<uint8_t>& plaintext)
   {
-    crypto::GcmCipher gcm;
+    ccf::crypto::GcmCipher gcm;
     gcm.deserialise(encrypted);
 
 #ifdef PLAINTEXT_CACHE
@@ -91,8 +91,8 @@ namespace ccf::indexing
 
     ringbuffer::WriterPtr to_host;
 
-    crypto::EntropyPtr entropy_src;
-    std::unique_ptr<crypto::KeyAesGcm> encryption_key;
+    ccf::crypto::EntropyPtr entropy_src;
+    std::unique_ptr<ccf::crypto::KeyAesGcm> encryption_key;
 
     LFSEncryptedContents encrypt(const LFSKey& key, LFSContents&& contents)
     {
@@ -105,7 +105,7 @@ namespace ccf::indexing
         contents.insert(contents.begin(), key_prefix.begin(), key_prefix.end());
       }
 
-      crypto::GcmCipher gcm(contents.size());
+      ccf::crypto::GcmCipher gcm(contents.size());
 
       // Use a random IV for each call
       gcm.hdr.set_random_iv();
@@ -123,12 +123,12 @@ namespace ccf::indexing
   public:
     EnclaveLFSAccess(const ringbuffer::WriterPtr& writer) :
       to_host(writer),
-      entropy_src(crypto::get_entropy())
+      entropy_src(ccf::crypto::get_entropy())
     {
       // Generate a fresh random key. Only this specific instance, in this
       // enclave, can read these files!
-      encryption_key = crypto::make_key_aes_gcm(
-        entropy_src->random(crypto::GCM_DEFAULT_KEY_SIZE));
+      encryption_key = ccf::crypto::make_key_aes_gcm(
+        entropy_src->random(ccf::crypto::GCM_DEFAULT_KEY_SIZE));
     }
 
     void register_message_handlers(
@@ -242,7 +242,8 @@ namespace ccf::indexing
 #ifdef PLAINTEXT_CACHE
       return key;
 #else
-      const auto h = crypto::sha256((const uint8_t*)key.data(), key.size());
+      const auto h =
+        ccf::crypto::sha256((const uint8_t*)key.data(), key.size());
       return ds::to_hex(h);
 #endif
     }

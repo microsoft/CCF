@@ -4,7 +4,7 @@
 
 #include "kv/kv_types.h"
 
-namespace kv
+namespace ccf::kv
 {
   // NullTxEncryptor does not decrypt or verify integrity
   class NullTxEncryptor : public AbstractTxEncryptor
@@ -37,7 +37,7 @@ namespace kv
       return true;
     }
 
-    crypto::HashBytes get_commit_nonce(
+    ccf::crypto::HashBytes get_commit_nonce(
       const TxID& tx_id, bool historical_hint = false) override
     {
       return {};

@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-from dataclasses import dataclass, asdict
-from typing import Optional, Dict
-from enum import Enum, auto
+from dataclasses import dataclass, asdict, field
+from typing import Optional, Dict, Union
+from enum import Enum
 import urllib.parse
 
 from loguru import logger as LOG
@@ -41,11 +41,11 @@ SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
 NODE_TO_NODE_INTERFACE_NAME = "node_to_node_interface"
 
 
-class EndorsementAuthority(Enum):
-    Service = auto()
-    Node = auto()
-    ACME = auto()
-    Unsecured = auto()
+class EndorsementAuthority(str, Enum):
+    Service = "Service"
+    Node = "Node"
+    ACME = "ACME"
+    Unsecured = "Unsecured"
 
 
 @dataclass
@@ -64,8 +64,8 @@ class Endorsement:
     @staticmethod
     def from_json(json):
         endorsement = Endorsement()
-        endorsement.authority = json["authority"]
-        endorsement.acme_configuration = json["acme_configuration"]
+        endorsement.authority = EndorsementAuthority(json["authority"])
+        endorsement.acme_configuration = json.get("acme_configuration", None)
         return endorsement
 
 
@@ -75,14 +75,28 @@ class Interface:
     port: int = 0
 
 
-class RedirectionResolver:
-    pass
+class NodeRole(str, Enum):
+    primary = "primary"
+    backup = "backup"
 
 
 @dataclass
-class NodeByRoleResolver(RedirectionResolver):
+class TargetRole:
+    role: NodeRole
+
+    @staticmethod
+    def to_json(tr):
+        return asdict(tr)
+
+    @staticmethod
+    def from_json(json):
+        return TargetRole(role=NodeRole(json["role"]))
+
+
+@dataclass
+class NodeByRoleResolver:
+    target: TargetRole = TargetRole(role=NodeRole.primary)
     kind: str = "NodeByRole"
-    target = {"role": "primary"}
 
     @staticmethod
     def to_json(nbrr):
@@ -91,16 +105,14 @@ class NodeByRoleResolver(RedirectionResolver):
     @staticmethod
     def from_json(json):
         nbrr = NodeByRoleResolver()
-        nbrr.target = json["target"]
+        nbrr.target = TargetRole.from_json(json["target"])
         return nbrr
 
 
-class StaticAddressResolver(RedirectionResolver):
-    kind: str = "StaticAddress"
+@dataclass
+class StaticAddressResolver:
     target_address: str
-
-    def __init__(self, address):
-        self.target_address = address
+    kind: str = "StaticAddress"
 
     @staticmethod
     def to_json(sar):
@@ -111,25 +123,45 @@ class StaticAddressResolver(RedirectionResolver):
 
     @staticmethod
     def from_json(json):
-        sar = StaticAddressResolver()
-        sar.target_address = json["target"]["address"]
-        return sar
+        return StaticAddressResolver(target_address=json["target"]["address"])
+
+
+RedirectionResolver = Union[NodeByRoleResolver, StaticAddressResolver]
 
 
 @dataclass
 class RedirectionConfig:
     to_primary: RedirectionResolver = NodeByRoleResolver()
+    to_backup: RedirectionResolver = NodeByRoleResolver(
+        target=TargetRole(role=NodeRole.backup)
+    )
 
     @staticmethod
     def to_json(rc):
-        return {"to_primary": rc.to_primary.to_json(rc.to_primary)}
+        return {
+            "to_primary": rc.to_primary.to_json(rc.to_primary),
+            "to_backup": rc.to_backup.to_json(rc.to_backup),
+        }
 
     @staticmethod
     def from_json(json):
-        if json["kind"] == "NodeByRole":
-            return NodeByRoleResolver.from_json(json)
-        elif json["kind"] == "StaticAddress":
-            return StaticAddressResolver.from_json(json)
+        def resolver_from_json(obj):
+            if obj["kind"] == "NodeByRole":
+                return NodeByRoleResolver.from_json(obj)
+            elif obj["kind"] == "StaticAddress":
+                return StaticAddressResolver.from_json(obj)
+
+        rc = RedirectionConfig()
+
+        tp = json.get("to_primary", None)
+        if tp:
+            rc.to_primary = resolver_from_json(tp)
+
+        tb = json.get("to_backup", None)
+        if tb:
+            rc.to_backup = resolver_from_json(tb)
+
+        return rc
 
 
 @dataclass
@@ -153,7 +185,7 @@ class RPCInterface(Interface):
     endorsement: Optional[Endorsement] = Endorsement()
     acme_configuration: Optional[str] = None
     accepted_endpoints: Optional[str] = None
-    forwarding_timeout_ms: Optional[int] = None
+    forwarding_timeout_ms: Optional[int] = DEFAULT_FORWARDING_TIMEOUT_MS
     redirections: Optional[RedirectionConfig] = None
     app_protocol: str = "HTTP1"
 
@@ -202,12 +234,15 @@ class RPCInterface(Interface):
             "bind_address": make_address(interface.host, interface.port),
             "protocol": f"{interface.transport}",
             "app_protocol": interface.app_protocol,
-            "published_address": f"{interface.public_host}:{interface.public_port or 0}",
             "max_open_sessions_soft": interface.max_open_sessions_soft,
             "max_open_sessions_hard": interface.max_open_sessions_hard,
             "http_configuration": http_config,
             "endorsement": Endorsement.to_json(interface.endorsement),
         }
+        if interface.public_host:
+            r["published_address"] = (
+                f"{interface.public_host}:{interface.public_port or 0}"
+            )
         if interface.accepted_endpoints:
             r["accepted_endpoints"] = interface.accepted_endpoints
         if interface.forwarding_timeout_ms:
@@ -256,7 +291,9 @@ def make_secondary_interface(transport="tcp", interface_name=SECONDARY_RPC_INTER
 
 @dataclass
 class HostSpec:
-    rpc_interfaces: Dict[str, RPCInterface] = RPCInterface()
+    rpc_interfaces: Dict[str, RPCInterface] = field(
+        default_factory=lambda: {PRIMARY_RPC_INTERFACE: RPCInterface()}
+    )
     acme_challenge_server_interface: Optional[str] = None
 
     def get_primary_interface(self):
@@ -277,3 +314,23 @@ class HostSpec:
                 for name, rpc_interface in rpc_interfaces_json.items()
             }
         )
+
+
+if __name__ == "__main__":
+    # Test some roundtrip conversions
+    def test_roundtrip(before):
+        j = before.to_json(before)
+        after = before.from_json(j)
+        assert before == after, f"Inaccurate JSON roundtrip:\n {before}\n!=\n {after}"
+
+    rc = RedirectionConfig()
+    test_roundtrip(rc)
+
+    rc.to_primary = StaticAddressResolver("1.2.3.4")
+    test_roundtrip(rc)
+
+    rc.to_backup = NodeByRoleResolver(target=TargetRole(NodeRole.backup))
+    test_roundtrip(rc)
+
+    hc = HostSpec()
+    test_roundtrip(hc)

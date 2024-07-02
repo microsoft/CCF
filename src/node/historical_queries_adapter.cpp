@@ -17,7 +17,7 @@ namespace ccf
     // Legacy JSON format, retained for compatibility
     nlohmann::json out = nlohmann::json::object();
 
-    out["signature"] = crypto::b64_from_raw(receipt.signature);
+    out["signature"] = ccf::crypto::b64_from_raw(receipt.signature);
 
     auto proof = nlohmann::json::array();
     if (receipt.path != nullptr)
@@ -99,7 +99,7 @@ namespace ccf
           node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT ?
           ccf::ProofReceipt::ProofStep::Left :
           ccf::ProofReceipt::ProofStep::Right;
-        const auto hash = crypto::Sha256Hash::from_span(
+        const auto hash = ccf::crypto::Sha256Hash::from_span(
           std::span<const uint8_t, ccf::ClaimsDigest::Digest::SIZE>(
             node.hash.bytes, sizeof(node.hash.bytes)));
         proof_receipt->proof.push_back({direction, hash});
@@ -128,7 +128,7 @@ namespace ccf
     {
       // Signature transaction
       auto sig_receipt = std::make_shared<SignatureReceipt>();
-      sig_receipt->signed_root = crypto::Sha256Hash::from_span(
+      sig_receipt->signed_root = ccf::crypto::Sha256Hash::from_span(
         std::span<const uint8_t, ccf::ClaimsDigest::Digest::SIZE>(
           in.root.bytes, sizeof(in.root.bytes)));
 
@@ -191,7 +191,7 @@ namespace ccf::historical
   }
 
   HistoricalTxStatus is_tx_committed_v2(
-    kv::Consensus* consensus,
+    ccf::kv::Consensus* consensus,
     ccf::View view,
     ccf::SeqNo seqno,
     std::string& error_reason)
@@ -242,7 +242,7 @@ namespace ccf::historical
     class TTxIDExtractor>
   TEndpointFunction _adapter_v3(
     const TQueryHandler& f,
-    ccfapp::AbstractNodeContext& node_context,
+    ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TTxIDExtractor& extractor)
   {
@@ -340,7 +340,7 @@ namespace ccf::historical
 
   ccf::endpoints::EndpointFunction adapter_v3(
     const HandleHistoricalQuery& f,
-    ccfapp::AbstractNodeContext& node_context,
+    ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor)
   {
@@ -352,7 +352,7 @@ namespace ccf::historical
 
   ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v3(
     const HandleReadOnlyHistoricalQuery& f,
-    ccfapp::AbstractNodeContext& node_context,
+    ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const ReadOnlyTxIDExtractor& extractor)
   {
@@ -365,7 +365,7 @@ namespace ccf::historical
 
   ccf::endpoints::EndpointFunction read_write_adapter_v3(
     const HandleReadWriteHistoricalQuery& f,
-    ccfapp::AbstractNodeContext& node_context,
+    ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor)
   {

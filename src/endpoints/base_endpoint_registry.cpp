@@ -3,7 +3,6 @@
 
 #include "ccf/base_endpoint_registry.h"
 
-#include "ccf/pal/locking.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/users.h"
@@ -13,13 +12,15 @@
 namespace ccf
 {
   BaseEndpointRegistry::BaseEndpointRegistry(
-    const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_) :
+    const std::string& method_prefix_, ccf::AbstractNodeContext& context_) :
     ccf::endpoints::EndpointRegistry(method_prefix_),
     context(context_)
   {}
 
-  ApiResult BaseEndpointRegistry::get_view_history_v1(
-    std::vector<ccf::TxID>& history, ccf::View since)
+  ApiResult BaseEndpointRegistry::get_view_history_v2(
+    std::vector<ccf::TxID>& history,
+    ccf::View since,
+    ccf::InvalidArgsReason& reason)
   {
     try
     {
@@ -27,7 +28,7 @@ namespace ccf
       {
         if (since < 1)
         {
-          // views start at 1
+          reason = ccf::InvalidArgsReason::ViewSmallerThanOne;
           return ApiResult::InvalidArgs;
         }
         auto latest_view = consensus->get_view();
@@ -52,6 +53,13 @@ namespace ccf
       LOG_TRACE_FMT("{}", e.what());
       return ApiResult::InternalError;
     }
+  }
+
+  ApiResult BaseEndpointRegistry::get_view_history_v1(
+    std::vector<ccf::TxID>& history, ccf::View since)
+  {
+    ccf::InvalidArgsReason ignored;
+    return get_view_history_v2(history, since, ignored);
   }
 
   ApiResult BaseEndpointRegistry::get_status_for_txid_v1(
@@ -107,7 +115,7 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::generate_openapi_document_v1(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::string& title,
     const std::string& description,
     const std::string& document_version,
@@ -128,7 +136,7 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_quote_for_this_node_v1(
-    kv::ReadOnlyTx& tx, QuoteInfo& quote_info)
+    ccf::kv::ReadOnlyTx& tx, QuoteInfo& quote_info)
   {
     try
     {
@@ -167,7 +175,7 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_quotes_for_all_trusted_nodes_v1(
-    kv::ReadOnlyTx& tx, std::map<NodeId, QuoteInfo>& quotes)
+    ccf::kv::ReadOnlyTx& tx, std::map<NodeId, QuoteInfo>& quotes)
   {
     try
     {
@@ -222,7 +230,7 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_user_data_v1(
-    kv::ReadOnlyTx& tx, const UserId& user_id, nlohmann::json& user_data)
+    ccf::kv::ReadOnlyTx& tx, const UserId& user_id, nlohmann::json& user_data)
   {
     try
     {
@@ -244,7 +252,9 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_member_data_v1(
-    kv::ReadOnlyTx& tx, const MemberId& member_id, nlohmann::json& member_data)
+    ccf::kv::ReadOnlyTx& tx,
+    const MemberId& member_id,
+    nlohmann::json& member_data)
   {
     try
     {
@@ -266,7 +276,9 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_user_cert_v1(
-    kv::ReadOnlyTx& tx, const UserId& user_id, crypto::Pem& user_cert_pem)
+    ccf::kv::ReadOnlyTx& tx,
+    const UserId& user_id,
+    ccf::crypto::Pem& user_cert_pem)
   {
     try
     {
@@ -288,7 +300,9 @@ namespace ccf
   }
 
   ApiResult BaseEndpointRegistry::get_member_cert_v1(
-    kv::ReadOnlyTx& tx, const MemberId& member_id, crypto::Pem& member_cert_pem)
+    ccf::kv::ReadOnlyTx& tx,
+    const MemberId& member_id,
+    ccf::crypto::Pem& member_cert_pem)
   {
     try
     {

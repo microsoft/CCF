@@ -17,6 +17,8 @@
 #include <fmt/format.h>
 
 // Custom Endpoints
+#include "ccf/crypto/sha256.h"
+#include "ccf/ds/hex.h"
 #include "ccf/endpoint.h"
 #include "ccf/endpoints/authentication/js.h"
 #include "ccf/historical_queries_adapter.h"
@@ -107,7 +109,8 @@ namespace ccf::js
 
     // Extensions with a dependency on this endpoint context (invocation),
     // which must be removed after execution.
-    ccf::js::extensions::Extensions local_extensions;
+    ccf::js::extensions::Extensions local_extensions =
+      get_extensions(endpoint_ctx);
 
     // ccf.kv.*
     local_extensions.emplace_back(
@@ -449,7 +452,7 @@ namespace ccf::js
   }
 
   DynamicJSEndpointRegistry::DynamicJSEndpointRegistry(
-    ccfapp::AbstractNodeContext& context, const std::string& kv_prefix) :
+    ccf::AbstractNodeContext& context, const std::string& kv_prefix) :
     ccf::UserEndpointRegistry(context),
     modules_map(fmt::format("{}.modules", kv_prefix)),
     metadata_map(fmt::format("{}.metadata", kv_prefix)),
@@ -458,7 +461,10 @@ namespace ccf::js
       fmt::format("{}.modules_quickjs_version", kv_prefix)),
     modules_quickjs_bytecode_map(
       fmt::format("{}.modules_quickjs_bytecode", kv_prefix)),
-    runtime_options_map(fmt::format("{}.runtime_options", kv_prefix))
+    runtime_options_map(fmt::format("{}.runtime_options", kv_prefix)),
+    recent_actions_map(fmt::format("{}.recent_actions", kv_prefix)),
+    audit_input_map(fmt::format("{}.audit.input", kv_prefix)),
+    audit_info_map(fmt::format("{}.audit.info", kv_prefix))
   {
     interpreter_cache =
       context.get_subsystem<ccf::js::AbstractInterpreterCache>();
@@ -499,7 +505,7 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::install_custom_endpoints_v1(
-    kv::Tx& tx, const ccf::js::Bundle& bundle)
+    ccf::kv::Tx& tx, const ccf::js::Bundle& bundle)
   {
     try
     {
@@ -511,7 +517,7 @@ namespace ccf::js
         for (const auto& [method, metadata] : methods)
         {
           std::string method_upper = method;
-          nonstd::to_upper(method_upper);
+          ccf::nonstd::to_upper(method_upper);
           const auto key = ccf::endpoints::EndpointKey{url, method_upper};
           endpoints->put(key, metadata);
         }
@@ -579,7 +585,7 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoints_v1(
-    ccf::js::Bundle& bundle, kv::ReadOnlyTx& tx)
+    ccf::js::Bundle& bundle, ccf::kv::ReadOnlyTx& tx)
   {
     try
     {
@@ -625,7 +631,7 @@ namespace ccf::js
 
   ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoint_properties_v1(
     ccf::endpoints::EndpointProperties& properties,
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const ccf::RESTVerb& verb,
     const ccf::endpoints::URI& uri)
   {
@@ -653,7 +659,7 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoint_module_v1(
-    std::string& code, kv::ReadOnlyTx& tx, const std::string& module_name)
+    std::string& code, ccf::kv::ReadOnlyTx& tx, const std::string& module_name)
   {
     try
     {
@@ -684,7 +690,7 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::set_js_runtime_options_v1(
-    kv::Tx& tx, const ccf::JSRuntimeOptions& options)
+    ccf::kv::Tx& tx, const ccf::JSRuntimeOptions& options)
   {
     try
     {
@@ -698,7 +704,7 @@ namespace ccf::js
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::get_js_runtime_options_v1(
-    ccf::JSRuntimeOptions& options, kv::ReadOnlyTx& tx)
+    ccf::JSRuntimeOptions& options, ccf::kv::ReadOnlyTx& tx)
   {
     try
     {
@@ -715,7 +721,7 @@ namespace ccf::js
   }
 
   ccf::endpoints::EndpointDefinitionPtr DynamicJSEndpointRegistry::
-    find_endpoint(kv::Tx& tx, ccf::RpcContext& rpc_ctx)
+    find_endpoint(ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx)
   {
     // Look up the endpoint definition
     // First in the user-defined endpoints, and then fall-back to built-ins
@@ -841,7 +847,7 @@ namespace ccf::js
   // Since we do our own dispatch (overriding find_endpoint), make sure we
   // describe those operations in the auto-generated OpenAPI
   void DynamicJSEndpointRegistry::build_api(
-    nlohmann::json& document, kv::ReadOnlyTx& tx)
+    nlohmann::json& document, ccf::kv::ReadOnlyTx& tx)
   {
     ccf::UserEndpointRegistry::build_api(document, tx);
 
@@ -874,5 +880,102 @@ namespace ccf::js
 
       return true;
     });
+  }
+
+  ccf::ApiResult DynamicJSEndpointRegistry::check_action_not_replayed_v1(
+    ccf::kv::Tx& tx,
+    uint64_t created_at,
+    const std::span<const uint8_t> action,
+    ccf::InvalidArgsReason& reason)
+  {
+    try
+    {
+      const auto created_at_str = fmt::format("{:0>10}", created_at);
+      const auto action_digest =
+        ccf::crypto::sha256(action.data(), action.size());
+
+      using RecentActions = ccf::kv::Set<std::string>;
+
+      auto recent_actions = tx.rw<RecentActions>(recent_actions_map);
+      auto key =
+        fmt::format("{}:{}", created_at_str, ds::to_hex(action_digest));
+
+      if (recent_actions->contains(key))
+      {
+        reason = ccf::InvalidArgsReason::ActionAlreadyApplied;
+        return ApiResult::InvalidArgs;
+      }
+
+      // In the absence of in-KV support for sorted sets, we need
+      // to extract them and sort them here.
+      std::vector<std::string> replay_keys;
+      recent_actions->foreach([&replay_keys](const std::string& replay_key) {
+        replay_keys.push_back(replay_key);
+        return true;
+      });
+      std::sort(replay_keys.begin(), replay_keys.end());
+
+      // Actions must be more recent than the median of recent actions
+      if (!replay_keys.empty())
+      {
+        const auto [min_created_at, _] =
+          ccf::nonstd::split_1(replay_keys[replay_keys.size() / 2], ":");
+        auto [key_ts, __] = ccf::nonstd::split_1(key, ":");
+        if (key_ts < min_created_at)
+        {
+          reason = ccf::InvalidArgsReason::StaleActionCreatedTimestamp;
+          return ApiResult::InvalidArgs;
+        }
+      }
+
+      // The action is neither stale, nor a replay
+      recent_actions->insert(key);
+
+      // Only keep the most recent window_size proposals, do not
+      // allow the set to grow indefinitely.
+      // Should this be configurable through runtime options?
+      size_t window_size = 100;
+      if (replay_keys.size() >= (window_size - 1) /* We just added one */)
+      {
+        for (size_t i = 0; i < (replay_keys.size() - (window_size - 1)); i++)
+        {
+          recent_actions->remove(replay_keys[i]);
+        }
+      }
+
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
+  }
+
+  ccf::ApiResult DynamicJSEndpointRegistry::record_action_for_audit_v1(
+    ccf::kv::Tx& tx,
+    ccf::ActionFormat format,
+    const std::string& user_id,
+    const std::string& action_name,
+    const std::vector<uint8_t>& action_body)
+  {
+    try
+    {
+      using AuditInputValue = ccf::kv::Value<std::vector<uint8_t>>;
+      using AuditInfoValue = ccf::kv::Value<AuditInfo>;
+
+      auto audit_input = tx.template rw<AuditInputValue>(audit_input_map);
+      audit_input->put(action_body);
+
+      auto audit_info = tx.template rw<AuditInfoValue>(audit_info_map);
+      audit_info->put({format, user_id, action_name});
+
+      return ApiResult::OK;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("{}", e.what());
+      return ApiResult::InternalError;
+    }
   }
 }

@@ -19,15 +19,15 @@
 namespace tpcc
 {
   template <typename T>
-  kv::serialisers::SerialisedEntry tpcc_serialise(const T& t);
+  ccf::kv::serialisers::SerialisedEntry tpcc_serialise(const T& t);
 
   template <typename T>
-  T tpcc_deserialise(const kv::serialisers::SerialisedEntry& rep);
+  T tpcc_deserialise(const ccf::kv::serialisers::SerialisedEntry& rep);
 
   template <typename T>
   constexpr size_t serialised_size()
   {
-    if constexpr (nonstd::is_std_array<T>::value)
+    if constexpr (ccf::nonstd::is_std_array<T>::value)
     {
       return std::tuple_size_v<T> * serialised_size<typename T::value_type>();
     }
@@ -40,7 +40,7 @@ namespace tpcc
   template <typename T>
   void write_value(const T& v, uint8_t*& data, size_t& size)
   {
-    if constexpr (nonstd::is_std_array<T>::value)
+    if constexpr (ccf::nonstd::is_std_array<T>::value)
     {
       if constexpr (std::is_integral_v<typename T::value_type>)
       {
@@ -64,7 +64,7 @@ namespace tpcc
   template <typename T>
   void read_value(T& v, const uint8_t*& data, size_t& size)
   {
-    if constexpr (nonstd::is_std_array<T>::value)
+    if constexpr (ccf::nonstd::is_std_array<T>::value)
     {
       if constexpr (std::is_integral_v<typename T::value_type>)
       {
@@ -106,9 +106,9 @@ namespace tpcc
   _Pragma("clang diagnostic push"); \
   _Pragma("clang diagnostic ignored \"-Wgnu-zero-variadic-macro-arguments\""); \
   template <> \
-  kv::serialisers::SerialisedEntry tpcc_serialise(const TYPE& t) \
+  ccf::kv::serialisers::SerialisedEntry tpcc_serialise(const TYPE& t) \
   { \
-    kv::serialisers::SerialisedEntry rep; \
+    ccf::kv::serialisers::SerialisedEntry rep; \
     constexpr size_t required_size = 0 _FOR_JSON_COUNT_NN(__VA_ARGS__)(POP1)( \
       ADD_SERIALIZED_SIZE, TYPE, ##__VA_ARGS__); \
     rep.resize(required_size); \
@@ -118,7 +118,7 @@ namespace tpcc
     return rep; \
   } \
   template <> \
-  TYPE tpcc_deserialise(const kv::serialisers::SerialisedEntry& rep) \
+  TYPE tpcc_deserialise(const ccf::kv::serialisers::SerialisedEntry& rep) \
   { \
     auto data = rep.data(); \
     auto size = rep.size(); \
@@ -132,12 +132,12 @@ namespace tpcc
   template <typename T>
   struct TpccSerialiser
   {
-    static kv::serialisers::SerialisedEntry to_serialised(const T& t)
+    static ccf::kv::serialisers::SerialisedEntry to_serialised(const T& t)
     {
       return tpcc_serialise(t);
     }
 
-    static T from_serialised(const kv::serialisers::SerialisedEntry& rep)
+    static T from_serialised(const ccf::kv::serialisers::SerialisedEntry& rep)
     {
       return tpcc_deserialise<T>(rep);
     }
@@ -539,7 +539,7 @@ namespace tpcc
     History, c_id, c_d_id, c_w_id, d_id, w_id, amount, date, data);
 
   template <typename K, typename V>
-  using TpccMap = kv::MapSerialisedWith<K, V, TpccSerialiser>;
+  using TpccMap = ccf::kv::MapSerialisedWith<K, V, TpccSerialiser>;
 
   struct TpccTables
   {

@@ -9,7 +9,7 @@
 #include <small_vector/SmallVector.h>
 #include <type_traits>
 
-namespace kv
+namespace ccf::kv
 {
   class RawWriter
   {
@@ -81,8 +81,8 @@ namespace kv
     void append(const T& entry)
     {
       if constexpr (
-        nonstd::is_std_vector<T>::value ||
-        std::is_same_v<T, kv::serialisers::SerialisedEntry>)
+        ccf::nonstd::is_std_vector<T>::value ||
+        std::is_same_v<T, ccf::kv::serialisers::SerialisedEntry>)
       {
         serialise_entry(entry.size() * sizeof(typename T::value_type));
         if (entry.size() > 0)
@@ -90,7 +90,7 @@ namespace kv
           serialise_vector(entry);
         }
       }
-      else if constexpr (std::is_same_v<T, crypto::Sha256Hash>)
+      else if constexpr (std::is_same_v<T, ccf::crypto::Sha256Hash>)
       {
         serialise_array(entry.h);
       }
@@ -109,7 +109,7 @@ namespace kv
       else
       {
         static_assert(
-          nonstd::dependent_false<T>::value, "Can't serialise this type");
+          ccf::nonstd::dependent_false<T>::value, "Can't serialise this type");
       }
     }
 
@@ -183,8 +183,8 @@ namespace kv
     T read_next()
     {
       if constexpr (
-        nonstd::is_std_vector<T>::value ||
-        std::is_same_v<T, kv::serialisers::SerialisedEntry>)
+        ccf::nonstd::is_std_vector<T>::value ||
+        std::is_same_v<T, ccf::kv::serialisers::SerialisedEntry>)
       {
         size_t entry_offset = 0;
         size_t entry_size = read_size_prefixed_entry(entry_offset);
@@ -196,7 +196,7 @@ namespace kv
 
         return ret;
       }
-      else if constexpr (nonstd::is_std_array<T>::value)
+      else if constexpr (ccf::nonstd::is_std_array<T>::value)
       {
         T ret;
         auto data_ = reinterpret_cast<uint8_t*>(ret.data());
@@ -207,14 +207,14 @@ namespace kv
 
         return ret;
       }
-      else if constexpr (std::is_same_v<T, kv::EntryType>)
+      else if constexpr (std::is_same_v<T, ccf::kv::EntryType>)
       {
         uint8_t entry_type = read_entry<uint8_t>();
-        if (entry_type > static_cast<uint8_t>(kv::EntryType::MAX))
+        if (entry_type > static_cast<uint8_t>(ccf::kv::EntryType::MAX))
           throw std::logic_error(
             fmt::format("Invalid EntryType: {}", entry_type));
 
-        return kv::EntryType(entry_type);
+        return ccf::kv::EntryType(entry_type);
       }
       else if constexpr (std::is_same_v<T, std::string>)
       {
@@ -230,7 +230,8 @@ namespace kv
       else
       {
         static_assert(
-          nonstd::dependent_false<T>::value, "Can't deserialise this type");
+          ccf::nonstd::dependent_false<T>::value,
+          "Can't deserialise this type");
       }
     }
 

@@ -60,7 +60,7 @@ namespace ccf
       std::shared_ptr<Essentials> r = std::make_shared<Essentials>();
       r->writer = node_state.get_writer_factory().create_writer_to_outside();
       auto store = node_state.get_store();
-      r->tx = std::make_shared<kv::ReadOnlyTx>(store.get());
+      r->tx = std::make_shared<ccf::kv::ReadOnlyTx>(store.get());
       r->ctx = std::make_shared<ccf::endpoints::ReadOnlyEndpointContext>(
         nullptr, *r->tx);
       return r;

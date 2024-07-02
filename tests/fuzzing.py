@@ -149,6 +149,14 @@ def fuzz_node_to_node(network, args):
     )
     fuzz_logger.session = session
 
+    # Monkey-patch: Remove any Db loggers from the boofuzz session. We never
+    # use them, and they're reliant on disk IO (for db commits) so sometimes very slow
+    session._fuzz_data_logger._fuzz_loggers = [
+        logger
+        for logger in session._fuzz_data_logger._fuzz_loggers
+        if not isinstance(logger, boofuzz.fuzz_logger_db.FuzzLoggerDb)
+    ]
+
     session.connect(req)
 
     LOG.warning("These tests are verbose and run for a long time")

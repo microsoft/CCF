@@ -2,8 +2,7 @@ name: "TLA+ Spec Verification"
 
 on:
   push:
-    paths:
-      - "tla/**"
+    branches: [main]
   pull_request:
     paths:
       - "tla/**"
@@ -19,7 +18,7 @@ jobs:
     name: Model Checking - Consistency
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ccfmsrc.azurecr.io/ccf/ci:oe-0.19.6-0-virtual-clang15
+      image: ccfmsrc.azurecr.io/ccf/ci:2024-06-26-virtual-clang15
 
     steps:
       - uses: actions/checkout@v4

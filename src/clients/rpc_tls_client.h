@@ -4,7 +4,6 @@
 
 #include "ccf/crypto/key_pair.h"
 #include "ccf/http_consts.h"
-#include "ccf/serdes.h"
 #include "http/http_builder.h"
 #include "http/http_parser.h"
 #include "tls_client.h"
@@ -17,7 +16,7 @@
 
 namespace client
 {
-  class HttpRpcTlsClient : public TlsClient, public http::ResponseProcessor
+  class HttpRpcTlsClient : public TlsClient, public ::http::ResponseProcessor
   {
   public:
     struct PreparedRpc
@@ -30,14 +29,14 @@ namespace client
     {
       size_t id;
       http_status status;
-      http::HeaderMap headers;
+      ccf::http::HeaderMap headers;
       std::vector<uint8_t> body;
     };
 
   protected:
-    http::ResponseParser parser;
+    ::http::ResponseParser parser;
     std::optional<std::string> prefix;
-    crypto::KeyPairPtr key_pair = nullptr;
+    ccf::crypto::KeyPairPtr key_pair = nullptr;
     std::string key_id = "Invalid";
 
     size_t next_send_id = 0;
@@ -58,12 +57,13 @@ namespace client
 
       auto r = http::Request(path, verb);
       r.set_body(params.data(), params.size());
-      r.set_header(http::headers::CONTENT_TYPE, content_type);
+      r.set_header(ccf::http::headers::CONTENT_TYPE, content_type);
       r.set_header("Host", host);
       if (auth_token != nullptr)
       {
         r.set_header(
-          http::headers::AUTHORIZATION, fmt::format("Bearer {}", auth_token));
+          ccf::http::headers::AUTHORIZATION,
+          fmt::format("Bearer {}", auth_token));
       }
 
       return r.build_request();
@@ -113,9 +113,9 @@ namespace client
       key_id(c.key_id)
     {}
 
-    void create_key_pair(const crypto::Pem priv_key)
+    void create_key_pair(const ccf::crypto::Pem priv_key)
     {
-      key_pair = crypto::make_key_pair(priv_key);
+      key_pair = ccf::crypto::make_key_pair(priv_key);
     }
 
     PreparedRpc gen_request(
@@ -130,31 +130,24 @@ namespace client
         next_send_id++};
     }
 
-    PreparedRpc gen_request(
-      const std::string& method,
-      const nlohmann::json& params = nullptr,
-      llhttp_method verb = HTTP_POST,
-      const char* auth_token = nullptr)
-    {
-      std::vector<uint8_t> body;
-      if (!params.is_null())
-      {
-        body = serdes::pack(params, serdes::Pack::MsgPack);
-      }
-      return gen_request(
-        method,
-        {body.data(), body.size()},
-        http::headervalues::contenttype::MSGPACK,
-        verb,
-        auth_token);
-    }
-
     Response call(
       const std::string& method,
       const nlohmann::json& params = nullptr,
       llhttp_method verb = HTTP_POST)
     {
-      return call_raw(gen_request(method, params, verb, nullptr));
+      std::vector<uint8_t> body;
+      if (!params.is_null())
+      {
+        auto body_s = params.dump();
+        body = {body_s.begin(), body_s.end()};
+      }
+
+      return call_raw(gen_request(
+        method,
+        body,
+        ccf::http::headervalues::contenttype::JSON,
+        verb,
+        nullptr));
     }
 
     Response call(
@@ -163,7 +156,7 @@ namespace client
       llhttp_method verb = HTTP_POST)
     {
       return call_raw(gen_request(
-        method, params, http::headervalues::contenttype::JSON, verb));
+        method, params, ccf::http::headervalues::contenttype::JSON, verb));
     }
 
     Response post(const std::string& method, const nlohmann::json& params)
@@ -200,8 +193,8 @@ namespace client
       else if (http::status_success(resp.status))
       {
         const auto& content_type =
-          resp.headers.find(http::headers::CONTENT_TYPE);
-        return serdes::unpack(resp.body, serdes::Pack::MsgPack);
+          resp.headers.find(ccf::http::headers::CONTENT_TYPE);
+        return nlohmann::json::parse(resp.body);
       }
       else
       {
@@ -239,7 +232,7 @@ namespace client
 
     virtual void handle_response(
       http_status status,
-      http::HeaderMap&& headers,
+      ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
       last_response = {

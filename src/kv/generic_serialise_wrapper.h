@@ -10,10 +10,10 @@
 
 #include <optional>
 
-namespace kv
+namespace ccf::kv
 {
-  using SerialisedKey = kv::serialisers::SerialisedEntry;
-  using SerialisedValue = kv::serialisers::SerialisedEntry;
+  using SerialisedKey = ccf::kv::serialisers::SerialisedEntry;
+  using SerialisedValue = ccf::kv::serialisers::SerialisedEntry;
 
   template <typename W>
   class GenericSerialiseWrapper
@@ -65,7 +65,7 @@ namespace kv
       SerialisedEntryFlags header_flags_,
       // The evidence and claims digest must be systematically present
       // in regular transactions, but absent in snapshots.
-      const crypto::Sha256Hash& commit_evidence_digest_ = {},
+      const ccf::crypto::Sha256Hash& commit_evidence_digest_ = {},
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
       bool historical_hint_ = false) :
       tx_id(tx_id_),
@@ -246,7 +246,8 @@ namespace kv
     // Present systematically in regular transactions, but absent from snapshots
     ccf::ClaimsDigest claims_digest = ccf::no_claims();
     // Present systematically in regular transactions, but absent from snapshots
-    std::optional<crypto::Sha256Hash> commit_evidence_digest = std::nullopt;
+    std::optional<ccf::crypto::Sha256Hash> commit_evidence_digest =
+      std::nullopt;
     Version version;
     std::shared_ptr<AbstractTxEncryptor> crypto_util;
     std::optional<SecurityDomain> domain_restriction;
@@ -268,9 +269,9 @@ namespace kv
       {
         auto digest_array =
           public_reader
-            .template read_next<crypto::Sha256Hash::Representation>();
+            .template read_next<ccf::crypto::Sha256Hash::Representation>();
         commit_evidence_digest =
-          crypto::Sha256Hash::from_representation(digest_array);
+          ccf::crypto::Sha256Hash::from_representation(digest_array);
       }
       // max_conflict_version is included for compatibility, but currently
       // ignored
@@ -290,7 +291,7 @@ namespace kv
       return std::move(claims_digest);
     }
 
-    std::optional<crypto::Sha256Hash>&& consume_commit_evidence_digest()
+    std::optional<ccf::crypto::Sha256Hash>&& consume_commit_evidence_digest()
     {
       return std::move(commit_evidence_digest);
     }
@@ -298,7 +299,7 @@ namespace kv
     std::optional<Version> init(
       const uint8_t* data,
       size_t size,
-      kv::Term& term,
+      ccf::kv::Term& term,
       bool historical_hint = false)
     {
       current_reader = &public_reader;

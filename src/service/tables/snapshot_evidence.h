@@ -11,9 +11,9 @@ namespace ccf
   struct SnapshotHash
   {
     /// Snapshot digest
-    crypto::Sha256Hash hash;
+    ccf::crypto::Sha256Hash hash;
     /// Sequence number to which the snapshot corresponds
-    kv::Version version;
+    ccf::kv::Version version;
   };
 
   DECLARE_JSON_TYPE(SnapshotHash)

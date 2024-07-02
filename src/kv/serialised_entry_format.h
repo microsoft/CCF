@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 
-namespace kv
+namespace ccf::kv
 {
   static constexpr auto entry_format_v1 = 1;
   using SerialisedEntryFlags = uint8_t;

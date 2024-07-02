@@ -12,7 +12,7 @@
 #include <memory>
 #include <string>
 
-namespace crypto
+namespace ccf::crypto
 {
   using PublicKeyImpl = EdDSAPublicKey_OpenSSL;
   using KeyPairImpl = EdDSAKeyPair_OpenSSL;

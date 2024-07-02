@@ -12,7 +12,7 @@
 #include <memory>
 #include <string>
 
-namespace crypto
+namespace ccf::crypto
 {
   using PublicKeyImpl = PublicKey_OpenSSL;
   using KeyPairImpl = KeyPair_OpenSSL;

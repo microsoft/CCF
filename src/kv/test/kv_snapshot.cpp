@@ -10,10 +10,10 @@
 
 struct MapTypes
 {
-  using StringString = kv::Map<std::string, std::string>;
-  using NumNum = kv::Map<size_t, size_t>;
-  using StringValue = kv::Value<std::string>;
-  using StringSet = kv::Set<std::string>;
+  using StringString = ccf::kv::Map<std::string, std::string>;
+  using NumNum = ccf::kv::Map<size_t, size_t>;
+  using StringValue = ccf::kv::Value<std::string>;
+  using StringSet = ccf::kv::Set<std::string>;
 };
 
 MapTypes::StringString string_map("public:string_map");
@@ -21,12 +21,12 @@ MapTypes::NumNum num_map("public:num_map");
 
 TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 {
-  kv::Store store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   store.set_encryptor(encryptor);
 
-  kv::Version first_snapshot_version = kv::NoVersion;
-  kv::Version second_snapshot_version = kv::NoVersion;
+  ccf::kv::Version first_snapshot_version = ccf::kv::NoVersion;
+  ccf::kv::Version second_snapshot_version = ccf::kv::NoVersion;
 
   INFO("Apply transactions to original store");
   {
@@ -36,7 +36,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     handle_1s->put("baz", "hello");
     auto handle_1n = tx1.rw(num_map);
     handle_1n->put(42, 100);
-    REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx1.commit() == ccf::kv::CommitResult::SUCCESS);
     first_snapshot_version = tx1.commit_version();
 
     auto tx2 = store.create_tx();
@@ -44,7 +44,7 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     handle_2s->remove("baz");
     auto handle_2n = tx2.rw(num_map);
     handle_2n->put(42, 123);
-    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx2.commit() == ccf::kv::CommitResult::SUCCESS);
     second_snapshot_version = tx2.commit_version();
 
     auto tx3 = store.create_tx();
@@ -53,9 +53,10 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     // Do not commit tx3
   }
 
-  std::unique_ptr<kv::AbstractStore::AbstractSnapshot> first_snapshot = nullptr;
+  std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> first_snapshot =
+    nullptr;
   {
-    kv::ScopedStoreMapsLock maps_lock(&store);
+    ccf::kv::ScopedStoreMapsLock maps_lock(&store);
     first_snapshot = store.snapshot_unsafe_maps(first_snapshot_version);
   }
   auto first_serialised_snapshot =
@@ -63,16 +64,16 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 
   INFO("Apply snapshot at 1 to new store");
   {
-    kv::Store new_store;
+    ccf::kv::Store new_store;
     new_store.set_encryptor(encryptor);
 
-    kv::ConsensusHookPtrs hooks;
+    ccf::kv::ConsensusHookPtrs hooks;
     REQUIRE_EQ(
       new_store.deserialise_snapshot(
         first_serialised_snapshot.data(),
         first_serialised_snapshot.size(),
         hooks),
-      kv::ApplyResult::PASS);
+      ccf::kv::ApplyResult::PASS);
     REQUIRE_EQ(new_store.current_version(), first_snapshot_version);
 
     auto tx1 = new_store.create_tx();
@@ -113,10 +114,10 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
     }
   }
 
-  std::unique_ptr<kv::AbstractStore::AbstractSnapshot> second_snapshot =
+  std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> second_snapshot =
     nullptr;
   {
-    kv::ScopedStoreMapsLock maps_lock(&store);
+    ccf::kv::ScopedStoreMapsLock maps_lock(&store);
     second_snapshot = store.snapshot_unsafe_maps(second_snapshot_version);
   }
   auto second_serialised_snapshot =
@@ -124,11 +125,11 @@ TEST_CASE("Simple snapshot" * doctest::test_suite("snapshot"))
 
   INFO("Apply snapshot at 2 to new store");
   {
-    kv::Store new_store;
+    ccf::kv::Store new_store;
 
     new_store.set_encryptor(encryptor);
 
-    kv::ConsensusHookPtrs hooks;
+    ccf::kv::ConsensusHookPtrs hooks;
     new_store.deserialise_snapshot(
       second_serialised_snapshot.data(),
       second_serialised_snapshot.size(),
@@ -198,14 +199,14 @@ TEST_CASE("Old snapshots" * doctest::test_suite("snapshot"))
       "AAAAEQAAAAAAAABwdWJsaWM6c3RyaW5nX21hcAIAAAAAAAAAKAAAAAAAAAAFAAAAAAAAACJm"
       "b28iAAAADQAAAAAAAAABAAAAAAAAACJiYXIiAAAA";
   }
-  const auto raw_snapshot = crypto::raw_from_b64(raw_snapshot_b64);
+  const auto raw_snapshot = ccf::crypto::raw_from_b64(raw_snapshot_b64);
 
-  kv::Store new_store;
+  ccf::kv::Store new_store;
 
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   new_store.set_encryptor(encryptor);
 
-  kv::ConsensusHookPtrs hooks;
+  ccf::kv::ConsensusHookPtrs hooks;
   new_store.deserialise_snapshot(
     raw_snapshot.data(), raw_snapshot.size(), hooks);
 
@@ -255,37 +256,37 @@ TEST_CASE(
   "Commit transaction while applying snapshot" *
   doctest::test_suite("snapshot"))
 {
-  kv::Store store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   store.set_encryptor(encryptor);
 
   MapTypes::StringString string_map("public:string_map");
 
-  kv::Version snapshot_version = kv::NoVersion;
+  ccf::kv::Version snapshot_version = ccf::kv::NoVersion;
   INFO("Apply transactions to original store");
   {
     auto tx1 = store.create_tx();
     auto handle_1 = tx1.rw<MapTypes::StringString>("public:string_map");
     handle_1->put("foo", "foo");
-    REQUIRE(tx1.commit() == kv::CommitResult::SUCCESS); // Committed at 1
+    REQUIRE(tx1.commit() == ccf::kv::CommitResult::SUCCESS); // Committed at 1
 
     auto tx2 = store.create_tx();
     auto handle_2 = tx2.rw<MapTypes::StringString>("public:string_map");
     handle_2->put("bar", "bar");
-    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS); // Committed at 2
+    REQUIRE(tx2.commit() == ccf::kv::CommitResult::SUCCESS); // Committed at 2
     snapshot_version = tx2.commit_version();
   }
 
-  std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
+  std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
   {
-    kv::ScopedStoreMapsLock maps_lock(&store);
+    ccf::kv::ScopedStoreMapsLock maps_lock(&store);
     snapshot = store.snapshot_unsafe_maps(snapshot_version);
   }
   auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
 
   INFO("Apply snapshot while committing a transaction");
   {
-    kv::Store new_store;
+    ccf::kv::Store new_store;
     new_store.set_encryptor(encryptor);
 
     auto tx = new_store.create_tx();
@@ -293,33 +294,33 @@ TEST_CASE(
     handle->put("in", "flight");
     // tx is not committed until the snapshot is deserialised
 
-    kv::ConsensusHookPtrs hooks;
+    ccf::kv::ConsensusHookPtrs hooks;
     new_store.deserialise_snapshot(
       serialised_snapshot.data(), serialised_snapshot.size(), hooks);
 
     // Transaction conflicts as snapshot was applied while transaction was in
     // flight
-    REQUIRE(tx.commit() == kv::CommitResult::FAIL_CONFLICT);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::FAIL_CONFLICT);
 
     // Try again
     auto tx2 = new_store.create_tx();
     auto handle2 = tx2.rw<MapTypes::StringString>("public:string_map");
     handle2->put("baz", "baz");
-    REQUIRE(tx2.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx2.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 }
 
 TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
 {
-  kv::Store store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   store.set_encryptor(encryptor);
 
   constexpr auto string_map = "public:string_map";
   constexpr auto string_value = "public:string_value";
   constexpr auto string_set = "public:string_set";
 
-  kv::Version snapshot_version = kv::NoVersion;
+  ccf::kv::Version snapshot_version = ccf::kv::NoVersion;
 
   using MapWrite = MapTypes::StringString::Write;
   using ValueWrite = MapTypes::StringValue::Write;
@@ -332,27 +333,27 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
   std::vector<SetWrite> global_set_writes;
 
   auto map_hook =
-    [&](kv::Version v, const MapWrite& w) -> kv::ConsensusHookPtr {
+    [&](ccf::kv::Version v, const MapWrite& w) -> ccf::kv::ConsensusHookPtr {
     local_map_writes.push_back(w);
-    return kv::ConsensusHookPtr(nullptr);
+    return ccf::kv::ConsensusHookPtr(nullptr);
   };
-  auto global_map_hook = [&](kv::Version v, const MapWrite& w) {
+  auto global_map_hook = [&](ccf::kv::Version v, const MapWrite& w) {
     global_map_writes.push_back(w);
   };
   auto value_hook =
-    [&](kv::Version v, const ValueWrite& w) -> kv::ConsensusHookPtr {
+    [&](ccf::kv::Version v, const ValueWrite& w) -> ccf::kv::ConsensusHookPtr {
     local_value_writes.push_back(w);
-    return kv::ConsensusHookPtr(nullptr);
+    return ccf::kv::ConsensusHookPtr(nullptr);
   };
-  auto global_value_hook = [&](kv::Version v, const ValueWrite& w) {
+  auto global_value_hook = [&](ccf::kv::Version v, const ValueWrite& w) {
     global_value_writes.push_back(w);
   };
   auto set_hook =
-    [&](kv::Version v, const SetWrite& w) -> kv::ConsensusHookPtr {
+    [&](ccf::kv::Version v, const SetWrite& w) -> ccf::kv::ConsensusHookPtr {
     local_set_writes.push_back(w);
-    return kv::ConsensusHookPtr(nullptr);
+    return ccf::kv::ConsensusHookPtr(nullptr);
   };
-  auto global_set_hook = [&](kv::Version v, const SetWrite& w) {
+  auto global_set_hook = [&](ccf::kv::Version v, const SetWrite& w) {
     global_set_writes.push_back(w);
   };
 
@@ -368,7 +369,7 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       auto set_handle = tx.rw<MapTypes::StringSet>(string_set);
       set_handle->insert("foo");
       set_handle->insert("bar");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS); // Committed at 1
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS); // Committed at 1
     }
 
     {
@@ -382,19 +383,19 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
       auto set_handle = tx.rw<MapTypes::StringSet>(string_set);
       set_handle->insert("baz");
       set_handle->remove("bar");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS); // Committed at 2
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS); // Committed at 2
       snapshot_version = tx.commit_version();
     }
   }
 
-  std::unique_ptr<kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
+  std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot = nullptr;
   {
-    kv::ScopedStoreMapsLock maps_lock(&store);
+    ccf::kv::ScopedStoreMapsLock maps_lock(&store);
     snapshot = store.snapshot_unsafe_maps(snapshot_version);
   }
   auto serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
 
-  kv::Store new_store;
+  ccf::kv::Store new_store;
   new_store.set_encryptor(encryptor);
 
   MapTypes::StringString new_string_map(string_map);
@@ -419,7 +420,7 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
   {
     INFO("Deserialise snapshot");
     {
-      kv::ConsensusHookPtrs hooks;
+      ccf::kv::ConsensusHookPtrs hooks;
       new_store.deserialise_snapshot(
         serialised_snapshot.data(), serialised_snapshot.size(), hooks);
     }
@@ -518,15 +519,15 @@ TEST_CASE("Commit hooks with snapshot" * doctest::test_suite("snapshot"))
     value_handle->clear();
     auto set_handle = tx.rw<MapTypes::StringSet>(string_set);
     set_handle->clear();
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     snapshot_version = tx.commit_version();
     {
-      kv::ScopedStoreMapsLock maps_lock(&store);
+      ccf::kv::ScopedStoreMapsLock maps_lock(&store);
       snapshot = store.snapshot_unsafe_maps(snapshot_version);
     }
     serialised_snapshot = store.serialise_snapshot(std::move(snapshot));
 
-    kv::ConsensusHookPtrs hooks;
+    ccf::kv::ConsensusHookPtrs hooks;
     new_store.deserialise_snapshot(
       serialised_snapshot.data(), serialised_snapshot.size(), hooks);
 

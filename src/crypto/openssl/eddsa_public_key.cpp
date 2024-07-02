@@ -5,7 +5,7 @@
 #include "crypto/openssl/hash.h"
 #include "openssl_wrappers.h"
 
-namespace crypto
+namespace ccf::crypto
 {
   using namespace OpenSSL;
 

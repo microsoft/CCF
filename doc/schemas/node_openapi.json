@@ -552,6 +552,9 @@
       },
       "NodeInfoNetwork_v2__NetInterface__Redirections": {
         "properties": {
+          "to_backup": {
+            "$ref": "#/components/schemas/RedirectionResolverConfig"
+          },
           "to_primary": {
             "$ref": "#/components/schemas/RedirectionResolverConfig"
           }

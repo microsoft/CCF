@@ -149,12 +149,12 @@ void verify_framed_entries_range(
     const uint8_t* data = &framed_entries[pos];
     size_t size = framed_entries.size() - pos;
 
-    auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
+    auto header = serialized::read<ccf::kv::SerialisedEntryHeader>(data, size);
     auto header_size = header.size;
     REQUIRE(header_size == sizeof(TestLedgerEntry));
 
     REQUIRE(TestLedgerEntry(data, size).value() == idx);
-    pos += kv::serialised_entry_header_size + sizeof(TestLedgerEntry);
+    pos += ccf::kv::serialised_entry_header_size + sizeof(TestLedgerEntry);
     idx++;
   }
 
@@ -169,7 +169,7 @@ void read_entry_from_ledger(Ledger& ledger, size_t idx)
   auto& entry = framed_entry->data;
   const uint8_t* data = entry.data();
   auto size = entry.size();
-  auto header = serialized::read<kv::SerialisedEntryHeader>(data, size);
+  auto header = serialized::read<ccf::kv::SerialisedEntryHeader>(data, size);
   auto header_size = header.size;
   REQUIRE(header_size == sizeof(TestLedgerEntry));
 
@@ -195,14 +195,15 @@ size_t read_entries_range_from_ledger(
 }
 
 using LedgerDirCapture =
-  std::vector<std::pair<std::string, crypto::Sha256Hash>>;
+  std::vector<std::pair<std::string, ccf::crypto::Sha256Hash>>;
 LedgerDirCapture capture_ledger_dir()
 {
   LedgerDirCapture capture = {};
   for (auto const& f : fs::directory_iterator(ledger_dir))
   {
     capture.emplace_back(
-      f.path().filename(), crypto::Sha256Hash(files::slurp(f.path().string())));
+      f.path().filename(),
+      ccf::crypto::Sha256Hash(files::slurp(f.path().string())));
   }
   return capture;
 }
@@ -211,11 +212,11 @@ std::vector<uint8_t> make_ledger_entry(size_t idx, uint8_t header_flags = 0)
 {
   auto e = TestLedgerEntry(idx);
   std::vector<uint8_t> framed_entry(
-    kv::serialised_entry_header_size + sizeof(TestLedgerEntry));
+    ccf::kv::serialised_entry_header_size + sizeof(TestLedgerEntry));
   auto data = framed_entry.data();
   auto size = framed_entry.size();
 
-  kv::SerialisedEntryHeader header;
+  ccf::kv::SerialisedEntryHeader header;
   header.set_size(sizeof(TestLedgerEntry));
   header.flags = header_flags;
 
@@ -282,7 +283,7 @@ size_t get_entries_per_chunk(size_t chunk_threshold)
   // size of each entry
   return ceil(
     (static_cast<float>(chunk_threshold - sizeof(size_t))) /
-    (kv::serialised_entry_header_size + sizeof(TestLedgerEntry)));
+    (ccf::kv::serialised_entry_header_size + sizeof(TestLedgerEntry)));
 }
 
 // Assumes that no entries have been written yet
@@ -384,7 +385,7 @@ TEST_CASE("Regular chunking")
 
     // Write a new committable entry that forces a new ledger chunk
     is_committable = true;
-    entry_submitter.write(is_committable, kv::FORCE_LEDGER_CHUNK_AFTER);
+    entry_submitter.write(is_committable, ccf::kv::FORCE_LEDGER_CHUNK_AFTER);
     REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after);
 
     // Because of forcing a new chunk, the next entry will create a new chunk
@@ -395,7 +396,7 @@ TEST_CASE("Regular chunking")
     REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after + 1);
 
     is_committable = true;
-    entry_submitter.write(is_committable, kv::FORCE_LEDGER_CHUNK_BEFORE);
+    entry_submitter.write(is_committable, ccf::kv::FORCE_LEDGER_CHUNK_BEFORE);
     // A new chunk is created before, as the entry is committable and forced
     REQUIRE(number_of_files_in_ledger_dir() == number_of_files_after + 2);
   }
@@ -1077,7 +1078,7 @@ void corrupt_ledger_file(
   else if (corrupt_first_hdr)
   {
     REQUIRE(fread(&table_offset, sizeof(table_offset), 1, file) == 1);
-    kv::SerialisedEntryHeader entry_header = {.size = 0xffffffff};
+    ccf::kv::SerialisedEntryHeader entry_header = {.size = 0xffffffff};
     fwrite(&entry_header, sizeof(entry_header), 1, file);
   }
   else if (corrupt_last_entry)
@@ -1086,7 +1087,7 @@ void corrupt_ledger_file(
     std::vector<uint8_t> last_entry = {};
     while (true)
     {
-      kv::SerialisedEntryHeader entry_header = {};
+      ccf::kv::SerialisedEntryHeader entry_header = {};
       if (fread(&entry_header, sizeof(entry_header), 1, file) != 1)
       {
         break;
@@ -1395,7 +1396,7 @@ TEST_CASE("Chunking according to entry header flag")
   INFO("Write an entry with the ledger chunking after header flag enabled");
   {
     entry_submitter.write(
-      is_committable, kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
+      is_committable, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_AFTER);
 
     REQUIRE(number_of_files_in_ledger_dir() == 1);
 
@@ -1418,7 +1419,7 @@ TEST_CASE("Chunking according to entry header flag")
   {
     auto ledger_files_count = number_of_files_in_ledger_dir();
     entry_submitter.write(
-      is_committable, kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE);
+      is_committable, ccf::kv::EntryFlags::FORCE_LEDGER_CHUNK_BEFORE);
 
     // Forcing a new chunk before creating a new chunk to store this entry
     REQUIRE(number_of_files_in_ledger_dir() == ledger_files_count + 1);
@@ -1725,12 +1726,12 @@ TEST_CASE("Ledger init with existing files")
 
 int main(int argc, char** argv)
 {
-  logger::config::default_init();
-  crypto::openssl_sha256_init();
+  ccf::logger::config::default_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

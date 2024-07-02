@@ -97,11 +97,11 @@ namespace ccf::ds
     template <typename T>
     inline std::string schema_name()
     {
-      if constexpr (nonstd::is_specialization<T, std::optional>::value)
+      if constexpr (ccf::nonstd::is_specialization<T, std::optional>::value)
       {
         return schema_name<typename T::value_type>();
       }
-      else if constexpr (nonstd::is_specialization<T, std::vector>::value)
+      else if constexpr (ccf::nonstd::is_specialization<T, std::vector>::value)
       {
         if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
         {
@@ -113,20 +113,20 @@ namespace ccf::ds
           return fmt::format("{}_array", schema_name<typename T::value_type>());
         }
       }
-      else if constexpr (nonstd::is_specialization<T, std::set>::value)
+      else if constexpr (ccf::nonstd::is_specialization<T, std::set>::value)
       {
         return fmt::format("{}_set", schema_name<typename T::value_type>());
       }
       else if constexpr (
-        nonstd::is_specialization<T, std::map>::value ||
-        nonstd::is_specialization<T, std::unordered_map>::value)
+        ccf::nonstd::is_specialization<T, std::map>::value ||
+        ccf::nonstd::is_specialization<T, std::unordered_map>::value)
       {
         return fmt::format(
           "{}_to_{}",
           schema_name<typename T::key_type>(),
           schema_name<typename T::mapped_type>());
       }
-      else if constexpr (nonstd::is_specialization<T, std::pair>::value)
+      else if constexpr (ccf::nonstd::is_specialization<T, std::pair>::value)
       {
         return fmt::format(
           "{}_and_{}",
@@ -198,13 +198,13 @@ namespace ccf::ds
     template <typename T>
     inline void fill_schema(nlohmann::json& schema)
     {
-      if constexpr (nonstd::is_specialization<T, std::optional>::value)
+      if constexpr (ccf::nonstd::is_specialization<T, std::optional>::value)
       {
         fill_schema<typename T::value_type>(schema);
       }
       else if constexpr (
-        nonstd::is_specialization<T, std::vector>::value ||
-        nonstd::is_specialization<T, std::set>::value)
+        ccf::nonstd::is_specialization<T, std::vector>::value ||
+        ccf::nonstd::is_specialization<T, std::set>::value)
       {
         if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
         {
@@ -219,8 +219,8 @@ namespace ccf::ds
         }
       }
       else if constexpr (
-        nonstd::is_specialization<T, std::map>::value ||
-        nonstd::is_specialization<T, std::unordered_map>::value)
+        ccf::nonstd::is_specialization<T, std::map>::value ||
+        ccf::nonstd::is_specialization<T, std::unordered_map>::value)
       {
         // Nlohmann JSON serialises some maps as objects, if the keys can be
         // converted to strings. This should detect those cases. The others are
@@ -247,7 +247,7 @@ namespace ccf::ds
           schema["items"] = items;
         }
       }
-      else if constexpr (nonstd::is_specialization<T, std::pair>::value)
+      else if constexpr (ccf::nonstd::is_specialization<T, std::pair>::value)
       {
         schema["type"] = "array";
         auto items = nlohmann::json::array();

@@ -46,7 +46,7 @@ namespace ccf
     struct Essentials
     {
       ringbuffer::WriterPtr writer;
-      std::shared_ptr<kv::ReadOnlyTx> tx;
+      std::shared_ptr<ccf::kv::ReadOnlyTx> tx;
       std::shared_ptr<ccf::endpoints::ReadOnlyEndpointContext> ctx;
     };
 

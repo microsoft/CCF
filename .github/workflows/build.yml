@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
+jobs:
+  build_and_test:
+    name: CI
+    strategy:
+      matrix:
+        platform:
+          - name: virtual
+            image: default
+            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
+          - name: snp
+            image: default
+            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
+          - name: sgx
+            image: sgx
+            nodes: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
+    runs-on: ${{ matrix.platform.nodes }}
+    container:
+      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-26-06-2024
+      options: ${{ matrix.platform.options }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Build Debug ${{ matrix.platform.name }}"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON ..
+          ninja
+        shell: bash
+
+      - name: "Platform SGX"
+        run: |
+          sudo groupadd -fg $(/usr/bin/stat -Lc '%g' /dev/sgx/provision) sgx_prv
+          sudo usermod -a -G sgx_prv $(whoami)
+          samples/scripts/sgxinfo.sh
+          cat /proc/cpuinfo | grep flags | uniq
+        shell: bash
+        if: "${{ matrix.platform.name == 'sgx' }}"
+
+      - name: "Platform SNP"
+        run: |
+          samples/scripts/snpinfo.sh
+        shell: bash
+        if: "${{ matrix.platform.name == 'snp' }}"
+
+      - name: "Test ${{ matrix.platform.name }}"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
+          # Unit tests
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          # All other acceptably fast tests, mostly end-to-end
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite|unit"
+          # Partitions tests
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite"
+        shell: bash
+        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
+
+      - name: "Upload logs for ${{ matrix.platform.name }}"
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.platform.name }}
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+          if-no-files-found: ignore
+        if: success() || failure()

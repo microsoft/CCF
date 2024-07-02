@@ -9,7 +9,7 @@
 #include "ccf/kv/set_handle.h"
 #include "ccf/kv/untyped.h"
 
-namespace kv
+namespace ccf::kv
 {
   /** Defines the schema of a set type accessed by a @c ccf::Tx. This set is an
    * unordered container of unique keys. Each key is either present or missing
@@ -21,24 +21,26 @@ namespace kv
    * evaluated on the serialised form; if unequal Ks produce the same
    * serialisation, they will coincide within this set.
    *
-   * This is implemented as a @c kv::Map from K to Unit, and the serialisation
-   * of the unit values is overridable with the Unit template parameter.
+   * This is implemented as a @c ccf::kv::Map from K to Unit, and the
+   * serialisation of the unit values is overridable with the Unit template
+   * parameter.
    */
   template <
     typename K,
     typename KSerialiser,
-    typename Unit = kv::serialisers::ZeroBlitUnitCreator>
+    typename Unit = ccf::kv::serialisers::ZeroBlitUnitCreator>
   class TypedSet : public GetName
   {
   public:
-    using ReadOnlyHandle = kv::ReadableSetHandle<K, KSerialiser>;
-    using WriteOnlyHandle = kv::WriteableSetHandle<K, KSerialiser, Unit>;
-    using Handle = kv::SetHandle<K, KSerialiser, Unit>;
+    using ReadOnlyHandle = ccf::kv::ReadableSetHandle<K, KSerialiser>;
+    using WriteOnlyHandle = ccf::kv::WriteableSetHandle<K, KSerialiser, Unit>;
+    using Handle = ccf::kv::SetHandle<K, KSerialiser, Unit>;
 
     // Note: The type V of the value `std::optional<V>` does not matter here.
     // The optional type is required to differentiate additions from deletions,
     // and to provide a consistent interface with the more generic `TypedMap`.
-    using Write = std::map<K, std::optional<kv::serialisers::SerialisedEntry>>;
+    using Write =
+      std::map<K, std::optional<ccf::kv::serialisers::SerialisedEntry>>;
     using MapHook = MapHook<Write>;
     using CommitHook = CommitHook<Write>;
 
@@ -48,7 +50,7 @@ namespace kv
     using GetName::GetName;
 
   private:
-    static Write deserialise_write(const kv::untyped::Write& w)
+    static Write deserialise_write(const ccf::kv::untyped::Write& w)
     {
       Write typed_writes;
       for (const auto& [uk, opt_uv] : w)
@@ -68,16 +70,16 @@ namespace kv
     }
 
   public:
-    static kv::untyped::CommitHook wrap_commit_hook(const CommitHook& hook)
+    static ccf::kv::untyped::CommitHook wrap_commit_hook(const CommitHook& hook)
     {
-      return [hook](Version v, const kv::untyped::Write& w) {
+      return [hook](Version v, const ccf::kv::untyped::Write& w) {
         hook(v, deserialise_write(w));
       };
     }
 
-    static kv::untyped::MapHook wrap_map_hook(const MapHook& hook)
+    static ccf::kv::untyped::MapHook wrap_map_hook(const MapHook& hook)
     {
-      return [hook](Version v, const kv::untyped::Write& w) {
+      return [hook](Version v, const ccf::kv::untyped::Write& w) {
         return hook(v, deserialise_write(w));
       };
     }
@@ -87,15 +89,16 @@ namespace kv
     typename K,
     template <typename>
     typename KSerialiser,
-    typename Unit = kv::serialisers::ZeroBlitUnitCreator>
+    typename Unit = ccf::kv::serialisers::ZeroBlitUnitCreator>
   using SetSerialisedWith = TypedSet<K, KSerialiser<K>, Unit>;
 
   template <typename K>
   using JsonSerialisedSet =
-    SetSerialisedWith<K, kv::serialisers::JsonSerialiser>;
+    SetSerialisedWith<K, ccf::kv::serialisers::JsonSerialiser>;
 
   template <typename K>
-  using RawCopySerialisedSet = TypedSet<K, kv::serialisers::BlitSerialiser<K>>;
+  using RawCopySerialisedSet =
+    TypedSet<K, ccf::kv::serialisers::BlitSerialiser<K>>;
 
   /** Short name for default-serialised sets, using JSON serialisers. Support
    * for custom types can be added through the DECLARE_JSON... macros.

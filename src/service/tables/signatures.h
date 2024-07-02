@@ -20,9 +20,9 @@ namespace ccf
     ccf::SeqNo commit_seqno = 0;
     ccf::View commit_view = 0;
     /// Root of the Merkle Tree as of seqno - 1
-    crypto::Sha256Hash root;
+    ccf::crypto::Sha256Hash root;
     /// Service-endorsed certificate of the node which produced the signature
-    crypto::Pem cert;
+    ccf::crypto::Pem cert;
 
     PrimarySignature() {}
 
@@ -31,16 +31,16 @@ namespace ccf
       seqno(seqno_)
     {}
 
-    PrimarySignature(const crypto::Sha256Hash& root_) : root(root_) {}
+    PrimarySignature(const ccf::crypto::Sha256Hash& root_) : root(root_) {}
 
     PrimarySignature(
       const ccf::NodeId& node_,
       ccf::SeqNo seqno_,
       ccf::View view_,
-      const crypto::Sha256Hash root_,
+      const ccf::crypto::Sha256Hash root_,
       Nonce hashed_nonce_,
       const std::vector<uint8_t>& sig_,
-      const crypto::Pem& cert_) :
+      const ccf::crypto::Pem& cert_) :
       NodeSignature(sig_, node_, hashed_nonce_),
       seqno(seqno_),
       view(view_),
@@ -58,7 +58,8 @@ namespace ccf
   using Signatures = ServiceValue<PrimarySignature>;
 
   // Serialised Merkle tree at most recent signature is a single Value in the KV
-  using SerialisedMerkleTree = kv::RawCopySerialisedValue<std::vector<uint8_t>>;
+  using SerialisedMerkleTree =
+    ccf::kv::RawCopySerialisedValue<std::vector<uint8_t>>;
 
   namespace Tables
   {

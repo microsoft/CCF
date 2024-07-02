@@ -5,7 +5,7 @@
 
 #include "openssl/entropy.h"
 
-namespace crypto
+namespace ccf::crypto
 {
   EntropyPtr get_entropy()
   {

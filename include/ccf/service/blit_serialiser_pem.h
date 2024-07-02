@@ -5,20 +5,20 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/kv/serialisers/blit_serialiser.h"
 
-namespace kv::serialisers
+namespace ccf::kv::serialisers
 {
   template <>
-  struct BlitSerialiser<crypto::Pem>
+  struct BlitSerialiser<ccf::crypto::Pem>
   {
-    static SerialisedEntry to_serialised(const crypto::Pem& pem)
+    static SerialisedEntry to_serialised(const ccf::crypto::Pem& pem)
     {
       const auto& data = pem.raw();
       return SerialisedEntry(data.begin(), data.end());
     }
 
-    static crypto::Pem from_serialised(const SerialisedEntry& data)
+    static ccf::crypto::Pem from_serialised(const SerialisedEntry& data)
     {
-      return crypto::Pem(data.data(), data.size());
+      return ccf::crypto::Pem(data.data(), data.size());
     }
   };
 }

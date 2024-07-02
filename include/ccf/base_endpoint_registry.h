@@ -63,6 +63,47 @@ namespace ccf
     }
   }
 
+  /** Lists possible reasons for an ApiResult::InvalidArgs being return in @c
+   * ccf::BaseEndpointRegistry
+   */
+  enum class InvalidArgsReason
+  {
+    NoReason = 0,
+    /** Views start at 1 (one) in CCF */
+    ViewSmallerThanOne,
+    /** Action has already been applied on this instance */
+    ActionAlreadyApplied,
+    /** Action created_at is older than the median of recent action */
+    StaleActionCreatedTimestamp,
+  };
+
+  constexpr char const* invalid_args_reason_to_str(InvalidArgsReason reason)
+  {
+    switch (reason)
+    {
+      case InvalidArgsReason::NoReason:
+      {
+        return "NoReason";
+      }
+      case InvalidArgsReason::ViewSmallerThanOne:
+      {
+        return "ViewSmallerThanOne";
+      }
+      case InvalidArgsReason::ActionAlreadyApplied:
+      {
+        return "ActionAlreadyApplied";
+      }
+      case InvalidArgsReason::StaleActionCreatedTimestamp:
+      {
+        return "StaleActionCreatedTimestamp";
+      }
+      default:
+      {
+        return "Unhandled InvalidArgsReason";
+      }
+    }
+  }
+
   /** Extends the basic @ref ccf::endpoints::EndpointRegistry with helper API
    * methods for retrieving core CCF properties.
    *
@@ -79,11 +120,11 @@ namespace ccf
   class BaseEndpointRegistry : public ccf::endpoints::EndpointRegistry
   {
   protected:
-    ccfapp::AbstractNodeContext& context;
+    ccf::AbstractNodeContext& context;
 
   public:
     BaseEndpointRegistry(
-      const std::string& method_prefix_, ccfapp::AbstractNodeContext& context_);
+      const std::string& method_prefix_, ccf::AbstractNodeContext& context_);
 
     /** Get the history of the consensus view changes.
      *
@@ -95,6 +136,19 @@ namespace ccf
      */
     ApiResult get_view_history_v1(
       std::vector<ccf::TxID>& history, ccf::View since = 1);
+
+    /** Get the history of the consensus view changes.
+     *
+     * Returns the history of view changes since the given view, which defaults
+     * to the start of time.
+     *
+     * A view change is characterised by the first sequence number in the new
+     * view.
+     */
+    ApiResult get_view_history_v2(
+      std::vector<ccf::TxID>& history,
+      ccf::View since,
+      ccf::InvalidArgsReason& reason);
 
     /** Get the status of a transaction by ID, provided as a view+seqno pair.
      *
@@ -134,7 +188,7 @@ namespace ccf
      * does not affect the OpenAPI version of the format of the document.
      */
     ApiResult generate_openapi_document_v1(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const std::string& title,
       const std::string& description,
       const std::string& document_version,
@@ -143,7 +197,7 @@ namespace ccf
     /** Get a quote attesting to the hardware this node is running on.
      */
     ApiResult get_quote_for_this_node_v1(
-      kv::ReadOnlyTx& tx, QuoteInfo& quote_info);
+      ccf::kv::ReadOnlyTx& tx, QuoteInfo& quote_info);
 
     /** Get the id of the currently executing node.
      */
@@ -153,7 +207,7 @@ namespace ccf
      * running on.
      */
     ApiResult get_quotes_for_all_trusted_nodes_v1(
-      kv::ReadOnlyTx& tx, std::map<NodeId, QuoteInfo>& quotes);
+      ccf::kv::ReadOnlyTx& tx, std::map<NodeId, QuoteInfo>& quotes);
 
     /** Get the view associated with a given seqno, to construct a valid TxID.
      */
@@ -162,26 +216,30 @@ namespace ccf
     /** Get the user data associated with a given user id.
      */
     ApiResult get_user_data_v1(
-      kv::ReadOnlyTx& tx, const UserId& user_id, nlohmann::json& user_data);
+      ccf::kv::ReadOnlyTx& tx,
+      const UserId& user_id,
+      nlohmann::json& user_data);
 
     /** Get the member data associated with a given member id.
      */
     ApiResult get_member_data_v1(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const MemberId& member_id,
       nlohmann::json& member_data);
 
     /** Get the certificate (PEM) of a given user id.
      */
     ApiResult get_user_cert_v1(
-      kv::ReadOnlyTx& tx, const UserId& user_id, crypto::Pem& user_cert_pem);
+      ccf::kv::ReadOnlyTx& tx,
+      const UserId& user_id,
+      ccf::crypto::Pem& user_cert_pem);
 
     /** Get the certificate (PEM) of a given member id.
      */
     ApiResult get_member_cert_v1(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const MemberId& member_id,
-      crypto::Pem& member_cert_pem);
+      ccf::crypto::Pem& member_cert_pem);
 
     /** Get untrusted time from the host of the currently executing node.
      */

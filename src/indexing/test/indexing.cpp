@@ -30,8 +30,8 @@ using IndexB = ccf::indexing::strategies::SeqnosByKey_InMemory<decltype(map_b)>;
 constexpr size_t certificate_validity_period_days = 365;
 using namespace std::literals;
 auto valid_from =
-  ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
-auto valid_to = crypto::compute_cert_valid_to_string(
+  ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
 static std::vector<ActionDesc> create_actions(
@@ -41,11 +41,11 @@ static std::vector<ActionDesc> create_actions(
   ExpectedSeqNos& seqnos_2)
 {
   std::vector<ActionDesc> actions;
-  actions.push_back({seqnos_hello, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_hello, [](size_t i, ccf::kv::Tx& tx) {
                        tx.wo(map_a)->put("hello", "value doesn't matter");
                        return true;
                      }});
-  actions.push_back({seqnos_saluton, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_saluton, [](size_t i, ccf::kv::Tx& tx) {
                        if (i % 2 == 0)
                        {
                          tx.wo(map_a)->put("saluton", "value doesn't matter");
@@ -53,7 +53,7 @@ static std::vector<ActionDesc> create_actions(
                        }
                        return false;
                      }});
-  actions.push_back({seqnos_1, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_1, [](size_t i, ccf::kv::Tx& tx) {
                        if (i % 3 == 0)
                        {
                          tx.wo(map_b)->put(1, 42);
@@ -61,7 +61,7 @@ static std::vector<ActionDesc> create_actions(
                        }
                        return false;
                      }});
-  actions.push_back({seqnos_2, [](size_t i, kv::Tx& tx) {
+  actions.push_back({seqnos_2, [](size_t i, ccf::kv::Tx& tx) {
                        if (i % 4 == 0)
                        {
                          tx.wo(map_b)->put(2, 42);
@@ -75,7 +75,7 @@ static std::vector<ActionDesc> create_actions(
 template <typename AA>
 void run_tests(
   const std::function<void()>& tick_until_caught_up,
-  kv::Store& kv_store,
+  ccf::kv::Store& kv_store,
   ccf::indexing::Indexer& indexer,
   ExpectedSeqNos& seqnos_hello,
   ExpectedSeqNos& seqnos_saluton,
@@ -172,7 +172,7 @@ void run_tests(
 // Uses stub classes to test just indexing logic in isolation
 TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
 {
-  kv::Store kv_store;
+  ccf::kv::Store kv_store;
 
   auto consensus = std::make_shared<AllCommittableConsensus>();
   kv_store.set_consensus(consensus);
@@ -180,7 +180,7 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
   auto fetcher = std::make_shared<TestTransactionFetcher>();
   ccf::indexing::Indexer indexer(fetcher);
 
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
   REQUIRE_THROWS(indexer.install_strategy(nullptr));
@@ -253,8 +253,8 @@ TEST_CASE("basic indexing" * doctest::test_suite("indexing"))
     index_b);
 }
 
-kv::Version rekey(
-  kv::Store& kv_store,
+ccf::kv::Version rekey(
+  ccf::kv::Store& kv_store,
   const std::shared_ptr<ccf::LedgerSecrets>& ledger_secrets)
 {
   ccf::ShareManager share_manager(ledger_secrets);
@@ -262,7 +262,7 @@ kv::Version rekey(
   auto tx = kv_store.create_tx();
   auto new_ledger_secret = ccf::make_ledger_secret();
   share_manager.issue_recovery_shares(tx, new_ledger_secret);
-  REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
   auto tx_version = tx.commit_version();
 
@@ -275,7 +275,7 @@ kv::Version rekey(
 }
 
 aft::LedgerStubProxy* add_raft_consensus(
-  std::shared_ptr<kv::Store> kv_store,
+  std::shared_ptr<ccf::kv::Store> kv_store,
   std::shared_ptr<ccf::indexing::Indexer> indexer)
 {
   using TRaft = aft::Aft<aft::LedgerStubProxy>;
@@ -285,7 +285,7 @@ aft::LedgerStubProxy* add_raft_consensus(
   const ccf::consensus::Configuration settings{{"20ms"}, {"100ms"}};
   auto consensus = std::make_shared<AllCommittableRaftConsensus>(
     settings,
-    std::make_unique<aft::Adaptor<kv::Store>>(kv_store),
+    std::make_unique<aft::Adaptor<ccf::kv::Store>>(kv_store),
     std::make_unique<aft::LedgerStubProxy>(node_id),
     std::make_shared<aft::ChannelStubProxy>(),
     std::make_shared<aft::State>(node_id),
@@ -309,7 +309,7 @@ TEST_CASE_TEMPLATE(
   IndexA,
   LazyIndexA)
 {
-  auto kv_store_p = std::make_shared<kv::Store>();
+  auto kv_store_p = std::make_shared<ccf::kv::Store>();
   auto& kv_store = *kv_store_p;
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
@@ -342,15 +342,15 @@ TEST_CASE_TEMPLATE(
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = crypto::make_key_pair();
+    auto kp = ccf::crypto::make_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
-      crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
+      ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();
 
     member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
     member_public_encryption_keys->put(
-      member_id, crypto::make_rsa_key_pair()->public_key_pem());
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      member_id, ccf::crypto::make_rsa_key_pair()->public_key_pem());
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   ExpectedSeqNos seqnos_hello, seqnos_saluton, seqnos_1, seqnos_2;
@@ -457,7 +457,7 @@ const auto max_multithread_run_time = 100s;
 TEST_CASE(
   "multi-threaded indexing - in memory" * doctest::test_suite("indexing"))
 {
-  auto kv_store_p = std::make_shared<kv::Store>();
+  auto kv_store_p = std::make_shared<ccf::kv::Store>();
   auto& kv_store = *kv_store_p;
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
@@ -493,15 +493,15 @@ TEST_CASE(
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = crypto::make_key_pair();
+    auto kp = ccf::crypto::make_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
-      crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
+      ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();
 
     member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
     member_public_encryption_keys->put(
-      member_id, crypto::make_rsa_key_pair()->public_key_pem());
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      member_id, ccf::crypto::make_rsa_key_pair()->public_key_pem());
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   std::atomic<bool> finished = false;
@@ -510,7 +510,7 @@ TEST_CASE(
   std::atomic<size_t> writes_to_42 = 0;
 
   auto tx_advancer = [&]() {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     size_t i = 0;
     while (i < 1'000)
     {
@@ -528,11 +528,11 @@ TEST_CASE(
         tx.wo(map_b)->put(42, i);
       }
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       ++i;
       std::this_thread::yield();
     }
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
     finished = true;
   };
 
@@ -572,7 +572,7 @@ TEST_CASE(
   std::atomic<bool> work_done = false;
 
   std::thread index_ticker([&]() {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     while (!work_done)
     {
       size_t post_work_done_loops = 0;
@@ -626,7 +626,7 @@ TEST_CASE(
         std::this_thread::yield();
       }
     }
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   });
 
   std::vector<std::thread> threads;
@@ -661,19 +661,20 @@ TEST_CASE(
 
 class MockTransactionFetcher : public ccf::indexing::TransactionFetcher
 {
-  std::shared_ptr<kv::AbstractTxEncryptor> encryptor;
+  std::shared_ptr<ccf::kv::AbstractTxEncryptor> encryptor;
 
 public:
   aft::LedgerStubProxy* ledger;
 
-  MockTransactionFetcher(const std::shared_ptr<kv::AbstractTxEncryptor>& e) :
+  MockTransactionFetcher(
+    const std::shared_ptr<ccf::kv::AbstractTxEncryptor>& e) :
     encryptor(e)
   {}
 
-  kv::ReadOnlyStorePtr deserialise_transaction(
+  ccf::kv::ReadOnlyStorePtr deserialise_transaction(
     ccf::SeqNo seqno, const uint8_t* data, size_t size) override
   {
-    auto store = std::make_shared<kv::Store>(
+    auto store = std::make_shared<ccf::kv::Store>(
       false /* Do not start from very first seqno */,
       true /* Make use of historical secrets */);
 
@@ -687,7 +688,7 @@ public:
     }
 
     auto result = exec->apply();
-    if (result == kv::ApplyResult::FAIL)
+    if (result == ccf::kv::ApplyResult::FAIL)
     {
       return nullptr;
     }
@@ -695,10 +696,10 @@ public:
     return store;
   }
 
-  std::vector<kv::ReadOnlyStorePtr> fetch_transactions(
+  std::vector<ccf::kv::ReadOnlyStorePtr> fetch_transactions(
     const ccf::SeqNoCollection& seqnos) override
   {
-    std::vector<kv::ReadOnlyStorePtr> ret;
+    std::vector<ccf::kv::ReadOnlyStorePtr> ret;
 
     for (const auto& seqno : seqnos)
     {
@@ -723,7 +724,7 @@ TEST_CASE(
   INFO("Using seed: ", seed);
   srand(seed);
 
-  auto kv_store_p = std::make_shared<kv::Store>();
+  auto kv_store_p = std::make_shared<ccf::kv::Store>();
   auto& kv_store = *kv_store_p;
 
   auto ledger_secrets = std::make_shared<ccf::LedgerSecrets>();
@@ -755,7 +756,7 @@ TEST_CASE(
     std::make_shared<ringbuffer::Writer>(outbound_reader));
   enclave_lfs->register_message_handlers(enclave_bp.get_dispatcher());
 
-  ccfapp::AbstractNodeContext node_context;
+  ccf::AbstractNodeContext node_context;
   node_context.install_subsystem(enclave_lfs);
 
   using IndexA_Bucketed =
@@ -782,15 +783,15 @@ TEST_CASE(
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = crypto::make_key_pair();
+    auto kp = ccf::crypto::make_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
-      crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
+      ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();
 
     member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
     member_public_encryption_keys->put(
-      member_id, crypto::make_rsa_key_pair()->public_key_pem());
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      member_id, ccf::crypto::make_rsa_key_pair()->public_key_pem());
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   std::atomic<bool> all_submitted = false;
@@ -799,7 +800,7 @@ TEST_CASE(
   std::atomic<size_t> writes_to_42 = 0;
 
   auto tx_advancer = [&]() {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     size_t i = 0;
     constexpr auto tx_count =
 #if NDEBUG
@@ -824,17 +825,17 @@ TEST_CASE(
         tx.wo(map_b)->put(42, i);
       }
 
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
       ++i;
       std::this_thread::yield();
     }
     all_submitted = true;
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   auto get_all =
     [&](const std::string& key) -> std::optional<ccf::SeqNoCollection> {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     const auto max_range = index_a->max_requestable_range();
     auto range_start = 0;
 
@@ -866,7 +867,7 @@ TEST_CASE(
 
       if (range_end == end_seqno)
       {
-        crypto::openssl_sha256_shutdown();
+        ccf::crypto::openssl_sha256_shutdown();
         return all_results;
       }
       else
@@ -874,7 +875,7 @@ TEST_CASE(
         range_start = range_end + 1;
       }
     }
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   auto fetch_index_a = [&]() {
@@ -931,7 +932,7 @@ TEST_CASE(
   });
 
   std::thread index_ticker([&]() {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     while (!work_done)
     {
       while (indexer.update_strategies(step_time, kv_store.current_txid()))
@@ -939,7 +940,7 @@ TEST_CASE(
         std::this_thread::yield();
       }
     }
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   });
 
   std::thread watchdog([&]() {
@@ -967,11 +968,11 @@ TEST_CASE(
 
 int main(int argc, char** argv)
 {
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

@@ -11,7 +11,7 @@
 
 #include <vector>
 
-namespace kv
+namespace ccf::kv
 {
   class ExecutionWrapperStore
   {
@@ -19,20 +19,20 @@ namespace kv
     virtual bool fill_maps(
       const std::vector<uint8_t>& data,
       bool public_only,
-      kv::Version& v,
-      kv::Term& view,
-      kv::OrderedChanges& changes,
-      kv::MapCollection& new_maps,
+      ccf::kv::Version& v,
+      ccf::kv::Term& view,
+      ccf::kv::OrderedChanges& changes,
+      ccf::kv::MapCollection& new_maps,
       ccf::ClaimsDigest& claims_digest,
-      std::optional<crypto::Sha256Hash>& commit_evidence_digest,
+      std::optional<ccf::crypto::Sha256Hash>& commit_evidence_digest,
       bool ignore_strict_versions = false) = 0;
 
     virtual bool commit_deserialised(
-      kv::OrderedChanges& changes,
-      kv::Version v,
-      kv::Term term,
+      ccf::kv::OrderedChanges& changes,
+      ccf::kv::Version v,
+      ccf::kv::Term term,
       const MapCollection& new_maps,
-      kv::ConsensusHookPtrs& hooks,
+      ccf::kv::ConsensusHookPtrs& hooks,
       bool track_deletes_on_missing_keys) = 0;
   };
 
@@ -43,13 +43,13 @@ namespace kv
     std::shared_ptr<TxHistory> history;
     const std::vector<uint8_t> data;
     bool public_only;
-    kv::Version version;
+    ccf::kv::Version version;
     Term term;
     OrderedChanges changes;
     MapCollection new_maps;
-    kv::ConsensusHookPtrs hooks;
+    ccf::kv::ConsensusHookPtrs hooks;
     ccf::ClaimsDigest claims_digest;
-    std::optional<crypto::Sha256Hash> commit_evidence_digest = {};
+    std::optional<ccf::crypto::Sha256Hash> commit_evidence_digest = {};
 
     const std::optional<TxID> expected_txid;
 
@@ -72,7 +72,7 @@ namespace kv
       return std::move(claims_digest);
     }
 
-    std::optional<crypto::Sha256Hash>&& consume_commit_evidence_digest()
+    std::optional<ccf::crypto::Sha256Hash>&& consume_commit_evidence_digest()
       override
     {
       return std::move(commit_evidence_digest);
@@ -162,7 +162,7 @@ namespace kv
       return success;
     }
 
-    kv::ConsensusHookPtrs& get_hooks() override
+    ccf::kv::ConsensusHookPtrs& get_hooks() override
     {
       return hooks;
     }
@@ -177,7 +177,7 @@ namespace kv
       return term;
     }
 
-    kv::Version get_index() override
+    ccf::kv::Version get_index() override
     {
       return version;
     }

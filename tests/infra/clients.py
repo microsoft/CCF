@@ -161,7 +161,7 @@ class Request:
         if self.headers:
             string += f" <blue>{truncate(str(self.headers), max_len=25)}</>"
         if self.body is not None:
-            string += f' {truncate(f"{self.body}")}'
+            string += escape_loguru_tags(f' {truncate(f"{self.body}")}')
 
         return string
 

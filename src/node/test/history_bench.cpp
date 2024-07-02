@@ -20,7 +20,7 @@ namespace threading
 
 using namespace ccf;
 
-class DummyConsensus : public kv::test::StubConsensus
+class DummyConsensus : public ccf::kv::test::StubConsensus
 {
 public:
   DummyConsensus() {}
@@ -59,7 +59,7 @@ static void hash_only(picobench::state& s)
   {
     (void)_;
     auto data = txs[idx++];
-    crypto::Sha256Hash h(data);
+    ccf::crypto::Sha256Hash h(data);
     do_not_optimize(h);
     clobber_memory();
   }
@@ -71,14 +71,16 @@ static void append(picobench::state& s)
 {
   ::srand(42);
 
-  kv::Store store;
-  auto kp = crypto::make_key_pair();
+  ccf::kv::Store store;
+  auto kp = ccf::crypto::make_key_pair();
 
-  std::shared_ptr<kv::Consensus> consensus = std::make_shared<DummyConsensus>();
+  std::shared_ptr<ccf::kv::Consensus> consensus =
+    std::make_shared<DummyConsensus>();
   store.set_consensus(consensus);
 
-  std::shared_ptr<kv::TxHistory> history =
-    std::make_shared<ccf::MerkleTxHistory>(store, kv::test::PrimaryNodeId, *kp);
+  std::shared_ptr<ccf::kv::TxHistory> history =
+    std::make_shared<ccf::MerkleTxHistory>(
+      store, ccf::kv::test::PrimaryNodeId, *kp);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;
@@ -108,14 +110,16 @@ static void append_compact(picobench::state& s)
 {
   ::srand(42);
 
-  kv::Store store;
-  auto kp = crypto::make_key_pair();
+  ccf::kv::Store store;
+  auto kp = ccf::crypto::make_key_pair();
 
-  std::shared_ptr<kv::Consensus> consensus = std::make_shared<DummyConsensus>();
+  std::shared_ptr<ccf::kv::Consensus> consensus =
+    std::make_shared<DummyConsensus>();
   store.set_consensus(consensus);
 
-  std::shared_ptr<kv::TxHistory> history =
-    std::make_shared<ccf::MerkleTxHistory>(store, kv::test::PrimaryNodeId, *kp);
+  std::shared_ptr<ccf::kv::TxHistory> history =
+    std::make_shared<ccf::MerkleTxHistory>(
+      store, ccf::kv::test::PrimaryNodeId, *kp);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;
@@ -161,13 +165,13 @@ PICOBENCH(append_compact<1000>).iterations(sizes).samples(10);
 
 int main(int argc, char* argv[])
 {
-  logger::config::level() = LoggerLevel::FATAL;
+  ccf::logger::config::level() = LoggerLevel::FATAL;
   ::threading::ThreadMessaging::init(1);
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
 
   picobench::runner runner;
   runner.parse_cmd_line(argc, argv);
   auto ret = runner.run();
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   return ret;
 }

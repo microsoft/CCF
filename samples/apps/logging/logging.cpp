@@ -28,7 +28,7 @@ using namespace nlohmann;
 namespace loggingapp
 {
   // SNIPPET: table_definition
-  using RecordsMap = kv::Map<size_t, string>;
+  using RecordsMap = ccf::kv::Map<size_t, string>;
   static constexpr auto PUBLIC_RECORDS = "public:records";
   static constexpr auto PRIVATE_RECORDS = "records";
 
@@ -71,7 +71,7 @@ namespace loggingapp
   {
   public:
     std::unique_ptr<ccf::AuthnIdentity> authenticate(
-      kv::ReadOnlyTx&,
+      ccf::kv::ReadOnlyTx&,
       const std::shared_ptr<ccf::RpcContext>& ctx,
       std::string& error_reason) override
     {
@@ -169,7 +169,7 @@ namespace loggingapp
     {}
 
     void handle_committed_transaction(
-      const ccf::TxID& tx_id, const kv::ReadOnlyStorePtr& store)
+      const ccf::TxID& tx_id, const ccf::kv::ReadOnlyStorePtr& store)
     {
       std::lock_guard<std::mutex> lock(txid_lock);
       auto tx_diff = store->create_tx_diff();
@@ -238,7 +238,7 @@ namespace loggingapp
         response += fmt::format(
           "\nThe caller is a user with ID: {}", user_cert_ident->user_id);
 
-        crypto::Pem user_cert;
+        ccf::crypto::Pem user_cert;
         if (
           get_user_cert_v1(ctx.tx, user_cert_ident->user_id, user_cert) ==
           ccf::ApiResult::OK)
@@ -266,7 +266,7 @@ namespace loggingapp
         response += fmt::format(
           "\nThe caller is a member with ID: {}", member_cert_ident->member_id);
 
-        crypto::Pem member_cert;
+        ccf::crypto::Pem member_cert;
         if (
           get_member_cert_v1(
             ctx.tx, member_cert_ident->member_id, member_cert) ==
@@ -367,9 +367,9 @@ namespace loggingapp
     static std::optional<std::string> get_scope(auto& ctx)
     {
       const auto parsed_query =
-        http::parse_query(ctx.rpc_ctx->get_request_query());
+        ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
       std::string error_string;
-      return http::get_query_value_opt<std::string>(
+      return ccf::http::get_query_value_opt<std::string>(
         parsed_query, "scope", error_string);
     }
 
@@ -441,7 +441,7 @@ namespace loggingapp
     }
 
   public:
-    LoggerHandlers(ccfapp::AbstractNodeContext& context) :
+    LoggerHandlers(ccf::AbstractNodeContext& context) :
       ccf::UserEndpointRegistry(context),
       record_public_params_schema(nlohmann::json::parse(j_record_public_in)),
       record_public_result_schema(nlohmann::json::parse(j_record_public_out)),
@@ -459,6 +459,12 @@ namespace loggingapp
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
+
+      // According to manual obvervation it's enough to start evicting old
+      // requests on historical perf test, but not too small to get stuck
+      // because of a single request being larget than the cache.
+      constexpr size_t cache_limit = 1024 * 1024 * 10; // MB
+      context.get_historical_state().set_soft_cache_limit(cache_limit);
 
       const ccf::AuthnPolicies auth_policies = {
         ccf::jwt_auth_policy,
@@ -528,11 +534,11 @@ namespace loggingapp
         records_handle->put(in.id, in.msg);
 
         const auto parsed_query =
-          http::parse_query(ctx.rpc_ctx->get_request_query());
+          ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
         std::string fail;
-        http::get_query_value(parsed_query, "fail", fail, error_reason);
+        ccf::http::get_query_value(parsed_query, "fail", fail, error_reason);
 
         auto out = std::make_shared<LoggingPut::Out>();
         out->success = true;
@@ -560,11 +566,11 @@ namespace loggingapp
       auto get = [this](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
-          http::parse_query(ctx.rpc_ctx->get_request_query());
+          ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
         size_t id;
-        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -598,6 +604,16 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
       // SNIPPET_END: install_get
+
+      make_read_only_endpoint(
+        "/log/private/backup",
+        HTTP_GET,
+        ccf::json_read_only_adapter(get),
+        auth_policies)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::ToBackup)
+        .set_auto_schema<void, LoggingGet::Out>()
+        .add_query_parameter<size_t>("id")
+        .install();
 
       // install the committed index and tell the historical fetcher to keep
       // track of deleted keys too, so that the index can observe the deleted
@@ -665,11 +681,11 @@ namespace loggingapp
       auto get_committed = [this](auto& ctx) {
         // Parse id from query
         const auto parsed_query =
-          http::parse_query(ctx.rpc_ctx->get_request_query());
+          ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
         size_t id;
-        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           auto response = nlohmann::json{{
             "error",
@@ -716,11 +732,11 @@ namespace loggingapp
       auto remove = [this](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
-          http::parse_query(ctx.rpc_ctx->get_request_query());
+          ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
         size_t id;
-        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -800,7 +816,7 @@ namespace loggingapp
           auto current_value = records_handle->get(id);
           if (current_value.has_value())
           {
-            crypto::Sha256Hash value_digest(current_value.value());
+            ccf::crypto::Sha256Hash value_digest(current_value.value());
             auto etag = value_digest.hex_str();
 
             // On a POST operation, If-Match failing or If-None-Match passing
@@ -843,7 +859,7 @@ namespace loggingapp
         CCF_APP_INFO("Storing {} = {}", id, in.msg);
 
         // SNIPPET_START: public_table_post_etag
-        crypto::Sha256Hash value_digest(in.msg);
+        ccf::crypto::Sha256Hash value_digest(in.msg);
         // Succesful calls set an ETag
         ctx.rpc_ctx->set_response_header("ETag", value_digest.hex_str());
         // SNIPPET_END: public_table_post_etag
@@ -863,11 +879,11 @@ namespace loggingapp
       auto get_public = [this](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
-          http::parse_query(ctx.rpc_ctx->get_request_query());
+          ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
         size_t id;
-        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -895,7 +911,7 @@ namespace loggingapp
 
           // If a record is present, compute an Entity Tag, and apply
           // If-Match and If-None-Match.
-          crypto::Sha256Hash value_digest(record.value());
+          ccf::crypto::Sha256Hash value_digest(record.value());
           const auto etag = value_digest.hex_str();
 
           if (match_headers.if_match.has_value())
@@ -943,14 +959,24 @@ namespace loggingapp
         .add_query_parameter<size_t>("id")
         .install();
 
+      make_read_only_endpoint(
+        "/log/public/backup",
+        HTTP_GET,
+        ccf::json_read_only_adapter(get_public),
+        auth_policies)
+        .set_redirection_strategy(ccf::endpoints::RedirectionStrategy::ToBackup)
+        .set_auto_schema<void, LoggingGet::Out>()
+        .add_query_parameter<size_t>("id")
+        .install();
+
       auto remove_public = [this](auto& ctx, nlohmann::json&&) {
         // Parse id from query
         const auto parsed_query =
-          http::parse_query(ctx.rpc_ctx->get_request_query());
+          ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
         size_t id;
-        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           return ccf::make_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -980,7 +1006,7 @@ namespace loggingapp
           {
             // If a Match header is present, we need to compute the ETag
             // to resolve the constraints
-            crypto::Sha256Hash value_digest(current_value.value());
+            ccf::crypto::Sha256Hash value_digest(current_value.value());
             const auto etag = value_digest.hex_str();
 
             if (match_headers.if_match.has_value())
@@ -1073,7 +1099,8 @@ namespace loggingapp
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(true).dump());
       };
       make_endpoint(
@@ -1172,9 +1199,9 @@ namespace loggingapp
 
       // SNIPPET_START: log_record_text
       auto log_record_text = [this](auto& ctx) {
-        const auto expected = http::headervalues::contenttype::TEXT;
+        const auto expected = ccf::http::headervalues::contenttype::TEXT;
         const auto actual =
-          ctx.rpc_ctx->get_request_header(http::headers::CONTENT_TYPE)
+          ctx.rpc_ctx->get_request_header(ccf::http::headers::CONTENT_TYPE)
             .value_or("");
         if (expected != actual)
         {
@@ -1217,15 +1244,13 @@ namespace loggingapp
       auto get_historical = [this](
                               ccf::endpoints::ReadOnlyEndpointContext& ctx,
                               ccf::historical::StatePtr historical_state) {
-        const auto pack = ccf::jsonhandler::detect_json_pack(ctx.rpc_ctx);
-
         // Parse id from query
         const auto parsed_query =
-          http::parse_query(ctx.rpc_ctx->get_request_query());
+          ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
         size_t id;
-        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -1244,7 +1269,7 @@ namespace loggingapp
           LoggingGetHistorical::Out out;
           out.msg = v.value();
           nlohmann::json j = out;
-          ccf::jsonhandler::set_response(std::move(j), ctx.rpc_ctx, pack);
+          ccf::jsonhandler::set_response(std::move(j), ctx.rpc_ctx);
         }
         else
         {
@@ -1274,15 +1299,13 @@ namespace loggingapp
         [this](
           ccf::endpoints::ReadOnlyEndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
-          const auto pack = ccf::jsonhandler::detect_json_pack(ctx.rpc_ctx);
-
           // Parse id from query
           const auto parsed_query =
-            http::parse_query(ctx.rpc_ctx->get_request_query());
+            ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
           std::string error_reason;
           size_t id;
-          if (!http::get_query_value(parsed_query, "id", id, error_reason))
+          if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
           {
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -1302,7 +1325,7 @@ namespace loggingapp
             out.msg = v.value();
             assert(historical_state->receipt);
             out.receipt = ccf::describe_receipt_v1(*historical_state->receipt);
-            ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
+            ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx);
           }
           else
           {
@@ -1325,15 +1348,13 @@ namespace loggingapp
         [this](
           ccf::endpoints::ReadOnlyEndpointContext& ctx,
           ccf::historical::StatePtr historical_state) {
-          const auto pack = ccf::jsonhandler::detect_json_pack(ctx.rpc_ctx);
-
           // Parse id from query
           const auto parsed_query =
-            http::parse_query(ctx.rpc_ctx->get_request_query());
+            ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
           std::string error_reason;
           size_t id;
-          if (!http::get_query_value(parsed_query, "id", id, error_reason))
+          if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
           {
             ctx.rpc_ctx->set_error(
               HTTP_STATUS_BAD_REQUEST,
@@ -1360,7 +1381,7 @@ namespace loggingapp
             out.receipt = full_receipt;
             out.receipt["leaf_components"].erase("claims_digest");
             // SNIPPET_END: claims_digest_in_receipt
-            ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx, pack);
+            ccf::jsonhandler::set_response(std::move(out), ctx.rpc_ctx);
           }
           else
           {
@@ -1385,12 +1406,12 @@ namespace loggingapp
                                    this](ccf::endpoints::EndpointContext& ctx) {
         // Parse arguments from query
         const auto parsed_query =
-          http::parse_query(ctx.rpc_ctx->get_request_query());
+          ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
 
         size_t id;
-        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -1400,7 +1421,7 @@ namespace loggingapp
         }
 
         size_t from_seqno;
-        if (!http::get_query_value(
+        if (!ccf::http::get_query_value(
               parsed_query, "from_seqno", from_seqno, error_reason))
         {
           // If no from_seqno is specified, defaults to very first transaction
@@ -1409,7 +1430,7 @@ namespace loggingapp
         }
 
         size_t to_seqno;
-        if (!http::get_query_value(
+        if (!ccf::http::get_query_value(
               parsed_query, "to_seqno", to_seqno, error_reason))
         {
           // If no end point is specified, use the last time this ID was
@@ -1495,9 +1516,10 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
           static constexpr size_t retry_after_seconds = 3;
           ctx.rpc_ctx->set_response_header(
-            http::headers::RETRY_AFTER, retry_after_seconds);
+            ccf::http::headers::RETRY_AFTER, retry_after_seconds);
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::TEXT);
           ctx.rpc_ctx->set_response_body(fmt::format(
             "Still constructing index for public records on key {} - indexed "
             "to {}/{}",
@@ -1523,9 +1545,10 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
           static constexpr size_t retry_after_seconds = 3;
           ctx.rpc_ctx->set_response_header(
-            http::headers::RETRY_AFTER, retry_after_seconds);
+            ccf::http::headers::RETRY_AFTER, retry_after_seconds);
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::TEXT);
           ctx.rpc_ctx->set_response_body(fmt::format(
             "Still constructing index for private records at {}", id));
           return;
@@ -1548,7 +1571,7 @@ namespace loggingapp
         // Fetch the requested range
         auto& historical_cache = context.get_historical_state();
 
-        std::vector<kv::ReadOnlyStorePtr> stores;
+        std::vector<ccf::kv::ReadOnlyStorePtr> stores;
         if (!interesting_seqnos->empty())
         {
           stores =
@@ -1560,10 +1583,10 @@ namespace loggingapp
             ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
             static constexpr size_t retry_after_seconds = 3;
             ctx.rpc_ctx->set_response_header(
-              http::headers::RETRY_AFTER, retry_after_seconds);
+              ccf::http::headers::RETRY_AFTER, retry_after_seconds);
             ctx.rpc_ctx->set_response_header(
-              http::headers::CONTENT_TYPE,
-              http::headervalues::contenttype::TEXT);
+              ccf::http::headers::CONTENT_TYPE,
+              ccf::http::headervalues::contenttype::TEXT);
             ctx.rpc_ctx->set_response_body(fmt::format(
               "Historical transactions from {} to {} are not yet "
               "available, fetching now",
@@ -1644,7 +1667,8 @@ namespace loggingapp
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(j_response.dump());
 
         // ALSO: Assume this response makes it all the way to the client, and
@@ -1672,12 +1696,12 @@ namespace loggingapp
                                      ccf::endpoints::EndpointContext& ctx) {
         // Parse arguments from query
         const auto parsed_query =
-          http::parse_query(ctx.rpc_ctx->get_request_query());
+          ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
         std::string error_reason;
 
         size_t id;
-        if (!http::get_query_value(parsed_query, "id", id, error_reason))
+        if (!ccf::http::get_query_value(parsed_query, "id", id, error_reason))
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
@@ -1689,7 +1713,7 @@ namespace loggingapp
         std::vector<size_t> seqnos;
         {
           std::string seqnos_s;
-          if (!http::get_query_value(
+          if (!ccf::http::get_query_value(
                 parsed_query, "seqnos", seqnos_s, error_reason))
           {
             ctx.rpc_ctx->set_error(
@@ -1699,7 +1723,7 @@ namespace loggingapp
             return;
           }
 
-          const auto terms = nonstd::split(seqnos_s, ",");
+          const auto terms = ccf::nonstd::split(seqnos_s, ",");
           for (const auto& term : terms)
           {
             size_t val;
@@ -1778,9 +1802,10 @@ namespace loggingapp
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
           static constexpr size_t retry_after_seconds = 3;
           ctx.rpc_ctx->set_response_header(
-            http::headers::RETRY_AFTER, retry_after_seconds);
+            ccf::http::headers::RETRY_AFTER, retry_after_seconds);
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::TEXT);
           ctx.rpc_ctx->set_response_body(fmt::format(
             "Historical transactions are not yet available, fetching now"));
           return;
@@ -1813,7 +1838,8 @@ namespace loggingapp
         nlohmann::json j_response = response;
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(j_response.dump());
 
         // ALSO: Assume this response makes it all the way to the client, and
@@ -1910,7 +1936,8 @@ namespace loggingapp
             ctx.template get_caller<ccf::MemberCOSESign1AuthnIdentity>();
 
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::TEXT);
           std::vector<uint8_t> response_body(
             caller_identity.content.begin(), caller_identity.content.end());
           ctx.rpc_ctx->set_response_body(response_body);
@@ -1928,11 +1955,11 @@ namespace loggingapp
   };
 }
 
-namespace ccfapp
+namespace ccf
 {
   // SNIPPET_START: app_interface
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
-    ccfapp::AbstractNodeContext& context)
+    ccf::AbstractNodeContext& context)
   {
     return std::make_unique<loggingapp::LoggerHandlers>(context);
   }

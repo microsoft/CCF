@@ -30,8 +30,8 @@ namespace aft
     virtual void put_entry(
       const std::vector<uint8_t>& original,
       bool globally_committable,
-      kv::Term term,
-      kv::Version index)
+      ccf::kv::Term term,
+      ccf::kv::Version index)
     {
       std::lock_guard<std::mutex> lock(ledger_access);
 
@@ -98,8 +98,8 @@ namespace aft
         // Remove the View and Index that were written during put_entry
         data->erase(
           data->begin(),
-          data->begin() + sizeof(size_t) + sizeof(kv::Term) +
-            sizeof(kv::Version));
+          data->begin() + sizeof(size_t) + sizeof(ccf::kv::Term) +
+            sizeof(ccf::kv::Version));
       }
 
       return data;
@@ -196,7 +196,7 @@ namespace aft
 
     void close_channel(const ccf::NodeId& peer_id) override {}
 
-    void set_endorsed_node_cert(const crypto::Pem&) override {}
+    void set_endorsed_node_cert(const ccf::crypto::Pem&) override {}
 
     bool have_channel(const ccf::NodeId& nid) override
     {
@@ -231,9 +231,9 @@ namespace aft
 
     void initialize(
       const ccf::NodeId& self_id,
-      const crypto::Pem& service_cert,
-      crypto::KeyPairPtr node_kp,
-      const std::optional<crypto::Pem>& node_cert = std::nullopt) override
+      const ccf::crypto::Pem& service_cert,
+      ccf::crypto::KeyPairPtr node_kp,
+      const std::optional<ccf::crypto::Pem>& node_cert = std::nullopt) override
     {}
 
     bool send_encrypted(
@@ -286,20 +286,21 @@ namespace aft
   DECLARE_JSON_TYPE(ReplicatedData);
   DECLARE_JSON_REQUIRED_FIELDS(ReplicatedData, type, data);
 
-  class ConfigurationChangeHook : public kv::ConsensusHook
+  class ConfigurationChangeHook : public ccf::kv::ConsensusHook
   {
-    kv::Configuration::Nodes
+    ccf::kv::Configuration::Nodes
       new_configuration; // Absence of node means that node has been retired
-    kv::Version version;
+    ccf::kv::Version version;
 
   public:
     ConfigurationChangeHook(
-      kv::Configuration::Nodes new_configuration_, kv::Version version_) :
+      ccf::kv::Configuration::Nodes new_configuration_,
+      ccf::kv::Version version_) :
       new_configuration(new_configuration_),
       version(version_)
     {}
 
-    void call(kv::ConfigurableConsensus* consensus) override
+    void call(ccf::kv::ConfigurableConsensus* consensus) override
     {
       auto configuration = consensus->get_latest_configuration_unsafe();
       std::unordered_set<ccf::NodeId> retired_nodes;
@@ -329,7 +330,8 @@ namespace aft
     }
   };
 
-  using RCHook = std::function<void(Index, const std::vector<kv::NodeId>&)>;
+  using RCHook =
+    std::function<void(Index, const std::vector<ccf::kv::NodeId>&)>;
 
   class LoggingStubStore
   {
@@ -348,31 +350,32 @@ namespace aft
 
     virtual void compact(Index i) {}
 
-    virtual void rollback(const kv::TxID& tx_id, Term t) {}
+    virtual void rollback(const ccf::kv::TxID& tx_id, Term t) {}
 
     virtual void initialise_term(Term t) {}
 
-    kv::Version current_version()
+    ccf::kv::Version current_version()
     {
-      return kv::NoVersion;
+      return ccf::kv::NoVersion;
     }
 
-    class ExecutionWrapper : public kv::AbstractExecutionWrapper
+    class ExecutionWrapper : public ccf::kv::AbstractExecutionWrapper
     {
     private:
-      kv::ConsensusHookPtrs hooks;
+      ccf::kv::ConsensusHookPtrs hooks;
       aft::Term term;
-      kv::Version index;
+      ccf::kv::Version index;
       std::vector<uint8_t> entry;
       ccf::ClaimsDigest claims_digest;
-      std::optional<crypto::Sha256Hash> commit_evidence_digest = std::nullopt;
-      kv::ApplyResult result;
+      std::optional<ccf::crypto::Sha256Hash> commit_evidence_digest =
+        std::nullopt;
+      ccf::kv::ApplyResult result;
 
     public:
       ExecutionWrapper(
         const std::vector<uint8_t>& data_,
-        const std::optional<kv::TxID>& expected_txid,
-        kv::ConsensusHookPtrs&& hooks_) :
+        const std::optional<ccf::kv::TxID>& expected_txid,
+        ccf::kv::ConsensusHookPtrs&& hooks_) :
         hooks(std::move(hooks_))
       {
         const uint8_t* data = data_.data();
@@ -380,17 +383,17 @@ namespace aft
 
         const auto committable = serialized::read<bool>(data, size);
         term = serialized::read<aft::Term>(data, size);
-        index = serialized::read<kv::Version>(data, size);
+        index = serialized::read<ccf::kv::Version>(data, size);
         entry = serialized::read(data, size, size);
 
-        result =
-          committable ? kv::ApplyResult::PASS_SIGNATURE : kv::ApplyResult::PASS;
+        result = committable ? ccf::kv::ApplyResult::PASS_SIGNATURE :
+                               ccf::kv::ApplyResult::PASS;
 
         if (expected_txid.has_value())
         {
           if (term != expected_txid->term || index != expected_txid->version)
           {
-            result = kv::ApplyResult::FAIL;
+            result = ccf::kv::ApplyResult::FAIL;
           }
         }
       }
@@ -400,18 +403,18 @@ namespace aft
         return std::move(claims_digest);
       }
 
-      std::optional<crypto::Sha256Hash>&& consume_commit_evidence_digest()
+      std::optional<ccf::crypto::Sha256Hash>&& consume_commit_evidence_digest()
         override
       {
         return std::move(commit_evidence_digest);
       }
 
-      kv::ApplyResult apply(bool track_deletes_on_missing_keys) override
+      ccf::kv::ApplyResult apply(bool track_deletes_on_missing_keys) override
       {
         return result;
       }
 
-      kv::ConsensusHookPtrs& get_hooks() override
+      ccf::kv::ConsensusHookPtrs& get_hooks() override
       {
         return hooks;
       }
@@ -426,7 +429,7 @@ namespace aft
         return term;
       }
 
-      kv::Version get_index() override
+      ccf::kv::Version get_index() override
       {
         return index;
       }
@@ -447,22 +450,22 @@ namespace aft
       }
     };
 
-    virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
+    virtual std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      const std::optional<kv::TxID>& expected_txid = std::nullopt)
+      const std::optional<ccf::kv::TxID>& expected_txid = std::nullopt)
     {
-      kv::ConsensusHookPtrs hooks = {};
+      ccf::kv::ConsensusHookPtrs hooks = {};
       return std::make_unique<ExecutionWrapper>(
         data, expected_txid, std::move(hooks));
     }
 
-    bool flag_enabled(kv::AbstractStore::Flag)
+    bool flag_enabled(ccf::kv::AbstractStore::Flag)
     {
       return false;
     }
 
-    void unset_flag(kv::AbstractStore::Flag) {}
+    void unset_flag(ccf::kv::AbstractStore::Flag) {}
   };
 
   class LoggingStubStoreConfig : public LoggingStubStore
@@ -482,7 +485,7 @@ namespace aft
       {
         if (version <= i)
         {
-          std::vector<kv::NodeId> retired_committed_node_ids;
+          std::vector<ccf::kv::NodeId> retired_committed_node_ids;
           for (auto& [node_id, _] : configuration.items())
           {
             retired_committed_node_ids.push_back(node_id);
@@ -502,7 +505,7 @@ namespace aft
         retired_committed_entries.end());
     }
 
-    virtual void rollback(const kv::TxID& tx_id, Term t) override
+    virtual void rollback(const ccf::kv::TxID& tx_id, Term t) override
     {
       retired_committed_entries.erase(
         std::remove_if(
@@ -512,10 +515,10 @@ namespace aft
         retired_committed_entries.end());
     }
 
-    virtual std::unique_ptr<kv::AbstractExecutionWrapper> deserialize(
+    virtual std::unique_ptr<ccf::kv::AbstractExecutionWrapper> deserialize(
       const std::vector<uint8_t>& data,
       bool public_only = false,
-      const std::optional<kv::TxID>& expected_txid = std::nullopt) override
+      const std::optional<ccf::kv::TxID>& expected_txid = std::nullopt) override
     {
       // Set reconfiguration hook if there are any new nodes
       // Read wrapping term and version
@@ -523,19 +526,21 @@ namespace aft
       auto size = data.size();
       const auto committable = serialized::read<bool>(data_, size);
       serialized::read<aft::Term>(data_, size);
-      auto version = serialized::read<kv::Version>(data_, size);
+      auto version = serialized::read<ccf::kv::Version>(data_, size);
       ReplicatedData r = nlohmann::json::parse(std::span{data_, size});
-      kv::ConsensusHookPtrs hooks = {};
+      ccf::kv::ConsensusHookPtrs hooks = {};
       if (r.type == ReplicatedDataType::reconfiguration)
       {
-        kv::Configuration::Nodes configuration = nlohmann::json::parse(r.data);
+        ccf::kv::Configuration::Nodes configuration =
+          nlohmann::json::parse(r.data);
         auto hook = std::make_unique<aft::ConfigurationChangeHook>(
           configuration, version);
         hooks.push_back(std::move(hook));
       }
       if (r.type == ReplicatedDataType::retired_committed)
       {
-        kv::Configuration::Nodes configuration = nlohmann::json::parse(r.data);
+        ccf::kv::Configuration::Nodes configuration =
+          nlohmann::json::parse(r.data);
         retired_committed_entries.emplace_back(version, configuration);
       }
 
@@ -562,7 +567,7 @@ namespace aft
       Index,
       const std::vector<uint8_t>&,
       const ccf::NodeId&,
-      const crypto::Pem&)
+      const ccf::crypto::Pem&)
     {}
   };
 }

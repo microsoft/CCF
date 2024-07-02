@@ -35,6 +35,7 @@ from infra.member import AckException
 from types import MappingProxyType
 import threading
 import copy
+import programmability
 
 from loguru import logger as LOG
 
@@ -1961,7 +1962,7 @@ def run_app_space_js(args):
             primary, user.service_id, user_data={"isAdmin": True}
         )
 
-        with primary.client(None, None, user.local_id) as c:
+        with primary.client() as c:
             parent_dir = os.path.normpath(
                 os.path.join(os.path.dirname(__file__), os.path.pardir)
             )
@@ -1973,15 +1974,26 @@ def run_app_space_js(args):
                 "js",
             )
             bundle = network.consortium.read_bundle_from_dir(logging_js_dir)
-            r = c.put("/app/custom_endpoints", body=bundle)
+            signed_bundle = programmability.sign_payload(
+                network.identity(user.local_id), "custom_endpoints", bundle
+            )
+            r = c.put(
+                "/app/custom_endpoints",
+                body=signed_bundle,
+                headers={"Content-Type": "application/cose"},
+            )
 
             assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r.status_code
 
             # Also modify the runtime options to log and return errors, to aid debugging
-            r = c.call(
+            options = {"log_exception_details": True, "return_exception_details": True}
+            signed_options = programmability.sign_payload(
+                network.identity(user.local_id), "runtime_options", options
+            )
+            r = c.patch(
                 "/app/custom_endpoints/runtime_options",
-                {"log_exception_details": True, "return_exception_details": True},
-                http_verb="PATCH",
+                signed_options,
+                headers={"Content-Type": "application/cose"},
             )
             assert r.status_code == http.HTTPStatus.OK.value, r.status_code
 

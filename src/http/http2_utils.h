@@ -33,14 +33,16 @@ namespace http2
   }
 
   static inline std::optional<std::string> make_trailer_header_value(
-    const http::HeaderMap& trailers)
+    const ccf::http::HeaderMap& trailers)
   {
     if (trailers.empty())
     {
       return std::nullopt;
     }
 
-    using HeaderKeysIt = nonstd::KeyIterator<http::HeaderMap::const_iterator>;
+    using HeaderKeysIt =
+      ccf::nonstd::KeyIterator<ccf::http::HeaderMap::const_iterator>;
+
     const auto trailer_header_val = fmt::format(
       "{}",
       fmt::join(

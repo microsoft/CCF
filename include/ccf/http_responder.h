@@ -8,7 +8,7 @@
 
 #include <functional>
 
-namespace http
+namespace ccf::http
 {
   using StreamOnCloseCallback = std::function<void(void)>;
 

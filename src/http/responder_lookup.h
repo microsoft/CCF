@@ -13,8 +13,8 @@ namespace http
   class ResponderLookup
   {
   protected:
-    using ByStream =
-      std::unordered_map<http2::StreamId, std::shared_ptr<HTTPResponder>>;
+    using ByStream = std::
+      unordered_map<http2::StreamId, std::shared_ptr<ccf::http::HTTPResponder>>;
 
     std::unordered_map<::tls::ConnID, ByStream> all_responders;
 
@@ -22,7 +22,7 @@ namespace http
     ccf::pal::Mutex lock;
 
   public:
-    std::shared_ptr<HTTPResponder> lookup_responder(
+    std::shared_ptr<ccf::http::HTTPResponder> lookup_responder(
       ::tls::ConnID session_id, http2::StreamId stream_id)
     {
       std::unique_lock<ccf::pal::Mutex> guard(lock);
@@ -43,7 +43,7 @@ namespace http
     void add_responder(
       ::tls::ConnID session_id,
       http2::StreamId stream_id,
-      std::shared_ptr<HTTPResponder> responder)
+      std::shared_ptr<ccf::http::HTTPResponder> responder)
     {
       std::unique_lock<ccf::pal::Mutex> guard(lock);
       all_responders[session_id][stream_id] = responder;

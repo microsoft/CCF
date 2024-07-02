@@ -21,22 +21,22 @@
 std::unique_ptr<threading::ThreadMessaging>
   threading::ThreadMessaging::singleton = nullptr;
 
-using MapT = kv::Map<size_t, size_t>;
+using MapT = ccf::kv::Map<size_t, size_t>;
 
-class DummyConsensus : public kv::test::StubConsensus
+class DummyConsensus : public ccf::kv::test::StubConsensus
 {
 public:
-  kv::Store* store;
+  ccf::kv::Store* store;
 
-  DummyConsensus(kv::Store* store_) : store(store_) {}
+  DummyConsensus(ccf::kv::Store* store_) : store(store_) {}
 
-  bool replicate(const kv::BatchVector& entries, ccf::View view) override
+  bool replicate(const ccf::kv::BatchVector& entries, ccf::View view) override
   {
     if (store)
     {
       REQUIRE(entries.size() == 1);
       return store->deserialize(*std::get<1>(entries[0]))->apply() !=
-        kv::ApplyResult::FAIL;
+        ccf::kv::ApplyResult::FAIL;
     }
     return true;
   }
@@ -51,39 +51,39 @@ public:
     return 0;
   }
 
-  std::optional<kv::NodeId> primary() override
+  std::optional<ccf::kv::NodeId> primary() override
   {
-    return kv::test::FirstBackupNodeId;
+    return ccf::kv::test::FirstBackupNodeId;
   }
 
-  kv::NodeId id() override
+  ccf::kv::NodeId id() override
   {
-    return kv::test::PrimaryNodeId;
+    return ccf::kv::test::PrimaryNodeId;
   }
 };
 
 TEST_CASE("Check signature verification")
 {
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
-  auto kp = crypto::make_key_pair();
+  auto kp = ccf::crypto::make_key_pair();
   const auto self_signed = make_self_signed_cert(kp);
 
-  kv::Store primary_store;
+  ccf::kv::Store primary_store;
   primary_store.set_encryptor(encryptor);
   constexpr auto store_term = 2;
-  std::shared_ptr<kv::TxHistory> primary_history =
+  std::shared_ptr<ccf::kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      primary_store, kv::test::PrimaryNodeId, *kp);
+      primary_store, ccf::kv::test::PrimaryNodeId, *kp);
   primary_history->set_endorsed_certificate(self_signed);
   primary_store.set_history(primary_history);
   primary_store.initialise_term(store_term);
 
-  kv::Store backup_store;
+  ccf::kv::Store backup_store;
   backup_store.set_encryptor(encryptor);
-  std::shared_ptr<kv::TxHistory> backup_history =
+  std::shared_ptr<ccf::kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      backup_store, kv::test::FirstBackupNodeId, *kp);
+      backup_store, ccf::kv::test::FirstBackupNodeId, *kp);
   backup_history->set_endorsed_certificate(self_signed);
   backup_store.set_history(backup_history);
   backup_store.initialise_term(store_term);
@@ -91,11 +91,11 @@ TEST_CASE("Check signature verification")
   ccf::Nodes nodes(ccf::Tables::NODES);
   ccf::Signatures signatures(ccf::Tables::SIGNATURES);
 
-  std::shared_ptr<kv::Consensus> consensus =
+  std::shared_ptr<ccf::kv::Consensus> consensus =
     std::make_shared<DummyConsensus>(&backup_store);
   primary_store.set_consensus(consensus);
 
-  std::shared_ptr<kv::Consensus> null_consensus =
+  std::shared_ptr<ccf::kv::Consensus> null_consensus =
     std::make_shared<DummyConsensus>(nullptr);
   backup_store.set_consensus(null_consensus);
 
@@ -106,8 +106,8 @@ TEST_CASE("Check signature verification")
     ccf::NodeInfo ni;
     ni.encryption_pub_key = kp->public_key_pem();
     ni.cert = self_signed;
-    tx->put(kv::test::PrimaryNodeId, ni);
-    REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
+    tx->put(ccf::kv::test::PrimaryNodeId, ni);
+    REQUIRE(txs.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   INFO("Issue signature, and verify successfully on backup");
@@ -120,34 +120,34 @@ TEST_CASE("Check signature verification")
   {
     auto txs = primary_store.create_tx();
     auto sigs = txs.rw(signatures);
-    ccf::PrimarySignature bogus(kv::test::PrimaryNodeId, 0);
+    ccf::PrimarySignature bogus(ccf::kv::test::PrimaryNodeId, 0);
     bogus.sig = std::vector<uint8_t>(256, 1);
     sigs->put(bogus);
-    REQUIRE(txs.commit() == kv::CommitResult::FAIL_NO_REPLICATE);
+    REQUIRE(txs.commit() == ccf::kv::CommitResult::FAIL_NO_REPLICATE);
   }
 }
 
 TEST_CASE("Check signing works across rollback")
 {
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
-  auto kp = crypto::make_key_pair();
+  auto kp = ccf::crypto::make_key_pair();
   const auto self_signed = make_self_signed_cert(kp);
 
-  kv::Store primary_store;
+  ccf::kv::Store primary_store;
   primary_store.set_encryptor(encryptor);
   constexpr auto store_term = 2;
-  std::shared_ptr<kv::TxHistory> primary_history =
+  std::shared_ptr<ccf::kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      primary_store, kv::test::PrimaryNodeId, *kp);
+      primary_store, ccf::kv::test::PrimaryNodeId, *kp);
   primary_history->set_endorsed_certificate(self_signed);
   primary_store.set_history(primary_history);
   primary_store.initialise_term(store_term);
 
-  kv::Store backup_store;
-  std::shared_ptr<kv::TxHistory> backup_history =
+  ccf::kv::Store backup_store;
+  std::shared_ptr<ccf::kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      backup_store, kv::test::FirstBackupNodeId, *kp);
+      backup_store, ccf::kv::test::FirstBackupNodeId, *kp);
   backup_history->set_endorsed_certificate(self_signed);
   backup_store.set_history(backup_history);
   backup_store.set_encryptor(encryptor);
@@ -155,10 +155,10 @@ TEST_CASE("Check signing works across rollback")
 
   ccf::Nodes nodes(ccf::Tables::NODES);
 
-  std::shared_ptr<kv::Consensus> consensus =
+  std::shared_ptr<ccf::kv::Consensus> consensus =
     std::make_shared<DummyConsensus>(&backup_store);
   primary_store.set_consensus(consensus);
-  std::shared_ptr<kv::Consensus> null_consensus =
+  std::shared_ptr<ccf::kv::Consensus> null_consensus =
     std::make_shared<DummyConsensus>(nullptr);
   backup_store.set_consensus(null_consensus);
 
@@ -169,8 +169,8 @@ TEST_CASE("Check signing works across rollback")
     ccf::NodeInfo ni;
     ni.encryption_pub_key = kp->public_key_pem();
     ni.cert = self_signed;
-    tx->put(kv::test::PrimaryNodeId, ni);
-    REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
+    tx->put(ccf::kv::test::PrimaryNodeId, ni);
+    REQUIRE(txs.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   auto v1_proof = primary_history->get_proof(primary_store.current_version());
@@ -180,8 +180,8 @@ TEST_CASE("Check signing works across rollback")
     auto txs = primary_store.create_tx();
     auto tx = txs.rw(nodes);
     ccf::NodeInfo ni;
-    tx->put(kv::test::FirstBackupNodeId, ni);
-    REQUIRE(txs.commit() == kv::CommitResult::SUCCESS);
+    tx->put(ccf::kv::test::FirstBackupNodeId, ni);
+    REQUIRE(txs.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   primary_store.rollback({store_term, 1}, primary_store.commit_view());
@@ -212,15 +212,15 @@ TEST_CASE("Check signing works across rollback")
   }
 }
 
-class CompactingConsensus : public kv::test::StubConsensus
+class CompactingConsensus : public ccf::kv::test::StubConsensus
 {
 public:
-  kv::Store* store;
+  ccf::kv::Store* store;
   size_t count = 0;
 
-  CompactingConsensus(kv::Store* store_) : store(store_) {}
+  CompactingConsensus(ccf::kv::Store* store_) : store(store_) {}
 
-  bool replicate(const kv::BatchVector& entries, ccf::View view) override
+  bool replicate(const ccf::kv::BatchVector& entries, ccf::View view) override
   {
     for (auto& [version, data, committable, hooks] : entries)
     {
@@ -241,36 +241,36 @@ public:
     return 0;
   }
 
-  std::optional<kv::NodeId> primary() override
+  std::optional<ccf::kv::NodeId> primary() override
   {
-    return kv::test::PrimaryNodeId;
+    return ccf::kv::test::PrimaryNodeId;
   }
 
-  kv::NodeId id() override
+  ccf::kv::NodeId id() override
   {
-    return kv::test::PrimaryNodeId;
+    return ccf::kv::test::PrimaryNodeId;
   }
 
-  ccf::View get_view(kv::Version version) override
+  ccf::View get_view(ccf::kv::Version version) override
   {
     return 2;
   }
 };
 
-class TestPendingTx : public kv::PendingTx
+class TestPendingTx : public ccf::kv::PendingTx
 {
   ccf::TxID txid;
-  kv::Store& store;
+  ccf::kv::Store& store;
   MapT& other_table;
 
 public:
-  TestPendingTx(ccf::TxID txid_, kv::Store& store_, MapT& other_table_) :
+  TestPendingTx(ccf::TxID txid_, ccf::kv::Store& store_, MapT& other_table_) :
     txid(txid_),
     store(store_),
     other_table(other_table_)
   {}
 
-  kv::PendingTxInfo call() override
+  ccf::kv::PendingTxInfo call() override
   {
     auto txr = store.create_reserved_tx(txid);
     auto txrv = txr.rw(other_table);
@@ -283,8 +283,8 @@ TEST_CASE(
   "Batches containing but not ending on a committable transaction should not "
   "halt replication")
 {
-  kv::Store store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   store.set_encryptor(encryptor);
   std::shared_ptr<CompactingConsensus> consensus =
     std::make_shared<CompactingConsensus>(&store);
@@ -298,7 +298,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 1);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 1);
   }
 
@@ -309,7 +309,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 2);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 1);
 
     store.commit(
@@ -322,27 +322,29 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 3);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 4);
   }
 }
 
-class RollbackConsensus : public kv::test::StubConsensus
+class RollbackConsensus : public ccf::kv::test::StubConsensus
 {
 public:
-  kv::Store* store;
+  ccf::kv::Store* store;
   size_t count = 0;
-  kv::Version rollback_at;
-  kv::Version rollback_to;
+  ccf::kv::Version rollback_at;
+  ccf::kv::Version rollback_to;
 
   RollbackConsensus(
-    kv::Store* store_, kv::Version rollback_at_, kv::Version rollback_to_) :
+    ccf::kv::Store* store_,
+    ccf::kv::Version rollback_at_,
+    ccf::kv::Version rollback_to_) :
     store(store_),
     rollback_at(rollback_at_),
     rollback_to(rollback_to_)
   {}
 
-  bool replicate(const kv::BatchVector& entries, ccf::View view) override
+  bool replicate(const ccf::kv::BatchVector& entries, ccf::View view) override
   {
     for (auto& [version, data, committable, hook] : entries)
     {
@@ -363,14 +365,14 @@ public:
     return 0;
   }
 
-  std::optional<kv::NodeId> primary() override
+  std::optional<ccf::kv::NodeId> primary() override
   {
-    return kv::test::PrimaryNodeId;
+    return ccf::kv::test::PrimaryNodeId;
   }
 
-  kv::NodeId id() override
+  ccf::kv::NodeId id() override
   {
-    return kv::test::PrimaryNodeId;
+    return ccf::kv::test::PrimaryNodeId;
   }
 
   ccf::View get_view(ccf::SeqNo seqno) override
@@ -387,8 +389,8 @@ public:
 TEST_CASE(
   "Check that empty rollback during replicate does not cause replication halts")
 {
-  kv::Store store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   store.set_encryptor(encryptor);
   std::shared_ptr<RollbackConsensus> consensus =
     std::make_shared<RollbackConsensus>(&store, 2, 2);
@@ -401,7 +403,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 1);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 1);
   }
 
@@ -410,7 +412,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 2);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 2);
   }
 
@@ -419,7 +421,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 3);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 3);
   }
 }
@@ -427,8 +429,8 @@ TEST_CASE(
 TEST_CASE(
   "Check that rollback during replicate does not cause replication halts")
 {
-  kv::Store store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   store.set_encryptor(encryptor);
   std::shared_ptr<RollbackConsensus> consensus =
     std::make_shared<RollbackConsensus>(&store, 2, 1);
@@ -441,7 +443,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 1);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 1);
   }
 
@@ -450,7 +452,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 2);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 2);
   }
 
@@ -459,7 +461,7 @@ TEST_CASE(
     auto tx = store.create_tx();
     auto txv = tx.rw(table);
     txv->put(0, 3);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     REQUIRE(consensus->count == 3);
   }
 }
@@ -467,11 +469,11 @@ TEST_CASE(
 int main(int argc, char** argv)
 {
   threading::ThreadMessaging::init(1);
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

@@ -10,7 +10,7 @@
 #  include <openssl/encoder.h>
 #endif
 
-namespace crypto
+namespace ccf::crypto
 {
   using namespace OpenSSL;
 

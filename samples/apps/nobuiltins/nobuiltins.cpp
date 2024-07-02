@@ -68,7 +68,7 @@ namespace nobuiltins
   class NoBuiltinsRegistry : public ccf::BaseEndpointRegistry
   {
   public:
-    NoBuiltinsRegistry(ccfapp::AbstractNodeContext& context) :
+    NoBuiltinsRegistry(ccf::AbstractNodeContext& context) :
       ccf::BaseEndpointRegistry("app", context)
     {
       auto node_summary = [this](auto& ctx) {
@@ -224,11 +224,11 @@ namespace nobuiltins
 
       auto get_txid = [this](auto& ctx, nlohmann::json&&) {
         const auto query_string = ctx.rpc_ctx->get_request_query();
-        const auto query_params = nonstd::split(query_string, "&");
+        const auto query_params = ccf::nonstd::split(query_string, "&");
         for (const auto& query_param : query_params)
         {
           const auto& [query_key, query_value] =
-            nonstd::split_1(query_param, "=");
+            ccf::nonstd::split_1(query_param, "=");
           if (query_key == "seqno")
           {
             ccf::SeqNo seqno;
@@ -328,10 +328,10 @@ namespace nobuiltins
   };
 }
 
-namespace ccfapp
+namespace ccf
 {
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
-    ccfapp::AbstractNodeContext& context)
+    ccf::AbstractNodeContext& context)
   {
     return std::make_unique<nobuiltins::NoBuiltinsRegistry>(context);
   }

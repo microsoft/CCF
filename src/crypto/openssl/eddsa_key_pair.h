@@ -6,7 +6,7 @@
 #include "crypto/openssl/eddsa_public_key.h"
 #include "openssl_wrappers.h"
 
-namespace crypto
+namespace ccf::crypto
 {
   class EdDSAKeyPair_OpenSSL : public EdDSAPublicKey_OpenSSL,
                                public EdDSAKeyPair

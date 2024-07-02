@@ -13,10 +13,10 @@
 
 struct MapTypes
 {
-  using StringString = kv::Map<std::string, std::string>;
-  using NumNum = kv::Map<size_t, size_t>;
-  using NumString = kv::Map<size_t, std::string>;
-  using StringNum = kv::Map<std::string, size_t>;
+  using StringString = ccf::kv::Map<std::string, std::string>;
+  using NumNum = ccf::kv::Map<size_t, size_t>;
+  using NumString = ccf::kv::Map<size_t, std::string>;
+  using StringNum = ccf::kv::Map<std::string, size_t>;
 };
 
 TEST_CASE(
@@ -26,14 +26,14 @@ TEST_CASE(
   // No need for an encryptor here as all maps are public. Both serialisation
   // and deserialisation should succeed.
 
-  kv::Store kv_store;
+  ccf::kv::Store kv_store;
 
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   kv_store.set_consensus(consensus);
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
-  kv::Store kv_store_target;
+  ccf::kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
 
   MapTypes::StringString map("public:pub_map");
@@ -53,7 +53,7 @@ TEST_CASE(
     handle0->put(k1, v1);
     handle0->put(k2, v1);
     handle0->put(k3, v1);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   const auto first_version = kv_store.current_version();
@@ -68,7 +68,7 @@ TEST_CASE(
     // no change to k1, write to k2, remove k3
     handle0->put(k2, v2);
     handle0->remove(k3);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   const auto second_version = kv_store.current_version();
@@ -80,7 +80,7 @@ TEST_CASE(
     INFO("Deserialise first transaction in target store");
     REQUIRE(
       kv_store_target.deserialize(first_tx_serialised.value())->apply() ==
-      kv::ApplyResult::PASS);
+      ccf::kv::ApplyResult::PASS);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_target = tx_target.ro(map);
@@ -105,7 +105,7 @@ TEST_CASE(
     INFO("Deserialise second transaction in target store");
     REQUIRE(
       kv_store_target.deserialize(second_tx_serialised.value())->apply() ==
-      kv::ApplyResult::PASS);
+      ccf::kv::ApplyResult::PASS);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_target = tx_target.ro(map);
@@ -130,13 +130,13 @@ TEST_CASE(
   "Serialise/deserialise private map only" *
   doctest::test_suite("serialisation"))
 {
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
-  kv::Store kv_store;
+  ccf::kv::Store kv_store;
   kv_store.set_consensus(consensus);
 
-  kv::Store kv_store_target;
+  ccf::kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
 
   SUBCASE(
@@ -145,7 +145,7 @@ TEST_CASE(
     auto tx = kv_store.create_tx();
     auto handle0 = tx.rw<MapTypes::StringString>("priv_map");
     handle0->put("privk1", "privv1");
-    REQUIRE_THROWS_AS(tx.commit(), kv::KvSerialiserException);
+    REQUIRE_THROWS_AS(tx.commit(), ccf::kv::KvSerialiserException);
   }
 
   SUBCASE("Commit private transaction with encryptor")
@@ -156,7 +156,7 @@ TEST_CASE(
       auto tx = kv_store.create_tx();
       auto handle0 = tx.rw<MapTypes::StringString>("priv_map");
       handle0->put("privk1", "privv1");
-      REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
     }
 
     INFO("Deserialise transaction in target store");
@@ -165,7 +165,7 @@ TEST_CASE(
       REQUIRE(latest_data.has_value());
       REQUIRE(
         kv_store_target.deserialize(latest_data.value())->apply() ==
-        kv::ApplyResult::PASS);
+        ccf::kv::ApplyResult::PASS);
 
       auto tx_target = kv_store_target.create_tx();
       auto handle_target = tx_target.rw<MapTypes::StringString>("priv_map");
@@ -178,17 +178,17 @@ TEST_CASE(
   "Serialise/deserialise private map and public maps" *
   doctest::test_suite("serialisation"))
 {
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
-  kv::Store kv_store;
+  ccf::kv::Store kv_store;
   kv_store.set_consensus(consensus);
   kv_store.set_encryptor(encryptor);
 
   constexpr auto priv_map = "priv_map";
   constexpr auto pub_map = "public:pub_map";
 
-  kv::Store kv_store_target;
+  ccf::kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
 
   INFO("Commit to public and private map in source store");
@@ -200,7 +200,7 @@ TEST_CASE(
     handle_priv->put("privk1", "privv1");
     handle_pub->put("pubk1", "pubv1");
 
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   INFO("Deserialise transaction in target store");
@@ -209,7 +209,7 @@ TEST_CASE(
     REQUIRE(latest_data.has_value());
     REQUIRE(
       kv_store_target.deserialize(latest_data.value())->apply() !=
-      kv::ApplyResult::FAIL);
+      ccf::kv::ApplyResult::FAIL);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_priv = tx_target.rw<MapTypes::StringString>(priv_map);
@@ -223,14 +223,14 @@ TEST_CASE(
 TEST_CASE(
   "Serialise/deserialise removed keys" * doctest::test_suite("serialisation"))
 {
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
-  kv::Store kv_store;
+  ccf::kv::Store kv_store;
   kv_store.set_consensus(consensus);
   kv_store.set_encryptor(encryptor);
 
-  kv::Store kv_store_target;
+  ccf::kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
 
   INFO("Commit new keys in source store and deserialise in target store");
@@ -241,13 +241,13 @@ TEST_CASE(
     handle->put("key1", "value1");
     handle2->put("key2", "value2");
     handle2->put("key3", "value3");
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     REQUIRE(
       kv_store_target.deserialize(latest_data.value())->apply() !=
-      kv::ApplyResult::FAIL);
+      ccf::kv::ApplyResult::FAIL);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_target = tx_target.rw<MapTypes::StringString>("map");
@@ -281,7 +281,7 @@ TEST_CASE(
     handle_->remove("key3");
     handle_->put("key3", "value3");
 
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     // Make sure keys have been marked as deleted in source store
     auto tx2 = kv_store.create_tx();
@@ -296,7 +296,7 @@ TEST_CASE(
     REQUIRE(latest_data.has_value());
     REQUIRE(
       kv_store_target.deserialize(latest_data.value())->apply() !=
-      kv::ApplyResult::FAIL);
+      ccf::kv::ApplyResult::FAIL);
 
     auto tx_target = kv_store_target.create_tx();
     auto handle_target = tx_target.rw<MapTypes::StringString>("map");
@@ -322,7 +322,7 @@ DECLARE_JSON_REQUIRED_FIELDS(CustomClass, s, n);
 
 // Not really intended to be extended, but lets us use the BlitSerialiser for
 // this specific type
-namespace kv::serialisers
+namespace ccf::kv::serialisers
 {
   template <>
   struct BlitSerialiser<CustomClass>
@@ -373,11 +373,12 @@ struct CustomSerialiser
 
   static constexpr auto size_of_n = 8;
   static constexpr auto size_of_size_of_s = 8;
-  static kv::serialisers::SerialisedEntry to_serialised(const CustomClass& cc)
+  static ccf::kv::serialisers::SerialisedEntry to_serialised(
+    const CustomClass& cc)
   {
     const auto s_size = cc.s.size();
     const auto total_size = size_of_n + size_of_size_of_s + s_size;
-    kv::serialisers::SerialisedEntry serialised(total_size);
+    ccf::kv::serialisers::SerialisedEntry serialised(total_size);
     uint8_t* data = serialised.data();
     memcpy(data, (const uint8_t*)&cc.n, size_of_n);
     data += size_of_n;
@@ -388,7 +389,7 @@ struct CustomSerialiser
   }
 
   static CustomClass from_serialised(
-    const kv::serialisers::SerialisedEntry& ser)
+    const ccf::kv::serialisers::SerialisedEntry& ser)
   {
     CustomClass cc;
     const uint8_t* data = ser.data();
@@ -405,7 +406,7 @@ struct CustomSerialiser
 
 struct CustomJsonSerialiser
 {
-  using Bytes = kv::serialisers::SerialisedEntry;
+  using Bytes = ccf::kv::serialisers::SerialisedEntry;
 
   static Bytes to_serialised(const CustomClass& c)
   {
@@ -439,7 +440,7 @@ struct VPrefix
 template <typename T>
 struct CustomVerboseDumbSerialiser
 {
-  using Bytes = kv::serialisers::SerialisedEntry;
+  using Bytes = ccf::kv::serialisers::SerialisedEntry;
 
   static Bytes to_serialised(const CustomClass& c)
   {
@@ -471,25 +472,26 @@ struct CustomVerboseDumbSerialiser
   }
 };
 
-using JsonSerialisedMap = kv::JsonSerialisedMap<CustomClass, CustomClass>;
-using RawCopySerialisedMap = kv::RawCopySerialisedMap<CustomClass, CustomClass>;
-using MixSerialisedMapB = kv::TypedMap<
+using JsonSerialisedMap = ccf::kv::JsonSerialisedMap<CustomClass, CustomClass>;
+using RawCopySerialisedMap =
+  ccf::kv::RawCopySerialisedMap<CustomClass, CustomClass>;
+using MixSerialisedMapB = ccf::kv::TypedMap<
   CustomClass,
   CustomClass,
-  kv::serialisers::JsonSerialiser<CustomClass>,
-  kv::serialisers::BlitSerialiser<CustomClass>>;
+  ccf::kv::serialisers::JsonSerialiser<CustomClass>,
+  ccf::kv::serialisers::BlitSerialiser<CustomClass>>;
 
 // SNIPPET_START: CustomSerialisedMap definition
-using CustomSerialisedMap =
-  kv::TypedMap<CustomClass, CustomClass, CustomSerialiser, CustomSerialiser>;
+using CustomSerialisedMap = ccf::kv::
+  TypedMap<CustomClass, CustomClass, CustomSerialiser, CustomSerialiser>;
 // SNIPPET_END: CustomSerialisedMap definition
 
-using CustomJsonMap = kv::TypedMap<
+using CustomJsonMap = ccf::kv::TypedMap<
   CustomClass,
   CustomClass,
   CustomJsonSerialiser,
   CustomJsonSerialiser>;
-using VerboseSerialisedMap = kv::TypedMap<
+using VerboseSerialisedMap = ccf::kv::TypedMap<
   CustomClass,
   CustomClass,
   CustomVerboseDumbSerialiser<KPrefix>,
@@ -505,8 +507,8 @@ TEST_CASE_TEMPLATE(
   CustomJsonMap,
   VerboseSerialisedMap)
 {
-  kv::Store kv_store;
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ccf::kv::Store kv_store;
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   kv_store.set_encryptor(encryptor);
 
   MapType map("public:map");
@@ -519,7 +521,7 @@ TEST_CASE_TEMPLATE(
 
   INFO("Serialise/Deserialise 2 kv stores");
   {
-    kv::Store kv_store2;
+    ccf::kv::Store kv_store2;
     kv_store2.set_encryptor(encryptor);
 
     MapType map2("public:map");
@@ -533,10 +535,10 @@ TEST_CASE_TEMPLATE(
       tx.commit_reserved();
     auto& success = success_;
     auto& data = data_;
-    REQUIRE(success == kv::CommitResult::SUCCESS);
+    REQUIRE(success == ccf::kv::CommitResult::SUCCESS);
     kv_store.compact(kv_store.current_version());
 
-    REQUIRE(kv_store2.deserialize(data)->apply() == kv::ApplyResult::PASS);
+    REQUIRE(kv_store2.deserialize(data)->apply() == ccf::kv::ApplyResult::PASS);
     auto tx2 = kv_store2.create_tx();
     auto handle2 = tx2.rw(map2);
 
@@ -564,11 +566,11 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 
   SUBCASE("baseline")
   {
-    auto consensus = std::make_shared<kv::test::StubConsensus>();
-    using Table = kv::Map<std::vector<int>, std::string>;
-    kv::Store s0, s1;
+    auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+    using Table = ccf::kv::Map<std::vector<int>, std::string>;
+    ccf::kv::Store s0, s1;
     s0.set_consensus(consensus);
-    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
     s0.set_encryptor(encryptor);
     s1.set_encryptor(encryptor);
 
@@ -576,21 +578,22 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
 
     auto tx = s0.create_tx();
     tx.rw(t)->put(k1, v1);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     REQUIRE(
-      s1.deserialize(latest_data.value())->apply() != kv::ApplyResult::FAIL);
+      s1.deserialize(latest_data.value())->apply() !=
+      ccf::kv::ApplyResult::FAIL);
   }
 
   SUBCASE("nlohmann")
   {
-    auto consensus = std::make_shared<kv::test::StubConsensus>();
-    using Table = kv::Map<nlohmann::json, nlohmann::json>;
-    kv::Store s0, s1;
+    auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+    using Table = ccf::kv::Map<nlohmann::json, nlohmann::json>;
+    ccf::kv::Store s0, s1;
     s0.set_consensus(consensus);
-    auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+    auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
     s0.set_encryptor(encryptor);
     s1.set_encryptor(encryptor);
 
@@ -599,12 +602,13 @@ TEST_CASE("nlohmann (de)serialisation" * doctest::test_suite("serialisation"))
     auto tx = s0.create_tx();
     tx.rw(t)->put(k0, v0);
     tx.rw(t)->put(k1, v1);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     REQUIRE(
-      s1.deserialize(latest_data.value())->apply() != kv::ApplyResult::FAIL);
+      s1.deserialize(latest_data.value())->apply() !=
+      ccf::kv::ApplyResult::FAIL);
   }
 }
 
@@ -613,7 +617,7 @@ struct NonSerialisable
 
 struct NonSerialiser
 {
-  using Bytes = kv::serialisers::SerialisedEntry;
+  using Bytes = ccf::kv::serialisers::SerialisedEntry;
 
   static Bytes to_serialised(const NonSerialisable& ns)
   {
@@ -628,23 +632,23 @@ struct NonSerialiser
 
 TEST_CASE("Exceptional serdes" * doctest::test_suite("serialisation"))
 {
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
 
-  kv::Store store;
+  ccf::kv::Store store;
   store.set_consensus(consensus);
   store.set_encryptor(encryptor);
 
-  kv::TypedMap<
+  ccf::kv::TypedMap<
     NonSerialisable,
     size_t,
     NonSerialiser,
-    kv::serialisers::JsonSerialiser<size_t>>
+    ccf::kv::serialisers::JsonSerialiser<size_t>>
     bad_map_k("bad_map_k");
-  kv::TypedMap<
+  ccf::kv::TypedMap<
     size_t,
     NonSerialisable,
-    kv::serialisers::JsonSerialiser<size_t>,
+    ccf::kv::serialisers::JsonSerialiser<size_t>,
     NonSerialiser>
     bad_map_v("bad_map_v");
 
@@ -665,21 +669,21 @@ TEST_CASE(
   "Serialise/deserialise maps with claims" *
   doctest::test_suite("serialisation"))
 {
-  auto consensus = std::make_shared<kv::test::StubConsensus>();
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
-  kv::Store kv_store;
+  ccf::kv::Store kv_store;
   kv_store.set_consensus(consensus);
   kv_store.set_encryptor(encryptor);
 
   constexpr auto priv_map = "priv_map";
   constexpr auto pub_map = "public:pub_map";
 
-  kv::Store kv_store_target;
+  ccf::kv::Store kv_store_target;
   kv_store_target.set_encryptor(encryptor);
 
   ccf::ClaimsDigest claims_digest;
-  claims_digest.set(crypto::Sha256Hash("claim text"));
+  claims_digest.set(ccf::crypto::Sha256Hash("claim text"));
 
   INFO("Commit to source store, including claims");
   {
@@ -690,7 +694,7 @@ TEST_CASE(
     handle_priv->put("privk1", "privv1");
     handle_pub->put("pubk1", "pubv1");
 
-    REQUIRE(tx.commit(claims_digest) == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit(claims_digest) == ccf::kv::CommitResult::SUCCESS);
   }
 
   INFO("Deserialise transaction in target store and extract claims");
@@ -698,7 +702,7 @@ TEST_CASE(
     const auto latest_data = consensus->get_latest_data();
     REQUIRE(latest_data.has_value());
     auto wrapper = kv_store_target.deserialize(latest_data.value());
-    REQUIRE(wrapper->apply() != kv::ApplyResult::FAIL);
+    REQUIRE(wrapper->apply() != ccf::kv::ApplyResult::FAIL);
     auto deserialised_claims = wrapper->consume_claims_digest();
     REQUIRE(claims_digest == deserialised_claims);
 

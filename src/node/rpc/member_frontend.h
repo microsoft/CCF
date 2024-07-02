@@ -70,15 +70,15 @@ namespace ccf
   struct KeyIdInfo
   {
     JwtIssuer issuer;
-    crypto::Pem cert;
+    ccf::crypto::Pem cert;
   };
   DECLARE_JSON_TYPE(KeyIdInfo)
   DECLARE_JSON_REQUIRED_FIELDS(KeyIdInfo, issuer, cert)
 
   struct FullMemberDetails : public ccf::MemberDetails
   {
-    crypto::Pem cert;
-    std::optional<crypto::Pem> public_encryption_key;
+    ccf::crypto::Pem cert;
+    std::optional<ccf::crypto::Pem> public_encryption_key;
   };
   DECLARE_JSON_TYPE(FullMemberDetails);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -113,7 +113,7 @@ namespace ccf
     }
 
     void remove_all_other_non_open_proposals(
-      kv::Tx& tx, const ProposalId& proposal_id)
+      ccf::kv::Tx& tx, const ProposalId& proposal_id)
     {
       auto p = tx.rw<ccf::jsgov::ProposalMap>(jsgov::Tables::PROPOSALS);
       auto pi =
@@ -136,7 +136,7 @@ namespace ccf
     }
 
     ccf::jsgov::ProposalInfoSummary resolve_proposal(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const ProposalId& proposal_id,
       const std::span<const uint8_t>& proposal_bytes,
       const std::string& constitution)
@@ -359,13 +359,13 @@ namespace ccf
       }
     }
 
-    bool check_member_active(kv::ReadOnlyTx& tx, const MemberId& id)
+    bool check_member_active(ccf::kv::ReadOnlyTx& tx, const MemberId& id)
     {
       return check_member_status(tx, id, {MemberStatus::ACTIVE});
     }
 
     bool check_member_status(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       const MemberId& id,
       std::initializer_list<MemberStatus> allowed)
     {
@@ -385,14 +385,16 @@ namespace ccf
     }
 
     void record_voting_history(
-      kv::Tx& tx, const MemberId& caller_id, const SignedReq& signed_request)
+      ccf::kv::Tx& tx,
+      const MemberId& caller_id,
+      const SignedReq& signed_request)
     {
       auto governance_history = tx.rw(network.governance_history);
       governance_history->put(caller_id, {signed_request});
     }
 
     void record_cose_governance_history(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const MemberId& caller_id,
       const std::span<const uint8_t>& cose_sign1)
     {
@@ -402,7 +404,7 @@ namespace ccf
     }
 
     ProposalSubmissionStatus is_proposal_submission_acceptable(
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const std::string& created_at,
       const std::vector<uint8_t>& request_digest,
       const ccf::ProposalId& proposal_id,
@@ -425,8 +427,8 @@ namespace ccf
       if (!replay_keys.empty())
       {
         min_created_at = std::get<0>(
-          nonstd::split_1(replay_keys[replay_keys.size() / 2], ":"));
-        auto [key_ts, __] = nonstd::split_1(key, ":");
+          ccf::nonstd::split_1(replay_keys[replay_keys.size() / 2], ":"));
+        auto [key_ts, __] = ccf::nonstd::split_1(key, ":");
         if (key_ts < min_created_at)
         {
           return ProposalSubmissionStatus::TooOld;
@@ -481,13 +483,15 @@ namespace ccf
     template <typename T>
     void add_kv_wrapper_endpoint(T table)
     {
-      constexpr bool is_map = nonstd::is_specialization<T, kv::TypedMap>::value;
+      constexpr bool is_map =
+        ccf::nonstd::is_specialization<T, ccf::kv::TypedMap>::value;
       constexpr bool is_value =
-        nonstd::is_specialization<T, kv::TypedValue>::value;
+        ccf::nonstd::is_specialization<T, ccf::kv::TypedValue>::value;
 
       if constexpr (!(is_map || is_value))
       {
-        static_assert(nonstd::dependent_false_v<T>, "Unsupported table type");
+        static_assert(
+          ccf::nonstd::dependent_false_v<T>, "Unsupported table type");
       }
 
       auto getter =
@@ -500,7 +504,7 @@ namespace ccf
           {
             handle->foreach([&response_body](const auto& k, const auto& v) {
               if constexpr (
-                std::is_same_v<typename T::Key, crypto::Sha256Hash> ||
+                std::is_same_v<typename T::Key, ccf::crypto::Sha256Hash> ||
                 pal::is_attestation_measurement<typename T::Key>::value)
               {
                 response_body[k.hex_str()] = v;
@@ -573,7 +577,7 @@ namespace ccf
     void add_kv_wrapper_endpoints()
     {
       const auto all_gov_tables = network.get_all_builtin_governance_tables();
-      nonstd::tuple_for_each(
+      ccf::nonstd::tuple_for_each(
         all_gov_tables, [this](auto table) { add_kv_wrapper_endpoint(table); });
     }
 
@@ -582,7 +586,7 @@ namespace ccf
 
   public:
     MemberEndpoints(
-      NetworkState& network_, ccfapp::AbstractNodeContext& context_) :
+      NetworkState& network_, ccf::AbstractNodeContext& context_) :
       GovEndpointRegistry(network_, context_),
       network(network_),
       share_manager(network_.ledger_secrets)
@@ -815,7 +819,8 @@ namespace ccf
         j["state_digest"] = ma->state_digest;
 
         ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE,
+          http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(j.dump());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         return;
@@ -868,9 +873,10 @@ namespace ccf
           }
 
           auto rec_share = GetRecoveryShare::Out{
-            crypto::b64_from_raw(encrypted_share.value())};
+            ccf::crypto::b64_from_raw(encrypted_share.value())};
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE,
+            http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(rec_share).dump());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;
@@ -918,9 +924,10 @@ namespace ccf
           }
 
           auto rec_share = GetRecoveryShare::Out{
-            crypto::b64_from_raw(encrypted_share.value())};
+            ccf::crypto::b64_from_raw(encrypted_share.value())};
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE,
+            http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(rec_share).dump());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;
@@ -993,7 +1000,7 @@ namespace ccf
         }
 
         std::string share = params["share"];
-        auto raw_recovery_share = crypto::raw_from_b64(share);
+        auto raw_recovery_share = ccf::crypto::raw_from_b64(share);
         OPENSSL_cleanse(const_cast<char*>(share.data()), share.size());
 
         size_t submitted_shares_count = 0;
@@ -1027,7 +1034,8 @@ namespace ccf
             submitted_shares_count,
             InternalTablesAccess::get_recovery_threshold(ctx.tx))};
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE,
+            http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;
@@ -1064,7 +1072,8 @@ namespace ccf
           submitted_shares_count,
           InternalTablesAccess::get_recovery_threshold(ctx.tx))};
         ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE,
+          http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
@@ -1089,7 +1098,7 @@ namespace ccf
           for (const auto& metadata : v)
           {
             info.push_back(KeyIdInfo{
-              metadata.issuer, crypto::cert_der_to_pem(metadata.cert)});
+              metadata.issuer, ccf::crypto::cert_der_to_pem(metadata.cert)});
           }
           kmap.emplace(k, std::move(info));
           return true;
@@ -1130,7 +1139,7 @@ namespace ccf
         if (cose_auth_id.has_value())
         {
           std::span<const uint8_t> sig = cose_auth_id->signature;
-          request_digest = crypto::sha256(sig);
+          request_digest = ccf::crypto::sha256(sig);
         }
 
         ProposalId proposal_id;
@@ -1152,7 +1161,7 @@ namespace ccf
         std::vector<uint8_t> acc(
           root_at_read.value().h.begin(), root_at_read.value().h.end());
         acc.insert(acc.end(), request_digest.begin(), request_digest.end());
-        const crypto::Sha256Hash proposal_digest(acc);
+        const ccf::crypto::Sha256Hash proposal_digest(acc);
         proposal_id = proposal_digest.hex_str();
 
         auto constitution = ctx.tx.ro(network.constitution)->get();
@@ -1341,7 +1350,8 @@ namespace ccf
             proposal_id,
             {member_id.value(), rv.state, {}, {}, std::nullopt, rv.failure});
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE,
+            http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;
@@ -1530,7 +1540,8 @@ namespace ccf
         }
 
         ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE,
+          http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(pi_.value()).dump());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
       };
@@ -1575,7 +1586,8 @@ namespace ccf
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE,
+            http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(std::move(p.value()));
         };
 
@@ -1734,7 +1746,8 @@ namespace ccf
           pi_.value().failure = rv.failure;
           pi->put(proposal_id, pi_.value());
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE,
+            http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(rv).dump());
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           return;
@@ -1873,7 +1886,7 @@ namespace ccf
 
   public:
     MemberRpcFrontend(
-      NetworkState& network, ccfapp::AbstractNodeContext& context) :
+      NetworkState& network, ccf::AbstractNodeContext& context) :
       RpcFrontend(*network.tables, member_endpoints, context),
       member_endpoints(network, context)
     {}

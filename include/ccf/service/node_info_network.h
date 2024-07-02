@@ -118,6 +118,7 @@ namespace ccf
       struct Redirections
       {
         RedirectionResolverConfig to_primary;
+        RedirectionResolverConfig to_backup;
 
         bool operator==(const Redirections& other) const = default;
       };
@@ -165,7 +166,7 @@ namespace ccf
     NodeInfoNetwork_v2::NetInterface::Redirections);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface::Redirections);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    NodeInfoNetwork_v2::NetInterface::Redirections, to_primary);
+    NodeInfoNetwork_v2::NetInterface::Redirections, to_primary, to_backup);
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2::NetInterface);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::NetInterface, bind_address);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -203,7 +204,7 @@ namespace ccf
   inline static std::pair<std::string, std::string> split_net_address(
     const NodeInfoNetwork::NetAddress& addr)
   {
-    auto [host, port] = nonstd::rsplit_1(addr, ":");
+    auto [host, port] = ccf::nonstd::rsplit_1(addr, ":");
     return std::make_pair(std::string(host), std::string(port));
   }
 

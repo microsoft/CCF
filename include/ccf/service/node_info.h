@@ -31,13 +31,13 @@ namespace ccf
     /// Node enclave quote
     QuoteInfo quote_info;
     /// Node encryption public key, used to distribute ledger re-keys.
-    crypto::Pem encryption_pub_key;
+    ccf::crypto::Pem encryption_pub_key;
     /// Node status
     NodeStatus status = NodeStatus::PENDING;
 
     /** Set to the seqno of the latest ledger secret at the time the node is
         trusted */
-    std::optional<kv::Version> ledger_secret_seqno = std::nullopt;
+    std::optional<ccf::kv::Version> ledger_secret_seqno = std::nullopt;
 
     /// Code identity for the node
     std::optional<std::string> code_digest = std::nullopt;
@@ -47,10 +47,10 @@ namespace ccf
      */
 
     /// Node certificate signing request
-    std::optional<crypto::Pem> certificate_signing_request = std::nullopt;
+    std::optional<ccf::crypto::Pem> certificate_signing_request = std::nullopt;
 
     /// Public key
-    std::optional<crypto::Pem> public_key = std::nullopt;
+    std::optional<ccf::crypto::Pem> public_key = std::nullopt;
 
     /// Free-form user data, can be used to store operator correlation
     /// IDs/labels for the node for example
@@ -64,7 +64,7 @@ namespace ccf
      * Node certificate. Only set for 1.x releases. Further releases record
      * node identity in `public_key` field. Service-endorsed certificate is
      * recorded in "public:ccf.nodes.endorsed_certificates" table */
-    std::optional<crypto::Pem> cert = std::nullopt;
+    std::optional<ccf::crypto::Pem> cert = std::nullopt;
 
     /** Commit state for Retired state
      *

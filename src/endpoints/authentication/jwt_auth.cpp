@@ -44,7 +44,7 @@ namespace ccf
       tid,
       constraint);
 
-    const auto issuer_url = http::parse_url_full(constraint);
+    const auto issuer_url = ::http::parse_url_full(constraint);
     if (issuer_url.host != microsoft_entra_domain)
     {
       return iss == constraint &&
@@ -75,8 +75,9 @@ namespace ccf
     // Check for details here:
     // https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens#validate-the-issuer.
 
-    const auto url = http::parse_url_full(iss);
-    const auto tenant_id = first_non_empty_chunk(nonstd::split(url.path, "/"));
+    const auto url = ::http::parse_url_full(iss);
+    const auto tenant_id =
+      first_non_empty_chunk(ccf::nonstd::split(url.path, "/"));
 
     return tenant_id && tid && *tid == *tenant_id;
   }
@@ -87,20 +88,20 @@ namespace ccf
 
     using DER = std::vector<uint8_t>;
     ccf::pal::Mutex verifiers_lock;
-    LRU<DER, crypto::VerifierPtr> verifiers;
+    LRU<DER, ccf::crypto::VerifierPtr> verifiers;
 
     VerifiersCache(size_t max_verifiers = DEFAULT_MAX_VERIFIERS) :
       verifiers(max_verifiers)
     {}
 
-    crypto::VerifierPtr get_verifier(const DER& der)
+    ccf::crypto::VerifierPtr get_verifier(const DER& der)
     {
       std::lock_guard<ccf::pal::Mutex> guard(verifiers_lock);
 
       auto it = verifiers.find(der);
       if (it == verifiers.end())
       {
-        it = verifiers.insert(der, crypto::make_unique_verifier(der));
+        it = verifiers.insert(der, ccf::crypto::make_unique_verifier(der));
       }
 
       return it->second;
@@ -114,14 +115,14 @@ namespace ccf
   JwtAuthnPolicy::~JwtAuthnPolicy() = default;
 
   std::unique_ptr<AuthnIdentity> JwtAuthnPolicy::authenticate(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const std::shared_ptr<ccf::RpcContext>& ctx,
     std::string& error_reason)
   {
     const auto& headers = ctx->get_request_headers();
 
     const auto token_opt =
-      http::JwtVerifier::extract_token(headers, error_reason);
+      ::http::JwtVerifier::extract_token(headers, error_reason);
 
     if (!token_opt)
     {
@@ -162,7 +163,7 @@ namespace ccf
     for (const auto& metadata : *token_keys)
     {
       auto verifier = verifiers->get_verifier(metadata.cert);
-      if (!http::JwtVerifier::validate_token_signature(token, verifier))
+      if (!::http::JwtVerifier::validate_token_signature(token, verifier))
       {
         continue;
       }

@@ -18,7 +18,7 @@ namespace ccf
     static void broadcast_some(
       NetworkState& network,
       NodeId self,
-      kv::Tx& tx,
+      ccf::kv::Tx& tx,
       const LedgerSecretsMap& some_ledger_secrets)
     {
       auto secrets = tx.rw(network.secrets);
@@ -33,8 +33,8 @@ namespace ccf
         {
           ledger_secrets_for_node.push_back(
             {s.first,
-             crypto::ckm_rsa_pkcs_oaep_wrap(
-               crypto::make_rsa_public_key(ni.encryption_pub_key),
+             ccf::crypto::ckm_rsa_pkcs_oaep_wrap(
+               ccf::crypto::make_rsa_public_key(ni.encryption_pub_key),
                s.second->raw_key),
              s.second->previous_secret_stored_version});
         }
@@ -46,7 +46,9 @@ namespace ccf
     }
 
     static void broadcast_new(
-      NetworkState& network, kv::Tx& tx, LedgerSecretPtr&& new_ledger_secret)
+      NetworkState& network,
+      ccf::kv::Tx& tx,
+      LedgerSecretPtr&& new_ledger_secret)
     {
       auto secrets = tx.rw(network.secrets);
 
@@ -58,8 +60,8 @@ namespace ccf
 
         ledger_secrets_for_node.push_back(
           {std::nullopt,
-           crypto::ckm_rsa_pkcs_oaep_wrap(
-             crypto::make_rsa_public_key(ni.encryption_pub_key),
+           ccf::crypto::ckm_rsa_pkcs_oaep_wrap(
+             ccf::crypto::make_rsa_public_key(ni.encryption_pub_key),
              new_ledger_secret->raw_key),
            new_ledger_secret->previous_secret_stored_version});
 
@@ -70,10 +72,10 @@ namespace ccf
     }
 
     static std::vector<uint8_t> decrypt(
-      const crypto::RSAKeyPairPtr& encryption_key,
+      const ccf::crypto::RSAKeyPairPtr& encryption_key,
       const std::vector<uint8_t>& cipher)
     {
-      return crypto::ckm_rsa_pkcs_oaep_unwrap(encryption_key, cipher);
+      return ccf::crypto::ckm_rsa_pkcs_oaep_unwrap(encryption_key, cipher);
     }
   };
 }

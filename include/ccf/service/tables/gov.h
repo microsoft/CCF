@@ -80,7 +80,7 @@ namespace ccf
       ProposalInfoSummary, votes, vote_failures, failure);
 
     using ProposalMap =
-      kv::RawCopySerialisedMap<ccf::ProposalId, std::vector<uint8_t>>;
+      ccf::kv::RawCopySerialisedMap<ccf::ProposalId, std::vector<uint8_t>>;
     using ProposalInfoMap = ServiceMap<ccf::ProposalId, ProposalInfo>;
 
     namespace Tables

@@ -5,7 +5,6 @@
 #include "ccf/app_interface.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/ds/logger.h"
-#include "ccf/serdes.h"
 #include "ccf/service/signed_req.h"
 #include "ds/files.h"
 #include "kv/test/null_encryptor.h"
@@ -19,31 +18,28 @@
 #include <iostream>
 #include <string>
 
-using namespace ccfapp;
+using namespace ccf;
 using namespace ccf;
 using namespace std;
-using namespace serdes;
 using namespace nlohmann;
 
-using TResponse = http::SimpleResponseProcessor::Response;
+using TResponse = ::http::SimpleResponseProcessor::Response;
 
 // used throughout
 constexpr size_t certificate_validity_period_days = 365;
 using namespace std::literals;
 auto valid_from =
   ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
-auto valid_to = crypto::compute_cert_valid_to_string(
+auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
-auto kp = crypto::make_key_pair();
+auto kp = ccf::crypto::make_key_pair();
 auto member_cert = kp -> self_sign("CN=name_member", valid_from, valid_to);
-auto verifier_mem = crypto::make_verifier(member_cert);
+auto verifier_mem = ccf::crypto::make_verifier(member_cert);
 auto user_cert = kp -> self_sign("CN=name_user", valid_from, valid_to);
-auto dummy_enc_pubk = crypto::make_rsa_key_pair() -> public_key_pem();
+auto dummy_enc_pubk = ccf::crypto::make_rsa_key_pair() -> public_key_pem();
 
-auto encryptor = std::make_shared<kv::NullTxEncryptor>();
-
-constexpr auto default_pack = serdes::Pack::Text;
+auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
 template <typename T>
 T parse_response_body(const TResponse& r)
@@ -51,7 +47,7 @@ T parse_response_body(const TResponse& r)
   nlohmann::json body_j;
   try
   {
-    body_j = serdes::unpack(r.body, serdes::Pack::Text);
+    body_j = nlohmann::json::parse(r.body);
   }
   catch (const nlohmann::json::parse_error& e)
   {
@@ -81,29 +77,28 @@ void check_error_message(const TResponse& r, const std::string& msg)
 std::vector<uint8_t> create_request(
   const json& params, const string& method_name, llhttp_method verb = HTTP_POST)
 {
-  http::Request r(fmt::format("/gov/{}", method_name), verb);
-  const auto body = params.is_null() ? std::vector<uint8_t>() :
-                                       serdes::pack(params, default_pack);
-  r.set_body(&body);
+  ::http::Request r(fmt::format("/gov/{}", method_name), verb);
+  const auto body = params.is_null() ? std::string() : params.dump();
+  r.set_body(body);
   return r.build_request();
 }
 
 auto frontend_process(
   MemberRpcFrontend& frontend,
   const std::vector<uint8_t>& serialized_request,
-  const crypto::Pem& caller)
+  const ccf::crypto::Pem& caller)
 {
   auto session = std::make_shared<ccf::SessionContext>(
-    ccf::InvalidSessionId, crypto::make_verifier(caller)->cert_der());
+    ccf::InvalidSessionId, ccf::crypto::make_verifier(caller)->cert_der());
   auto rpc_ctx = ccf::make_rpc_context(session, serialized_request);
-  http::extract_actor(*rpc_ctx);
+  ::http::extract_actor(*rpc_ctx);
   frontend.process(rpc_ctx);
   DOCTEST_CHECK(!rpc_ctx->response_is_pending);
 
   auto serialized_response = rpc_ctx->serialise_response();
 
-  http::SimpleResponseProcessor processor;
-  http::ResponseParser parser(processor);
+  ::http::SimpleResponseProcessor processor;
+  ::http::ResponseParser parser(processor);
 
   parser.execute(serialized_response.data(), serialized_response.size());
   DOCTEST_REQUIRE(processor.received.size() == 1);
@@ -111,7 +106,7 @@ auto frontend_process(
   return processor.received.front();
 }
 
-auto get_cert(uint64_t member_id, crypto::KeyPairPtr& kp_mem)
+auto get_cert(uint64_t member_id, ccf::crypto::KeyPairPtr& kp_mem)
 {
   return kp_mem->self_sign(
     "CN=new member" + to_string(member_id), valid_from, valid_to);
@@ -124,7 +119,7 @@ std::unique_ptr<ccf::NetworkIdentity> make_test_network_ident()
     ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
   return std::make_unique<ReplicatedNetworkIdentity>(
     "CN=CCF test network",
-    crypto::service_identity_curve_choice,
+    ccf::crypto::service_identity_curve_choice,
     valid_from,
     2);
 }
@@ -133,9 +128,9 @@ void init_network(NetworkState& network)
 {
   network.tables->set_encryptor(encryptor);
   auto history = std::make_shared<ccf::NullTxHistory>(
-    *network.tables, kv::test::PrimaryNodeId, *kp);
+    *network.tables, ccf::kv::test::PrimaryNodeId, *kp);
   network.tables->set_history(history);
-  auto consensus = std::make_shared<kv::test::PrimaryStubConsensus>();
+  auto consensus = std::make_shared<ccf::kv::test::PrimaryStubConsensus>();
   network.tables->set_consensus(consensus);
   network.identity = make_test_network_ident();
 }

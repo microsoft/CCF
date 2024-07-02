@@ -20,8 +20,8 @@ namespace ccf
 
   struct NetworkIdentity
   {
-    crypto::Pem priv_key;
-    crypto::Pem cert;
+    ccf::crypto::Pem priv_key;
+    ccf::crypto::Pem cert;
     std::optional<IdentityType> type = IdentityType::REPLICATED;
     std::string subject_name = "CN=CCF Service";
 
@@ -37,13 +37,13 @@ namespace ccf
     {}
     NetworkIdentity() = default;
 
-    virtual crypto::Pem issue_certificate(
+    virtual ccf::crypto::Pem issue_certificate(
       const std::string& valid_from, size_t validity_period_days)
     {
       return {};
     }
 
-    virtual void set_certificate(const crypto::Pem& certificate) {}
+    virtual void set_certificate(const ccf::crypto::Pem& certificate) {}
 
     virtual ~NetworkIdentity() {}
   };
@@ -55,16 +55,16 @@ namespace ccf
 
     ReplicatedNetworkIdentity(
       const std::string& subject_name_,
-      crypto::CurveID curve_id,
+      ccf::crypto::CurveID curve_id,
       const std::string& valid_from,
       size_t validity_period_days) :
       NetworkIdentity(subject_name_)
     {
       auto identity_key_pair =
-        std::make_shared<crypto::KeyPair_OpenSSL>(curve_id);
+        std::make_shared<ccf::crypto::KeyPair_OpenSSL>(curve_id);
       priv_key = identity_key_pair->private_key_pem();
 
-      cert = crypto::create_self_signed_cert(
+      cert = ccf::crypto::create_self_signed_cert(
         identity_key_pair,
         subject_name,
         {} /* SAN */,
@@ -83,13 +83,13 @@ namespace ccf
       cert = other.cert;
     }
 
-    virtual crypto::Pem issue_certificate(
+    virtual ccf::crypto::Pem issue_certificate(
       const std::string& valid_from, size_t validity_period_days) override
     {
       auto identity_key_pair =
-        std::make_shared<crypto::KeyPair_OpenSSL>(priv_key);
+        std::make_shared<ccf::crypto::KeyPair_OpenSSL>(priv_key);
 
-      return crypto::create_self_signed_cert(
+      return ccf::crypto::create_self_signed_cert(
         identity_key_pair,
         subject_name,
         {} /* SAN */,
@@ -97,7 +97,7 @@ namespace ccf
         validity_period_days);
     }
 
-    virtual void set_certificate(const crypto::Pem& new_cert) override
+    virtual void set_certificate(const ccf::crypto::Pem& new_cert) override
     {
       cert = new_cert;
     }

@@ -9,7 +9,7 @@
 #include "kv/tx_pimpl.h"
 #include "kv/untyped_map.h"
 
-namespace kv
+namespace ccf::kv
 {
   MapChanges::MapChanges(
     const std::shared_ptr<AbstractMap>& m,
@@ -75,15 +75,15 @@ namespace kv
 
       // NB: The created maps are always untyped. Only the handles over them
       // are typed
-      auto new_map = std::make_shared<kv::untyped::Map>(
-        pimpl->store, map_name, kv::get_security_domain(map_name));
+      auto new_map = std::make_shared<ccf::kv::untyped::Map>(
+        pimpl->store, map_name, ccf::kv::get_security_domain(map_name));
       pimpl->created_maps[map_name] = new_map;
 
       abstract_map = new_map;
     }
 
     auto untyped_map =
-      std::dynamic_pointer_cast<kv::untyped::Map>(abstract_map);
+      std::dynamic_pointer_cast<ccf::kv::untyped::Map>(abstract_map);
     if (untyped_map == nullptr)
     {
       throw std::logic_error(

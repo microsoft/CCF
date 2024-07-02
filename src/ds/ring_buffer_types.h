@@ -137,7 +137,7 @@ namespace ringbuffer
         return false;
 
       auto next = initial_marker;
-      nonstd::tuple_for_each(sections, [&](const auto& s) {
+      ccf::nonstd::tuple_for_each(sections, [&](const auto& s) {
         next = write_bytes(next, s->data(), s->size());
       });
 
@@ -166,7 +166,7 @@ namespace ringbuffer
   struct MessageSerializers
   {
     static_assert(
-      nonstd::value_dependent_false<ringbuffer::Message, m>::value,
+      ccf::nonstd::value_dependent_false<ringbuffer::Message, m>::value,
       "No payload specialization for this Message");
   };
 

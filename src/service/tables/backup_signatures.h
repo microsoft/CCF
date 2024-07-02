@@ -14,13 +14,13 @@ namespace ccf
   {
     ccf::View view = 0;
     ccf::SeqNo seqno = 0;
-    crypto::Sha256Hash root;
+    ccf::crypto::Sha256Hash root;
     std::vector<NodeSignature> signatures;
 
     BackupSignatures() = default;
 
     BackupSignatures(
-      ccf::View view_, ccf::SeqNo seqno_, const crypto::Sha256Hash root_) :
+      ccf::View view_, ccf::SeqNo seqno_, const ccf::crypto::Sha256Hash root_) :
       view(view_),
       seqno(seqno_),
       root(root_)

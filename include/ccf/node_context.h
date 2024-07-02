@@ -6,7 +6,7 @@
 #include "ccf/indexing/indexer_interface.h"
 #include "ccf/node_subsystem_interface.h"
 
-namespace ccfapp
+namespace ccf
 {
   struct AbstractNodeContext
   {
@@ -66,7 +66,7 @@ namespace ccfapp
       return {};
     }
 
-    virtual crypto::Pem get_self_signed_certificate() const
+    virtual ccf::crypto::Pem get_self_signed_certificate() const
     {
       return {};
     }

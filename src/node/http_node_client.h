@@ -13,16 +13,16 @@ namespace ccf
   public:
     HTTPNodeClient(
       std::shared_ptr<ccf::RPCMap> rpc_map,
-      crypto::KeyPairPtr node_sign_kp,
-      const crypto::Pem& self_signed_node_cert_,
-      const std::optional<crypto::Pem>& endorsed_node_cert_) :
+      ccf::crypto::KeyPairPtr node_sign_kp,
+      const ccf::crypto::Pem& self_signed_node_cert_,
+      const std::optional<ccf::crypto::Pem>& endorsed_node_cert_) :
       NodeClient(
         rpc_map, node_sign_kp, self_signed_node_cert_, endorsed_node_cert_)
     {}
 
     virtual ~HTTPNodeClient() {}
 
-    virtual bool make_request(http::Request& request) override
+    virtual bool make_request(::http::Request& request) override
     {
       const auto& node_cert = endorsed_node_cert.has_value() ?
         endorsed_node_cert.value() :
@@ -35,7 +35,7 @@ namespace ccf
       auto ctx = ccf::make_rpc_context(node_session, packed);
 
       std::shared_ptr<ccf::RpcHandler> search =
-        http::fetch_rpc_handler(ctx, rpc_map);
+        ::http::fetch_rpc_handler(ctx, rpc_map);
 
       search->process(ctx);
 

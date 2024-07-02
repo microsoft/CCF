@@ -19,8 +19,8 @@ namespace ccf::js::extensions
     struct HistoricalHandle
     {
       ccf::historical::StatePtr state;
-      std::unique_ptr<kv::ReadOnlyTx> tx;
-      std::unordered_map<std::string, kv::untyped::Map::ReadOnlyHandle*>
+      std::unique_ptr<ccf::kv::ReadOnlyTx> tx;
+      std::unordered_map<std::string, ccf::kv::untyped::Map::ReadOnlyHandle*>
         kv_handles = {};
     };
     std::unordered_map<ccf::SeqNo, HistoricalHandle> historical_handles;
@@ -172,7 +172,7 @@ namespace ccf::js::extensions
       std::string sig_b64;
       try
       {
-        sig_b64 = crypto::b64_from_raw(receipt_out.signature);
+        sig_b64 = ccf::crypto::b64_from_raw(receipt_out.signature);
       }
       catch (const std::exception& e)
       {
@@ -305,7 +305,7 @@ namespace ccf::js::extensions
 
       if (hit->second == nullptr)
       {
-        kv::ReadOnlyTx* tx = it->second.tx.get();
+        ccf::kv::ReadOnlyTx* tx = it->second.tx.get();
         if (tx == nullptr)
         {
           LOG_FAIL_FMT("Can't rehydrate MapHandle - no transaction");

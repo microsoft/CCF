@@ -28,12 +28,12 @@ namespace ccf
     {
       ccf::NodeId node_id;
       ccf::NodeStartupState state;
-      kv::Version last_signed_seqno;
-      kv::Version startup_seqno;
+      ccf::kv::Version last_signed_seqno;
+      ccf::kv::Version startup_seqno;
 
       // Only on recovery
-      std::optional<kv::Version> recovery_target_seqno;
-      std::optional<kv::Version> last_recovered_seqno;
+      std::optional<ccf::kv::Version> recovery_target_seqno;
+      std::optional<ccf::kv::Version> last_recovered_seqno;
 
       bool stop_notice;
     };
@@ -56,12 +56,12 @@ namespace ccf
     struct In
     {
       NodeId node_id;
-      crypto::Pem certificate_signing_request;
-      crypto::Pem node_endorsed_certificate;
-      crypto::Pem public_key;
-      crypto::Pem service_cert;
+      ccf::crypto::Pem certificate_signing_request;
+      ccf::crypto::Pem node_endorsed_certificate;
+      ccf::crypto::Pem public_key;
+      ccf::crypto::Pem service_cert;
       QuoteInfo quote_info;
-      crypto::Pem public_encryption_key;
+      ccf::crypto::Pem public_encryption_key;
       pal::PlatformAttestationMeasurement measurement;
       std::optional<HostDataMetadata> snp_security_policy =
         std::nullopt; // base64-encoded
@@ -82,12 +82,13 @@ namespace ccf
     {
       NodeInfoNetwork node_info_network;
       QuoteInfo quote_info;
-      crypto::Pem public_encryption_key;
+      ccf::crypto::Pem public_encryption_key;
       // Always set by the joiner (node_state.h), but defaults to nullopt here
       // to make sure serialisation does take place now that it is OPTIONAL.
       std::optional<ConsensusType> consensus_type = std::nullopt;
-      std::optional<kv::Version> startup_seqno = std::nullopt;
-      std::optional<crypto::Pem> certificate_signing_request = std::nullopt;
+      std::optional<ccf::kv::Version> startup_seqno = std::nullopt;
+      std::optional<ccf::crypto::Pem> certificate_signing_request =
+        std::nullopt;
       nlohmann::json node_data = nullptr;
     };
 
@@ -101,7 +102,7 @@ namespace ccf
       struct NetworkInfo
       {
         bool public_only = false;
-        kv::Version last_recovered_signed_idx = kv::NoVersion;
+        ccf::kv::Version last_recovered_signed_idx = ccf::kv::NoVersion;
         ConsensusType consensus_type = ConsensusType::CFT;
         std::optional<ReconfigurationType> reconfiguration_type =
           std::nullopt; // Unused, but kept for backwards compatibility
@@ -110,18 +111,18 @@ namespace ccf
         NetworkIdentity identity;
         std::optional<ServiceStatus> service_status = std::nullopt;
 
-        std::optional<crypto::Pem> endorsed_certificate = std::nullopt;
+        std::optional<ccf::crypto::Pem> endorsed_certificate = std::nullopt;
 
         NetworkInfo() {}
 
         NetworkInfo(
           bool public_only,
-          kv::Version last_recovered_signed_idx,
+          ccf::kv::Version last_recovered_signed_idx,
           ReconfigurationType reconfiguration_type,
           const LedgerSecretsMap& ledger_secrets,
           const NetworkIdentity& identity,
           ServiceStatus service_status,
-          const std::optional<crypto::Pem>& endorsed_certificate) :
+          const std::optional<ccf::crypto::Pem>& endorsed_certificate) :
           public_only(public_only),
           last_recovered_signed_idx(last_recovered_signed_idx),
           reconfiguration_type(reconfiguration_type),

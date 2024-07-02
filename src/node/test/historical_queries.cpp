@@ -25,33 +25,33 @@
 std::unique_ptr<threading::ThreadMessaging>
   threading::ThreadMessaging::singleton = nullptr;
 
-using NumToString = kv::Map<size_t, std::string>;
+using NumToString = ccf::kv::Map<size_t, std::string>;
 
 constexpr size_t certificate_validity_period_days = 365;
 using namespace std::literals;
 auto valid_from =
-  ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+  ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 
-auto valid_to = crypto::compute_cert_valid_to_string(
+auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
 struct TestState
 {
-  std::shared_ptr<kv::Store> kv_store = nullptr;
+  std::shared_ptr<ccf::kv::Store> kv_store = nullptr;
   std::shared_ptr<ccf::LedgerSecrets> ledger_secrets = nullptr;
-  crypto::KeyPairPtr node_kp = nullptr;
+  ccf::crypto::KeyPairPtr node_kp = nullptr;
 };
 
 TestState create_and_init_state(bool initialise_ledger_rekey = true)
 {
   TestState ts;
 
-  ts.kv_store = std::make_shared<kv::Store>();
-  ts.kv_store->set_consensus(std::make_shared<kv::test::StubConsensus>());
-  auto encryptor = std::make_shared<kv::NullTxEncryptor>();
+  ts.kv_store = std::make_shared<ccf::kv::Store>();
+  ts.kv_store->set_consensus(std::make_shared<ccf::kv::test::StubConsensus>());
+  auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
   ts.kv_store->set_encryptor(encryptor);
 
-  ts.node_kp = crypto::make_key_pair();
+  ts.node_kp = ccf::crypto::make_key_pair();
 
   // Make history to produce signatures
   const ccf::NodeId node_id = std::string("node_id");
@@ -71,7 +71,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     ni.cert = ts.node_kp->self_sign("CN=Test node", valid_from, valid_to);
     ni.status = ccf::NodeStatus::TRUSTED;
     nodes->put(node_id, ni);
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   // Create ledger secrets to test decrypting entries across rekeys
@@ -96,21 +96,21 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
     auto member_public_encryption_keys = tx.rw<ccf::MemberPublicEncryptionKeys>(
       ccf::Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-    auto kp = crypto::make_key_pair();
+    auto kp = ccf::crypto::make_key_pair();
     auto cert = kp->self_sign("CN=member", valid_from, valid_to);
     auto member_id =
-      crypto::Sha256Hash(crypto::cert_pem_to_der(cert)).hex_str();
+      ccf::crypto::Sha256Hash(ccf::crypto::cert_pem_to_der(cert)).hex_str();
 
     member_info->put(member_id, {ccf::MemberStatus::ACTIVE});
     member_public_encryption_keys->put(
-      member_id, crypto::make_rsa_key_pair()->public_key_pem());
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+      member_id, ccf::crypto::make_rsa_key_pair()->public_key_pem());
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   return ts;
 }
 
-kv::Version write_transactions(kv::Store& kv_store, size_t tx_count)
+ccf::kv::Version write_transactions(ccf::kv::Store& kv_store, size_t tx_count)
 {
   const auto begin = kv_store.current_version();
   const auto end = begin + tx_count;
@@ -123,22 +123,22 @@ kv::Version write_transactions(kv::Store& kv_store, size_t tx_count)
     public_map->put(i, s);
     private_map->put(i, s);
 
-    REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+    REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
   REQUIRE(kv_store.current_version() == end);
   return kv_store.current_version();
 }
 
-kv::Version write_transactions_and_signature(
-  kv::Store& kv_store, size_t tx_count)
+ccf::kv::Version write_transactions_and_signature(
+  ccf::kv::Store& kv_store, size_t tx_count)
 {
   write_transactions(kv_store, tx_count);
 
   kv_store.get_history()->emit_signature();
 
   auto consensus =
-    dynamic_cast<kv::test::StubConsensus*>(kv_store.get_consensus().get());
+    dynamic_cast<ccf::kv::test::StubConsensus*>(kv_store.get_consensus().get());
   REQUIRE(consensus != nullptr);
   REQUIRE(consensus->get_committed_seqno() == kv_store.current_version());
 
@@ -149,8 +149,8 @@ kv::Version write_transactions_and_signature(
   return kv_store.current_version();
 }
 
-kv::Version rekey(
-  kv::Store& kv_store,
+ccf::kv::Version rekey(
+  ccf::kv::Store& kv_store,
   const std::shared_ptr<ccf::LedgerSecrets>& ledger_secrets)
 {
   ccf::ShareManager share_manager(ledger_secrets);
@@ -158,7 +158,7 @@ kv::Version rekey(
   auto tx = kv_store.create_tx();
   auto new_ledger_secret = ccf::make_ledger_secret();
   share_manager.issue_recovery_shares(tx, new_ledger_secret);
-  REQUIRE(tx.commit() == kv::CommitResult::SUCCESS);
+  REQUIRE(tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
   auto tx_version = tx.commit_version();
 
@@ -170,7 +170,8 @@ kv::Version rekey(
   return tx_version;
 }
 
-void validate_business_transaction(kv::ReadOnlyStorePtr store, ccf::SeqNo seqno)
+void validate_business_transaction(
+  ccf::kv::ReadOnlyStorePtr store, ccf::SeqNo seqno)
 {
   REQUIRE(store != nullptr);
 
@@ -211,9 +212,9 @@ void validate_business_transaction(
 }
 
 std::map<ccf::SeqNo, std::vector<uint8_t>> construct_host_ledger(
-  std::shared_ptr<kv::Consensus> c)
+  std::shared_ptr<ccf::kv::Consensus> c)
 {
-  auto consensus = dynamic_cast<kv::test::StubConsensus*>(c.get());
+  auto consensus = dynamic_cast<ccf::kv::test::StubConsensus*>(c.get());
   REQUIRE(consensus != nullptr);
 
   INFO("Rebuild ledger as seen by host");
@@ -238,13 +239,26 @@ std::map<ccf::SeqNo, std::vector<uint8_t>> construct_host_ledger(
   return ledger;
 }
 
+size_t get_cache_limit_for_entries(
+  const std::vector<std::vector<uint8_t>>& entries)
+{
+  return ccf::historical::soft_to_raw_ratio *
+    std::accumulate(
+           entries.begin(),
+           entries.end(),
+           0ll,
+           [&](size_t prev, const std::vector<uint8_t>& entry) {
+             return prev + entry.size();
+           });
+}
+
 TEST_CASE("StateCache point queries")
 {
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
-  kv::Version low_signature_transaction;
-  kv::Version high_signature_transaction;
+  ccf::kv::Version low_signature_transaction;
+  ccf::kv::Version high_signature_transaction;
 
   {
     INFO("Build some interesting state in the store");
@@ -516,7 +530,7 @@ TEST_CASE("StateCache get store vs get state")
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
-  kv::Version signature_transaction;
+  ccf::kv::Version signature_transaction;
 
   {
     INFO("Build some interesting state in the store");
@@ -727,7 +741,7 @@ TEST_CASE("StateCache range queries")
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
-  std::vector<kv::Version> signature_versions;
+  std::vector<ccf::kv::Version> signature_versions;
 
   const auto begin_seqno = kv_store.current_version() + 1;
 
@@ -751,7 +765,7 @@ TEST_CASE("StateCache range queries")
     return accepted;
   };
 
-  auto signing_version = [&signature_versions](kv::Version seqno) {
+  auto signing_version = [&signature_versions](ccf::kv::Version seqno) {
     const auto begin = signature_versions.begin();
     const auto end = signature_versions.end();
 
@@ -769,8 +783,8 @@ TEST_CASE("StateCache range queries")
   std::random_device rd;
   std::mt19937 g(rd());
   auto fetch_and_validate_range = [&](
-                                    kv::Version range_start,
-                                    kv::Version range_end) {
+                                    ccf::kv::Version range_start,
+                                    ccf::kv::Version range_end) {
     constexpr auto this_handle = 42;
     {
       auto stores = cache.get_store_range(this_handle, range_start, range_end);
@@ -855,7 +869,7 @@ TEST_CASE("Incremental progress")
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
-  std::vector<kv::Version> signature_versions;
+  std::vector<ccf::kv::Version> signature_versions;
 
   const auto begin_seqno = kv_store.current_version() + 1;
 
@@ -950,12 +964,140 @@ TEST_CASE("Incremental progress")
   }
 }
 
+TEST_CASE("StateCache soft zero limit with increasing")
+{
+  // Try get two states. Shouldn't be able to retrieve anything with 0 cache
+  // limit. After increasing to the size of first state only that one is
+  // available, but later overwritten by the second one, and finally all are
+  // evicted after setting again to 0.
+  //
+  // ! DISCLAIMER ! If you change this bear in mind that each attempt to get the
+  // store promotes the handle, and so requests eviction order changes,
+  // therefore this test in particular is quite fragile.
+
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  auto seq_low = write_transactions_and_signature(kv_store, 1);
+  auto seq_high = write_transactions_and_signature(kv_store, 1);
+  REQUIRE(kv_store.current_version() == seq_high);
+
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  REQUIRE(ledger.size() == seq_high);
+
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCache cache(
+    kv_store, state.ledger_secrets, stub_writer);
+
+  cache.set_soft_cache_limit(0);
+
+  REQUIRE(!cache.get_state_at(0, seq_low));
+  cache.tick(std::chrono::milliseconds(100));
+
+  cache.handle_ledger_entry(seq_low, ledger.at(seq_low));
+  cache.tick(std::chrono::milliseconds(100));
+
+  // Ledger entry fecthed and instantly removed because of the parent request
+  // eviction due to zero cache limit.
+  REQUIRE(!cache.get_state_at(0, seq_low));
+
+  cache.set_soft_cache_limit(
+    get_cache_limit_for_entries({ledger.at(seq_low), ledger.at(seq_high)}) - 1);
+
+  cache.handle_ledger_entry(seq_low, ledger.at(seq_low));
+  cache.tick(std::chrono::milliseconds(100));
+
+  REQUIRE(cache.get_state_at(0, seq_low));
+  REQUIRE(!cache.get_state_at(1, seq_high));
+
+  cache.tick(std::chrono::milliseconds(100));
+
+  cache.handle_ledger_entry(seq_high, ledger.at(seq_high));
+
+  // Both available because tick hasn't been called yet.
+  REQUIRE(cache.get_state_at(0, seq_low));
+  REQUIRE(cache.get_state_at(1, seq_high));
+
+  cache.tick(std::chrono::milliseconds(100));
+
+  REQUIRE(!cache.get_state_at(0, seq_low));
+  REQUIRE(cache.get_state_at(1, seq_high));
+
+  cache.set_soft_cache_limit(0);
+  cache.tick(std::chrono::milliseconds(100));
+
+  REQUIRE(!cache.get_state_at(0, seq_low));
+  REQUIRE(!cache.get_state_at(1, seq_high));
+}
+
+TEST_CASE("StateCache dropping state explicitly")
+{
+  // Adding two states to the cache (limit is hit). Drop state2 and add state3.
+  // State1 should remain available, as well as state3, state2 was force-evicted
+  // from LRU because it's been dropped explicitly.
+  //
+  // ! DISCLAIMER ! If you change this bear in mind that each attempt to get the
+  // store promotes the handle, and so requests eviction order changes,
+  // therefore this test in particular is quite fragile.
+
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+
+  auto seq_low = write_transactions_and_signature(kv_store, 1);
+  auto seq_mid = write_transactions_and_signature(kv_store, 1);
+  auto seq_high = write_transactions_and_signature(kv_store, 1);
+  REQUIRE(kv_store.current_version() == seq_high);
+
+  auto ledger = construct_host_ledger(state.kv_store->get_consensus());
+  REQUIRE(ledger.size() == seq_high);
+
+  auto stub_writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCache cache(
+    kv_store, state.ledger_secrets, stub_writer);
+
+  REQUIRE(!cache.get_state_at(0, seq_low));
+  REQUIRE(!cache.get_state_at(1, seq_mid));
+
+  cache.tick(std::chrono::milliseconds(100));
+
+  cache.handle_ledger_entry(seq_low, ledger.at(seq_low));
+  cache.handle_ledger_entry(seq_mid, ledger.at(seq_mid));
+
+  REQUIRE(cache.get_state_at(0, seq_low));
+  REQUIRE(cache.get_state_at(1, seq_mid));
+
+  cache.set_soft_cache_limit(
+    get_cache_limit_for_entries(
+      {ledger.at(seq_low), ledger.at(seq_mid), ledger.at(seq_high)}) -
+    1);
+
+  cache.tick(std::chrono::milliseconds(100));
+
+  REQUIRE(!cache.get_state_at(2, seq_high));
+  cache.tick(std::chrono::milliseconds(100));
+
+  // Ledger entries not provided yet, so previous are not evicted.
+  REQUIRE(cache.get_state_at(0, seq_low));
+  REQUIRE(cache.get_state_at(1, seq_mid));
+  REQUIRE(!cache.get_state_at(2, seq_high));
+
+  cache.drop_cached_states(1);
+  cache.tick(std::chrono::milliseconds(100));
+
+  cache.handle_ledger_entry(seq_high, ledger.at(seq_high));
+  cache.tick(std::chrono::milliseconds(100));
+
+  REQUIRE(cache.get_state_at(0, seq_low));
+  REQUIRE(!cache.get_state_at(1, seq_mid));
+  REQUIRE(cache.get_state_at(2, seq_high));
+}
+
 TEST_CASE("StateCache sparse queries")
 {
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
-  std::vector<kv::Version> signature_versions;
+  std::vector<ccf::kv::Version> signature_versions;
 
   const auto begin_seqno = kv_store.current_version() + 1;
 
@@ -979,7 +1121,7 @@ TEST_CASE("StateCache sparse queries")
     return accepted;
   };
 
-  auto signing_version = [&signature_versions](kv::Version seqno) {
+  auto signing_version = [&signature_versions](ccf::kv::Version seqno) {
     const auto begin = signature_versions.begin();
     const auto end = signature_versions.end();
 
@@ -1088,7 +1230,7 @@ TEST_CASE("StateCache concurrent access")
   auto& kv_store = *state.kv_store;
   const auto default_handle = 0;
 
-  std::vector<kv::Version> signature_versions;
+  std::vector<ccf::kv::Version> signature_versions;
 
   const auto begin_seqno = kv_store.current_version() + 1;
 
@@ -1112,7 +1254,7 @@ TEST_CASE("StateCache concurrent access")
 
   std::atomic<bool> finished = false;
   std::thread host_thread([&]() {
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     auto ledger = construct_host_ledger(state.kv_store->get_consensus());
 
     size_t last_handled_write = 0;
@@ -1163,7 +1305,7 @@ TEST_CASE("StateCache concurrent access")
       cache.tick(std::chrono::milliseconds(100));
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   });
 
   constexpr auto per_thread_queries = 30;
@@ -1219,7 +1361,7 @@ TEST_CASE("StateCache concurrent access")
     };
 
   auto validate_all_stores =
-    [&](const std::vector<kv::ReadOnlyStorePtr>& stores) {
+    [&](const std::vector<ccf::kv::ReadOnlyStorePtr>& stores) {
       for (auto& store : stores)
       {
         REQUIRE(store != nullptr);
@@ -1252,7 +1394,7 @@ TEST_CASE("StateCache concurrent access")
 
   auto query_random_point_store =
     [&](ccf::SeqNo target_seqno, size_t handle, const auto& error_printer) {
-      kv::ReadOnlyStorePtr store;
+      ccf::kv::ReadOnlyStorePtr store;
       auto fetch_result = [&]() {
         store = cache.get_store_at(handle, target_seqno);
       };
@@ -1279,7 +1421,7 @@ TEST_CASE("StateCache concurrent access")
                                      ccf::SeqNo range_end,
                                      size_t handle,
                                      const auto& error_printer) {
-    std::vector<kv::ReadOnlyStorePtr> stores;
+    std::vector<ccf::kv::ReadOnlyStorePtr> stores;
     auto fetch_result = [&]() {
       stores = cache.get_store_range(handle, range_start, range_end);
     };
@@ -1295,7 +1437,7 @@ TEST_CASE("StateCache concurrent access")
                                      size_t handle,
                                      const auto& error_printer) {
     std::vector<ccf::historical::StatePtr> states;
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     auto fetch_result = [&]() {
       states = cache.get_state_range(handle, range_start, range_end);
     };
@@ -1303,14 +1445,14 @@ TEST_CASE("StateCache concurrent access")
     REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
     REQUIRE(states.size() == range_end - range_start + 1);
     validate_all_states(states);
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   auto query_random_sparse_set_stores = [&](
                                           const ccf::SeqNoCollection& seqnos,
                                           size_t handle,
                                           const auto& error_printer) {
-    std::vector<kv::ReadOnlyStorePtr> stores;
+    std::vector<ccf::kv::ReadOnlyStorePtr> stores;
     auto fetch_result = [&]() {
       stores = cache.get_stores_for(handle, seqnos);
     };
@@ -1325,7 +1467,7 @@ TEST_CASE("StateCache concurrent access")
                                           size_t handle,
                                           const auto& error_printer) {
     std::vector<ccf::historical::StatePtr> states;
-    crypto::openssl_sha256_init();
+    ccf::crypto::openssl_sha256_init();
     auto fetch_result = [&]() {
       states = cache.get_states_for(handle, seqnos);
     };
@@ -1333,7 +1475,7 @@ TEST_CASE("StateCache concurrent access")
     REQUIRE(fetch_until_timeout(fetch_result, check_result, error_printer));
     REQUIRE(states.size() == seqnos.size());
     validate_all_states(states);
-    crypto::openssl_sha256_shutdown();
+    ccf::crypto::openssl_sha256_shutdown();
   };
 
   auto run_n_queries = [&](size_t handle) {
@@ -1591,7 +1733,7 @@ TEST_CASE("StateCache concurrent access")
 
 TEST_CASE("Recover historical ledger secrets")
 {
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   auto state = create_and_init_state();
   auto& kv_store = *state.kv_store;
 
@@ -1708,17 +1850,17 @@ TEST_CASE("Recover historical ledger secrets")
 
     validate_business_transaction(historical_state, first_seqno);
   }
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
 }
 
 int main(int argc, char** argv)
 {
   threading::ThreadMessaging::init(1);
-  crypto::openssl_sha256_init();
+  ccf::crypto::openssl_sha256_init();
   doctest::Context context;
   context.applyCommandLine(argc, argv);
   int res = context.run();
-  crypto::openssl_sha256_shutdown();
+  ccf::crypto::openssl_sha256_shutdown();
   if (context.shouldExit())
     return res;
   return res;

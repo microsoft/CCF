@@ -86,15 +86,16 @@ namespace ccf
       static constexpr auto JWT_PUBLIC_SIGNING_KEY_ISSUER =
         "public:ccf.gov.jwt.public_signing_key_issuer";
 
-      using JwtPublicSigningKeys = kv::RawCopySerialisedMap<JwtKeyId, Cert>;
+      using JwtPublicSigningKeys =
+        ccf::kv::RawCopySerialisedMap<JwtKeyId, Cert>;
       using JwtPublicSigningKeyIssuer =
-        kv::RawCopySerialisedMap<JwtKeyId, JwtIssuer>;
+        ccf::kv::RawCopySerialisedMap<JwtKeyId, JwtIssuer>;
     }
   }
 
   struct JsonWebKeySet
   {
-    std::vector<crypto::JsonWebKey> keys;
+    std::vector<ccf::crypto::JsonWebKey> keys;
 
     bool operator!=(const JsonWebKeySet& rhs) const
     {

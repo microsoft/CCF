@@ -18,17 +18,17 @@ namespace ccf
   struct StartupSnapshotInfo
   {
     std::vector<uint8_t> raw;
-    kv::Version seqno;
+    ccf::kv::Version seqno;
 
     // Store used to verify a snapshot (either created fresh when a node joins
     // from a snapshot or points to the main store when recovering from a
     // snapshot)
-    std::shared_ptr<kv::Store> store = nullptr;
+    std::shared_ptr<ccf::kv::Store> store = nullptr;
 
     StartupSnapshotInfo(
-      const std::shared_ptr<kv::Store>& store_,
+      const std::shared_ptr<ccf::kv::Store>& store_,
       std::vector<uint8_t>&& raw_,
-      kv::Version seqno_) :
+      ccf::kv::Version seqno_) :
       raw(std::move(raw_)),
       seqno(seqno_),
       store(store_)
@@ -36,18 +36,19 @@ namespace ccf
   };
 
   static void deserialise_snapshot(
-    const std::shared_ptr<kv::Store>& store,
+    const std::shared_ptr<ccf::kv::Store>& store,
     const std::vector<uint8_t>& snapshot,
-    kv::ConsensusHookPtrs& hooks,
-    std::vector<kv::Version>* view_history = nullptr,
+    ccf::kv::ConsensusHookPtrs& hooks,
+    std::vector<ccf::kv::Version>* view_history = nullptr,
     bool public_only = false,
     std::optional<std::vector<uint8_t>> prev_service_identity = std::nullopt)
   {
     const auto* data = snapshot.data();
     auto size = snapshot.size();
 
-    auto tx_hdr = serialized::peek<kv::SerialisedEntryHeader>(data, size);
-    auto store_snapshot_size = sizeof(kv::SerialisedEntryHeader) + tx_hdr.size;
+    auto tx_hdr = serialized::peek<ccf::kv::SerialisedEntryHeader>(data, size);
+    auto store_snapshot_size =
+      sizeof(ccf::kv::SerialisedEntryHeader) + tx_hdr.size;
 
     auto receipt_data = data + store_snapshot_size;
     auto receipt_size = size - store_snapshot_size;
@@ -67,7 +68,7 @@ namespace ccf
     }
 
     auto snapshot_digest =
-      crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
+      ccf::crypto::Sha256Hash({snapshot.data(), store_snapshot_size});
     auto snapshot_digest_claim = receipt->leaf_components.claims_digest.value();
     if (snapshot_digest != snapshot_digest_claim)
     {
@@ -80,13 +81,13 @@ namespace ccf
     auto root = receipt->calculate_root();
     auto raw_sig = receipt->signature;
 
-    auto v = crypto::make_unique_verifier(receipt->cert);
+    auto v = ccf::crypto::make_unique_verifier(receipt->cert);
     if (!v->verify_hash(
           root.h.data(),
           root.h.size(),
           receipt->signature.data(),
           receipt->signature.size(),
-          crypto::MDType::SHA256))
+          ccf::crypto::MDType::SHA256))
     {
       throw std::logic_error(
         "Signature verification failed for snapshot receipt");
@@ -94,7 +95,7 @@ namespace ccf
 
     if (prev_service_identity)
     {
-      crypto::Pem prev_pem(*prev_service_identity);
+      ccf::crypto::Pem prev_pem(*prev_service_identity);
       if (!v->verify_certificate(
             {&prev_pem},
             {}, /* ignore_time */
@@ -114,7 +115,7 @@ namespace ccf
 
     auto rc = store->deserialise_snapshot(
       snapshot.data(), store_snapshot_size, hooks, view_history, public_only);
-    if (rc != kv::ApplyResult::PASS)
+    if (rc != ccf::kv::ApplyResult::PASS)
     {
       throw std::logic_error(fmt::format("Failed to apply snapshot: {}", rc));
     }
@@ -125,10 +126,10 @@ namespace ccf
   };
 
   static std::unique_ptr<StartupSnapshotInfo> initialise_from_snapshot(
-    const std::shared_ptr<kv::Store>& store,
+    const std::shared_ptr<ccf::kv::Store>& store,
     std::vector<uint8_t>&& snapshot,
-    kv::ConsensusHookPtrs& hooks,
-    std::vector<kv::Version>* view_history = nullptr,
+    ccf::kv::ConsensusHookPtrs& hooks,
+    std::vector<ccf::kv::Version>* view_history = nullptr,
     bool public_only = false,
     std::optional<std::vector<uint8_t>> previous_service_identity =
       std::nullopt)
@@ -148,11 +149,11 @@ namespace ccf
     const std::vector<uint8_t>& sig,
     const std::vector<uint8_t>& tree,
     const NodeId& node_id,
-    const crypto::Pem& node_cert,
-    kv::Version seqno,
-    const crypto::Sha256Hash& write_set_digest,
+    const ccf::crypto::Pem& node_cert,
+    ccf::kv::Version seqno,
+    const ccf::crypto::Sha256Hash& write_set_digest,
     const std::string& commit_evidence,
-    crypto::Sha256Hash&& claims_digest)
+    ccf::crypto::Sha256Hash&& claims_digest)
   {
     ccf::MerkleTreeHistory history(tree);
     auto proof = history.get_proof(seqno);

@@ -9,14 +9,14 @@
 namespace ccf
 {
   static bool verify_node_signature(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const NodeId& node_id,
     const uint8_t* expected_sig,
     size_t expected_sig_size,
     const uint8_t* expected_root,
     size_t expected_root_size)
   {
-    crypto::Pem node_cert;
+    ccf::crypto::Pem node_cert;
     auto node_endorsed_certs = tx.template ro<ccf::NodeEndorsedCertificates>(
       ccf::Tables::NODE_ENDORSED_CERTIFICATES);
     auto node_endorsed_cert = node_endorsed_certs->get(node_id);
@@ -47,20 +47,20 @@ namespace ccf
       node_cert = node_endorsed_cert.value();
     }
 
-    crypto::VerifierPtr from_cert = crypto::make_verifier(node_cert);
+    ccf::crypto::VerifierPtr from_cert = ccf::crypto::make_verifier(node_cert);
     return from_cert->verify_hash(
       expected_root,
       expected_root_size,
       expected_sig,
       expected_sig_size,
-      crypto::MDType::SHA256);
+      ccf::crypto::MDType::SHA256);
   }
 
   static bool verify_node_signature(
-    kv::ReadOnlyTx& tx,
+    ccf::kv::ReadOnlyTx& tx,
     const NodeId& node_id,
     const std::vector<uint8_t>& expected_sig,
-    const crypto::Sha256Hash& expected_root)
+    const ccf::crypto::Sha256Hash& expected_root)
   {
     return verify_node_signature(
       tx,

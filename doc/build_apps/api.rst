@@ -10,7 +10,7 @@ A CCF application is composed of the following:
 Application Entry Point
 -----------------------
 
-.. doxygenfunction:: ccfapp::make_user_endpoints
+.. doxygenfunction:: ccf::make_user_endpoints
    :project: CCF
 
 
@@ -72,6 +72,9 @@ Policies
 .. doxygenvariable:: ccf::jwt_auth_policy
    :project: CCF
 
+.. doxygenvariable:: ccf::TypedUserCOSESign1AuthnPolicy
+   :project: CCF
+
 Identities
 ~~~~~~~~~~
 
@@ -122,7 +125,7 @@ Historical Queries
 
 .. doxygenclass:: ccf::historical::AbstractStateCache
    :project: CCF
-   :members: set_default_expiry_duration, get_state_at, get_store_at, get_store_range, drop_cached_states
+   :members: set_default_expiry_duration, set_soft_cache_limit, get_state_at, get_store_at, get_store_range, drop_cached_states
 
 .. doxygenstruct:: ccf::historical::State
    :project: CCF
@@ -146,7 +149,7 @@ Indexing
 JavaScript FFI Plugins
 ----------------------
 
-.. doxygenfunction:: ccfapp::get_js_plugins
+.. doxygenfunction:: ccf::get_js_plugins
    :project: CCF
 
 HTTP Entity Tags Matching

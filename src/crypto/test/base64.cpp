@@ -8,7 +8,7 @@
 #include <string>
 
 using namespace std;
-using namespace crypto;
+using namespace ccf::crypto;
 
 static constexpr auto MAX_LEN = 2000;
 

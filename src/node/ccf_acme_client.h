@@ -77,8 +77,8 @@ namespace ccf
       std::shared_ptr<RPCMap> rpc_map,
       std::shared_ptr<RPCSessions> rpc_sessions,
       std::shared_ptr<ACMERpcFrontend> challenge_frontend,
-      std::shared_ptr<kv::Store> store,
-      std::shared_ptr<crypto::KeyPair> account_key_pair = nullptr,
+      std::shared_ptr<ccf::kv::Store> store,
+      std::shared_ptr<ccf::crypto::KeyPair> account_key_pair = nullptr,
       std::shared_ptr<ACMEChallengeHandler> challenge_handler_ = nullptr) :
       ACME::Client(get_client_config(config), account_key_pair),
       config_name(config_name),
@@ -98,14 +98,14 @@ namespace ccf
     virtual ~ACMEClient() {}
 
     virtual void set_account_key(
-      std::shared_ptr<crypto::KeyPair> new_account_key_pair) override
+      std::shared_ptr<ccf::crypto::KeyPair> new_account_key_pair) override
     {
       ACME::Client::set_account_key(new_account_key_pair);
       install_wildcard_response();
     }
 
     virtual void check_expiry(
-      std::shared_ptr<kv::Store> tables,
+      std::shared_ptr<ccf::kv::Store> tables,
       std::unique_ptr<NetworkIdentity>& identity)
     {
       auto now = std::chrono::system_clock::now();
@@ -115,7 +115,7 @@ namespace ccf
       auto cert = certs->get(config_name);
       if (cert)
       {
-        auto v = crypto::make_verifier(*cert);
+        auto v = ccf::crypto::make_verifier(*cert);
         double rem_pct = v->remaining_percentage(now);
         LOG_TRACE_FMT(
           "ACME: remaining certificate validity for '{}': {}%, {} seconds",
@@ -143,7 +143,7 @@ namespace ccf
     std::shared_ptr<RPCMap> rpc_map;
     std::shared_ptr<RPCSessions> rpc_sessions;
     std::shared_ptr<ACMERpcFrontend> challenge_frontend;
-    std::shared_ptr<kv::Store> store;
+    std::shared_ptr<ccf::kv::Store> store;
     std::shared_ptr<ACMEChallengeHandler> challenge_handler;
 
     void install_wildcard_response()
@@ -158,8 +158,8 @@ namespace ccf
     }
 
     virtual void on_http_request(
-      const http::URL& url,
-      http::Request&& req,
+      const ::http::URL& url,
+      ::http::Request&& req,
       std::function<
         bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback) override
@@ -244,7 +244,7 @@ namespace ccf
       // will install it later, in the global hook on that table.
       auto tx = store->create_tx();
       auto certs = tx.rw<ACMECertificates>(Tables::ACME_CERTIFICATES);
-      certs->put(config_name, crypto::Pem(certificate));
+      certs->put(config_name, ccf::crypto::Pem(certificate));
       tx.commit();
     }
   };

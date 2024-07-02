@@ -13,7 +13,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace crypto
+namespace ccf::crypto
 {
   // With inspiration from
   // http://docs.oasis-open.org/pkcs11/pkcs11-curr/v2.40/cos01/pkcs11-curr-v2.40-cos01.html

@@ -2,13 +2,13 @@
 // Licensed under the Apache 2.0 License.
 
 // CCF
-#include "audit_info.h"
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/ds/hash.h"
 #include "ccf/http_query.h"
 #include "ccf/js/registry.h"
 #include "ccf/json_handler.h"
+#include "ccf/service/tables/users.h"
 #include "ccf/version.h"
 
 #include <charconv>
@@ -19,11 +19,159 @@ using namespace nlohmann;
 
 namespace programmabilityapp
 {
-  using RecordsMap = kv::Map<std::string, std::vector<uint8_t>>;
-  using AuditInputValue = kv::Value<std::vector<uint8_t>>;
-  using AuditInfoValue = kv::Value<AuditInfo>;
+  using RecordsMap = ccf::kv::Map<std::string, std::vector<uint8_t>>;
   static constexpr auto PRIVATE_RECORDS = "programmability.records";
   static constexpr auto CUSTOM_ENDPOINTS_NAMESPACE = "public:custom_endpoints";
+
+  // The programmability sample demonstrates how signed payloads can be used to
+  // provide offline auditability without requiring trusting the hardware or the
+  // service owners/consortium.
+  // COSE Sign1 payloads must set these protected headers in order to guarantee
+  // the specificity of the payload for the endpoint, and avoid possible replay
+  // of payloads signed in the past.
+  static constexpr auto MSG_TYPE_NAME = "app.msg.type";
+  static constexpr auto CREATED_AT_NAME = "app.msg.created_at";
+  // Instances of ccf::TypedUserCOSESign1AuthnPolicy for the endpoints that
+  // support COSE Sign1 authentication.
+  static auto endpoints_user_cose_sign1_auth_policy =
+    std::make_shared<ccf::TypedUserCOSESign1AuthnPolicy>(
+      "custom_endpoints", MSG_TYPE_NAME, CREATED_AT_NAME);
+  static auto options_user_cose_sign1_auth_policy =
+    std::make_shared<ccf::TypedUserCOSESign1AuthnPolicy>(
+      "runtime_options", MSG_TYPE_NAME, CREATED_AT_NAME);
+
+  // This is a pure helper function which can be called from either C++ or JS,
+  // to implement common functionality in a single place
+  static inline bool has_role_permitting_action(
+    ccf::kv::ReadOnlyTx& tx,
+    const std::string& user_id,
+    const std::string& action)
+  {
+    using RoleSet = ccf::kv::Set<std::string>;
+
+    auto users_handle = tx.ro<ccf::UserInfo>(ccf::Tables::USER_INFO);
+    const auto user_info = users_handle->get(user_id);
+    if (user_info.has_value())
+    {
+      const auto roles_it = user_info->user_data.find("roles");
+      if (roles_it != user_info->user_data.end())
+      {
+        const auto roles = roles_it->get<std::vector<std::string>>();
+        for (const auto& role : roles)
+        {
+          auto role_handle =
+            tx.ro<RoleSet>(fmt::format("public:ccf.gov.roles.{}", role));
+          if (role_handle->contains(action))
+          {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  class MyExtension : public ccf::js::extensions::ExtensionInterface
+  {
+  public:
+    // Store any objects/state which the extension's functions might need on
+    // this extension object.
+    // In this case, since the extension adds a function that wants to read from
+    // the KV, it needs the current request's Tx.
+    ccf::kv::ReadOnlyTx* tx;
+
+    MyExtension(ccf::kv::ReadOnlyTx* t) : tx(t) {}
+
+    void install(ccf::js::core::Context& ctx) override;
+  };
+
+  // This is the signature for a function exposed to JS, interacting directly
+  // with JS interpreter state
+  JSValue js_has_role_permitting_action(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv)
+  {
+    // Check correct number of args were passed, to avoid unsafe accesses to
+    // argv
+    if (argc != 2)
+    {
+      return JS_ThrowTypeError(ctx, "Passed %d arguments but expected 2", argc);
+    }
+
+    // Retrieve the CCF context object from QuickJS's opaque pointer
+    ccf::js::core::Context& jsctx =
+      *(ccf::js::core::Context*)JS_GetContextOpaque(ctx);
+
+    // Get the extension (by type), and the Tx* stashed on it
+    auto extension = jsctx.get_extension<MyExtension>();
+    if (extension == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "Failed to get extension object");
+    }
+
+    auto tx_ptr = extension->tx;
+    if (tx_ptr == nullptr)
+    {
+      return JS_ThrowInternalError(ctx, "No transaction available");
+    }
+
+    ccf::kv::ReadOnlyTx& tx = *tx_ptr;
+
+    // Process the arguments passed to the JS function, confirming they're both
+    // strings
+    std::optional<std::string> user_id = jsctx.to_str(argv[0]);
+    if (!user_id.has_value())
+    {
+      return JS_ThrowTypeError(ctx, "user_id argument is not a string");
+    }
+
+    std::optional<std::string> action = jsctx.to_str(argv[1]);
+    if (!action.has_value())
+    {
+      return JS_ThrowTypeError(ctx, "action argument is not a string");
+    }
+
+    try
+    {
+      // Call function containing shared implementation
+      const bool permitted =
+        has_role_permitting_action(tx, user_id.value(), action.value());
+
+      // Return result (converting C++ type to QuickJS value)
+      return JS_NewBool(ctx, permitted);
+    }
+    catch (const std::exception& exc)
+    {
+      // Catch any exceptions from C++ function, report them to the JS layer as
+      // error
+      return JS_ThrowInternalError(
+        ctx, "Error checking for role permissions: %s", exc.what());
+    }
+  }
+
+  void MyExtension::install(ccf::js::core::Context& ctx)
+  {
+    // Nest all of this extension's functions in a single object, rather than
+    // inserting directly into the global namespace
+    auto my_global_object =
+      ctx.get_or_create_global_property("my_object", ctx.new_obj());
+
+    // Insert a constant string into the JS environment, accessible at
+    // my_object.my_constant
+    my_global_object.set("my_constant", ctx.new_string("Hello world"));
+
+    // Insert a function into the JS environment, called at my_object.has_role
+    my_global_object.set(
+      // Name of field on object
+      "hasRole",
+      ctx.new_c_function(
+        // C/C++ function implementing this JS function
+        js_has_role_permitting_action,
+        // Repeated name of function, used in callstacks
+        "hasRole",
+        // Number of arguments to this function
+        2));
+  }
 
   // This sample shows the features of DynamicJSEndpointRegistry. This sample
   // adds a PUT /app/custom_endpoints, which calls install_custom_endpoints(),
@@ -53,23 +201,69 @@ namespace programmabilityapp
       return std::nullopt;
     }
 
-    std::pair<AuditInputFormat, std::span<const uint8_t>> get_body(
-      ccf::endpoints::EndpointContext& ctx)
+    std::tuple<
+      ccf::ActionFormat, // JSON or COSE
+      std::span<const uint8_t>, // Content
+      std::optional<uint64_t> // Created at timestamp, if passed
+      >
+    get_action_content(ccf::endpoints::EndpointContext& ctx)
     {
       if (
         const auto* cose_ident =
           ctx.try_get_caller<ccf::UserCOSESign1AuthnIdentity>())
       {
-        return {AuditInputFormat::COSE, cose_ident->content};
+        return {
+          ccf::ActionFormat::COSE,
+          cose_ident->content,
+          cose_ident->protected_header.msg_created_at};
       }
       else
       {
-        return {AuditInputFormat::JSON, ctx.rpc_ctx->get_request_body()};
+        return {
+          ccf::ActionFormat::JSON,
+          ctx.rpc_ctx->get_request_body(),
+          std::nullopt};
+      }
+    }
+
+    bool set_error_details(
+      ccf::endpoints::EndpointContext& ctx,
+      ccf::ApiResult result,
+      ccf::InvalidArgsReason reason)
+    {
+      switch (result)
+      {
+        case ccf::ApiResult::OK:
+        {
+          return false;
+        }
+        case ccf::ApiResult::InvalidArgs:
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InvalidInput,
+            reason == ccf::InvalidArgsReason::ActionAlreadyApplied ?
+              "Action was already applied" :
+              "Action created_at timestamp is too old");
+          return true;
+        }
+        case ccf::ApiResult::InternalError:
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "Failed to check if action is original");
+          return true;
+        }
+        default:
+        {
+          return true;
+        }
       }
     }
 
   public:
-    ProgrammabilityHandlers(ccfapp::AbstractNodeContext& context) :
+    ProgrammabilityHandlers(ccf::AbstractNodeContext& context) :
       ccf::js::DynamicJSEndpointRegistry(
         context,
         CUSTOM_ENDPOINTS_NAMESPACE // Internal KV space will be under
@@ -125,7 +319,8 @@ namespace programmabilityapp
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::TEXT);
           ctx.rpc_ctx->set_response_body(record.value());
           return;
         }
@@ -228,18 +423,45 @@ namespace programmabilityapp
         }
         // End of Authorization Check
 
-        const auto [format, bundle] = get_body(ctx);
-        const auto j = nlohmann::json::parse(bundle.begin(), bundle.end());
-        const auto parsed_bundle = j.get<ccf::js::Bundle>();
+        const auto [format, content, created_at] = get_action_content(ctx);
+        const auto parsed_content =
+          nlohmann::json::parse(content.begin(), content.end());
+        const auto parsed_bundle = parsed_content.get<ccf::js::Bundle>();
 
-        // Make operation auditable by writing user-supplied
-        // document to the ledger
-        auto audit_input = ctx.tx.template rw<AuditInputValue>(
-          fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
-        audit_input->put(ctx.rpc_ctx->get_request_body());
-        auto audit_info = ctx.tx.template rw<AuditInfoValue>(
-          fmt::format("{}.audit.info", CUSTOM_ENDPOINTS_NAMESPACE));
-        audit_info->put({format, AuditInputContent::BUNDLE, user_id.value()});
+        // Make operation auditable
+        record_action_for_audit_v1(
+          ctx.tx,
+          format,
+          user_id.value(),
+          fmt::format(
+            "{} {}",
+            ctx.rpc_ctx->get_method(),
+            ctx.rpc_ctx->get_request_path()),
+          ctx.rpc_ctx->get_request_body());
+
+        // Ensure signed actions are not replayed
+        if (format == ccf::ActionFormat::COSE)
+        {
+          if (!created_at.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_BAD_REQUEST,
+              ccf::errors::MissingRequiredHeader,
+              fmt::format("Missing {} protected header", CREATED_AT_NAME));
+            return;
+          }
+          ccf::InvalidArgsReason reason;
+          result = check_action_not_replayed_v1(
+            ctx.tx,
+            created_at.value(),
+            ctx.rpc_ctx->get_request_body(),
+            reason);
+
+          if (set_error_details(ctx, result, reason))
+          {
+            return;
+          }
+        }
 
         result = install_custom_endpoints_v1(ctx.tx, parsed_bundle);
         if (result != ccf::ApiResult::OK)
@@ -260,7 +482,7 @@ namespace programmabilityapp
         "/custom_endpoints",
         HTTP_PUT,
         put_custom_endpoints,
-        {ccf::user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
+        {endpoints_user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
         .set_auto_schema<ccf::js::Bundle, void>()
         .install();
 
@@ -280,7 +502,8 @@ namespace programmabilityapp
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(bundle).dump(2));
       };
 
@@ -298,10 +521,10 @@ namespace programmabilityapp
 
           {
             const auto parsed_query =
-              http::parse_query(ctx.rpc_ctx->get_request_query());
+              ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
 
             std::string error;
-            if (!http::get_query_value(
+            if (!ccf::http::get_query_value(
                   parsed_query, "module_name", module_name, error))
             {
               ctx.rpc_ctx->set_error(
@@ -328,8 +551,8 @@ namespace programmabilityapp
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE,
-            http::headervalues::contenttype::JAVASCRIPT);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::JAVASCRIPT);
           ctx.rpc_ctx->set_response_body(std::move(code));
         };
 
@@ -391,26 +614,53 @@ namespace programmabilityapp
           // - Convert current options to JSON
           auto j_options = nlohmann::json(options);
 
-          const auto [format, body] = get_body(ctx);
-          // - Parse argument as JSON body
-          const auto arg_body = nlohmann::json::parse(body.begin(), body.end());
+          const auto [format, content, created_at] = get_action_content(ctx);
+          // - Parse content as JSON options
+          const auto arg_content =
+            nlohmann::json::parse(content.begin(), content.end());
 
           // - Merge, to overwrite current options with anything from body. Note
           // that nulls mean deletions, which results in resetting to a default
           // value
-          j_options.merge_patch(arg_body);
+          j_options.merge_patch(arg_content);
 
           // - Parse patched options from JSON
           options = j_options.get<ccf::JSRuntimeOptions>();
 
-          // Make operation auditable by writing user-supplied
-          // document to the ledger
-          auto audit = ctx.tx.template rw<AuditInputValue>(
-            fmt::format("{}.audit.input", CUSTOM_ENDPOINTS_NAMESPACE));
-          audit->put(ctx.rpc_ctx->get_request_body());
-          auto audit_info = ctx.tx.template rw<AuditInfoValue>(
-            fmt::format("{}.audit.info", CUSTOM_ENDPOINTS_NAMESPACE));
-          audit_info->put({format, AuditInputContent::BUNDLE, user_id.value()});
+          // Make operation auditable
+          record_action_for_audit_v1(
+            ctx.tx,
+            format,
+            user_id.value(),
+            fmt::format(
+              "{} {}",
+              ctx.rpc_ctx->get_method(),
+              ctx.rpc_ctx->get_request_path()),
+            ctx.rpc_ctx->get_request_body());
+
+          // Ensure signed actions are not replayed
+          if (format == ccf::ActionFormat::COSE)
+          {
+            if (!created_at.has_value())
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::MissingRequiredHeader,
+                fmt::format("Missing {} protected header", CREATED_AT_NAME));
+              return;
+            }
+            ccf::InvalidArgsReason reason;
+            result = check_action_not_replayed_v1(
+              ctx.tx,
+              created_at.value(),
+              ctx.rpc_ctx->get_request_body(),
+              reason);
+
+            if (set_error_details(ctx, result, reason))
+            {
+              return;
+            }
+          }
 
           result = set_js_runtime_options_v1(ctx.tx, options);
           if (result != ccf::ApiResult::OK)
@@ -425,14 +675,15 @@ namespace programmabilityapp
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_header(
-            http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::JSON);
           ctx.rpc_ctx->set_response_body(nlohmann::json(options).dump(2));
         };
       make_endpoint(
         "/custom_endpoints/runtime_options",
         HTTP_PATCH,
         patch_runtime_options,
-        {ccf::user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
+        {options_user_cose_sign1_auth_policy, ccf::user_cert_auth_policy})
         .install();
 
       auto get_runtime_options = [this](ccf::endpoints::EndpointContext& ctx) {
@@ -452,7 +703,8 @@ namespace programmabilityapp
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(
-          http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(options).dump(2));
       };
       make_endpoint(
@@ -463,13 +715,23 @@ namespace programmabilityapp
         .set_auto_schema<void, ccf::JSRuntimeOptions>()
         .install();
     }
+
+    ccf::js::extensions::Extensions get_extensions(
+      const ccf::endpoints::EndpointContext& endpoint_ctx) override
+    {
+      ccf::js::extensions::Extensions extensions;
+
+      extensions.push_back(std::make_shared<MyExtension>(&endpoint_ctx.tx));
+
+      return extensions;
+    }
   };
 }
 
-namespace ccfapp
+namespace ccf
 {
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
-    ccfapp::AbstractNodeContext& context)
+    ccf::AbstractNodeContext& context)
   {
     return std::make_unique<programmabilityapp::ProgrammabilityHandlers>(
       context);

@@ -11,13 +11,13 @@
 
 namespace ccf
 {
-  static std::map<crypto::Pem, std::vector<crypto::Pem>>
+  static std::map<ccf::crypto::Pem, std::vector<ccf::crypto::Pem>>
     service_endorsement_cache;
 
   namespace historical
   {
     std::optional<ServiceInfo> find_previous_service_identity(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       ccf::historical::StatePtr& state,
       AbstractStateCache& state_cache)
     {
@@ -61,7 +61,7 @@ namespace ccf
     }
 
     bool populate_service_endorsements(
-      kv::ReadOnlyTx& tx,
+      ccf::kv::ReadOnlyTx& tx,
       ccf::historical::StatePtr& state,
       AbstractStateCache& state_cache,
       std::shared_ptr<NetworkIdentitySubsystemInterface>
@@ -91,7 +91,7 @@ namespace ccf
               "transaction is in a pre-2.0 part of the ledger.");
           }
 
-          auto v = crypto::make_unique_verifier(*receipt.node_cert);
+          auto v = ccf::crypto::make_unique_verifier(*receipt.node_cert);
           if (!v->verify_certificate(
                 {&network_identity->cert}, {}, /* ignore_time */ true))
           {
@@ -107,8 +107,8 @@ namespace ccf
               return false;
             }
 
-            auto hpubkey = crypto::public_key_pem_from_cert(
-              crypto::cert_pem_to_der(opt_psi->cert));
+            auto hpubkey = ccf::crypto::public_key_pem_from_cert(
+              ccf::crypto::cert_pem_to_der(opt_psi->cert));
 
             auto eit = service_endorsement_cache.find(hpubkey);
             if (eit != service_endorsement_cache.end())
@@ -119,10 +119,11 @@ namespace ccf
             }
             else
             {
-              auto ncv = crypto::make_unique_verifier(network_identity->cert);
+              auto ncv =
+                ccf::crypto::make_unique_verifier(network_identity->cert);
               auto endorsement = create_endorsed_cert(
                 hpubkey,
-                crypto::get_subject_name(opt_psi->cert),
+                ccf::crypto::get_subject_name(opt_psi->cert),
                 {},
                 ncv->validity_period(),
                 network_identity->priv_key,
