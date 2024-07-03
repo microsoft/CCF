@@ -26,10 +26,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The `programmability` sample app now demonstrates how applications can define their own extensions, creating bindings between C++ and JS state, and allowing JS endpoints to call functions implemented in C++.
 - Introduce `DynamicJSEndpointRegistry::record_action_for_audit_v1` and `DynamicJSEndpointRegistry::check_action_not_replayed_v1` to allow an application making use of the programmability feature to easily implement auditability, and protect users allowed to update the application against replay attacks (#6285).
 - Endpoints now support a `ToBackup` redirection strategy, for requests which should never be executed on a primary. These must also be read-only. These are configured similar to `ToPrimary` endpoints, with a `to_backup` object (specifying by-role or statically-addressed targets) in each node's configuration.
+- Introduced `ccf::historical::read_only_adapter_v4` and `ccf::historical::read_write_adapter_v4`. Users are now capable of passing a custom error handler to the adapter to customise RPC responses for internal historical queries errors, which are listed in `ccf::historical::HistoricalQueryErrorCode` enum.
 
-## Changed
+### Changed
 
 - Updated Open Enclave to [0.19.7](https://github.com/openenclave/openenclave/releases/tag/v0.19.7).
+
+### Deprecated
+
+- `ccf::historical::adapter_v3` becomes deprecated in favour of `_v4` version.
 
 ### Removed
 
