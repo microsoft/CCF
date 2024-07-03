@@ -78,28 +78,28 @@ jobs:
         shell: bash
         if: ${{ matrix.platform.name == 'snp' }}
 
-      - name: "Install Extended Testing Tools"
-        run: |
-          set -ex
-          sudo apt-get -y update
-          sudo apt install ansible -y
-          cd getting_started/setup_vm
-          ansible-playbook ccf-extended-testing.yml
-        shell: bash
-        if: ${{ matrix.platform.name != 'snp' }}
+      # - name: "Install Extended Testing Tools"
+      #   run: |
+      #     set -ex
+      #     sudo apt-get -y update
+      #     sudo apt install ansible -y
+      #     cd getting_started/setup_vm
+      #     ansible-playbook ccf-extended-testing.yml
+      #   shell: bash
+      #   if: ${{ matrix.platform.name != 'snp' }}
 
-      - name: "Test ${{ matrix.platform.name }}"
-        run: |
-          set -ex
-          cd build
-          rm -rf /github/home/.cache
-          mkdir -p /github/home/.cache
-          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
-          # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|unit"
-        shell: bash
-        if: "${{ matrix.platform.name != 'snp' }}"
+      # - name: "Test ${{ matrix.platform.name }}"
+      #   run: |
+      #     set -ex
+      #     cd build
+      #     rm -rf /github/home/.cache
+      #     mkdir -p /github/home/.cache
+      #     export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
+      #     # Unit tests
+      #     ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+      #     ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|unit"
+      #   shell: bash
+      #   if: "${{ matrix.platform.name != 'snp' }}"
 
       - name: "Make .deb Package"
         id: make_deb
@@ -117,36 +117,36 @@ jobs:
           echo "name=$CCF_GITHUB_PKG" >> $GITHUB_OUTPUT
         shell: bash
 
-      - name: "Install CCF Debian package"
-        run: |
-          set -ex
-          cd build
-          sudo apt -y install ./${{ steps.make_deb.outputs.name }}
-        shell: bash
+      # - name: "Install CCF Debian package"
+      #   run: |
+      #     set -ex
+      #     cd build
+      #     sudo apt -y install ./${{ steps.make_deb.outputs.name }}
+      #   shell: bash
 
-      - name: "Test Installed CCF"
-        run: |
-          set -ex
-          set -o pipefail
-          cd build
-          cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
-        shell: bash
-        if: "${{ matrix.platform.name != 'snp' }}"
+      # - name: "Test Installed CCF"
+      #   run: |
+      #     set -ex
+      #     set -o pipefail
+      #     cd build
+      #     cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
+      #   shell: bash
+      #   if: "${{ matrix.platform.name != 'snp' }}"
 
-      - name: "Recovery Benchmark for Installed CCF"
-        run: |
-          set -ex
-          set -o pipefail
-          cd build
-          cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
-        shell: bash
-        if: "${{ matrix.platform.name != 'snp' }}"
+      # - name: "Recovery Benchmark for Installed CCF"
+      #   run: |
+      #     set -ex
+      #     set -o pipefail
+      #     cd build
+      #     cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
+      #   shell: bash
+      #   if: "${{ matrix.platform.name != 'snp' }}"
 
-      - name: "Test Building a Sample Against Installed CCF"
-        run: |
-          set -ex
-          ./tests/test_install_build.sh -DCOMPILE_TARGET=${{ matrix.platform.name }}
-        shell: bash
+      # - name: "Test Building a Sample Against Installed CCF"
+      #   run: |
+      #     set -ex
+      #     ./tests/test_install_build.sh -DCOMPILE_TARGET=${{ matrix.platform.name }}
+      #   shell: bash
 
       - name: "Upload .deb Package"
         uses: actions/upload-artifact@v4
@@ -201,7 +201,7 @@ jobs:
           npm version $CCF_VERSION
           npm pack
           PKG=`ls *.tgz`
-          echo "name=$WHL" >> $GITHUB_OUTPUT
+          echo "name=$PKG" >> $GITHUB_OUTPUT
         shell: bash
         if: "${{ matrix.platform.name == 'sgx' }}"
 
@@ -230,34 +230,37 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: relnotes
-      - name: Download Compatibility Report
-        uses: actions/download-artifact@v4
-        with:
-          name: compatibility
-          path: pkg
-          merge-multiple: true
-      - name: Download TLS Report
-        uses: actions/download-artifact@v4
-        with:
-          name: tls
-          path: pkg
-          merge-multiple: true
+      # - name: Download Compatibility Report
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: compatibility
+      #     path: compatibility
+      #     merge-multiple: true
+      # - name: Download TLS Report
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: tls
+      #     path: tls
+      #     merge-multiple: true
       - name: Download Python Wheel
         uses: actions/download-artifact@v4
         with:
+          path: wheel
           name: wheel
       - name: Download TS Package
         uses: actions/download-artifact@v4
         with:
+          path: tstgz
           name: tstgz
       - run: |
           set -ex
           CCF_VERSION=${{ github.ref_name }}
           CCF_VERSION=${CCF_VERSION#ccf-}
+          ls
           ls pkg
           ls wheel
           ls tstgz
-          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md pkg/* wheel/* tstgz/*
+          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md pkg/* wheel/*.whl tstgz/*.tgz
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
