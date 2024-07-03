@@ -34,6 +34,14 @@ namespace ccf::endpoints
         ds::openapi::path(document, endpoint->full_uri_path),
         http_verb.value());
 
+      // Add what appears a *mandatory* operationId, which is expected to be
+      // unique across the spec.
+      std::string p =
+        std::regex_replace(endpoint->full_uri_path, std::regex("[/_]"), "");
+      std::string s = llhttp_method_name(http_verb.value());
+      ccf::nonstd::to_lower(s);
+      path_op["operationId"] = fmt::format("{}_{}", p, s);
+
       // Path Operation must contain at least one response - if none has been
       // defined, assume this can return 200
       if (ds::openapi::responses(path_op).empty())
