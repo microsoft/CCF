@@ -163,6 +163,7 @@ def fuzz_node_to_node(network, args):
         for logger in session._fuzz_data_logger._fuzz_loggers
         if not isinstance(logger, boofuzz.fuzz_logger_db.FuzzLoggerDb)
     ]
+    session._db_logger = None
     LOG.info(f"Loggers after monkey-patch: {session._fuzz_data_logger._fuzz_loggers}")
 
     session.connect(req)
