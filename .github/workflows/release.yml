@@ -78,28 +78,28 @@ jobs:
         shell: bash
         if: ${{ matrix.platform.name == 'snp' }}
 
-      # - name: "Install Extended Testing Tools"
-      #   run: |
-      #     set -ex
-      #     sudo apt-get -y update
-      #     sudo apt install ansible -y
-      #     cd getting_started/setup_vm
-      #     ansible-playbook ccf-extended-testing.yml
-      #   shell: bash
-      #   if: ${{ matrix.platform.name != 'snp' }}
+      - name: "Install Extended Testing Tools"
+        run: |
+          set -ex
+          sudo apt-get -y update
+          sudo apt install ansible -y
+          cd getting_started/setup_vm
+          ansible-playbook ccf-extended-testing.yml
+        shell: bash
+        if: ${{ matrix.platform.name != 'snp' }}
 
-      # - name: "Test ${{ matrix.platform.name }}"
-      #   run: |
-      #     set -ex
-      #     cd build
-      #     rm -rf /github/home/.cache
-      #     mkdir -p /github/home/.cache
-      #     export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
-      #     # Unit tests
-      #     ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-      #     ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|unit"
-      #   shell: bash
-      #   if: "${{ matrix.platform.name != 'snp' }}"
+      - name: "Test ${{ matrix.platform.name }}"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
+          # Unit tests
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|unit"
+        shell: bash
+        if: "${{ matrix.platform.name != 'snp' }}"
 
       - name: "Make .deb Package"
         id: make_deb
@@ -230,18 +230,16 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: relnotes
-      # - name: Download Compatibility Report
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     name: compatibility
-      #     path: compatibility
-      #     merge-multiple: true
-      # - name: Download TLS Report
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     name: tls
-      #     path: tls
-      #     merge-multiple: true
+      - name: Download Compatibility Report
+        uses: actions/download-artifact@v4
+        with:
+          name: compatibility
+          path: compatibility
+      - name: Download TLS Report
+        uses: actions/download-artifact@v4
+        with:
+          name: tls
+          path: tls
       - name: Download Python Wheel
         uses: actions/download-artifact@v4
         with:
