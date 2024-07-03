@@ -991,6 +991,9 @@ if(BUILD_TESTS)
     )
     target_link_libraries(base64_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
+    add_unit_test(pem_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/pem.cpp)
+    target_link_libraries(pem_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+
     add_test_bin(
       kp_cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/kp_cert.cpp
     )
