@@ -12,6 +12,32 @@ permissions:
   checks: write
 
 jobs:
+  make_sbom:
+    name: SBOM Generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: "Install SBOM tool"
+        run: |
+          set -ex
+          curl -Lo sbom-tool https://github.com/microsoft/sbom-tool/releases/latest/download/sbom-tool-linux-x64 > sbom-tool
+          chmod +x sbom-tool
+        shell: bash
+      - name: "Produce SBOM"
+        run: |
+          set -ex
+          CCF_VERSION=${{ github.ref_name }}
+          CCF_VERSION=${CCF_VERSION#ccf-}
+          ./sbom-tool generate -b . -bc . -pn CCF -ps Microsoft -nsb https://sbom.microsoft -pv $CCF_VERSION
+        shell: bash
+      - name: "Upload SBOM"
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifest
+          path: _manifest/spdx_2.2/*
+
   release_notes:
     name: Release Notes
     runs-on: ubuntu-latest
