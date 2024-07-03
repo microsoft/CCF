@@ -14,6 +14,7 @@ class CCFFuzzLogger(boofuzz.IFuzzLogger):
         self.print_period = print_period
         self.last_printed = None
         self.keep_lines = keep_lines
+        self.last_fuzzed_count = 0
 
         self.session = None
 
@@ -24,10 +25,15 @@ class CCFFuzzLogger(boofuzz.IFuzzLogger):
         if self.session is not None:
             now = datetime.datetime.now()
             if self.last_printed is None or now - self.last_printed > self.print_period:
+                fuzzed_this_period = (
+                    self.session.num_cases_actually_fuzzed - self.last_fuzzed_count
+                )
+                fuzzing_rate = fuzzed_this_period / self.print_period.seconds
                 LOG.info(
-                    f"Fuzzed {self.session.num_cases_actually_fuzzed} total cases in {self.session.runtime:.2f}s (rate={self.session.exec_speed:.2f}/s)"
+                    f"Fuzzed {self.session.num_cases_actually_fuzzed} total cases in {self.session.runtime:.2f}s (current rate={fuzzing_rate:.2f}/s)"
                 )
                 self.last_printed = now
+                self.last_fuzzed_count = self.session.num_cases_actually_fuzzed
 
     def open_test_case(self, test_case_id, name, index, *args, **kwargs):
         self._store_line(f"Test case: {name} ({index=})")
