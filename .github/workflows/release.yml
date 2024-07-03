@@ -168,6 +168,51 @@ jobs:
           path: build/tls_report.html
         if: "${{ matrix.platform.name == 'sgx' }}"
 
+      - name: "Build Python Wheel"
+        id: build_wheel
+        run: |
+          set -ex
+          cd python
+          python3.8 -m venv env
+          source ./env/bin/activate
+          pip install -r requirements.txt
+          pip install wheel
+          python setup.py bdist_wheel
+          WHL=`ls dist/*.whl`
+          echo "name=$WHL" >> $GITHUB_OUTPUT
+        shell: bash
+        if: "${{ matrix.platform.name == 'sgx' }}"
+
+      - name: "Upload Python Wheel"
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel
+          path: python/${{ steps.build_wheel.outputs.name }}
+        if: "${{ matrix.platform.name == 'sgx' }}"
+
+      - name: "Build TS Package"
+        id: build_tstgz
+        run: |
+          set -ex
+          cd js/ccf-app
+          CCF_VERSION=$(<../../build/VERSION_LONG)
+          CCF_VERSION=${CCF_VERSION#ccf-}
+          echo "Setting npm package version to ${CCF_VERSION}"
+          npm version $CCF_VERSION
+          npm pack
+          PKG=`ls *.tgz`
+          echo "name=$WHL" >> $GITHUB_OUTPUT
+        shell: bash
+        if: "${{ matrix.platform.name == 'sgx' }}"
+
+      - name: "Upload TS Package"
+        uses: actions/upload-artifact@v4
+        with:
+          name: tstgz
+          path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
+        if: "${{ matrix.platform.name == 'sgx' }}
+
+
   create_release:
     needs: build_release
     name: Create Release
@@ -198,11 +243,20 @@ jobs:
           name: tls
           path: pkg
           merge-multiple: true
+      - name: Download Python Wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel
+      - name: Download TS Package
+        uses: actions/download-artifact@v4
+        with:
+          name: tstgz
       - run: |
           set -ex
           CCF_VERSION=${{ github.ref_name }}
           CCF_VERSION=${CCF_VERSION#ccf-}
-          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md pkg/*
+          ls pkg
+          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md pkg/* python/* js/ccf-app/dist/*
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
