@@ -115,6 +115,9 @@ namespace ccf
       /// Timeout for forwarded RPC calls (in milliseconds)
       std::optional<size_t> forwarding_timeout_ms = std::nullopt;
 
+      /// Timeout for idle connections (in milliseconds)
+      std::optional<size_t> idle_timeout_ms = std::nullopt;
+
       struct Redirections
       {
         RedirectionResolverConfig to_primary;
@@ -136,6 +139,7 @@ namespace ccf
           http_configuration == other.http_configuration &&
           accepted_endpoints == other.accepted_endpoints &&
           forwarding_timeout_ms == other.forwarding_timeout_ms &&
+          idle_timeout_ms == other.idle_timeout_ms &&
           redirections == other.redirections;
       }
     };
@@ -180,6 +184,7 @@ namespace ccf
     http_configuration,
     accepted_endpoints,
     forwarding_timeout_ms,
+    idle_timeout_ms,
     redirections);
   DECLARE_JSON_TYPE(NodeInfoNetwork_v2::ACME);
   DECLARE_JSON_REQUIRED_FIELDS(NodeInfoNetwork_v2::ACME, configurations);

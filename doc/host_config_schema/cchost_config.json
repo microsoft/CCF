@@ -162,6 +162,11 @@
                 "default": 3000,
                 "description": "Timeout for forwarded RPC calls (in milliseconds)"
               },
+              "idle_timeout_ms": {
+                "type": ["integer", "null"],
+                "default": null,
+                "description": "Timeout for idle connections (in milliseconds). Null enforces no timeout."
+              },
               "redirections": {
                 "type": "object",
                 "description": "Configure how redirect responses should be produced on this interface. If this is omitted, then forwarding will be used instead",

@@ -35,6 +35,7 @@ DEFAULT_INITIAL_WINDOW_SIZE = 64 * 1024
 DEFAULT_MAX_FRAME_SIZE = 16 * 1024
 
 DEFAULT_FORWARDING_TIMEOUT_MS = 3000
+DEFAULT_IDLE_TIMEOUT_MS = 5000
 
 PRIMARY_RPC_INTERFACE = "primary_rpc_interface"
 SECONDARY_RPC_INTERFACE = "secondary_rpc_interface"
@@ -186,6 +187,7 @@ class RPCInterface(Interface):
     acme_configuration: Optional[str] = None
     accepted_endpoints: Optional[str] = None
     forwarding_timeout_ms: Optional[int] = DEFAULT_FORWARDING_TIMEOUT_MS
+    idle_timeout_ms: Optional[int] = DEFAULT_IDLE_TIMEOUT_MS
     redirections: Optional[RedirectionConfig] = None
     app_protocol: str = "HTTP1"
 
@@ -247,6 +249,8 @@ class RPCInterface(Interface):
             r["accepted_endpoints"] = interface.accepted_endpoints
         if interface.forwarding_timeout_ms:
             r["forwarding_timeout_ms"] = interface.forwarding_timeout_ms
+        # None is a valid value here, so write regardless
+        r["idle_timeout_ms"] = interface.idle_timeout_ms
         if interface.redirections:
             r["redirections"] = RedirectionConfig.to_json(interface.redirections)
         return r
@@ -273,6 +277,7 @@ class RPCInterface(Interface):
         interface.forwarding_timeout_ms = json.get(
             "forwarding_timeout_ms", DEFAULT_FORWARDING_TIMEOUT_MS
         )
+        interface.idle_timeout_ms = json.get("idle_timeout_ms", DEFAULT_IDLE_TIMEOUT_MS)
         if "redirections" in json:
             interface.redirections = RedirectionConfig.from_json(json["redirections"])
         if "endorsement" in json:
