@@ -48,8 +48,12 @@ using namespace std::chrono_literals;
 using ResolvedAddresses = std::
   map<ccf::NodeInfoNetwork::RpcInterfaceID, ccf::NodeInfoNetwork::NetAddress>;
 
-size_t asynchost::TCPImpl::remaining_read_quota;
-size_t asynchost::UDPImpl::remaining_read_quota;
+size_t asynchost::TCPImpl::remaining_read_quota =
+  asynchost::TCPImpl::max_read_quota;
+bool asynchost::TCPImpl::alloc_quota_logged = false;
+
+size_t asynchost::UDPImpl::remaining_read_quota =
+  asynchost::UDPImpl::max_read_quota;
 
 std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
 
