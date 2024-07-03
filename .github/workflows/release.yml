@@ -234,12 +234,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: compatibility
-          path: compatibility
       - name: Download TLS Report
         uses: actions/download-artifact@v4
         with:
           name: tls
-          path: tls
       - name: Download Python Wheel
         uses: actions/download-artifact@v4
         with:
@@ -254,11 +252,7 @@ jobs:
           set -ex
           CCF_VERSION=${{ github.ref_name }}
           CCF_VERSION=${CCF_VERSION#ccf-}
-          ls
-          ls pkg
-          ls wheel
-          ls tstgz
-          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md pkg/* wheel/*.whl tstgz/*.tgz
+          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz tls_report.html compatibility_report.json
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
