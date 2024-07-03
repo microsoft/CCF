@@ -441,7 +441,7 @@ namespace ccf::historical
     };
   }
 
-ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v4(
+  ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v4(
     const HandleReadOnlyHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
@@ -455,7 +455,7 @@ ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v4(
       f, node_context, available, extractor, ehandler);
   }
 
- ccf::endpoints::EndpointFunction read_write_adapter_v4(
+  ccf::endpoints::EndpointFunction read_write_adapter_v4(
     const HandleReadWriteHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
