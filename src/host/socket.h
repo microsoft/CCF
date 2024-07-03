@@ -71,10 +71,12 @@ namespace asynchost
     virtual void on_resolve_failed()
     {
       LOG_FATAL_FMT("{} {} resolve failed", conn_name, name);
+      abort();
     }
     virtual void on_listen_failed()
     {
       LOG_FATAL_FMT("{} {} listen failed", conn_name, name);
+      abort();
     }
   };
 

@@ -1285,7 +1285,7 @@ namespace loggingapp
       make_read_only_endpoint(
         "/log/private/historical",
         HTTP_GET,
-        ccf::historical::read_only_adapter_v3(
+        ccf::historical::read_only_adapter_v4(
           get_historical, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetHistorical::Out>()
@@ -1335,7 +1335,7 @@ namespace loggingapp
       make_read_only_endpoint(
         "/log/private/historical_receipt",
         HTTP_GET,
-        ccf::historical::read_only_adapter_v3(
+        ccf::historical::read_only_adapter_v4(
           get_historical_with_receipt, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
@@ -1391,7 +1391,7 @@ namespace loggingapp
       make_read_only_endpoint(
         "/log/public/historical_receipt",
         HTTP_GET,
-        ccf::historical::read_only_adapter_v3(
+        ccf::historical::read_only_adapter_v4(
           get_historical_with_receipt_and_claims, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetReceipt::Out>()
