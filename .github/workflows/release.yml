@@ -117,36 +117,36 @@ jobs:
           echo "name=$CCF_GITHUB_PKG" >> $GITHUB_OUTPUT
         shell: bash
 
-      # - name: "Install CCF Debian package"
-      #   run: |
-      #     set -ex
-      #     cd build
-      #     sudo apt -y install ./${{ steps.make_deb.outputs.name }}
-      #   shell: bash
+      - name: "Install CCF Debian package"
+        run: |
+          set -ex
+          cd build
+          sudo apt -y install ./${{ steps.make_deb.outputs.name }}
+        shell: bash
 
-      # - name: "Test Installed CCF"
-      #   run: |
-      #     set -ex
-      #     set -o pipefail
-      #     cd build
-      #     cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
-      #   shell: bash
-      #   if: "${{ matrix.platform.name != 'snp' }}"
+      - name: "Test Installed CCF"
+        run: |
+          set -ex
+          set -o pipefail
+          cd build
+          cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
+        shell: bash
+        if: "${{ matrix.platform.name != 'snp' }}"
 
-      # - name: "Recovery Benchmark for Installed CCF"
-      #   run: |
-      #     set -ex
-      #     set -o pipefail
-      #     cd build
-      #     cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
-      #   shell: bash
-      #   if: "${{ matrix.platform.name != 'snp' }}"
+      - name: "Recovery Benchmark for Installed CCF"
+        run: |
+          set -ex
+          set -o pipefail
+          cd build
+          cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
+        shell: bash
+        if: "${{ matrix.platform.name != 'snp' }}"
 
-      # - name: "Test Building a Sample Against Installed CCF"
-      #   run: |
-      #     set -ex
-      #     ./tests/test_install_build.sh -DCOMPILE_TARGET=${{ matrix.platform.name }}
-      #   shell: bash
+      - name: "Test Building a Sample Against Installed CCF"
+        run: |
+          set -ex
+          ./tests/test_install_build.sh -DCOMPILE_TARGET=${{ matrix.platform.name }}
+        shell: bash
 
       - name: "Upload .deb Package"
         uses: actions/upload-artifact@v4
