@@ -195,49 +195,50 @@ namespace ccf::historical
     std::string reason,
     endpoints::CommandEndpointContext& args)
   {
-    if (err == HistoricalQueryErrorCode::InternalError)
+    switch (err)
     {
-      args.rpc_ctx->set_error(
-        HTTP_STATUS_INTERNAL_SERVER_ERROR,
-        ccf::errors::TransactionPendingOrUnknown,
-        std::move(reason));
-    }
-    else if (err == HistoricalQueryErrorCode::TransactionPending)
-    {
-      args.rpc_ctx->set_response_header(
-        http::headers::CACHE_CONTROL, "no-cache");
-      args.rpc_ctx->set_error(
-        HTTP_STATUS_NOT_FOUND,
-        ccf::errors::TransactionPendingOrUnknown,
-        std::move(reason));
-    }
-    else if (err == HistoricalQueryErrorCode::TransactionInvalid)
-    {
-      args.rpc_ctx->set_error(
-        HTTP_STATUS_NOT_FOUND,
-        ccf::errors::TransactionInvalid,
-        std::move(reason));
-    }
-    else if (err == HistoricalQueryErrorCode::TransactionIdMissing)
-    {
-      args.rpc_ctx->set_error(
-        HTTP_STATUS_NOT_FOUND,
-        ccf::errors::TransactionInvalid,
-        std::move(reason));
-    }
-    else if (err == HistoricalQueryErrorCode::TransactionPartiallyReady)
-    {
-      args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
-      constexpr size_t retry_after_seconds = 3;
-      args.rpc_ctx->set_response_header(
-        http::headers::RETRY_AFTER, retry_after_seconds);
-      args.rpc_ctx->set_response_header(
-        http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
-      args.rpc_ctx->set_response_body(std::move(reason));
-    }
-    else
-    {
-      LOG_FAIL_FMT("Unexpected historical query error {}", err);
+      case HistoricalQueryErrorCode::InternalError:
+      {
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_INTERNAL_SERVER_ERROR,
+          ccf::errors::TransactionPendingOrUnknown,
+          std::move(reason));
+        break;
+      }
+      case HistoricalQueryErrorCode::TransactionPending:
+      {
+        args.rpc_ctx->set_response_header(
+          http::headers::CACHE_CONTROL, "no-cache");
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::TransactionPendingOrUnknown,
+          std::move(reason));
+        break;
+      }
+      case HistoricalQueryErrorCode::TransactionInvalid:
+      case HistoricalQueryErrorCode::TransactionIdMissing:
+      {
+        args.rpc_ctx->set_error(
+          HTTP_STATUS_NOT_FOUND,
+          ccf::errors::TransactionInvalid,
+          std::move(reason));
+        break;
+      }
+      case HistoricalQueryErrorCode::TransactionPartiallyReady:
+      {
+        args.rpc_ctx->set_response_status(HTTP_STATUS_ACCEPTED);
+        constexpr size_t retry_after_seconds = 3;
+        args.rpc_ctx->set_response_header(
+          http::headers::RETRY_AFTER, retry_after_seconds);
+        args.rpc_ctx->set_response_header(
+          http::headers::CONTENT_TYPE, http::headervalues::contenttype::TEXT);
+        args.rpc_ctx->set_response_body(std::move(reason));
+        break;
+      }
+      default:
+      {
+        LOG_FAIL_FMT("Unexpected historical query error {}", err);
+      }
     }
   }
 
@@ -429,13 +430,15 @@ namespace ccf::historical
   template <
     class TQueryHandler,
     class TEndpointFunction,
-    class TEndpointContext>
+    class TEndpointContext,
+    class TTxIDExtractor,
+    class TErrorHandler>
   TEndpointFunction _adapter_v4(
     const TQueryHandler& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
-    const CommandTxIDExtractor& extractor,
-    const ErrorHandler& ehandler)
+    const TTxIDExtractor& extractor,
+    const TErrorHandler& ehandler)
   {
     auto& state_cache = node_context.get_historical_state();
     auto network_identity_subsystem =
@@ -526,12 +529,12 @@ namespace ccf::historical
     };
   }
 
-  ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v4(
+ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v4(
     const HandleReadOnlyHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
-    const CommandTxIDExtractor& extractor,
-    const ErrorHandler& ehandler)
+    const ReadOnlyTxIDExtractor& extractor,
+    const ReadOnlyErrorHandler& ehandler)
   {
     return _adapter_v4<
       HandleReadOnlyHistoricalQuery,
@@ -540,11 +543,11 @@ namespace ccf::historical
       f, node_context, available, extractor, ehandler);
   }
 
-  ccf::endpoints::EndpointFunction read_write_adapter_v4(
+ ccf::endpoints::EndpointFunction read_write_adapter_v4(
     const HandleReadWriteHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
-    const CommandTxIDExtractor& extractor,
+    const TxIDExtractor& extractor,
     const ErrorHandler& ehandler)
   {
     return _adapter_v4<

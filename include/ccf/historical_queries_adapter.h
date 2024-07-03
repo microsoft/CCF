@@ -51,7 +51,12 @@ namespace ccf::historical
   using ErrorHandler = std::function<void(
     HistoricalQueryErrorCode err,
     std::string reason,
-    endpoints::CommandEndpointContext& args)>;
+    endpoints::EndpointContext& args)>;
+
+  using ReadOnlyErrorHandler = std::function<void(
+    HistoricalQueryErrorCode err,
+    std::string reason,
+    endpoints::ReadOnlyEndpointContext& args)>;
 
   void default_error_handler(
     HistoricalQueryErrorCode err,
@@ -75,19 +80,22 @@ namespace ccf::historical
     ccf::SeqNo seqno,
     std::string& error_reason);
 
-  FMT_DEPRECATED ccf::endpoints::EndpointFunction adapter_v3(
+  CCF_DEPRECATED("Replaced by _v4")
+  ccf::endpoints::EndpointFunction adapter_v3(
     const HandleHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor = txid_from_header);
 
-  FMT_DEPRECATED ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v3(
+  CCF_DEPRECATED("Replaced by _v4")
+  ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v3(
     const HandleReadOnlyHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const ReadOnlyTxIDExtractor& extractor = txid_from_header);
 
-  FMT_DEPRECATED ccf::endpoints::EndpointFunction read_write_adapter_v3(
+  CCF_DEPRECATED("Replaced by _v4")
+  ccf::endpoints::EndpointFunction read_write_adapter_v3(
     const HandleReadWriteHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
@@ -97,13 +105,13 @@ namespace ccf::historical
     const HandleReadOnlyHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
-    const CommandTxIDExtractor& extractor = txid_from_header,
-    const ErrorHandler& ehandler = default_error_handler);
+    const ReadOnlyTxIDExtractor& extractor = txid_from_header,
+    const ReadOnlyErrorHandler& ehandler = default_error_handler);
 
   ccf::endpoints::EndpointFunction read_write_adapter_v4(
     const HandleReadWriteHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
-    const CommandTxIDExtractor& extractor = txid_from_header,
+    const TxIDExtractor& extractor = txid_from_header,
     const ErrorHandler& ehandler = default_error_handler);
 }
