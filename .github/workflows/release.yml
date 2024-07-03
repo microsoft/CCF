@@ -210,7 +210,7 @@ jobs:
         with:
           name: tstgz
           path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
-        if: "${{ matrix.platform.name == 'sgx' }}
+        if: "${{ matrix.platform.name == 'sgx' }}"
 
 
   create_release:
