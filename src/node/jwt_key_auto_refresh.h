@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/serdes.h"
 #include "ccf/service/tables/jwt.h"
 #include "http/http_builder.h"
 #include "http/http_rpc_context.h"
@@ -105,16 +104,15 @@ namespace ccf
     template <typename T>
     void send_refresh_jwt_keys(T msg)
     {
-      auto body = serdes::pack(msg, serdes::Pack::Text);
-
       ::http::Request request(fmt::format(
         "/{}/{}",
         ccf::get_actor_prefix(ccf::ActorsType::nodes),
         "jwt_keys/refresh"));
       request.set_header(
-        ccf::http::headers::CONTENT_TYPE,
-        ccf::http::headervalues::contenttype::JSON);
-      request.set_body(&body);
+        http::headers::CONTENT_TYPE, http::headervalues::contenttype::JSON);
+
+      auto body = nlohmann::json(msg).dump();
+      request.set_body(body);
 
       auto packed = request.build_request();
 

@@ -285,19 +285,18 @@ namespace ccf
 
     auto get_receipt =
       [](auto& ctx, ccf::historical::StatePtr historical_state) {
-        const auto [pack, params] =
-          ccf::jsonhandler::get_json_params(ctx.rpc_ctx);
+        const auto params = ccf::jsonhandler::get_json_params(ctx.rpc_ctx);
 
         assert(historical_state->receipt);
         auto out = ccf::describe_receipt_v1(*historical_state->receipt);
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-        ccf::jsonhandler::set_response(out, ctx.rpc_ctx, pack);
+        ccf::jsonhandler::set_response(out, ctx.rpc_ctx);
       };
 
     make_read_only_endpoint(
       "/receipt",
       HTTP_GET,
-      ccf::historical::read_only_adapter_v3(
+      ccf::historical::read_only_adapter_v4(
         get_receipt, context, is_tx_committed, txid_from_query_string),
       no_auth_required)
       .set_auto_schema<void, nlohmann::json>()

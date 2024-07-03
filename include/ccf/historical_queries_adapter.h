@@ -39,6 +39,30 @@ namespace ccf::historical
   std::optional<ccf::TxID> txid_from_header(
     endpoints::CommandEndpointContext& args);
 
+  enum class HistoricalQueryErrorCode
+  {
+    InternalError,
+    TransactionPending,
+    TransactionInvalid,
+    TransactionIdMissing,
+    TransactionPartiallyReady,
+  };
+
+  using ErrorHandler = std::function<void(
+    HistoricalQueryErrorCode err,
+    std::string reason,
+    endpoints::EndpointContext& args)>;
+
+  using ReadOnlyErrorHandler = std::function<void(
+    HistoricalQueryErrorCode err,
+    std::string reason,
+    endpoints::ReadOnlyEndpointContext& args)>;
+
+  void default_error_handler(
+    HistoricalQueryErrorCode err,
+    std::string reason,
+    endpoints::CommandEndpointContext& args);
+
   enum class HistoricalTxStatus
   {
     Error,
@@ -56,21 +80,38 @@ namespace ccf::historical
     ccf::SeqNo seqno,
     std::string& error_reason);
 
+  CCF_DEPRECATED("Replaced by _v4")
   ccf::endpoints::EndpointFunction adapter_v3(
     const HandleHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor = txid_from_header);
 
+  CCF_DEPRECATED("Replaced by _v4")
   ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v3(
     const HandleReadOnlyHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const ReadOnlyTxIDExtractor& extractor = txid_from_header);
 
+  CCF_DEPRECATED("Replaced by _v4")
   ccf::endpoints::EndpointFunction read_write_adapter_v3(
     const HandleReadWriteHistoricalQuery& f,
     ccf::AbstractNodeContext& node_context,
     const CheckHistoricalTxStatus& available,
     const TxIDExtractor& extractor = txid_from_header);
+
+  ccf::endpoints::ReadOnlyEndpointFunction read_only_adapter_v4(
+    const HandleReadOnlyHistoricalQuery& f,
+    ccf::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const ReadOnlyTxIDExtractor& extractor = txid_from_header,
+    const ReadOnlyErrorHandler& ehandler = default_error_handler);
+
+  ccf::endpoints::EndpointFunction read_write_adapter_v4(
+    const HandleReadWriteHistoricalQuery& f,
+    ccf::AbstractNodeContext& node_context,
+    const CheckHistoricalTxStatus& available,
+    const TxIDExtractor& extractor = txid_from_header,
+    const ErrorHandler& ehandler = default_error_handler);
 }

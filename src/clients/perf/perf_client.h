@@ -32,6 +32,7 @@ namespace client
     if (core_id > threads || core_id < 0)
     {
       LOG_FATAL_FMT("Invalid core id: {}", core_id);
+      abort();
       return false;
     }
 
@@ -43,6 +44,7 @@ namespace client
     if (sched_setaffinity(0, sizeof(cpu_set_t), &set) < 0)
     {
       LOG_FATAL_FMT("Unable to set affinity");
+      abort();
       return false;
     }
 
@@ -350,42 +352,6 @@ namespace client
         method,
         expects_commit};
 
-      append_prepared_tx(tx, index);
-    }
-
-    void add_prepared_tx(
-      const std::string& method,
-      const nlohmann::json& params,
-      bool expects_commit,
-      const std::optional<size_t>& index,
-      const serdes::Pack& serdes)
-    {
-      auto body = serdes::pack(params, serdes);
-
-      const PreparedTx tx{
-        rpc_connection->gen_request(
-          method,
-          body,
-          serdes == serdes::Pack::Text ?
-            ccf::http::headervalues::contenttype::JSON :
-            ccf::http::headervalues::contenttype::MSGPACK,
-          HTTP_POST,
-          options.bearer_token.size() == 0 ? nullptr :
-                                             options.bearer_token.c_str()),
-        method,
-        expects_commit};
-
-      append_prepared_tx(tx, index);
-    }
-
-    void add_prepared_tx(
-      const std::string& method,
-      const nlohmann::json& params,
-      bool expects_commit,
-      const std::optional<size_t>& index)
-    {
-      const PreparedTx tx{
-        rpc_connection->gen_request(method, params), method, expects_commit};
       append_prepared_tx(tx, index);
     }
 

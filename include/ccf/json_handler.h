@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/endpoint_registry.h"
-#include "ccf/serdes.h"
 
 #include <llhttp/llhttp.h>
 #include <variant>
@@ -11,18 +10,16 @@
 namespace ccf
 {
   /*
-   * For simple app methods which expect a JSON request, potentially msgpack'd,
-   * these functions do the common decoding of the input and setting of response
-   * fields, to reduce handler complexity and repetition.
+   * For simple app methods which expect a JSON request these functions do the
+   * common decoding of the input and setting of response fields, to reduce
+   * handler complexity and repetition.
    *
    * Rather than:
    * auto foo = [](auto& ctx) {
    *   nlohmann::json params;
-   *   serdes::Pack pack_type;
    *   if (<content-type is JSON>)
    *   {
-   *     params = unpack(ctx.rpc_ctx->get_request_body());
-   *     pack_type = Text;
+   *     params = nlohmann::json::parse(ctx.rpc_ctx->get_request_body());
    *   }
    *   else
    *   {
@@ -35,15 +32,8 @@ namespace ccf
    *     ctx.rpc_ctx->set_response_header(content_type, Text);
    *     ctx.rpc_ctx->set_response_body(error_msg(result));
    *   }
-   *   if (pack_type == Text)
-   *   {
-   *     ctx.rpc_ctx->set_response_header(content_type, JSON);
-   *     ctx.rpc_ctx->set_response_body(pack(result, Text));
-   *   }
-   *   else
-   *   {
-   *     ...
-   *   }
+   *   ctx.rpc_ctx->set_response_header(content_type, JSON);
+   *   ctx.rpc_ctx->set_response_body(result.dump());
    * };
    *
    * it is possible to write the shorter, clearer, return-based lambda:
@@ -65,24 +55,10 @@ namespace ccf
     using JsonAdapterResponse =
       std::variant<ErrorDetails, RedirectDetails, nlohmann::json>;
 
-    char const* pack_to_content_type(serdes::Pack p);
-
-    serdes::Pack detect_json_pack(const std::shared_ptr<ccf::RpcContext>& ctx);
-
-    serdes::Pack get_response_pack(
-      const std::shared_ptr<ccf::RpcContext>& ctx,
-      serdes::Pack request_pack = serdes::Pack::Text);
-
-    nlohmann::json get_params_from_body(
-      const std::shared_ptr<ccf::RpcContext>& ctx, serdes::Pack pack);
-
-    std::pair<serdes::Pack, nlohmann::json> get_json_params(
-      const std::shared_ptr<ccf::RpcContext>& ctx);
+    nlohmann::json get_json_params(const std::shared_ptr<ccf::RpcContext>& ctx);
 
     void set_response(
-      JsonAdapterResponse&& res,
-      std::shared_ptr<ccf::RpcContext>& ctx,
-      serdes::Pack request_packing);
+      JsonAdapterResponse&& res, std::shared_ptr<ccf::RpcContext>& ctx);
   }
 
   jsonhandler::JsonAdapterResponse make_success();

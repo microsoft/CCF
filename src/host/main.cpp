@@ -48,8 +48,12 @@ using namespace std::chrono_literals;
 using ResolvedAddresses = std::
   map<ccf::NodeInfoNetwork::RpcInterfaceID, ccf::NodeInfoNetwork::NetAddress>;
 
-size_t asynchost::TCPImpl::remaining_read_quota;
-size_t asynchost::UDPImpl::remaining_read_quota;
+size_t asynchost::TCPImpl::remaining_read_quota =
+  asynchost::TCPImpl::max_read_quota;
+bool asynchost::TCPImpl::alloc_quota_logged = false;
+
+size_t asynchost::UDPImpl::remaining_read_quota =
+  asynchost::UDPImpl::max_read_quota;
 
 std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
 
@@ -60,19 +64,6 @@ void print_version(size_t)
             << nlohmann::json(ccf::pal::platform).get<std::string>()
             << std::endl;
   exit(0);
-}
-
-std::string read_required_environment_variable(
-  const std::string& envvar, const std::string& name)
-{
-  auto ev = std::getenv(envvar.c_str());
-  if (ev == nullptr)
-  {
-    LOG_FATAL_FMT(
-      "Environment variable \"{}\" for {} is not set", envvar, name);
-  }
-  LOG_INFO_FMT("Reading {} from environment {}", name, envvar);
-  return ev;
 }
 
 int main(int argc, char** argv)
@@ -676,6 +667,7 @@ int main(int argc, char** argv)
     else
     {
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
+      return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
     std::vector<uint8_t> startup_snapshot = {};
