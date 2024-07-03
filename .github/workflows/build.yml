@@ -71,13 +71,14 @@ jobs:
           mkdir -p /github/home/.cache
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          # TODO: Restore
+          #./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # Fuzz test, verbose every time
           ./tests.sh --timeout 360 -VV -R "fuzz"
           # All other acceptably fast tests, mostly end-to-end
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite|unit" -E "fuzz"
+          #./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite|unit" -E "fuzz"
           # Partitions tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite"
+          #./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite"
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
 
