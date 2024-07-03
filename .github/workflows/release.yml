@@ -212,7 +212,6 @@ jobs:
           path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
         if: "${{ matrix.platform.name == 'sgx' }}"
 
-
   create_release:
     needs: build_release
     name: Create Release
@@ -256,7 +255,9 @@ jobs:
           CCF_VERSION=${{ github.ref_name }}
           CCF_VERSION=${CCF_VERSION#ccf-}
           ls pkg
-          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md pkg/* python/* js/ccf-app/dist/*
+          ls wheel
+          ls tstgz
+          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md pkg/* wheel/* tstgz/*
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
