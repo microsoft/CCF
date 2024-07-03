@@ -68,6 +68,7 @@ namespace ccf
     {
       ListenInterfaceID interface_id;
       std::shared_ptr<ccf::Session> session = nullptr;
+      std::chrono::milliseconds idle_time = {};
     };
 
     ccf::pal::Mutex lock;
@@ -621,6 +622,9 @@ namespace ccf
             return;
           }
 
+          // Reset idle time for any incoming traffic
+          search->second.idle_time = {};
+
           search->second.session->handle_incoming_data({data, size});
         });
 
@@ -691,8 +695,32 @@ namespace ccf
             }
           }
 
+          // Reset idle time for any incoming traffic
+          search->second.idle_time = {};
+
           search->second.session->handle_incoming_data({data, size});
         });
+    }
+
+    void tick(const std::chrono::milliseconds& elapsed_ms)
+    {
+      for (auto& [id, session_data] : sessions)
+      {
+        // TODO: Make timeout configurable
+        if (session_data.idle_time > std::chrono::milliseconds{5000})
+        {
+          LOG_INFO_FMT(
+            "Closing session {} after {} idle", id, session_data.idle_time);
+          // Deliberately timing out on _subsequent_ tick after crossing this
+          // boundary, so timeouts lag rather than leading this limit
+          if (session_data.session)
+          {
+            session_data.session->close_session();
+          }
+        }
+
+        session_data.idle_time += elapsed_ms;
+      }
     }
   };
 }
