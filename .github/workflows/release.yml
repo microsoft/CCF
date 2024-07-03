@@ -30,12 +30,12 @@ jobs:
           set -ex
           CCF_VERSION=${{ github.ref_name }}
           CCF_VERSION=${CCF_VERSION#ccf-}
-          ./sbom-tool generate -b . -bc . -pn CCF -ps Microsoft -nsb https://sbom.microsoft -pv $CCF_VERSION
+          ./sbom-tool generate -b . -bc . -pn CCF -ps Microsoft -nsb https://sbom.microsoft -pv $CCF_VERSION -V Error
         shell: bash
       - name: "Upload SBOM"
         uses: actions/upload-artifact@v4
         with:
-          name: manifest
+          name: sbom
           path: _manifest/spdx_2.2/*
 
   release_notes:
@@ -239,7 +239,9 @@ jobs:
         if: "${{ matrix.platform.name == 'sgx' }}"
 
   create_release:
-    needs: build_release
+    needs:
+      - build_release
+      - make_sbom
     name: Create Release
     runs-on: ubuntu-latest
     steps:
@@ -274,11 +276,16 @@ jobs:
         with:
           path: tstgz
           name: tstgz
+      - name: Download SBOM
+        uses: actions/download-artifact@v4
+        with:
+          path: sbom
+          name: sbom
       - run: |
           set -ex
           CCF_VERSION=${{ github.ref_name }}
           CCF_VERSION=${CCF_VERSION#ccf-}
-          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz tls_report.html compatibility_report.json
+          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
