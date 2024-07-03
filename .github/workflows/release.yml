@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "ccf-0.*"
+      - "ccf-5.*"
   workflow_dispatch:
 
 permissions:
