@@ -428,7 +428,8 @@ int main(int argc, char** argv)
       1s, // Tick once-per-second to track idle connections,
       writer_factory,
       idGen,
-      config.client_connection_timeout);
+      config.client_connection_timeout,
+      config.idle_connection_timeout);
     rpc->behaviour.register_message_handlers(bp.get_dispatcher());
 
     // This is a temporary solution to keep UDP RPC handlers in the same
@@ -436,7 +437,11 @@ int main(int argc, char** argv)
     // which is not yet possible, due to UDP and TCP not being derived
     // from the same abstract class.
     asynchost::RPCConnections<asynchost::UDP> rpc_udp(
-      1s, writer_factory, idGen, config.client_connection_timeout);
+      1s,
+      writer_factory,
+      idGen,
+      config.client_connection_timeout,
+      config.idle_connection_timeout);
     rpc_udp->behaviour.register_udp_message_handlers(bp.get_dispatcher());
 
     ResolvedAddresses resolved_rpc_addresses;

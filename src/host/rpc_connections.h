@@ -235,6 +235,9 @@ namespace asynchost
 
     std::optional<std::chrono::milliseconds> client_connection_timeout =
       std::nullopt;
+
+    std::optional<std::chrono::seconds> idle_connection_timeout = std::nullopt;
+
     ringbuffer::WriterPtr to_enclave;
 
   public:
@@ -242,9 +245,12 @@ namespace asynchost
       ringbuffer::AbstractWriterFactory& writer_factory,
       ConnIDGenerator& idGen,
       std::optional<std::chrono::milliseconds> client_connection_timeout_ =
+        std::nullopt,
+      std::optional<std::chrono::seconds> idle_connection_timeout_ =
         std::nullopt) :
       idGen(idGen),
       client_connection_timeout(client_connection_timeout_),
+      idle_connection_timeout(idle_connection_timeout_),
       to_enclave(writer_factory.create_writer_to_inside())
     {}
 
@@ -430,10 +436,15 @@ namespace asynchost
 
     void on_timer()
     {
+      if (!idle_connection_timeout.has_value())
+      {
+        return;
+      }
+
+      const size_t max_idle_time = idle_connection_timeout->count();
+
       for (auto& [id, idle_time] : idle_times)
       {
-        // TODO: Configurable timeout
-        const auto max_idle_time = 5;
         if (idle_time > max_idle_time)
         {
           LOG_INFO_FMT(

@@ -51,7 +51,6 @@ namespace ccf
       size_t peak_sessions;
       size_t max_open_sessions_soft;
       size_t max_open_sessions_hard;
-      std::optional<std::chrono::milliseconds> idle_timeout = std::nullopt;
       ccf::Endorsement endorsement;
       http::ParserConfiguration http_configuration;
       ccf::SessionMetrics::Errors errors;
@@ -70,28 +69,10 @@ namespace ccf
       ListenInterfaceID interface_id;
       std::shared_ptr<ccf::Session> session = nullptr;
 
-      struct IdleConfig
-      {
-        std::chrono::milliseconds idle_time;
-        // Store idle timeout in each session data, rather than doing repeated
-        // lookup via interface ID.
-        std::chrono::milliseconds max_idle_time;
-      };
-      std::optional<IdleConfig> idle_config = std::nullopt;
-
-      SessionData(
-        ListenInterfaceID lid,
-        const std::shared_ptr<ccf::Session>& s,
-        const std::optional<std::chrono::milliseconds>& idle_timeout =
-          std::nullopt)
+      SessionData(ListenInterfaceID lid, const std::shared_ptr<ccf::Session>& s)
       {
         interface_id = lid;
         session = s;
-        if (idle_timeout.has_value())
-        {
-          idle_config =
-            IdleConfig{std::chrono::milliseconds(0), idle_timeout.value()};
-        }
       }
     };
 
@@ -261,12 +242,6 @@ namespace ccf
 
         li.max_open_sessions_hard = interface.max_open_sessions_hard.value_or(
           max_open_sessions_hard_default);
-
-        if (interface.idle_timeout_ms.has_value())
-        {
-          li.idle_timeout =
-            std::chrono::milliseconds(interface.idle_timeout_ms.value());
-        }
 
         li.endorsement = interface.endorsement.value_or(endorsement_default);
 
@@ -456,11 +431,7 @@ namespace ccf
               shared_from_this());
         }
         sessions.insert(std::make_pair(
-          id,
-          SessionData(
-            listen_interface_id,
-            std::move(capped_session),
-            per_listen_interface.idle_timeout)));
+          id, SessionData(listen_interface_id, std::move(capped_session))));
         per_listen_interface.open_sessions++;
         per_listen_interface.peak_sessions = std::max(
           per_listen_interface.peak_sessions,
@@ -481,23 +452,15 @@ namespace ccf
             auto session = std::make_shared<QUICSessionImpl>(
               rpc_map, id, listen_interface_id, writer_factory);
             sessions.insert(std::make_pair(
-              id,
-              SessionData(
-                listen_interface_id,
-                std::move(session),
-                per_listen_interface.idle_timeout)));
+              id, SessionData(listen_interface_id, std::move(session))));
           }
           else if (custom_protocol_subsystem)
           {
             // We know it's a custom protocol, but the session creation function
             // hasn't been registered yet, so we keep a nullptr until the first
             // udp::inbound message.
-            sessions.insert(std::make_pair(
-              id,
-              SessionData(
-                listen_interface_id,
-                nullptr,
-                per_listen_interface.idle_timeout)));
+            sessions.insert(
+              std::make_pair(id, SessionData(listen_interface_id, nullptr)));
           }
           else
           {
@@ -532,11 +495,7 @@ namespace ccf
             per_listen_interface.http_configuration);
 
           sessions.insert(std::make_pair(
-            id,
-            SessionData(
-              listen_interface_id,
-              std::move(session),
-              per_listen_interface.idle_timeout)));
+            id, SessionData(listen_interface_id, std::move(session))));
           per_listen_interface.open_sessions++;
           per_listen_interface.peak_sessions = std::max(
             per_listen_interface.peak_sessions,
@@ -669,12 +628,6 @@ namespace ccf
             return;
           }
 
-          // Reset idle time for any incoming traffic
-          if (search->second.idle_config.has_value())
-          {
-            search->second.idle_config->idle_time = {};
-          }
-
           search->second.session->handle_incoming_data({data, size});
         });
 
@@ -745,44 +698,8 @@ namespace ccf
             }
           }
 
-          // Reset idle time for any incoming traffic
-          if (search->second.idle_config.has_value())
-          {
-            search->second.idle_config->idle_time = {};
-          }
-
           search->second.session->handle_incoming_data({data, size});
         });
-    }
-
-    void tick(const std::chrono::milliseconds& elapsed_ms)
-    {
-      std::lock_guard<ccf::pal::Mutex> guard(lock);
-
-      for (auto& [id, session_data] : sessions)
-      {
-        if (session_data.idle_config.has_value())
-        {
-          auto& [idle_time, max_idle_time] = session_data.idle_config.value();
-          if (idle_time > max_idle_time)
-          {
-            LOG_INFO_FMT(
-              "Closing session {} after {} idle (max = {})",
-              id,
-              idle_time,
-              max_idle_time);
-
-            // Deliberately timing out on _subsequent_ tick after crossing this
-            // boundary, so timeouts lag rather than lead this limit
-            if (session_data.session)
-            {
-              session_data.session->close_session();
-            }
-          }
-
-          idle_time += elapsed_ms;
-        }
-      }
     }
   };
 }

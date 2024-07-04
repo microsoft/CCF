@@ -74,6 +74,7 @@ namespace host
     ccf::ds::TimeString slow_io_logging_threshold = {"10ms"};
     std::optional<std::string> node_client_interface = std::nullopt;
     ccf::ds::TimeString client_connection_timeout = {"2000ms"};
+    std::optional<ccf::ds::TimeString> idle_connection_timeout = std::nullopt;
     std::optional<std::string> node_data_json_file = std::nullopt;
     std::optional<std::string> service_data_json_file = std::nullopt;
     bool ignore_first_sigterm = false;
@@ -234,6 +235,7 @@ namespace host
     slow_io_logging_threshold,
     node_client_interface,
     client_connection_timeout,
+    idle_connection_timeout,
     node_data_json_file,
     service_data_json_file,
     ignore_first_sigterm,

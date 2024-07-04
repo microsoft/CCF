@@ -266,32 +266,70 @@ def run_connection_caps_tests(args):
 
 
 def run_idle_timeout_tests(args):
-    with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
-    ) as network:
-        network.start_and_open(args)
+    test_cases = [
+        {"timeout": 5, "safe_sleeps": [2, 3], "killed_sleeps": [10]},
+        {
+            "timeout": None,
+            "safe_sleeps": [10],
+        },  # With no timeout, idle sessions are never killed
+    ]
 
-        primary, _ = network.find_primary()
-        with primary.client(
-            "user0",
-            impl_type=infra.clients.RawSocketClient,
-        ) as c:
-            r = c.get("/node/commit")
-            assert r.status_code == http.HTTPStatus.OK, r
+    def verbose_sleep(sleep_time):
+        slept = 0
+        step_size = 1
+        LOG.info(f"Sleeping {sleep_time}s")
+        while slept < sleep_time:
+            next_sleep = min(sleep_time - slept, step_size)
+            time.sleep(next_sleep)
+            slept += next_sleep
+            LOG.debug(f"Slept {slept}/{sleep_time}s")
 
-            time.sleep(4)
+    for test_case in test_cases:
+        timeout = test_case.get("timeout")
+        args.idle_connection_timeout_s = timeout
 
-            r = c.get("/node/commit")
-            assert r.status_code == http.HTTPStatus.OK, r
+        with infra.network.network(
+            args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        ) as network:
+            network.start_and_open(args)
 
-            time.sleep(6)
+            primary, _ = network.find_primary()
 
-            try:
-                r = c.get("/node/commit")
-            except http.client.RemoteDisconnected:
-                pass
-            else:
-                assert False, f"Expected idle delay to result in disconnection"
+            safe_sleeps = test_case.get("safe_sleeps", None)
+            if safe_sleeps:
+                for sleep_time in safe_sleeps:
+                    with primary.client(
+                        "user0",
+                        impl_type=infra.clients.RawSocketClient,
+                    ) as c:
+                        r = c.get("/node/commit")
+                        assert r.status_code == http.HTTPStatus.OK, r
+
+                        verbose_sleep(sleep_time)
+
+                        r = c.get("/node/commit")
+                        assert r.status_code == http.HTTPStatus.OK, r
+
+            killed_sleeps = test_case.get("killed_sleeps", None)
+            if killed_sleeps:
+                for sleep_time in killed_sleeps:
+                    with primary.client(
+                        "user0",
+                        impl_type=infra.clients.RawSocketClient,
+                    ) as c:
+                        r = c.get("/node/commit")
+                        assert r.status_code == http.HTTPStatus.OK, r
+
+                        verbose_sleep(sleep_time)
+
+                        try:
+                            r = c.get("/node/commit")
+                        except http.client.RemoteDisconnected:
+                            pass
+                        else:
+                            assert (
+                                False
+                            ), f"Expected sleep of {sleep_time}s to result in disconnection (given {timeout}s idle timeout)"
 
 
 @contextlib.contextmanager

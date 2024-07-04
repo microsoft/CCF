@@ -341,7 +341,6 @@ namespace ccf
               last_tick_time += elapsed_ms;
 
               node->tick(elapsed_ms);
-              rpcsessions->tick(elapsed_ms);
               historical_state_cache->tick(elapsed_ms);
               ::threading::ThreadMessaging::instance().tick(elapsed_ms);
               // When recovering, no signature should be emitted while the
