@@ -131,11 +131,6 @@ namespace asynchost
       behaviour = std::move(b);
     }
 
-    SocketBehaviour<UDP>* get_behaviour()
-    {
-      return behaviour.get();
-    }
-
     std::string get_host() const
     {
       return host;

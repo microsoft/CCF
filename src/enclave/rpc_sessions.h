@@ -64,20 +64,11 @@ namespace ccf
     std::unordered_map<ListenInterfaceID, std::shared_ptr<::tls::Cert>> certs;
     std::shared_ptr<CustomProtocolSubsystem> custom_protocol_subsystem;
 
-    struct SessionData
-    {
-      ListenInterfaceID interface_id;
-      std::shared_ptr<ccf::Session> session = nullptr;
-
-      SessionData(ListenInterfaceID lid, const std::shared_ptr<ccf::Session>& s)
-      {
-        interface_id = lid;
-        session = s;
-      }
-    };
-
     ccf::pal::Mutex lock;
-    std::unordered_map<ccf::tls::ConnID, SessionData> sessions;
+    std::unordered_map<
+      ccf::tls::ConnID,
+      std::pair<ListenInterfaceID, std::shared_ptr<ccf::Session>>>
+      sessions;
     size_t sessions_peak = 0;
 
     // Negative sessions are reserved for those originating from
@@ -431,7 +422,7 @@ namespace ccf
               shared_from_this());
         }
         sessions.insert(std::make_pair(
-          id, SessionData(listen_interface_id, std::move(capped_session))));
+          id, std::make_pair(listen_interface_id, std::move(capped_session))));
         per_listen_interface.open_sessions++;
         per_listen_interface.peak_sessions = std::max(
           per_listen_interface.peak_sessions,
@@ -452,7 +443,7 @@ namespace ccf
             auto session = std::make_shared<QUICSessionImpl>(
               rpc_map, id, listen_interface_id, writer_factory);
             sessions.insert(std::make_pair(
-              id, SessionData(listen_interface_id, std::move(session))));
+              id, std::make_pair(listen_interface_id, std::move(session))));
           }
           else if (custom_protocol_subsystem)
           {
@@ -460,7 +451,7 @@ namespace ccf
             // hasn't been registered yet, so we keep a nullptr until the first
             // udp::inbound message.
             sessions.insert(
-              std::make_pair(id, SessionData(listen_interface_id, nullptr)));
+              std::make_pair(id, std::make_pair(listen_interface_id, nullptr)));
           }
           else
           {
@@ -495,7 +486,7 @@ namespace ccf
             per_listen_interface.http_configuration);
 
           sessions.insert(std::make_pair(
-            id, SessionData(listen_interface_id, std::move(session))));
+            id, std::make_pair(listen_interface_id, std::move(session))));
           per_listen_interface.open_sessions++;
           per_listen_interface.peak_sessions = std::max(
             per_listen_interface.peak_sessions,
@@ -516,7 +507,7 @@ namespace ccf
         return nullptr;
       }
 
-      return search->second.session;
+      return search->second.second;
     }
 
     bool reply_async(
@@ -550,7 +541,7 @@ namespace ccf
       const auto search = sessions.find(id);
       if (search != sessions.end())
       {
-        auto it = listening_interfaces.find(search->second.interface_id);
+        auto it = listening_interfaces.find(search->second.first);
         if (it != listening_interfaces.end())
         {
           it->second.open_sessions--;
@@ -572,12 +563,11 @@ namespace ccf
       // There are no limits on outbound client sessions (we do not check any
       // session caps here). We expect this type of session to be rare and
       // want it to succeed even when we are busy.
-      // Client sessions also get no idle timeout.
       if (app_protocol == "HTTP2")
       {
         auto session = std::make_shared<::http::HTTP2ClientSession>(
           id, writer_factory, std::move(ctx));
-        sessions.insert(std::make_pair(id, SessionData("", session)));
+        sessions.insert(std::make_pair(id, std::make_pair("", session)));
         sessions_peak = std::max(sessions_peak, sessions.size());
         return session;
       }
@@ -585,7 +575,7 @@ namespace ccf
       {
         auto session = std::make_shared<::http::HTTPClientSession>(
           id, writer_factory, std::move(ctx));
-        sessions.insert(std::make_pair(id, SessionData("", session)));
+        sessions.insert(std::make_pair(id, std::make_pair("", session)));
         sessions_peak = std::max(sessions_peak, sessions.size());
         return session;
       }
@@ -601,7 +591,7 @@ namespace ccf
       auto id = get_next_client_id();
       auto session = std::make_shared<::http::UnencryptedHTTPClientSession>(
         id, writer_factory);
-      sessions.insert(std::make_pair(id, SessionData("", session)));
+      sessions.insert(std::make_pair(id, std::make_pair("", session)));
       sessions_peak = std::max(sessions_peak, sessions.size());
       return session;
     }
@@ -628,7 +618,7 @@ namespace ccf
             return;
           }
 
-          search->second.session->handle_incoming_data({data, size});
+          search->second.second->handle_incoming_data({data, size});
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -655,14 +645,14 @@ namespace ccf
               "Ignoring udp::inbound for unknown or refused session: {}", id);
             return;
           }
-          else if (!search->second.session && custom_protocol_subsystem)
+          else if (!search->second.second && custom_protocol_subsystem)
           {
             LOG_DEBUG_FMT("Creating custom UDP session {}", id);
 
             try
             {
               const auto& conn_id = search->first;
-              const auto& interface_id = search->second.interface_id;
+              const auto& interface_id = search->second.first;
 
               auto iit = listening_interfaces.find(interface_id);
               if (iit == listening_interfaces.end())
@@ -677,11 +667,10 @@ namespace ccf
 
               const auto& interface = iit->second;
 
-              search->second.session =
-                custom_protocol_subsystem->create_session(
-                  interface.app_protocol, conn_id, nullptr);
+              search->second.second = custom_protocol_subsystem->create_session(
+                interface.app_protocol, conn_id, nullptr);
 
-              if (!search->second.session)
+              if (!search->second.second)
               {
                 LOG_DEBUG_FMT(
                   "Failure to create custom protocol session, ignoring "
@@ -698,7 +687,7 @@ namespace ccf
             }
           }
 
-          search->second.session->handle_incoming_data({data, size});
+          search->second.second->handle_incoming_data({data, size});
         });
     }
   };
