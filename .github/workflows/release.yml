@@ -1,0 +1,291 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "ccf-5.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+  checks: write
+
+jobs:
+  make_sbom:
+    name: SBOM Generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: "Install SBOM tool"
+        run: |
+          set -ex
+          curl -Lo sbom-tool https://github.com/microsoft/sbom-tool/releases/latest/download/sbom-tool-linux-x64 > sbom-tool
+          chmod +x sbom-tool
+        shell: bash
+      - name: "Produce SBOM"
+        run: |
+          set -ex
+          CCF_VERSION=${{ github.ref_name }}
+          CCF_VERSION=${CCF_VERSION#ccf-}
+          ./sbom-tool generate -b . -bc . -pn CCF -ps Microsoft -nsb https://sbom.microsoft -pv $CCF_VERSION -V Error
+        shell: bash
+      - name: "Upload SBOM"
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: _manifest/spdx_2.2/*
+
+  release_notes:
+    name: Release Notes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: "Check Release Notes"
+        run: |
+          set -ex
+          python scripts/extract-release-notes.py --target-git-version
+        shell: bash
+      - name: "Produce Release Notes"
+        run: |
+          set -ex
+          set -o pipefail
+          python ./scripts/extract-release-notes.py --target-git-version --describe-path-changes "./samples/constitution" | tee rel-notes.md
+      - name: "Upload .deb Package"
+        uses: actions/upload-artifact@v4
+        with:
+          name: relnotes
+          path: rel-notes.md
+
+  build_release:
+    needs: release_notes
+    name: Build Release
+    strategy:
+      matrix:
+        platform:
+          - name: virtual
+            image: default
+            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+          - name: snp
+            image: default
+            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+          - name: sgx
+            image: sgx
+            nodes: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
+            container_options: --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx
+            cmake_options: -DLVI_MITIGATIONS=ON
+    runs-on: ${{ matrix.platform.nodes }}
+    container:
+      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-26-06-2024
+      options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro ${{ matrix.platform.container_options }}"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Build Release ${{ matrix.platform.name }}"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} ${{ matrix.platform.cmake_options }} -DCLIENT_PROTOCOLS_TEST=ON ..
+          ninja -v | tee build.log
+        shell: bash
+
+      - name: "Check Mitigation Flags"
+        run: |
+          cd build
+          python3 ../scripts/build-check.py < build.log SNPCC
+        shell: bash
+        if: ${{ matrix.platform.name == 'snp' }}
+
+      - name: "Install Extended Testing Tools"
+        run: |
+          set -ex
+          sudo apt-get -y update
+          sudo apt install ansible -y
+          cd getting_started/setup_vm
+          ansible-playbook ccf-extended-testing.yml
+        shell: bash
+        if: ${{ matrix.platform.name != 'snp' }}
+
+      - name: "Test ${{ matrix.platform.name }}"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
+          # Unit tests
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|unit"
+        shell: bash
+        if: "${{ matrix.platform.name != 'snp' }}"
+
+      - name: "Make .deb Package"
+        id: make_deb
+        run: |
+          set -ex
+          set -o pipefail
+          cd build
+          cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
+          cpack -V -G DEB
+          INITIAL_PKG=`ls *.deb`
+          CCF_GITHUB_PKG=${INITIAL_PKG//\~/_}
+          if [[ "$INITIAL_PKG" != "$CCF_GITHUB_PKG" ]]; then
+            mv $INITIAL_PKG $CCF_GITHUB_PKG
+          fi
+          echo "name=$CCF_GITHUB_PKG" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: "Install CCF Debian package"
+        run: |
+          set -ex
+          cd build
+          sudo apt -y install ./${{ steps.make_deb.outputs.name }}
+        shell: bash
+
+      - name: "Test Installed CCF"
+        run: |
+          set -ex
+          set -o pipefail
+          cd build
+          cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
+        shell: bash
+        if: "${{ matrix.platform.name != 'snp' }}"
+
+      - name: "Recovery Benchmark for Installed CCF"
+        run: |
+          set -ex
+          set -o pipefail
+          cd build
+          cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
+        shell: bash
+        if: "${{ matrix.platform.name != 'snp' }}"
+
+      - name: "Test Building a Sample Against Installed CCF"
+        run: |
+          set -ex
+          ./tests/test_install_build.sh -DCOMPILE_TARGET=${{ matrix.platform.name }}
+        shell: bash
+
+      - name: "Upload .deb Package"
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.platform.name }}
+          path: build/${{ steps.make_deb.outputs.name }}
+
+      - name: "Upload Compatibility Report"
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility
+          path: build/compatibility_report.json
+        if: "${{ matrix.platform.name == 'sgx' }}"
+
+      - name: "Upload TLS Report"
+        uses: actions/upload-artifact@v4
+        with:
+          name: tls
+          path: build/tls_report.html
+        if: "${{ matrix.platform.name == 'sgx' }}"
+
+      - name: "Build Python Wheel"
+        id: build_wheel
+        run: |
+          set -ex
+          cd python
+          python3.8 -m venv env
+          source ./env/bin/activate
+          pip install -r requirements.txt
+          pip install wheel
+          python setup.py bdist_wheel
+          WHL=`ls dist/*.whl`
+          echo "name=$WHL" >> $GITHUB_OUTPUT
+        shell: bash
+        if: "${{ matrix.platform.name == 'sgx' }}"
+
+      - name: "Upload Python Wheel"
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel
+          path: python/${{ steps.build_wheel.outputs.name }}
+        if: "${{ matrix.platform.name == 'sgx' }}"
+
+      - name: "Build TS Package"
+        id: build_tstgz
+        run: |
+          set -ex
+          cd js/ccf-app
+          CCF_VERSION=$(<../../build/VERSION_LONG)
+          CCF_VERSION=${CCF_VERSION#ccf-}
+          echo "Setting npm package version to ${CCF_VERSION}"
+          npm version $CCF_VERSION
+          npm pack
+          PKG=`ls *.tgz`
+          echo "name=$PKG" >> $GITHUB_OUTPUT
+        shell: bash
+        if: "${{ matrix.platform.name == 'sgx' }}"
+
+      - name: "Upload TS Package"
+        uses: actions/upload-artifact@v4
+        with:
+          name: tstgz
+          path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
+        if: "${{ matrix.platform.name == 'sgx' }}"
+
+  create_release:
+    needs:
+      - build_release
+      - make_sbom
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Download Packages
+        uses: actions/download-artifact@v4
+        with:
+          path: pkg
+          pattern: pkg-*
+          merge-multiple: true
+      - name: Download Release Notes
+        uses: actions/download-artifact@v4
+        with:
+          name: relnotes
+      - name: Download Compatibility Report
+        uses: actions/download-artifact@v4
+        with:
+          name: compatibility
+      - name: Download TLS Report
+        uses: actions/download-artifact@v4
+        with:
+          name: tls
+      - name: Download Python Wheel
+        uses: actions/download-artifact@v4
+        with:
+          path: wheel
+          name: wheel
+      - name: Download TS Package
+        uses: actions/download-artifact@v4
+        with:
+          path: tstgz
+          name: tstgz
+      - name: Download SBOM
+        uses: actions/download-artifact@v4
+        with:
+          path: sbom
+          name: sbom
+      - run: |
+          set -ex
+          CCF_VERSION=${{ github.ref_name }}
+          CCF_VERSION=${CCF_VERSION#ccf-}
+          gh release create --title $CCF_VERSION --draft --notes-file rel-notes.md ${{ github.ref_name }} pkg/* wheel/*.whl tstgz/*.tgz sbom/* tls_report.html compatibility_report.json
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}

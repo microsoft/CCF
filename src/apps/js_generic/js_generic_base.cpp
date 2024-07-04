@@ -58,7 +58,7 @@ namespace ccf
               consensus, view, seqno, error_reason);
           };
 
-        ccf::historical::adapter_v3(
+        ccf::historical::read_write_adapter_v4(
           [this, endpoint](
             ccf::endpoints::EndpointContext& endpoint_ctx,
             ccf::historical::StatePtr state) {

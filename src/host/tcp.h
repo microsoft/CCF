@@ -29,6 +29,7 @@ namespace asynchost
     // Each uv iteration, read only a capped amount from all sockets.
     static constexpr auto max_read_quota = max_read_size * 4;
     static size_t remaining_read_quota;
+    static bool alloc_quota_logged;
 
     enum Status
     {
@@ -127,6 +128,7 @@ namespace asynchost
     static void reset_read_quota()
     {
       remaining_read_quota = max_read_quota;
+      alloc_quota_logged = false;
     }
 
     void set_behaviour(std::unique_ptr<SocketBehaviour<TCP>> b)
@@ -756,10 +758,13 @@ namespace asynchost
 
       alloc_size = std::min(alloc_size, remaining_read_quota);
       remaining_read_quota -= alloc_size;
-      LOG_TRACE_FMT(
-        "Allocating {} bytes for TCP read ({} of quota remaining)",
-        alloc_size,
-        remaining_read_quota);
+      if (alloc_size != 0)
+      {
+        LOG_TRACE_FMT(
+          "Allocating {} bytes for TCP read ({} of quota remaining)",
+          alloc_size,
+          remaining_read_quota);
+      }
 
       buf->base = new char[alloc_size];
       buf->len = alloc_size;
@@ -785,7 +790,11 @@ namespace asynchost
 
       if (sz == UV_ENOBUFS)
       {
-        LOG_DEBUG_FMT("TCP on_read reached allocation quota");
+        if (!alloc_quota_logged)
+        {
+          LOG_DEBUG_FMT("TCP on_read reached allocation quota");
+          alloc_quota_logged = true;
+        }
         on_free(buf);
         return;
       }
