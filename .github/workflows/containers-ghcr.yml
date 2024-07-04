@@ -68,7 +68,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-        if: ${{ steps.tref.outputs.major_release == '5'}}
+        if: ${{ steps.tref.outputs.major_release >= '5'}}
 
       - name: Attest container
         uses: actions/attest-build-provenance@v1
