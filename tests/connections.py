@@ -19,6 +19,7 @@ import os
 import socket
 import struct
 from infra.snp import IS_SNP
+from infra.runner import ConcurrentRunner
 
 from loguru import logger as LOG
 
@@ -372,17 +373,27 @@ def run_node_socket_robustness_tests(args):
 
 
 if __name__ == "__main__":
-    args = infra.e2e_args.cli_args()
-    args.package = "samples/apps/logging/liblogging"
+    cr = ConcurrentRunner()
 
-    args.nodes = infra.e2e_args.nodes(args, 1)
-    run_node_socket_robustness_tests(args)
+    cr.add(
+        "robustness",
+        run_node_socket_robustness_tests,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+    )
 
-    # Set a relatively low cap on max open sessions, so we can saturate it in a reasonable amount of time
-    args.max_open_sessions = 40
-    args.max_open_sessions_hard = args.max_open_sessions + 5
+    # Need to modify args.max_open_sessions _before_ calling e2e_args.nodes for
+    # the connection_caps runner, but _after_ constructing nodes args for other
+    # runners.
+    # In other words, make sure this is run last.
+    cr.args.max_open_sessions = 40
+    cr.args.max_open_sessions_hard = cr.args.max_open_sessions + 5
+    cr.add(
+        "caps",
+        run_connection_caps_tests,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        initial_user_count=1,
+    )
 
-    args.nodes = infra.e2e_args.nodes(args, 1)
-    args.initial_user_count = 1
-
-    run_connection_caps_tests(args)
+    cr.run()
