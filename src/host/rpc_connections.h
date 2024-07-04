@@ -44,8 +44,8 @@ namespace
 namespace asynchost
 {
   /**
-   * Generates next ID, passed as an argument to RPCConnections so that we can
-   * have multiple and avoid reusing the same ConnID across each.
+   * Generates next ID, passed as an argument to RPCConnectionsImpl so that we
+   * can have multiple and avoid reusing the same ConnID across each.
    */
   class ConnIDGenerator
   {
@@ -88,17 +88,17 @@ namespace asynchost
   };
 
   template <class ConnType>
-  class RPCConnections
+  class RPCConnectionsImpl
   {
     using ConnID = ConnIDGenerator::ConnID;
 
     class RPCClientBehaviour : public SocketBehaviour<ConnType>
     {
     public:
-      RPCConnections& parent;
+      RPCConnectionsImpl& parent;
       ConnID id;
 
-      RPCClientBehaviour(RPCConnections& parent, ConnID id) :
+      RPCClientBehaviour(RPCConnectionsImpl& parent, ConnID id) :
         SocketBehaviour<ConnType>("RPC Client", getConnTypeName<ConnType>()),
         parent(parent),
         id(id)
@@ -119,6 +119,8 @@ namespace asynchost
       bool on_read(size_t len, uint8_t*& data, sockaddr) override
       {
         LOG_DEBUG_FMT("rpc read {}: {}", id, len);
+
+        SocketBehaviour<ConnType>::mark_active();
 
         RINGBUFFER_WRITE_MESSAGE(
           ::tls::tls_inbound,
@@ -147,10 +149,10 @@ namespace asynchost
     class RPCServerBehaviour : public SocketBehaviour<ConnType>
     {
     public:
-      RPCConnections& parent;
+      RPCConnectionsImpl& parent;
       ConnID id;
 
-      RPCServerBehaviour(RPCConnections& parent, ConnID id) :
+      RPCServerBehaviour(RPCConnectionsImpl& parent, ConnID id) :
         SocketBehaviour<ConnType>("RPC Client", getConnTypeName<ConnType>()),
         parent(parent),
         id(id)
@@ -158,6 +160,8 @@ namespace asynchost
 
       void on_accept(ConnType& peer) override
       {
+        SocketBehaviour<ConnType>::mark_active();
+
         // UDP connections don't register peers
         if constexpr (isUDP<ConnType>())
         {
@@ -199,6 +203,8 @@ namespace asynchost
 
       bool on_read(size_t len, uint8_t*& data, sockaddr addr) override
       {
+        SocketBehaviour<ConnType>::mark_active();
+
         // UDP connections don't have clients, it's all done in the server
         if constexpr (isUDP<ConnType>())
         {
@@ -231,7 +237,7 @@ namespace asynchost
     ringbuffer::WriterPtr to_enclave;
 
   public:
-    RPCConnections(
+    RPCConnectionsImpl(
       ringbuffer::AbstractWriterFactory& writer_factory,
       ConnIDGenerator& idGen,
       std::optional<std::chrono::milliseconds> client_connection_timeout_ =
@@ -319,6 +325,8 @@ namespace asynchost
 
       if (s->second.is_null())
         return false;
+
+      s->second->get_behaviour()->mark_active();
 
       return s->second->write(len, data, addr);
     }
@@ -410,6 +418,23 @@ namespace asynchost
         });
     }
 
+    void on_timer()
+    {
+      for (auto& [id, conn] : sockets)
+      {
+        // TODO: Configurable timeout
+        if (conn->get_behaviour()->idle_time > std::chrono::seconds(5))
+        {
+          // TODO: Log
+          stop(id);
+        }
+        else
+        {
+          conn->get_behaviour()->idle_time += std::chrono::seconds(1);
+        }
+      }
+    }
+
   private:
     ConnID get_next_id()
     {
@@ -441,4 +466,7 @@ namespace asynchost
       return listen_name.value();
     }
   };
+
+  template <class ConnType>
+  using RPCConnections = proxy_ptr<Timer<RPCConnectionsImpl<ConnType>>>;
 }

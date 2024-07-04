@@ -134,6 +134,11 @@ namespace asynchost
       behaviour = std::move(b);
     }
 
+    SocketBehaviour<TCP>* get_behaviour()
+    {
+      return behaviour.get();
+    }
+
     std::string get_host() const
     {
       return host;
