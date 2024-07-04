@@ -270,17 +270,25 @@ namespace asynchost
             {
               std::ofstream snapshot_file(
                 full_snapshot_path, std::ios::app | std::ios::binary);
-              const auto& snapshot = it->second.snapshot;
-              snapshot_file.write(
-                reinterpret_cast<const char*>(snapshot->data()),
-                snapshot->size());
-              snapshot_file.write(
-                reinterpret_cast<const char*>(receipt_data), receipt_size);
+              if (!snapshot_file.good())
+              {
+                LOG_FAIL_FMT(
+                  "Cannot write snapshot: error opening file {}", file_name);
+              }
+              else
+              {
+                const auto& snapshot = it->second.snapshot;
+                snapshot_file.write(
+                  reinterpret_cast<const char*>(snapshot->data()),
+                  snapshot->size());
+                snapshot_file.write(
+                  reinterpret_cast<const char*>(receipt_data), receipt_size);
 
-              LOG_INFO_FMT(
-                "New snapshot file written to {} [{} bytes]",
-                file_name,
-                static_cast<size_t>(snapshot_file.tellp()));
+                LOG_INFO_FMT(
+                  "New snapshot file written to {} [{} bytes]",
+                  file_name,
+                  static_cast<size_t>(snapshot_file.tellp()));
+              }
             }
 
             pending_snapshots.erase(it);
