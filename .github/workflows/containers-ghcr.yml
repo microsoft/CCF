@@ -76,4 +76,4 @@ jobs:
           subject-name: ${{ steps.tref.outputs.img_name }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
-        if: ${{ steps.tref.outputs.major_release == '5'}}
+        if: ${{ steps.tref.outputs.major_release >= '5'}}
