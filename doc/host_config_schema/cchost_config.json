@@ -664,7 +664,7 @@
     },
     "idle_connection_timeout": {
       "type": ["string", "null"],
-      "default": null,
+      "default": "60s",
       "description": "Timeout for idle connections. Null is a valid option, and means idle connections are retained indefinitely"
     },
     "worker_threads": {
