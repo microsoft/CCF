@@ -53,7 +53,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ steps.tref.outputs.img_name }}
-        if: ${{ steps.tref.outputs.major_release == '5'}}
+        if: ${{ steps.tref.outputs.major_release >= '5'}}
 
       - name: Build and push container
         id: push
