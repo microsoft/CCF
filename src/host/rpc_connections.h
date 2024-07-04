@@ -102,7 +102,9 @@ namespace asynchost
         SocketBehaviour<ConnType>("RPC Client", getConnTypeName<ConnType>()),
         parent(parent),
         id(id)
-      {}
+      {
+        parent.mark_active(id);
+      }
 
       void on_resolve_failed() override
       {
@@ -120,7 +122,7 @@ namespace asynchost
       {
         LOG_DEBUG_FMT("rpc read {}: {}", id, len);
 
-        SocketBehaviour<ConnType>::mark_active();
+        parent.mark_active(id);
 
         RINGBUFFER_WRITE_MESSAGE(
           ::tls::tls_inbound,
@@ -160,8 +162,6 @@ namespace asynchost
 
       void on_accept(ConnType& peer) override
       {
-        SocketBehaviour<ConnType>::mark_active();
-
         // UDP connections don't register peers
         if constexpr (isUDP<ConnType>())
         {
@@ -203,8 +203,6 @@ namespace asynchost
 
       bool on_read(size_t len, uint8_t*& data, sockaddr addr) override
       {
-        SocketBehaviour<ConnType>::mark_active();
-
         // UDP connections don't have clients, it's all done in the server
         if constexpr (isUDP<ConnType>())
         {
@@ -231,6 +229,9 @@ namespace asynchost
 
     std::unordered_map<ConnID, ConnType> sockets;
     ConnIDGenerator& idGen;
+
+    // Measured in seconds
+    std::unordered_map<ConnID, size_t> idle_times;
 
     std::optional<std::chrono::milliseconds> client_connection_timeout =
       std::nullopt;
@@ -324,9 +325,11 @@ namespace asynchost
       }
 
       if (s->second.is_null())
+      {
         return false;
+      }
 
-      s->second->get_behaviour()->mark_active();
+      mark_active(id);
 
       return s->second->write(len, data, addr);
     }
@@ -348,6 +351,8 @@ namespace asynchost
         LOG_FAIL_FMT("Cannot close id {}: does not exist", id);
         return false;
       }
+
+      idle_times.erase(id);
 
       return true;
     }
@@ -418,19 +423,29 @@ namespace asynchost
         });
     }
 
+    void mark_active(ConnID id)
+    {
+      idle_times[id] = 0;
+    }
+
     void on_timer()
     {
-      for (auto& [id, conn] : sockets)
+      for (auto& [id, idle_time] : idle_times)
       {
         // TODO: Configurable timeout
-        if (conn->get_behaviour()->idle_time > std::chrono::seconds(5))
+        const auto max_idle_time = 5;
+        if (idle_time > max_idle_time)
         {
-          // TODO: Log
+          LOG_INFO_FMT(
+            "Closing socket {} after {}s idle (max = {}s)",
+            id,
+            idle_time,
+            max_idle_time);
           stop(id);
         }
         else
         {
-          conn->get_behaviour()->idle_time += std::chrono::seconds(1);
+          idle_time += 1;
         }
       }
     }
