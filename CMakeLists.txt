@@ -565,6 +565,12 @@ install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 file(READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
      HOST_CONFIG_SCHEMA
 )
+set_property(
+  DIRECTORY
+  APPEND
+  PROPERTY CMAKE_CONFIGURE_DEPENDS
+           ${CCF_DIR}/doc/host_config_schema/cchost_config.json
+)
 configure_file(
   ${CCF_DIR}/src/host/config_schema.h.in ${CCF_DIR}/src/host/config_schema.h
   @ONLY
@@ -572,6 +578,12 @@ configure_file(
 
 file(READ ${CCF_DIR}/doc/schemas/mccf/2023-06-01-preview/mccfgov.json
      GOV_API_SCHEMA_2023_06_01_PREVIEW
+)
+set_property(
+  DIRECTORY
+  APPEND
+  PROPERTY CMAKE_CONFIGURE_DEPENDS
+           ${CCF_DIR}/doc/schemas/mccf/2023-06-01-preview/mccfgov.json
 )
 configure_file(
   ${CCF_DIR}/src/node/gov/api_schema.h.in ${CCF_DIR}/src/node/gov/api_schema.h
