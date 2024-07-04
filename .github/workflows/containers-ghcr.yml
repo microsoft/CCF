@@ -7,7 +7,11 @@ on:
 env:
   REGISTRY: ghcr.io
 
-permissions: read-all
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
 
 jobs:
   build_and_publish:
