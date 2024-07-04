@@ -265,6 +265,35 @@ def run_connection_caps_tests(args):
             LOG.warning("Expected a fatal crash and saw none!")
 
 
+def run_idle_timeout_tests(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+        network.start_and_open(args)
+
+        primary, _ = network.find_primary()
+        with primary.client(
+            "user0",
+            impl_type=infra.clients.RawSocketClient,
+        ) as c:
+            r = c.get("/node/commit")
+            assert r.status_code == http.HTTPStatus.OK, r
+
+            time.sleep(4)
+
+            r = c.get("/node/commit")
+            assert r.status_code == http.HTTPStatus.OK, r
+
+            time.sleep(6)
+
+            try:
+                r = c.get("/node/commit")
+            except http.client.RemoteDisconnected:
+                pass
+            else:
+                assert False, f"Expected idle delay to result in disconnection"
+
+
 @contextlib.contextmanager
 def node_tcp_socket(node):
     interface = node.n2n_interface
@@ -378,6 +407,13 @@ if __name__ == "__main__":
     cr.add(
         "robustness",
         run_node_socket_robustness_tests,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+    )
+
+    cr.add(
+        "idletimeout",
+        run_idle_timeout_tests,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.nodes(cr.args, 1),
     )
