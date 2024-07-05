@@ -76,7 +76,9 @@ Although CCF's unit tests can be run through ``ctest`` directly, the end-to-end 
 Build Older Versions of CCF
 ---------------------------
 
-Building older versions of CCF may require a different toolchain than the one used to build the current ``main`` branch (e.g. 1.x CCF releases are built with `clang-8`). To build an old version of CCF locally without having to install another toolchain that may conflict with the current one, it is recommended to use the ``ccfciteam/ccf-ci`` docker image (now ``ccfmsrc.azurecr.io/ccf/ci``). The version tag of the ``cci-ci`` (now ``ccf/ci``) image used to build the old version can be found in the :ccf_repo:`.azure-pipelines.yml` YAML file (under ``resources:container:image``).
+Building older versions of CCF may require a different toolchain than the one used to build the current ``main`` branch (e.g. 1.x CCF releases are built with `clang-8`).
+To build an old version of CCF locally without having to install another toolchain that may conflict with the current one, it is recommended to use the ``ccfciteam/ccf-ci`` docker image, later ``ccfmsrc.azurecr.io/ccf/ci`` and now ``ghcr.io/microsoft/ccf/ci/(default|sgx)`` since 5.0.0-rc0.
+The version tag of the ``cci-ci`` (later ``ccf/ci``) image used to build the old version can be found in the :ccf_repo:`.azure-pipelines.yml` YAML file (under ``resources:container:image``) before 5.0.0-rc0, and in the :ccf_repo:`.github/workflows/build.yml` YAML file afterwards.
 
 .. code-block:: bash
 
