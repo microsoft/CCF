@@ -662,6 +662,11 @@
       "default": "2000ms",
       "description": "Maximum duration after which unestablished client connections will be marked as timed out and either re-established or discarded"
     },
+    "idle_connection_timeout": {
+      "type": ["string", "null"],
+      "default": "60s",
+      "description": "Timeout for idle connections. Null is a valid option, and means idle connections are retained indefinitely"
+    },
     "worker_threads": {
       "type": "integer",
       "default": 0,

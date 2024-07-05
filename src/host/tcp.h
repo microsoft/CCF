@@ -400,8 +400,16 @@ namespace asynchost
 
         if (connection_timeout.has_value())
         {
-          auto const t = connection_timeout.value();
-          setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &t, sizeof(t));
+          const unsigned int ms = connection_timeout->count();
+          const auto ret =
+            setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &ms, sizeof(ms));
+          if (ret != 0)
+          {
+            LOG_FAIL_FMT(
+              "Failed to set socket option (TCP_USER_TIMEOUT): {}",
+              strerror(errno));
+            return false;
+          }
         }
 
         if ((rc = uv_tcp_open(&uv_handle, sock)) < 0)
