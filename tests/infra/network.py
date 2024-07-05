@@ -199,6 +199,7 @@ class Network:
         "snp_security_policy_file",
         "snp_uvm_endorsements_file",
         "subject_name",
+        "idle_connection_timeout_s",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups

@@ -416,16 +416,24 @@ int main(int argc, char** argv)
     asynchost::ConnIDGenerator idGen;
 
     asynchost::RPCConnections<asynchost::TCP> rpc(
-      writer_factory, idGen, config.client_connection_timeout);
-    rpc.register_message_handlers(bp.get_dispatcher());
+      1s, // Tick once-per-second to track idle connections,
+      writer_factory,
+      idGen,
+      config.client_connection_timeout,
+      config.idle_connection_timeout);
+    rpc->behaviour.register_message_handlers(bp.get_dispatcher());
 
     // This is a temporary solution to keep UDP RPC handlers in the same
     // way as the TCP ones without having to parametrize per connection,
     // which is not yet possible, due to UDP and TCP not being derived
     // from the same abstract class.
     asynchost::RPCConnections<asynchost::UDP> rpc_udp(
-      writer_factory, idGen, config.client_connection_timeout);
-    rpc_udp.register_udp_message_handlers(bp.get_dispatcher());
+      1s,
+      writer_factory,
+      idGen,
+      config.client_connection_timeout,
+      config.idle_connection_timeout);
+    rpc_udp->behaviour.register_udp_message_handlers(bp.get_dispatcher());
 
     ResolvedAddresses resolved_rpc_addresses;
     for (auto& [name, interface] : config.network.rpc_interfaces)
@@ -439,11 +447,11 @@ int main(int argc, char** argv)
         rpc_port);
       if (interface.protocol == "udp")
       {
-        rpc_udp.listen(0, rpc_host, rpc_port, name);
+        rpc_udp->behaviour.listen(0, rpc_host, rpc_port, name);
       }
       else
       {
-        rpc.listen(0, rpc_host, rpc_port, name);
+        rpc->behaviour.listen(0, rpc_host, rpc_port, name);
       }
       LOG_INFO_FMT(
         "Registered RPC interface {}, on {} {}:{}",

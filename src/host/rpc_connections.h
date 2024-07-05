@@ -44,8 +44,8 @@ namespace
 namespace asynchost
 {
   /**
-   * Generates next ID, passed as an argument to RPCConnections so that we can
-   * have multiple and avoid reusing the same ConnID across each.
+   * Generates next ID, passed as an argument to RPCConnectionsImpl so that we
+   * can have multiple and avoid reusing the same ConnID across each.
    */
   class ConnIDGenerator
   {
@@ -88,21 +88,23 @@ namespace asynchost
   };
 
   template <class ConnType>
-  class RPCConnections
+  class RPCConnectionsImpl
   {
     using ConnID = ConnIDGenerator::ConnID;
 
     class RPCClientBehaviour : public SocketBehaviour<ConnType>
     {
     public:
-      RPCConnections& parent;
+      RPCConnectionsImpl& parent;
       ConnID id;
 
-      RPCClientBehaviour(RPCConnections& parent, ConnID id) :
+      RPCClientBehaviour(RPCConnectionsImpl& parent, ConnID id) :
         SocketBehaviour<ConnType>("RPC Client", getConnTypeName<ConnType>()),
         parent(parent),
         id(id)
-      {}
+      {
+        parent.mark_active(id);
+      }
 
       void on_resolve_failed() override
       {
@@ -119,6 +121,8 @@ namespace asynchost
       bool on_read(size_t len, uint8_t*& data, sockaddr) override
       {
         LOG_DEBUG_FMT("rpc read {}: {}", id, len);
+
+        parent.mark_active(id);
 
         RINGBUFFER_WRITE_MESSAGE(
           ::tls::tls_inbound,
@@ -147,10 +151,10 @@ namespace asynchost
     class RPCServerBehaviour : public SocketBehaviour<ConnType>
     {
     public:
-      RPCConnections& parent;
+      RPCConnectionsImpl& parent;
       ConnID id;
 
-      RPCServerBehaviour(RPCConnections& parent, ConnID id) :
+      RPCServerBehaviour(RPCConnectionsImpl& parent, ConnID id) :
         SocketBehaviour<ConnType>("RPC Client", getConnTypeName<ConnType>()),
         parent(parent),
         id(id)
@@ -226,18 +230,27 @@ namespace asynchost
     std::unordered_map<ConnID, ConnType> sockets;
     ConnIDGenerator& idGen;
 
+    // Measured in seconds
+    std::unordered_map<ConnID, size_t> idle_times;
+
     std::optional<std::chrono::milliseconds> client_connection_timeout =
       std::nullopt;
+
+    std::optional<std::chrono::seconds> idle_connection_timeout = std::nullopt;
+
     ringbuffer::WriterPtr to_enclave;
 
   public:
-    RPCConnections(
+    RPCConnectionsImpl(
       ringbuffer::AbstractWriterFactory& writer_factory,
       ConnIDGenerator& idGen,
       std::optional<std::chrono::milliseconds> client_connection_timeout_ =
+        std::nullopt,
+      std::optional<std::chrono::seconds> idle_connection_timeout_ =
         std::nullopt) :
       idGen(idGen),
       client_connection_timeout(client_connection_timeout_),
+      idle_connection_timeout(idle_connection_timeout_),
       to_enclave(writer_factory.create_writer_to_inside())
     {}
 
@@ -318,7 +331,11 @@ namespace asynchost
       }
 
       if (s->second.is_null())
+      {
         return false;
+      }
+
+      mark_active(id);
 
       return s->second->write(len, data, addr);
     }
@@ -340,6 +357,8 @@ namespace asynchost
         LOG_FAIL_FMT("Cannot close id {}: does not exist", id);
         return false;
       }
+
+      idle_times.erase(id);
 
       return true;
     }
@@ -410,6 +429,38 @@ namespace asynchost
         });
     }
 
+    void mark_active(ConnID id)
+    {
+      idle_times[id] = 0;
+    }
+
+    void on_timer()
+    {
+      if (!idle_connection_timeout.has_value())
+      {
+        return;
+      }
+
+      const size_t max_idle_time = idle_connection_timeout->count();
+
+      for (auto& [id, idle_time] : idle_times)
+      {
+        if (idle_time > max_idle_time)
+        {
+          LOG_INFO_FMT(
+            "Closing socket {} after {}s idle (max = {}s)",
+            id,
+            idle_time,
+            max_idle_time);
+          stop(id);
+        }
+        else
+        {
+          idle_time += 1;
+        }
+      }
+    }
+
   private:
     ConnID get_next_id()
     {
@@ -441,4 +492,7 @@ namespace asynchost
       return listen_name.value();
     }
   };
+
+  template <class ConnType>
+  using RPCConnections = proxy_ptr<Timer<RPCConnectionsImpl<ConnType>>>;
 }
