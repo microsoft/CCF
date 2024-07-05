@@ -36,7 +36,7 @@
 #include "ccf/js/modules/chained_module_loader.h"
 #include "ccf/js/modules/kv_bytecode_module_loader.h"
 #include "ccf/js/modules/kv_module_loader.h"
-#include "ccf/node/rpc_context_impl.h"
+#include "node/rpc_context_impl.h"
 
 namespace ccf::js
 {
