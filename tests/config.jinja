@@ -92,7 +92,8 @@
   },
   "tick_interval": "{{ tick_ms }}ms",
   "slow_io_logging_threshold": "10ms",
-  "client_connection_timeout": "2s",
+  "client_connection_timeout": "2s"{% if idle_connection_timeout_s %},
+  "idle_connection_timeout": "{{ idle_connection_timeout_s }}s"{% endif %},
   "node_client_interface": {{ node_client_interface|tojson }},
   "worker_threads": {{ worker_threads }},
   "memory": {
