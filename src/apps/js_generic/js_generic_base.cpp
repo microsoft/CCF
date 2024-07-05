@@ -23,6 +23,7 @@
 #include "ccf/node/rpc_context_impl.h"
 #include "ccf/service/tables/jsengine.h"
 #include "ccf/version.h"
+#include "ds/actors.h"
 #include "enclave/enclave_time.h"
 #include "js/global_class_ids.h"
 #include "service/tables/endpoints.h"
