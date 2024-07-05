@@ -42,52 +42,52 @@ The runtime images do not contain any particular CCF application, and may be hel
 C++ Apps
 ~~~~~~~~
 
-The `mcr.microsoft.com/ccf/app/run <https://mcr.microsoft.com/en-us/product/ccf/app/run>`_ container can be run to deploy C++ apps. It contains the ``cchost`` binary and the dependencies required to spin up a CCF node.
+The ``ghcr.io/microsoft/ccf/app/run/*`` containers can be run to deploy C++ apps. They contain the ``cchost`` binary and the dependencies required to spin up a CCF node.
 
 .. tab:: SGX
 
     .. code-block:: bash
 
-        $ export VERSION="4.0.0"
-        $ docker pull mcr.microsoft.com/ccf/app/run:$VERSION-sgx
+        $ export VERSION="5.0.0-rc0"
+        $ docker pull ghcr.io/microsoft/ccf/app/run/sgx:ccf-$VERSION
 
 .. tab:: SNP
 
     .. code-block:: bash
 
-        $ export VERSION="4.0.0"
-        $ docker pull mcr.microsoft.com/ccf/app/run:$VERSION-snp
+        $ export VERSION="5.0.0-rc0"
+        $ docker pull ghcr.io/microsoft/ccf/app/run/snp:ccf-$VERSION
 
 .. tab:: Virtual
 
     .. code-block:: bash
 
-        $ export VERSION="4.0.0"
-        $ docker pull mcr.microsoft.com/ccf/app/run:$VERSION-virtual
+        $ export VERSION="5.0.0-rc0"
+        $ docker pull ghcr.io/microsoft/ccf/app/run/virtual:ccf-$VERSION
 
 
 JavaScript/TypeScript Apps
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The `mcr.microsoft.com/ccf/app/run-js <https://mcr.microsoft.com/en-us/product/ccf/app/run-js>`_ container can be run to deploy JavaScript/TypeScripts apps. It contains the ``cchost`` binary, the ``libjs_generic`` native application to run JavaScript/TypeScript apps, and the dependencies required to spin up a CCF node.
+The ``ghcr.io/microsoft/ccf/app/run-js/*`` containers can be run to deploy JavaScript/TypeScripts apps. They contain the ``cchost`` binary, the ``libjs_generic`` native application to run JavaScript/TypeScript apps, and the dependencies required to spin up a CCF node.
 
 .. tab:: SGX
 
     .. code-block:: bash
 
-        $ export VERSION="4.0.0"
-        $ docker pull mcr.microsoft.com/ccf/app/run-js:$VERSION-sgx
+        $ export VERSION="5.0.0-rc0"
+        $ docker pull ghcr.io/microsoft/ccf/app/run-js/sgx:ccf-$VERSION
 
 .. tab:: SNP
 
     .. code-block:: bash
 
-        $ export VERSION="4.0.0"
-        $ docker pull mcr.microsoft.com/ccf/app/run-js:$VERSION-snp
+        $ export VERSION="5.0.0-rc0"
+        $ docker pull ghcr.io/microsoft/ccf/app/run-js/snp:ccf-$VERSION
 
 .. tab:: Virtual
 
     .. code-block:: bash
 
-        $ export VERSION="4.0.0"
-        $ docker pull mcr.microsoft.com/ccf/app/run-js:$VERSION-virtual
+        $ export VERSION="5.0.0-rc0"
+        $ docker pull ghcr.io/microsoft/ccf/app/run-js/virtual:ccf-$VERSION
