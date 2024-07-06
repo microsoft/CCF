@@ -6,15 +6,18 @@
 
 namespace ccf
 {
-  UserEndpointRegistry::UserEndpointRegistry(ccf::AbstractNodeContext& context) :
-      CommonEndpointRegistry(get_actor_prefix(ActorsType::users), context) {}
+  UserEndpointRegistry::UserEndpointRegistry(
+    ccf::AbstractNodeContext& context) :
+    CommonEndpointRegistry(get_actor_prefix(ActorsType::users), context)
+  {}
 
   void UserEndpointRegistry::handle_event_request_completed(
-      const ccf::endpoints::RequestCompletedEvent& event) {}
+    const ccf::endpoints::RequestCompletedEvent& event)
+  {}
 
   void UserEndpointRegistry::handle_event_dispatch_failed(
-      const ccf::endpoints::DispatchFailedEvent& event)
-    {
-      CCF_APP_INFO("DispatchFailedEvent: {} {}", event.method, event.status);
-    }
+    const ccf::endpoints::DispatchFailedEvent& event)
+  {
+    CCF_APP_INFO("DispatchFailedEvent: {} {}", event.method, event.status);
+  }
 }
