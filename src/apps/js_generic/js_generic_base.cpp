@@ -4,6 +4,7 @@
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
+#include "ccf/endpoints/authentication/js.h"
 #include "ccf/historical_queries_adapter.h"
 #include "ccf/js/common_context.h"
 #include "ccf/js/core/context.h"
@@ -15,9 +16,7 @@
 #include "ccf/js/extensions/ccf/request.h"
 #include "ccf/js/extensions/ccf/rpc.h"
 #include "ccf/js/interpreter_cache_interface.h"
-#include "ccf/js/named_auth_policies.h"
 #include "ccf/node/host_processes_interface.h"
-#include "ccf/node/rpc_context_impl.h"
 #include "ccf/service/tables/jsengine.h"
 #include "ccf/version.h"
 #include "enclave/enclave_time.h"
@@ -25,6 +24,7 @@
 #include "js/modules/chained_module_loader.h"
 #include "js/modules/kv_bytecode_module_loader.h"
 #include "js/modules/kv_module_loader.h"
+#include "node/rpc_context_impl.h"
 #include "service/tables/endpoints.h"
 
 #include <memory>
