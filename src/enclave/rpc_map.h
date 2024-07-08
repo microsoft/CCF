@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/actors.h"
+#include "ds/actors.h"
 #include "rpc_handler.h"
 
 namespace ccf

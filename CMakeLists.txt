@@ -224,6 +224,7 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/user_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/json_handler.cpp
     ${CCF_DIR}/src/endpoints/authentication/cose_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
