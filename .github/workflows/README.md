@@ -42,6 +42,38 @@ Builds CCF with CodeQL, and runs the security-extended checks. Triggered on ever
 File: `codeql-analysis.yml`
 3rd party dependencies: None
 
+# Release
+
+Produces CCF release artefacts from 5.0.0-rc0 onwards, for all languages and platforms. Triggered on tag matching "ccf-5.\*". The output of the job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+
+File: `release.yml`
+3rd party dependencies: None
+
+# Containers GHCR
+
+Produces reference release images from 5.0.0-rc0 onwards. Complete images are attested and published to GHCR. Triggered on release publishing.
+
+File: `containers-ghcr.yml`
+3rd party dependencies:
+
+- `docker/login-action@v3`
+- `docker/metadata-action@v5`
+- `docker/build-push-action@v6`
+
+# NPM
+
+Publishes ccf-app TS package from a GitHub release to NPM. Triggered on release publishing.
+
+File: `npm.yml`
+3rd party dependencies: None
+
+# PyPI
+
+Publishes ccf Python package from a GitHub release to PyPI. Triggered on release publishing.
+
+File: `pypi.yml`
+3rd party dependencies: None
+
 # Deprecated
 
 The following pipelines are still here to support 4.x, but will be removed when it reaches EOL.
