@@ -246,7 +246,7 @@ Service State
      - Read details of accepted JWKs and their issuers
    * - Classic
      - | :http:GET:`/gov/kv/jwt/issuers`
-       | :http:GET:`/gov/kv/jwt/public_signing_keys`
+       | ``GET /gov/kv/jwt/public_signing_keys``
    * - Replacement
      - :http:GET:`/gov/service/jwk`
    * - Notes
