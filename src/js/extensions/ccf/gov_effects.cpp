@@ -7,8 +7,8 @@
 #include "ccf/js/extensions/ccf/gov_effects.h"
 
 #include "ccf/js/core/context.h"
-#include "ccf/js/modules/kv_module_loader.h"
 #include "ccf/version.h"
+#include "js/modules/kv_module_loader.h"
 #include "node/rpc/jwt_management.h"
 
 #include <quickjs/quickjs.h>
