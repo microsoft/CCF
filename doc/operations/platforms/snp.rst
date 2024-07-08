@@ -16,7 +16,7 @@ SNP attestation provide several fields needed to establish trust. Several deploy
 Confidential Azure Container Instance (ACI)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. note:: See `here <https://learn.microsoft.com/en-us/azure/container-instances/container-instances-tutorial-deploy-confidential-containers-cce-arm>`_ and `here <https://github.com/microsoft/confidential-aci-examples/blob/main/docs/Confidential_ACI_SCHEME.md>`_ for more information on the deployment of confidential containers in Azure.
+.. note:: See `here <https://learn.microsoft.com/en-us/azure/container-instances/container-instances-tutorial-deploy-confidential-containers-cce-arm>`__ and `here <https://github.com/microsoft/confidential-aci-examples/blob/main/docs/Confidential_ACI_SCHEME.md>`__ for more information on the deployment of confidential containers in Azure.
 
 Azure Confidential ACI provides a security context directory containing the following files.
 
@@ -32,7 +32,7 @@ AMD endorsements must be fetched, preferably from the THIM service, but configur
 Confidential Azure Kubernetes Service (AKS)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. note:: See `here <https://learn.microsoft.com/en-us/azure/aks/deploy-confidential-containers-default-policy>`_ for more information on the deployment of confidential containers in Azure.
+.. note:: See `here <https://learn.microsoft.com/en-us/azure/aks/deploy-confidential-containers-default-policy>`__ for more information on the deployment of confidential containers in Azure.
 
 Confidential AKS provides a security context directory containing the following file.
 
