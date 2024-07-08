@@ -19,6 +19,7 @@
 #include "ccf/node/host_processes_interface.h"
 #include "ccf/service/tables/jsengine.h"
 #include "ccf/version.h"
+#include "ds/actors.h"
 #include "enclave/enclave_time.h"
 #include "js/global_class_ids.h"
 #include "js/modules/chained_module_loader.h"

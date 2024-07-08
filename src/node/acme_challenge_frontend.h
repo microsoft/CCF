@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/actors.h"
 #include "ccf/common_auth_policies.h"
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/endpoint_registry.h"
+#include "ds/actors.h"
 #include "node/network_state.h"
 #include "node/rpc/frontend.h"
 

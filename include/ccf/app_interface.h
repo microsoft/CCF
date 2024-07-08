@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/actors.h"
 #include "ccf/ccf_deprecated.h"
 #include "ccf/common_endpoint_registry.h"
 #include "ccf/js_plugin.h"
@@ -27,24 +26,18 @@ namespace ccf
   class UserEndpointRegistry : public CommonEndpointRegistry
   {
   public:
-    UserEndpointRegistry(ccf::AbstractNodeContext& context) :
-      CommonEndpointRegistry(get_actor_prefix(ActorsType::users), context)
-    {}
+    UserEndpointRegistry(ccf::AbstractNodeContext& context);
 
     // Default behaviour is to do nothing - do NOT log summary of every request
     // as it completes. Apps may override this if they wish.
     void handle_event_request_completed(
-      const ccf::endpoints::RequestCompletedEvent& event) override
-    {}
+      const ccf::endpoints::RequestCompletedEvent& event) override;
 
+    // Default behavour is to log dispatch failures, as a coarse metric of
+    // some user errors, but do not log the raw path, which may contain
+    // confidential fields misformatted into the wrong url
     void handle_event_dispatch_failed(
-      const ccf::endpoints::DispatchFailedEvent& event) override
-    {
-      // Log dispatch failures, as a coarse metric of some user errors, but do
-      // not log the raw path, which may contain confidential fields
-      // misformatted into the wrong url
-      CCF_APP_INFO("DispatchFailedEvent: {} {}", event.method, event.status);
-    }
+      const ccf::endpoints::DispatchFailedEvent& event) override;
   };
 }
 
