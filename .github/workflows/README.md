@@ -23,9 +23,10 @@ Triggered on label creation (`build/*`).
 
 File: `ci-containers-ghcr.yml`
 3rd party dependencies:
-  - `docker/login-action@v3`
-  - `docker/metadata-action@v5`
-  - `docker/build-push-action@v6`
+
+- `docker/login-action@v3`
+- `docker/metadata-action@v5`
+- `docker/build-push-action@v6`
 
 # CI
 
