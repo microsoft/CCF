@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../quic/msg_types.h"
-#include "../tls/msg_types.h"
+#include "../tcp/msg_types.h"
+#include "../udp/msg_types.h"
 #include "tcp.h"
 #include "udp.h"
 
@@ -50,10 +50,10 @@ namespace asynchost
   class ConnIDGenerator
   {
   public:
-    /// This is the same as ccf::tls::ConnID and quic::ConnID
+    /// This is the same as ccf::tls::ConnID and udp::ConnID
     using ConnID = int64_t;
-    static_assert(std::is_same<::tls::ConnID, quic::ConnID>());
-    static_assert(std::is_same<::tls::ConnID, ConnID>());
+    static_assert(std::is_same<::tcp::ConnID, udp::ConnID>());
+    static_assert(std::is_same<::tcp::ConnID, ConnID>());
 
     ConnIDGenerator() : next_id(1) {}
 
@@ -125,7 +125,7 @@ namespace asynchost
         parent.mark_active(id);
 
         RINGBUFFER_WRITE_MESSAGE(
-          ::tls::tls_inbound,
+          ::tcp::tcp_inbound,
           parent.to_enclave,
           id,
           serializer::ByteRange{data, len});
@@ -143,7 +143,7 @@ namespace asynchost
       {
         if constexpr (isTCP<ConnType>())
         {
-          RINGBUFFER_WRITE_MESSAGE(::tls::tls_close, parent.to_enclave, id);
+          RINGBUFFER_WRITE_MESSAGE(::tcp::tcp_close, parent.to_enclave, id);
         }
       }
     };
@@ -189,14 +189,14 @@ namespace asynchost
         if constexpr (isTCP<ConnType>())
         {
           RINGBUFFER_WRITE_MESSAGE(
-            ::tls::tls_start, parent.to_enclave, peer_id, interface_name);
+            ::tcp::tcp_start, parent.to_enclave, peer_id, interface_name);
           return;
         }
 
         if constexpr (isUDP<ConnType>())
         {
           RINGBUFFER_WRITE_MESSAGE(
-            udp::start, parent.to_enclave, peer_id, interface_name);
+            udp::udp_start, parent.to_enclave, peer_id, interface_name);
           return;
         }
       }
@@ -210,7 +210,7 @@ namespace asynchost
 
           LOG_DEBUG_FMT("rpc udp read into ring buffer {}: {}", id, len);
           RINGBUFFER_WRITE_MESSAGE(
-            udp::inbound,
+            udp::udp_inbound,
             parent.to_enclave,
             id,
             addr_family,
@@ -345,7 +345,7 @@ namespace asynchost
       // Invalidating the TCP socket will result in the handle being closed. No
       // more messages will be read from or written to the TCP socket.
       sockets[id] = nullptr;
-      RINGBUFFER_WRITE_MESSAGE(::tls::tls_close, to_enclave, id);
+      RINGBUFFER_WRITE_MESSAGE(::tcp::tcp_close, to_enclave, id);
 
       return true;
     }
@@ -367,9 +367,9 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ::tls::tls_outbound, [this](const uint8_t* data, size_t size) {
+        disp, ::tcp::tcp_outbound, [this](const uint8_t* data, size_t size) {
           auto [id, body] =
-            ringbuffer::read_message<::tls::tls_outbound>(data, size);
+            ringbuffer::read_message<::tcp::tcp_outbound>(data, size);
 
           ConnID connect_id = (ConnID)id;
           LOG_DEBUG_FMT("rpc write from enclave {}: {}", connect_id, body.size);
@@ -378,9 +378,9 @@ namespace asynchost
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ::tls::tls_connect, [this](const uint8_t* data, size_t size) {
+        disp, ::tcp::tcp_connect, [this](const uint8_t* data, size_t size) {
           auto [id, host, port] =
-            ringbuffer::read_message<::tls::tls_connect>(data, size);
+            ringbuffer::read_message<::tcp::tcp_connect>(data, size);
 
           LOG_DEBUG_FMT("rpc connect request from enclave {}", id);
 
@@ -396,17 +396,17 @@ namespace asynchost
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ::tls::tls_stop, [this](const uint8_t* data, size_t size) {
+        disp, ::tcp::tcp_stop, [this](const uint8_t* data, size_t size) {
           auto [id, msg] =
-            ringbuffer::read_message<::tls::tls_stop>(data, size);
+            ringbuffer::read_message<::tcp::tcp_stop>(data, size);
 
           LOG_DEBUG_FMT("rpc stop from enclave {}, {}", id, msg);
           stop(id);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ::tls::tls_closed, [this](const uint8_t* data, size_t size) {
-          auto [id] = ringbuffer::read_message<::tls::tls_closed>(data, size);
+        disp, ::tcp::tcp_closed, [this](const uint8_t* data, size_t size) {
+          auto [id] = ringbuffer::read_message<::tcp::tcp_closed>(data, size);
 
           LOG_DEBUG_FMT("rpc closed from enclave {}", id);
           close(id);
@@ -417,9 +417,9 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, udp::outbound, [this](const uint8_t* data, size_t size) {
+        disp, udp::udp_outbound, [this](const uint8_t* data, size_t size) {
           auto [id, addr_family, addr_data, body] =
-            ringbuffer::read_message<udp::outbound>(data, size);
+            ringbuffer::read_message<udp::udp_outbound>(data, size);
 
           ConnID connect_id = (ConnID)id;
           LOG_DEBUG_FMT("rpc write from enclave {}: {}", connect_id, body.size);
