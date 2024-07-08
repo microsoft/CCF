@@ -7,8 +7,8 @@
 #include "ds/ring_buffer.h"
 #include "ds/thread_messaging.h"
 #include "enclave/session.h"
+#include "tcp/msg_types.h"
 #include "tls/context.h"
-#include "tls/msg_types.h"
 #include "tls/tls.h"
 
 #include <exception>
@@ -32,7 +32,7 @@ namespace ccf
 
   protected:
     ringbuffer::WriterPtr to_host;
-    ::tls::ConnID session_id;
+    ::tcp::ConnID session_id;
     size_t execution_thread;
 
   private:
@@ -87,7 +87,7 @@ namespace ccf
 
     virtual ~TLSSession()
     {
-      RINGBUFFER_WRITE_MESSAGE(::tls::tls_closed, to_host, session_id);
+      RINGBUFFER_WRITE_MESSAGE(::tcp::tcp_closed, to_host, session_id);
     }
 
     SessionStatus get_status() const
@@ -530,7 +530,7 @@ namespace ccf
         case closed:
         {
           RINGBUFFER_WRITE_MESSAGE(
-            ::tls::tls_stop,
+            ::tcp::tcp_stop,
             to_host,
             session_id,
             std::string("Session closed"));
@@ -540,7 +540,7 @@ namespace ccf
         case authfail:
         {
           RINGBUFFER_WRITE_MESSAGE(
-            ::tls::tls_stop,
+            ::tcp::tcp_stop,
             to_host,
             session_id,
             std::string("Authentication failed"));
@@ -548,7 +548,7 @@ namespace ccf
         case error:
         {
           RINGBUFFER_WRITE_MESSAGE(
-            ::tls::tls_stop, to_host, session_id, std::string("Error"));
+            ::tcp::tcp_stop, to_host, session_id, std::string("Error"));
           break;
         }
 
@@ -562,7 +562,7 @@ namespace ccf
     {
       // Either write all of the data or none of it.
       auto wrote = RINGBUFFER_TRY_WRITE_MESSAGE(
-        ::tls::tls_outbound,
+        ::tcp::tcp_outbound,
         to_host,
         session_id,
         serializer::ByteRange{buf, len});

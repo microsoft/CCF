@@ -88,7 +88,7 @@ echo "** Start original service"
 "${ccf_install_path}"/bin/sandbox.sh --sig-tx-interval "${signature_tx_interval}" & 
 sandbox_pid=$!
 
-network_live_time=60
+network_live_time=120
 if poll_for_service_open ${network_live_time} ${sandbox_pid}; then
     echo "Error: Timeout waiting ${network_live_time}s for service to open"
     kill "$(jobs -p)"

@@ -48,8 +48,12 @@ using namespace std::chrono_literals;
 using ResolvedAddresses = std::
   map<ccf::NodeInfoNetwork::RpcInterfaceID, ccf::NodeInfoNetwork::NetAddress>;
 
-size_t asynchost::TCPImpl::remaining_read_quota;
-size_t asynchost::UDPImpl::remaining_read_quota;
+size_t asynchost::TCPImpl::remaining_read_quota =
+  asynchost::TCPImpl::max_read_quota;
+bool asynchost::TCPImpl::alloc_quota_logged = false;
+
+size_t asynchost::UDPImpl::remaining_read_quota =
+  asynchost::UDPImpl::max_read_quota;
 
 std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
 
@@ -60,19 +64,6 @@ void print_version(size_t)
             << nlohmann::json(ccf::pal::platform).get<std::string>()
             << std::endl;
   exit(0);
-}
-
-std::string read_required_environment_variable(
-  const std::string& envvar, const std::string& name)
-{
-  auto ev = std::getenv(envvar.c_str());
-  if (ev == nullptr)
-  {
-    LOG_FATAL_FMT(
-      "Environment variable \"{}\" for {} is not set", envvar, name);
-  }
-  LOG_INFO_FMT("Reading {} from environment {}", name, envvar);
-  return ev;
 }
 
 int main(int argc, char** argv)
@@ -425,16 +416,24 @@ int main(int argc, char** argv)
     asynchost::ConnIDGenerator idGen;
 
     asynchost::RPCConnections<asynchost::TCP> rpc(
-      writer_factory, idGen, config.client_connection_timeout);
-    rpc.register_message_handlers(bp.get_dispatcher());
+      1s, // Tick once-per-second to track idle connections,
+      writer_factory,
+      idGen,
+      config.client_connection_timeout,
+      config.idle_connection_timeout);
+    rpc->behaviour.register_message_handlers(bp.get_dispatcher());
 
     // This is a temporary solution to keep UDP RPC handlers in the same
     // way as the TCP ones without having to parametrize per connection,
     // which is not yet possible, due to UDP and TCP not being derived
     // from the same abstract class.
     asynchost::RPCConnections<asynchost::UDP> rpc_udp(
-      writer_factory, idGen, config.client_connection_timeout);
-    rpc_udp.register_udp_message_handlers(bp.get_dispatcher());
+      1s,
+      writer_factory,
+      idGen,
+      config.client_connection_timeout,
+      config.idle_connection_timeout);
+    rpc_udp->behaviour.register_udp_message_handlers(bp.get_dispatcher());
 
     ResolvedAddresses resolved_rpc_addresses;
     for (auto& [name, interface] : config.network.rpc_interfaces)
@@ -448,11 +447,11 @@ int main(int argc, char** argv)
         rpc_port);
       if (interface.protocol == "udp")
       {
-        rpc_udp.listen(0, rpc_host, rpc_port, name);
+        rpc_udp->behaviour.listen(0, rpc_host, rpc_port, name);
       }
       else
       {
-        rpc.listen(0, rpc_host, rpc_port, name);
+        rpc->behaviour.listen(0, rpc_host, rpc_port, name);
       }
       LOG_INFO_FMT(
         "Registered RPC interface {}, on {} {}:{}",
@@ -676,6 +675,7 @@ int main(int argc, char** argv)
     else
     {
       LOG_FATAL_FMT("Start command should be start|join|recover. Exiting.");
+      return static_cast<int>(CLI::ExitCodes::ValidationError);
     }
 
     std::vector<uint8_t> startup_snapshot = {};
