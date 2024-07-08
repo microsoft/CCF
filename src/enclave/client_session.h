@@ -3,7 +3,7 @@
 #pragma once
 
 #include "http/http_builder.h"
-#include "tls/msg_types.h"
+#include "tcp/msg_types.h"
 
 namespace ccf
 {
@@ -43,7 +43,7 @@ namespace ccf
       const HandleErrorCallback e = nullptr)
     {
       RINGBUFFER_WRITE_MESSAGE(
-        ::tls::tls_connect, to_host, client_session_id, hostname, service);
+        ::tcp::tcp_connect, to_host, client_session_id, hostname, service);
       handle_data_cb = f;
       handle_error_cb = e;
     }
