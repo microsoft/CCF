@@ -4,15 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
   workflow_dispatch:
+  merge_group:
 
 permissions: read-all
 
 jobs:
   checks:
     runs-on: ubuntu-latest
-    container: ccfmsrc.azurecr.io/ccf/ci:2024-06-26-virtual-clang15
+    container: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
 
     steps:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"

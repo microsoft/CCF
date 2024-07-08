@@ -31,5 +31,5 @@ File: `ci-containers-ghcr.yml`
 
 Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests for SGX and Virtual. Run on every commit, including PRs from forks, gates merging.
 
-File: `build.yml`
+File: `ci.yml`
 3rd party dependencies: None
