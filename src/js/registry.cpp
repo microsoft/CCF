@@ -33,9 +33,9 @@
 #include "ccf/js/extensions/ccf/request.h"
 #include "ccf/js/extensions/ccf/rpc.h"
 #include "ccf/js/interpreter_cache_interface.h"
-#include "ccf/js/modules/chained_module_loader.h"
-#include "ccf/js/modules/kv_bytecode_module_loader.h"
-#include "ccf/js/modules/kv_module_loader.h"
+#include "js/modules/chained_module_loader.h"
+#include "js/modules/kv_bytecode_module_loader.h"
+#include "js/modules/kv_module_loader.h"
 #include "node/rpc_context_impl.h"
 
 namespace ccf::js
