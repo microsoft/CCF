@@ -4,8 +4,8 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "crypto/certs.h"
+#include "tcp/msg_types.h"
 #include "tls/client.h"
-#include "tls/msg_types.h"
 #include "tls/server.h"
 #include "tls/tls.h"
 
