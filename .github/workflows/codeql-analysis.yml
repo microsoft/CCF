@@ -6,10 +6,7 @@
 name: "CodeQL"
 
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main]
     paths:
       - ".github/workflows/codeql-analysis.yml"
   workflow_dispatch:
