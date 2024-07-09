@@ -18,10 +18,10 @@ namespace http
   protected:
     std::shared_ptr<ccf::TLSSession> tls_io;
     std::shared_ptr<ErrorReporter> error_reporter;
-    ::tls::ConnID session_id;
+    ::tcp::ConnID session_id;
 
     HTTP2Session(
-      ::tls::ConnID session_id_,
+      ::tcp::ConnID session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<ccf::tls::Context> ctx,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :

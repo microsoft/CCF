@@ -18,84 +18,57 @@ namespace ccf::crypto
   {
   private:
     std::string s;
-
-    void check_pem_format()
-    {
-      if (s.find("-----BEGIN") == std::string::npos)
-      {
-        throw std::runtime_error(
-          fmt::format("PEM constructed with non-PEM data: {}", s));
-      }
-    }
+    void check_pem_format();
 
   public:
     Pem() = default;
-
-    Pem(const std::string& s_) : s(s_)
-    {
-      check_pem_format();
-    }
-
-    Pem(const uint8_t* data, size_t size)
-    {
-      if (size == 0)
-        throw std::logic_error("Got PEM of size 0.");
-
-      // If it's already null-terminated, don't suffix again
-      const auto null_terminated = *(data + size - 1) == 0;
-      if (null_terminated)
-        size -= 1;
-
-      s.assign(reinterpret_cast<const char*>(data), size);
-
-      check_pem_format();
-    }
+    Pem(const std::string& s_);
+    Pem(const uint8_t* data, size_t size);
 
     explicit Pem(std::span<const uint8_t> s) : Pem(s.data(), s.size()) {}
-
     explicit Pem(const std::vector<uint8_t>& v) : Pem(v.data(), v.size()) {}
 
-    bool operator==(const Pem& rhs) const
+    inline bool operator==(const Pem& rhs) const
     {
       return s == rhs.s;
     }
 
-    bool operator!=(const Pem& rhs) const
+    inline bool operator!=(const Pem& rhs) const
     {
       return !(*this == rhs);
     }
 
-    bool operator<(const Pem& rhs) const
+    inline bool operator<(const Pem& rhs) const
     {
       return s < rhs.s;
     }
 
-    const std::string& str() const
+    inline const std::string& str() const
     {
       return s;
     }
 
-    uint8_t* data()
+    inline uint8_t* data()
     {
       return reinterpret_cast<uint8_t*>(s.data());
     }
 
-    const uint8_t* data() const
+    inline const uint8_t* data() const
     {
       return reinterpret_cast<const uint8_t*>(s.data());
     }
 
-    size_t size() const
+    inline size_t size() const
     {
       return s.size();
     }
 
-    bool empty() const
+    inline bool empty() const
     {
       return s.empty();
     }
 
-    std::vector<uint8_t> raw() const
+    inline std::vector<uint8_t> raw() const
     {
       return {data(), data() + size()};
     }
@@ -128,22 +101,8 @@ namespace ccf::crypto
     return "Pem";
   }
 
-  static std::vector<ccf::crypto::Pem> split_x509_cert_bundle(
-    const std::string_view& pem)
-  {
-    std::string separator("-----END CERTIFICATE-----");
-    std::vector<ccf::crypto::Pem> pems;
-    auto separator_end = 0;
-    auto next_separator_start = pem.find(separator);
-    while (next_separator_start != std::string_view::npos)
-    {
-      pems.emplace_back(std::string(
-        pem.substr(separator_end, next_separator_start + separator.size())));
-      separator_end = next_separator_start + separator.size();
-      next_separator_start = pem.find(separator, separator_end);
-    }
-    return pems;
-  }
+  std::vector<ccf::crypto::Pem> split_x509_cert_bundle(
+    const std::string_view& pem);
 
   inline void fill_json_schema(nlohmann::json& schema, const Pem*)
   {

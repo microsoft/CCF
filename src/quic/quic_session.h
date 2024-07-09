@@ -8,7 +8,7 @@
 #include "ds/ring_buffer.h"
 #include "ds/thread_messaging.h"
 #include "enclave/session.h"
-#include "quic/msg_types.h"
+#include "udp/msg_types.h"
 
 #include <exception>
 
@@ -334,7 +334,7 @@ namespace quic
 
       // Either write all of the data or none of it.
       auto wrote = RINGBUFFER_TRY_WRITE_MESSAGE(
-        quic::quic_outbound,
+        udp::udp_outbound,
         to_host,
         session_id,
         addr_family,
@@ -426,7 +426,7 @@ namespace quic
     void handle_incoming_data(std::span<const uint8_t> data) override
     {
       auto [_, addr_family, addr_data, body] =
-        ringbuffer::read_message<quic::quic_inbound>(data);
+        ringbuffer::read_message<udp::udp_inbound>(data);
 
       auto msg = std::make_unique<threading::Tmsg<SendRecvMsg>>(&recv_cb);
       msg->data.self = this->shared_from_this();

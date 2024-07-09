@@ -18,10 +18,10 @@ namespace http
   protected:
     std::shared_ptr<ccf::TLSSession> tls_io;
     std::shared_ptr<ErrorReporter> error_reporter;
-    ::tls::ConnID session_id;
+    ::tcp::ConnID session_id;
 
     HTTPSession(
-      ::tls::ConnID session_id_,
+      ::tcp::ConnID session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<ccf::tls::Context> ctx,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
@@ -99,7 +99,7 @@ namespace http
   public:
     HTTPServerSession(
       std::shared_ptr<ccf::RPCMap> rpc_map,
-      ::tls::ConnID session_id_,
+      ::tcp::ConnID session_id_,
       const ccf::ListenInterfaceID& interface_id,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<ccf::tls::Context> ctx,
@@ -322,7 +322,7 @@ namespace http
 
   public:
     HTTPClientSession(
-      ::tls::ConnID session_id_,
+      ::tcp::ConnID session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory,
       std::unique_ptr<ccf::tls::Context> ctx) :
       HTTPSession(session_id_, writer_factory, std::move(ctx)),
@@ -395,13 +395,13 @@ namespace http
   {
   protected:
     std::shared_ptr<ErrorReporter> error_reporter;
-    ::tls::ConnID session_id;
+    ::tcp::ConnID session_id;
     ringbuffer::AbstractWriterFactory& writer_factory;
     ringbuffer::WriterPtr to_host;
     size_t execution_thread;
 
     UnencryptedHTTPSession(
-      ::tls::ConnID session_id_,
+      ::tcp::ConnID session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory_,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
       ccf::ThreadedSession(session_id_),
@@ -427,7 +427,7 @@ namespace http
           "from wrong thread");
       }
       RINGBUFFER_WRITE_MESSAGE(
-        ::tls::tls_outbound,
+        ::tcp::tcp_outbound,
         to_host,
         session_id,
         serializer::ByteRange{data.data(), data.size()});
@@ -442,7 +442,7 @@ namespace http
           "from wrong thread");
       }
       RINGBUFFER_WRITE_MESSAGE(
-        ::tls::tls_stop, to_host, session_id, std::string("Session closed"));
+        ::tcp::tcp_stop, to_host, session_id, std::string("Session closed"));
     }
 
     void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
@@ -460,7 +460,7 @@ namespace http
 
   public:
     UnencryptedHTTPClientSession(
-      ::tls::ConnID session_id_,
+      ::tcp::ConnID session_id_,
       ringbuffer::AbstractWriterFactory& writer_factory) :
       UnencryptedHTTPSession(session_id_, writer_factory),
       ClientSession(session_id_, writer_factory),

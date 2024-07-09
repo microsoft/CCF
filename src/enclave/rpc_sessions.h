@@ -16,7 +16,6 @@
 // ok for now, as we only have an echo service for now
 #include "http/responder_lookup.h"
 #include "node/rpc/custom_protocol_subsystem.h"
-#include "quic/msg_types.h"
 #include "quic/quic_session.h"
 #include "rpc_handler.h"
 #include "tls/cert.h"
@@ -24,6 +23,7 @@
 #include "tls/context.h"
 #include "tls/plaintext_server.h"
 #include "tls/server.h"
+#include "udp/msg_types.h"
 
 #include <limits>
 #include <map>
@@ -365,7 +365,7 @@ namespace ccf
           listen_interface_id);
 
         RINGBUFFER_WRITE_MESSAGE(
-          ::tls::tls_stop, to_host, id, std::string("Session refused"));
+          ::tcp::tcp_stop, to_host, id, std::string("Session refused"));
       }
       else if (
         per_listen_interface.open_sessions >=
@@ -380,7 +380,7 @@ namespace ccf
           per_listen_interface.max_open_sessions_hard);
 
         RINGBUFFER_WRITE_MESSAGE(
-          ::tls::tls_stop, to_host, id, std::string("Session refused"));
+          ::tcp::tcp_stop, to_host, id, std::string("Session refused"));
       }
       else if (
         per_listen_interface.open_sessions >=
@@ -449,7 +449,7 @@ namespace ccf
           {
             // We know it's a custom protocol, but the session creation function
             // hasn't been registered yet, so we keep a nullptr until the first
-            // udp::inbound message.
+            // udp::udp_inbound message.
             sessions.insert(
               std::make_pair(id, std::make_pair(listen_interface_id, nullptr)));
           }
@@ -600,14 +600,14 @@ namespace ccf
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ::tls::tls_start, [this](const uint8_t* data, size_t size) {
+        disp, ::tcp::tcp_start, [this](const uint8_t* data, size_t size) {
           auto [new_tls_id, listen_interface_name] =
-            ringbuffer::read_message<::tls::tls_start>(data, size);
+            ringbuffer::read_message<::tcp::tcp_start>(data, size);
           accept(new_tls_id, listen_interface_name);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ::tls::tls_inbound, [this](const uint8_t* data, size_t size) {
+        disp, ::tcp::tcp_inbound, [this](const uint8_t* data, size_t size) {
           auto id = serialized::peek<ccf::tls::ConnID>(data, size);
 
           auto search = sessions.find(id);
@@ -622,27 +622,28 @@ namespace ccf
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ::tls::tls_close, [this](const uint8_t* data, size_t size) {
-          auto [id] = ringbuffer::read_message<::tls::tls_close>(data, size);
+        disp, ::tcp::tcp_close, [this](const uint8_t* data, size_t size) {
+          auto [id] = ringbuffer::read_message<::tcp::tcp_close>(data, size);
           remove_session(id);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, udp::start, [this](const uint8_t* data, size_t size) {
+        disp, udp::udp_start, [this](const uint8_t* data, size_t size) {
           auto [new_id, listen_interface_name] =
-            ringbuffer::read_message<udp::start>(data, size);
+            ringbuffer::read_message<udp::udp_start>(data, size);
           accept(new_id, listen_interface_name, true);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, udp::inbound, [this](const uint8_t* data, size_t size) {
+        disp, udp::udp_inbound, [this](const uint8_t* data, size_t size) {
           auto id = serialized::peek<int64_t>(data, size);
 
           auto search = sessions.find(id);
           if (search == sessions.end())
           {
             LOG_DEBUG_FMT(
-              "Ignoring udp::inbound for unknown or refused session: {}", id);
+              "Ignoring udp::udp_inbound for unknown or refused session: {}",
+              id);
             return;
           }
           else if (!search->second.second && custom_protocol_subsystem)
@@ -659,7 +660,8 @@ namespace ccf
               {
                 LOG_DEBUG_FMT(
                   "Failure to create custom protocol session because of "
-                  "unknown interface '{}', ignoring udp::inbound for session: "
+                  "unknown interface '{}', ignoring udp::udp_inbound for "
+                  "session: "
                   "{}",
                   interface_id,
                   id);
@@ -674,7 +676,7 @@ namespace ccf
               {
                 LOG_DEBUG_FMT(
                   "Failure to create custom protocol session, ignoring "
-                  "udp::inbound for session: {}",
+                  "udp::udp_inbound for session: {}",
                   id);
                 return;
               }

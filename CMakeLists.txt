@@ -224,6 +224,7 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/base_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/common_endpoint_registry.cpp
+    ${CCF_DIR}/src/endpoints/user_endpoint_registry.cpp
     ${CCF_DIR}/src/endpoints/json_handler.cpp
     ${CCF_DIR}/src/endpoints/authentication/cose_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/cert_auth.cpp
@@ -565,6 +566,12 @@ install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 file(READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
      HOST_CONFIG_SCHEMA
 )
+set_property(
+  DIRECTORY
+  APPEND
+  PROPERTY CMAKE_CONFIGURE_DEPENDS
+           ${CCF_DIR}/doc/host_config_schema/cchost_config.json
+)
 configure_file(
   ${CCF_DIR}/src/host/config_schema.h.in ${CCF_DIR}/src/host/config_schema.h
   @ONLY
@@ -573,8 +580,20 @@ configure_file(
 file(READ ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
      GOV_API_SCHEMA_2023_06_01_PREVIEW
 )
+set_property(
+  DIRECTORY
+  APPEND
+  PROPERTY CMAKE_CONFIGURE_DEPENDS
+           ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
+)
 file(READ ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
      GOV_API_SCHEMA_2024_07_01
+)
+set_property(
+  DIRECTORY
+  APPEND
+  PROPERTY CMAKE_CONFIGURE_DEPENDS
+           ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
 )
 configure_file(
   ${CCF_DIR}/src/node/gov/api_schema.h.in ${CCF_DIR}/src/node/gov/api_schema.h
@@ -993,6 +1012,9 @@ if(BUILD_TESTS)
       base64_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/base64.cpp
     )
     target_link_libraries(base64_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+
+    add_unit_test(pem_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/pem.cpp)
+    target_link_libraries(pem_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_test_bin(
       kp_cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/kp_cert.cpp
