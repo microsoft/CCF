@@ -19,7 +19,7 @@
         },
         "rpcInterfaces": {
           "publicHttps": {
-            "publishedAddress": "example.com:12345",
+            "publishedAddress": "ccf.dev:12345",
             "protocol": "HTTP1"
           }
         }
