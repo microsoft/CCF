@@ -1,12 +1,16 @@
 name: "TLA+ Spec Verification"
 
 on:
-  push:
-    branches: [main]
+  schedule:
+    - cron: "0 0 * * 0"
   pull_request:
     paths:
       - "tla/**"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   actions: read
