@@ -48,7 +48,7 @@ AMD endorsements must be fetched, preferably from the THIM service, but configur
 Non-Azure Deployment
 ~~~~~~~~~~~~~~~~~~~~
 
-For non-Azure deployments, the certificate chain for VCEK will need to be retrieved from an endorsement server, as specified in the :ref:`operations/configuration:``snp_endorsements_servers``` configuration section. For example, for the `well-known AMD endorsement server <https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/specifications/57230.pdf>`_, the value should be set to:
+For non-Azure deployments, the certificate chain for VCEK will need to be retrieved from an endorsement server, as specified in the :ref:`operations/configuration:``attestation.snp_endorsements_servers``` configuration section. For example, for the `well-known AMD endorsement server <https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/specifications/57230.pdf>`_, the value should be set to:
 
 .. code-block:: json
 
