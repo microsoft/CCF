@@ -13,8 +13,20 @@ permissions:
   checks: write
 
 jobs:
+  checks:
+    name: "Format and License Checks"
+    runs-on: ubuntu-latest
+    container: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+
+    steps:
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - run: ./scripts/ci-checks.sh
+
   build_and_test:
     name: CI
+    needs: checks
     strategy:
       matrix:
         platform:
