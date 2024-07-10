@@ -340,7 +340,25 @@ namespace ccf::gov::endpoints
         case ApiVersion::v1:
         default:
         {
-          ctx.rpc_ctx->set_response_json("OK", HTTP_STATUS_OK);
+          auto response_body = nlohmann::json::object();
+
+          {
+            auto module_list = nlohmann::json::array();
+
+            auto modules_handle =
+              ctx.tx.template ro<ccf::Modules>(ccf::Tables::MODULES);
+
+            modules_handle->foreach_key(
+              [&module_list](const std::string& module_name) {
+                module_list.push_back(module_name);
+                return true;
+              });
+
+            response_body["value"] = module_list;
+          }
+
+          ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
+          return;
         }
       }
     };
@@ -361,7 +379,47 @@ namespace ccf::gov::endpoints
           case ApiVersion::v1:
           default:
           {
-            ctx.rpc_ctx->set_response_json("Working on it", HTTP_STATUS_OK);
+            std::string module_name;
+            {
+              std::string error;
+              if (!ccf::endpoints::get_path_param(
+                    ctx.rpc_ctx->get_request_path_params(),
+                    "moduleName",
+                    module_name,
+                    error))
+              {
+                detail::set_gov_error(
+                  ctx.rpc_ctx,
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidResourceName,
+                  std::move(error));
+                return;
+              }
+            }
+
+            module_name = ::http::url_decode(module_name);
+
+            auto modules_handle =
+              ctx.tx.template ro<ccf::Modules>(ccf::Tables::MODULES);
+            auto module = modules_handle->get(module_name);
+
+            if (!module.has_value())
+            {
+              detail::set_gov_error(
+                ctx.rpc_ctx,
+                HTTP_STATUS_NOT_FOUND,
+                ccf::errors::ResourceNotFound,
+                fmt::format("Module {} does not exist.", module_name));
+              return;
+            }
+
+            // Return raw JS module content in body
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+            ctx.rpc_ctx->set_response_body(std::move(module.value()));
+            ctx.rpc_ctx->set_response_header(
+              ccf::http::headers::CONTENT_TYPE,
+              http::headervalues::contenttype::JAVASCRIPT);
+            return;
           }
         }
       };
@@ -369,7 +427,7 @@ namespace ccf::gov::endpoints
       .make_read_only_endpoint(
         "/service/javascript-modules/{moduleName}",
         HTTP_GET,
-        api_version_adapter(get_javascript_module_by_name),
+        api_version_adapter(get_javascript_module_by_name, ApiVersion::v1),
         no_auth_required)
       .set_openapi_hidden(true)
       .install();
