@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0-rc1]
+
+[5.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-rc1
+
+### Added
+
+- The `cchost` configuration file now includes an `idle_connection_timeout` option. This controls how long the node will keep idle connections (for user TLS sessions) before automatically closing them. This may be set to `null` to restore the previous behaviour, where idle connections are never closed. By default connections will be closed after 60s of idle time.
+
+### Changed
+
+- Serialisation of C++ types to JSON has changed. Fields which are marked as optional in the CCF JSON serdes macros (ie - those in `DECLARE_JSON_OPTIONAL_FIELDS`) will now always be present in the resulting JSON object. Previously they would be omitted from the object if they matched the default value. They are still optional on deserialisation (ie - if these fields are missing, the object can still be deserialised).
+
 ## [5.0.0-rc0]
 
 [5.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-rc0
@@ -26,14 +38,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The `programmability` sample app now demonstrates how applications can define their own extensions, creating bindings between C++ and JS state, and allowing JS endpoints to call functions implemented in C++.
 - Introduce `DynamicJSEndpointRegistry::record_action_for_audit_v1` and `DynamicJSEndpointRegistry::check_action_not_replayed_v1` to allow an application making use of the programmability feature to easily implement auditability, and protect users allowed to update the application against replay attacks (#6285).
 - Endpoints now support a `ToBackup` redirection strategy, for requests which should never be executed on a primary. These must also be read-only. These are configured similar to `ToPrimary` endpoints, with a `to_backup` object (specifying by-role or statically-addressed targets) in each node's configuration.
-
-## Changed
-
-- Updated Open Enclave to [0.19.7](https://github.com/openenclave/openenclave/releases/tag/v0.19.7).
+- Introduced `ccf::historical::read_only_adapter_v4` and `ccf::historical::read_write_adapter_v4`. Users are now capable of passing a custom error handler to the adapter to customise RPC responses for internal historical queries errors, which are listed in `ccf::historical::HistoricalQueryErrorCode` enum.
 
 ### Changed
 
-- Serialisation of C++ types to JSON has changed. Fields which are marked as optional in the CCF JSON serdes macros (ie - those in `DECLARE_JSON_OPTIONAL_FIELDS`) will now always be present in the resulting JSON object. Previously they would be omitted from the object if they matched the default value. They are still optional on deserialisation (ie - if these fields are missing, the object can still be deserialised).
+- Updated Open Enclave to [0.19.7](https://github.com/openenclave/openenclave/releases/tag/v0.19.7).
+
+### Deprecated
+
+- `ccf::historical::adapter_v3` becomes deprecated in favour of `_v4` version.
 
 ### Removed
 

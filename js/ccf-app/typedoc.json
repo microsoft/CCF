@@ -9,7 +9,6 @@
     "src/historical.ts",
     "src/kv.ts",
     "src/polyfill.ts",
-    "src/openenclave.ts",
     "src/snp_attestation.ts"
   ],
   "out": "html",

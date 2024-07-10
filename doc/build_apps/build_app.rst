@@ -7,7 +7,7 @@ Once an application is complete, it needs to be built into a shared object, and 
 
 Using ``cmake``, an application can be built and then signed using the functions provided by CCF's ``cmake/ccf_app.cmake``. For example, for the ``js_generic`` JavaScript application:
 
-.. literalinclude:: ../../cmake/common.cmake
+.. literalinclude:: ../../CMakeLists.txt
     :language: cmake
     :start-after: SNIPPET_START: JS generic application
     :end-before: SNIPPET_END: JS generic application

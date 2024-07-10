@@ -41,6 +41,8 @@ The dependencies required to build and run CCF apps can be conveniently installe
         
 This will install the latest release of CCF, but a specific release can also be specified with ``--extra-vars "ccf_ver=X.Y.Z"`` if desired.
 
+.. _Install:
+
 Installation from .deb
 ----------------------
 

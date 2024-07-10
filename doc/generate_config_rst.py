@@ -43,7 +43,9 @@ class MinimalRstGenerator:
     def start_section(self, header, prefix=""):
         if prefix:
             prefix = f"`{prefix}`"
-        self._start_header_section(f"{prefix}\ {header}")
+            self._start_header_section(f"{prefix}\ {header}")
+        else:
+            self._start_header_section(header)
         self._depth += 1
 
     def end_section(self):
@@ -111,8 +113,10 @@ def dump_property(
 
     t = obj.get("type")
 
-    if has_subobjs(obj):
-        output.start_section(f"``{prefix}{property_name}``")
+    if has_subobjs(obj) or len(path) == 0:
+        section_title = f"``{prefix}{property_name}``"
+
+        output.start_section(section_title)
         for condition in conditions:
             output.add_line(condition)
 
@@ -212,8 +216,9 @@ def dump_object(output: MinimalRstGenerator, obj: dict, path: list = [], conditi
             extra_conditions = []
             for k, cond in if_el["properties"].items():
                 assert "const" in cond, "Only 'const' conditions supported"
+                goal_s = monospace_literal(cond["const"])
                 extra_conditions.append(
-                    f"(Only applies if {''.join(path)}{k} is {monospace_literal(cond['const'])})"
+                    f"(Only applies if {''.join(path)}{k} is {goal_s})"
                 )
 
             gather_properties(obj["then"], conditions=conditions + extra_conditions)

@@ -1,0 +1,83 @@
+name: "Build and Publish Release Containers to GHCR"
+
+on:
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
+
+jobs:
+  build_and_publish:
+    name: "Build and Publish Release Containers"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [sgx, virtual, snp]
+        type: [dev, run]
+        run_js: [true, ""]
+        clang_version: ["11", "15"]
+        exclude:
+          - type: dev
+            run_js: true
+          - platform: sgx
+            clang_version: "15"
+          - platform: virtual
+            clang_version: "11"
+          - platform: snp
+            clang_version: "11"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get image tag from git tag (release) or latest (branch) and set image name
+        run: |
+          CCF_RELEASE=${GITHUB_REF#refs/tags/ccf-}
+          echo "tag=${CCF_RELEASE}" >> $GITHUB_OUTPUT
+          echo "major_release=${CCF_RELEASE:0:1}" >> $GITHUB_OUTPUT
+          IMG_NAME=${{ env.REGISTRY }}/${{ github.repository }}/app/${{ matrix.type }}${{ matrix.run_js && '-js' || '' }}/${{ matrix.platform }}
+          echo "img_name=${IMG_NAME}" >> $GITHUB_OUTPUT
+        id: tref
+
+      - name: Extract metadata (tags, labels) for the image
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.tref.outputs.img_name }}
+        if: ${{ steps.tref.outputs.major_release >= '5'}}
+
+      - name: Build and push container
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./docker/app_${{ matrix.type }}
+          build-args: |
+            clang_version=${{ matrix.clang_version }}
+            platform=${{ matrix.platform }}
+            "ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }} ${{ matrix.run_js && 'run_js=true' || '' }}"
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+        if: ${{ steps.tref.outputs.major_release >= '5'}}
+
+      - name: Attest container
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ steps.tref.outputs.img_name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+        if: ${{ steps.tref.outputs.major_release >= '5'}}

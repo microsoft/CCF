@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "../quic/msg_types.h"
-#include "../tls/msg_types.h"
+#include "../tcp/msg_types.h"
+#include "../udp/msg_types.h"
 #include "tcp.h"
 #include "udp.h"
 
@@ -44,16 +44,16 @@ namespace
 namespace asynchost
 {
   /**
-   * Generates next ID, passed as an argument to RPCConnections so that we can
-   * have multiple and avoid reusing the same ConnID across each.
+   * Generates next ID, passed as an argument to RPCConnectionsImpl so that we
+   * can have multiple and avoid reusing the same ConnID across each.
    */
   class ConnIDGenerator
   {
   public:
-    /// This is the same as ccf::tls::ConnID and quic::ConnID
+    /// This is the same as ccf::tls::ConnID and udp::ConnID
     using ConnID = int64_t;
-    static_assert(std::is_same<::tls::ConnID, quic::ConnID>());
-    static_assert(std::is_same<::tls::ConnID, ConnID>());
+    static_assert(std::is_same<::tcp::ConnID, udp::ConnID>());
+    static_assert(std::is_same<::tcp::ConnID, ConnID>());
 
     ConnIDGenerator() : next_id(1) {}
 
@@ -88,21 +88,23 @@ namespace asynchost
   };
 
   template <class ConnType>
-  class RPCConnections
+  class RPCConnectionsImpl
   {
     using ConnID = ConnIDGenerator::ConnID;
 
     class RPCClientBehaviour : public SocketBehaviour<ConnType>
     {
     public:
-      RPCConnections& parent;
+      RPCConnectionsImpl& parent;
       ConnID id;
 
-      RPCClientBehaviour(RPCConnections& parent, ConnID id) :
+      RPCClientBehaviour(RPCConnectionsImpl& parent, ConnID id) :
         SocketBehaviour<ConnType>("RPC Client", getConnTypeName<ConnType>()),
         parent(parent),
         id(id)
-      {}
+      {
+        parent.mark_active(id);
+      }
 
       void on_resolve_failed() override
       {
@@ -120,8 +122,10 @@ namespace asynchost
       {
         LOG_DEBUG_FMT("rpc read {}: {}", id, len);
 
+        parent.mark_active(id);
+
         RINGBUFFER_WRITE_MESSAGE(
-          ::tls::tls_inbound,
+          ::tcp::tcp_inbound,
           parent.to_enclave,
           id,
           serializer::ByteRange{data, len});
@@ -139,7 +143,7 @@ namespace asynchost
       {
         if constexpr (isTCP<ConnType>())
         {
-          RINGBUFFER_WRITE_MESSAGE(::tls::tls_close, parent.to_enclave, id);
+          RINGBUFFER_WRITE_MESSAGE(::tcp::tcp_close, parent.to_enclave, id);
         }
       }
     };
@@ -147,10 +151,10 @@ namespace asynchost
     class RPCServerBehaviour : public SocketBehaviour<ConnType>
     {
     public:
-      RPCConnections& parent;
+      RPCConnectionsImpl& parent;
       ConnID id;
 
-      RPCServerBehaviour(RPCConnections& parent, ConnID id) :
+      RPCServerBehaviour(RPCConnectionsImpl& parent, ConnID id) :
         SocketBehaviour<ConnType>("RPC Client", getConnTypeName<ConnType>()),
         parent(parent),
         id(id)
@@ -185,14 +189,14 @@ namespace asynchost
         if constexpr (isTCP<ConnType>())
         {
           RINGBUFFER_WRITE_MESSAGE(
-            ::tls::tls_start, parent.to_enclave, peer_id, interface_name);
+            ::tcp::tcp_start, parent.to_enclave, peer_id, interface_name);
           return;
         }
 
         if constexpr (isUDP<ConnType>())
         {
           RINGBUFFER_WRITE_MESSAGE(
-            udp::start, parent.to_enclave, peer_id, interface_name);
+            udp::udp_start, parent.to_enclave, peer_id, interface_name);
           return;
         }
       }
@@ -206,7 +210,7 @@ namespace asynchost
 
           LOG_DEBUG_FMT("rpc udp read into ring buffer {}: {}", id, len);
           RINGBUFFER_WRITE_MESSAGE(
-            udp::inbound,
+            udp::udp_inbound,
             parent.to_enclave,
             id,
             addr_family,
@@ -226,18 +230,27 @@ namespace asynchost
     std::unordered_map<ConnID, ConnType> sockets;
     ConnIDGenerator& idGen;
 
+    // Measured in seconds
+    std::unordered_map<ConnID, size_t> idle_times;
+
     std::optional<std::chrono::milliseconds> client_connection_timeout =
       std::nullopt;
+
+    std::optional<std::chrono::seconds> idle_connection_timeout = std::nullopt;
+
     ringbuffer::WriterPtr to_enclave;
 
   public:
-    RPCConnections(
+    RPCConnectionsImpl(
       ringbuffer::AbstractWriterFactory& writer_factory,
       ConnIDGenerator& idGen,
       std::optional<std::chrono::milliseconds> client_connection_timeout_ =
+        std::nullopt,
+      std::optional<std::chrono::seconds> idle_connection_timeout_ =
         std::nullopt) :
       idGen(idGen),
       client_connection_timeout(client_connection_timeout_),
+      idle_connection_timeout(idle_connection_timeout_),
       to_enclave(writer_factory.create_writer_to_inside())
     {}
 
@@ -318,7 +331,11 @@ namespace asynchost
       }
 
       if (s->second.is_null())
+      {
         return false;
+      }
+
+      mark_active(id);
 
       return s->second->write(len, data, addr);
     }
@@ -328,7 +345,7 @@ namespace asynchost
       // Invalidating the TCP socket will result in the handle being closed. No
       // more messages will be read from or written to the TCP socket.
       sockets[id] = nullptr;
-      RINGBUFFER_WRITE_MESSAGE(::tls::tls_close, to_enclave, id);
+      RINGBUFFER_WRITE_MESSAGE(::tcp::tcp_close, to_enclave, id);
 
       return true;
     }
@@ -341,6 +358,8 @@ namespace asynchost
         return false;
       }
 
+      idle_times.erase(id);
+
       return true;
     }
 
@@ -348,9 +367,9 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ::tls::tls_outbound, [this](const uint8_t* data, size_t size) {
+        disp, ::tcp::tcp_outbound, [this](const uint8_t* data, size_t size) {
           auto [id, body] =
-            ringbuffer::read_message<::tls::tls_outbound>(data, size);
+            ringbuffer::read_message<::tcp::tcp_outbound>(data, size);
 
           ConnID connect_id = (ConnID)id;
           LOG_DEBUG_FMT("rpc write from enclave {}: {}", connect_id, body.size);
@@ -359,9 +378,9 @@ namespace asynchost
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ::tls::tls_connect, [this](const uint8_t* data, size_t size) {
+        disp, ::tcp::tcp_connect, [this](const uint8_t* data, size_t size) {
           auto [id, host, port] =
-            ringbuffer::read_message<::tls::tls_connect>(data, size);
+            ringbuffer::read_message<::tcp::tcp_connect>(data, size);
 
           LOG_DEBUG_FMT("rpc connect request from enclave {}", id);
 
@@ -377,17 +396,17 @@ namespace asynchost
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ::tls::tls_stop, [this](const uint8_t* data, size_t size) {
+        disp, ::tcp::tcp_stop, [this](const uint8_t* data, size_t size) {
           auto [id, msg] =
-            ringbuffer::read_message<::tls::tls_stop>(data, size);
+            ringbuffer::read_message<::tcp::tcp_stop>(data, size);
 
           LOG_DEBUG_FMT("rpc stop from enclave {}, {}", id, msg);
           stop(id);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, ::tls::tls_closed, [this](const uint8_t* data, size_t size) {
-          auto [id] = ringbuffer::read_message<::tls::tls_closed>(data, size);
+        disp, ::tcp::tcp_closed, [this](const uint8_t* data, size_t size) {
+          auto [id] = ringbuffer::read_message<::tcp::tcp_closed>(data, size);
 
           LOG_DEBUG_FMT("rpc closed from enclave {}", id);
           close(id);
@@ -398,9 +417,9 @@ namespace asynchost
       messaging::Dispatcher<ringbuffer::Message>& disp)
     {
       DISPATCHER_SET_MESSAGE_HANDLER(
-        disp, udp::outbound, [this](const uint8_t* data, size_t size) {
+        disp, udp::udp_outbound, [this](const uint8_t* data, size_t size) {
           auto [id, addr_family, addr_data, body] =
-            ringbuffer::read_message<udp::outbound>(data, size);
+            ringbuffer::read_message<udp::udp_outbound>(data, size);
 
           ConnID connect_id = (ConnID)id;
           LOG_DEBUG_FMT("rpc write from enclave {}: {}", connect_id, body.size);
@@ -408,6 +427,38 @@ namespace asynchost
           auto addr = udp::sockaddr_decode(addr_family, addr_data);
           write(connect_id, body.size, body.data, addr);
         });
+    }
+
+    void mark_active(ConnID id)
+    {
+      idle_times[id] = 0;
+    }
+
+    void on_timer()
+    {
+      if (!idle_connection_timeout.has_value())
+      {
+        return;
+      }
+
+      const size_t max_idle_time = idle_connection_timeout->count();
+
+      for (auto& [id, idle_time] : idle_times)
+      {
+        if (idle_time > max_idle_time)
+        {
+          LOG_INFO_FMT(
+            "Closing socket {} after {}s idle (max = {}s)",
+            id,
+            idle_time,
+            max_idle_time);
+          stop(id);
+        }
+        else
+        {
+          idle_time += 1;
+        }
+      }
     }
 
   private:
@@ -441,4 +492,7 @@ namespace asynchost
       return listen_name.value();
     }
   };
+
+  template <class ConnType>
+  using RPCConnections = proxy_ptr<Timer<RPCConnectionsImpl<ConnType>>>;
 }
