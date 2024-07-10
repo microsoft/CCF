@@ -333,6 +333,13 @@ TEST_CASE("camel_case" * doctest::test_suite("nonstd"))
     REQUIRE(ccf::nonstd::camel_case("hello world", false) == "helloWorld");
 
     REQUIRE(
+      ccf::nonstd::camel_case("standard_snake_case_value") ==
+      "StandardSnakeCaseValue");
+    REQUIRE(
+      ccf::nonstd::camel_case("standard_snake_case_value", false) ==
+      "standardSnakeCaseValue");
+
+    REQUIRE(
       ccf::nonstd::camel_case(
         "camel-with.many/many!many_many,many|many$separators") ==
       "CamelWithManyManyManyManyManyManySeparators");
