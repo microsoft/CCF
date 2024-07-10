@@ -382,7 +382,7 @@ JWT signing key to Issuer mapping, used until 5.0.
 **Value** JWT issuer URL, represented as a string.
 
 ``jwt.public_signing_keys_metadata``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 JWT signing keys.
 
