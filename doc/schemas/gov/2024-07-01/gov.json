@@ -841,6 +841,96 @@
         }
       }
     },
+    "/gov/service/js-modules": {
+      "get": {
+        "operationId": "ServiceState_ListJsModules",
+        "description": "Retrieve list of all modules constituting the current app.",
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "schema": {
+              "$ref": "#/definitions/PagedJsModuleNames"
+            },
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string",
+                "description": "Identifier for transaction this response was read from. The service state may be altered by other write requests. Reads at the same transactionId describe a consistent single point in the service history.",
+                "pattern": "^[0-9]+\\.[0-9]+$"
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            },
+            "headers": {
+              "x-ms-error-code": {
+                "type": "string",
+                "description": "String error code indicating what went wrong."
+              }
+            }
+          }
+        },
+        "x-ms-pageable": {
+          "nextLinkName": "nextLink"
+        }
+      }
+    },
+    "/gov/service/js-modules/{moduleName}": {
+      "get": {
+        "operationId": "ServiceState_GetJsModule",
+        "description": "Retrieve single module of current app, by name. Note that the moduleName path parameter (which may contain forward slashes indicating module path segments) must be URL-escaped to register as a single URL path segment. For instance '/foo/bar.js' should become '%2Ffoo%2Fbar.js'.",
+        "produces": [
+          "text/javascript",
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/parameters/Azure.Core.Foundations.ApiVersionParameter"
+          },
+          {
+            "name": "moduleName",
+            "in": "path",
+            "description": "Name of module, potentially including path elements.",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "schema": {
+              "$ref": "#/definitions/ServiceState.JsModuleResponse"
+            },
+            "headers": {
+              "x-ms-ccf-transaction-id": {
+                "type": "string",
+                "description": "Identifier for transaction this response was read from. The service state may be altered by other write requests. Reads at the same transactionId describe a consistent single point in the service history.",
+                "pattern": "^[0-9]+\\.[0-9]+$"
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/Azure.Core.Foundations.ErrorResponse"
+            },
+            "headers": {
+              "x-ms-error-code": {
+                "type": "string",
+                "description": "String error code indicating what went wrong."
+              }
+            }
+          }
+        }
+      }
+    },
     "/gov/service/jwk": {
       "get": {
         "operationId": "ServiceState_GetJwkInfo",
@@ -1164,14 +1254,22 @@
       "type": "object",
       "description": "A compact summary of the service's state up to a certain point in time, updated and signed by members to indicate their participation in and approval of the service.",
       "properties": {
-        "digest": {
+        "memberId": {
+          "$ref": "#/definitions/memberId",
+          "description": "Identifier for member this stateDigest applies to.",
+          "x-ms-mutability": [
+            "read"
+          ]
+        },
+        "stateDigest": {
           "type": "string",
           "description": "Hex-encoding of SHA-256 hash of the root of the service's merkle tree. This should be signed by a new member and submitted as an ACK to mark that member as Active.",
           "pattern": "^[a-f0-9]{64}$"
         }
       },
       "required": [
-        "digest"
+        "memberId",
+        "stateDigest"
       ]
     },
     "Azure.Core.Foundations.Error": {
@@ -1234,6 +1332,28 @@
           "description": "Inner error."
         }
       }
+    },
+    "PagedJsModuleNames": {
+      "type": "object",
+      "description": "Paged collection of JsModuleNames items",
+      "properties": {
+        "value": {
+          "type": "array",
+          "description": "The JsModuleNames items on this page",
+          "items": {
+            "$ref": "#/definitions/ServiceState.JsModuleNames"
+          },
+          "x-ms-identifiers": []
+        },
+        "nextLink": {
+          "type": "string",
+          "format": "uri",
+          "description": "The link to the next page of items"
+        }
+      },
+      "required": [
+        "value"
+      ]
     },
     "PagedMember": {
       "type": "object",
@@ -1534,6 +1654,19 @@
         "constitution"
       ]
     },
+    "ServiceState.FeedInfo": {
+      "type": "object",
+      "description": "Collection of claims regarding a specific feed.",
+      "properties": {
+        "svn": {
+          "type": "string",
+          "description": "Security version number claimed by this endorser."
+        }
+      },
+      "required": [
+        "svn"
+      ]
+    },
     "ServiceState.ForwardingRequired": {
       "type": "string",
       "description": "Describes the forwarding behavior of a specific endpoint. Write requests cannot be executed on a backup, so will generally be forwarded by any backup node which receives them to the current primary. Future requests on the same session may then be forwarded to maintain session consistency.",
@@ -1687,12 +1820,58 @@
         ]
       }
     },
+    "ServiceState.JsModuleNames": {
+      "type": "object",
+      "description": "Names of JS modules implementing the current app.",
+      "properties": {
+        "moduleName": {
+          "type": "string",
+          "description": "Name of module, potentially including path elements.",
+          "x-ms-mutability": [
+            "read"
+          ]
+        }
+      },
+      "required": [
+        "moduleName"
+      ]
+    },
+    "ServiceState.JsModuleResponse": {
+      "type": "object",
+      "description": "JavaScript source code corresponding to a given module name.",
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "JavaScript source code of this module."
+        }
+      },
+      "required": [
+        "source"
+      ]
+    },
     "ServiceState.JsOperations": {
       "type": "object",
       "description": "The collection of operations available on each path. Keyed by HTTP method.",
       "additionalProperties": {
         "$ref": "#/definitions/ServiceState.JsEndpointInfo"
       }
+    },
+    "ServiceState.Jwk": {
+      "type": "object",
+      "description": "Describes a single JWK.",
+      "properties": {
+        "certificate": {
+          "$ref": "#/definitions/ServiceState.pem",
+          "description": "x509 cert used to validate claims made by this key."
+        },
+        "issuer": {
+          "type": "string",
+          "description": "Issuer ID of entity who issued this key."
+        }
+      },
+      "required": [
+        "certificate"
+      ]
     },
     "ServiceState.JwkInfo": {
       "type": "object",
@@ -1711,11 +1890,19 @@
           "additionalProperties": {
             "$ref": "#/definitions/ServiceState.caCertBundle"
           }
+        },
+        "keys": {
+          "type": "object",
+          "description": "Collection of retrieved JWKs. Keyed by kid.",
+          "additionalProperties": {
+            "$ref": "#/definitions/ServiceState.Jwk"
+          }
         }
       },
       "required": [
         "issuers",
-        "caCertBundles"
+        "caCertBundles",
+        "keys"
       ]
     },
     "ServiceState.JwtIssuer": {
@@ -1789,6 +1976,10 @@
         "certificate": {
           "$ref": "#/definitions/ServiceState.pem",
           "description": "x509 certificate used as this member's identity."
+        },
+        "publicEncryptionKey": {
+          "$ref": "#/definitions/ServiceState.pem",
+          "description": "x509 key used to encrypt this member's key shares, if they are a recovery member."
         }
       },
       "required": [
@@ -1948,7 +2139,7 @@
           "description": "Transaction ID at which this service was first created. If this is a recovery of a previous service, this will indicate when the current service was recovered."
         },
         "previousServiceCreationTransactionId": {
-          "$ref": "#/definitions/ServiceState.pem",
+          "$ref": "#/definitions/transactionId",
           "description": "Transaction ID at which the predecessor service was created, if this service is a recovery. If this is an original service rather than a recovery, this will be omitted."
         },
         "serviceData": {
@@ -2063,10 +2254,9 @@
         },
         "uvmEndorsements": {
           "type": "object",
-          "description": "Collection of acceptable UVM endorsements.",
+          "description": "Collection of acceptable UVM endorsements. Keyed by endorser's did.",
           "additionalProperties": {
-            "format": "byte",
-            "type": "string"
+            "$ref": "#/definitions/ServiceState.UvmEndorsementFeeds"
           }
         }
       },
@@ -2101,6 +2291,13 @@
         }
       ],
       "x-ms-discriminator-value": "AMD_SEV_SNP_v1"
+    },
+    "ServiceState.UvmEndorsementFeeds": {
+      "type": "object",
+      "description": "Collection of endorsement feeds, keyed by feed name.",
+      "additionalProperties": {
+        "$ref": "#/definitions/ServiceState.FeedInfo"
+      }
     },
     "ServiceState.caCertBundle": {
       "type": "string",
