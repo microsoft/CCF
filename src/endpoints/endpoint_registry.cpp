@@ -36,11 +36,23 @@ namespace ccf::endpoints
 
       // Add what appears a *mandatory* operationId, which is expected to be
       // unique across the spec.
+      // A1) Eliminate '{' and '}' from the path but keep the string inbetween.
       std::string p =
-        std::regex_replace(endpoint->full_uri_path, std::regex("[/_]"), "");
+        std::regex_replace(endpoint->full_uri_path, std::regex("[{}]"), "");
+      // A2) Camel-Case what remains at the path separator.
+      p = ccf::nonstd::camel_case(p);
+
+      // B1) Get the HTTP verb as a string (it's all caps).
       std::string s = llhttp_method_name(http_verb.value());
+      // B2) Lowercase it.
       ccf::nonstd::to_lower(s);
-      path_op["operationId"] = fmt::format("{}_{}", p, s);
+      // B3) Camel-Case it, i.e., the first char.
+      s = ccf::nonstd::camel_case(s, true);
+
+      // C) Concatenate the camel-cased verb and path. For example, this gives
+      // us "PostAppLogPrivateRawTextId" for the verb POST and the path
+      // "/app/log/private/raw_text/{id}".
+      path_op["operationId"] = fmt::format("{}{}", s, p);
 
       // Path Operation must contain at least one response - if none has been
       // defined, assume this can return 200

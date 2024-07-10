@@ -1357,7 +1357,7 @@
   "paths": {
     "/gov/ack": {
       "post": {
-        "operationId": "govack_post",
+        "operationId": "PostGovAck",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1389,7 +1389,7 @@
     },
     "/gov/ack/update_state_digest": {
       "post": {
-        "operationId": "govackupdatestatedigest_post",
+        "operationId": "PostGovAckUpdateStateDigest",
         "responses": {
           "200": {
             "content": {
@@ -1418,7 +1418,7 @@
     },
     "/gov/api": {
       "get": {
-        "operationId": "govapi_get",
+        "operationId": "GetGovApi",
         "responses": {
           "200": {
             "content": {
@@ -1444,7 +1444,7 @@
       "get": {
         "deprecated": true,
         "description": "Permitted SGX code identities",
-        "operationId": "govcode_get",
+        "operationId": "GetGovCode",
         "responses": {
           "200": {
             "content": {
@@ -1469,7 +1469,7 @@
     "/gov/commit": {
       "get": {
         "description": "Latest transaction ID that has been committed on the service",
-        "operationId": "govcommit_get",
+        "operationId": "GetGovCommit",
         "parameters": [
           {
             "in": "query",
@@ -1511,7 +1511,7 @@
     },
     "/gov/encrypted_recovery_share/{member_id}": {
       "get": {
-        "operationId": "govencryptedrecoveryshare{memberid}_get",
+        "operationId": "GetGovEncryptedRecoveryShareMemberId",
         "responses": {
           "200": {
             "content": {
@@ -1546,7 +1546,7 @@
     "/gov/jwt_keys/all": {
       "get": {
         "deprecated": true,
-        "operationId": "govjwtkeysall_get",
+        "operationId": "GetGovJwtKeysAll",
         "responses": {
           "200": {
             "content": {
@@ -1570,7 +1570,7 @@
     },
     "/gov/kv/constitution": {
       "get": {
-        "operationId": "govkvconstitution_get",
+        "operationId": "GetGovKvConstitution",
         "responses": {
           "200": {
             "content": {
@@ -1593,7 +1593,7 @@
     },
     "/gov/kv/cose_history": {
       "get": {
-        "operationId": "govkvcosehistory_get",
+        "operationId": "GetGovKvCoseHistory",
         "responses": {
           "200": {
             "content": {
@@ -1616,7 +1616,7 @@
     },
     "/gov/kv/cose_recent_proposals": {
       "get": {
-        "operationId": "govkvcoserecentproposals_get",
+        "operationId": "GetGovKvCoseRecentProposals",
         "responses": {
           "200": {
             "content": {
@@ -1639,7 +1639,7 @@
     },
     "/gov/kv/endpoints": {
       "get": {
-        "operationId": "govkvendpoints_get",
+        "operationId": "GetGovKvEndpoints",
         "responses": {
           "200": {
             "content": {
@@ -1662,7 +1662,7 @@
     },
     "/gov/kv/history": {
       "get": {
-        "operationId": "govkvhistory_get",
+        "operationId": "GetGovKvHistory",
         "responses": {
           "200": {
             "content": {
@@ -1685,7 +1685,7 @@
     },
     "/gov/kv/interpreter/flush": {
       "get": {
-        "operationId": "govkvinterpreterflush_get",
+        "operationId": "GetGovKvInterpreterFlush",
         "responses": {
           "200": {
             "content": {
@@ -1708,7 +1708,7 @@
     },
     "/gov/kv/js_runtime_options": {
       "get": {
-        "operationId": "govkvjsruntimeoptions_get",
+        "operationId": "GetGovKvJsRuntimeOptions",
         "responses": {
           "200": {
             "content": {
@@ -1731,7 +1731,7 @@
     },
     "/gov/kv/jwt/issuers": {
       "get": {
-        "operationId": "govkvjwtissuers_get",
+        "operationId": "GetGovKvJwtIssuers",
         "responses": {
           "200": {
             "content": {
@@ -1754,7 +1754,7 @@
     },
     "/gov/kv/jwt/public_signing_key": {
       "get": {
-        "operationId": "govkvjwtpublicsigningkey_get",
+        "operationId": "GetGovKvJwtPublicSigningKey",
         "responses": {
           "200": {
             "content": {
@@ -1777,7 +1777,7 @@
     },
     "/gov/kv/jwt/public_signing_key_issuer": {
       "get": {
-        "operationId": "govkvjwtpublicsigningkeyissuer_get",
+        "operationId": "GetGovKvJwtPublicSigningKeyIssuer",
         "responses": {
           "200": {
             "content": {
@@ -1800,7 +1800,7 @@
     },
     "/gov/kv/jwt/public_signing_keys_metadata": {
       "get": {
-        "operationId": "govkvjwtpublicsigningkeysmetadata_get",
+        "operationId": "GetGovKvJwtPublicSigningKeysMetadata",
         "responses": {
           "200": {
             "content": {
@@ -1823,7 +1823,7 @@
     },
     "/gov/kv/members/acks": {
       "get": {
-        "operationId": "govkvmembersacks_get",
+        "operationId": "GetGovKvMembersAcks",
         "responses": {
           "200": {
             "content": {
@@ -1846,7 +1846,7 @@
     },
     "/gov/kv/members/certs": {
       "get": {
-        "operationId": "govkvmemberscerts_get",
+        "operationId": "GetGovKvMembersCerts",
         "responses": {
           "200": {
             "content": {
@@ -1869,7 +1869,7 @@
     },
     "/gov/kv/members/encryption_public_keys": {
       "get": {
-        "operationId": "govkvmembersencryptionpublickeys_get",
+        "operationId": "GetGovKvMembersEncryptionPublicKeys",
         "responses": {
           "200": {
             "content": {
@@ -1892,7 +1892,7 @@
     },
     "/gov/kv/members/info": {
       "get": {
-        "operationId": "govkvmembersinfo_get",
+        "operationId": "GetGovKvMembersInfo",
         "responses": {
           "200": {
             "content": {
@@ -1915,7 +1915,7 @@
     },
     "/gov/kv/modules": {
       "get": {
-        "operationId": "govkvmodules_get",
+        "operationId": "GetGovKvModules",
         "responses": {
           "200": {
             "content": {
@@ -1938,7 +1938,7 @@
     },
     "/gov/kv/modules_quickjs_bytecode": {
       "get": {
-        "operationId": "govkvmodulesquickjsbytecode_get",
+        "operationId": "GetGovKvModulesQuickjsBytecode",
         "responses": {
           "200": {
             "content": {
@@ -1961,7 +1961,7 @@
     },
     "/gov/kv/modules_quickjs_version": {
       "get": {
-        "operationId": "govkvmodulesquickjsversion_get",
+        "operationId": "GetGovKvModulesQuickjsVersion",
         "responses": {
           "200": {
             "content": {
@@ -1984,7 +1984,7 @@
     },
     "/gov/kv/nodes/code_ids": {
       "get": {
-        "operationId": "govkvnodescodeids_get",
+        "operationId": "GetGovKvNodesCodeIds",
         "responses": {
           "200": {
             "content": {
@@ -2007,7 +2007,7 @@
     },
     "/gov/kv/nodes/endorsed_certificates": {
       "get": {
-        "operationId": "govkvnodesendorsedcertificates_get",
+        "operationId": "GetGovKvNodesEndorsedCertificates",
         "responses": {
           "200": {
             "content": {
@@ -2030,7 +2030,7 @@
     },
     "/gov/kv/nodes/info": {
       "get": {
-        "operationId": "govkvnodesinfo_get",
+        "operationId": "GetGovKvNodesInfo",
         "responses": {
           "200": {
             "content": {
@@ -2053,7 +2053,7 @@
     },
     "/gov/kv/nodes/snp/host_data": {
       "get": {
-        "operationId": "govkvnodessnphostdata_get",
+        "operationId": "GetGovKvNodesSnpHostData",
         "responses": {
           "200": {
             "content": {
@@ -2076,7 +2076,7 @@
     },
     "/gov/kv/nodes/snp/measurements": {
       "get": {
-        "operationId": "govkvnodessnpmeasurements_get",
+        "operationId": "GetGovKvNodesSnpMeasurements",
         "responses": {
           "200": {
             "content": {
@@ -2099,7 +2099,7 @@
     },
     "/gov/kv/nodes/snp/uvm_endorsements": {
       "get": {
-        "operationId": "govkvnodessnpuvmendorsements_get",
+        "operationId": "GetGovKvNodesSnpUvmEndorsements",
         "responses": {
           "200": {
             "content": {
@@ -2122,7 +2122,7 @@
     },
     "/gov/kv/proposals": {
       "get": {
-        "operationId": "govkvproposals_get",
+        "operationId": "GetGovKvProposals",
         "responses": {
           "200": {
             "content": {
@@ -2145,7 +2145,7 @@
     },
     "/gov/kv/proposals_info": {
       "get": {
-        "operationId": "govkvproposalsinfo_get",
+        "operationId": "GetGovKvProposalsInfo",
         "responses": {
           "200": {
             "content": {
@@ -2168,7 +2168,7 @@
     },
     "/gov/kv/service/acme_certificates": {
       "get": {
-        "operationId": "govkvserviceacmecertificates_get",
+        "operationId": "GetGovKvServiceAcmeCertificates",
         "responses": {
           "200": {
             "content": {
@@ -2191,7 +2191,7 @@
     },
     "/gov/kv/service/config": {
       "get": {
-        "operationId": "govkvserviceconfig_get",
+        "operationId": "GetGovKvServiceConfig",
         "responses": {
           "200": {
             "content": {
@@ -2214,7 +2214,7 @@
     },
     "/gov/kv/service/info": {
       "get": {
-        "operationId": "govkvserviceinfo_get",
+        "operationId": "GetGovKvServiceInfo",
         "responses": {
           "200": {
             "content": {
@@ -2237,7 +2237,7 @@
     },
     "/gov/kv/service/previous_service_identity": {
       "get": {
-        "operationId": "govkvservicepreviousserviceidentity_get",
+        "operationId": "GetGovKvServicePreviousServiceIdentity",
         "responses": {
           "200": {
             "content": {
@@ -2260,7 +2260,7 @@
     },
     "/gov/kv/tls/ca_cert_bundles": {
       "get": {
-        "operationId": "govkvtlscacertbundles_get",
+        "operationId": "GetGovKvTlsCaCertBundles",
         "responses": {
           "200": {
             "content": {
@@ -2283,7 +2283,7 @@
     },
     "/gov/kv/users/certs": {
       "get": {
-        "operationId": "govkvuserscerts_get",
+        "operationId": "GetGovKvUsersCerts",
         "responses": {
           "200": {
             "content": {
@@ -2306,7 +2306,7 @@
     },
     "/gov/kv/users/info": {
       "get": {
-        "operationId": "govkvusersinfo_get",
+        "operationId": "GetGovKvUsersInfo",
         "responses": {
           "200": {
             "content": {
@@ -2330,7 +2330,7 @@
     "/gov/members": {
       "get": {
         "deprecated": true,
-        "operationId": "govmembers_get",
+        "operationId": "GetGovMembers",
         "responses": {
           "200": {
             "content": {
@@ -2354,7 +2354,7 @@
     },
     "/gov/proposals": {
       "get": {
-        "operationId": "govproposals_get",
+        "operationId": "GetGovProposals",
         "responses": {
           "200": {
             "content": {
@@ -2376,7 +2376,7 @@
         }
       },
       "post": {
-        "operationId": "govproposals_post",
+        "operationId": "PostGovProposals",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2415,7 +2415,7 @@
     },
     "/gov/proposals/{proposal_id}": {
       "get": {
-        "operationId": "govproposals{proposalid}_get",
+        "operationId": "GetGovProposalsProposalId",
         "responses": {
           "200": {
             "content": {
@@ -2449,7 +2449,7 @@
     },
     "/gov/proposals/{proposal_id}/actions": {
       "get": {
-        "operationId": "govproposals{proposalid}actions_get",
+        "operationId": "GetGovProposalsProposalIdActions",
         "responses": {
           "200": {
             "content": {
@@ -2493,7 +2493,7 @@
         }
       ],
       "post": {
-        "operationId": "govproposals{proposalid}ballots_post",
+        "operationId": "PostGovProposalsProposalIdBallots",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2532,7 +2532,7 @@
     },
     "/gov/proposals/{proposal_id}/ballots/{member_id}": {
       "get": {
-        "operationId": "govproposals{proposalid}ballots{memberid}_get",
+        "operationId": "GetGovProposalsProposalIdBallotsMemberId",
         "responses": {
           "200": {
             "content": {
@@ -2584,7 +2584,7 @@
         }
       ],
       "post": {
-        "operationId": "govproposals{proposalid}withdraw_post",
+        "operationId": "PostGovProposalsProposalIdWithdraw",
         "responses": {
           "200": {
             "content": {
@@ -2614,7 +2614,7 @@
     "/gov/receipt": {
       "get": {
         "description": "A signed statement from the service over a transaction entry in the ledger",
-        "operationId": "govreceipt_get",
+        "operationId": "GetGovReceipt",
         "parameters": [
           {
             "in": "query",
@@ -2649,7 +2649,7 @@
     "/gov/recovery_share": {
       "get": {
         "deprecated": true,
-        "operationId": "govrecoveryshare_get",
+        "operationId": "GetGovRecoveryShare",
         "responses": {
           "200": {
             "content": {
@@ -2676,7 +2676,7 @@
         }
       },
       "post": {
-        "operationId": "govrecoveryshare_post",
+        "operationId": "PostGovRecoveryShare",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2716,7 +2716,7 @@
     "/gov/tx": {
       "get": {
         "description": "Possible statuses returned are Unknown, Pending, Committed or Invalid.",
-        "operationId": "govtx_get",
+        "operationId": "GetGovTx",
         "parameters": [
           {
             "in": "query",
