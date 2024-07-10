@@ -75,7 +75,8 @@ namespace ccf
       using namespace ccf::gov::endpoints;
 
       const char* error_code = nullptr;
-      const auto api_version = get_api_version(ctx, &error_code);
+      const auto api_version =
+        get_api_version(ctx, ApiVersion::MIN, &error_code);
       if (api_version.has_value())
       {
         switch (api_version.value())

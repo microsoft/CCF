@@ -328,7 +328,48 @@ namespace ccf::gov::endpoints
       .make_read_only_endpoint(
         "/service/javascript-app",
         HTTP_GET,
-        api_version_adapter(get_javascript_app),
+        api_version_adapter(get_javascript_app, ApiVersion::v1),
+        no_auth_required)
+      .set_openapi_hidden(true)
+      .install();
+
+    auto get_javascript_modules = [&](auto& ctx, ApiVersion api_version) {
+      switch (api_version)
+      {
+        case ApiVersion::preview_v1:
+        case ApiVersion::v1:
+        default:
+        {
+          ctx.rpc_ctx->set_response_json("OK", HTTP_STATUS_OK);
+        }
+      }
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/javascript-modules",
+        HTTP_GET,
+        api_version_adapter(get_javascript_modules, ApiVersion::v1),
+        no_auth_required)
+      .set_openapi_hidden(true)
+      .install();
+
+    auto get_javascript_module_by_name =
+      [&](auto& ctx, ApiVersion api_version) {
+        switch (api_version)
+        {
+          case ApiVersion::preview_v1:
+          case ApiVersion::v1:
+          default:
+          {
+            ctx.rpc_ctx->set_response_json("Working on it", HTTP_STATUS_OK);
+          }
+        }
+      };
+    registry
+      .make_read_only_endpoint(
+        "/service/javascript-modules/{moduleName}",
+        HTTP_GET,
+        api_version_adapter(get_javascript_module_by_name),
         no_auth_required)
       .set_openapi_hidden(true)
       .install();
