@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - The `cchost` configuration file now includes an `idle_connection_timeout` option. This controls how long the node will keep idle connections (for user TLS sessions) before automatically closing them. This may be set to `null` to restore the previous behaviour, where idle connections are never closed. By default connections will be closed after 60s of idle time.
+- New endpoints `GET /gov/service/javascript-modules` and `GET /gov/service/javascript-modules/{moduleName}` to retrieve the raw JS code of the currently installed app. Note that the `{moduleName}` path parameter will need to be URL-encoded to escape any `/` characters (eg - `/foo/bar.js` should become `%2Ffoo%2Fbar.js`).
+- New gov API version `2024-07-01`. This is near-identical to `2023-06-01-preview`, but additionally offers the new `javascript-modules` endpoints.
 
 ## [5.0.0-rc0]
 
