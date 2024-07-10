@@ -30,21 +30,21 @@ File: `ci-containers-ghcr.yml`
 
 # CI
 
-Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests for SGX and Virtual. Run on every commit, including PRs from forks, gates merging.
+Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests for SGX and Virtual. Run on every commit, including PRs from forks, gates merging. Also runs once a week, regardless of commits.
 
 File: `ci.yml`
 3rd party dependencies: None
 
 # CodeQL analysis
 
-Builds CCF with CodeQL, and runs the security-extended checks. Triggered on every commit on main, plus PRs that affect ".github/workflows/codeql-analysis.yml".
+Builds CCF with CodeQL, and runs the security-extended checks. Triggered on PRs that affect ".github/workflows/codeql-analysis.yml", and once a week on main.
 
 File: `codeql-analysis.yml`
 3rd party dependencies: None
 
 # Release
 
-Produces CCF release artefacts from 5.0.0-rc0 onwards, for all languages and platforms. Triggered on tag matching "ccf-5.\*". The output of the job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
+Produces CCF release artefacts from 5.0.0-rc0 onwards, for all languages and platforms. Triggered on tags matching "ccf-5.\*". The output of the job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
 
 File: `release.yml`
 3rd party dependencies: None

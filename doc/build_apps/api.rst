@@ -72,7 +72,7 @@ Policies
 .. doxygenvariable:: ccf::jwt_auth_policy
    :project: CCF
 
-.. doxygenvariable:: ccf::TypedUserCOSESign1AuthnPolicy
+.. doxygenclass:: ccf::TypedUserCOSESign1AuthnPolicy
    :project: CCF
 
 Identities
