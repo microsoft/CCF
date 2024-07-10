@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The `cchost` configuration file now includes an `idle_connection_timeout` option. This controls how long the node will keep idle connections (for user TLS sessions) before automatically closing them. This may be set to `null` to restore the previous behaviour, where idle connections are never closed. By default connections will be closed after 60s of idle time.
 
+### Changed
+
+- Set LTO on for both debug/release linkages to support linking against CCF libraries if the client code has been built in debug mode.
+
 ## [5.0.0-rc0]
 
 [5.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-rc0
