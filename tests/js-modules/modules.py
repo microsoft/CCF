@@ -53,7 +53,7 @@ def test_module_access(network, args):
         r = c.get("/gov/service/javascript-modules")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
-        modules = r.body.json()["value"]
+        modules = [e["moduleName"] for e in r.body.json()["value"]]
 
         assert len(modules) == len(expected_modules)
 

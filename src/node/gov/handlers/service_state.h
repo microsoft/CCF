@@ -350,7 +350,9 @@ namespace ccf::gov::endpoints
 
             modules_handle->foreach_key(
               [&module_list](const std::string& module_name) {
-                module_list.push_back(module_name);
+                auto entry = nlohmann::json::object();
+                entry["moduleName"] = module_name;
+                module_list.push_back(entry);
                 return true;
               });
 
