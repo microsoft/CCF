@@ -64,7 +64,7 @@ First, the new member should update and retrieve the latest state digest via the
       --signing-key new_member_privk.pem \
       --signing-cert new_member_cert.pem \
       --content empty_file \ # Note that passing an empty file is required
-    | curl https://<ccf-node-address>/gov/members/state-digests/7f46110b62ccbbd5f18b4c9bda876024399fd538133f8c26d4bfe5a9d80e59e6:update?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/state-digests/7f46110b62ccbbd5f18b4c9bda876024399fd538133f8c26d4bfe5a9d80e59e6:update?api-version=2024-07-01 \
       -X POST \
       --cacert service_cert.pem \
       --key new_member_privk.pem \
@@ -86,7 +86,7 @@ Then, the new member should sign the state digest returned by :http:POST:`/gov/m
       --signing-key new_member_privk.pem \
       --signing-cert new_member_cert.pem \
       --content request.json \
-    | curl https://<ccf-node-address>/gov/members/state-digests/7f46110b62ccbbd5f18b4c9bda876024399fd538133f8c26d4bfe5a9d80e59e6:ack?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/state-digests/7f46110b62ccbbd5f18b4c9bda876024399fd538133f8c26d4bfe5a9d80e59e6:ack?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
@@ -95,7 +95,7 @@ Once the command completes, the new member becomes active and can take part in g
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/gov/service/members/7f46110b62ccbbd5f18b4c9bda876024399fd538133f8c26d4bfe5a9d80e59e6?api-version=2023-06-01-preview?api-version=2023-06-01-preview --silent | jq
+    $ curl https://<ccf-node-address>/gov/service/members/7f46110b62ccbbd5f18b4c9bda876024399fd538133f8c26d4bfe5a9d80e59e6?api-version=2024-07-01 --silent | jq
     {
         "memberId": "7f46110b62ccbbd5f18b4c9bda876024399fd538133f8c26d4bfe5a9d80e59e6",
         "certificate": <...>,

@@ -91,7 +91,7 @@ This should look much like a standard HTTP server, with error codes for missing 
     $ curl https://127.0.0.1:8000/app/not/a/real/resource -X GET --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -i
     HTTP/1.1 404 Not Found
 
-    $ curl https://127.0.0.1:8000/gov/members/proposals:create?api-version=2023-06-01-preview -X POST --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -i
+    $ curl https://127.0.0.1:8000/gov/members/proposals:create?api-version=2024-07-01 -X POST --cacert service_cert.pem --cert user0_cert.pem --key user0_privk.pem -i
     HTTP/1.1 403 Forbidden
 
 Logging App Commands

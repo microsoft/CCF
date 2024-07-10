@@ -121,7 +121,7 @@ Like ``ccf_cose_sign1``, the output can be sent directly to the service via curl
       --content proposal.json \
       --signing-cert $IDENTITY_CERT_NAME.pem \
       --signature signature \
-    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
