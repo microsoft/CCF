@@ -38,9 +38,7 @@ class MemberStatus(Enum):
 
 
 class MemberAPI:
-    class Preview_v1:
-        API_VERSION = infra.clients.API_VERSION_PREVIEW_01
-
+    class v1_Base:
         def propose(self, member, remote_node, proposal):
             with remote_node.api_versioned_client(
                 *member.auth(write=True),
@@ -132,6 +130,12 @@ class MemberAPI:
                 if r.status_code != http.HTTPStatus.OK.value:
                     raise NoRecoveryShareFound(r)
                 return r.body.json()["encryptedShare"]
+
+    class Preview_v1(v1_Base):
+        API_VERSION = infra.clients.API_VERSION_PREVIEW_01
+
+    class v1(v1_Base):
+        API_VERSION = infra.clients.API_VERSION_01
 
     class Classic:
         API_VERSION = infra.clients.API_VERSION_CLASSIC
