@@ -6,10 +6,14 @@
 #include <array>
 #include <cctype>
 #include <filesystem>
+#include <regex>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <vector>
+
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
 
 /**
  * This file defines various type traits and utils that are not available in the
@@ -287,5 +291,33 @@ namespace ccf::nonstd
     }
 
     return resolved.lexically_normal().string();
+  }
+
+  static inline std::string camel_case(
+    std::string s,
+    // Should the first character be upper-cased?
+    bool camel_first = true,
+    // Regex fragment to identify which characters should be upper-cased, by
+    // matching a separator preceding them. Default is to match any
+    // non-alphanumeric character
+    const std::string& separator_regex = "[^[:alnum:]]")
+  {
+    // Replacement is always a 1-character string
+    std::string replacement(1, '\0');
+
+    std::string prefix_matcher =
+      camel_first ? fmt::format("(^|{})", separator_regex) : separator_regex;
+    std::regex re(prefix_matcher + "[a-z]");
+    std::smatch match;
+
+    while (std::regex_search(s, match, re))
+    {
+      // Replacement is the upper-casing of the final character from the match
+      replacement[0] = std::toupper(match.str()[match.length() - 1]);
+
+      s = s.replace(match.position(), match.length(), replacement);
+    }
+
+    return s;
   }
 }
