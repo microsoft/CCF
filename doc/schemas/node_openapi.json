@@ -896,7 +896,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "4.10.2"
+    "version": "4.10.3"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -943,7 +943,7 @@
     "/node/code": {
       "get": {
         "deprecated": true,
-        "description": "Permitted SGX code identities",
+        "description": "This endpoint is deprecated from 5.0.0. It is replaced by GET /gov/service/join-policy",
         "operationId": "GetNodeCode",
         "responses": {
           "200": {
@@ -960,7 +960,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/nodes/code_ids endpoint",
+        "summary": "Permitted SGX code identities",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
