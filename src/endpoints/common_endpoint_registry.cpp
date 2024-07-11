@@ -264,11 +264,8 @@ namespace ccf
     make_read_only_endpoint(
       "/code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
       .set_auto_schema<void, GetCode::Out>()
-      .set_openapi_summary(
-        "This endpoint is deprecated. It is replaced by /gov/kv/nodes/code_ids "
-        "endpoint")
-      .set_openapi_deprecated(true)
-      .set_openapi_description("Permitted SGX code identities")
+      .set_openapi_summary("Permitted SGX code identities")
+      .set_openapi_deprecated_replaced("5.0.0", "GET /gov/service/join-policy")
       .install();
 
     auto openapi = [this](auto& ctx) { this->api_endpoint(ctx); };
