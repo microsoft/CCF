@@ -1,4 +1,4 @@
-# The Confidential Consortium Framework [![CI](https://github.com/microsoft/CCF/actions/workflows/build.yml/badge.svg)](https://github.com/microsoft/CCF/actions/workflows/build.yml)
+# The Confidential Consortium Framework [![CI](https://github.com/microsoft/CCF/actions/workflows/ci.yml/badge.svg)](https://github.com/microsoft/CCF/actions/workflows/ci.yml)
 
 <img alt="ccf" align="right" src="doc/_static/ccf.svg" width="200">
 
