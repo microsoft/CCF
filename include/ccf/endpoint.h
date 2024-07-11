@@ -293,6 +293,14 @@ namespace ccf::endpoints
      */
     Endpoint& set_openapi_deprecated(bool is_deprecated);
 
+    /** Set the endpoint as deprecated and overwrites the description to include
+     * deprecation version and point to a replacement endpoint.
+     *
+     * @return This Endpoint for further modification
+     */
+    Endpoint& set_openapi_deprecated_replaced(
+      const std::string& deprecation_version, const std::string& replacement);
+
     /** Whether the endpoint should be omitted from the OpenAPI document.
      *
      * @return This Endpoint for further modification

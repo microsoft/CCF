@@ -106,6 +106,17 @@ namespace ccf::endpoints
     return *this;
   }
 
+  Endpoint& Endpoint::set_openapi_deprecated_replaced(
+    const std::string& deprecation_version, const std::string& replacement)
+  {
+    openapi_deprecated = true;
+    openapi_description = fmt::format(
+      "This endpoint is deprecated from {}. It is replaced by {}",
+      deprecation_version,
+      replacement);
+    return *this;
+  }
+
   void Endpoint::install()
   {
     if (installer == nullptr)
