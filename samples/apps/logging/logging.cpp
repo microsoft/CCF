@@ -1657,11 +1657,6 @@ namespace loggingapp
           ccf::http::headers::CONTENT_TYPE,
           ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(j_response.dump());
-
-        // ALSO: Assume this response makes it all the way to the client, and
-        // they're finished with it, so we can drop the retrieved state. In a
-        // real app this may be driven by a separate client request or an LRU
-        historical_cache.drop_cached_states(handle);
       };
       make_endpoint(
         get_historical_range_path,
@@ -1828,11 +1823,6 @@ namespace loggingapp
           ccf::http::headers::CONTENT_TYPE,
           ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(j_response.dump());
-
-        // ALSO: Assume this response makes it all the way to the client, and
-        // they're finished with it, so we can drop the retrieved state. In a
-        // real app this may be driven by a separate client request or an LRU
-        historical_cache.drop_cached_states(handle);
       };
       make_endpoint(
         get_historical_sparse_path,
