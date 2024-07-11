@@ -50,10 +50,6 @@ namespace ccf::nonstd
     }
   };
 
-  std::string expand_envvar(const std::string& str);
-
-  std::string expand_envvars_in_path(const std::string& str);
-
   std::string camel_case(
     std::string s,
     // Should the first character be upper-cased?

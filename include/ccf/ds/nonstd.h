@@ -4,7 +4,6 @@
 
 #include <array>
 #include <cctype>
-#include <filesystem>
 #include <regex>
 #include <string>
 #include <string_view>

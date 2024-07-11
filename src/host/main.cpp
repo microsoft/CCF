@@ -16,6 +16,7 @@
 #include "ds/x509_time_fmt.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
+#include "host/env.h"
 #include "json_schema.h"
 #include "lfs_file_handler.h"
 #include "load_monitor.h"
@@ -512,7 +513,7 @@ int main(int argc, char** argv)
       LOG_DEBUG_FMT(
         "Resolving snp_security_policy_file: {}", security_policy_file);
       security_policy_file =
-        ccf::nonstd::expand_envvars_in_path(security_policy_file);
+        ccf::env::expand_envvars_in_path(security_policy_file);
       LOG_DEBUG_FMT(
         "Resolved snp_security_policy_file: {}", security_policy_file);
 
@@ -527,7 +528,7 @@ int main(int argc, char** argv)
       LOG_DEBUG_FMT(
         "Resolving snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
       snp_uvm_endorsements_file =
-        ccf::nonstd::expand_envvars_in_path(snp_uvm_endorsements_file);
+        ccf::env::expand_envvars_in_path(snp_uvm_endorsements_file);
       LOG_DEBUG_FMT(
         "Resolved snp_uvm_endorsements_file: {}", snp_uvm_endorsements_file);
 
@@ -550,14 +551,14 @@ int main(int argc, char** argv)
         auto pos = url.find(':');
         if (pos == std::string::npos)
         {
-          endorsement_servers_it->url = ccf::nonstd::expand_envvar(url);
+          endorsement_servers_it->url = ccf::env::expand_envvar(url);
         }
         else
         {
           endorsement_servers_it->url = fmt::format(
             "{}:{}",
-            ccf::nonstd::expand_envvar(url.substr(0, pos)),
-            ccf::nonstd::expand_envvar(url.substr(pos + 1)));
+            ccf::env::expand_envvar(url.substr(0, pos)),
+            ccf::env::expand_envvar(url.substr(pos + 1)));
         }
         LOG_DEBUG_FMT(
           "Resolved snp_endorsements_server url: {}",

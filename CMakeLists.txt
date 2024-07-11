@@ -264,7 +264,7 @@ else()
 endif()
 
 list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp
-     ${CCF_DIR}/src/ds/nonstd.cpp
+     ${CCF_DIR}/src/ds/nonstd.cpp ${CCF_DIR}/src/host/env.cpp
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
