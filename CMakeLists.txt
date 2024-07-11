@@ -1388,11 +1388,13 @@ if(BUILD_TESTS)
                       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js --http2
     )
 
-    add_e2e_test(
-      NAME membership_api_0
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-      ADDITIONAL_ARGS --gov-api-version "classic"
-    )
+    if(LONG_TESTS)
+      add_e2e_test(
+        NAME membership_api_0
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
+        ADDITIONAL_ARGS --gov-api-version "classic"
+      )
+    endif()
 
     add_e2e_test(
       NAME membership_api_1
