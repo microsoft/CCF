@@ -11,6 +11,7 @@
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/non_blocking.h"
+#include "ds/nonstd.h"
 #include "ds/oversized.h"
 #include "ds/x509_time_fmt.h"
 #include "enclave.h"

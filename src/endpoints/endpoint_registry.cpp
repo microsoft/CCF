@@ -5,6 +5,7 @@
 
 #include "ccf/common_auth_policies.h"
 #include "ccf/pal/locking.h"
+#include "ds/nonstd.h"
 #include "http/http_parser.h"
 #include "node/rpc_context_impl.h"
 

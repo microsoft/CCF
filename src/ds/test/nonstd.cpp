@@ -3,6 +3,8 @@
 
 #include "ccf/ds/nonstd.h"
 
+#include "ds/nonstd.h"
+
 #include <algorithm>
 #include <doctest/doctest.h>
 #include <stdlib.h>
