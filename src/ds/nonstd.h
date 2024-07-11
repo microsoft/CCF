@@ -1,88 +1,65 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 #pragma once
-#include <regex>
 #include <string>
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace ccf::nonstd
 {
-  static inline std::string expand_envvar(const std::string& str)
+  // Iterators for map-keys and map-values
+  template <typename TMapIterator>
+  class KeyIterator : public TMapIterator
   {
-    if (str.empty() || str[0] != '$')
+  public:
+    KeyIterator() : TMapIterator() {}
+    KeyIterator(TMapIterator it) : TMapIterator(it) {}
+
+    using Key =
+      typename std::iterator_traits<TMapIterator>::value_type::first_type;
+    using value_type = Key;
+
+    Key* operator->()
     {
-      return str;
+      return TMapIterator::operator->()->first;
     }
 
-    char* e = std::getenv(str.c_str() + 1);
-    if (e == nullptr)
+    Key operator*()
     {
-      return str;
+      return TMapIterator::operator*().first;
     }
-    else
-    {
-      return std::string(e);
-    }
-  }
+  };
 
-  static inline std::string expand_envvars_in_path(const std::string& str)
+  template <typename TMapIterator>
+  class ValueIterator : public TMapIterator
   {
-    std::filesystem::path path(str);
+  public:
+    ValueIterator() : TMapIterator() {}
+    ValueIterator(TMapIterator it) : TMapIterator(it) {}
 
-    if (path.empty())
+    using Value =
+      typename std::iterator_traits<TMapIterator>::value_type::second_type;
+    using value_type = Value;
+
+    Value* operator->()
     {
-      return str;
+      return TMapIterator::operator->()->second;
     }
 
-    std::vector<std::filesystem::path> elements;
-    auto it = path.begin();
-    if (path.has_root_directory())
+    Value operator*()
     {
-      ++it;
-      elements.push_back(path.root_directory());
+      return TMapIterator::operator*().second;
     }
+  };
 
-    while (it != path.end())
-    {
-      elements.push_back(expand_envvar(*it++));
-    }
+  std::string expand_envvar(const std::string& str);
 
-    std::filesystem::path resolved;
-    for (auto& element : elements)
-    {
-      resolved /= element;
-    }
+  std::string expand_envvars_in_path(const std::string& str);
 
-    return resolved.lexically_normal().string();
-  }
-
-  static inline std::string camel_case(
+  std::string camel_case(
     std::string s,
     // Should the first character be upper-cased?
     bool camel_first = true,
     // Regex fragment to identify which characters should be upper-cased, by
     // matching a separator preceding them. Default is to match any
     // non-alphanumeric character
-    const std::string& separator_regex = "[^[:alnum:]]")
-  {
-    // Replacement is always a 1-character string
-    std::string replacement(1, '\0');
-
-    std::string prefix_matcher =
-      camel_first ? fmt::format("(^|{})", separator_regex) : separator_regex;
-    std::regex re(prefix_matcher + "[a-z]");
-    std::smatch match;
-
-    while (std::regex_search(s, match, re))
-    {
-      // Replacement is the upper-casing of the final character from the match
-      replacement[0] = std::toupper(match.str()[match.length() - 1]);
-
-      s = s.replace(match.position(), match.length(), replacement);
-    }
-
-    return s;
-  }
+    const std::string& separator_regex = "[^[:alnum:]]");
 }

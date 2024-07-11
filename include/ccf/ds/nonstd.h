@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <algorithm>
 #include <array>
 #include <cctype>
 #include <filesystem>
@@ -171,64 +170,9 @@ namespace ccf::nonstd
 
   /** These convert strings to upper or lower case, in-place
    */
-  static inline void to_upper(std::string& s)
-  {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-      return std::toupper(c);
-    });
-  }
+  void to_upper(std::string& s);
 
-  static inline void to_lower(std::string& s)
-  {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-      return std::tolower(c);
-    });
-  }
-
-  // Iterators for map-keys and map-values
-  template <typename TMapIterator>
-  class KeyIterator : public TMapIterator
-  {
-  public:
-    KeyIterator() : TMapIterator() {}
-    KeyIterator(TMapIterator it) : TMapIterator(it) {}
-
-    using Key =
-      typename std::iterator_traits<TMapIterator>::value_type::first_type;
-    using value_type = Key;
-
-    Key* operator->()
-    {
-      return TMapIterator::operator->()->first;
-    }
-
-    Key operator*()
-    {
-      return TMapIterator::operator*().first;
-    }
-  };
-
-  template <typename TMapIterator>
-  class ValueIterator : public TMapIterator
-  {
-  public:
-    ValueIterator() : TMapIterator() {}
-    ValueIterator(TMapIterator it) : TMapIterator(it) {}
-
-    using Value =
-      typename std::iterator_traits<TMapIterator>::value_type::second_type;
-    using value_type = Value;
-
-    Value* operator->()
-    {
-      return TMapIterator::operator->()->second;
-    }
-
-    Value operator*()
-    {
-      return TMapIterator::operator*().second;
-    }
-  };
+  void to_lower(std::string& s);
 
   /// Iterate through tuple, calling functor on each element
   template <size_t I = 0, typename F, typename... Ts>
