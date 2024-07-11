@@ -2,10 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include <algorithm>
 #include <array>
 #include <cctype>
-#include <filesystem>
 #include <regex>
 #include <string>
 #include <string_view>
@@ -174,64 +172,9 @@ namespace ccf::nonstd
 
   /** These convert strings to upper or lower case, in-place
    */
-  static inline void to_upper(std::string& s)
-  {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-      return std::toupper(c);
-    });
-  }
+  void to_upper(std::string& s);
 
-  static inline void to_lower(std::string& s)
-  {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-      return std::tolower(c);
-    });
-  }
-
-  // Iterators for map-keys and map-values
-  template <typename TMapIterator>
-  class KeyIterator : public TMapIterator
-  {
-  public:
-    KeyIterator() : TMapIterator() {}
-    KeyIterator(TMapIterator it) : TMapIterator(it) {}
-
-    using Key =
-      typename std::iterator_traits<TMapIterator>::value_type::first_type;
-    using value_type = Key;
-
-    Key* operator->()
-    {
-      return TMapIterator::operator->()->first;
-    }
-
-    Key operator*()
-    {
-      return TMapIterator::operator*().first;
-    }
-  };
-
-  template <typename TMapIterator>
-  class ValueIterator : public TMapIterator
-  {
-  public:
-    ValueIterator() : TMapIterator() {}
-    ValueIterator(TMapIterator it) : TMapIterator(it) {}
-
-    using Value =
-      typename std::iterator_traits<TMapIterator>::value_type::second_type;
-    using value_type = Value;
-
-    Value* operator->()
-    {
-      return TMapIterator::operator->()->second;
-    }
-
-    Value operator*()
-    {
-      return TMapIterator::operator*().second;
-    }
-  };
+  void to_lower(std::string& s);
 
   /// Iterate through tuple, calling functor on each element
   template <size_t I = 0, typename F, typename... Ts>
@@ -242,82 +185,5 @@ namespace ccf::nonstd
       f(std::get<I>(t));
       tuple_for_each<I + 1>(t, f);
     }
-  }
-
-  static inline std::string expand_envvar(const std::string& str)
-  {
-    if (str.empty() || str[0] != '$')
-    {
-      return str;
-    }
-
-    char* e = std::getenv(str.c_str() + 1);
-    if (e == nullptr)
-    {
-      return str;
-    }
-    else
-    {
-      return std::string(e);
-    }
-  }
-
-  static inline std::string expand_envvars_in_path(const std::string& str)
-  {
-    std::filesystem::path path(str);
-
-    if (path.empty())
-    {
-      return str;
-    }
-
-    std::vector<std::filesystem::path> elements;
-    auto it = path.begin();
-    if (path.has_root_directory())
-    {
-      ++it;
-      elements.push_back(path.root_directory());
-    }
-
-    while (it != path.end())
-    {
-      elements.push_back(expand_envvar(*it++));
-    }
-
-    std::filesystem::path resolved;
-    for (auto& element : elements)
-    {
-      resolved /= element;
-    }
-
-    return resolved.lexically_normal().string();
-  }
-
-  static inline std::string camel_case(
-    std::string s,
-    // Should the first character be upper-cased?
-    bool camel_first = true,
-    // Regex fragment to identify which characters should be upper-cased, by
-    // matching a separator preceding them. Default is to match any
-    // non-alphanumeric character
-    const std::string& separator_regex = "[^[:alnum:]]")
-  {
-    // Replacement is always a 1-character string
-    std::string replacement(1, '\0');
-
-    std::string prefix_matcher =
-      camel_first ? fmt::format("(^|{})", separator_regex) : separator_regex;
-    std::regex re(prefix_matcher + "[a-z]");
-    std::smatch match;
-
-    while (std::regex_search(s, match, re))
-    {
-      // Replacement is the upper-casing of the final character from the match
-      replacement[0] = std::toupper(match.str()[match.length() - 1]);
-
-      s = s.replace(match.position(), match.length(), replacement);
-    }
-
-    return s;
   }
 }
