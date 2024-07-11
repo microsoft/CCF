@@ -2,7 +2,7 @@
   "title": "ServiceState_ListNodes",
   "operationId": "ServiceState_ListNodes",
   "parameters": {
-    "api-version": "2023-06-01-preview"
+    "api-version": "2024-07-01"
   },
   "responses": {
     "200": {
