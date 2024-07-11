@@ -142,6 +142,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto constitution_handle =
@@ -181,6 +182,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -272,6 +274,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -325,7 +328,108 @@ namespace ccf::gov::endpoints
       .make_read_only_endpoint(
         "/service/javascript-app",
         HTTP_GET,
-        api_version_adapter(get_javascript_app),
+        api_version_adapter(get_javascript_app, ApiVersion::v1),
+        no_auth_required)
+      .set_openapi_hidden(true)
+      .install();
+
+    auto get_javascript_modules = [&](auto& ctx, ApiVersion api_version) {
+      switch (api_version)
+      {
+        case ApiVersion::preview_v1:
+        case ApiVersion::v1:
+        default:
+        {
+          auto response_body = nlohmann::json::object();
+
+          {
+            auto module_list = nlohmann::json::array();
+
+            auto modules_handle =
+              ctx.tx.template ro<ccf::Modules>(ccf::Tables::MODULES);
+
+            modules_handle->foreach_key(
+              [&module_list](const std::string& module_name) {
+                auto entry = nlohmann::json::object();
+                entry["moduleName"] = module_name;
+                module_list.push_back(entry);
+                return true;
+              });
+
+            response_body["value"] = module_list;
+          }
+
+          ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
+          return;
+        }
+      }
+    };
+    registry
+      .make_read_only_endpoint(
+        "/service/javascript-modules",
+        HTTP_GET,
+        api_version_adapter(get_javascript_modules, ApiVersion::v1),
+        no_auth_required)
+      .set_openapi_hidden(true)
+      .install();
+
+    auto get_javascript_module_by_name =
+      [&](auto& ctx, ApiVersion api_version) {
+        switch (api_version)
+        {
+          case ApiVersion::preview_v1:
+          case ApiVersion::v1:
+          default:
+          {
+            std::string module_name;
+            {
+              std::string error;
+              if (!ccf::endpoints::get_path_param(
+                    ctx.rpc_ctx->get_request_path_params(),
+                    "moduleName",
+                    module_name,
+                    error))
+              {
+                detail::set_gov_error(
+                  ctx.rpc_ctx,
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidResourceName,
+                  std::move(error));
+                return;
+              }
+            }
+
+            module_name = ::http::url_decode(module_name);
+
+            auto modules_handle =
+              ctx.tx.template ro<ccf::Modules>(ccf::Tables::MODULES);
+            auto module = modules_handle->get(module_name);
+
+            if (!module.has_value())
+            {
+              detail::set_gov_error(
+                ctx.rpc_ctx,
+                HTTP_STATUS_NOT_FOUND,
+                ccf::errors::ResourceNotFound,
+                fmt::format("Module {} does not exist.", module_name));
+              return;
+            }
+
+            // Return raw JS module content in body
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+            ctx.rpc_ctx->set_response_body(std::move(module.value()));
+            ctx.rpc_ctx->set_response_header(
+              ccf::http::headers::CONTENT_TYPE,
+              http::headervalues::contenttype::JAVASCRIPT);
+            return;
+          }
+        }
+      };
+    registry
+      .make_read_only_endpoint(
+        "/service/javascript-modules/{moduleName}",
+        HTTP_GET,
+        api_version_adapter(get_javascript_module_by_name, ApiVersion::v1),
         no_auth_required)
       .set_openapi_hidden(true)
       .install();
@@ -334,6 +438,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -424,6 +529,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -531,6 +637,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -579,6 +686,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           ccf::MemberId member_id;
@@ -630,6 +738,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -671,6 +780,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           ccf::UserId user_id;
@@ -717,6 +827,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto response_body = nlohmann::json::object();
@@ -759,6 +870,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           ccf::NodeId node_id;

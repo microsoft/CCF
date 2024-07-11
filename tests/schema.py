@@ -11,6 +11,7 @@ import openapi_spec_validator
 from packaging import version
 from infra.runner import ConcurrentRunner
 import nobuiltins
+import packaging.version
 import e2e_tutorial
 import e2e_operations
 
@@ -30,10 +31,7 @@ def run(args):
     documents_valid = True
     all_methods = []
 
-    def fetch_schema(client, prefix, file_prefix=None):
-        if file_prefix is None:
-            file_prefix = prefix
-        api_response = client.get(f"/{prefix}/api")
+    def fetch_schema(api_response, target_file_path):
         check(
             api_response, error=lambda status, msg: status == http.HTTPStatus.OK.value
         )
@@ -44,9 +42,7 @@ def run(args):
         fetched_version = response_body["info"]["version"]
 
         formatted_schema = json.dumps(response_body, indent=2)
-        openapi_target_file = os.path.join(
-            args.schema_dir, f"{file_prefix}_openapi.json"
-        )
+        openapi_target_file = os.path.join(args.schema_dir, target_file_path)
 
         try:
             old_schema.remove(openapi_target_file)
@@ -55,15 +51,26 @@ def run(args):
 
         with open(openapi_target_file, "a+", encoding="utf-8") as f:
             f.seek(0)
-            previous = f.read()
+            previous = f.read().strip()
             if previous != formatted_schema:
                 file_version = "0.0.0"
                 try:
                     from_file = json.loads(previous)
                     file_version = from_file["info"]["version"]
-                except (json.JSONDecodeError, KeyError):
+                    file_version = version.parse(file_version)
+                except (
+                    json.JSONDecodeError,
+                    KeyError,
+                    packaging.version.InvalidVersion,
+                ):
                     pass
-                if version.parse(fetched_version) > version.parse(file_version):
+
+                try:
+                    fetched_version = version.parse(fetched_version)
+                except packaging.version.InvalidVersion:
+                    pass
+
+                if fetched_version > file_version:
                     LOG.debug(
                         f"Writing schema to {openapi_target_file} - overwriting {file_version} with {fetched_version}"
                     )
@@ -74,9 +81,8 @@ def run(args):
                     LOG.error(
                         f"Found differences in {openapi_target_file}, but not overwriting as retrieved version is not newer ({fetched_version} <= {file_version})"
                     )
-                    alt_file = os.path.join(
-                        args.schema_dir, f"{file_prefix}_{fetched_version}_openapi.json"
-                    )
+                    prefix, ext = os.path.splitext(openapi_target_file)
+                    alt_file = f"{prefix}_{fetched_version}{ext}"
                     LOG.error(f"Writing to {alt_file} for comparison")
                     with open(alt_file, "w", encoding="utf-8") as f2:
                         f2.write(formatted_schema)
@@ -105,19 +111,33 @@ def run(args):
 
         check = infra.checker.Checker()
 
-        with primary.client("user0") as user_client:
+        with primary.client() as client:
             LOG.info("user frontend")
-            if not fetch_schema(user_client, "app"):
+            if not fetch_schema(client.get("/app/api"), "app_openapi.json"):
                 documents_valid = False
 
-        with primary.client() as node_client:
             LOG.info("node frontend")
-            if not fetch_schema(node_client, "node"):
+            if not fetch_schema(client.get("/node/api"), "node_openapi.json"):
                 documents_valid = False
 
-        with primary.client("member0") as member_client:
             LOG.info("member frontend")
-            if not fetch_schema(member_client, "gov"):
+            if not fetch_schema(client.get("/gov/api"), "gov_openapi.json"):
+                documents_valid = False
+
+        with primary.api_versioned_client(
+            api_version=infra.clients.API_VERSION_PREVIEW_01
+        ) as client:
+            LOG.info("gov API - preview v1")
+            if not fetch_schema(
+                client.get("/gov/api"), "gov/2023-06-01-preview/gov.json"
+            ):
+                documents_valid = False
+
+        with primary.api_versioned_client(
+            api_version=infra.clients.API_VERSION_01
+        ) as client:
+            LOG.info("gov API - v1")
+            if not fetch_schema(client.get("/gov/api"), "gov/2024-07-01/gov.json"):
                 documents_valid = False
 
     made_changes = False

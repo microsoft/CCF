@@ -61,7 +61,7 @@ To limit the scope of key compromise, members of the consortium can refresh the 
       --signing-key member1_privk.pem \
       --signing-cert member1_cert.pem \
       --content trigger_ledger_rekey.json \
-    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
@@ -79,7 +79,7 @@ To limit the scope of key compromise, members of the consortium can refresh the 
       --signing-key member2_privk.pem \
       --signing-cert member2_cert.pem \
       --content vote_accept_1.json \
-    | curl https://<ccf-node-address>/gov/members/proposals/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/ballots/fe6ed012e8184f28afb48d0d58dca7f461dc997c43179acf97362dc0b76ddeb7:submit?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/ballots/fe6ed012e8184f28afb48d0d58dca7f461dc997c43179acf97362dc0b76ddeb7:submit?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
@@ -97,7 +97,7 @@ To limit the scope of key compromise, members of the consortium can refresh the 
       --signing-key member3_privk.pem \
       --signing-cert member3_cert.pem \
       --content vote_accept_1.json \
-    | curl https://<ccf-node-address>/gov/members/proposals/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/ballots/75b86775f1253c308f4e9aeddf912d40b8d77db9eaa9a0f0026f581920d5e9b8:submit?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals/2f739d154b8cddacd7fc6d03cc8d4d20626e477ec4b1af10a74c670bb38bed5e/ballots/75b86775f1253c308f4e9aeddf912d40b8d77db9eaa9a0f0026f581920d5e9b8:submit?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"

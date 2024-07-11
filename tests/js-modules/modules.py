@@ -12,6 +12,7 @@ import infra.net
 import infra.e2e_args
 import infra.crypto
 import suite.test_requirements as reqs
+import urllib.parse
 from e2e_logging import test_multi_auth
 
 from npm_tests import build_npm_app, deploy_npm_app, test_npm_app, validate_openapi
@@ -34,6 +35,41 @@ def test_module_import(network, args):
         r = c.post("/app/test_module", {})
         assert r.status_code == http.HTTPStatus.CREATED, r.status_code
         assert r.body.text() == "Hello world!"
+
+    return network
+
+
+@reqs.description("Test module access")
+def test_module_access(network, args):
+    primary, _ = network.find_nodes()
+
+    bundle_dir = os.path.join(THIS_DIR, "basic-module-import")
+    bundle = network.consortium.read_bundle_from_dir(bundle_dir)
+    network.consortium.set_js_app_from_bundle(primary, bundle)
+
+    expected_modules = bundle["modules"]
+
+    with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/javascript-modules")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+
+        modules = [e["moduleName"] for e in r.body.json()["value"]]
+
+        assert len(modules) == len(expected_modules)
+
+        for module_def in expected_modules:
+            raw_name = module_def["name"]
+            norm_name = f"/{raw_name}"
+
+            assert norm_name in modules, f"{norm_name} not in {modules}"
+
+            r = c.get(
+                f"/gov/service/javascript-modules/{urllib.parse.quote_plus(norm_name)}"
+            )
+            assert r.status_code == http.HTTPStatus.OK, r
+
+            content = r.body.text()
+            assert content == module_def["module"]
 
     return network
 
@@ -424,6 +460,7 @@ def run(args):
         network = test_js_exception_output(network, args)
 
         network = test_module_import(network, args)
+        network = test_module_access(network, args)
         network = test_bytecode_cache(network, args)
         network = test_app_bundle(network, args)
         network = test_dynamic_endpoints(network, args)

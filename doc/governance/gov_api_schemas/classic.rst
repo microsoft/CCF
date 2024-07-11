@@ -1,5 +1,5 @@
-Classic API
-===========
+Classic API (Deprecated)
+========================
 
 Available in CCF versions before 5.0.0.
 
