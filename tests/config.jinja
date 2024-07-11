@@ -102,5 +102,6 @@
     "max_fragment_size": "256KB"
   },
   "ignore_first_sigterm": {{ ignore_first_sigterm|tojson }}{% if node_to_node_message_limit %},
-  "node_to_node_message_limit": {{ node_to_node_message_limit|tojson }}{% endif %}
+  "node_to_node_message_limit": {{ node_to_node_message_limit|tojson }}{% endif %}{% if historical_cache_soft_limit %},
+  "historical_cache_soft_limit": {{ historical_cache_soft_limit|tojson }}{% endif %}
 }

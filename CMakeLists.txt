@@ -1574,6 +1574,11 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
       LABEL perf PERF_LABEL "Historical Queries"
     )
+
+    add_e2e_test(
+      NAME historical_query_cache_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_cache.py
+    )
   endif()
 endif()
 
