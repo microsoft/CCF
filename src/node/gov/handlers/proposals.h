@@ -394,6 +394,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           const auto& cose_ident =
@@ -664,6 +665,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           const auto& cose_ident =
@@ -758,6 +760,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           ccf::ProposalId proposal_id;
@@ -801,6 +804,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           auto proposal_info_handle =
@@ -838,6 +842,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           ccf::ProposalId proposal_id;
@@ -882,6 +887,7 @@ namespace ccf::gov::endpoints
         switch (api_version)
         {
           case ApiVersion::preview_v1:
+          case ApiVersion::v1:
           default:
           {
             const auto& cose_ident =
@@ -1054,6 +1060,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           ccf::ProposalId proposal_id;

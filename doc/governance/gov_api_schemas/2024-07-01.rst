@@ -1,0 +1,8 @@
+2024-07-01
+==========
+
+This API is available by passing the query parameter ``api-version=2024-07-01`` to endpoints under the ``/gov`` prefix.
+
+This is available from CCF 5.0.0-rc1.
+
+.. openapi:: ../../schemas/gov/2024-07-01/gov.json

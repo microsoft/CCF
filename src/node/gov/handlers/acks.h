@@ -19,6 +19,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           // Get memberId from path parameter
@@ -74,6 +75,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           // Get memberId from path parameter
@@ -161,6 +163,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           // Get memberId from path parameter
