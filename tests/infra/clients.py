@@ -36,8 +36,9 @@ import infra.commit
 from infra.log_capture import flush_info
 import ccf.cose
 
-API_VERSION_PREVIEW_01 = "2023-06-01-preview"
 API_VERSION_CLASSIC = "classic"
+API_VERSION_PREVIEW_01 = "2023-06-01-preview"
+API_VERSION_01 = "2024-07-01"
 
 
 class OffSettableSecondsSinceEpoch:
@@ -1284,7 +1285,10 @@ class APIVersionedCCFClient(CCFClient):
     def __init__(self, *args, api_version=None, **kwargs):
         super(APIVersionedCCFClient, self).__init__(*args, **kwargs)
         self.api_version = api_version
-        if self.api_version == API_VERSION_PREVIEW_01:
+        if self.api_version in (
+            API_VERSION_PREVIEW_01,
+            API_VERSION_01,
+        ):
             self.client_impl.cose_header_builder = cose_protected_headers_api_v1
         else:
             LOG.error(

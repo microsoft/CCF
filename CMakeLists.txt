@@ -577,14 +577,23 @@ configure_file(
   @ONLY
 )
 
-file(READ ${CCF_DIR}/doc/schemas/mccf/2023-06-01-preview/mccfgov.json
+file(READ ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
      GOV_API_SCHEMA_2023_06_01_PREVIEW
 )
 set_property(
   DIRECTORY
   APPEND
   PROPERTY CMAKE_CONFIGURE_DEPENDS
-           ${CCF_DIR}/doc/schemas/mccf/2023-06-01-preview/mccfgov.json
+           ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
+)
+file(READ ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
+     GOV_API_SCHEMA_2024_07_01
+)
+set_property(
+  DIRECTORY
+  APPEND
+  PROPERTY CMAKE_CONFIGURE_DEPENDS
+           ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
 )
 configure_file(
   ${CCF_DIR}/src/node/gov/api_schema.h.in ${CCF_DIR}/src/node/gov/api_schema.h
@@ -1160,19 +1169,19 @@ if(BUILD_TESTS)
 
     if(LONG_TESTS)
       set(ADDITIONAL_RECOVERY_ARGS --with-load)
-    endif()
 
-    add_e2e_test(
-      NAME recovery_test_cft_api_0
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "classic"
-    )
+      add_e2e_test(
+        NAME recovery_test_cft_api_0
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+        ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "classic"
+      )
+    endif()
 
     add_e2e_test(
       NAME recovery_test_cft_api_1
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
       ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version
-                      "2023-06-01-preview"
+                      "2024-07-01"
     )
 
     add_e2e_test(
@@ -1384,7 +1393,7 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME membership_api_1
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-      ADDITIONAL_ARGS --gov-api-version "2023-06-01-preview"
+      ADDITIONAL_ARGS --gov-api-version "2024-07-01"
     )
 
     set(PARTITIONS_TEST_ARGS

@@ -1,0 +1,15 @@
+{
+  "title": "Transactions_Get",
+  "operationId": "Transactions_Get",
+  "parameters": {
+    "api-version": "2024-07-01",
+    "transactionId": "2.42"
+  },
+  "responses": {
+    "200": {
+      "body": {
+        "status": "Committed"
+      }
+    }
+  }
+}
