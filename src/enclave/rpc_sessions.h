@@ -548,6 +548,12 @@ namespace ccf
         }
         sessions.erase(search);
       }
+      else
+      {
+        // Enclave doesn't know this ID, but host is still talking about it.
+        // Continue with the normal closure flow
+        RINGBUFFER_WRITE_MESSAGE(::tcp::tcp_closed, to_host, id);
+      }
     }
 
     std::shared_ptr<ClientSession> create_client(
