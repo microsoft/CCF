@@ -704,6 +704,11 @@
       "type": "integer",
       "description": "Cap at which node-to-node message channels will be closed, and a new channel will be created. Can be used to limit use of single cryptographic key",
       "minimum": 0
+    },
+    "historical_cache_soft_limit": {
+      "type": "string",
+      "default": "512MB",
+      "description": "Historical queries cache soft limit (as size string)"
     }
   },
   "required": ["enclave", "network", "command"],

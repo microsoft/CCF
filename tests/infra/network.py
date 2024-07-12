@@ -194,6 +194,7 @@ class Network:
         "acme",
         "snp_endorsements_servers",
         "node_to_node_message_limit",
+        "historical_cache_soft_limit",
         "tick_ms",
         "max_msg_size_bytes",
         "snp_security_policy_file",
