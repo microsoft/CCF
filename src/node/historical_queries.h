@@ -509,7 +509,7 @@ namespace ccf::historical
     std::unordered_map<SeqNo, std::set<CompoundHandle>> store_to_requests;
     std::unordered_map<ccf::SeqNo, size_t> raw_store_sizes{};
 
-    CacheSize soft_store_cache_limit{1ll * 1024 * 1024 * 512 /*512 MB*/};
+    CacheSize soft_store_cache_limit{std::numeric_limits<size_t>::max()};
     CacheSize soft_store_cache_limit_raw =
       soft_store_cache_limit / soft_to_raw_ratio;
     CacheSize estimated_store_cache_size{0};

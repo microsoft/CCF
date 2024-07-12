@@ -22,6 +22,8 @@ struct CCFConfig
   // 2**24.5 as per RFC8446 Section 5.5
   size_t node_to_node_message_limit = 23'726'566;
 
+  ccf::ds::SizeString historical_cache_soft_limit = {"512MB"};
+
   ccf::consensus::Configuration consensus = {};
   ccf::NodeInfoNetwork network = {};
 

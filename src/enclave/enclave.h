@@ -238,6 +238,9 @@ namespace ccf
 
       node->set_n2n_message_limit(ccf_config_.node_to_node_message_limit);
 
+      historical_state_cache->set_soft_cache_limit(
+        ccf_config_.historical_cache_soft_limit);
+
       // If we haven't heard from a node for multiple elections, then cleanup
       // their node-to-node channel
       const auto idle_timeout =

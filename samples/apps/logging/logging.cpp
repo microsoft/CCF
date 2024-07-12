@@ -460,12 +460,6 @@ namespace loggingapp
         PUBLIC_RECORDS, context, 10000, 20);
       context.get_indexing_strategies().install_strategy(index_per_public_key);
 
-      // According to manual obvervation it's enough to start evicting old
-      // requests on historical perf test, but not too small to get stuck
-      // because of a single request being larget than the cache.
-      constexpr size_t cache_limit = 1024 * 1024 * 10; // MB
-      context.get_historical_state().set_soft_cache_limit(cache_limit);
-
       const ccf::AuthnPolicies auth_policies = {
         ccf::jwt_auth_policy,
         ccf::user_cert_auth_policy,
@@ -1663,11 +1657,6 @@ namespace loggingapp
           ccf::http::headers::CONTENT_TYPE,
           ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(j_response.dump());
-
-        // ALSO: Assume this response makes it all the way to the client, and
-        // they're finished with it, so we can drop the retrieved state. In a
-        // real app this may be driven by a separate client request or an LRU
-        historical_cache.drop_cached_states(handle);
       };
       make_endpoint(
         get_historical_range_path,
@@ -1834,11 +1823,6 @@ namespace loggingapp
           ccf::http::headers::CONTENT_TYPE,
           ccf::http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(j_response.dump());
-
-        // ALSO: Assume this response makes it all the way to the client, and
-        // they're finished with it, so we can drop the retrieved state. In a
-        // real app this may be driven by a separate client request or an LRU
-        historical_cache.drop_cached_states(handle);
       };
       make_endpoint(
         get_historical_sparse_path,
