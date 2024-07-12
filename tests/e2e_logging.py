@@ -273,6 +273,23 @@ def test_illegal(network, args):
     return network
 
 
+@reqs.description("Test invalid transactions ids in /tx endpoint")
+def test_invalid_txids(network, args):
+    primary, _ = network.find_primary()
+
+    invalid = ["a.b", "-1.-1", "0.0", "1.1", "1.0", "0.1"]
+
+    with primary.client() as c:
+        for txid in invalid:
+            r = c.get(f"/tx?transaction_id={txid}")
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
+            assert (
+                r.body.json()["error"]["code"] == "InvalidQueryParameterValue"
+            ), r.body.json()
+
+    return network
+
+
 @reqs.description("Alternative protocols")
 @reqs.supports_methods("/log/private", "/log/public")
 @reqs.at_least_n_nodes(2)
@@ -1303,7 +1320,7 @@ def test_view_history(network, args):
             seqno_to_views = {}
             for seqno in range(1, commit_tx_id.seqno + 1):
                 views = []
-                for view in range(1, commit_tx_id.view + 1):
+                for view in range(2, commit_tx_id.view + 1):
                     r = c.get(f"/node/tx?transaction_id={view}.{seqno}", log_capture=[])
                     check(r)
                     status = TxStatus(r.body.json()["status"])
@@ -2056,6 +2073,7 @@ def run_parsing_errors(args):
 
         test_illegal(network, args)
         test_protocols(network, args)
+        test_invalid_txids(network, args)
 
 
 if __name__ == "__main__":
