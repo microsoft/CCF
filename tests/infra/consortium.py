@@ -143,6 +143,7 @@ class Consortium:
     def set_gov_api_version(self, version_s):
         for cls in (
             infra.member.MemberAPI.Preview_v1,
+            infra.member.MemberAPI.v1,
             infra.member.MemberAPI.Classic,
         ):
             if version_s == cls.API_VERSION:

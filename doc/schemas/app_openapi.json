@@ -263,12 +263,13 @@
   "info": {
     "description": "This CCF sample app implements a simple logging application, securely recording messages at client-specified IDs. It demonstrates most of the features available to CCF apps.",
     "title": "CCF Sample Logging App",
-    "version": "2.3.1"
+    "version": "2.4.2"
   },
   "openapi": "3.0.0",
   "paths": {
     "/app/api": {
       "get": {
+        "operationId": "GetAppApi",
         "responses": {
           "200": {
             "content": {
@@ -293,7 +294,8 @@
     "/app/code": {
       "get": {
         "deprecated": true,
-        "description": "Permitted SGX code identities",
+        "description": "This endpoint is deprecated from 5.0.0. It is replaced by GET /gov/service/join-policy",
+        "operationId": "GetAppCode",
         "responses": {
           "200": {
             "content": {
@@ -309,7 +311,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/nodes/code_ids endpoint",
+        "summary": "Permitted SGX code identities",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -318,6 +320,7 @@
     "/app/commit": {
       "get": {
         "description": "Latest transaction ID that has been committed on the service",
+        "operationId": "GetAppCommit",
         "parameters": [
           {
             "in": "query",
@@ -359,6 +362,7 @@
     },
     "/app/custom_auth": {
       "get": {
+        "operationId": "GetAppCustomAuth",
         "responses": {
           "200": {
             "content": {
@@ -381,6 +385,7 @@
     },
     "/app/log/cose_signed_content": {
       "post": {
+        "operationId": "PostAppLogCoseSignedContent",
         "responses": {
           "200": {
             "content": {
@@ -408,6 +413,7 @@
     },
     "/app/log/private": {
       "delete": {
+        "operationId": "DeleteAppLogPrivate",
         "parameters": [
           {
             "in": "query",
@@ -446,6 +452,7 @@
         }
       },
       "get": {
+        "operationId": "GetAppLogPrivate",
         "parameters": [
           {
             "in": "query",
@@ -484,6 +491,7 @@
         }
       },
       "post": {
+        "operationId": "PostAppLogPrivate",
         "requestBody": {
           "content": {
             "application/json": {
@@ -524,6 +532,7 @@
     },
     "/app/log/private/admin_only": {
       "post": {
+        "operationId": "PostAppLogPrivateAdminOnly",
         "requestBody": {
           "content": {
             "application/json": {
@@ -556,6 +565,7 @@
     },
     "/app/log/private/all": {
       "delete": {
+        "operationId": "DeleteAppLogPrivateAll",
         "responses": {
           "200": {
             "content": {
@@ -586,6 +596,7 @@
     },
     "/app/log/private/anonymous": {
       "post": {
+        "operationId": "PostAppLogPrivateAnonymous",
         "requestBody": {
           "content": {
             "application/json": {
@@ -618,6 +629,7 @@
     },
     "/app/log/private/anonymous/v2": {
       "post": {
+        "operationId": "PostAppLogPrivateAnonymousV2",
         "requestBody": {
           "content": {
             "application/json": {
@@ -650,6 +662,7 @@
     },
     "/app/log/private/backup": {
       "get": {
+        "operationId": "GetAppLogPrivateBackup",
         "parameters": [
           {
             "in": "query",
@@ -690,6 +703,7 @@
     },
     "/app/log/private/committed": {
       "get": {
+        "operationId": "GetAppLogPrivateCommitted",
         "parameters": [
           {
             "in": "query",
@@ -722,6 +736,7 @@
     },
     "/app/log/private/count": {
       "get": {
+        "operationId": "GetAppLogPrivateCount",
         "responses": {
           "200": {
             "content": {
@@ -752,6 +767,7 @@
     },
     "/app/log/private/historical": {
       "get": {
+        "operationId": "GetAppLogPrivateHistorical",
         "parameters": [
           {
             "in": "query",
@@ -792,6 +808,7 @@
     },
     "/app/log/private/historical/sparse": {
       "get": {
+        "operationId": "GetAppLogPrivateHistoricalSparse",
         "parameters": [
           {
             "in": "query",
@@ -840,6 +857,7 @@
     },
     "/app/log/private/historical_receipt": {
       "get": {
+        "operationId": "GetAppLogPrivateHistoricalReceipt",
         "parameters": [
           {
             "in": "query",
@@ -880,6 +898,7 @@
     },
     "/app/log/private/install_committed_index": {
       "post": {
+        "operationId": "PostAppLogPrivateInstallCommittedIndex",
         "responses": {
           "204": {
             "description": "Default response description"
@@ -895,6 +914,7 @@
     },
     "/app/log/private/prefix_cert": {
       "post": {
+        "operationId": "PostAppLogPrivatePrefixCert",
         "requestBody": {
           "content": {
             "application/json": {
@@ -937,6 +957,7 @@
         }
       ],
       "post": {
+        "operationId": "PostAppLogPrivateRawTextId",
         "responses": {
           "200": {
             "description": "Default response description"
@@ -960,6 +981,7 @@
     },
     "/app/log/private/uninstall_committed_index": {
       "post": {
+        "operationId": "PostAppLogPrivateUninstallCommittedIndex",
         "responses": {
           "204": {
             "description": "Default response description"
@@ -975,6 +997,7 @@
     },
     "/app/log/public": {
       "delete": {
+        "operationId": "DeleteAppLogPublic",
         "parameters": [
           {
             "in": "query",
@@ -1013,6 +1036,7 @@
         }
       },
       "get": {
+        "operationId": "GetAppLogPublic",
         "parameters": [
           {
             "in": "query",
@@ -1051,6 +1075,7 @@
         }
       },
       "post": {
+        "operationId": "PostAppLogPublic",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1091,6 +1116,7 @@
     },
     "/app/log/public/all": {
       "delete": {
+        "operationId": "DeleteAppLogPublicAll",
         "responses": {
           "200": {
             "content": {
@@ -1121,6 +1147,7 @@
     },
     "/app/log/public/backup": {
       "get": {
+        "operationId": "GetAppLogPublicBackup",
         "parameters": [
           {
             "in": "query",
@@ -1161,6 +1188,7 @@
     },
     "/app/log/public/count": {
       "get": {
+        "operationId": "GetAppLogPublicCount",
         "responses": {
           "200": {
             "content": {
@@ -1191,6 +1219,7 @@
     },
     "/app/log/public/historical/range": {
       "get": {
+        "operationId": "GetAppLogPublicHistoricalRange",
         "parameters": [
           {
             "in": "query",
@@ -1247,6 +1276,7 @@
     },
     "/app/log/public/historical_receipt": {
       "get": {
+        "operationId": "GetAppLogPublicHistoricalReceipt",
         "parameters": [
           {
             "in": "query",
@@ -1287,6 +1317,7 @@
     },
     "/app/log/request_query": {
       "get": {
+        "operationId": "GetAppLogRequestQuery",
         "responses": {
           "200": {
             "content": {
@@ -1309,6 +1340,7 @@
     },
     "/app/multi_auth": {
       "post": {
+        "operationId": "PostAppMultiAuth",
         "responses": {
           "200": {
             "content": {
@@ -1341,6 +1373,7 @@
     "/app/receipt": {
       "get": {
         "description": "A signed statement from the service over a transaction entry in the ledger",
+        "operationId": "GetAppReceipt",
         "parameters": [
           {
             "in": "query",
@@ -1375,6 +1408,7 @@
     "/app/tx": {
       "get": {
         "description": "Possible statuses returned are Unknown, Pending, Committed or Invalid.",
+        "operationId": "GetAppTx",
         "parameters": [
           {
             "in": "query",

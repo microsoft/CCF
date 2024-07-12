@@ -3,6 +3,8 @@
 
 #include "ccf/ds/nonstd.h"
 
+#include "ds/nonstd.h"
+
 #include <algorithm>
 #include <doctest/doctest.h>
 #include <stdlib.h>
@@ -264,59 +266,70 @@ TEST_CASE("rsplit" * doctest::test_suite("nonstd"))
   }
 }
 
-TEST_CASE("envvars" * doctest::test_suite("nonstd"))
+TEST_CASE("camel_case" * doctest::test_suite("nonstd"))
 {
   {
-    INFO("Expand environment variable");
+    INFO("Default separator");
+    REQUIRE(ccf::nonstd::camel_case("") == "");
+    REQUIRE(ccf::nonstd::camel_case("abc") == "Abc");
+    REQUIRE(ccf::nonstd::camel_case("abc", false) == "abc");
 
-    std::string test_value("test_value");
-    ::setenv("TEST_ENV_VAR", test_value.c_str(), 1);
+    REQUIRE(ccf::nonstd::camel_case("hello world") == "HelloWorld");
+    REQUIRE(ccf::nonstd::camel_case("hello world", false) == "helloWorld");
 
-    REQUIRE("" == ccf::nonstd::expand_envvar(""));
-    REQUIRE("not an env var" == ccf::nonstd::expand_envvar("not an env var"));
     REQUIRE(
-      "$ENV_VAR_NOT_SET" == ccf::nonstd::expand_envvar("$ENV_VAR_NOT_SET"));
-    REQUIRE(test_value == ccf::nonstd::expand_envvar("$TEST_ENV_VAR"));
-
-    // ${} syntax is not supported
+      ccf::nonstd::camel_case("standard_snake_case_value") ==
+      "StandardSnakeCaseValue");
     REQUIRE(
-      "${ENV_VAR_NOT_SET}" == ccf::nonstd::expand_envvar("${ENV_VAR_NOT_SET}"));
+      ccf::nonstd::camel_case("standard_snake_case_value", false) ==
+      "standardSnakeCaseValue");
+
+    REQUIRE(
+      ccf::nonstd::camel_case(
+        "camel-with.many/many!many_many,many|many$separators") ==
+      "CamelWithManyManyManyManyManyManySeparators");
+    REQUIRE(
+      ccf::nonstd::camel_case(
+        "camel-with.many/many!many_many,many|many$separators", false) ==
+      "camelWithManyManyManyManyManyManySeparators");
+
+    REQUIRE(
+      ccf::nonstd::camel_case("1handling2of3.numbers") ==
+      "1handling2of3Numbers");
+    REQUIRE(
+      ccf::nonstd::camel_case("1handling2of3.numbers", false) ==
+      "1handling2of3Numbers");
+
+    REQUIRE(
+      ccf::nonstd::camel_case(
+        "camel_With-Existing_mixed-casing_Is-1Perhaps_2Surprising") ==
+      "Camel_With-ExistingMixedCasing_Is-1Perhaps_2Surprising");
+    REQUIRE(
+      ccf::nonstd::camel_case(
+        "camel_With-Existing_mixed-casing_Is-1Perhaps_2Surprising", false) ==
+      "camel_With-ExistingMixedCasing_Is-1Perhaps_2Surprising");
   }
   {
-    INFO("Expand path");
+    INFO("Custom separators");
+    REQUIRE(ccf::nonstd::camel_case("hello world", true, "_") == "Hello world");
+    REQUIRE(
+      ccf::nonstd::camel_case("hello world", false, "_") == "hello world");
 
-    std::string test_value1("test_value1");
-    ::setenv("TEST_ENV_VAR1", test_value1.c_str(), 1);
-    std::string test_value2("test_value2");
-    ::setenv("TEST_ENV_VAR2", test_value2.c_str(), 1);
-
-    REQUIRE("" == ccf::nonstd::expand_envvars_in_path(""));
-    REQUIRE("foo" == ccf::nonstd::expand_envvars_in_path("foo"));
-    REQUIRE("foo/" == ccf::nonstd::expand_envvars_in_path("foo/"));
-    REQUIRE("foo/bar" == ccf::nonstd::expand_envvars_in_path("foo/bar"));
-    REQUIRE("/" == ccf::nonstd::expand_envvars_in_path("/"));
-    REQUIRE("/foo" == ccf::nonstd::expand_envvars_in_path("/foo"));
-    REQUIRE("/foo/" == ccf::nonstd::expand_envvars_in_path("/foo/"));
-    REQUIRE("/foo/bar" == ccf::nonstd::expand_envvars_in_path("/foo/bar"));
+    REQUIRE(ccf::nonstd::camel_case("hello_world", true, "_") == "HelloWorld");
+    REQUIRE(ccf::nonstd::camel_case("hello_world", false, "_") == "helloWorld");
 
     REQUIRE(
-      fmt::format("{}", test_value1) ==
-      ccf::nonstd::expand_envvars_in_path("$TEST_ENV_VAR1"));
+      ccf::nonstd::camel_case("what-about-/mixed/separators", true, "-") ==
+      "WhatAbout-/mixed/separators");
     REQUIRE(
-      fmt::format("{}/", test_value1) ==
-      ccf::nonstd::expand_envvars_in_path("$TEST_ENV_VAR1/"));
-    REQUIRE(
-      fmt::format("{}/{}", test_value1, test_value2) ==
-      ccf::nonstd::expand_envvars_in_path("$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
+      ccf::nonstd::camel_case("what-about-/mixed/separators", false, "-") ==
+      "whatAbout-/mixed/separators");
 
     REQUIRE(
-      fmt::format("/{}", test_value1) ==
-      ccf::nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1"));
+      ccf::nonstd::camel_case("what-about-/mixed/separators", true, "/") ==
+      "What-about-MixedSeparators");
     REQUIRE(
-      fmt::format("/{}/", test_value1) ==
-      ccf::nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1/"));
-    REQUIRE(
-      fmt::format("/{}/{}", test_value1, test_value2) ==
-      ccf::nonstd::expand_envvars_in_path("/$TEST_ENV_VAR1/$TEST_ENV_VAR2"));
+      ccf::nonstd::camel_case("what-about-/mixed/separators", false, "/") ==
+      "what-about-MixedSeparators");
   }
 }

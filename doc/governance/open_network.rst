@@ -35,7 +35,7 @@ Then, the certificates of trusted users should be registered in CCF via the memb
       --signing-key member0_privk.pem \
       --signing-cert member0_cert.pem \
       --content set_user.json \
-    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
@@ -64,7 +64,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
       --signing-key member0_privk.pem \
       --signing-cert member0_cert.pem \
       --content vote_accept.json \
-    | curl https://<ccf-node-address>/gov/members/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots/2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0:submit?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots/2af6cb6c0af07818186f7ef7151061174c3cb74b4a4c30a04a434f0c2b00a8c0:submit?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
@@ -84,7 +84,7 @@ Other members are then allowed to vote for the proposal, using the proposal id r
       --signing-key member1_privk.pem \
       --signing-cert member1_cert.pem \
       --content vote_accept.json \
-    | curl https://<ccf-node-address>/gov/members/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots/75b86775f1253c308f4e9aeddf912d40b8d77db9eaa9a0f0026f581920d5e9b8:submit?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals/f665047e3d1eb184a7b7921944a8ab543cfff117aab5b6358dc87f9e70278253/ballots/75b86775f1253c308f4e9aeddf912d40b8d77db9eaa9a0f0026f581920d5e9b8:submit?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
@@ -177,7 +177,7 @@ Once users are added to the opening network, members should create a proposal to
       --signing-key member0_privk.pem \
       --signing-cert member0_cert.pem \
       --content transition_service_to_open.json
-    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"

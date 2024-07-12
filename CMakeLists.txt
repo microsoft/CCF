@@ -263,7 +263,9 @@ else()
   list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
 endif()
 
-list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp)
+list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp
+     ${CCF_DIR}/src/ds/nonstd.cpp ${CCF_DIR}/src/host/env.cpp
+)
 
 if(COMPILE_TARGET STREQUAL "sgx")
   list(APPEND CCHOST_SOURCES ${CCF_GENERATED_DIR}/ccf_u.cpp)
@@ -577,14 +579,23 @@ configure_file(
   @ONLY
 )
 
-file(READ ${CCF_DIR}/doc/schemas/mccf/2023-06-01-preview/mccfgov.json
+file(READ ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
      GOV_API_SCHEMA_2023_06_01_PREVIEW
 )
 set_property(
   DIRECTORY
   APPEND
   PROPERTY CMAKE_CONFIGURE_DEPENDS
-           ${CCF_DIR}/doc/schemas/mccf/2023-06-01-preview/mccfgov.json
+           ${CCF_DIR}/doc/schemas/gov/2023-06-01-preview/gov.json
+)
+file(READ ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
+     GOV_API_SCHEMA_2024_07_01
+)
+set_property(
+  DIRECTORY
+  APPEND
+  PROPERTY CMAKE_CONFIGURE_DEPENDS
+           ${CCF_DIR}/doc/schemas/gov/2024-07-01/gov.json
 )
 configure_file(
   ${CCF_DIR}/src/node/gov/api_schema.h.in ${CCF_DIR}/src/node/gov/api_schema.h
@@ -616,6 +627,7 @@ add_custom_target(ccf ALL)
 set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
+    ${CCF_DIR}/src/ds/nonstd.cpp
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -1009,6 +1021,7 @@ if(BUILD_TESTS)
 
     add_test_bin(
       kp_cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/kp_cert.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/nonstd.cpp
     )
     target_link_libraries(kp_cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -1082,7 +1095,7 @@ if(BUILD_TESTS)
     )
 
     # Merkle Tree memory test
-    add_executable(merkle_mem src/node/test/merkle_mem.cpp)
+    add_executable(merkle_mem src/node/test/merkle_mem.cpp src/ds/nonstd.cpp)
     target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
     target_link_libraries(
       merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX}
@@ -1092,7 +1105,7 @@ if(BUILD_TESTS)
     # Raft driver and scenario test
     add_executable(
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
-                  src/enclave/thread_local.cpp
+                  src/enclave/thread_local.cpp src/ds/nonstd.cpp
     )
     target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
     target_include_directories(raft_driver PRIVATE src/aft)
@@ -1160,19 +1173,19 @@ if(BUILD_TESTS)
 
     if(LONG_TESTS)
       set(ADDITIONAL_RECOVERY_ARGS --with-load)
-    endif()
 
-    add_e2e_test(
-      NAME recovery_test_cft_api_0
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "classic"
-    )
+      add_e2e_test(
+        NAME recovery_test_cft_api_0
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+        ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "classic"
+      )
+    endif()
 
     add_e2e_test(
       NAME recovery_test_cft_api_1
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
       ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version
-                      "2023-06-01-preview"
+                      "2024-07-01"
     )
 
     add_e2e_test(
@@ -1375,16 +1388,18 @@ if(BUILD_TESTS)
                       ${CMAKE_SOURCE_DIR}/samples/apps/logging/js --http2
     )
 
-    add_e2e_test(
-      NAME membership_api_0
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-      ADDITIONAL_ARGS --gov-api-version "classic"
-    )
+    if(LONG_TESTS)
+      add_e2e_test(
+        NAME membership_api_0
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
+        ADDITIONAL_ARGS --gov-api-version "classic"
+      )
+    endif()
 
     add_e2e_test(
       NAME membership_api_1
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-      ADDITIONAL_ARGS --gov-api-version "2023-06-01-preview"
+      ADDITIONAL_ARGS --gov-api-version "2024-07-01"
     )
 
     set(PARTITIONS_TEST_ARGS
@@ -1560,6 +1575,11 @@ if(BUILD_TESTS)
       NAME historical_query_perf_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
       LABEL perf PERF_LABEL "Historical Queries"
+    )
+
+    add_e2e_test(
+      NAME historical_query_cache_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_cache.py
     )
   endif()
 endif()

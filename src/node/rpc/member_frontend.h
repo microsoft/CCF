@@ -571,6 +571,10 @@ namespace ccf
         endpoint.template set_auto_schema<void, typename T::Value>();
       }
 
+      endpoint.set_openapi_summary(
+        "This route is auto-generated from the KV schema.");
+      endpoint.set_openapi_deprecated(true);
+
       endpoint.install();
     }
 
@@ -595,7 +599,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "4.1.9";
+      openapi_info.document_version = "4.3.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -780,6 +784,8 @@ namespace ccf
         .set_openapi_summary(
           "Provide a member endorsement of a service state digest")
         .set_auto_schema<StateDigest, void>()
+        .set_openapi_deprecated_replaced(
+          "5.0.0", "POST /gov/members/state-digests/{memberId}:ack")
         .install();
 
       //! A member asks for a fresher state digest
@@ -834,6 +840,8 @@ namespace ccf
         .set_openapi_summary(
           "Update and fetch a service state digest, for the purpose of member "
           "endorsement")
+        .set_openapi_deprecated_replaced(
+          "5.0.0", "POST /gov/members/state-digests/{memberId}:update")
         .install();
 
       auto get_encrypted_recovery_share =
@@ -887,11 +895,9 @@ namespace ccf
         get_encrypted_recovery_share,
         member_cert_or_sig_policies("encrypted_recovery_share"))
         .set_auto_schema<GetRecoveryShare>()
-        .set_openapi_deprecated(true)
-        .set_openapi_summary(
-          "This endpoint is deprecated. It is replaced by "
-          "/encrypted_recovery_share/{member_id}")
         .set_openapi_summary("A member's recovery share")
+        .set_openapi_deprecated_replaced(
+          "5.0.0", "GET /gov/recovery/encrypted-shares/{memberId}")
         .install();
 
       auto get_encrypted_recovery_share_for_member =
@@ -939,6 +945,8 @@ namespace ccf
         ccf::no_auth_required)
         .set_auto_schema<GetRecoveryShare>()
         .set_openapi_summary("A member's recovery share")
+        .set_openapi_deprecated_replaced(
+          "5.0.0", "GET /gov/recovery/encrypted-shares/{memberId}")
         .install();
 
       auto submit_recovery_share = [this](
@@ -1086,6 +1094,8 @@ namespace ccf
         .set_openapi_summary(
           "Provide a recovery share for the purpose of completing a service "
           "recovery")
+        .set_openapi_deprecated_replaced(
+          "5.0.0", "POST /gov/recovery/members/{memberId}:recover")
         .install();
 
       using JWTKeyMap = std::map<JwtKeyId, std::vector<KeyIdInfo>>;
@@ -1109,11 +1119,7 @@ namespace ccf
       make_endpoint(
         "/jwt_keys/all", HTTP_GET, json_adapter(get_jwt_keys), no_auth_required)
         .set_auto_schema<void, JWTKeyMap>()
-        .set_openapi_deprecated(true)
-        .set_openapi_summary(
-          "This endpoint is deprecated. It is replaced by "
-          "/gov/kv/jwt/public_signing_keys_metadata and /gov/kv/jwt/issuers "
-          "endpoints.")
+        .set_openapi_deprecated_replaced("5.0.0", "POST /gov/service/jwk")
         .install();
 
       auto post_proposals_js = [this](ccf::endpoints::EndpointContext& ctx) {
@@ -1364,7 +1370,8 @@ namespace ccf
         post_proposals_js,
         member_sig_only_policies("proposal"))
         .set_auto_schema<jsgov::Proposal, jsgov::ProposalInfoSummary>()
-        .set_openapi_summary("Submit a proposed change to the service")
+        .set_openapi_deprecated_replaced(
+          "5.0.0", "POST /gov/members/proposals:create")
         .install();
 
       using AllOpenProposals = std::map<ProposalId, jsgov::ProposalInfo>;
@@ -1393,6 +1400,7 @@ namespace ccf
         .set_auto_schema<void, AllOpenProposals>()
         .set_openapi_summary(
           "Proposed changes to the service pending resolution")
+        .set_openapi_deprecated_replaced("5.0.0", "GET /gov/members/proposals")
         .install();
 
       auto get_proposal_js = [this](
@@ -1445,6 +1453,8 @@ namespace ccf
         .set_auto_schema<void, jsgov::ProposalInfo>()
         .set_openapi_summary(
           "Information about a proposed change to the service")
+        .set_openapi_deprecated_replaced(
+          "5.0.0", "GET /gov/members/proposals/{proposalId}")
         .install();
 
       auto withdraw_js = [this](ccf::endpoints::EndpointContext& ctx) {
@@ -1553,6 +1563,8 @@ namespace ccf
         member_sig_only_policies("withdrawal"))
         .set_auto_schema<void, jsgov::ProposalInfo>()
         .set_openapi_summary("Withdraw a proposed change to the service")
+        .set_openapi_deprecated_replaced(
+          "5.0.0", "POST /gov/members/proposals/{proposalId}:withdraw")
         .install();
 
       auto get_proposal_actions_js =
@@ -1599,6 +1611,8 @@ namespace ccf
         .set_auto_schema<void, jsgov::Proposal>()
         .set_openapi_summary(
           "Actions contained in a proposed change to the service")
+        .set_openapi_deprecated_replaced(
+          "5.0.0", "GET /gov/members/proposals/{proposalId}/actions")
         .install();
 
       auto vote_js = [this](ccf::endpoints::EndpointContext& ctx) {
@@ -1761,6 +1775,9 @@ namespace ccf
         .set_auto_schema<jsgov::Ballot, jsgov::ProposalInfoSummary>()
         .set_openapi_summary(
           "Submit a ballot for a proposed change to the service")
+        .set_openapi_deprecated_replaced(
+          "5.0.0",
+          "POST /gov/members/proposals/{proposalId}/ballots/{memberId}:submit")
         .install();
 
       auto get_vote_js =
@@ -1815,6 +1832,8 @@ namespace ccf
         .set_auto_schema<void, jsgov::Ballot>()
         .set_openapi_summary(
           "Ballot for a given member about a proposed change to the service")
+        .set_openapi_deprecated_replaced(
+          "5.0.0", "GET /gov/members/proposals/{proposalId}/ballots/{memberId}")
         .install();
 
       using AllMemberDetails = std::map<ccf::MemberId, FullMemberDetails>;
@@ -1861,11 +1880,7 @@ namespace ccf
         json_read_only_adapter(get_all_members),
         ccf::no_auth_required)
         .set_auto_schema<void, AllMemberDetails>()
-        .set_openapi_deprecated(true)
-        .set_openapi_summary(
-          "This endpoint is deprecated. It is replaced by "
-          "/gov/kv/members/certs, /gov/kv/members/encryption_public_keys, "
-          "/gov/kv/members/info endpoints.")
+        .set_openapi_deprecated_replaced("5.0.0", "GET /gov/service/members")
         .install();
 
       add_kv_wrapper_endpoints();

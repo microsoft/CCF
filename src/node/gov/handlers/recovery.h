@@ -19,6 +19,7 @@ namespace ccf::gov::endpoints
         switch (api_version)
         {
           case ApiVersion::preview_v1:
+          case ApiVersion::v1:
           default:
           {
             ccf::MemberId member_id;
@@ -64,6 +65,7 @@ namespace ccf::gov::endpoints
       switch (api_version)
       {
         case ApiVersion::preview_v1:
+        case ApiVersion::v1:
         default:
         {
           if (

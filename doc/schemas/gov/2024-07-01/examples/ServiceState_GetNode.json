@@ -2,7 +2,7 @@
   "title": "ServiceState_GetNode",
   "operationId": "ServiceState_GetNode",
   "parameters": {
-    "api-version": "2023-06-01-preview",
+    "api-version": "2024-07-01",
     "nodeId": "7e87b5de68f7edb26d2c31b69eda2cb3fac6ec125fdaafecdbe184abc5f61573"
   },
   "responses": {

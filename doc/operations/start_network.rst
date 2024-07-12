@@ -29,7 +29,7 @@ When starting up, the node generates its own key pair and outputs the unendorsed
 
 .. note:: The service certificate should be distributed to users and members to be used as the certificate authority (CA) when establishing a TLS connection with any of the nodes part of the CCF network. When using ``curl``, this is passed as the ``--cacert`` argument.
 
-The initial constitution scripts, member certificates, public encryption keys and data files as well as the initial service configuration should be set in the :ref:`operations/configuration:``start``` section of the JSON configuration.
+The initial constitution scripts, member certificates, public encryption keys and data files as well as the initial service configuration should be set in the :ref:`operations/configuration:``command.start``` section of the JSON configuration.
 
 Once the first node is started, the network will be in its opening state and new nodes can join the network.
 
@@ -52,7 +52,7 @@ To add a new node to an existing opening network, other nodes should be started 
 
 The joining node takes the certificate of the existing network to join via ``service_certificate_file`` configuration entry and initiates an enclave-to-enclave TLS connection to an existing node of the network as specified by ``join.target_rpc_address`` configuration entry.
 
-The join configuration option should be set in the :ref:`operations/configuration:``join``` section of the JSON configuration.
+The join configuration option should be set in the :ref:`operations/configuration:``command.join``` section of the JSON configuration.
 
 A new node can only join an existing CCF network if its SGX quote is valid  [#remote_attestation]_. and runs an enclave application that is :ref:`trusted by the consortium <governance/common_member_operations:Updating Code Version>`.
 

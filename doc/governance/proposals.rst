@@ -280,7 +280,7 @@ For example, ``member1`` may submit a proposal to add a new member (``member4``)
       --signing-key member1_privk.pem \
       --signing-cert member1_cert.pem \
       --content add_member.json \
-    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
@@ -315,7 +315,7 @@ Here a new proposal has successfully been created, and nobody has yet voted for 
       --signing-key member1_privk.pem \
       --signing-cert member1_cert.pem \
       --content vote_accept.json \
-    | curl https://<ccf-node-address>/gov/members/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots/52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73:submit?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots/52af2620fa1b005a93d55d7d819a249ee2cb79f5262f54e8db794c5281a0ce73:submit?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
@@ -334,7 +334,7 @@ Here a new proposal has successfully been created, and nobody has yet voted for 
       --signing-key member2_privk.pem \
       --signing-cert member2_cert.pem \
       --content vote_reject.json \
-    | curl https://<ccf-node-address>/gov/members/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots/fe6ed012e8184f28afb48d0d58dca7f461dc997c43179acf97362dc0b76ddeb7:submit?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots/fe6ed012e8184f28afb48d0d58dca7f461dc997c43179acf97362dc0b76ddeb7:submit?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
@@ -353,7 +353,7 @@ Here a new proposal has successfully been created, and nobody has yet voted for 
       --signing-key member3_privk.pem \
       --signing-cert member3_cert.pem \
       --content vote_accept.json \
-    | curl https://<ccf-node-address>/gov/members/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots/75b86775f1253c308f4e9aeddf912d40b8d77db9eaa9a0f0026f581920d5e9b8:submit?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd/ballots/75b86775f1253c308f4e9aeddf912d40b8d77db9eaa9a0f0026f581920d5e9b8:submit?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
@@ -377,7 +377,7 @@ The details of pending proposals, can be queried from the service by calling :ht
 
 .. code-block:: bash
 
-    $ curl https://<ccf-node-address>/gov/members/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd?api-version=2023-06-01-preview --cacert service_cert.pem -X GET
+    $ curl https://<ccf-node-address>/gov/members/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd?api-version=2024-07-01 --cacert service_cert.pem -X GET
     {
       "ballotCount": 3,
       "finalVotes": {
@@ -403,7 +403,7 @@ At any stage during the voting process, before the proposal is accepted, the pro
       --ccf-gov-msg-proposal_id d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd \
       --signing-key member1_privk.pem \
       --signing-cert member1_cert.pem \
-    | curl https://<ccf-node-address>/gov/members/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd:withdraw?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals/d4ec2de82267f97d3d1b464020af0bd3241f1bedf769f0fee73cd00f08e9c7fd:withdraw?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"

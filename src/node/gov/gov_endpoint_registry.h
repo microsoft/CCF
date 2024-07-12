@@ -73,7 +73,10 @@ namespace ccf
     void api_endpoint(ccf::endpoints::ReadOnlyEndpointContext& ctx) override
     {
       using namespace ccf::gov::endpoints;
-      const auto api_version = get_api_version(ctx);
+
+      const char* error_code = nullptr;
+      const auto api_version =
+        get_api_version(ctx, ApiVersion::MIN, &error_code);
       if (api_version.has_value())
       {
         switch (api_version.value())
@@ -87,10 +90,27 @@ namespace ccf
             ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
             break;
           }
+          case ApiVersion::v1:
+          {
+            ctx.rpc_ctx->set_response_body(schema::v2024_07_01);
+            ctx.rpc_ctx->set_response_header(
+              http::headers::CONTENT_TYPE,
+              http::headervalues::contenttype::JSON);
+            ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+            break;
+          }
         }
       }
       else
       {
+        // If an _invalid_ API version was passed, then an error response has
+        // already been populated
+        if (error_code == ccf::errors::UnsupportedApiVersionValue)
+        {
+          return;
+        }
+
+        // Else (API version parameter was missing) return the classic API
         CommonEndpointRegistry::api_endpoint(ctx);
       }
     }

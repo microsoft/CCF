@@ -896,12 +896,13 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "4.9.2"
+    "version": "4.10.3"
   },
   "openapi": "3.0.0",
   "paths": {
     "/node/api": {
       "get": {
+        "operationId": "GetNodeApi",
         "responses": {
           "200": {
             "content": {
@@ -925,6 +926,7 @@
     },
     "/node/backup": {
       "get": {
+        "operationId": "GetNodeBackup",
         "responses": {
           "200": {
             "description": "Default response description"
@@ -941,7 +943,8 @@
     "/node/code": {
       "get": {
         "deprecated": true,
-        "description": "Permitted SGX code identities",
+        "description": "This endpoint is deprecated from 5.0.0. It is replaced by GET /gov/service/join-policy",
+        "operationId": "GetNodeCode",
         "responses": {
           "200": {
             "content": {
@@ -957,7 +960,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "This endpoint is deprecated. It is replaced by /gov/kv/nodes/code_ids endpoint",
+        "summary": "Permitted SGX code identities",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -966,6 +969,7 @@
     "/node/commit": {
       "get": {
         "description": "Latest transaction ID that has been committed on the service",
+        "operationId": "GetNodeCommit",
         "parameters": [
           {
             "in": "query",
@@ -1007,6 +1011,7 @@
     },
     "/node/config": {
       "get": {
+        "operationId": "GetNodeConfig",
         "responses": {
           "200": {
             "content": {
@@ -1029,6 +1034,7 @@
     },
     "/node/consensus": {
       "get": {
+        "operationId": "GetNodeConsensus",
         "responses": {
           "200": {
             "content": {
@@ -1051,6 +1057,7 @@
     },
     "/node/index/strategies": {
       "get": {
+        "operationId": "GetNodeIndexStrategies",
         "responses": {
           "200": {
             "content": {
@@ -1073,6 +1080,7 @@
     },
     "/node/js_metrics": {
       "get": {
+        "operationId": "GetNodeJsMetrics",
         "responses": {
           "200": {
             "content": {
@@ -1095,6 +1103,7 @@
     },
     "/node/jwt_keys/refresh/metrics": {
       "get": {
+        "operationId": "GetNodeJwtKeysRefreshMetrics",
         "responses": {
           "200": {
             "content": {
@@ -1117,6 +1126,7 @@
     },
     "/node/memory": {
       "get": {
+        "operationId": "GetNodeMemory",
         "responses": {
           "200": {
             "content": {
@@ -1139,6 +1149,7 @@
     },
     "/node/metrics": {
       "get": {
+        "operationId": "GetNodeMetrics",
         "responses": {
           "200": {
             "content": {
@@ -1161,6 +1172,7 @@
     },
     "/node/network": {
       "get": {
+        "operationId": "GetNodeNetwork",
         "responses": {
           "200": {
             "content": {
@@ -1183,6 +1195,7 @@
     },
     "/node/network/nodes": {
       "get": {
+        "operationId": "GetNodeNetworkNodes",
         "parameters": [
           {
             "in": "query",
@@ -1231,6 +1244,7 @@
     },
     "/node/network/nodes/primary": {
       "get": {
+        "operationId": "GetNodeNetworkNodesPrimary",
         "responses": {
           "200": {
             "content": {
@@ -1253,6 +1267,7 @@
     },
     "/node/network/nodes/self": {
       "get": {
+        "operationId": "GetNodeNetworkNodesSelf",
         "responses": {
           "200": {
             "content": {
@@ -1275,6 +1290,7 @@
     },
     "/node/network/nodes/{node_id}": {
       "delete": {
+        "operationId": "DeleteNodeNetworkNodesNodeId",
         "responses": {
           "200": {
             "content": {
@@ -1295,6 +1311,7 @@
         }
       },
       "get": {
+        "operationId": "GetNodeNetworkNodesNodeId",
         "responses": {
           "200": {
             "content": {
@@ -1327,6 +1344,7 @@
     },
     "/node/network/removable_nodes": {
       "get": {
+        "operationId": "GetNodeNetworkRemovableNodes",
         "responses": {
           "200": {
             "content": {
@@ -1349,6 +1367,7 @@
     },
     "/node/primary": {
       "get": {
+        "operationId": "GetNodePrimary",
         "responses": {
           "200": {
             "description": "Default response description"
@@ -1362,6 +1381,7 @@
         }
       },
       "head": {
+        "operationId": "HeadNodePrimary",
         "responses": {
           "200": {
             "description": "Default response description"
@@ -1377,6 +1397,7 @@
     },
     "/node/quotes": {
       "get": {
+        "operationId": "GetNodeQuotes",
         "responses": {
           "200": {
             "content": {
@@ -1399,6 +1420,7 @@
     },
     "/node/quotes/self": {
       "get": {
+        "operationId": "GetNodeQuotesSelf",
         "responses": {
           "200": {
             "content": {
@@ -1421,6 +1443,7 @@
     },
     "/node/ready/app": {
       "get": {
+        "operationId": "GetNodeReadyApp",
         "responses": {
           "204": {
             "description": "Default response description"
@@ -1436,6 +1459,7 @@
     },
     "/node/ready/gov": {
       "get": {
+        "operationId": "GetNodeReadyGov",
         "responses": {
           "204": {
             "description": "Default response description"
@@ -1452,6 +1476,7 @@
     "/node/receipt": {
       "get": {
         "description": "A signed statement from the service over a transaction entry in the ledger",
+        "operationId": "GetNodeReceipt",
         "parameters": [
           {
             "in": "query",
@@ -1485,6 +1510,7 @@
     },
     "/node/self_signed_certificate": {
       "get": {
+        "operationId": "GetNodeSelfSignedCertificate",
         "responses": {
           "200": {
             "content": {
@@ -1507,6 +1533,7 @@
     },
     "/node/service/configuration": {
       "get": {
+        "operationId": "GetNodeServiceConfiguration",
         "responses": {
           "200": {
             "content": {
@@ -1529,6 +1556,7 @@
     },
     "/node/service/previous_identity": {
       "get": {
+        "operationId": "GetNodeServicePreviousIdentity",
         "responses": {
           "200": {
             "content": {
@@ -1551,6 +1579,7 @@
     },
     "/node/state": {
       "get": {
+        "operationId": "GetNodeState",
         "responses": {
           "200": {
             "content": {
@@ -1574,6 +1603,7 @@
     "/node/tx": {
       "get": {
         "description": "Possible statuses returned are Unknown, Pending, Committed or Invalid.",
+        "operationId": "GetNodeTx",
         "parameters": [
           {
             "in": "query",
@@ -1607,6 +1637,7 @@
     },
     "/node/version": {
       "get": {
+        "operationId": "GetNodeVersion",
         "responses": {
           "200": {
             "content": {

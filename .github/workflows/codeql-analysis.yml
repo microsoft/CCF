@@ -6,13 +6,16 @@
 name: "CodeQL"
 
 on:
-  push:
-    branches: [main]
+  schedule:
+    - cron: "0 0 * * 0"
   pull_request:
-    branches: [main]
     paths:
       - ".github/workflows/codeql-analysis.yml"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions: read-all
 
@@ -22,7 +25,7 @@ jobs:
     # Insufficient space to run on public runner, so use custom pool
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ccfmsrc.azurecr.io/ccf/ci:2024-06-26-virtual-clang15
+      image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
       options: --user root
 
     permissions:

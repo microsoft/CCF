@@ -35,7 +35,7 @@ A member proposes to recover the network and other members can vote on the propo
       --signing-key member1_privk.pem \
       --signing-cert member1_cert.pem \
       --content transition_service_to_open.json \
-    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals:create?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
@@ -53,7 +53,7 @@ A member proposes to recover the network and other members can vote on the propo
       --signing-key member1_privk.pem \
       --signing-cert member1_cert.pem \
       --content vote_accept.json \
-    | curl https://<ccf-node-address>/gov/members/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots/d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1:submit?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots/d5d7d5fed6f839028456641ad5c3df18ce963bd329bd8a21df16ccdbdbba1eb1:submit?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
@@ -71,7 +71,7 @@ A member proposes to recover the network and other members can vote on the propo
       --signing-key member2_privk.pem \
       --signing-cert member2_cert.pem \
       --content vote_accept.json
-    | curl https://<ccf-node-address>/gov/members/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots/e306e3a6eead2f4a3854302b41c3015bf12db9535ac0be1b8cf6584f84bca92b:submit?api-version=2023-06-01-preview \
+    | curl https://<ccf-node-address>/gov/members/proposals/1b7cae1585077104e99e1860ad740efe28ebd498dbf9988e0e7b299e720c5377/ballots/e306e3a6eead2f4a3854302b41c3015bf12db9535ac0be1b8cf6584f84bca92b:submit?api-version=2024-07-01 \
       --cacert service_cert.pem \
       --data-binary @- \
       -H "content-type: application/cose"
@@ -104,7 +104,7 @@ The recovery share retrieval, decryption and submission steps can be convenientl
     $ submit_recovery_share.sh https://<ccf-node-address> \
       --member-enc-privk member0_enc_privk.pem \
       --cert member0_cert.pem \ 
-      --api-version 2023-06-01-preview \
+      --api-version 2024-07-01 \
       --key member0_privk.pem \
       --cacert service_cert.pem
     HTTP/1.1 200 OK
@@ -115,7 +115,7 @@ The recovery share retrieval, decryption and submission steps can be convenientl
     $ submit_recovery_share.sh https://<ccf-node-address> \
       --member-enc-privk member1_enc_privk.pem \
       --cert member1_cert.pem \
-      --api-version 2023-06-01-preview \
+      --api-version 2024-07-01 \
       --key member1_privk.pem \
       --cacert service_cert.pem
     HTTP/1.1 200 OK
