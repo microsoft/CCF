@@ -37,12 +37,6 @@ jobs:
         fetchDepth: 0
         fetchTags: true
 
-      - script: |
-          set -ex
-          env
-        name: print_env
-        displayName: "Print Environment Variables"
-
       - template: install_ssh_key.yml
         parameters:
           ssh_key: $(sshKey)
@@ -150,13 +144,9 @@ jobs:
           targetPath: workspace_$(Build.BuildNumber)
         condition: always()
 
-      - script: rm -rf workspace_$(Build.BuildNumber)
-        name: cleanup_workspace
-        displayName: "Clean up Workspace"
-        condition: always()
-
       - script: |
           set -ex
+          rm -rf workspace_$(Build.BuildNumber)
           mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             ssh agent@$IP_ADDR -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
@@ -166,6 +156,7 @@ jobs:
         name: cleanup_workspace
         displayName: "Cleanup Workspace"
         continueOnError: true
+        condition: always()
 
       - script: |
           set -ex
@@ -180,5 +171,6 @@ jobs:
         name: cleanup_primary_aci
         displayName: "Delete the primary ACIs and Azure Deployments"
         continueOnError: true
+        condition: always()
         env:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
