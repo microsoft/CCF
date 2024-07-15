@@ -7,22 +7,13 @@ pr:
   paths:
     include:
       - scripts/azure_deployment/*
-      - .github/workflows/build-ci-container.yml
       - .azure_pipelines_snp.yml
       - .azure-pipelines-templates/deploy_aci.yml
       - .azure-pipelines-templates/test_on_remote.yml
       - .snpcc_canary
 
-trigger:
-  branches:
-    include:
-      - main
-      - "release/*"
-    exclude:
-      - "release/[0-4].x"
-
 schedules:
-  - cron: "0 9-18/3 * * Mon-Fri"
+  - cron: "0 0 * * *"
     displayName: Regular build
     branches:
       include:
