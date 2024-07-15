@@ -1,9 +1,3 @@
-parameters:
-  secondaries:
-    image: ""
-    count: 0
-    path: ""
-
 jobs:
   - job: generate_ssh_key
     displayName: "Generate SSH Key"
@@ -86,7 +80,7 @@ jobs:
       - script: |
           set -ex
           set -o pipefail
-          runOn=$[variables.ipAddresses]
+          runOn=$(ipAddresses)
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
           echo ENV
@@ -100,7 +94,7 @@ jobs:
       - script: |
           set -ex
           set -o pipefail
-          runOn=$[variables.ipAddresses]
+          runOn=$(ipAddresses)
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
           set -ex
@@ -119,7 +113,7 @@ jobs:
       - script: |
           set -ex
           set -o pipefail
-          runOn=$[variables.ipAddresses]
+          runOn=$(ipAddresses)
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
           dmesg
@@ -131,7 +125,7 @@ jobs:
       - script: |
           set -ex
           set -o pipefail
-          runOn=$[variables.ipAddresses]
+          runOn=$(ipAddresses)
           mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
           scp -r agent@${IP_ADDR_LIST[0]}:/ccfci/workspace_$(Build.BuildNumber) .
         name: fetch_workspace
