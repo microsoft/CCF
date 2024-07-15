@@ -619,7 +619,7 @@ class Entry:
     gcm_header: Optional[GcmHeader] = None
 
     def __init__(self, filename: str):
-        if type(self) == Entry:
+        if type(self) is Entry:
             raise TypeError("Entry is not instantiable")
 
         self._file = open(filename, mode="rb")
