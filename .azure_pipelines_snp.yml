@@ -27,8 +27,6 @@ resources:
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
 jobs:
-  - template: .azure-pipelines-templates/configure.yml
-
   - template: .azure-pipelines-templates/deploy_aci.yml
     parameters:
       used_by:
