@@ -349,7 +349,7 @@ function(add_picobench name)
     PARSE_ARGV 1 PARSED_ARGS "" "" "SRCS;INCLUDE_DIRS;LINK_LIBS"
   )
 
-  add_executable(${name} src/ds/nonstd.cpp ${PARSED_ARGS_SRCS})
+  add_executable(${name} ${PARSED_ARGS_SRCS})
 
   target_include_directories(${name} PRIVATE src ${PARSED_ARGS_INCLUDE_DIRS})
 

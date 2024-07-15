@@ -100,68 +100,62 @@ TEST_CASE("URL template parsing")
 
 TEST_CASE("camel_case" * doctest::test_suite("nonstd"))
 {
+  using ccf::endpoints::camel_case;
   {
     INFO("Default separator");
-    REQUIRE(ccf::nonstd::camel_case("") == "");
-    REQUIRE(ccf::nonstd::camel_case("abc") == "Abc");
-    REQUIRE(ccf::nonstd::camel_case("abc", false) == "abc");
+    REQUIRE(camel_case("") == "");
+    REQUIRE(camel_case("abc") == "Abc");
+    REQUIRE(camel_case("abc", false) == "abc");
 
-    REQUIRE(ccf::nonstd::camel_case("hello world") == "HelloWorld");
-    REQUIRE(ccf::nonstd::camel_case("hello world", false) == "helloWorld");
+    REQUIRE(camel_case("hello world") == "HelloWorld");
+    REQUIRE(camel_case("hello world", false) == "helloWorld");
 
     REQUIRE(
-      ccf::nonstd::camel_case("standard_snake_case_value") ==
-      "StandardSnakeCaseValue");
+      camel_case("standard_snake_case_value") == "StandardSnakeCaseValue");
     REQUIRE(
-      ccf::nonstd::camel_case("standard_snake_case_value", false) ==
+      camel_case("standard_snake_case_value", false) ==
       "standardSnakeCaseValue");
 
     REQUIRE(
-      ccf::nonstd::camel_case(
-        "camel-with.many/many!many_many,many|many$separators") ==
+      camel_case("camel-with.many/many!many_many,many|many$separators") ==
       "CamelWithManyManyManyManyManyManySeparators");
     REQUIRE(
-      ccf::nonstd::camel_case(
+      camel_case(
         "camel-with.many/many!many_many,many|many$separators", false) ==
       "camelWithManyManyManyManyManyManySeparators");
 
+    REQUIRE(camel_case("1handling2of3.numbers") == "1handling2of3Numbers");
     REQUIRE(
-      ccf::nonstd::camel_case("1handling2of3.numbers") ==
-      "1handling2of3Numbers");
-    REQUIRE(
-      ccf::nonstd::camel_case("1handling2of3.numbers", false) ==
-      "1handling2of3Numbers");
+      camel_case("1handling2of3.numbers", false) == "1handling2of3Numbers");
 
     REQUIRE(
-      ccf::nonstd::camel_case(
-        "camel_With-Existing_mixed-casing_Is-1Perhaps_2Surprising") ==
+      camel_case("camel_With-Existing_mixed-casing_Is-1Perhaps_2Surprising") ==
       "Camel_With-ExistingMixedCasing_Is-1Perhaps_2Surprising");
     REQUIRE(
-      ccf::nonstd::camel_case(
+      camel_case(
         "camel_With-Existing_mixed-casing_Is-1Perhaps_2Surprising", false) ==
       "camel_With-ExistingMixedCasing_Is-1Perhaps_2Surprising");
   }
   {
     INFO("Custom separators");
-    REQUIRE(ccf::nonstd::camel_case("hello world", true, "_") == "Hello world");
-    REQUIRE(
-      ccf::nonstd::camel_case("hello world", false, "_") == "hello world");
+    REQUIRE(camel_case("hello world", true, "_") == "Hello world");
+    REQUIRE(camel_case("hello world", false, "_") == "hello world");
 
-    REQUIRE(ccf::nonstd::camel_case("hello_world", true, "_") == "HelloWorld");
-    REQUIRE(ccf::nonstd::camel_case("hello_world", false, "_") == "helloWorld");
+    REQUIRE(camel_case("hello_world", true, "_") == "HelloWorld");
+    REQUIRE(camel_case("hello_world", false, "_") == "helloWorld");
 
     REQUIRE(
-      ccf::nonstd::camel_case("what-about-/mixed/separators", true, "-") ==
+      camel_case("what-about-/mixed/separators", true, "-") ==
       "WhatAbout-/mixed/separators");
     REQUIRE(
-      ccf::nonstd::camel_case("what-about-/mixed/separators", false, "-") ==
+      camel_case("what-about-/mixed/separators", false, "-") ==
       "whatAbout-/mixed/separators");
 
     REQUIRE(
-      ccf::nonstd::camel_case("what-about-/mixed/separators", true, "/") ==
+      camel_case("what-about-/mixed/separators", true, "/") ==
       "What-about-MixedSeparators");
     REQUIRE(
-      ccf::nonstd::camel_case("what-about-/mixed/separators", false, "/") ==
+      camel_case("what-about-/mixed/separators", false, "/") ==
       "what-about-MixedSeparators");
   }
 }

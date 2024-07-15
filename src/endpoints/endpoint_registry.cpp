@@ -41,14 +41,14 @@ namespace ccf::endpoints
       std::string p =
         std::regex_replace(endpoint->full_uri_path, std::regex("[{}]"), "");
       // A2) Camel-Case what remains at the path separator.
-      p = ccf::nonstd::camel_case(p);
+      p = ccf::endpoints::camel_case(p);
 
       // B1) Get the HTTP verb as a string (it's all caps).
       std::string s = llhttp_method_name(http_verb.value());
       // B2) Lowercase it.
       ccf::nonstd::to_lower(s);
       // B3) Camel-Case it, i.e., the first char.
-      s = ccf::nonstd::camel_case(s, true);
+      s = ccf::endpoints::camel_case(s, true);
 
       // C) Concatenate the camel-cased verb and path. For example, this gives
       // us "PostAppLogPrivateRawTextId" for the verb POST and the path
@@ -198,6 +198,28 @@ namespace ccf::endpoints
     CommandEndpointContext& ctx, const TxID& tx_id)
   {
     ctx.rpc_ctx->set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
+  }
+
+  std::string camel_case(
+    std::string s, bool camel_first, const std::string& separator_regex)
+  {
+    // Replacement is always a 1-character string
+    std::string replacement(1, '\0');
+
+    std::string prefix_matcher =
+      camel_first ? fmt::format("(^|{})", separator_regex) : separator_regex;
+    std::regex re(prefix_matcher + "[a-z]");
+    std::smatch match;
+
+    while (std::regex_search(s, match, re))
+    {
+      // Replacement is the upper-casing of the final character from the match
+      replacement[0] = std::toupper(match.str()[match.length() - 1]);
+
+      s = s.replace(match.position(), match.length(), replacement);
+    }
+
+    return s;
   }
 
   Endpoint EndpointRegistry::make_endpoint(

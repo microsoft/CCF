@@ -238,7 +238,6 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/node/historical_queries_adapter.cpp
     ${CCF_DIR}/src/node/historical_queries_utils.cpp
     ${CCF_DIR}/src/node/receipt.cpp
-    ${CCF_DIR}/src/ds/nonstd.cpp
 )
 
 include(${CCF_DIR}/cmake/crypto.cmake)
