@@ -1,8 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
-#include "ccf/ds/nonstd.h"
-
 #include "ds/nonstd.h"
 
 #include <algorithm>
@@ -14,21 +12,6 @@
 
 namespace ccf::nonstd
 {
-  // Implementations for ccf/ds/nonstd.h
-  void to_upper(std::string& s)
-  {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-      return std::toupper(c);
-    });
-  }
-
-  void to_lower(std::string& s)
-  {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-      return std::tolower(c);
-    });
-  }
-
   // Implementations for ds/nonstd.h
   std::string camel_case(
     std::string s, bool camel_first, const std::string& separator_regex)
