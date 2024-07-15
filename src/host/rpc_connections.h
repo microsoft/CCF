@@ -345,7 +345,6 @@ namespace asynchost
       // Invalidating the TCP socket will result in the handle being closed. No
       // more messages will be read from or written to the TCP socket.
       sockets[id] = nullptr;
-      idle_times.erase(id);
 
       RINGBUFFER_WRITE_MESSAGE(::tcp::tcp_close, to_enclave, id);
 
