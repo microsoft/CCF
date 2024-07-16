@@ -5,6 +5,7 @@
 #include "ccf/endpoint_registry.h"
 
 #include "ds/nonstd.h"
+#include "endpoint_utils.h"
 
 #include <doctest/doctest.h>
 

@@ -231,6 +231,7 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/all_of_auth.cpp
+    ${CCF_DIR}/src/endpoints/endpoint_utils.cpp
     ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
     ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
@@ -427,6 +428,9 @@ endif()
 # CCF endpoints libs
 if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
+  target_include_directories(
+    ccf_endpoints.enclave PRIVATE ${CCF_DIR}/src/endpoints
+  )
   target_link_libraries(
     ccf_endpoints.enclave
     PUBLIC qcbor.enclave t_cose.enclave http_parser.enclave ccfcrypto.enclave
@@ -440,6 +444,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
   )
 elseif(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_endpoints.snp "${CCF_ENDPOINTS_SOURCES}")
+  target_include_directories(ccf_endpoints.snp PRIVATE ${CCF_DIR}/src/endpoints)
   target_link_libraries(
     ccf_endpoints.snp PUBLIC qcbor.snp t_cose.snp http_parser.snp ccfcrypto.snp
                              ccf_kv.snp
@@ -454,6 +459,7 @@ elseif(COMPILE_TARGET STREQUAL "snp")
 endif()
 
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
+target_include_directories(ccf_endpoints.host PRIVATE ${CCF_DIR}/src/endpoints)
 target_link_libraries(
   ccf_endpoints.host PUBLIC qcbor.host t_cose.host http_parser.host
                             ccfcrypto.host ccf_kv.host
@@ -1057,6 +1063,9 @@ if(BUILD_TESTS)
     add_unit_test(
       endpoint_registry_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/endpoint_registry.cpp
+    )
+    target_include_directories(
+      endpoint_registry_test PRIVATE ${CCF_DIR}/src/endpoints
     )
     target_link_libraries(endpoint_registry_test PRIVATE ccf_endpoints.host)
 

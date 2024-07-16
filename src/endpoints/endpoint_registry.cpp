@@ -6,6 +6,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/pal/locking.h"
 #include "ds/nonstd.h"
+#include "endpoint_utils.h"
 #include "http/http_parser.h"
 #include "node/rpc_context_impl.h"
 
@@ -198,28 +199,6 @@ namespace ccf::endpoints
     CommandEndpointContext& ctx, const TxID& tx_id)
   {
     ctx.rpc_ctx->set_response_header(http::headers::CCF_TX_ID, tx_id.to_str());
-  }
-
-  std::string camel_case(
-    std::string s, bool camel_first, const std::string& separator_regex)
-  {
-    // Replacement is always a 1-character string
-    std::string replacement(1, '\0');
-
-    std::string prefix_matcher =
-      camel_first ? fmt::format("(^|{})", separator_regex) : separator_regex;
-    std::regex re(prefix_matcher + "[a-z]");
-    std::smatch match;
-
-    while (std::regex_search(s, match, re))
-    {
-      // Replacement is the upper-casing of the final character from the match
-      replacement[0] = std::toupper(match.str()[match.length() - 1]);
-
-      s = s.replace(match.position(), match.length(), replacement);
-    }
-
-    return s;
   }
 
   Endpoint EndpointRegistry::make_endpoint(
