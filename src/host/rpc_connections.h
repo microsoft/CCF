@@ -345,7 +345,6 @@ namespace asynchost
       // Invalidating the TCP socket will result in the handle being closed. No
       // more messages will be read from or written to the TCP socket.
       sockets[id] = nullptr;
-      idle_times.erase(id);
 
       RINGBUFFER_WRITE_MESSAGE(::tcp::tcp_close, to_enclave, id);
 
@@ -360,6 +359,8 @@ namespace asynchost
         return false;
       }
 
+      // Make sure idle_times is cleaned up here, though in practice it should
+      // have been cleared when an earlier stop() was called
       idle_times.erase(id);
 
       return true;
@@ -404,6 +405,9 @@ namespace asynchost
 
           LOG_DEBUG_FMT("rpc stop from enclave {}, {}", id, msg);
           stop(id);
+
+          // Immediately stop tracking idle timeout for this ID too
+          idle_times.erase(id);
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -445,8 +449,10 @@ namespace asynchost
 
       const size_t max_idle_time = idle_connection_timeout->count();
 
-      for (auto& [id, idle_time] : idle_times)
+      auto it = idle_times.begin();
+      while (it != idle_times.end())
       {
+        auto& [id, idle_time] = *it;
         if (idle_time > max_idle_time)
         {
           LOG_INFO_FMT(
@@ -455,10 +461,12 @@ namespace asynchost
             idle_time,
             max_idle_time);
           stop(id);
+          it = idle_times.erase(it);
         }
         else
         {
           idle_time += 1;
+          ++it;
         }
       }
     }
