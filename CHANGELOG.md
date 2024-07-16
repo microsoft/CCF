@@ -5,6 +5,90 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.0]
+
+In order to upgrade an existing 4.x service to 3.x, CCF must be on the latest 4.x version (at least 4.0.19). For more information, see [our documentation](https://microsoft.github.io/CCF/main/operations/code_upgrade.html)
+
+### Developer API
+
+#### C++
+
+- Reusable functionality for creating an in-enclave JS interpreter has been added to the public C++ API. Applications should subclass `CustomJSEndpointRegistry` to get similar behaviour to the existing JS Generic app.
+- Moved JS registry to public header `ccf/js/registry.h`. Apps should subclass `ccf::js::DynamicJSEndpointRegistry` to get similar behaviour to the existing JS Generic app.
+- Introduce `DynamicJSEndpointRegistry::record_action_for_audit_v1` and `DynamicJSEndpointRegistry::check_action_not_replayed_v1` to allow an application making use of the programmability feature to easily implement auditability, and protect users allowed to update the application against replay attacks (#6285).
+- The `programmability` sample app now demonstrates how applications can define their own extensions, create bindings between C++ and JS state, and allow JS endpoints to call functions implemented in C++.
+- CCF now supports a mode where HTTP redirect responses are returned, rather than relying on internal forwarding. See docs for description of [redirection behaviour](https://microsoft.github.io/CCF/main/architecture/request_flow.html#redirection-flow) and [migration instructions](https://microsoft.github.io/CCF/main/build_apps/migration_4_x_to_5_0.html).
+- Endpoints now support a `ToBackup` redirection strategy, for requests which should never be executed on a primary. These must also be read-only. These are configured similar to `ToPrimary` endpoints, with a `to_backup` object (specifying by-role or statically-addressed targets) in each node's configuration.
+- Introduced `ccf::historical::read_only_adapter_v4` and `ccf::historical::read_write_adapter_v4`. Users can now pass a custom error handler to the adapter to customise RPC responses for internal historical queries errors, which are listed in `ccf::historical::HistoricalQueryErrorCode` enum.
+- `ccf::historical::adapter_v3` is deprecated in favour of `_v4` version.
+- Public namespaces are all under `::ccf`
+  - `::ds` is now `ccf::ds`
+  - `::siphash` is now `ccf::siphash`
+  - `::threading` is now `ccf::threading`, and `ccf/ds/thread_ids.h` has moved to `ccf/threading/thread_ids.h`
+  - `::consensus` is now `ccf::consensus`
+  - `::tls` is now `ccf::tls`
+  - `::http` is now `ccf::http`
+  - `::nonstd` is now `ccf::nonstd`
+  - `::crypto` is now `ccf::crypto`
+  - `::kv` is now `ccf::kv`
+  - `::logger` is now `ccf::logger`
+  - `::ccfapp` is now `::ccf`
+- Added support for UVM endorsements signed with EC keys (#6231).
+
+#### JavaScript
+
+- Added TypeScript `TypedKvSet` and `ccfapp.typedKv<K>` to facilitate set handling from application code.
+- Removed unused `openenclave.verifyOpenEnclaveEvidence` API from JS/TS
+
+---
+
+### Authentication
+
+- Added token.iss claim validation to JWT authentication (#5809). Must-knows:
+  - Supports both the [OpenID requirements](https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation) and the [Entra specification](https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens#validate-the-issuer) of it.
+  - All keys fetched after the upgrade will not work against tokens missing the 'iss' claim if the issuer has been specified in the .well-known/openid-configuration/.
+  - Due to an internal schema change, networks that are in the process of upgrading to this version may see inconsistent authorization behaviour while the network contains nodes of different versions (depending which node executes the auto-refresh, any nodes on the other version will not use any newly provided keys). We recommend a full upgrade to this version, removing any nodes on prior versions, followed by a key and issuer refresh.
+  - A future release will remove the old tables entirely. Until then, some redundant state will be retained in the ledger. This is tracked in [#6222](https://github.com/microsoft/CCF/issues/6222).
+- Authentication policies can now be conjoined (AND) together, in addition to the previous disjoint (OR) behaviour. The new `ccf::AllOfAuthnPolicy` takes a collection of other policies, _all of which must be true_ for this auth policy to pass. In JS, [this can be configured](https://microsoft.github.io/CCF/main/build_apps/js_app_bundle.html#allofauthnpolicy) in the `app.json` as `"authn_policies": [{ "all_of": ["policy_a", "policy_b"] }]`.
+
+---
+
+### Governance
+
+- `proposalId` is now passed to `resolve(proposal, proposerId, votes, proposalId)`, allowing proposals to consider other pending proposals in their resolution process. (#5995)
+- The current state of an accepted proposal is written to the KV so that it can be accessed in the constitution's `apply(proposal, proposalId)` function (#6114).
+
+---
+
+### Operations
+
+- The `cchost` configuration file now includes an `idle_connection_timeout` option. This controls how long the node will keep idle connections (for user TLS sessions) before automatically closing them. This may be set to `null` to restore the previous behaviour, where idle connections are never closed. By default connections will be closed after 60s of idle time.
+- A soft limit can now be set for the historical store cache in the node configuration: [`historical_cache_soft_limit`](https://microsoft.github.io/CCF/main/operations/generated_config.html#historical-cache-soft-limit)
+
+---
+
+### Client API
+
+#### Added
+
+- New gov API version `2024-07-01`. This is near-identical to `2023-06-01-preview`, but additionally offers the new `javascript-modules` endpoints.
+- New endpoints `GET /gov/service/javascript-modules` and `GET /gov/service/javascript-modules/{moduleName}` to retrieve the raw JS code of the currently installed app. Note that the `{moduleName}` path parameter will need to be URL-encoded to escape any `/` characters (eg - `/foo/bar.js` should become `%2Ffoo%2Fbar.js`).
+
+#### Removed
+
+- Removed the existing metrics endpoint and API (`GET /api/metrics`, `get_metrics_v1`). Stats for request execution can instead be gathered by overriding the `EndpointRegistry::handle_event_request_completed()` method.
+- Removed automatic msgpack support from JSON endpoint adapters, and related `include/ccf/serdes.h` file.
+
+---
+
+### Dependencies
+
+- Updated Open Enclave to [0.19.7](https://github.com/openenclave/openenclave/releases/tag/v0.19.7).
+
+---
+
+### Bug Fixes
+
 ## [5.0.0-rc2]
 
 [5.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-rc2
