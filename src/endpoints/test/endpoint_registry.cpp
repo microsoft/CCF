@@ -4,6 +4,9 @@
 
 #include "ccf/endpoint_registry.h"
 
+#include "ds/nonstd.h"
+#include "endpoint_utils.h"
+
 #include <doctest/doctest.h>
 
 using namespace ccf::endpoints;
@@ -94,4 +97,66 @@ TEST_CASE("URL template parsing")
   REQUIRE_THROWS(PathTemplateSpec::parse("/foo/{id}/{id}"));
   REQUIRE_THROWS(PathTemplateSpec::parse("/{id}/foo/{id}"));
   REQUIRE_THROWS(PathTemplateSpec::parse("/{id}/{id}/foo"));
+}
+
+TEST_CASE("camel_case" * doctest::test_suite("nonstd"))
+{
+  using ccf::endpoints::camel_case;
+  {
+    INFO("Default separator");
+    REQUIRE(camel_case("") == "");
+    REQUIRE(camel_case("abc") == "Abc");
+    REQUIRE(camel_case("abc", false) == "abc");
+
+    REQUIRE(camel_case("hello world") == "HelloWorld");
+    REQUIRE(camel_case("hello world", false) == "helloWorld");
+
+    REQUIRE(
+      camel_case("standard_snake_case_value") == "StandardSnakeCaseValue");
+    REQUIRE(
+      camel_case("standard_snake_case_value", false) ==
+      "standardSnakeCaseValue");
+
+    REQUIRE(
+      camel_case("camel-with.many/many!many_many,many|many$separators") ==
+      "CamelWithManyManyManyManyManyManySeparators");
+    REQUIRE(
+      camel_case(
+        "camel-with.many/many!many_many,many|many$separators", false) ==
+      "camelWithManyManyManyManyManyManySeparators");
+
+    REQUIRE(camel_case("1handling2of3.numbers") == "1handling2of3Numbers");
+    REQUIRE(
+      camel_case("1handling2of3.numbers", false) == "1handling2of3Numbers");
+
+    REQUIRE(
+      camel_case("camel_With-Existing_mixed-casing_Is-1Perhaps_2Surprising") ==
+      "Camel_With-ExistingMixedCasing_Is-1Perhaps_2Surprising");
+    REQUIRE(
+      camel_case(
+        "camel_With-Existing_mixed-casing_Is-1Perhaps_2Surprising", false) ==
+      "camel_With-ExistingMixedCasing_Is-1Perhaps_2Surprising");
+  }
+  {
+    INFO("Custom separators");
+    REQUIRE(camel_case("hello world", true, "_") == "Hello world");
+    REQUIRE(camel_case("hello world", false, "_") == "hello world");
+
+    REQUIRE(camel_case("hello_world", true, "_") == "HelloWorld");
+    REQUIRE(camel_case("hello_world", false, "_") == "helloWorld");
+
+    REQUIRE(
+      camel_case("what-about-/mixed/separators", true, "-") ==
+      "WhatAbout-/mixed/separators");
+    REQUIRE(
+      camel_case("what-about-/mixed/separators", false, "-") ==
+      "whatAbout-/mixed/separators");
+
+    REQUIRE(
+      camel_case("what-about-/mixed/separators", true, "/") ==
+      "What-about-MixedSeparators");
+    REQUIRE(
+      camel_case("what-about-/mixed/separators", false, "/") ==
+      "what-about-MixedSeparators");
+  }
 }

@@ -6,6 +6,7 @@
 #include "ccf/common_auth_policies.h"
 #include "ccf/pal/locking.h"
 #include "ds/nonstd.h"
+#include "endpoint_utils.h"
 #include "http/http_parser.h"
 #include "node/rpc_context_impl.h"
 
@@ -41,14 +42,14 @@ namespace ccf::endpoints
       std::string p =
         std::regex_replace(endpoint->full_uri_path, std::regex("[{}]"), "");
       // A2) Camel-Case what remains at the path separator.
-      p = ccf::nonstd::camel_case(p);
+      p = ccf::endpoints::camel_case(p);
 
       // B1) Get the HTTP verb as a string (it's all caps).
       std::string s = llhttp_method_name(http_verb.value());
       // B2) Lowercase it.
       ccf::nonstd::to_lower(s);
       // B3) Camel-Case it, i.e., the first char.
-      s = ccf::nonstd::camel_case(s, true);
+      s = ccf::endpoints::camel_case(s, true);
 
       // C) Concatenate the camel-cased verb and path. For example, this gives
       // us "PostAppLogPrivateRawTextId" for the verb POST and the path

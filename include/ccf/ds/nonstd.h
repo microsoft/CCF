@@ -172,9 +172,18 @@ namespace ccf::nonstd
 
   /** These convert strings to upper or lower case, in-place
    */
-  void to_upper(std::string& s);
-
-  void to_lower(std::string& s);
+  static inline void to_upper(std::string& s)
+  {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+      return std::toupper(c);
+    });
+  }
+  static inline void to_lower(std::string& s)
+  {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+      return std::tolower(c);
+    });
+  }
 
   /// Iterate through tuple, calling functor on each element
   template <size_t I = 0, typename F, typename... Ts>
