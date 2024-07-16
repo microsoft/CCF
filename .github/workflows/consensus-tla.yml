@@ -1,0 +1,145 @@
+name: "TLA+ Spec Verification - Consensus"
+
+on:
+  schedule:
+    - cron: "0 0 * * 0"
+  pull_request:
+    paths:
+      - "tla/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  model-checking-consensus:
+    name: Model Checking - Consensus
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
+
+      - name: MCccfraft.cfg
+        run: |
+          cd tla/
+          ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
+
+      - name: MCccfraftAtomicReconfig.cfg
+        run: |
+          cd tla/
+          JVM_OPTIONS=-Dtlc2.TLCGlobals.coverage=1 ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json
+
+      - name: MCccfraftWithReconfig.cfg
+        run: |
+          cd tla/
+          JVM_OPTIONS=-Dtlc2.TLCGlobals.coverage=1 ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
+
+      - name: Coverage
+        run: |
+          cd tla/
+          python3 -mvenv env
+          source env/bin/activate
+          pip install -r requirements.txt
+          ls -tr MCccfraftAtomicReconfig_coverage.json | xargs cat | python3 actions.py MCccfraftAtomicReconfig.html
+          rm MCccfraftAtomicReconfig_coverage.json
+          ls -tr MCccfraftWithReconfig_coverage.json | xargs cat | python3 actions.py MCccfraftWithReconfig.html
+          rm MCccfraftWithReconfig_coverage.json
+          deactivate
+          rm -rf env
+        shell: bash
+
+      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: tlc
+          path: |
+            tla/consensus/*_TTrace_*.tla
+            tla/*.json
+
+  simulation-consensus:
+    name: Simulation - Consensus
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
+
+      - name: Simulation
+        run: |
+          cd tla/
+          ./tlc.sh -workers auto -simulate -depth 500 consensus/SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
+        env:
+          SIM_TIMEOUT: 6000
+
+      - name: Upload artifacts.
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: tlc
+          path: |
+            tla/*
+
+  trace-validation:
+    name: Trace Validation - Consensus
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          sudo apt update
+          sudo apt install -y default-jre parallel
+          python3 ./tla/install_deps.py
+        shell: bash
+
+      - name: "Build"
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -L -GNinja .. -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DCOMPILE_TARGET=virtual -DCCF_RAFT_TRACING=ON
+          ninja raft_driver
+        shell: bash
+
+      - name: "Test ${{ matrix.platform.name }}"
+        run: |
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          ./tests.sh -VV --timeout --no-compress-output -T Test -L raft_scenario
+        shell: bash
+
+      - name: Run trace validation
+        run: |
+          cd tla/
+          mkdir -p traces/consensus
+          mv ../build/consensus traces/
+          parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
+        shell: bash
+
+      - name: Upload artifacts.
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: tlc
+          path: |
+            tla/traces/*

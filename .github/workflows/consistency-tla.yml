@@ -1,4 +1,4 @@
-name: "TLA+ Spec Verification"
+name: "TLA+ Spec Verification - Consistency"
 
 on:
   schedule:
@@ -22,7 +22,7 @@ jobs:
     name: Model Checking - Consistency
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ccfmsrc.azurecr.io/ccf/ci:2024-06-26-virtual-clang15
+      image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
 
     steps:
       - uses: actions/checkout@v4
