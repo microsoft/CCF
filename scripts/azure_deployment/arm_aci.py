@@ -130,10 +130,7 @@ def make_dev_container(id, name, image, command, ports, with_volume):
 def parse_aci_args(parser: ArgumentParser) -> Namespace:
     # Generic options
     parser.add_argument(
-        "--aci-image",
-        help="The name of the image to deploy in the ACI",
-        type=str,
-        required=True,
+        "--aci-image", help="The name of the image to deploy in the ACI", type=str
     )
     parser.add_argument(
         "--aci-type",
