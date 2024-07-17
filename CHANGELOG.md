@@ -40,16 +40,16 @@ For more information, see [our documentation](https://microsoft.github.io/CCF/ma
 - Introduced `ccf::historical::read_only_adapter_v4` and `ccf::historical::read_write_adapter_v4`. Users can now pass a custom error handler to the adapter to customise RPC responses for internal historical queries errors, which are listed in `ccf::historical::HistoricalQueryErrorCode` enum.
 - `ccf::historical::adapter_v3` is deprecated in favour of `_v4` version, `ccf::historical::adapter_v2` is removed.
 - Public namespaces are all under `::ccf`
-  - `::ds` is now `ccf::ds`
-  - `::siphash` is now `ccf::siphash`
-  - `::threading` is now `ccf::threading`, and `ccf/ds/thread_ids.h` has moved to `ccf/threading/thread_ids.h`
-  - `::consensus` is now `ccf::consensus`
-  - `::tls` is now `ccf::tls`
-  - `::http` is now `ccf::http`
-  - `::nonstd` is now `ccf::nonstd`
-  - `::crypto` is now `ccf::crypto`
-  - `::kv` is now `ccf::kv`
-  - `::logger` is now `ccf::logger`
+  - `::ds` is now `::ccf::ds`
+  - `::siphash` is now `::ccf::siphash`
+  - `::threading` is now `::ccf::threading`, and `ccf/ds/thread_ids.h` has moved to `ccf/threading/thread_ids.h`
+  - `::consensus` is now `::ccf::consensus`
+  - `::tls` is now `::ccf::tls`
+  - `::http` is now `::ccf::http`
+  - `::nonstd` is now `::ccf::nonstd`
+  - `::crypto` is now `::ccf::crypto`
+  - `::kv` is now `::ccf::kv`
+  - `::logger` is now `::ccf::logger`
   - `::ccfapp` is now `::ccf`
 - There is now a `contains_globally_committed(k)` method on `kv::Set<K>`, with the same semantics as `get_globally_committed(k)` on `kv::Map<K, V>` (#5928).
 - `ccf::EnclaveAttestationProvider` has been removed. It is replaced by `ccf::AttestationProvider`
