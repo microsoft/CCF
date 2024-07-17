@@ -18,6 +18,7 @@ For more information, see [our documentation](https://microsoft.github.io/CCF/ma
 - Request forwarding between nodes is deprecated in favour of HTTP redirects, and will be removed in 6.0.0.
 - Recovery shares created with releases older than 4.0.9 are deprecated, and support will be removed completely in 6.0.0. Ledgers created on older versions must re-share at least once after having upgraded to a release newer than 4.0.9.
 - 5.0.0 introduces an [Azure-compliant governance REST API](https://microsoft.github.io/CCF/main/governance/member_rpc_api.html), the old API is deprecated, and will be removed in 6.0.0.
+- Containers are now published to the [GitHub Container Registry](https://github.com/orgs/microsoft/packages?repo_name=CCF). The platform has moved from the tag to the image name, to enable meaningful usage of GitHub attestation, and the tag now matches the git tag used to cut the release. For example, the SGX Development container for this release is ghcr.io/microsoft/ccf/app/dev/sgx:ccf-5.0.0-rc0.
 
 ### Developer API
 
