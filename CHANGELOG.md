@@ -177,6 +177,10 @@ For more information, see [our documentation](https://microsoft.github.io/CCF/ma
 
 - Set LTO on for both debug/release linkages to support linking against CCF libraries if the client code has been built in debug mode.
 
+### Changed
+
+- Serialisation of C++ types to JSON has changed. Fields which are marked as optional in the CCF JSON serdes macros (ie - those in `DECLARE_JSON_OPTIONAL_FIELDS`) will now always be present in the resulting JSON object. Previously they would be omitted from the object if they matched the default value. They are still optional on deserialisation (ie - if these fields are missing, the object can still be deserialised).
+
 ## [5.0.0-rc0]
 
 [5.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0-rc0

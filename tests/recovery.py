@@ -665,9 +665,9 @@ def find_recovery_tx_seqno(node):
     min_recovery_seqno = 0
     with node.client() as c:
         r = c.get("/node/state").body.json()
-        if "last_recovered_seqno" not in r:
+        min_recovery_seqno = r.get("last_recovered_seqno", None)
+        if min_recovery_seqno is None:
             return None
-        min_recovery_seqno = r["last_recovered_seqno"]
 
     ledger = ccf.ledger.Ledger(node.remote.ledger_paths(), committed_only=False)
     for chunk in ledger:

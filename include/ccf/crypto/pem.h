@@ -76,7 +76,14 @@ namespace ccf::crypto
 
   inline void to_json(nlohmann::json& j, const Pem& p)
   {
-    j = p.str();
+    if (p.empty())
+    {
+      j = nullptr;
+    }
+    else
+    {
+      j = p.str();
+    }
   }
 
   inline void from_json(const nlohmann::json& j, Pem& p)
@@ -88,6 +95,10 @@ namespace ccf::crypto
     else if (j.is_array())
     {
       p = Pem(j.get<std::vector<uint8_t>>());
+    }
+    else if (j.is_null())
+    {
+      p = Pem();
     }
     else
     {

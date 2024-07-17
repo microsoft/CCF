@@ -365,7 +365,8 @@ def test_js_exception_output(network, args):
         body = r.body.json()
         assert body["error"]["code"] == "InternalError"
         assert body["error"]["message"] == "Exception thrown while executing."
-        assert "details" not in body["error"]
+        details = body["error"].get("details", None)
+        assert details is None
 
         network.consortium.set_js_runtime_options(
             primary,
@@ -399,7 +400,8 @@ def test_js_exception_output(network, args):
         body = r.body.json()
         assert body["error"]["code"] == "InternalError"
         assert body["error"]["message"] == "Exception thrown while executing."
-        assert "details" not in body["error"]
+        details = body["error"].get("details", None)
+        assert details is None
 
         network.consortium.set_js_runtime_options(
             primary,
@@ -414,7 +416,8 @@ def test_js_exception_output(network, args):
         body = r.body.json()
         assert body["error"]["code"] == "InternalError"
         assert body["error"]["message"] == "Exception thrown while executing."
-        assert "details" not in body["error"]
+        details = body["error"].get("details", None)
+        assert details is None
 
     return network
 
