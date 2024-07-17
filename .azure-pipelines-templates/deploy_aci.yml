@@ -69,9 +69,10 @@ jobs:
             --aci-setup-timeout 300 \
             --aci-private-key-b64 $(sshKey) \
             --out ~/aci_ips
-          # Set a variable "ipAddresses" which is a list of `<container group name> <IP address>` separated by newlines.
+          # Create a ~/ipAddresses files which is a list of `<container group name> <IP address>` separated by newlines.
           source ./scripts/azure_deployment/escape_data.sh # Include escape_data to handle newlines.
-          echo "##vso[task.setvariable variable=ipAddresses;isOutput=true]$(escape_data "$(cat ~/aci_ips)")"
+          escape_data "$(cat ~/aci_ips)" > ~/ipAddresses
+          cat ~/ipAddresses
         name: deploy_primary_aci
         displayName: "Deploy Primary ACI"
         env:
@@ -80,8 +81,7 @@ jobs:
       - script: |
           set -ex
           set -o pipefail
-          runOn=$(ipAddresses)
-          mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
+          mapfile -t IP_ADDR_LIST <<< $(cat ~/ipAddresses | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
           echo ENV
           env
@@ -94,8 +94,7 @@ jobs:
       - script: |
           set -ex
           set -o pipefail
-          runOn=$(ipAddresses)
-          mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
+          mapfile -t IP_ADDR_LIST <<< $(cat ~/ipAddresses | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
           set -ex
           cd /CCF/build
@@ -113,8 +112,7 @@ jobs:
       - script: |
           set -ex
           set -o pipefail
-          runOn=$(ipAddresses)
-          mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
+          mapfile -t IP_ADDR_LIST <<< $(cat ~/ipAddresses | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
           dmesg
           '
@@ -125,8 +123,7 @@ jobs:
       - script: |
           set -ex
           set -o pipefail
-          runOn=$(ipAddresses)
-          mapfile -t IP_ADDR_LIST <<< $(echo "$(runOn)" | awk '{print $2}')
+          mapfile -t IP_ADDR_LIST <<< $(cat ~/ipAddresses | awk '{print $2}')
           scp -r agent@${IP_ADDR_LIST[0]}:/ccfci/workspace_$(Build.BuildNumber) .
         name: fetch_workspace
         displayName: "Fetch Workspace"
@@ -141,7 +138,7 @@ jobs:
       - script: |
           set -ex
           rm -rf workspace_$(Build.BuildNumber)
-          mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
+          mapfile -t IP_ADDR_LIST <<< $(cat ~/ipAddresses | awk '{print $2}')
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             ssh agent@$IP_ADDR -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
             sudo rm -rf /ccfci/workspace_$(Build.BuildNumber)
