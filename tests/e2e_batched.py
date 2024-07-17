@@ -138,5 +138,8 @@ if __name__ == "__main__":
     args.package = "libjs_generic"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
 
+    # Helps ensure expected destruction workflow. See #6373 for details.
+    args.max_msg_size_bytes = f"{1024 * 1024 * 16}"  # 16MB
+
     run(args)
     run_to_destruction(args)
