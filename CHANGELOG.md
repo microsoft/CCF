@@ -15,7 +15,7 @@ For more information, see [our documentation](https://microsoft.github.io/CCF/ma
 ### Important
 
 - 5.0.0 is the last long term support release for Intel SGX. Live code upgrades to AMD SEV-SNP on [Confidential Containers on Azure Container Instances](https://learn.microsoft.com/en-us/azure/container-instances/container-instances-confidential-overview) and [Confidential Containers Azure Kubernetes Service](https://learn.microsoft.com/en-us/azure/aks/confidential-containers-overview) are supported.
-- Request forwarding between nodes is deprecated in favour of HTTP redirects, and will be removed in 6.0.0.
+- The forwarding of requests between nodes is deprecated in favour of HTTP redirects, and will be removed in 6.0.0.
 - Recovery shares created with releases older than 4.0.9 are deprecated, and support will be removed completely in 6.0.0. Ledgers created on older versions must re-share at least once after having upgraded to a release newer than 4.0.9.
 - 5.0.0 introduces an [Azure-compliant governance REST API](https://microsoft.github.io/CCF/main/governance/member_rpc_api.html), the old API is deprecated, and will be removed in 6.0.0.
 - Containers are now published to the [GitHub Container Registry](https://github.com/orgs/microsoft/packages?repo_name=CCF). The platform has moved from the tag to the image name, to enable meaningful usage of GitHub attestation, and the tag now matches the git tag used to cut the release. For example, the SGX Development container for this release is ghcr.io/microsoft/ccf/app/dev/sgx:ccf-5.0.0-rc0.
@@ -96,7 +96,7 @@ For more information, see [our documentation](https://microsoft.github.io/CCF/ma
 #### Configuration
 
 - The `cchost` configuration file now includes an `idle_connection_timeout` option. This controls how long the node will keep idle connections (for user TLS sessions) before automatically closing them. This may be set to `null` to restore the previous behaviour, where idle connections are never closed. By default connections will be closed after 60s of idle time.
-- A soft limit can now be set for the historical store cache in the node configuration: [`historical_cache_soft_limit`](https://microsoft.github.io/CCF/main/operations/generated_config.html#historical-cache-soft-limit).
+- A soft size limit can now be set for the historical store cache in the node configuration: [`historical_cache_soft_limit`](https://microsoft.github.io/CCF/main/operations/generated_config.html#historical-cache-soft-limit). The default value is `512Mb`.
 - Path to the enclave file should now be passed as `--enclave-file` CLI argument to `cchost`, rather than `enclave.file` entry within configuration file.
 - SNP collateral must now be provided through the `snp_security_policy_file`, `snp_uvm_endorsements_file` and `snp_endorsements_servers` configuration values. See [documentation](https://microsoft.github.io/CCF/main/operations/platforms/snp.html) for details and platform-specific configuration samples.
 - The `url` field in `snp_endorsements_servers` can now contain environment variables that will be resolved at startup, such as "$Fabric_NodeIPOrFQDN:2377" (#5862).
