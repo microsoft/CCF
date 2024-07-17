@@ -133,7 +133,7 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
         "--aci-image",
         help="The name of the image to deploy in the ACI",
         type=str,
-        required=True
+        required=True,
     )
     parser.add_argument(
         "--aci-type",
