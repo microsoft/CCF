@@ -10,9 +10,6 @@ on:
     # Will uncomment when testing finished
   workflow_dispatch:
 
-env:
-  CONTAINER_IMAGE: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -21,6 +18,9 @@ permissions:
   actions: read
   contents: read
   security-events: write
+
+env:
+  CONTAINER_IMAGE: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
 
 jobs:
   model-checking-consistency:
