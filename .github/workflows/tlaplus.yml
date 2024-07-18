@@ -19,7 +19,7 @@ permissions:
   contents: read
   security-events: write
 
-env:
+vars:
   CONTAINER_IMAGE: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
 
 jobs:
@@ -27,7 +27,7 @@ jobs:
     name: Model Checking - Consistency
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ${{ env.CONTAINER_IMAGE }}
+      image: ${{ vars.CONTAINER_IMAGE }}
 
     steps:
       - uses: actions/checkout@v4
@@ -124,7 +124,7 @@ jobs:
     name: Model Checking - Consensus
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ${{ env.CONTAINER_IMAGE }}
+      image: ${{ vars.CONTAINER_IMAGE }}
 
     steps:
       - uses: actions/checkout@v4
@@ -207,7 +207,7 @@ jobs:
     name: Trace Validation - Consensus
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ${{ env.CONTAINER_IMAGE }}
+      image: ${{ vars.CONTAINER_IMAGE }}
 
     steps:
       - uses: actions/checkout@v4
