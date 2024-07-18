@@ -9,7 +9,6 @@ pr:
       - scripts/azure_deployment/*
       - .azure_pipelines_snp.yml
       - .azure-pipelines-templates/deploy_aci.yml
-      - .azure-pipelines-templates/test_on_remote.yml
       - .snpcc_canary
 
 schedules:
@@ -27,19 +26,4 @@ resources:
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
 jobs:
-  - template: .azure-pipelines-templates/configure.yml
-
   - template: .azure-pipelines-templates/deploy_aci.yml
-    parameters:
-      used_by:
-        - test_snp
-
-  - template: .azure-pipelines-templates/test_on_remote.yml
-    parameters:
-      job_name: test_snp
-      display_name: "Test SNP"
-      depends_on:
-        - generate_ssh_key
-        - deploy_primary_aci
-      run_on: $[ dependencies.deploy_primary_aci.outputs['deploy_primary_aci.ipAddresses'] ]
-      ssh_key: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
