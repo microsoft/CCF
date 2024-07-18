@@ -150,6 +150,7 @@ jobs:
 
       - name: Coverage
         run: |
+          set -x
           cd tla/
           python3 -mvenv env
           source env/bin/activate
@@ -216,6 +217,7 @@ jobs:
 
       - name: "Build"
         run: |
+          set -x
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
@@ -225,6 +227,7 @@ jobs:
 
       - name: "Test ${{ matrix.platform.name }}"
         run: |
+          set -x
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
@@ -233,6 +236,7 @@ jobs:
 
       - name: Run trace validation
         run: |
+          set -x
           cd tla/
           mkdir -p traces/consensus
           mv ../build/consensus traces/
