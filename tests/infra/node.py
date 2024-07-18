@@ -24,7 +24,7 @@ import http
 
 import ccf._versionifier
 
-from setuptools.extern.packaging.version import Version  # type: ignore
+from packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
 
