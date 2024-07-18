@@ -135,16 +135,19 @@ jobs:
 
       - name: MCccfraft.cfg
         run: |
+          set -x
           cd tla/
           ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
 
       - name: MCccfraftAtomicReconfig.cfg
         run: |
+          set -x
           cd tla/
           JVM_OPTIONS=-Dtlc2.TLCGlobals.coverage=1 ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json
 
       - name: MCccfraftWithReconfig.cfg
         run: |
+          set -x
           cd tla/
           JVM_OPTIONS=-Dtlc2.TLCGlobals.coverage=1 ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
 
@@ -186,6 +189,7 @@ jobs:
 
       - name: Simulation
         run: |
+          set -x
           cd tla/
           ./tlc.sh -workers auto -simulate -depth 500 consensus/SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
         env:
@@ -217,7 +221,6 @@ jobs:
 
       - name: "Build"
         run: |
-          set -x
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
