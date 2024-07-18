@@ -1,9 +1,3 @@
-parameters:
-  secondaries:
-    image: ""
-    count: 0
-    path: ""
-
 jobs:
   - job: generate_ssh_key
     displayName: "Generate SSH Key"
@@ -37,12 +31,6 @@ jobs:
         fetchDepth: 0
         fetchTags: true
 
-      - script: |
-          set -ex
-          env
-        name: print_env
-        displayName: "Print Environment Variables"
-
       - template: install_ssh_key.yml
         parameters:
           ssh_key: $(sshKey)
@@ -54,8 +42,8 @@ jobs:
       - script: |
           set -ex
           docker login -u $ACR_TOKEN_NAME -p $ACR_CI_PUSH_TOKEN_PASSWORD $ACR_REGISTRY
-          docker pull $ACR_REGISTRY/ccf/ci:2024-06-26-snp-clang15
-          docker build -f docker/ccf_ci_built . --build-arg="base=$BASE_IMAGE" --build-arg="platform=snp" -t $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
+          docker pull $BASE_IMAGE
+          docker build -f docker/ccf_ci_built . --build-arg="base=$BASE_IMAGE" -t $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
           docker push $ACR_REGISTRY/ccf/ci:pr-`git rev-parse HEAD`
         name: build_ci_image
         displayName: "Build CI SNP container"
@@ -63,7 +51,7 @@ jobs:
           ACR_TOKEN_NAME: ci-push-token
           ACR_CI_PUSH_TOKEN_PASSWORD: $(ACR_CI_PUSH_TOKEN_PASSWORD)
           ACR_REGISTRY: ccfmsrc.azurecr.io
-          BASE_IMAGE: ccfmsrc.azurecr.io/ccf/ci:2024-06-26-snp-clang15
+          BASE_IMAGE: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
 
       - script: |
           set -ex
@@ -81,39 +69,76 @@ jobs:
             --aci-setup-timeout 300 \
             --aci-private-key-b64 $(sshKey) \
             --out ~/aci_ips
-          # Set a variable "ipAddresses" which is a list of `<container group name> <IP address>` separated by newlines.
+          # Create a ~/ipAddresses files which is a list of `<container group name> <IP address>` separated by newlines.
           source ./scripts/azure_deployment/escape_data.sh # Include escape_data to handle newlines.
-          echo "##vso[task.setvariable variable=ipAddresses;isOutput=true]$(escape_data "$(cat ~/aci_ips)")"
+          escape_data "$(cat ~/aci_ips)" > ~/ipAddresses
+          cat ~/ipAddresses
         name: deploy_primary_aci
         displayName: "Deploy Primary ACI"
         env:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
-  - job: cleanup_aci
-    displayName: "Cleanup ACI"
-    container: virtual
-    pool:
-      name: ado-virtual-ccf-sub # For access to managed identity
-      demands:
-        - WorkFolder -equals /mnt/storage
-    dependsOn:
-      - generate_ssh_key
-      - deploy_primary_aci
-      - ${{ parameters.used_by }}
-    condition: always()
-    variables:
-      Codeql.SkipTaskAutoInjection: true
-      skipComponentGovernanceDetection: true
-      IpAddresses: $[ dependencies.deploy_primary_aci.outputs['deploy_primary_aci.ipAddresses'] ]
-      sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
-    steps:
-      - template: install_ssh_key.yml
-        parameters:
-          ssh_key: $(sshKey)
+      - script: |
+          set -ex
+          set -o pipefail
+          mapfile -t IP_ADDR_LIST <<< $(cat ~/ipAddresses | awk '{print $2}')
+          ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
+          echo ENV
+          env
+          echo ACI_ENV
+          cat /aci_env
+          '
+        name: print_env
+        displayName: "Print Environment Variables"
 
       - script: |
           set -ex
-          mapfile -t IP_ADDR_LIST <<< $(echo "$(IpAddresses)" | awk '{print $2}')
+          set -o pipefail
+          mapfile -t IP_ADDR_LIST <<< $(cat ~/ipAddresses | awk '{print $2}')
+          ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
+          set -ex
+          cd /CCF/build
+          npm config set cache /ccfci/workspace_$(Build.BuildNumber)/.npm
+          WORKSPACE=/ccfci/workspace_$(Build.BuildNumber) ELECTION_TIMEOUT_MS=10000 ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite|snp_flaky" -E "lts_compatibility"
+          # Remove irrelevant and bulky data from workspace before uploading
+          find /ccfci/workspace_$(Build.BuildNumber) -type f -name cchost -delete
+          find /ccfci/workspace_$(Build.BuildNumber) -type f -name "*.so" -delete
+          find /ccfci/workspace_$(Build.BuildNumber) -type l -name "*.so" -delete
+          rm -rf /ccfci/workspace_$(Build.BuildNumber)/.npm
+          '
+        name: run_ctest
+        displayName: "Run CTest"
+
+      - script: |
+          set -ex
+          set -o pipefail
+          mapfile -t IP_ADDR_LIST <<< $(cat ~/ipAddresses | awk '{print $2}')
+          ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
+          dmesg
+          '
+        name: run_dmesg
+        displayName: "Run DMesg"
+        condition: always()
+
+      - script: |
+          set -ex
+          set -o pipefail
+          mapfile -t IP_ADDR_LIST <<< $(cat ~/ipAddresses | awk '{print $2}')
+          scp -r agent@${IP_ADDR_LIST[0]}:/ccfci/workspace_$(Build.BuildNumber) .
+        name: fetch_workspace
+        displayName: "Fetch Workspace"
+        condition: always()
+
+      - task: PublishPipelineArtifact@1
+        inputs:
+          artifactName: "ACI Workspace"
+          targetPath: workspace_$(Build.BuildNumber)
+        condition: always()
+
+      - script: |
+          set -ex
+          rm -rf workspace_$(Build.BuildNumber)
+          mapfile -t IP_ADDR_LIST <<< $(cat ~/ipAddresses | awk '{print $2}')
           for IP_ADDR in "${IP_ADDR_LIST[@]}"; do
             ssh agent@$IP_ADDR -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
             sudo rm -rf /ccfci/workspace_$(Build.BuildNumber)
@@ -122,10 +147,7 @@ jobs:
         name: cleanup_workspace
         displayName: "Cleanup Workspace"
         continueOnError: true
-
-      - template: azure_cli.yml
-        parameters:
-          managed_identity_id: $(CCF_SNP_CI_MANAGED_IDENTITY_ID)
+        condition: always()
 
       - script: |
           set -ex
@@ -140,5 +162,6 @@ jobs:
         name: cleanup_primary_aci
         displayName: "Delete the primary ACIs and Azure Deployments"
         continueOnError: true
+        condition: always()
         env:
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
