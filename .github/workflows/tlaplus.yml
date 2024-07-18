@@ -170,6 +170,7 @@ jobs:
           path: |
             tla/consensus/*_TTrace_*.tla
             tla/*.json
+            tla/*.html
 
   simulation-consensus:
     name: Simulation - Consensus
