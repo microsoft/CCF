@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  CONTAINER_IMAGE: ccfmsrc.azurecr.io/ccf/ci:2024-06-26-virtual-clang15
+  CONTAINER_IMAGE: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
