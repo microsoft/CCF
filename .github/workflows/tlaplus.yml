@@ -7,7 +7,11 @@ on:
     # paths:
     #   - "tla/**"
     #   - "src/consensus/**"
+    # Will uncomment when testing finished
   workflow_dispatch:
+
+env:
+  CONTAINER_IMAGE: ccfmsrc.azurecr.io/ccf/ci:2024-06-26-virtual-clang15
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,7 +27,7 @@ jobs:
     name: Model Checking - Consistency
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+      image: ${{ env.CONTAINER_IMAGE }}
 
     steps:
       - uses: actions/checkout@v4
@@ -120,7 +124,7 @@ jobs:
     name: Model Checking - Consensus
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+      image: ${{ env.CONTAINER_IMAGE }}
 
     steps:
       - uses: actions/checkout@v4
@@ -197,7 +201,7 @@ jobs:
     name: Trace Validation - Consensus
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+      image: ${{ env.CONTAINER_IMAGE }}
 
     steps:
       - uses: actions/checkout@v4
