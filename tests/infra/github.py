@@ -11,8 +11,7 @@ import shutil
 import requests
 import cimetrics.env
 
-# pylint: disable=import-error, no-name-in-module
-from setuptools.extern.packaging.version import Version  # type: ignore
+from packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
 
