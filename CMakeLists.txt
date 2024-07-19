@@ -566,9 +566,6 @@ set(CMAKE_GENERATED_COMMENT
 configure_file(
   ${CCF_DIR}/src/common/version.h.in ${CCF_DIR}/include/ccf/version.h @ONLY
 )
-configure_file(
-  ${CCF_DIR}/python/version.py.in ${CCF_DIR}/python/version.py @ONLY
-)
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
 file(READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
