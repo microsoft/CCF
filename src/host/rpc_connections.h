@@ -355,7 +355,7 @@ namespace asynchost
     {
       if (sockets.erase(id) < 1)
       {
-        LOG_FAIL_FMT("Cannot close id {}: does not exist", id);
+        LOG_DEBUG_FMT("Cannot close id {}: does not exist", id);
         return false;
       }
 
