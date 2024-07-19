@@ -196,7 +196,7 @@ jobs:
           cd tla/
           ./tlc.sh -workers auto -simulate -depth 500 consensus/SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
         env:
-          SIM_TIMEOUT: 6000
+          SIM_TIMEOUT: 3000
 
       - name: Upload artifacts.
         uses: actions/upload-artifact@v4
