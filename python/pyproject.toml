@@ -4,6 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ccf"
+# Automatically extract version number from git environment
+# See https://github.com/pypa/setuptools_scm for details
 dynamic = ["version"]
 authors = [
   { name="CCF Team", email="CCF-Sec@microsoft.com" },
