@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build_and_publish:
-    name: "Build and Publish Release Containers"
+    name: "GHCR"
     runs-on: ubuntu-latest
     strategy:
       matrix:
