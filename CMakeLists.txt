@@ -1140,7 +1140,7 @@ if(BUILD_TESTS)
       # Unsafe builds do not follow normal version conventions
       add_test(NAME versionifier_test
                COMMAND ${PYTHON}
-                       ${CMAKE_SOURCE_DIR}/python/ccf/_versionifier.py
+                       ${CMAKE_SOURCE_DIR}/python/src/ccf/_versionifier.py
       )
 
       add_test(NAME github_version_lts_test
