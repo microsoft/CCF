@@ -1,4 +1,4 @@
-name: "TLA+ Spec Verification"
+name: "Verification"
 
 on:
   schedule:
