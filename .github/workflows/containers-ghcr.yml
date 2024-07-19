@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build_and_publish:
-    name: "GHCR"
+    name: "GHCR Rel"
     runs-on: ubuntu-latest
     strategy:
       matrix:
