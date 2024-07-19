@@ -142,6 +142,44 @@ jobs:
           cd tla/
           JVM_OPTIONS=-Dtlc2.TLCGlobals.coverage=1 ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json
 
+      - name: Coverage
+        run: |
+          set -x
+          cd tla/
+          python3 -mvenv env
+          source env/bin/activate
+          pip install -r requirements.txt
+          ls -tr MCccfraftAtomicReconfig_coverage.json | xargs cat | python3 actions.py MCccfraftAtomicReconfig.html
+          rm MCccfraftAtomicReconfig_coverage.json
+          ls -tr MCccfraftWithReconfig_coverage.json | xargs cat | python3 actions.py MCccfraftWithReconfig.html
+          rm MCccfraftWithReconfig_coverage.json
+          deactivate
+          rm -rf env
+        shell: bash
+
+      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: tlc
+          path: |
+            tla/consensus/*_TTrace_*.tla
+            tla/*.json
+            tla/*.html
+
+  model-checking-with-reconfig-consensus:
+    name: Model Checking With Reconfig - Consensus
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
+
       - name: MCccfraftWithReconfig.cfg
         run: |
           set -x
@@ -158,7 +196,7 @@ jobs:
           ls -tr MCccfraftAtomicReconfig_coverage.json | xargs cat | python3 actions.py MCccfraftAtomicReconfig.html
           rm MCccfraftAtomicReconfig_coverage.json
           ls -tr MCccfraftWithReconfig_coverage.json | xargs cat | python3 actions.py MCccfraftWithReconfig.html
-          rm MCccfraftWithReconfig_coverage.json
+          rm MCcrcfraftWithReconfig_coverage.json
           deactivate
           rm -rf env
         shell: bash
