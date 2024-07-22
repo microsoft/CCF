@@ -19,7 +19,7 @@ classifiers = [
 ]
 dependencies = [
     "loguru >= 0.5, == 0.*",
-    "cryptography == 42.*",
+    "cryptography >= 42,< 44",
     "string-color >= 1.2.1, == 1.*",
     "pycose >= 1.0.1, == 1.*",
     "setuptools == 71.*",
