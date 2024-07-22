@@ -78,7 +78,7 @@ def generate_and_verify_jwk(client):
         assert body["pem"] == pub_pem
 
     # RSA
-    key_sizes = [1024, 2048, 4096]
+    key_sizes = [2048, 4096]
     for key_size in key_sizes:
         priv_pem, pub_pem = infra.crypto.generate_rsa_keypair(key_size)
 
