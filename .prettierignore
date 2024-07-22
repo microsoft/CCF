@@ -23,7 +23,6 @@ latex/
 env/
 *.egg-info
 **/dist
-python/setup.py
 .mypy_cache
 3rdparty/
 *.html
