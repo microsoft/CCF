@@ -4,9 +4,9 @@ on:
   schedule:
     - cron: "0 0 * * 0"
   pull_request:
-    # paths:
-    #   - "tla/**"
-    #   - "src/consensus/**"
+    paths:
+      - "tla/**"
+      - "src/consensus/**"
     # Will uncomment when testing finished
   workflow_dispatch:
 
