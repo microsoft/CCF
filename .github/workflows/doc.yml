@@ -30,3 +30,12 @@ jobs:
           pip install -U -r doc/historical_ccf_requirements.txt
           sphinx-multiversion -D smv_remote_whitelist=origin doc build/html
         shell: bash
+
+      - name: Set up top-level directory
+        run: |
+          set -x
+          cd build/html
+          touch .nojekyll
+          cp ../../doc/index.html .
+          ls -la
+        shell: bash
