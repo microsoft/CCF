@@ -43,6 +43,8 @@ jobs:
         with:
           path: build/html
 
+  # This is purposefully separate to keep the scope with
+  # with the permissions to deploy to a minimum.
   deploy:
     name: Deploy
     needs: build
