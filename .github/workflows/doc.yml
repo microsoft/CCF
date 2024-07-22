@@ -1,4 +1,4 @@
-name: "Bencher: Run Benchmarks"
+name: "Doc"
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   build_and_publish_doc:
-    name: Doc
+    name: Build Doc
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
@@ -28,3 +28,4 @@ jobs:
           pip install -U -r doc/requirements.txt
           pip install -U -r doc/historical_ccf_requirements.txt
           sphinx-multiversion -D smv_remote_whitelist=origin doc build/html
+        shell: bash
