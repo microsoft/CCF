@@ -7,7 +7,6 @@ on:
     paths:
       - "tla/**"
       - "src/consensus/**"
-    # Will uncomment when testing finished
   workflow_dispatch:
 
 concurrency:
