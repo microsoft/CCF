@@ -566,9 +566,6 @@ set(CMAKE_GENERATED_COMMENT
 configure_file(
   ${CCF_DIR}/src/common/version.h.in ${CCF_DIR}/include/ccf/version.h @ONLY
 )
-configure_file(
-  ${CCF_DIR}/python/version.py.in ${CCF_DIR}/python/version.py @ONLY
-)
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
 file(READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
@@ -1143,7 +1140,7 @@ if(BUILD_TESTS)
       # Unsafe builds do not follow normal version conventions
       add_test(NAME versionifier_test
                COMMAND ${PYTHON}
-                       ${CMAKE_SOURCE_DIR}/python/ccf/_versionifier.py
+                       ${CMAKE_SOURCE_DIR}/python/src/ccf/_versionifier.py
       )
 
       add_test(NAME github_version_lts_test
