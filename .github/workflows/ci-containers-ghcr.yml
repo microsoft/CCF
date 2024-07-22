@@ -1,4 +1,4 @@
-name: "Build and Publish Build Containers to GHCR"
+name: "CI Containers GHCR"
 
 on:
   push:
@@ -10,7 +10,7 @@ env:
 
 jobs:
   build:
-    name: "Build and Publish Build Containers"
+    name: "Base (GHCR)"
     runs-on: ubuntu-latest
 
     permissions:
