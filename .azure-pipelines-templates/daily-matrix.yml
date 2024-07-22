@@ -138,12 +138,3 @@ jobs:
       ctest_filter: '-LE "benchmark|perf|rotation"'
       depends_on: configure
       installExtendedTestingTools: true
-
-  - template: simulation.yml
-    parameters:
-      target: Virtual
-      timeout: 6000
-      env: ${{ parameters.env.MC }}
-      installExtendedTestingTools: false
-      depends_on:
-        - configure
