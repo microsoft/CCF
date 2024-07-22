@@ -37,5 +37,9 @@ jobs:
           cd build/html
           touch .nojekyll
           cp ../../doc/index.html .
-          ls -la
         shell: bash
+
+      - name: Upload pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/html
