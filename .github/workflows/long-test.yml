@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  pull_request:  # TODO remove this before merge
+
+jobs:
+  long-asan:
+    name: Long ASAN
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Build"
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DLVI_MITIGATIONS=OFF -DSAN=ON ..
+          ninja
+
+      - name: "Test"
+        run: |
+          set +x
+          ./tests.sh -VV --timeout 1600 --no-compress-output -LE "benchmark|perf
+
+  long-tsan:
+    name: Long TSAN
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Build"
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DLVI_MITIGATIONS=OFF -DTSAN=ON -DWORKER_THREADS=2 ..
+          ninja
+
+      - name: "Test"
+        run: |
+          set +x
+          ./tests.sh -VV --timeout 1600 --no-compress-output -LE "benchmark|perf
