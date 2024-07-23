@@ -81,6 +81,13 @@ Publishes ccf Python package from a GitHub release to PyPI. Triggered on release
 File: `pypi.yml`
 3rd party dependencies: None
 
+# Documentation
+
+Builds and publishes documentation to GitHub Pages. Triggered on pushes to main, and manually. Note that special permissions (Settings > Environment) are configured.
+
+File: `doc.yml`
+3rd party dependencies: None
+
 # Deprecated
 
 The following pipelines are still here to support 4.x, but will be removed when it reaches EOL.
