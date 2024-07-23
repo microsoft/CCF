@@ -7,6 +7,23 @@ on:
   workflow_dispatch:
 
 jobs:
+  scan_build:
+    name: "Scan build"
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: "Run scan"
+        run: |
+          set -x
+          mkdir build
+          cd build
+          ../scripts/scan-build.sh
+
   long-asan:
     name: Long ASAN
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
@@ -17,12 +34,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - run: |
-        set -ex
-        sudo apt-get -y update
-        sudo apt install ansible -y
-        cd getting_started/setup_vm
-        ansible-playbook ccf-extended-testing.yml
+      - name: "Install deps"
+        run: |
+          sudo apt-get -y update
+          sudo apt install ansible -y
+          cd getting_started/setup_vm
+          ansible-playbook ccf-extended-testing.yml
 
       - name: "Build"
         run: |
