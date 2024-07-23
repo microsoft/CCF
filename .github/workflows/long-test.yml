@@ -1,9 +1,10 @@
-name: CI
+name: Long Test
 
 on:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 0 * * 1-5"
   pull_request:  # TODO remove this before merge
+  workflow_dispatch:
 
 jobs:
   long-asan:
@@ -28,7 +29,8 @@ jobs:
       - name: "Test"
         run: |
           set +x
-          ./tests.sh -VV --timeout 1600 --no-compress-output -LE "benchmark|perf
+          cd build
+          ./tests.sh -VV --timeout 1600 --no-compress-output -LE "benchmark|perf"
 
   long-tsan:
     name: Long TSAN
@@ -52,4 +54,5 @@ jobs:
       - name: "Test"
         run: |
           set +x
-          ./tests.sh -VV --timeout 1600 --no-compress-output -LE "benchmark|perf
+          cd build
+          ./tests.sh -VV --timeout 1600 --no-compress-output -LE "benchmark|perf"
