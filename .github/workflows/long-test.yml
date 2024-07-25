@@ -24,7 +24,7 @@ jobs:
           ../scripts/scan-build.sh
 
   long-asan:
-    name: Long ASAN
+    name: ASAN
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
@@ -66,7 +66,7 @@ jobs:
           if-no-files-found: ignore
 
   long-tsan:
-    name: Long TSAN
+    name: TSAN
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
