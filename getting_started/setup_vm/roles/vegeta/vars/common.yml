@@ -1,3 +1,0 @@
-workspace: "/tmp/"
-vegeta_version: 12.8.4
-vegeta_install_prefix: "/opt/vegeta"

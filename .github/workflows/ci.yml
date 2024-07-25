@@ -90,7 +90,7 @@ jobs:
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # All other acceptably fast tests, mostly end-to-end
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite|unit"
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|suite|unit"
           # Partitions tests
           ./tests.sh --timeout 240 --output-on-failure -L partitions -C partitions
         shell: bash
