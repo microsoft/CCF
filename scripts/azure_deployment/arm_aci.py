@@ -8,6 +8,7 @@ import time
 from argparse import ArgumentParser, Namespace
 import base64
 import tempfile
+import urllib.parse
 
 from azure.identity import AzureCliCredential
 from azure.mgmt.resource.resources.models import (
@@ -253,6 +254,12 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             "initContainers": [],
             "restartPolicy": "Never",
             "osType": "Linux",
+            "imageRegistryCredentials": [
+                {
+                    "server": urllib.parse.urlparse(f"//{args.aci_image}").netloc,
+                    "identity": args.managed_identity,
+                }
+            ],
         }
 
         if args.ports:
@@ -308,6 +315,12 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             "name": f"{deployment_name}-{i}",
             "location": args.region,
             "properties": container_group_properties,
+            "identity": {
+                "type": "SystemAssigned, UserAssigned",
+                "userAssignedIdentities": {
+                     args.managed_identity: {},
+                },
+            },
         }
 
         arm_template["resources"].append(container_group)
