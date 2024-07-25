@@ -89,7 +89,7 @@ jobs:
         run: |
           set +x
           cd build
-          ./tests.sh -VV --timeout 1600 --no-compress-output -LE "benchmark|perf"
+          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark|perf"
 
       - name: "Upload logs"
         if: success() || failure()
