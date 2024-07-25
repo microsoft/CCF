@@ -43,7 +43,7 @@ jobs:
 
       - name: "Build"
         run: |
-          git config --global --add safe.directory /__w/CCF/CCF
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           mkdir build
           cd build
           cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DLVI_MITIGATIONS=OFF -DSAN=ON ..
