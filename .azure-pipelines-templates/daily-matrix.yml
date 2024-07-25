@@ -52,6 +52,9 @@ jobs:
         clean: true
         fetchDepth: 10000
       - script: |
+          sudo rm -rf build
+        displayName: "Cleanup"
+      - script: |
           set -ex
           mkdir build_make
           cd build_make

@@ -58,6 +58,11 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--managed-identity",
+    help="The managed identity on the host that you want the ACI to inherit, so it can access its container registries",
+)
+
+parser.add_argument(
     "--out",
     help="Location to write the deployment info to",
     type=str,
