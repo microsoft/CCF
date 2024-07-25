@@ -50,7 +50,7 @@ jobs:
         env:
           ACR_REGISTRY_RESOURCE_NAME: ccfmsrc
           ACR_REGISTRY: ccfmsrc.azurecr.io
-          BASE_IMAGE: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+          BASE_IMAGE: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
 
       - script: |
           set -ex
@@ -101,7 +101,7 @@ jobs:
           set -ex
           cd /CCF/build
           npm config set cache /ccfci/workspace_$(Build.BuildNumber)/.npm
-          WORKSPACE=/ccfci/workspace_$(Build.BuildNumber) ELECTION_TIMEOUT_MS=10000 ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite|snp_flaky" -E "lts_compatibility"
+          WORKSPACE=/ccfci/workspace_$(Build.BuildNumber) ELECTION_TIMEOUT_MS=10000 ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|suite|snp_flaky" -E "lts_compatibility"
           # Remove irrelevant and bulky data from workspace before uploading
           find /ccfci/workspace_$(Build.BuildNumber) -type f -name cchost -delete
           find /ccfci/workspace_$(Build.BuildNumber) -type f -name "*.so" -delete
