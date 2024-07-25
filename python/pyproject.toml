@@ -36,7 +36,7 @@ script-files = [
 [tool.setuptools_scm]
 version_file = "src/ccf/version.py"
 root = ".."
-git_describe_command = "git describe --dirty --tags --long --match ccf-*"
+git_describe_command = "git describe --tags --long --match \"ccf-*\""
 
 [project.urls]
 Homepage = "https://github.com/microsoft/ccf"
