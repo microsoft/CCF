@@ -318,7 +318,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             "identity": {
                 "type": "SystemAssigned, UserAssigned",
                 "userAssignedIdentities": {
-                     args.managed_identity: {},
+                    args.managed_identity: {},
                 },
             },
         }
