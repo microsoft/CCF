@@ -44,6 +44,7 @@ parser.add_argument(
     type=str,
 )
 
+
 parser.add_argument(
     "--resource-group",
     help="The resource group used to deploy",
