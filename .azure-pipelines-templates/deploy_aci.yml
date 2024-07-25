@@ -54,6 +54,7 @@ jobs:
 
       - script: |
           set -ex
+          az acr login --name $ACR_REGISTRY_RESOURCE_NAME
           python3.8 -m venv ./scripts/azure_deployment/.env
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
@@ -75,6 +76,7 @@ jobs:
         name: deploy_primary_aci
         displayName: "Deploy Primary ACI"
         env:
+          ACR_REGISTRY_RESOURCE_NAME: ccfmsrc
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
       - script: |
