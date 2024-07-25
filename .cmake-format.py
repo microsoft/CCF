@@ -1,4 +1,6 @@
-# ----------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the Apache 2.0 License.
+# # ----------------------------------
 # Options affecting listfile parsing
 # ----------------------------------
 with section("parse"):
@@ -61,7 +63,7 @@ with section("parse"):
     }
 
 # -----------------------------
-# Options effecting formatting.
+# Options affecting formatting.
 # -----------------------------
 with section("format"):
     # How wide to allow formatted cmake files
@@ -237,7 +239,7 @@ with section("lint"):
     max_statements = 50
 
 # -------------------------------
-# Options effecting file encoding
+# Options affecting file encoding
 # -------------------------------
 with section("encode"):
     # If true, emit the unicode byte-order mark (BOM) at the start of the file
