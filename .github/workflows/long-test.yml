@@ -3,7 +3,6 @@ name: Long Test
 on:
   schedule:
     - cron: "0 0 * * 1-5"
-  pull_request:  # TODO remove this before merge
   workflow_dispatch:
 
 jobs:
