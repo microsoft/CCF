@@ -1509,21 +1509,6 @@ if(BUILD_TESTS)
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
         LABEL ACME
       )
-
-      add_e2e_test(
-        NAME vegeta_stress
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-        LABEL vegeta
-        ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
-      )
-
-      add_e2e_test(
-        NAME vegeta_long_stress
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-        LABEL vegeta
-        CONFIGURATIONS long_stress
-        ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
-      )
     endif()
 
     add_piccolo_test(

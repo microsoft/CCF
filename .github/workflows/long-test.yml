@@ -55,6 +55,17 @@ jobs:
           cd build
           ./tests.sh -VV --timeout 1600 --no-compress-output -LE "benchmark|perf"
 
+      - name: "Upload logs"
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-asan
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+          if-no-files-found: ignore
+
   long-tsan:
     name: Long TSAN
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
@@ -79,3 +90,14 @@ jobs:
           set +x
           cd build
           ./tests.sh -VV --timeout 1600 --no-compress-output -LE "benchmark|perf"
+
+      - name: "Upload logs"
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-tsan
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+          if-no-files-found: ignore
