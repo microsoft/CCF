@@ -1,7 +1,7 @@
 trigger:
   tags:
     include:
-      - ccf-5.*
+      - ccf-4.*
 
 pr: none
 
@@ -34,23 +34,3 @@ jobs:
     parameters:
       perf_or_release: ${{ variables['perf_or_release'] }}
       perf_tests: ${{ variables['perf_tests'] }}
-
-  - job: CredScan
-    variables:
-      Codeql.SkipTaskAutoInjection: true
-      skipComponentGovernanceDetection: true
-    pool:
-      vmImage: "ubuntu-20.04"
-    steps:
-      # Scan for credentials in the repo
-      - task: CredScan@3
-        inputs:
-          suppressionsFile: .gdn/CredScanSuppressions.json
-          # To suppress folders, rather than individual files, we require both of the following options
-          debugMode: true
-          folderSuppression: true
-
-      # Break the build if any credentials (or other Guardian scans) find issues
-      - task: PostAnalysis@2
-        inputs:
-          GdnBreakAllTools: true
