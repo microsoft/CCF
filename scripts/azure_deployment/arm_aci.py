@@ -257,7 +257,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             "imageRegistryCredentials": [
                 {
                     "server": urllib.parse.urlparse(f"//{args.aci_image}").netloc,
-                    "identity": args.managed_identity,
+                    # "identity": args.managed_identity,
                 }
             ],
         }
