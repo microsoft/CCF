@@ -316,10 +316,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             "location": args.region,
             "properties": container_group_properties,
             "identity": {
-                "type": "SystemAssigned, UserAssigned",
-                "userAssignedIdentities": {
-                    args.managed_identity: {},
-                },
+                "type": "SystemAssigned"
             },
         }
 
