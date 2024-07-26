@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.1]
+
+[5.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.1
+
+### Bug Fixes
+
+- All public headers now correctly set pragma once (#6388, #6389)
+
+### Dependencies
+
+- Base image refresh for containers (#6394, #6395)
+- Python cryptography package requirement raised to 43.\* (#6385)
+
 ## [5.0.0]
 
 [5.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.0
