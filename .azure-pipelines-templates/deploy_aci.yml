@@ -65,7 +65,6 @@ jobs:
             --aci-type dynamic-agent \
             --deployment-name ci-$(Build.BuildNumber) \
             --aci-image ghcr.io/microsoft/ccf/ci/default:build-25-07-2024 \
-            --managed-identity $(CCF_SNP_CI_MANAGED_IDENTITY_ID)
             --ports 22 \
             --aci-setup-timeout 300 \
             --aci-private-key-b64 $(sshKey) \
