@@ -253,13 +253,7 @@ def make_aci_deployment(args: Namespace) -> Deployment:
             "containers": containers,
             "initContainers": [],
             "restartPolicy": "Never",
-            "osType": "Linux",
-            "imageRegistryCredentials": [
-                {
-                    "server": urllib.parse.urlparse(f"//{args.aci_image}").netloc,
-                    # "identity": args.managed_identity,
-                }
-            ],
+            "osType": "Linux"
         }
 
         if args.ports:
