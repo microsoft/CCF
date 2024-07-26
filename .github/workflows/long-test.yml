@@ -1,0 +1,102 @@
+name: Long Test
+
+on:
+  schedule:
+    - cron: "0 0 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  scan_build:
+    name: "Scan build"
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: "Run scan"
+        run: |
+          set -x
+          mkdir build
+          cd build
+          ../scripts/scan-build.sh
+
+  long-asan:
+    name: ASAN
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: "Install deps"
+        run: |
+          sudo apt-get -y update
+          sudo apt install ansible -y
+          cd getting_started/setup_vm
+          ansible-playbook ccf-extended-testing.yml
+
+      - name: "Build"
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DLVI_MITIGATIONS=OFF -DSAN=ON ..
+          ninja
+
+      - name: "Test"
+        run: |
+          set +x
+          cd build
+          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark|perf"
+
+      - name: "Upload logs"
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-asan
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+          if-no-files-found: ignore
+
+  long-tsan:
+    name: TSAN
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Build"
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DLVI_MITIGATIONS=OFF -DTSAN=ON -DWORKER_THREADS=2 ..
+          ninja
+
+      - name: "Test"
+        run: |
+          set +x
+          cd build
+          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark|perf"
+
+      - name: "Upload logs"
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-tsan
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+          if-no-files-found: ignore

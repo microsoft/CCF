@@ -50,10 +50,11 @@ jobs:
         env:
           ACR_REGISTRY_RESOURCE_NAME: ccfmsrc
           ACR_REGISTRY: ccfmsrc.azurecr.io
-          BASE_IMAGE: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+          BASE_IMAGE: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
 
       - script: |
           set -ex
+          az acr login --name $ACR_REGISTRY_RESOURCE_NAME
           python3.8 -m venv ./scripts/azure_deployment/.env
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
@@ -64,6 +65,7 @@ jobs:
             --aci-type dynamic-agent \
             --deployment-name ci-$(Build.BuildNumber) \
             --aci-image ccfmsrc.azurecr.io/ccf/ci:pr-`git rev-parse HEAD` \
+            --managed-identity $(CCF_SNP_CI_MANAGED_IDENTITY_ID)
             --ports 22 \
             --aci-setup-timeout 300 \
             --aci-private-key-b64 $(sshKey) \
@@ -75,6 +77,7 @@ jobs:
         name: deploy_primary_aci
         displayName: "Deploy Primary ACI"
         env:
+          ACR_REGISTRY_RESOURCE_NAME: ccfmsrc
           CCF_AZURE_SUBSCRIPTION_ID: $(CCF_AZURE_SUBSCRIPTION_ID)
 
       - script: |
@@ -98,7 +101,7 @@ jobs:
           set -ex
           cd /CCF/build
           npm config set cache /ccfci/workspace_$(Build.BuildNumber)/.npm
-          WORKSPACE=/ccfci/workspace_$(Build.BuildNumber) ELECTION_TIMEOUT_MS=10000 ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|vegeta|suite|snp_flaky" -E "lts_compatibility"
+          WORKSPACE=/ccfci/workspace_$(Build.BuildNumber) ELECTION_TIMEOUT_MS=10000 ./tests.sh -VV -T Test -LE "benchmark|perf|tlstest|suite|snp_flaky" -E "lts_compatibility"
           # Remove irrelevant and bulky data from workspace before uploading
           find /ccfci/workspace_$(Build.BuildNumber) -type f -name cchost -delete
           find /ccfci/workspace_$(Build.BuildNumber) -type f -name "*.so" -delete
