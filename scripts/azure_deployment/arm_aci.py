@@ -411,10 +411,6 @@ def check_aci_deployment(
     container_group_b 10.10.10.11
     """
 
-    print("!!!!!")
-    print("Checking deployment, output_resources are:")
-    print(json.dumps(deployment.properties.output_resources, indent=2))
-    print("!!!!!")
     container_client = ContainerInstanceManagementClient(
         AzureCliCredential(), args.subscription_id
     )
