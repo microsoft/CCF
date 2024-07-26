@@ -360,6 +360,10 @@ namespace loggingapp
           return status;
         }
       }
+      else if (result == ccf::ApiResult::NotFound)
+      {
+        return ccf::TxStatus::Unknown;
+      }
 
       return std::nullopt;
     }
