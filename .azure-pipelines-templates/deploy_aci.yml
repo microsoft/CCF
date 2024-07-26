@@ -59,9 +59,9 @@ jobs:
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
           python3.8 scripts/azure_deployment/arm_template.py deploy aci \
-            --subscription-id da28f5e5-aa45-46fe-90c8-053ca49ab4b5 \
-            --resource-group kegordo_amaury_rg \
-            --region centralindia \
+            --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
+            --resource-group ccf-aci \
+            --region northeurope \
             --aci-type dynamic-agent \
             --deployment-name ci-$(Build.BuildNumber) \
             --aci-image ghcr.io/microsoft/ccf/ci/default:build-25-07-2024 \
