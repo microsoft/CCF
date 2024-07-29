@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.2]
+
+[5.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.2
+
+### Bug Fixes
+
+- The `/tx` endpoint returns more accurate error messages for incorrectly formed transactions ids (#6359).
+
 ## [5.0.1]
 
 [5.0.1]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.1

@@ -42,8 +42,8 @@ namespace ccf
   // transaction executed by CCF.
   struct TxID
   {
-    View view;
-    SeqNo seqno;
+    View view = VIEW_UNKNOWN;
+    SeqNo seqno = SEQNO_UNKNOWN;
 
     std::string to_str() const
     {
@@ -64,7 +64,8 @@ namespace ccf
         const auto view_sv = sv.substr(0, separator_idx);
         const auto [p, ec] =
           std::from_chars(view_sv.begin(), view_sv.end(), tx_id.view);
-        if (ec != std::errc() || p != view_sv.end())
+        if (
+          ec != std::errc() || p != view_sv.end() || tx_id.view == VIEW_UNKNOWN)
         {
           return std::nullopt;
         }
@@ -74,7 +75,9 @@ namespace ccf
         const auto seqno_sv = sv.substr(separator_idx + 1);
         const auto [p, ec] =
           std::from_chars(seqno_sv.begin(), seqno_sv.end(), tx_id.seqno);
-        if (ec != std::errc() || p != seqno_sv.end())
+        if (
+          ec != std::errc() || p != seqno_sv.end() ||
+          tx_id.seqno == SEQNO_UNKNOWN)
         {
           return std::nullopt;
         }
