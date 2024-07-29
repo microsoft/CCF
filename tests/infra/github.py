@@ -10,7 +10,7 @@ import urllib
 import shutil
 import requests
 
-from setuptools.extern.packaging.version import Version  # type: ignore
+from packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
 

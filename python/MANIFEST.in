@@ -1,6 +1,0 @@
-include requirements.txt
-include ccf/py.typed
-
-include utils/submit_recovery_share.sh
-include utils/keygenerator.sh
-include utils/verify_quote.sh

@@ -1,0 +1,62 @@
+name: "Doc"
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:latest
+    steps:
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v5
+      - name: Build Documentation
+        run: |
+          set -x
+          python3.8 -m venv env
+          source env/bin/activate
+          pip install -U pip
+          pip install -U -e ./python
+          pip install -U -r doc/requirements.txt
+          pip install -U -r doc/historical_ccf_requirements.txt
+          sphinx-multiversion -D smv_remote_whitelist=origin doc build/html
+        shell: bash
+      - name: Set up top-level directory
+        run: |
+          set -x
+          cd build/html
+          touch .nojekyll
+          cp ../../doc/index.html .
+        shell: bash
+      - name: Upload pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/html
+
+  # This is purposefully separate to keep the scope with
+  # with the permissions to deploy to a minimum.
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{steps.deployment.outputs.page_url}}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -231,6 +231,7 @@ set(CCF_ENDPOINTS_SOURCES
     ${CCF_DIR}/src/endpoints/authentication/empty_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/jwt_auth.cpp
     ${CCF_DIR}/src/endpoints/authentication/all_of_auth.cpp
+    ${CCF_DIR}/src/endpoints/endpoint_utils.cpp
     ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_bucketed.cpp
     ${CCF_DIR}/src/indexing/strategies/seqnos_by_key_in_memory.cpp
@@ -264,7 +265,7 @@ else()
 endif()
 
 list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp
-     ${CCF_DIR}/src/ds/nonstd.cpp ${CCF_DIR}/src/host/env.cpp
+     ${CCF_DIR}/src/host/env.cpp
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -427,6 +428,9 @@ endif()
 # CCF endpoints libs
 if(COMPILE_TARGET STREQUAL "sgx")
   add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
+  target_include_directories(
+    ccf_endpoints.enclave PRIVATE ${CCF_DIR}/src/endpoints
+  )
   target_link_libraries(
     ccf_endpoints.enclave
     PUBLIC qcbor.enclave t_cose.enclave http_parser.enclave ccfcrypto.enclave
@@ -440,6 +444,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
   )
 elseif(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_endpoints.snp "${CCF_ENDPOINTS_SOURCES}")
+  target_include_directories(ccf_endpoints.snp PRIVATE ${CCF_DIR}/src/endpoints)
   target_link_libraries(
     ccf_endpoints.snp PUBLIC qcbor.snp t_cose.snp http_parser.snp ccfcrypto.snp
                              ccf_kv.snp
@@ -454,6 +459,7 @@ elseif(COMPILE_TARGET STREQUAL "snp")
 endif()
 
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
+target_include_directories(ccf_endpoints.host PRIVATE ${CCF_DIR}/src/endpoints)
 target_link_libraries(
   ccf_endpoints.host PUBLIC qcbor.host t_cose.host http_parser.host
                             ccfcrypto.host ccf_kv.host
@@ -560,9 +566,6 @@ set(CMAKE_GENERATED_COMMENT
 configure_file(
   ${CCF_DIR}/src/common/version.h.in ${CCF_DIR}/include/ccf/version.h @ONLY
 )
-configure_file(
-  ${CCF_DIR}/python/version.py.in ${CCF_DIR}/python/version.py @ONLY
-)
 install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
 
 file(READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
@@ -627,7 +630,6 @@ add_custom_target(ccf ALL)
 set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
-    ${CCF_DIR}/src/ds/nonstd.cpp
 )
 
 if(COMPILE_TARGET STREQUAL "sgx")
@@ -893,7 +895,6 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/thread_messaging.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/lru.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/hex.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/dl_list.cpp
@@ -1021,7 +1022,6 @@ if(BUILD_TESTS)
 
     add_test_bin(
       kp_cert_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/kp_cert.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/nonstd.cpp
     )
     target_link_libraries(kp_cert_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -1061,6 +1061,9 @@ if(BUILD_TESTS)
       endpoint_registry_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/endpoints/test/endpoint_registry.cpp
     )
+    target_include_directories(
+      endpoint_registry_test PRIVATE ${CCF_DIR}/src/endpoints
+    )
     target_link_libraries(endpoint_registry_test PRIVATE ccf_endpoints.host)
 
     add_unit_test(
@@ -1095,7 +1098,7 @@ if(BUILD_TESTS)
     )
 
     # Merkle Tree memory test
-    add_executable(merkle_mem src/node/test/merkle_mem.cpp src/ds/nonstd.cpp)
+    add_executable(merkle_mem src/node/test/merkle_mem.cpp)
     target_compile_options(merkle_mem PRIVATE ${COMPILE_LIBCXX})
     target_link_libraries(
       merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX}
@@ -1105,7 +1108,7 @@ if(BUILD_TESTS)
     # Raft driver and scenario test
     add_executable(
       raft_driver ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/aft/test/driver.cpp
-                  src/enclave/thread_local.cpp src/ds/nonstd.cpp
+                  src/enclave/thread_local.cpp
     )
     target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
     target_include_directories(raft_driver PRIVATE src/aft)
@@ -1137,7 +1140,7 @@ if(BUILD_TESTS)
       # Unsafe builds do not follow normal version conventions
       add_test(NAME versionifier_test
                COMMAND ${PYTHON}
-                       ${CMAKE_SOURCE_DIR}/python/ccf/_versionifier.py
+                       ${CMAKE_SOURCE_DIR}/python/src/ccf/_versionifier.py
       )
 
       add_test(NAME github_version_lts_test
@@ -1505,21 +1508,6 @@ if(BUILD_TESTS)
         NAME acme_endorsement_test
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
         LABEL ACME
-      )
-
-      add_e2e_test(
-        NAME vegeta_stress
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-        LABEL vegeta
-        ADDITIONAL_ARGS -p "samples/apps/logging/liblogging"
-      )
-
-      add_e2e_test(
-        NAME vegeta_long_stress
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/vegeta_stress.py
-        LABEL vegeta
-        CONFIGURATIONS long_stress
-        ADDITIONAL_ARGS -p "samples/apps/logging/liblogging" --duration 45m
       )
     endif()
 

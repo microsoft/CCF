@@ -16,7 +16,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 import json
 import infra.snp as snp
 import ccf._versionifier
-from setuptools.extern.packaging.version import (  # type: ignore
+from packaging.version import (  # type: ignore
     Version,
 )
 

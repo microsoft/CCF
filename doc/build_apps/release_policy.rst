@@ -44,9 +44,9 @@ Fields/input arguments will never be modified/deleted unless exceptionally and e
 Member-facing API
 ~~~~~~~~~~~~~~~~~
 
-As defined under :ref:`governance/member_rpc_api:Member RPC API`.
+As defined under :ref:`governance/member_rpc_api:Member RPC API`, versioned as of CCF 5.0.0.
 
-Same as operator-facing API.
+The older, unversioned API will be dropped in 6.0.0.
 
 Operations compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -69,11 +69,11 @@ Operations compatibility
 Support policy
 --------------
 
-In addition to the latest release, CCF aims to provide security patches and bugfixes on two long term support releases at any given time. These releases are guaranteed to be API-stable, but not ABI-stable. Applications will need to rebuild to pick up updates, but will not need to change their code.
+In addition to the latest release, CCF aims to provide security patches and bugfixes for one long term support release. These releases are guaranteed to be API-stable, but not ABI-stable. Applications will need to rebuild to pick up updates, but will not need to change their code.
 
 From 2.0.0 onwards, LTS patches will be released no more frequently than monthly, with an exception for critical fixes. LTS patches will pick up third-party dependency patches systematically, as long as they have been out for more than 14 days at the time of the release, again with an exception for critical fixes.
 
-A long term support release (LTS) will be supported for 1 year starting from its release date. That means that when a new LTS comes out, users effectively have a 6 months window to upgrade to the latest LTS.
+A long term support release (LTS) will be supported for at least a year starting from its release date.
 
 REST API guarantees spelled out in the first section apply across releases, but new features, for example revisions of the User-facing C++ API or additions to the node API can only be introduced in a new release, never back-ported to an existing LTS.
 
@@ -100,6 +100,9 @@ Support calendar
      - November 24, 2023
    * - 4.0
      - May 2, 2023
+     - Oct 25, 2024
+   * - 5.0
+     - Jul 17, 2024
      - \-
 
 .. toctree::

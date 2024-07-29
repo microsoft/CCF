@@ -20,7 +20,7 @@ jobs:
   checks:
     name: "Format and License Checks"
     runs-on: ubuntu-latest
-    container: ghcr.io/microsoft/ccf/ci/default:build-26-06-2024
+    container: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
 
     steps:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -48,7 +48,7 @@ jobs:
             options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
     runs-on: ${{ matrix.platform.nodes }}
     container:
-      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-26-06-2024
+      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-25-07-2024
       options: ${{ matrix.platform.options }}
     steps:
       - uses: actions/checkout@v4
@@ -90,7 +90,7 @@ jobs:
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # All other acceptably fast tests, mostly end-to-end
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|vegeta|suite|unit"
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|suite|unit"
           # Partitions tests
           ./tests.sh --timeout 240 --output-on-failure -L partitions -C partitions
         shell: bash

@@ -42,6 +42,13 @@ Builds CCF with CodeQL, and runs the security-extended checks. Triggered on PRs 
 File: `codeql-analysis.yml`
 3rd party dependencies: None
 
+# Verification
+
+Runs all existing TLA+ jobs. Triggered on PRs that affect tla/ or src/consensus and weekly on main.
+
+File: tlaplus.yml
+3rd party dependencies: None
+
 # Release
 
 Produces CCF release artefacts from 5.0.0-rc0 onwards, for all languages and platforms. Triggered on tags matching "ccf-5.\*". The output of the job is a draft release, which needs to be published manually. Publishing triggers the downstream jobs listed below.
@@ -72,6 +79,13 @@ File: `npm.yml`
 Publishes ccf Python package from a GitHub release to PyPI. Triggered on release publishing.
 
 File: `pypi.yml`
+3rd party dependencies: None
+
+# Documentation
+
+Builds and publishes documentation to GitHub Pages. Triggered on pushes to main, and manually. Note that special permissions (Settings > Environment) are configured.
+
+File: `doc.yml`
 3rd party dependencies: None
 
 # Deprecated
