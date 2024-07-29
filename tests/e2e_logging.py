@@ -277,15 +277,27 @@ def test_illegal(network, args):
 def test_invalid_txids(network, args):
     primary, _ = network.find_primary()
 
-    invalid = ["a.b", "-1.-1", "0.0", "1.1", "1.0", "0.1"]
+    # These are not valid transactions IDs at all, one cannot ask about their status
+    invalid_params = ["a.b", "-1.-1", "0.0", "1.0", "0.1", "2.0"]
 
     with primary.client() as c:
-        for txid in invalid:
+        for txid in invalid_params:
             r = c.get(f"/tx?transaction_id={txid}")
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
             assert (
                 r.body.json()["error"]["code"] == "InvalidQueryParameterValue"
             ), r.body.json()
+
+    # These are valid transaction IDs, but cannot happen in CCF because views start
+    # at 2, so while it is ok to ask about them, their consensus status is always Invalid,
+    # meaning that they are not, and can never be committed.
+    invalid_txs = ["1.1", "1.2"]
+
+    with primary.client() as c:
+        for txid in invalid_txs:
+            r = c.get(f"/tx?transaction_id={txid}")
+            assert r.status_code == http.HTTPStatus.OK, r.status_code
+            assert r.body.json()["status"] == "Invalid", r.body.json()
 
     return network
 
