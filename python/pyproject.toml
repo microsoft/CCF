@@ -22,7 +22,7 @@ dependencies = [
     "cryptography == 43.*",
     "string-color >= 1.2.1, == 1.*",
     "pycose >= 1.0.1, == 1.*",
-    "setuptools == 71.*",
+    "setuptools == 72.*",
     "packaging == 24.*"
 ]
 
