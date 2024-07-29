@@ -947,6 +947,40 @@ def test_historical_query_range(network, args):
 
         infra.commit.wait_for_commit(c, seqno=last_seqno, view=view, timeout=3)
 
+        LOG.info("Checking error responses")
+        # Reversed range is illegal
+        r = c.get(
+            f"/app/log/public/historical/range?from_seqno={last_seqno}&to_seqno=1&id={id_a}"
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST
+        assert r.body.json()["error"]["code"] == "InvalidInput"
+        r = c.get(
+            f"/app/log/public/historical/range?from_seqno={last_seqno}&to_seqno={last_seqno-1}&id={id_a}"
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST
+        assert r.body.json()["error"]["code"] == "InvalidInput"
+
+        # Asking for future seqnos gives a clear error
+        # - First find latest valid seqno
+        r = c.get("/node/commit")
+        assert r.status_code == http.HTTPStatus.OK
+        last_valid_seqno = TxID.from_str(r.body.json()["transaction_id"]).seqno
+
+        # - Try a very invalid seqno
+        r = c.get(
+            f"/app/log/public/historical/range?to_seqno={last_valid_seqno*2}&id={id_a}"
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST
+        assert r.body.json()["error"]["code"] == "InvalidInput"
+
+        # - Try the first invalid seqno
+        r = c.get(
+            f"/app/log/public/historical/range?to_seqno={last_valid_seqno+1}&id={id_a}"
+        )
+        assert r.status_code == http.HTTPStatus.BAD_REQUEST
+        assert r.body.json()["error"]["code"] == "InvalidInput"
+
+        LOG.info("Verifying historical ranges")
         entries_a, _ = network.txs.verify_range_for_idx(id_a, node=primary)
         entries_b, _ = network.txs.verify_range_for_idx(id_b, node=primary)
         entries_c, _ = network.txs.verify_range_for_idx(id_c, node=primary)

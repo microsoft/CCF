@@ -92,7 +92,12 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
   if (from_seqno !== undefined) {
     from_seqno = parseInt(from_seqno);
     if (isNaN(from_seqno)) {
-      throw new Error("from_seqno is not an integer");
+      return {
+        statusCode: 400,
+        body: {
+          error: { code: "InvalidInput", msg: "from_seqno is not an integer" },
+        },
+      };
     }
   } else {
     // If no from_seqno is specified, defaults to very first transaction
@@ -121,7 +126,12 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
 
   // Range must be in order
   if (to_seqno < from_seqno) {
-    throw new Error("to_seqno must be >= from_seqno");
+    return {
+      statusCode: 400,
+      body: {
+        error: { code: "InvalidInput", msg: "to_seqno must be >= from_seqno" },
+      },
+    };
   }
 
   // End of range must be committed
@@ -132,7 +142,12 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
     isCommitted = txStatus === "Committed";
   }
   if (!isCommitted) {
-    throw new Error("End of range must be committed");
+    return {
+      statusCode: 400,
+      body: {
+        error: { code: "InvalidInput", msg: "End of range must be committed" },
+      },
+    };
   }
 
   const max_seqno_per_page = 2000;
