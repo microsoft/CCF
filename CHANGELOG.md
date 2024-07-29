@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Bug Fixes
 
-- The `/tx` endpoint returns more accurate error messages for invalid transactions ids (#6359).
+- The `/tx` endpoint returns more accurate error messages for incorrectly formed transactions ids (#6359).
 
 ## [5.0.1]
 
