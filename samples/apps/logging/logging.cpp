@@ -1476,17 +1476,13 @@ namespace loggingapp
 
         // End of range must be committed
         const auto tx_status = get_tx_status(to_seqno);
-        if (!tx_status.has_value())
+        if (
+          !tx_status.has_value() ||
+          tx_status.value() != ccf::TxStatus::Committed)
         {
-          ctx.rpc_ctx->set_error(
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            ccf::errors::InternalError,
-            "Unable to retrieve Tx status");
-          return;
-        }
-
-        if (tx_status.value() != ccf::TxStatus::Committed)
-        {
+          const auto tx_status_msg = tx_status.has_value() ?
+            tx_status_to_str(tx_status.value()) :
+            "not found";
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_BAD_REQUEST,
             ccf::errors::InvalidInput,
@@ -1494,7 +1490,7 @@ namespace loggingapp
               "Only committed transactions can be queried. Transaction at "
               "seqno {} is {}",
               to_seqno,
-              ccf::tx_status_to_str(tx_status.value())));
+              tx_status_msg));
           return;
         }
 

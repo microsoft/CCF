@@ -94,7 +94,9 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
     if (isNaN(from_seqno)) {
       return {
         statusCode: 400,
-        body: "from_seqno is not an integer",
+        body: {
+          error: { code: "InvalidInput", msg: "from_seqno is not an integer" },
+        },
       };
     }
   } else {
@@ -126,7 +128,9 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
   if (to_seqno < from_seqno) {
     return {
       statusCode: 400,
-      body: "to_seqno must be >= from_seqno",
+      body: {
+        error: { code: "InvalidInput", msg: "to_seqno must be >= from_seqno" },
+      },
     };
   }
 
@@ -140,7 +144,9 @@ function get_historical_range_impl(request, isPrivate, nextLinkPrefix) {
   if (!isCommitted) {
     return {
       statusCode: 400,
-      body: "End of range must be committed",
+      body: {
+        error: { code: "InvalidInput", msg: "End of range must be committed" },
+      },
     };
   }
 
