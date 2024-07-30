@@ -8,13 +8,13 @@ parameters:
         vmImage: ubuntu-20.04
     Virtual:
       container: virtual
-      pool: ado-virtual-release
+      pool: ado-virtual-ccf-sub
     SGX:
       container: sgx
-      pool: ado-sgx-release
+      pool: ado-sgx-ccf-sub-backup
     SNPCC:
       container: snp
-      pool: ado-virtual-release
+      pool: ado-virtual-ccf-sub
 
   build:
     common:
