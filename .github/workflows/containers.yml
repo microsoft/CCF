@@ -14,7 +14,7 @@ permissions: read-all
 jobs:
   build_and_publish:
     name: "Build & push"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     strategy:
       matrix:
         platform: [sgx, virtual, snp]
