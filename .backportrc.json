@@ -1,7 +1,7 @@
 {
   "repoOwner": "microsoft",
   "repoName": "ccf",
-  "targetBranchChoices": ["release/3.x", "release/4.x"],
+  "targetBranchChoices": ["release/4.x", "release/5.x"],
   "branchLabelMapping": {
     "^(.+)-todo$": "release/$1"
   },
