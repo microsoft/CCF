@@ -54,7 +54,8 @@ fi
 python3.8 -m venv env
 # shellcheck source=/dev/null
 source env/bin/activate
-python -m pip install -e ../../../python
+python -m pip install -U pip
+python -m pip install -U -e ../../../python
 
 # Poll until service has died
 while [ "$(service_http_status)" == "200" ]; do

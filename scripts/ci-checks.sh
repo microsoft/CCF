@@ -115,7 +115,7 @@ endgroup
 group "Python lint dependencies"
 # Install test dependencies before linting
 pip install -U -r tests/requirements.txt 1>/dev/null
-pip install -U -r python/requirements.txt 1>/dev/null
+pip install -U -e python 1>/dev/null
 endgroup
 
 group "Python lint"

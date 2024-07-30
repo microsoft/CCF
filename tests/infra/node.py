@@ -25,8 +25,7 @@ import http
 # pylint: disable=protected-access
 import ccf._versionifier
 
-# pylint: disable=import-error, no-name-in-module
-from setuptools.extern.packaging.version import Version  # type: ignore
+from packaging.version import Version  # type: ignore
 
 from loguru import logger as LOG
 
