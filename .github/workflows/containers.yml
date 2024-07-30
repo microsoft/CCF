@@ -14,7 +14,7 @@ permissions: read-all
 jobs:
   build_and_publish:
     name: "Build & push"
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     strategy:
       matrix:
         platform: [sgx, virtual, snp]
@@ -46,7 +46,11 @@ jobs:
         if: ${{ steps.tref.outputs.major_release == '4'}}
 
       - name: Log in
-        run: docker login -u $ACR_TOKEN_NAME -p ${{ secrets.ACR_APP_PUSH_TOKEN_PASSWORD }} $ACR_REGISTRY
+        run: |
+          set -x
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          az login --identity -u ${{ secrets.ACR_MANAGED_IDENTITY }}
+          az acr login --name ccfmsrc
         if: ${{ steps.tref.outputs.major_release == '4'}}
 
       - name: Push App container
