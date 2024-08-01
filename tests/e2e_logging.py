@@ -973,10 +973,20 @@ def test_historical_query_range(network, args):
         assert r.status_code == http.HTTPStatus.BAD_REQUEST
         assert r.body.json()["error"]["code"] == "InvalidInput"
 
-        # - Try the first invalid seqno
-        r = c.get(
-            f"/app/log/public/historical/range?to_seqno={last_valid_seqno+1}&id={id_a}"
-        )
+        # - Try the first invalid seqno.
+        # !! If implicit TX occurs during this time, fetch last TX id and retry.
+        attemtps = 5
+        for _ in range(0, attemtps):
+            r = c.get(
+                f"/app/log/public/historical/range?to_seqno={last_valid_seqno+1}&id={id_a}"
+            )
+            if r.status_code == http.HTTPStatus.BAD_REQUEST:
+                break
+
+            r = c.get("/node/commit")
+            assert r.status_code == http.HTTPStatus.OK
+            last_valid_seqno = TxID.from_str(r.body.json()["transaction_id"]).seqno
+
         assert r.status_code == http.HTTPStatus.BAD_REQUEST
         assert r.body.json()["error"]["code"] == "InvalidInput"
 
