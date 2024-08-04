@@ -932,3 +932,35 @@ TEST_CASE("Incremental hash")
   }
   ccf::crypto::openssl_sha256_shutdown();
 }
+
+TEST_CASE("Sign and verify with RSA key")
+{
+  const auto kp = ccf::crypto::make_rsa_key_pair();
+  const auto pub = ccf::crypto::make_rsa_public_key(kp->public_key_pem());
+  const auto mdtype = ccf::crypto::MDType::SHA256;
+  vector<uint8_t> contents(contents_.begin(), contents_.end());
+
+  {
+    constexpr size_t salt_length = 0;
+    const auto sig = kp->sign(contents, mdtype, salt_length);
+    REQUIRE(pub->verify(
+      contents.data(),
+      contents.size(),
+      sig.data(),
+      sig.size(),
+      mdtype,
+      salt_length));
+  }
+
+  {
+    constexpr size_t sign_salt_length = 0, verify_salt_legth = 32;
+    const auto sig = kp->sign(contents, mdtype, sign_salt_length);
+    REQUIRE(!pub->verify(
+      contents.data(),
+      contents.size(),
+      sig.data(),
+      sig.size(),
+      mdtype,
+      verify_salt_legth));
+  }
+}

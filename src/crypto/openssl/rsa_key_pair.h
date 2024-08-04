@@ -36,14 +36,17 @@ namespace ccf::crypto
     virtual std::vector<uint8_t> public_key_der() const override;
 
     virtual std::vector<uint8_t> sign(
-      std::span<const uint8_t> d, MDType md_type = MDType::NONE) const override;
+      std::span<const uint8_t> d,
+      MDType md_type = MDType::NONE,
+      size_t salt_length = 0) const override;
 
     virtual bool verify(
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* signature,
       size_t signature_size,
-      MDType md_type = MDType::NONE) override;
+      MDType md_type = MDType::NONE,
+      size_t salt_length = 0) override;
 
     virtual JsonWebKeyRSAPrivate private_key_jwk_rsa(
       const std::optional<std::string>& kid = std::nullopt) const override;

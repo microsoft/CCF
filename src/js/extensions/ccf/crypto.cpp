@@ -884,10 +884,19 @@ namespace ccf::js::extensions
             sig_der, key_pair->get_curve_id());
           return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
         }
-        else if (algo_name == "RSASSA-PKCS1-v1_5")
+        else if (algo_name == "RSA-PSS")
         {
           auto key_pair = ccf::crypto::make_rsa_key_pair(key);
-          auto sig = key_pair->sign(contents, mdtype);
+
+          int64_t salt_length{};
+          std::ignore = JS_ToInt64(
+            jsctx,
+            &salt_length,
+            jsctx.get_property(algorithm, "saltLength").val);
+
+          auto sig =
+            key_pair->sign(contents, mdtype, static_cast<size_t>(salt_length));
+
           return JS_NewArrayBufferCopy(ctx, sig.data(), sig.size());
         }
         else if (algo_name == "HMAC")
@@ -900,8 +909,8 @@ namespace ccf::js::extensions
         {
           return JS_ThrowRangeError(
             ctx,
-            "Unsupported signing algorithm, supported: RSASSA-PKCS1-v1_5, "
-            "ECDSA, EdDSA, HMAC");
+            "Unsupported signing algorithm, supported: RSA-PSS, ECDSA, EdDSA, "
+            "HMAC");
         }
       }
       catch (const std::exception& ex)
@@ -1010,12 +1019,12 @@ namespace ccf::js::extensions
             ctx, "Unsupported hash algorithm, supported: SHA-256");
         }
 
-        if (algo_name != "RSASSA-PKCS1-v1_5" && algo_name != "ECDSA")
+        if (algo_name != "RSA-PSS" && algo_name != "ECDSA")
         {
           return JS_ThrowRangeError(
             ctx,
-            "Unsupported signing algorithm, supported: RSASSA-PKCS1-v1_5, "
-            "ECDSA, EdDSA");
+            "Unsupported signing algorithm, supported: RSA-PSS, ECDSA, "
+            "EdDSA");
         }
 
         std::vector<uint8_t> sig(signature, signature + signature_size);
@@ -1035,13 +1044,29 @@ namespace ccf::js::extensions
           valid =
             verifier->verify(data, data_size, sig.data(), sig.size(), mdtype);
         }
-        else
+        else if (algo_name == "ECDSA")
         {
           auto public_key = ccf::crypto::make_public_key(key);
           valid =
             public_key->verify(data, data_size, sig.data(), sig.size(), mdtype);
         }
+        else
+        {
+          int64_t salt_length{};
+          std::ignore = JS_ToInt64(
+            jsctx,
+            &salt_length,
+            jsctx.get_property(algorithm, "saltLength").val);
 
+          auto public_key = ccf::crypto::make_rsa_public_key(key);
+          valid = public_key->verify(
+            data,
+            data_size,
+            sig.data(),
+            sig.size(),
+            mdtype,
+            static_cast<size_t>(salt_length));
+        }
         return JS_NewBool(ctx, valid);
       }
       catch (const std::exception& ex)

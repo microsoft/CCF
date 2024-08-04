@@ -438,7 +438,7 @@ def test_npm_app(network, args):
 
         # Test RSA signing + verification
         key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
-        algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
+        algorithm = {"name": "RSA-PSS", "hash": "SHA-256", "saltLength": 32}
         data = rand_bytes(random.randint(2, 50))
         r = c.post(
             "/app/sign",
@@ -551,7 +551,7 @@ def test_npm_app(network, args):
             pass
 
         key_priv_pem, key_pub_pem = infra.crypto.generate_rsa_keypair(2048)
-        algorithm = {"name": "RSASSA-PKCS1-v1_5", "hash": "SHA-256"}
+        algorithm = {"name": "RSA-PSS", "hash": "SHA-256", "saltLength": 32}
         signature = infra.crypto.sign(algorithm, key_priv_pem, data)
         r = c.post(
             "/app/verifySignature",
