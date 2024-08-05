@@ -52,7 +52,8 @@ namespace ccf::crypto
       size_t contents_size,
       const uint8_t* signature,
       size_t signature_size,
-      MDType md_type = MDType::NONE) override;
+      MDType md_type = MDType::NONE,
+      size_t salt_length = 0) override;
 
     virtual Components components() const override;
 
