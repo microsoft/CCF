@@ -195,11 +195,14 @@ namespace ccf::crypto
     size_t contents_size,
     const uint8_t* signature,
     size_t signature_size,
-    MDType md_type)
+    MDType md_type,
+    size_t salt_length)
   {
     auto hash = OpenSSLHashProvider().Hash(contents, contents_size, md_type);
     Unique_EVP_PKEY_CTX pctx(key);
     CHECK1(EVP_PKEY_verify_init(pctx));
+    CHECK1(EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING));
+    CHECK1(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
     CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
     return EVP_PKEY_verify(
              pctx, signature, signature_size, hash.data(), hash.size()) == 1;

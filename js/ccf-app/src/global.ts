@@ -231,7 +231,7 @@ export interface CryptoKeyPair {
   publicKey: string;
 }
 
-export type AlgorithmName = "RSASSA-PKCS1-v1_5" | "ECDSA" | "EdDSA" | "HMAC";
+export type AlgorithmName = "RSA-PSS" | "ECDSA" | "EdDSA" | "HMAC";
 
 export type DigestAlgorithm = "SHA-256" | "SHA-384" | "SHA-512";
 
@@ -239,9 +239,14 @@ export interface SigningAlgorithm {
   name: AlgorithmName;
 
   /**
-   * Digest algorithm. It's necessary for "RSASSA-PKCS1-v1_5", "ECDSA", and "HMAC"
+   * Digest algorithm. It's necessary for "RSA-PSS", "ECDSA", and "HMAC"
    */
   hash?: DigestAlgorithm;
+
+  /**
+   * Salt length, necessary for "RSA-PSS".
+   */
+  saltLength?: number;
 }
 
 /**
