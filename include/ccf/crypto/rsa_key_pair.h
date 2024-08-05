@@ -55,26 +55,31 @@ namespace ccf::crypto
     virtual std::vector<uint8_t> public_key_der() const = 0;
 
     virtual std::vector<uint8_t> sign(
-      std::span<const uint8_t> d, MDType md_type = MDType::NONE) const = 0;
+      std::span<const uint8_t> d,
+      MDType md_type = MDType::NONE,
+      size_t salt_length = 0) const = 0;
 
     virtual bool verify(
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* signature,
       size_t signature_size,
-      MDType md_type = MDType::NONE) = 0;
+      MDType md_type = MDType::NONE,
+      size_t salt_length = 0) = 0;
 
     virtual bool verify(
       const std::vector<uint8_t>& contents,
       const std::vector<uint8_t>& signature,
-      MDType md_type = MDType::NONE)
+      MDType md_type = MDType::NONE,
+      size_t salt_length = 0)
     {
       return verify(
         contents.data(),
         contents.size(),
         signature.data(),
         signature.size(),
-        md_type);
+        md_type,
+        salt_length);
     }
 
     virtual JsonWebKeyRSAPrivate private_key_jwk_rsa(
