@@ -963,4 +963,16 @@ TEST_CASE("Sign and verify with RSA key")
       mdtype,
       verify_salt_legth));
   }
+
+  {
+    constexpr size_t sign_salt_length = 32, verify_salt_legth = 32;
+    const auto sig = kp->sign(contents, mdtype, sign_salt_length);
+    REQUIRE(pub->verify(
+      contents.data(),
+      contents.size(),
+      sig.data(),
+      sig.size(),
+      mdtype,
+      verify_salt_legth));
+  }
 }
