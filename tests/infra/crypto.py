@@ -213,8 +213,15 @@ def sign(algorithm: dict, key_pem: str, data: bytes) -> bytes:
     else:
         raise ValueError("Unsupported hash algorithm")
     if isinstance(key, rsa.RSAPrivateKey):
-        if algorithm["name"] == "RSASSA-PKCS1-v1_5":
-            return key.sign(data, padding.PKCS1v15(), hash_alg)
+        if algorithm["name"] == "RSA-PSS":
+            return key.sign(
+                data,
+                padding=padding.PSS(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    salt_length=algorithm.get("saltLength", 0),
+                ),
+                algorithm=hash_alg,
+            )
         else:
             raise ValueError("Unsupported signing algorithm")
     elif isinstance(key, ec.EllipticCurvePrivateKey):
@@ -254,7 +261,15 @@ def verify_signature(algorithm: dict, signature: bytes, data: bytes, key_pub_pem
     if isinstance(key_pub, rsa.RSAPublicKey):
         if algorithm["hash"] != "SHA-256":
             raise ValueError("Unsupported hash algorithm")
-        key_pub.verify(signature, data, padding.PKCS1v15(), hashes.SHA256())
+        key_pub.verify(
+            signature,
+            data,
+            padding.PSS(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                salt_length=algorithm.get("saltLength", 0),
+            ),
+            hashes.SHA256(),
+        )
     elif isinstance(key_pub, ec.EllipticCurvePublicKey):
         if algorithm["hash"] != "SHA-256":
             raise ValueError("Unsupported hash algorithm")

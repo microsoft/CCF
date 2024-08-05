@@ -31,8 +31,8 @@ import generate_config_rst
 # -- Project information -----------------------------------------------------
 
 project = "CCF"
-copyright = "2018, Microsoft Research"
-author = "Microsoft Research"
+copyright = "2024, Microsoft"
+author = "Microsoft"
 
 # The short X.Y version
 version = ""
@@ -176,7 +176,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "CCF.tex", "CCF Documentation", "Microsoft Research", "manual")
+    (master_doc, "CCF.tex", "CCF Documentation", "Microsoft", "manual")
 ]
 
 
@@ -221,7 +221,7 @@ breathe_default_project = "CCF"
 # Set up multiversion extension
 
 smv_tag_whitelist = None
-smv_branch_whitelist = r"^(main)|(release\/([3-9]|\d\d\d*)\.x)$"
+smv_branch_whitelist = r"^(main)|(release\/([4-9]|\d\d\d*)\.x)$"
 smv_remote_whitelist = None
 smv_outputdir_format = "{ref.name}"
 

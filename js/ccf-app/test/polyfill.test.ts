@@ -167,7 +167,7 @@ describe("polyfill", function () {
     });
   });
   describe("sign", function () {
-    it("performs RSASSA-PKCS1-v1_5 sign correctly", function () {
+    it("performs RSA-PSS sign correctly", function () {
       const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", {
         modulusLength: 2048,
         publicKeyEncoding: {
@@ -182,7 +182,7 @@ describe("polyfill", function () {
       const data = ccf.strToBuf("foo");
       const signature = ccf.crypto.sign(
         {
-          name: "RSASSA-PKCS1-v1_5",
+          name: "RSA-PSS",
           hash: "SHA-256",
         },
         privateKey,
@@ -198,6 +198,7 @@ describe("polyfill", function () {
             {
               key: publicKey,
               dsaEncoding: "ieee-p1363",
+              padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
             },
             new Uint8Array(signature),
           ),
@@ -208,7 +209,7 @@ describe("polyfill", function () {
       assert.isTrue(
         ccf.crypto.verifySignature(
           {
-            name: "RSASSA-PKCS1-v1_5",
+            name: "RSA-PSS",
             hash: "SHA-256",
           },
           publicKey,
@@ -392,7 +393,7 @@ describe("polyfill", function () {
     });
   });
   describe("verifySignature", function () {
-    it("performs RSASSA-PKCS1-v1_5 validation correctly", function () {
+    it("performs RSA-PSS validation correctly", function () {
       const { cert, publicKey, privateKey } = generateSelfSignedCert();
       const signer = crypto.createSign("sha256");
       const data = ccf.strToBuf("foo");
@@ -400,12 +401,13 @@ describe("polyfill", function () {
       signer.end();
       const signature = signer.sign({
         key: crypto.createPrivateKey(privateKey),
-        padding: crypto.constants.RSA_PKCS1_PADDING,
+        padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+        saltLength: 0,
       });
       assert.isTrue(
         ccf.crypto.verifySignature(
           {
-            name: "RSASSA-PKCS1-v1_5",
+            name: "RSA-PSS",
             hash: "SHA-256",
           },
           cert,
@@ -416,7 +418,7 @@ describe("polyfill", function () {
       assert.isTrue(
         ccf.crypto.verifySignature(
           {
-            name: "RSASSA-PKCS1-v1_5",
+            name: "RSA-PSS",
             hash: "SHA-256",
           },
           publicKey,
@@ -427,7 +429,7 @@ describe("polyfill", function () {
       assert.isNotTrue(
         ccf.crypto.verifySignature(
           {
-            name: "RSASSA-PKCS1-v1_5",
+            name: "RSA-PSS",
             hash: "SHA-256",
           },
           cert,
@@ -494,7 +496,7 @@ describe("polyfill", function () {
       assert.throws(() =>
         ccf.crypto.verifySignature(
           {
-            name: "RSASSA-PKCS1-v1_5",
+            name: "RSA-PSS",
             hash: "SHA-256",
           },
           publicKey,
@@ -543,7 +545,7 @@ describe("polyfill", function () {
       assert.throws(() =>
         ccf.crypto.verifySignature(
           {
-            name: "RSASSA-PKCS1-v1_5",
+            name: "RSA-PSS",
             hash: "SHA-256",
           },
           publicKey,

@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [5.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.2
 
+### Developer API
+
+#### C++
+
+- `RSAKeyPair::sign` and `RSAKeyPair::verify` now use `RSA-PSS` instead of `RSASSA-PKCS1-v1_5`.
+  - Users can specify `salt_length` (defaulted to `0`).
+
+#### TypeScript/JavaScript
+
+- `ccfapp.crypto.sign()` and `ccfapp.crypto.verifySignature()` no longer support `RSASSA-PKCS1-v1_5`, instead `RSA-PSS` has been added.
+  - `SigningAlgorithm` has been extended with optional `saltLength`, defaulted to `0` if not passed.
+
 ### Bug Fixes
 
 - The `/tx` endpoint returns more accurate error messages for incorrectly formed transactions ids (#6359).
