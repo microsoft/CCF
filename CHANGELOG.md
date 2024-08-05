@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 #### TypeScript/JavaScript
 
-- `/app/sign` and `/app/verify` no longer support `RSASSA-PKCS1-v1_5`, instead `RSA-PSS` has been added.
+- `ccfapp.crypto.sign()` and `ccfapp.crypto.verifySignature()` no longer support `RSASSA-PKCS1-v1_5`, instead `RSA-PSS` has been added.
   - `SigningAlgorithm` has been extended with optional `saltLength`, defaulted to `0` if not passed.
 
 ### Bug Fixes
