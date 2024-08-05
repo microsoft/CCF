@@ -81,7 +81,8 @@ namespace ccf::crypto
       size_t contents_size,
       const uint8_t* signature,
       size_t signature_size,
-      MDType md_type = MDType::NONE) = 0;
+      MDType md_type = MDType::NONE,
+      size_t salt_legth = 0) = 0;
 
     struct Components
     {

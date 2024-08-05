@@ -205,12 +205,14 @@ namespace ccf::crypto
   }
 
   std::vector<uint8_t> RSAKeyPair_OpenSSL::sign(
-    std::span<const uint8_t> d, MDType md_type) const
+    std::span<const uint8_t> d, MDType md_type, size_t salt_length) const
   {
     std::vector<uint8_t> r(2048);
     auto hash = OpenSSLHashProvider().Hash(d.data(), d.size(), md_type);
     Unique_EVP_PKEY_CTX pctx(key);
     CHECK1(EVP_PKEY_sign_init(pctx));
+    CHECK1(EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING));
+    CHECK1(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
     CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
     size_t olen = r.size();
     CHECK1(EVP_PKEY_sign(pctx, r.data(), &olen, hash.data(), hash.size()));
@@ -223,10 +225,11 @@ namespace ccf::crypto
     size_t contents_size,
     const uint8_t* signature,
     size_t signature_size,
-    MDType md_type)
+    MDType md_type,
+    size_t salt_length)
   {
     return RSAPublicKey_OpenSSL::verify(
-      contents, contents_size, signature, signature_size, md_type);
+      contents, contents_size, signature, signature_size, md_type, salt_length);
   }
 
   JsonWebKeyRSAPrivate RSAKeyPair_OpenSSL::private_key_jwk_rsa(

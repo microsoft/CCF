@@ -142,8 +142,8 @@ class CCFPolyfill implements CCF {
       let padding = undefined;
       const privKey = jscrypto.createPrivateKey(key);
       if (privKey.asymmetricKeyType == "rsa") {
-        if (algorithm.name === "RSASSA-PKCS1-v1_5") {
-          padding = jscrypto.constants.RSA_PKCS1_PADDING;
+        if (algorithm.name === "RSA-PSS") {
+          padding = jscrypto.constants.RSA_PKCS1_PSS_PADDING;
         } else {
           throw new Error("incompatible signing algorithm for given key type");
         }
@@ -168,6 +168,7 @@ class CCFPolyfill implements CCF {
         key: privKey,
         dsaEncoding: "ieee-p1363",
         padding: padding,
+        saltLength: algorithm.saltLength ?? 0,
       });
     },
     verifySignature(
@@ -179,8 +180,8 @@ class CCFPolyfill implements CCF {
       let padding = undefined;
       const pubKey = jscrypto.createPublicKey(key);
       if (pubKey.asymmetricKeyType == "rsa") {
-        if (algorithm.name === "RSASSA-PKCS1-v1_5") {
-          padding = jscrypto.constants.RSA_PKCS1_PADDING;
+        if (algorithm.name === "RSA-PSS") {
+          padding = jscrypto.constants.RSA_PKCS1_PSS_PADDING;
         } else {
           throw new Error("incompatible signing algorithm for given key type");
         }
@@ -211,6 +212,7 @@ class CCFPolyfill implements CCF {
           key: pubKey,
           dsaEncoding: "ieee-p1363",
           padding: padding,
+          saltLength: algorithm.saltLength ?? 0,
         },
         new Uint8Array(signature),
       );
