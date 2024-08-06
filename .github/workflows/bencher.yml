@@ -27,7 +27,7 @@ jobs:
           # Microbenchmarks
           ./tests.sh -VV -L benchmark
           # End to end performance tests
-          ./tests.sh -VV -L perf
+          ./tests.sh -VV -L perf -C perf
           # Convert microbenchmark output to bencher json
           source env/bin/activate
           PYTHONPATH=../tests python convert_pico_to_bencher.py

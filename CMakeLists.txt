@@ -1563,6 +1563,7 @@ if(BUILD_TESTS)
       NAME historical_query_perf_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
       LABEL perf PERF_LABEL "Historical Queries"
+      CONFIGURATIONS e2e_perf
     )
 
     add_e2e_test(
