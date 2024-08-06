@@ -30,7 +30,7 @@ File: `ci-containers-ghcr.yml`
 
 # CI
 
-Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests for SGX and Virtual. Run on every commit, including PRs from forks, gates merging. Also runs once a week, regardless of commits.
+Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests Virtual. Run on every commit, including PRs from forks, gates merging. Also runs once a week, regardless of commits.
 
 File: `ci.yml`
 3rd party dependencies: None
