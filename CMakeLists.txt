@@ -716,7 +716,6 @@ elseif(COMPILE_TARGET STREQUAL "snp")
            nghttp2.snp
            ${CMAKE_THREAD_LIBS_INIT}
   )
-  link_openenclave_host(ccf.snp)
 
   set_property(TARGET ccf.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
 
@@ -767,7 +766,6 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            nghttp2.host
            ${CMAKE_THREAD_LIBS_INIT}
   )
-  link_openenclave_host(ccf.virtual)
 
   set_property(TARGET ccf.virtual PROPERTY POSITION_INDEPENDENT_CODE ON)
 

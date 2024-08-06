@@ -30,11 +30,7 @@ if(COMPILE_TARGET STREQUAL "sgx")
        "libc++1-11;libc++abi1-11;open-enclave (>=${OE_VERSION})"
   )
 else()
-  list(
-    APPEND
-    CCF_DEB_DEPENDENCIES
-    "libc++1-15;libc++abi1-15;open-enclave-hostverify (>=${OE_VERSION}) | open-enclave (>=${OE_VERSION})"
-  )
+  list(APPEND CCF_DEB_DEPENDENCIES "libc++1-15;libc++abi1-15")
 endif()
 
 list(JOIN CCF_DEB_DEPENDENCIES ", " CPACK_DEBIAN_PACKAGE_DEPENDS)
