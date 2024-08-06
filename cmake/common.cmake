@@ -10,7 +10,6 @@ function(add_unit_test name)
   )
   enable_coverage(${name})
   target_link_libraries(${name} PRIVATE ${LINK_LIBCXX} ccfcrypto.host -pthread)
-  link_openenclave_host(${name})
   add_san(${name})
 
   add_test(NAME ${name} COMMAND ${name})

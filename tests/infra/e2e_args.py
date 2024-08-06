@@ -77,6 +77,7 @@ def cli_args(
         "--oe-binary",
         help="Path to Open Enclave binary folder",
         type=str,
+        nargs="?",
         default="/opt/openenclave/bin/",
     )
     parser.add_argument(

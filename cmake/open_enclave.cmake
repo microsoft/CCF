@@ -1,17 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-# We allow for Open Enclave (and Open Enclave HostVerify) to _not_ be installed,
-# with some limitations (e.g. virtual/snp builds cannot verify sgx attestation
-# reports). This can hopefully be removed by 5.x (see
-# https://github.com/microsoft/CCF/issues/5291).
-option(REQUIRE_OPENENCLAVE "Requires Open Enclave or HostVerify variant" ON)
-
-if(REQUIRE_OPENENCLAVE)
-  if(NOT COMPILE_TARGET STREQUAL "sgx")
-    set(COMPONENT "OEHOSTVERIFY")
-  endif()
-
+if(COMPILE_TARGET STREQUAL "sgx")
   # Find OpenEnclave package
   find_package(OpenEnclave 0.19.7 CONFIG REQUIRED)
 
@@ -52,16 +42,5 @@ if(REQUIRE_OPENENCLAVE)
     endfunction()
 
     set(OE_HOST_LIBRARY openenclave::oehost)
-  else()
-    set(OE_HOST_LIBRARY openenclave::oehostverify)
   endif()
-elseif(COMPILE_TARGET STREQUAL "sgx")
-  message(FATAL_ERROR "Open Enclave is required for SGX target")
 endif()
-
-function(link_openenclave_host name)
-  if(REQUIRE_OPENENCLAVE)
-    target_link_libraries(${name} PUBLIC ${OE_HOST_LIBRARY})
-    target_compile_definitions(${name} PUBLIC SGX_ATTESTATION_VERIFICATION)
-  endif()
-endfunction()
