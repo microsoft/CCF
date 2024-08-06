@@ -52,7 +52,7 @@ jobs:
         run: |
           set +x
           cd build
-          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark|perf"
+          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
 
       - name: "Upload logs"
         if: success() || failure()
@@ -88,7 +88,7 @@ jobs:
         run: |
           set +x
           cd build
-          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark|perf"
+          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
 
       - name: "Upload logs"
         if: success() || failure()
