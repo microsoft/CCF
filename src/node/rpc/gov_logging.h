@@ -4,13 +4,8 @@
 
 #include "ccf/ds/logger.h"
 
-#ifndef CCF_DISABLE_VERBOSE_LOGGING
-#  define GOV_TRACE_FMT CCF_LOG_FMT(TRACE, "gov")
-#  define GOV_DEBUG_FMT CCF_LOG_FMT(DEBUG, "gov")
-#else
-#  define GOV_TRACE_FMT(...) ((void)0)
-#  define GOV_DEBUG_FMT(...) ((void)0)
-#endif
+#define GOV_TRACE_FMT CCF_LOG_FMT(TRACE, "gov")
+#define GOV_DEBUG_FMT CCF_LOG_FMT(DEBUG, "gov")
 
 #define GOV_INFO_FMT CCF_LOG_FMT(INFO, "gov")
 #define GOV_FAIL_FMT CCF_LOG_FMT(FAIL, "gov")
