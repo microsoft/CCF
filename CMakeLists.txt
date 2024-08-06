@@ -551,7 +551,7 @@ set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
 )
 
-  # Same as virtual for the time being but will diverge soon
+# Same as virtual for the time being but will diverge soon
 if(COMPILE_TARGET STREQUAL "snp")
 
   # SNP version
