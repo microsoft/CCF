@@ -128,10 +128,6 @@ namespace host
             expect_enclave_file_suffix(path, ".enclave.so.signed", type);
           }
 
-#  ifdef CCF_DISABLE_VERBOSE_LOGGING
-          oe_log_set_callback(nullptr, nop_oe_logger);
-#  endif
-
           auto err = oe_create_ccf_enclave(
             path.c_str(),
             OE_ENCLAVE_TYPE_SGX,

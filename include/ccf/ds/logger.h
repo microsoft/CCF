@@ -17,13 +17,7 @@
 
 namespace ccf::logger
 {
-  static constexpr LoggerLevel MOST_VERBOSE =
-#ifdef CCF_DISABLE_VERBOSE_LOGGING
-    LoggerLevel::INFO
-#else
-    LoggerLevel::TRACE
-#endif
-    ;
+  static constexpr LoggerLevel MOST_VERBOSE = LoggerLevel::TRACE;
 
   static constexpr const char* LevelNames[] = {
     "trace", "debug", "info", "fail", "fatal"};
@@ -374,23 +368,11 @@ namespace ccf::logger
 #  define CCF_LOGGER_DEPRECATE(MACRO)
 #endif
 
-#ifndef CCF_DISABLE_VERBOSE_LOGGING
-#  define LOG_TRACE_FMT \
-    CCF_LOGGER_DEPRECATE(LOG_TRACE_FMT) CCF_LOG_FMT(TRACE, "")
-#  define LOG_DEBUG_FMT \
-    CCF_LOGGER_DEPRECATE(LOG_DEBUG_FMT) CCF_LOG_FMT(DEBUG, "")
+#define LOG_TRACE_FMT CCF_LOGGER_DEPRECATE(LOG_TRACE_FMT) CCF_LOG_FMT(TRACE, "")
+#define LOG_DEBUG_FMT CCF_LOGGER_DEPRECATE(LOG_DEBUG_FMT) CCF_LOG_FMT(DEBUG, "")
 
-#  define CCF_APP_TRACE CCF_LOG_FMT(TRACE, "app")
-#  define CCF_APP_DEBUG CCF_LOG_FMT(DEBUG, "app")
-#else
-// With verbose logging disabled by compile-time definition, these logging
-// macros are compile-time nops (and cannot be enabled by accident or malice)
-#  define LOG_TRACE_FMT(...) CCF_LOGGER_DEPRECATE(LOG_TRACE_FMT)((void)0)
-#  define LOG_DEBUG_FMT(...) CCF_LOGGER_DEPRECATE(LOG_DEBUG_FMT)((void)0)
-
-#  define CCF_APP_TRACE(...) ((void)0)
-#  define CCF_APP_DEBUG(...) ((void)0)
-#endif
+#define CCF_APP_TRACE CCF_LOG_FMT(TRACE, "app")
+#define CCF_APP_DEBUG CCF_LOG_FMT(DEBUG, "app")
 
 #define LOG_INFO_FMT CCF_LOGGER_DEPRECATE(LOG_INFO_FMT) CCF_LOG_FMT(INFO, "")
 #define LOG_FAIL_FMT CCF_LOGGER_DEPRECATE(LOG_FAIL_FMT) CCF_LOG_FMT(FAIL, "")

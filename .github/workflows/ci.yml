@@ -42,10 +42,6 @@ jobs:
             image: default
             nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
             options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
-          - name: sgx
-            image: sgx
-            nodes: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
     runs-on: ${{ matrix.platform.nodes }}
     container:
       image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-25-07-2024
@@ -64,15 +60,6 @@ jobs:
           cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF ..
           ninja
         shell: bash
-
-      - name: "Platform SGX"
-        run: |
-          sudo groupadd -fg $(/usr/bin/stat -Lc '%g' /dev/sgx/provision) sgx_prv
-          sudo usermod -a -G sgx_prv $(whoami)
-          samples/scripts/sgxinfo.sh
-          cat /proc/cpuinfo | grep flags | uniq
-        shell: bash
-        if: "${{ matrix.platform.name == 'sgx' }}"
 
       - name: "Platform SNP"
         run: |

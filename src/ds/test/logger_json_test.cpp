@@ -1,7 +1,5 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#undef CCF_DISABLE_VERBOSE_LOGGING
-
 #include "ccf/ds/logger.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
