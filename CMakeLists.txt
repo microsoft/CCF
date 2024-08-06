@@ -2,10 +2,10 @@
 # Licensed under the Apache 2.0 License.
 cmake_minimum_required(VERSION 3.16)
 
-set(ALLOWED_TARGETS "sgx;snp;virtual")
+set(ALLOWED_TARGETS "snp;virtual")
 
 set(COMPILE_TARGET
-    "sgx"
+    "snp"
     CACHE STRING
           "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
 )
@@ -76,23 +76,12 @@ endif()
 
 option(
   VERBOSE_LOGGING
-  "Enable verbose, potentially unsafe logging of enclave code. Affects logging level passed at run-time to end-to-end-tests, and compile-time max verbosity on SGX."
+  "Enable verbose, potentially unsafe logging of enclave code. Affects logging level passed at run-time to end-to-end-tests."
   OFF
 )
 set(TEST_LOGGING_LEVEL "info")
 if(VERBOSE_LOGGING)
   set(TEST_LOGGING_LEVEL "trace")
-endif()
-
-# NB: Toggling VERBOSE_LOGGING on non-SGX platforms causes no build change, so
-# should not cause a rebuild
-if(COMPILE_TARGET STREQUAL "sgx" AND NOT VERBOSE_LOGGING)
-  # Disable verbose, unsafe logging of enclave code. On some platforms it is
-  # safe to build with this logging enabled, and then it can be disabled at
-  # run-time. However this run-time control is not possible on SGX, so to ensure
-  # a given MRENCLAVE cannot leak via debug logging it must be removed at
-  # build-time, with this option.
-  add_compile_definitions(CCF_DISABLE_VERBOSE_LOGGING)
 endif()
 
 option(USE_NULL_ENCRYPTOR "Turn off encryption of ledger updates - debug only"
@@ -184,7 +173,6 @@ foreach(UTILITY ${CCF_TEST_UTILITIES})
 endforeach()
 
 # Install additional utilities
-install(PROGRAMS ${CCF_DIR}/samples/scripts/sgxinfo.sh DESTINATION bin)
 install(PROGRAMS ${CCF_DIR}/samples/scripts/snpinfo.sh DESTINATION bin)
 install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
 
@@ -199,15 +187,7 @@ install(
   USE_SOURCE_PERMISSIONS
 )
 
-if(COMPILE_TARGET STREQUAL "sgx")
-  # While virtual libraries need to be built for sgx for unit tests, these do
-  # not get installed to minimise installation size
-  set(INSTALL_VIRTUAL_LIBRARIES OFF)
-
-  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(DEFAULT_ENCLAVE_TYPE debug)
-  endif()
-elseif(COMPILE_TARGET STREQUAL "snp")
+if(COMPILE_TARGET STREQUAL "snp")
   set(INSTALL_VIRTUAL_LIBRARIES OFF)
 else()
   set(INSTALL_VIRTUAL_LIBRARIES ON)
@@ -268,10 +248,6 @@ list(APPEND CCHOST_SOURCES ${CCF_DIR}/src/host/main.cpp
      ${CCF_DIR}/src/host/env.cpp
 )
 
-if(COMPILE_TARGET STREQUAL "sgx")
-  list(APPEND CCHOST_SOURCES ${CCF_GENERATED_DIR}/ccf_u.cpp)
-endif()
-
 add_executable(cchost ${CCHOST_SOURCES})
 
 add_warning_checks(cchost)
@@ -282,9 +258,7 @@ target_compile_options(
 )
 target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
 
-if(COMPILE_TARGET STREQUAL "sgx")
-  target_compile_definitions(cchost PUBLIC PLATFORM_SGX)
-elseif(COMPILE_TARGET STREQUAL "snp")
+if(COMPILE_TARGET STREQUAL "snp")
   target_compile_definitions(cchost PUBLIC PLATFORM_SNP)
 elseif(COMPILE_TARGET STREQUAL "virtual")
   target_compile_definitions(cchost PUBLIC PLATFORM_VIRTUAL)
@@ -294,21 +268,11 @@ target_link_libraries(
   cchost PRIVATE uv ${TLS_LIBRARY} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
                  ${LINK_LIBCXX} ccfcrypto.host
 )
-if(COMPILE_TARGET STREQUAL "sgx")
-  target_link_libraries(cchost PRIVATE openenclave::oehost)
-endif()
 
 install(TARGETS cchost DESTINATION bin)
 
 # HTTP parser
-if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library_c(http_parser.enclave "${HTTP_PARSER_SOURCES}")
-  install(
-    TARGETS http_parser.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "snp")
+if(COMPILE_TARGET STREQUAL "snp")
   add_library(http_parser.snp "${HTTP_PARSER_SOURCES}")
   set_property(TARGET http_parser.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
   install(
@@ -353,19 +317,7 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/registry.cpp
 )
 
-if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library(ccf_js.enclave "${CCF_JS_SOURCES}")
-  target_link_libraries(ccf_js.enclave PUBLIC ccfcrypto.enclave quickjs.enclave)
-  # JS extension observes jwt_management.h header where this definition is
-  # required
-  target_compile_definitions(ccf_js.enclave PUBLIC SGX_ATTESTATION_VERIFICATION)
-  add_warning_checks(ccf_js.enclave)
-  install(
-    TARGETS ccf_js.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "snp")
+if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
   add_san(ccf_js.snp)
   target_link_libraries(ccf_js.snp PUBLIC ccfcrypto.snp quickjs.snp)
@@ -395,15 +347,7 @@ set(CCF_KV_SOURCES
     ${CCF_DIR}/src/kv/untyped_map_diff.cpp
 )
 
-if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library(ccf_kv.enclave "${CCF_KV_SOURCES}")
-  add_warning_checks(ccf_kv.enclave)
-  install(
-    TARGETS ccf_kv.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "snp")
+if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_kv.snp "${CCF_KV_SOURCES}")
   add_san(ccf_kv.snp)
   add_warning_checks(ccf_kv.snp)
@@ -426,23 +370,7 @@ if(INSTALL_VIRTUAL_LIBRARIES)
 endif()
 
 # CCF endpoints libs
-if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library(ccf_endpoints.enclave "${CCF_ENDPOINTS_SOURCES}")
-  target_include_directories(
-    ccf_endpoints.enclave PRIVATE ${CCF_DIR}/src/endpoints
-  )
-  target_link_libraries(
-    ccf_endpoints.enclave
-    PUBLIC qcbor.enclave t_cose.enclave http_parser.enclave ccfcrypto.enclave
-           ccf_kv.enclave
-  )
-  add_warning_checks(ccf_endpoints.enclave)
-  install(
-    TARGETS ccf_endpoints.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "snp")
+if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_endpoints.snp "${CCF_ENDPOINTS_SOURCES}")
   target_include_directories(ccf_endpoints.snp PRIVATE ${CCF_DIR}/src/endpoints)
   target_link_libraries(
@@ -497,16 +425,7 @@ set(CCF_NETWORK_TEST_ARGS
 )
 
 set(JS_GENERIC_SOURCES ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp)
-if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library(js_generic_base.enclave ${JS_GENERIC_SOURCES})
-  target_link_libraries(js_generic_base.enclave PUBLIC ccf.enclave)
-  add_lvi_mitigations(js_generic_base.enclave)
-  install(
-    TARGETS js_generic_base.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "snp")
+if(COMPILE_TARGET STREQUAL "snp")
   add_library(js_generic_base.snp STATIC ${JS_GENERIC_SOURCES})
   add_san(js_generic_base.snp)
   add_warning_checks(js_generic_base.snp)
@@ -632,54 +551,8 @@ set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
 )
 
-if(COMPILE_TARGET STREQUAL "sgx")
-  # enclave version
-  add_enclave_library(
-    ccf.enclave ${CCF_IMPL_SOURCE} ${CCF_GENERATED_DIR}/ccf_t.cpp
-  )
-
-  # PLATFORM_SGX to initialise Open Enclave SGX enclave creation and
-  # SGX_ATTESTATION_VERIFICATION to verify SGX attestation reports.
-  target_compile_definitions(
-    ccf.enclave PUBLIC PLATFORM_SGX SGX_ATTESTATION_VERIFICATION
-  )
-
-  add_warning_checks(ccf.enclave)
-
-  target_include_directories(
-    ccf.enclave SYSTEM
-    PUBLIC
-      $<BUILD_INTERFACE:${CCF_GENERATED_DIR}>
-      $<INSTALL_INTERFACE:include/ccf/> #< This contains the private headers
-                                        #< which are currently under src, and
-                                        #< should be removed or renamed
-      $<INSTALL_INTERFACE:include/>
-      $<INSTALL_INTERFACE:include/3rdparty/>
-  )
-
-  target_link_libraries(
-    ccf.enclave
-    PUBLIC http_parser.enclave
-           sss.enclave
-           ccf_js.enclave
-           ccf_endpoints.enclave
-           ccfcrypto.enclave
-           ccf_kv.enclave
-           nghttp2.enclave
-  )
-
-  add_lvi_mitigations(ccf.enclave)
-
-  install(
-    TARGETS ccf.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-
-  add_dependencies(ccf ccf.enclave)
-
   # Same as virtual for the time being but will diverge soon
-elseif(COMPILE_TARGET STREQUAL "snp")
+if(COMPILE_TARGET STREQUAL "snp")
 
   # SNP version
   add_library(ccf.snp STATIC ${CCF_IMPL_SOURCE})
