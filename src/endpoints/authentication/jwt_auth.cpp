@@ -178,7 +178,7 @@ namespace ccf
           "Current time {} is before token's Not Before (nbf) claim {}",
           time_now,
           token.payload_typed.nbf);
-          return nullptr;
+        return nullptr;
       }
       else if (time_now > token.payload_typed.exp)
       {
