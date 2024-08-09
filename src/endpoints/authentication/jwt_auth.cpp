@@ -126,7 +126,7 @@ namespace ccf
 
     if (!token_opt)
     {
-      error_reason = "Invalid JWT token";
+      // error is populated by extract_token
       return nullptr;
     }
 
@@ -178,6 +178,7 @@ namespace ccf
           "Current time {} is before token's Not Before (nbf) claim {}",
           time_now,
           token.payload_typed.nbf);
+          return nullptr;
       }
       else if (time_now > token.payload_typed.exp)
       {
@@ -185,6 +186,7 @@ namespace ccf
           "Current time {} is after token's Expiration Time (exp) claim {}",
           time_now,
           token.payload_typed.exp);
+        return nullptr;
       }
       else if (
         metadata.constraint &&
@@ -194,9 +196,11 @@ namespace ccf
           *metadata.constraint))
       {
         error_reason = fmt::format(
-          "Kid {} failed issuer constraint validation {}",
-          key_id,
+          "Token (iss: {}, tid: {}) failed issuer constraint validation {}",
+          token.payload_typed.iss,
+          token.payload_typed.tid.value_or("<undefined>"),
           *metadata.constraint);
+        return nullptr;
       }
       else
       {
@@ -208,7 +212,7 @@ namespace ccf
       }
     }
 
-    error_reason = "Can't authenticate JWT token";
+    error_reason = "Failed to authenticate JWT token";
     return nullptr;
   }
 
