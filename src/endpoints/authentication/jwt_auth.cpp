@@ -159,12 +159,13 @@ namespace ccf
       return nullptr;
     }
 
-    error_reason = "Cant authenticate JWT token: no matching public key found";
     for (const auto& metadata : *token_keys)
     {
       auto verifier = verifiers->get_verifier(metadata.cert);
       if (!::http::JwtVerifier::validate_token_signature(token, verifier))
       {
+        error_reason =
+          "Cannot authenticate JWT token: signature verification failed";
         continue;
       }
 
