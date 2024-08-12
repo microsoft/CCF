@@ -120,13 +120,12 @@ namespace ccf
     std::string& error_reason)
   {
     const auto& headers = ctx->get_request_headers();
+    error_reason = "Invalid JWT token";
 
     const auto token_opt =
       ::http::JwtVerifier::extract_token(headers, error_reason);
-
     if (!token_opt)
     {
-      error_reason = "Invalid JWT token";
       return nullptr;
     }
 
@@ -153,13 +152,14 @@ namespace ccf
       }
     }
 
-    if (!token_keys)
+    if (!token_keys || token_keys->empty())
     {
       error_reason =
         fmt::format("JWT signing key not found for kid {}", key_id);
       return nullptr;
     }
 
+    error_reason = "Cant authenticate JWT token: no matching public key found";
     for (const auto& metadata : *token_keys)
     {
       auto verifier = verifiers->get_verifier(metadata.cert);
@@ -208,7 +208,6 @@ namespace ccf
       }
     }
 
-    error_reason = "Can't authenticate JWT token";
     return nullptr;
   }
 
