@@ -165,7 +165,7 @@ namespace ccf
       if (!::http::JwtVerifier::validate_token_signature(token, verifier))
       {
         error_reason =
-          "Cannot authenticate JWT token: signature verification failed";
+          "Signature verification failed";
         continue;
       }
 
