@@ -164,8 +164,7 @@ namespace ccf
       auto verifier = verifiers->get_verifier(metadata.cert);
       if (!::http::JwtVerifier::validate_token_signature(token, verifier))
       {
-        error_reason =
-          "Signature verification failed";
+        error_reason = "Signature verification failed";
         continue;
       }
 
