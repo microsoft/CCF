@@ -309,7 +309,7 @@ namespace ccf::gov::endpoints
                 operation["authnPolicies"] = policies;
 
                 operation["mode"] = properties.mode;
-                operation["openApi"] = properties.authn_policies;
+                operation["openApi"] = properties.openapi;
 
                 operations[key.verb.c_str()] = operation;
 
