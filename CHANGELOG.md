@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Improved JWT authentication error messages (#6427).
 
+### Bug fix
+
+- In `GET gov/service/javascript-app`, `openApi` now correctly returns the schema set for the endpoint (#6430)
+
 ## [5.0.2]
 
 [5.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.2
