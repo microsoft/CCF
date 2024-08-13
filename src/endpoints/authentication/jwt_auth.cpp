@@ -123,10 +123,8 @@ namespace ccf
 
     const auto token_opt =
       ::http::JwtVerifier::extract_token(headers, error_reason);
-
     if (!token_opt)
     {
-      error_reason = "Invalid JWT token";
       return nullptr;
     }
 
@@ -153,7 +151,7 @@ namespace ccf
       }
     }
 
-    if (!token_keys)
+    if (!token_keys || token_keys->empty())
     {
       error_reason =
         fmt::format("JWT signing key not found for kid {}", key_id);
@@ -165,6 +163,7 @@ namespace ccf
       auto verifier = verifiers->get_verifier(metadata.cert);
       if (!::http::JwtVerifier::validate_token_signature(token, verifier))
       {
+        error_reason = "Signature verification failed";
         continue;
       }
 
@@ -208,7 +207,6 @@ namespace ccf
       }
     }
 
-    error_reason = "Can't authenticate JWT token";
     return nullptr;
   }
 
