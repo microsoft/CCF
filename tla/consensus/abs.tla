@@ -10,7 +10,7 @@ CONSTANT Servers, Terms, RequestLimit, StartTerm
 VARIABLE CLogs
 
 \* Max log length
-MaxLogLength == (RequestLimit*2) + Cardinality(Terms)
+MaxLogLength == 4 + (RequestLimit*2) + Cardinality(Terms)
 
 \* All possible completed logs
 Logs == [1..MaxLogLength -> Terms] 
