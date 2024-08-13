@@ -1297,28 +1297,28 @@ def run_interpreter_reuse(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    # cr.add(
-    #     "authz",
-    #     run,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
-    # )
+    cr.add(
+        "authz",
+        run,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
+    )
 
-    # cr.add(
-    #     "limits",
-    #     run_limits,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
-    # )
+    cr.add(
+        "limits",
+        run_limits,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
+    )
 
-    # cr.add(
-    #     "authn",
-    #     run_authn,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
-    #     initial_user_count=4,
-    #     initial_member_count=2,
-    # )
+    cr.add(
+        "authn",
+        run_authn,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
     cr.add(
         "content_types",
@@ -1327,18 +1327,18 @@ if __name__ == "__main__":
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
     )
 
-    # cr.add(
-    #     "api",
-    #     run_api,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
-    # )
+    cr.add(
+        "api",
+        run_api,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
+    )
 
-    # cr.add(
-    #     "interpreter_reuse",
-    #     run_interpreter_reuse,
-    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
-    # )
+    cr.add(
+        "interpreter_reuse",
+        run_interpreter_reuse,
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
+    )
 
     cr.run()
