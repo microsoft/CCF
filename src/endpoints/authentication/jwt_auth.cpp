@@ -120,7 +120,6 @@ namespace ccf
     std::string& error_reason)
   {
     const auto& headers = ctx->get_request_headers();
-    error_reason = "Invalid JWT token";
 
     const auto token_opt =
       ::http::JwtVerifier::extract_token(headers, error_reason);
