@@ -36,7 +36,7 @@ Extend(i) ==
             CLogs' = [CLogs EXCEPT ![i] = CLogs[i] \o s]
 
 \* The only possible actions are to append log entries.
-\* But construction there cannot be any conflicting log entries
+\* By construction there cannot be any conflicting log entries
 \* Log entries are copied if the node is not the longest.
 Next ==
     \E i \in Servers : 
