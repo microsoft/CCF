@@ -6,6 +6,7 @@ EXTENDS Sequences, SequencesExt, Naturals, FiniteSets
 CONSTANT Servers, Terms, RequestLimit, StartTerm
 
 \* Commit logs from each node
+\* Each log is append-only
 VARIABLE CLogs
 
 \* Max log length
@@ -25,8 +26,7 @@ Copy(i) ==
     \E j \in Servers : 
         /\ Len(CLogs[j]) > Len(CLogs[i])
         /\ \E l \in 1..(Len(CLogs[j]) - Len(CLogs[i])) : 
-            \E s \in [1..l -> Terms] :
-                CLogs' = [CLogs EXCEPT ![i] = CLogs[i] \o s]
+                CLogs' = [CLogs EXCEPT ![i] = CLogs[i] \o SubSeq(CLogs[j], Len(CLogs[i]) + 1, Len(CLogs[i]) + l)]
 
 \* The node with the longest log can extend its log.
 Extend(i) ==
@@ -36,7 +36,8 @@ Extend(i) ==
             CLogs' = [CLogs EXCEPT ![i] = CLogs[i] \o s]
 
 \* The only possible actions are to append log entries.
-\* There cannot be any conflicting log entries, since log entries are copied if the node is not the longest.
+\* But construction there cannot be any conflicting log entries
+\* Log entries are copied if the node is not the longest.
 Next ==
     \E i \in Servers : 
         \/ Copy(i) 
