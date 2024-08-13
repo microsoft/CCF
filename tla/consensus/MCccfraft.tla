@@ -126,4 +126,16 @@ DebugNotTooManySigsInv ==
     \A i \in Servers:
         FoldSeq(LAMBDA e, count: IF e.contentType = TypeSignature THEN count + 1 ELSE count, 0, log[i]) < 8
 
+----
+
+MappingToAbs == 
+  INSTANCE abs WITH
+    Servers <- Servers,
+    Terms <- 1..MaxTermLimit,
+    RequestLimit <- RequestLimit,
+    StartTerm <- StartTerm,
+    CLogs <- [i \in Servers |-> [j \in 1..commitIndex[i] |-> log[i][j].term]]
+
+RefinementToAbsProp == MappingToAbs!AbsSpec
+
 ===================================
