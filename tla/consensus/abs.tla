@@ -1,7 +1,7 @@
 ---- MODULE abs ----
 \* Abstract specification for a distributed consensus algorithm.
 
-EXTENDS Sequences, SequencesExt, Naturals, FiniteSets
+EXTENDS Sequences, SequencesExt, Naturals, FiniteSets, SequencesExt
 
 CONSTANT Servers, Terms, RequestLimit, StartTerm
 
@@ -12,8 +12,8 @@ VARIABLE CLogs
 \* Max log length
 MaxLogLength == (RequestLimit*2) + Cardinality(Terms)
 
-\* All possible logs
-Logs == [1..MaxLogLength -> Terms]
+\* All possible completed logs
+Logs == [1..MaxLogLength -> Terms] 
 
 Init ==
     CLogs \in [Servers -> {
@@ -44,5 +44,14 @@ Next ==
         \/ Extend(i)
 
 AbsSpec == Init /\ [][Next]_CLogs
+
+
+AppendOnlyProp ==
+    [][\A i \in Servers : IsPrefix(CLogs[i], CLogs'[i])]_CLogs
+
+NoConflicts ==
+    \A i, j \in Servers : 
+        \/ IsPrefix(CLogs[i], CLogs[j]) 
+        \/ IsPrefix(CLogs[j], CLogs[i])
 
 ====
