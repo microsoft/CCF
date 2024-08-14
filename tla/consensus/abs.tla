@@ -13,13 +13,15 @@ VARIABLE CLogs
 MaxLogLength == 4 + (RequestLimit*2) + Cardinality(Terms)
 
 \* All possible completed logs
-Logs == [1..MaxLogLength -> Terms] 
+Logs == [1..MaxLogLength -> Terms]
 
+InitialLogs == {
+    <<>>,
+    <<StartTerm, StartTerm>>,
+    <<StartTerm, StartTerm, StartTerm, StartTerm>>}
+    
 Init ==
-    CLogs \in [Servers -> {
-        << >>,
-        << StartTerm, StartTerm >>,
-        << StartTerm, StartTerm, StartTerm, StartTerm >>}]
+    CLogs \in [Servers -> InitialLogs]
 
 \* A node can copy a ledger suffix from another node.
 Copy(i) ==
