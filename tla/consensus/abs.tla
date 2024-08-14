@@ -3,17 +3,12 @@
 
 EXTENDS Sequences, SequencesExt, Naturals, FiniteSets, SequencesExt
 
-CONSTANT Servers, Terms, RequestLimit, StartTerm
+CONSTANT Servers, Terms, MaxLogLength, StartTerm
 
 \* Commit logs from each node
 \* Each log is append-only
 VARIABLE CLogs
 
-\* Max log length
-MaxLogLength == 4 + (RequestLimit*2) + Cardinality(Terms)
-
-\* All possible completed logs
-Logs == [1..MaxLogLength -> Terms]
 
 InitialLogs == {
     <<>>,
@@ -47,6 +42,9 @@ Next ==
 
 AbsSpec == Init /\ [][Next]_CLogs
 
+TypeOK ==
+    /\ CLogs \in [Servers -> 
+        UNION {[1..l -> Terms] : l \in 0..MaxLogLength}]
 
 AppendOnlyProp ==
     [][\A i \in Servers : IsPrefix(CLogs[i], CLogs'[i])]_CLogs

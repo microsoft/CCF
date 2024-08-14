@@ -132,7 +132,7 @@ MappingToAbs ==
   INSTANCE abs WITH
     Servers <- Servers,
     Terms <- 1..MaxTermLimit,
-    RequestLimit <- RequestLimit,
+    MaxLogLength <- 4 + (RequestLimit*2) + MaxTermLimit,
     StartTerm <- StartTerm,
     CLogs <- [i \in Servers |-> [j \in 1..commitIndex[i] |-> log[i][j].term]]
 
