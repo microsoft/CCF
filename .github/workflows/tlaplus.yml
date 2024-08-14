@@ -129,6 +129,12 @@ jobs:
           sudo apt install -y default-jre
           python3 ./tla/install_deps.py
 
+      - name: MCabs.cfg
+        run: |
+          set -x
+          cd tla/
+          ./tlc.sh -workers auto consensus/MCabs.tla -dumpTrace tla MCabs.trace.tla -dumpTrace json MCabs.json
+
       - name: MCccfraft.cfg
         run: |
           set -x
