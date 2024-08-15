@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Bug fix
 
-- JWT authentication correctly parses certificate that contain other certificates (#6440)
+- JWT authentication correctly parses certificates that contain other certificates (#6440)
 
 ## [5.0.3]
 
