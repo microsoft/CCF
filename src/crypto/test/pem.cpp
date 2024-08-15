@@ -10,6 +10,36 @@
 using namespace std;
 using namespace ccf::crypto;
 
+void check_bundles(
+  const std::string& single_cert,
+  const Pem& cert_pem,
+  bool lr_before = false,
+  bool lr_after = false)
+{
+  for (size_t count : {1, 2, 3, 10})
+  {
+    std::string certs;
+    for (size_t i = 0; i < count; ++i)
+    {
+      if (lr_before)
+      {
+        certs += "\n";
+      }
+      certs += single_cert;
+      if (lr_after)
+      {
+        certs += "\n";
+      }
+    }
+    auto bundle = split_x509_cert_bundle(certs);
+    REQUIRE(bundle.size() == count);
+    for (const auto& pem : bundle)
+    {
+      REQUIRE(pem == cert_pem);
+    }
+  }
+}
+
 TEST_CASE("Split x509 cert bundle")
 {
   REQUIRE(split_x509_cert_bundle("") == std::vector<Pem>{});
@@ -31,14 +61,11 @@ TEST_CASE("Split x509 cert bundle")
     "\n-----END CERTIFICATE-----";
   auto bundle = split_x509_cert_bundle(single_cert);
   const auto cert_pem = Pem(single_cert);
-  REQUIRE(bundle.size() == 1);
-  REQUIRE(bundle[0] == cert_pem);
 
-  const std::string two_certs = single_cert + single_cert;
-  bundle = split_x509_cert_bundle(two_certs);
-  REQUIRE(bundle.size() == 2);
-  REQUIRE(bundle[0] == cert_pem);
-  REQUIRE(bundle[1] == cert_pem);
+  check_bundles(single_cert, cert_pem);
+  check_bundles(single_cert, cert_pem, true);
+  check_bundles(single_cert, cert_pem, false, true);
+  check_bundles(single_cert, cert_pem, true, true);
 
   std::string bundle_with_invalid_suffix = single_cert + "ignored suffix";
   bundle = split_x509_cert_bundle(bundle_with_invalid_suffix);
