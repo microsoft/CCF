@@ -1,12 +1,13 @@
 ---- MODULE abs ----
 \* Abstract specification for a distributed consensus algorithm.
+\* Assumes that any node can inspect the state of all other nodes. 
 
-EXTENDS Sequences, SequencesExt, Naturals, FiniteSets, SequencesExt
+EXTENDS Sequences, SequencesExt, Naturals, FiniteSets
 
 CONSTANT Servers, Terms, MaxLogLength, StartTerm
 
 \* Commit logs from each node
-\* Each log is append-only
+\* Each log is append-only and the logs will never diverge.
 VARIABLE CLogs
 
 
@@ -18,7 +19,7 @@ InitialLogs == {
 Init ==
     CLogs \in [Servers -> InitialLogs]
 
-\* A node can copy a ledger suffix from another node.
+\* A node i can copy a ledger suffix from another node j.
 Copy(i) ==
     \E j \in Servers : 
         /\ Len(CLogs[j]) > Len(CLogs[i])
