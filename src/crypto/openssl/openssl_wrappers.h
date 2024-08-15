@@ -255,16 +255,34 @@ namespace ccf::crypto
       {}
     };
 
+    static const char pem_prefix[] = "-----BEGIN CERTIFICATE-----\n";
+    static constexpr size_t pem_prefix_len = sizeof(pem_prefix) - 1;
+
+    // Check BIO starts with PEM prefix before attempting to read it as PEM
+    // because PEM_read_bio_X509 is permissive and will skip over non-PEM data,
+    // which may for example result in a DER containing nested PEM being read
+    // as the nested certificate.
+    inline X509* read_pem(BIO* mem)
+    {
+      std::vector<char> buf(pem_prefix_len);
+      auto read = BIO_read(mem, buf.data(), pem_prefix_len);
+      BIO_reset(mem);
+      if (
+        read != pem_prefix_len ||
+        std::memcmp(buf.data(), pem_prefix, read) != 0)
+      {
+        return nullptr;
+      }
+      return PEM_read_bio_X509(mem, NULL, NULL, NULL);
+    };
+
     struct Unique_X509 : public Unique_SSL_OBJECT<X509, X509_new, X509_free>
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
       // p == nullptr is OK (e.g. wrong format)
       Unique_X509(BIO* mem, bool pem, bool check_null = false) :
         Unique_SSL_OBJECT(
-          pem ? PEM_read_bio_X509(mem, NULL, NULL, NULL) :
-                d2i_X509_bio(mem, NULL),
-          X509_free,
-          check_null)
+          pem ? read_pem(mem) : d2i_X509_bio(mem, NULL), X509_free, check_null)
       {}
       Unique_X509(X509* cert, bool check_null) :
         Unique_SSL_OBJECT(cert, X509_free, check_null)

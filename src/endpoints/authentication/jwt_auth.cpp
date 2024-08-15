@@ -160,18 +160,7 @@ namespace ccf
 
     for (const auto& metadata : *token_keys)
     {
-      auto pem_cert_str = fmt::format(
-        "-----BEGIN CERTIFICATE-----\n{}\n-----END CERTIFICATE-----",
-        crypto::b64_from_raw(metadata.cert.data(), metadata.cert.size()));
-      std::vector<uint8_t> pem_cert(pem_cert_str.begin(), pem_cert_str.end());
-      // get_verifier() superficially handles DER input, but verifier
-      // construction internally always attempts to decode the input as PEM
-      // first, and falls back to DER if that fails. Added to the fact that
-      // PEM_read_bio_X509() silently ignores anything preceding a PEM header,
-      // it means that DER certs that embed PEM certificates end up being parsed
-      // incorrectly as only the certificate they embed. This is a workaround to
-      // always construct PEM input and avoid this issue.
-      auto verifier = verifiers->get_verifier(pem_cert);
+      auto verifier = verifiers->get_verifier(metadata.cert);
       if (!::http::JwtVerifier::validate_token_signature(token, verifier))
       {
         error_reason = "Signature verification failed";
