@@ -256,6 +256,7 @@ namespace ccf::crypto
     };
 
     static const char pem_prefix[] = "-----BEGIN CERTIFICATE-----\n";
+    // -1 for the null terminator
     static constexpr size_t pem_prefix_len = sizeof(pem_prefix) - 1;
 
     // Check BIO starts with PEM prefix before attempting to read it as PEM
