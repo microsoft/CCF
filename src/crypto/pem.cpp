@@ -42,8 +42,15 @@ namespace ccf::crypto
     auto next_separator_start = pem.find(separator);
     while (next_separator_start != std::string_view::npos)
     {
-      pems.emplace_back(std::string(
-        pem.substr(separator_end, next_separator_start + separator.size())));
+      // Trim whitespace between certificates
+      while (separator_end < next_separator_start &&
+             std::isspace(pem[separator_end]))
+      {
+        ++separator_end;
+      }
+      pems.emplace_back(std::string(pem.substr(
+        separator_end,
+        (next_separator_start - separator_end) + separator.size())));
       separator_end = next_separator_start + separator.size();
       next_separator_start = pem.find(separator, separator_end);
     }

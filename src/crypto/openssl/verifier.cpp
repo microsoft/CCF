@@ -116,6 +116,12 @@ namespace ccf::crypto
     {
       Unique_BIO tcbio(*pem);
       Unique_X509 tc(tcbio, true);
+      if (tc == nullptr)
+      {
+        LOG_DEBUG_FMT("Failed to load certificate from PEM: {}", pem->str());
+        return false;
+      }
+
       CHECK1(X509_STORE_add_cert(store, tc));
     }
 
@@ -124,6 +130,11 @@ namespace ccf::crypto
     {
       Unique_BIO certbio(*pem);
       Unique_X509 cert(certbio, true);
+      if (cert == nullptr)
+      {
+        LOG_DEBUG_FMT("Failed to load certificate from PEM: {}", pem->str());
+        return false;
+      }
 
       CHECK1(sk_X509_push(chain_stack, cert));
       CHECK1(X509_up_ref(cert));
