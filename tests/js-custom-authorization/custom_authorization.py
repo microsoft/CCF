@@ -102,17 +102,19 @@ def set_issuer_with_a_key(primary, network, issuer, kid, constraint):
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
 
+def parse_error_message(r):
+    return r.body.json()["error"]["details"][0]["message"]
+
+
 def try_auth(primary, issuer, kid, iss, tid):
     with primary.client("user0") as c:
         LOG.info(f"Creating JWT with kid={kid} iss={iss} tenant={tid}")
-        r = c.get(
+        return c.get(
             "/app/jwt",
             headers=infra.jwt_issuer.make_bearer_header(
                 issuer.issue_jwt(kid, claims={"iss": iss, "tid": tid})
             ),
         )
-        assert r.status_code
-        return r.status_code
 
 
 @reqs.description("Test stack size limit")
@@ -135,7 +137,7 @@ def test_stack_size_limit(network, args):
                 depth *= 2
                 r = c.post("/app/recursive", body={"depth": depth})
                 if r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR:
-                    message = r.body.json()["error"]["details"][0]["message"]
+                    message = parse_error_message(r)
                     assert message == "InternalError: stack overflow", message
                     LOG.info(
                         f"Stack overflow at depth={depth} with max_stack_bytes={max_stack_bytes}"
@@ -184,14 +186,14 @@ def test_heap_size_limit(network, args):
         with temporary_js_limits(network, primary, max_heap_bytes=3 * 1024 * 1024):
             r = c.post("/app/alloc", body={"size": safe_size})
             assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
-            message = r.body.json()["error"]["details"][0]["message"]
+            message = parse_error_message(r)
             assert message == "InternalError: out of memory", message
 
         r = c.post("/app/alloc", body={"size": safe_size})
         assert r.status_code == http.HTTPStatus.OK, r
 
         r = c.post("/app/alloc", body={"size": unsafe_size})
-        message = r.body.json()["error"]["details"][0]["message"]
+        message = parse_error_message(r)
         assert message == "InternalError: out of memory", message
 
         # Lower the cap until we likely run out of heap out of user code,
@@ -231,7 +233,7 @@ def test_execution_time_limit(network, args):
         with temporary_js_limits(network, primary, max_execution_time_ms=30):
             r = c.post("/app/sleep", body={"time": safe_time})
             assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
-            message = r.body.json()["error"]["details"][0]["message"]
+            message = parse_error_message(r)
             assert message == "InternalError: interrupted", message
 
         r = c.post("/app/sleep", body={"time": safe_time})
@@ -239,7 +241,7 @@ def test_execution_time_limit(network, args):
 
         r = c.post("/app/sleep", body={"time": unsafe_time})
         assert r.status_code == http.HTTPStatus.INTERNAL_SERVER_ERROR, r
-        message = r.body.json()["error"]["details"][0]["message"]
+        message = parse_error_message(r)
         assert message == "InternalError: interrupted", message
 
         # Lower the cap until we likely run out of heap out of user code,
@@ -310,7 +312,7 @@ def test_cert_auth(network, args):
     with primary.client(local_user_id) as c:
         r = c.get("/app/cert")
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r
-        assert "Not After" in r.body.json()["error"]["details"][0]["message"], r
+        assert "Not After" in parse_error_message(r), r
 
     LOG.info("User with future cert cannot call user-authenticated endpoint")
     local_user_id = "in_the_future"
@@ -322,7 +324,7 @@ def test_cert_auth(network, args):
     with primary.client(local_user_id) as c:
         r = c.get("/app/cert")
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r
-        assert "Not Before" in r.body.json()["error"]["details"][0]["message"], r
+        assert "Not Before" in parse_error_message(r), r
 
     LOG.info("No leeway added to cert time evaluation")
     local_user_id = "just_expired"
@@ -333,7 +335,7 @@ def test_cert_auth(network, args):
     with primary.client(local_user_id) as c:
         r = c.get("/app/cert")
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r
-        assert "Not After" in r.body.json()["error"]["details"][0]["message"], r
+        assert "Not After" in parse_error_message(r), r
 
     return network
 
@@ -354,11 +356,13 @@ def test_jwt_auth(network, args):
     with primary.client("user0") as c:
         r = c.get("/app/jwt", headers=infra.jwt_issuer.make_bearer_header("garbage"))
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
+        assert "Malformed JWT" in parse_error_message(r), r
 
         jwt_mismatching_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
         jwt = infra.crypto.create_jwt({}, jwt_mismatching_key_priv_pem, jwt_kid)
         r = c.get("/app/jwt", headers=infra.jwt_issuer.make_bearer_header(jwt))
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
+        assert "JWT payload is missing required field" in parse_error_message(r), r
 
         r = c.get(
             "/app/jwt",
@@ -374,6 +378,7 @@ def test_jwt_auth(network, args):
             ),
         )
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
+        assert "is before token's Not Before" in parse_error_message(r), r
 
         LOG.info("Calling JWT with too-early exp")
         r = c.get(
@@ -383,6 +388,7 @@ def test_jwt_auth(network, args):
             ),
         )
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
+        assert "is after token's Expiration Time" in parse_error_message(r), r
 
     network.consortium.remove_jwt_issuer(primary, issuer.name)
     return network
@@ -404,22 +410,22 @@ def test_jwt_auth_msft_single_tenant(network, args):
 
     set_issuer_with_a_key(primary, network, issuer, jwt_kid, ISSUER_TENANT)
 
-    assert (
-        try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, "garbage_tenant")
-        == HTTPStatus.UNAUTHORIZED
-    )
-    assert (
-        try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, "{tenantid}")
-        == HTTPStatus.UNAUTHORIZED
-    )
-    assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, "garbage_tenant")
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert "failed issuer constraint validation" in parse_error_message(r), r
+
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, "{tenantid}")
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert "failed issuer constraint validation" in parse_error_message(r), r
+
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
+    assert r.status_code == HTTPStatus.OK, r
 
     network.consortium.remove_jwt_issuer(primary, issuer.name)
 
-    assert (
-        try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
-        == HTTPStatus.UNAUTHORIZED
-    )
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert f"key not found for kid {jwt_kid}" in parse_error_message(r), r
 
     return network
 
@@ -469,36 +475,32 @@ def test_jwt_auth_msft_multitenancy(network, args):
         metadata_fp.flush()
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
-    assert (
-        try_auth(primary, issuer, jwt_kid_1, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
-    )
-    assert (
-        try_auth(primary, issuer, jwt_kid_1, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
-        == HTTPStatus.OK
-    )
-    assert (
-        try_auth(primary, issuer, jwt_kid_1, ISSUER_TENANT, ANOTHER_TENANT_ID)
-        == HTTPStatus.UNAUTHORIZED
-    )
+    r = try_auth(primary, issuer, jwt_kid_1, ISSUER_TENANT, TENANT_ID)
+    assert r.status_code == HTTPStatus.OK, r
 
-    assert (
-        try_auth(primary, issuer, jwt_kid_2, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
-    )
-    assert (
-        try_auth(primary, issuer, jwt_kid_2, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
-        == HTTPStatus.UNAUTHORIZED
-    )
+    r = try_auth(primary, issuer, jwt_kid_1, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+    assert r.status_code == HTTPStatus.OK, r
+
+    r = try_auth(primary, issuer, jwt_kid_1, ISSUER_TENANT, ANOTHER_TENANT_ID)
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert "failed issuer constraint validation" in parse_error_message(r), r
+
+    r = try_auth(primary, issuer, jwt_kid_2, ISSUER_TENANT, TENANT_ID)
+    assert r.status_code == HTTPStatus.OK, r
+
+    r = try_auth(primary, issuer, jwt_kid_2, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert "failed issuer constraint validation" in parse_error_message(r), r
 
     network.consortium.remove_jwt_issuer(primary, issuer.name)
 
-    assert (
-        try_auth(primary, issuer, jwt_kid_1, ISSUER_TENANT, TENANT_ID)
-        == HTTPStatus.UNAUTHORIZED
-    )
-    assert (
-        try_auth(primary, issuer, jwt_kid_2, ISSUER_TENANT, TENANT_ID)
-        == HTTPStatus.UNAUTHORIZED
-    )
+    r = try_auth(primary, issuer, jwt_kid_1, ISSUER_TENANT, TENANT_ID)
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert f"key not found for kid {jwt_kid_1}" in parse_error_message(r), r
+
+    r = try_auth(primary, issuer, jwt_kid_2, ISSUER_TENANT, TENANT_ID)
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert f"key not found for kid {jwt_kid_2}" in parse_error_message(r), r
 
     return network
 
@@ -528,41 +530,39 @@ def test_jwt_auth_msft_same_kids_different_issuers(network, args):
 
     set_issuer_with_a_key(primary, network, issuer, jwt_kid, ISSUER_TENANT)
 
-    assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
-    assert (
-        try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
-        == HTTPStatus.UNAUTHORIZED
-    )
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
+    assert r.status_code == HTTPStatus.OK, r
+
+    r = try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert "failed issuer constraint validation" in parse_error_message(r), r
 
     set_issuer_with_a_key(primary, network, another, jwt_kid, ISSUER_ANOTHER)
 
-    assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
-    assert (
-        try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
-        == HTTPStatus.OK
-    )
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
+    assert r.status_code == HTTPStatus.OK, r
+
+    r = try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+    assert r.status_code == HTTPStatus.OK, r
 
     network.consortium.remove_jwt_issuer(primary, issuer.name)
 
-    assert (
-        try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
-        == HTTPStatus.UNAUTHORIZED
-    )
-    assert (
-        try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
-        == HTTPStatus.OK
-    )
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert "failed issuer constraint validation" in parse_error_message(r), r
+
+    r = try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+    assert r.status_code == HTTPStatus.OK, r
 
     network.consortium.remove_jwt_issuer(primary, another.name)
 
-    assert (
-        try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
-        == HTTPStatus.UNAUTHORIZED
-    )
-    assert (
-        try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
-        == HTTPStatus.UNAUTHORIZED
-    )
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert f"key not found for kid {jwt_kid}" in parse_error_message(r), r
+
+    r = try_auth(primary, another, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert f"key not found for kid {jwt_kid}" in parse_error_message(r), r
 
     return network
 
@@ -587,30 +587,30 @@ def test_jwt_auth_msft_same_kids_overwrite_constraint(network, args):
 
     set_issuer_with_a_key(primary, network, issuer, jwt_kid, COMMNON_ISSUER)
 
-    assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
-    assert (
-        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
-        == HTTPStatus.OK
-    )
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
+    assert r.status_code == HTTPStatus.OK, r
+
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+    assert r.status_code == HTTPStatus.OK, r
 
     set_issuer_with_a_key(primary, network, issuer, jwt_kid, ISSUER_TENANT)
 
-    assert try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID) == HTTPStatus.OK
-    assert (
-        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
-        == HTTPStatus.UNAUTHORIZED
-    )
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
+    assert r.status_code == HTTPStatus.OK, r
+
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert "failed issuer constraint validation" in parse_error_message(r), r
 
     network.consortium.remove_jwt_issuer(primary, issuer.name)
 
-    assert (
-        try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
-        == HTTPStatus.UNAUTHORIZED
-    )
-    assert (
-        try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
-        == HTTPStatus.UNAUTHORIZED
-    )
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_TENANT, TENANT_ID)
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert f"key not found for kid {jwt_kid}" in parse_error_message(r), r
+
+    r = try_auth(primary, issuer, jwt_kid, ISSUER_ANOTHER, ANOTHER_TENANT_ID)
+    assert r.status_code == HTTPStatus.UNAUTHORIZED, r
+    assert f"key not found for kid {jwt_kid}" in parse_error_message(r), r
 
     return network
 
@@ -1297,28 +1297,28 @@ def run_interpreter_reuse(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    # cr.add(
-    #     "authz",
-    #     run,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
-    # )
+    cr.add(
+        "authz",
+        run,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
+    )
 
-    # cr.add(
-    #     "limits",
-    #     run_limits,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
-    # )
+    cr.add(
+        "limits",
+        run_limits,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
+    )
 
-    # cr.add(
-    #     "authn",
-    #     run_authn,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
-    #     initial_user_count=4,
-    #     initial_member_count=2,
-    # )
+    cr.add(
+        "authn",
+        run_authn,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-authentication"),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
     cr.add(
         "content_types",
@@ -1327,18 +1327,18 @@ if __name__ == "__main__":
         js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
     )
 
-    # cr.add(
-    #     "api",
-    #     run_api,
-    #     nodes=infra.e2e_args.nodes(cr.args, 1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
-    # )
+    cr.add(
+        "api",
+        run_api,
+        nodes=infra.e2e_args.nodes(cr.args, 1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
+    )
 
-    # cr.add(
-    #     "interpreter_reuse",
-    #     run_interpreter_reuse,
-    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
-    # )
+    cr.add(
+        "interpreter_reuse",
+        run_interpreter_reuse,
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
+    )
 
     cr.run()

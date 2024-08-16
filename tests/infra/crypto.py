@@ -142,12 +142,17 @@ def generate_cert(
     )
     subject = x509.Name(
         [
-            x509.NameAttribute(NameOID.COMMON_NAME, cn),
+            x509.NameAttribute(
+                NameOID.COMMON_NAME, hashlib.sha256(cn.encode("ascii")).hexdigest()
+            ),
         ]
     )
     issuer = x509.Name(
         [
-            x509.NameAttribute(NameOID.COMMON_NAME, issuer_cn),
+            x509.NameAttribute(
+                NameOID.COMMON_NAME,
+                hashlib.sha256(issuer_cn.encode("ascii")).hexdigest(),
+            ),
         ]
     )
     builder = (
