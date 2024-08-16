@@ -33,22 +33,7 @@ set(NGHTTP2_SRCS
     ${NGHTTP2_PREFIX}/sfparse.c
 )
 
-if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library_c(nghttp2.enclave ${NGHTTP2_SRCS})
-  target_include_directories(
-    nghttp2.enclave PUBLIC $<BUILD_INTERFACE:${NGHTTP2_PREFIX}/includes>
-                           $<INSTALL_INTERFACE:include/3rdparty/nghttp2>
-  )
-  target_compile_definitions(
-    nghttp2.enclave PUBLIC -DNGHTTP2_STATICLIB -DHAVE_ARPA_INET_H=1
-  )
-
-  install(
-    TARGETS nghttp2.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "snp")
+if(COMPILE_TARGET STREQUAL "snp")
   add_library(nghttp2.snp STATIC ${NGHTTP2_SRCS})
   target_include_directories(
     nghttp2.snp PUBLIC $<BUILD_INTERFACE:${NGHTTP2_PREFIX}/includes>

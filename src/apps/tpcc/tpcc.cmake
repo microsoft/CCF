@@ -19,10 +19,6 @@ add_ccf_app(
   SRCS ${CMAKE_CURRENT_LIST_DIR}/app/tpcc.cpp
   SYSTEM_INCLUDE_DIRS ${CCF_DIR}/3rdparty/test
 )
-sign_app_library(
-  tpcc.enclave ${CMAKE_CURRENT_LIST_DIR}/app/oe_sign.conf
-  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
-)
 
 # tpcc unit tests
 add_unit_test(tpcc_test ${CMAKE_CURRENT_LIST_DIR}/app/test/tpcc.cpp)

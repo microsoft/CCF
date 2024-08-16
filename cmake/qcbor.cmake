@@ -9,19 +9,7 @@ set(QCBOR_SRCS
     "${QCBOR_SRC}/qcbor_encode.c" "${QCBOR_SRC}/qcbor_err_to_str.c"
     "${QCBOR_SRC}/UsefulBuf.c"
 )
-if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library_c(qcbor.enclave ${QCBOR_SRCS})
-  target_include_directories(
-    qcbor.enclave PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/QCBOR>
-                         $<INSTALL_INTERFACE:include/3rdparty/QCBOR>
-  )
-
-  install(
-    TARGETS qcbor.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "snp")
+if(COMPILE_TARGET STREQUAL "snp")
   add_library(qcbor.snp STATIC ${QCBOR_SRCS})
 
   target_include_directories(

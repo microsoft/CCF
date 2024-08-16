@@ -12,28 +12,7 @@ set(T_COSE_SRCS
     "${T_COSE_SRC}/t_cose_util.c"
     "${T_COSE_DIR}/crypto_adapters/t_cose_openssl_crypto.c"
 )
-if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library_c(t_cose.enclave ${T_COSE_SRCS})
-  target_compile_definitions(t_cose.enclave PRIVATE ${T_COSE_DEFS})
-  target_compile_options(t_cose.enclave INTERFACE ${T_COSE_OPTS_INTERFACE})
-
-  target_include_directories(t_cose.enclave PRIVATE "${T_COSE_SRC}")
-  target_include_directories(
-    t_cose.enclave
-    PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/t_cose/inc>
-           $<INSTALL_INTERFACE:include/3rdparty/t_cose/inc>
-  )
-
-  target_link_libraries(t_cose.enclave PUBLIC qcbor.enclave)
-  # This is needed to get the OpenSSL includes from Open Enclave
-  target_link_libraries(t_cose.enclave PRIVATE ${OE_OPENSSL_LIBRARY})
-
-  install(
-    TARGETS t_cose.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "snp")
+if(COMPILE_TARGET STREQUAL "snp")
   find_package(OpenSSL REQUIRED)
   add_library(t_cose.snp STATIC ${T_COSE_SRCS})
   target_compile_definitions(t_cose.snp PRIVATE ${T_COSE_DEFS})

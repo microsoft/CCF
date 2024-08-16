@@ -5,25 +5,7 @@ unset(CCF_VERSION)
 unset(CCF_RELEASE_VERSION)
 unset(CCF_VERSION_SUFFIX)
 
-option(
-  UNSAFE_VERSION
-  "Append unsafe suffix to project and targets. Should be used on platforms where log level is determined at build-time, to distinguish builds which are unsafely verbose."
-  OFF
-)
-
 set(CCF_PROJECT "ccf_${COMPILE_TARGET}")
-if(UNSAFE_VERSION)
-  if(NOT ${COMPILE_TARGET} STREQUAL "sgx")
-    message(
-      FATAL_ERROR
-        "UNSAFE_VERSION can only be set for sgx compile target (-DCOMPILE_TARGET=sgx)"
-    )
-  endif()
-  set(CCF_PROJECT "${CCF_PROJECT}_unsafe")
-  add_compile_definitions(UNSAFE_VERSION ENABLE_HISTORICAL_VERBOSE_LOGGING)
-  file(WRITE ${CMAKE_BINARY_DIR}/UNSAFE "UNSAFE")
-  install(FILES ${CMAKE_BINARY_DIR}/UNSAFE DESTINATION share)
-endif()
 
 # If possible, deduce project version from git environment
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)

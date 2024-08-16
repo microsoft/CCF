@@ -28,17 +28,7 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/sharing.cpp
 )
 
-if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library(ccfcrypto.enclave ${CCFCRYPTO_SRC})
-  target_link_libraries(ccfcrypto.enclave PUBLIC qcbor.enclave)
-  target_link_libraries(ccfcrypto.enclave PUBLIC t_cose.enclave)
-
-  install(
-    TARGETS ccfcrypto.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "snp")
+if(COMPILE_TARGET STREQUAL "snp")
   add_library(ccfcrypto.snp ${CCFCRYPTO_SRC})
   add_san(ccfcrypto.snp)
   target_compile_options(ccfcrypto.snp PUBLIC ${COMPILE_LIBCXX})

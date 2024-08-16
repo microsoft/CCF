@@ -27,26 +27,7 @@ message(STATUS "QuickJS prefix: ${QUICKJS_PREFIX} version: ${QUICKJS_VERSION}")
 
 # We need two versions of libquickjs, because it depends on libc
 
-if(COMPILE_TARGET STREQUAL "sgx")
-  add_enclave_library_c(quickjs.enclave ${QUICKJS_SRC})
-  target_compile_options(
-    quickjs.enclave
-    PUBLIC -DCONFIG_VERSION="${QUICKJS_VERSION}" -DEMSCRIPTEN
-           -DCONFIG_STACK_CHECK -DCONFIG_BIGNUM
-    PRIVATE $<$<CONFIG:Debug>:-DDUMP_LEAKS>
-  )
-  target_include_directories(
-    quickjs.enclave
-    PUBLIC $<BUILD_INTERFACE:${CCF_3RD_PARTY_EXPORTED_DIR}/quickjs>
-           $<INSTALL_INTERFACE:include/3rdparty/quickjs>
-  )
-
-  install(
-    TARGETS quickjs.enclave
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "snp")
+if(COMPILE_TARGET STREQUAL "snp")
   add_library(quickjs.snp STATIC ${QUICKJS_SRC})
   target_compile_options(
     quickjs.snp
