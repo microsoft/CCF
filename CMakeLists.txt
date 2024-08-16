@@ -123,9 +123,6 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/open_enclave.cmake
-        DESTINATION cmake
-)
 
 if(SAN AND LVI_MITIGATIONS)
   message(
@@ -140,18 +137,6 @@ if(TSAN AND LVI_MITIGATIONS)
       "Building with both TSAN and LVI mitigations is unsafe and deadlocks - choose one"
   )
 endif()
-
-add_custom_command(
-  COMMAND
-    openenclave::oeedger8r ${CCF_DIR}/edl/ccf.edl --search-path ${OE_INCLUDEDIR}
-    --trusted --trusted-dir ${CCF_GENERATED_DIR} --untrusted --untrusted-dir
-    ${CCF_GENERATED_DIR}
-  COMMAND mv ${CCF_GENERATED_DIR}/ccf_t.c ${CCF_GENERATED_DIR}/ccf_t.cpp
-  COMMAND mv ${CCF_GENERATED_DIR}/ccf_u.c ${CCF_GENERATED_DIR}/ccf_u.cpp
-  DEPENDS ${CCF_DIR}/edl/ccf.edl
-  OUTPUT ${CCF_GENERATED_DIR}/ccf_t.cpp ${CCF_GENERATED_DIR}/ccf_u.cpp
-  COMMENT "Generating code from EDL, and renaming to .cpp"
-)
 
 # Copy and install CCF utilities
 set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh verify_quote.sh)
@@ -317,6 +302,8 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/registry.cpp
 )
 
+set(OE_BINDIR "")
+
 if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
   add_san(ccf_js.snp)
@@ -463,10 +450,6 @@ add_ccf_app(
   LINK_LIBS_ENCLAVE js_generic_base.enclave
   LINK_LIBS_VIRTUAL js_generic_base.virtual
   LINK_LIBS_SNP js_generic_base.snp INSTALL_LIBS ON
-)
-sign_app_library(
-  js_generic.enclave ${CCF_DIR}/src/apps/js_generic/oe_sign.conf
-  ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem INSTALL_LIBS ON
 )
 # SNIPPET_END: JS generic application
 
@@ -703,16 +686,6 @@ install(FILES samples/constitutions/sandbox/resolve.js DESTINATION bin)
 install(FILES samples/constitutions/default/apply.js DESTINATION bin)
 install(FILES tests/start_network.py DESTINATION bin)
 install(FILES tests/requirements.txt DESTINATION bin)
-
-# Generate an ephemeral signing key
-add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
-  COMMAND openssl genrsa -out ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem -3
-          3072
-)
-add_custom_target(
-  signing_key ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/signing_key.pem
-)
 
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
@@ -1007,17 +980,14 @@ if(BUILD_TESTS)
       PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
     )
 
-    if(NOT UNSAFE_VERSION)
-      # Unsafe builds do not follow normal version conventions
-      add_test(NAME versionifier_test
-               COMMAND ${PYTHON}
-                       ${CMAKE_SOURCE_DIR}/python/src/ccf/_versionifier.py
-      )
+    add_test(NAME versionifier_test
+             COMMAND ${PYTHON}
+                     ${CMAKE_SOURCE_DIR}/python/src/ccf/_versionifier.py
+    )
 
-      add_test(NAME github_version_lts_test
-               COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
-      )
-    endif()
+    add_test(NAME github_version_lts_test
+             COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
+    )
   endif()
 
   if(NOT TSAN)
@@ -1336,9 +1306,7 @@ if(BUILD_TESTS)
       list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
     endif()
 
-    if(NOT UNSAFE_VERSION AND NOT SAN)
-      # Unsafe builds do not follow normal version conventions LTS nodes may
-      # also require different runtime libraries
+    if(NOT SAN)
       add_e2e_test(
         NAME lts_compatibility
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py

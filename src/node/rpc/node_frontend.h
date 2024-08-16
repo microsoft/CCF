@@ -1472,11 +1472,7 @@ namespace ccf
         GetVersion::Out result;
         result.ccf_version = ccf::ccf_version;
         result.quickjs_version = ccf::quickjs_version;
-#ifdef UNSAFE_VERSION
-        result.unsafe = true;
-#else
         result.unsafe = false;
-#endif
 
         return make_success(result);
       };
