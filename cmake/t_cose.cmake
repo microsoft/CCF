@@ -9,7 +9,7 @@ set(T_COSE_DEFS -DT_COSE_USE_OPENSSL_CRYPTO=1
 )
 set(T_COSE_SRCS
     "${T_COSE_SRC}/t_cose_parameters.c" "${T_COSE_SRC}/t_cose_sign1_verify.c"
-    "${T_COSE_SRC}/t_cose_util.c"
+    "${T_COSE_SRC}/t_cose_sign1_sign.c" "${T_COSE_SRC}/t_cose_util.c"
     "${T_COSE_DIR}/crypto_adapters/t_cose_openssl_crypto.c"
 )
 if(COMPILE_TARGET STREQUAL "snp")
