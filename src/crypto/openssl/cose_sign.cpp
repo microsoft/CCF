@@ -79,21 +79,6 @@ namespace
     // Explicitly leave unprotected headers empty to be an empty map.
     QCBOREncode_CloseMap(cbor_encode);
   }
-
-  void encode_payload(
-    QCBOREncodeContext* cbor_encode, std::span<const uint8_t> payload)
-  {
-    q_useful_buf_c payload_to_encode{payload.data(), payload.size()};
-
-    QCBOREncode_BstrWrap(cbor_encode);
-    QCBOREncode_OpenMap(cbor_encode);
-
-    QCBOREncode_AddBytesToMap(cbor_encode, "data", payload_to_encode);
-
-    QCBOREncode_CloseMap(cbor_encode);
-    // Don't close BstrWrap because the signature encoding expects it to be
-    // open.
-  }
 }
 
 namespace ccf::crypto
@@ -120,9 +105,21 @@ namespace ccf::crypto
 
     encode_parameters_custom(&sign_ctx, &cbor_encode, protected_headers);
 
-    encode_payload(&cbor_encode, payload);
+    // Mark empty payload manually.
+    QCBOREncode_AddNULL(&cbor_encode);
 
-    auto err = t_cose_sign1_encode_signature(&sign_ctx, &cbor_encode);
+    // If payload is empty - we still want to sign. Putting NULL_Q_USEFUL_BUF_C,
+    // however, makes t_cose think that the payload is included into the
+    // context. Luckily, passing empty string instead works, so t_cose works
+    // emplaces it for TBS (to be signed) as an empty byte sequence.
+    q_useful_buf_c payload_to_encode = {"", 0};
+    if (!payload.empty())
+    {
+      payload_to_encode.ptr = payload.data();
+      payload_to_encode.len = payload.size();
+    }
+    auto err = t_cose_sign1_encode_signature_aad_internal(
+      &sign_ctx, NULL_Q_USEFUL_BUF_C, payload_to_encode, &cbor_encode);
     if (err)
     {
       throw COSESignError(

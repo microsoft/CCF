@@ -31,6 +31,7 @@
 #include <qcbor/qcbor_spiffy_decode.h>
 #include <span>
 #include <t_cose/t_cose_sign1_sign.h>
+#include <t_cose/t_cose_sign1_verify.h>
 
 using namespace std;
 using namespace ccf::crypto;
@@ -199,9 +200,33 @@ std::string qcbor_buf_to_string(const UsefulBufC& buf)
   return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
 }
 
-void require_match_content(
+t_cose_err_t verify_detached(
+  EVP_PKEY* key, std::span<const uint8_t> buf, std::span<const uint8_t> payload)
+{
+  t_cose_key cose_key;
+  cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
+  cose_key.k.key_ptr = key;
+
+  t_cose_sign1_verify_ctx verify_ctx;
+  t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
+  t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
+
+  q_useful_buf_c buf_;
+  buf_.ptr = buf.data();
+  buf_.len = buf.size();
+
+  q_useful_buf_c payload_;
+  payload_.ptr = payload.data();
+  payload_.len = payload.size();
+
+  t_cose_err_t error = t_cose_sign1_verify_detached(
+    &verify_ctx, buf_, NULL_Q_USEFUL_BUF_C, payload_, nullptr);
+
+  return error;
+}
+
+void require_match_headers(
   const std::unordered_map<int64_t, std::string>& headers,
-  const std::vector<uint8_t>& payload,
   const std::vector<uint8_t>& cose_sign)
 {
   UsefulBufC msg{cose_sign.data(), cose_sign.size()};
@@ -260,32 +285,8 @@ void require_match_content(
   QCBORItem item;
   QCBORDecode_VGetNextConsume(&ctx, &item);
 
-  // 3. Check payload
-  struct q_useful_buf_c payload_buf;
-  QCBORDecode_EnterBstrWrapped(
-    &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &payload_buf);
-  QCBORDecode_EnterMap(&ctx, NULL);
-
-  QCBORItem payload_items[2];
-
-  payload_items[0].label.string = UsefulBuf_FromSZ("data");
-  payload_items[0].uLabelType = QCBOR_TYPE_TEXT_STRING;
-  payload_items[0].uDataType = QCBOR_TYPE_BYTE_STRING;
-
-  payload_items[1].uLabelType = QCBOR_TYPE_NONE;
-
-  QCBORDecode_GetItemsInMap(&ctx, payload_items);
-  REQUIRE_EQ(QCBORDecode_GetError(&ctx), QCBOR_SUCCESS);
-  REQUIRE_NE(payload_items[0].uDataType, QCBOR_TYPE_NONE);
-
-  REQUIRE_EQ(payload_items[0].val.string.len, payload.size());
-  REQUIRE_EQ(
-    std::memcmp(
-      payload_items[0].val.string.ptr, payload.data(), payload.size()),
-    0);
-
-  QCBORDecode_ExitMap(&ctx);
-  QCBORDecode_ExitBstrWrapped(&ctx);
+  // 3. Skip payload (detached);
+  QCBORDecode_GetNext(&ctx, &item);
 
   // 4. skip signature (should be verified by cose verifier).
   QCBORDecode_GetNext(&ctx, &item);
@@ -1227,31 +1228,31 @@ TEST_CASE("COSE sign & verify")
     {36, "thirsty six"}, {47, "hungry seven"}};
   auto cose_sign = cose_sign1(*kp, protected_headers, payload);
 
-  if constexpr (false) // enable to debug payload, to check decoded info try use
-                       // https://gluecose.github.io/cose-viewer
+  if constexpr (false) // enable to see the whole cose_sign as byte string
   {
-    std::cout << "Serialised payload: " << std::hex << std::uppercase
+    std::cout << "Public key: " << kp->public_key_pem().str() << std::endl;
+    std::cout << "Serialised cose: " << std::hex << std::uppercase
               << std::setw(2) << std::setfill('0');
     for (uint8_t x : cose_sign)
       std::cout << static_cast<int>(x) << ' ';
     std::cout << std::endl;
+    std::cout << "Raw payload: ";
+    for (uint8_t x : payload)
+      std::cout << static_cast<int>(x) << ' ';
+    std::cout << std::endl;
   }
 
-  require_match_content(protected_headers, payload, cose_sign);
+  require_match_headers(protected_headers, cose_sign);
 
-  auto verifier =
-    ccf::crypto::make_cose_verifier_from_key(kp->public_key_pem());
-  std::span<uint8_t> authned_content{};
-  REQUIRE(verifier->verify(cose_sign, authned_content));
+  REQUIRE_EQ(verify_detached(*kp, cose_sign, payload), T_COSE_SUCCESS);
 
-  // Another key - can't verify
-  auto another_verifier = ccf::crypto::make_cose_verifier_from_key(
-    ccf::crypto::make_key_pair(CurveID::SECP384R1)->public_key_pem());
-
-  REQUIRE_FALSE(another_verifier->verify(cose_sign, authned_content));
+  // Wrong payload, must not pass verification.
+  REQUIRE_EQ(
+    verify_detached(*kp, cose_sign, std::vector<uint8_t>{1, 2, 3}),
+    T_COSE_ERR_SIG_VERIFY);
 
   // Empty headers and payload handled correctly
   cose_sign = cose_sign1(*kp, {}, {});
-  require_match_content({}, {}, cose_sign);
-  REQUIRE(verifier->verify(cose_sign, authned_content));
+  require_match_headers({}, cose_sign);
+  REQUIRE_EQ(verify_detached(*kp, cose_sign, {}), T_COSE_SUCCESS);
 }
