@@ -14,7 +14,7 @@ namespace
     1; // Duplicate of t_cose::COSE_HEADER_PARAM_ALG to keep it compatible.
 
   size_t estimate_buffer_size(
-    const std::unordered_map<int64_t, std::string>& protected_headers,
+    const ccf::crypto::COSEProtectedHeaders& protected_headers,
     std::span<const uint8_t> payload)
   {
     size_t result =
@@ -38,12 +38,12 @@ namespace
   void encode_protected_headers(
     t_cose_sign1_sign_ctx* ctx,
     QCBOREncodeContext* encode_ctx,
-    const std::unordered_map<int64_t, std::string>& protected_headers)
+    const ccf::crypto::COSEProtectedHeaders& protected_headers)
   {
     QCBOREncode_BstrWrap(encode_ctx);
     QCBOREncode_OpenMap(encode_ctx);
 
-    // This's what the original implementation of `encode_protected_parameters`
+    // This's what the t_cose implementation of `encode_protected_parameters`
     // sets unconditionally.
     QCBOREncode_AddInt64ToMapN(
       encode_ctx, COSE_HEADER_PARAM_ALG, ctx->cose_algorithm_id);
@@ -68,7 +68,7 @@ namespace
   void encode_parameters_custom(
     struct t_cose_sign1_sign_ctx* me,
     QCBOREncodeContext* cbor_encode,
-    const std::unordered_map<int64_t, std::string>& protected_headers)
+    const ccf::crypto::COSEProtectedHeaders& protected_headers)
   {
     QCBOREncode_AddTag(cbor_encode, CBOR_TAG_COSE_SIGN1);
     QCBOREncode_OpenArray(cbor_encode);
@@ -85,7 +85,7 @@ namespace ccf::crypto
 {
   std::vector<uint8_t> cose_sign1(
     EVP_PKEY* key,
-    const std::unordered_map<int64_t, std::string>& protected_headers,
+    const COSEProtectedHeaders& protected_headers,
     std::span<const uint8_t> payload)
   {
     const auto buf_size = estimate_buffer_size(protected_headers, payload);
