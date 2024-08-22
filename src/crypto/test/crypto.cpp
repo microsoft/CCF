@@ -14,6 +14,8 @@
 #include "ccf/crypto/verifier.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
+#include "crypto/openssl/cose_sign.h"
+#include "crypto/openssl/cose_verifier.h"
 #include "crypto/openssl/key_pair.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "crypto/openssl/symmetric_key.h"
@@ -26,7 +28,10 @@
 #include <ctime>
 #include <doctest/doctest.h>
 #include <optional>
+#include <qcbor/qcbor_spiffy_decode.h>
 #include <span>
+#include <t_cose/t_cose_sign1_sign.h>
+#include <t_cose/t_cose_sign1_verify.h>
 
 using namespace std;
 using namespace ccf::crypto;
@@ -188,6 +193,107 @@ ccf::crypto::Pem generate_self_signed_cert(
 
   return ccf::crypto::create_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
+}
+
+std::string qcbor_buf_to_string(const UsefulBufC& buf)
+{
+  return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
+}
+
+t_cose_err_t verify_detached(
+  EVP_PKEY* key, std::span<const uint8_t> buf, std::span<const uint8_t> payload)
+{
+  t_cose_key cose_key;
+  cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
+  cose_key.k.key_ptr = key;
+
+  t_cose_sign1_verify_ctx verify_ctx;
+  t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
+  t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
+
+  q_useful_buf_c buf_;
+  buf_.ptr = buf.data();
+  buf_.len = buf.size();
+
+  q_useful_buf_c payload_;
+  payload_.ptr = payload.data();
+  payload_.len = payload.size();
+
+  t_cose_err_t error = t_cose_sign1_verify_detached(
+    &verify_ctx, buf_, NULL_Q_USEFUL_BUF_C, payload_, nullptr);
+
+  return error;
+}
+
+void require_match_headers(
+  const std::unordered_map<int64_t, std::string>& headers,
+  const std::vector<uint8_t>& cose_sign)
+{
+  UsefulBufC msg{cose_sign.data(), cose_sign.size()};
+
+  // 0. Init and verify COSE tag
+  QCBORDecodeContext ctx;
+  QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
+  QCBORDecode_EnterArray(&ctx, nullptr);
+  REQUIRE_EQ(QCBORDecode_GetError(&ctx), QCBOR_SUCCESS);
+  REQUIRE_EQ(QCBORDecode_GetNthTagOfLast(&ctx, 0), CBOR_TAG_COSE_SIGN1);
+
+  // 1. Protected headers
+  struct q_useful_buf_c protected_parameters;
+  QCBORDecode_EnterBstrWrapped(
+    &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
+  QCBORDecode_EnterMap(&ctx, NULL);
+
+  QCBORItem header_items[headers.size() + 2];
+  size_t curr_id{0};
+  for (const auto& kv : headers)
+  {
+    header_items[curr_id].label.int64 = kv.first;
+    header_items[curr_id].uLabelType = QCBOR_TYPE_INT64;
+    header_items[curr_id].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+    curr_id++;
+  }
+
+  // Verify 'alg' is default-encoded.
+  header_items[curr_id].label.int64 = 1;
+  header_items[curr_id].uLabelType = QCBOR_TYPE_INT64;
+  header_items[curr_id].uDataType = QCBOR_TYPE_INT64;
+
+  header_items[++curr_id].uLabelType = QCBOR_TYPE_NONE;
+
+  QCBORDecode_GetItemsInMap(&ctx, header_items);
+  REQUIRE_EQ(QCBORDecode_GetError(&ctx), QCBOR_SUCCESS);
+
+  curr_id = 0;
+  for (const auto& kv : headers)
+  {
+    REQUIRE_NE(header_items[curr_id].uDataType, QCBOR_TYPE_NONE);
+    REQUIRE_EQ(
+      qcbor_buf_to_string(header_items[curr_id].val.string), kv.second);
+
+    curr_id++;
+  }
+
+  // 'alg'
+  REQUIRE_NE(header_items[curr_id].uDataType, QCBOR_TYPE_NONE);
+
+  QCBORDecode_ExitMap(&ctx);
+  QCBORDecode_ExitBstrWrapped(&ctx);
+
+  // 2. Unprotected headers (skip).
+  QCBORItem item;
+  QCBORDecode_VGetNextConsume(&ctx, &item);
+
+  // 3. Skip payload (detached);
+  QCBORDecode_GetNext(&ctx, &item);
+
+  // 4. skip signature (should be verified by cose verifier).
+  QCBORDecode_GetNext(&ctx, &item);
+
+  // 5. Decode can be completed.
+  QCBORDecode_ExitArray(&ctx);
+  REQUIRE_EQ(QCBORDecode_Finish(&ctx), QCBOR_SUCCESS);
 }
 
 TEST_CASE("Check verifier handles nested certs for both PEM and DER inputs")
@@ -1109,4 +1215,44 @@ TEST_CASE("Sign and verify with RSA key")
       mdtype,
       verify_salt_legth));
   }
+}
+
+TEST_CASE("COSE sign & verify")
+{
+  std::shared_ptr<KeyPair_OpenSSL> kp =
+    std::dynamic_pointer_cast<KeyPair_OpenSSL>(
+      ccf::crypto::make_key_pair(CurveID::SECP384R1));
+
+  std::vector<uint8_t> payload{1, 10, 42, 43, 44, 45, 100};
+  const std::unordered_map<int64_t, std::string> protected_headers = {
+    {36, "thirsty six"}, {47, "hungry seven"}};
+  auto cose_sign = cose_sign1(*kp, protected_headers, payload);
+
+  if constexpr (false) // enable to see the whole cose_sign as byte string
+  {
+    std::cout << "Public key: " << kp->public_key_pem().str() << std::endl;
+    std::cout << "Serialised cose: " << std::hex << std::uppercase
+              << std::setw(2) << std::setfill('0');
+    for (uint8_t x : cose_sign)
+      std::cout << static_cast<int>(x) << ' ';
+    std::cout << std::endl;
+    std::cout << "Raw payload: ";
+    for (uint8_t x : payload)
+      std::cout << static_cast<int>(x) << ' ';
+    std::cout << std::endl;
+  }
+
+  require_match_headers(protected_headers, cose_sign);
+
+  REQUIRE_EQ(verify_detached(*kp, cose_sign, payload), T_COSE_SUCCESS);
+
+  // Wrong payload, must not pass verification.
+  REQUIRE_EQ(
+    verify_detached(*kp, cose_sign, std::vector<uint8_t>{1, 2, 3}),
+    T_COSE_ERR_SIG_VERIFY);
+
+  // Empty headers and payload handled correctly
+  cose_sign = cose_sign1(*kp, {}, {});
+  require_match_headers({}, cose_sign);
+  REQUIRE_EQ(verify_detached(*kp, cose_sign, {}), T_COSE_SUCCESS);
 }
