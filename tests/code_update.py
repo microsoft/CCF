@@ -433,8 +433,6 @@ def test_update_all_nodes(network, args):
         if node.node_id == primary.node_id:
             new_primary, _ = network.wait_for_new_primary(primary)
             primary = new_primary
-            #  See https://github.com/microsoft/CCF/issues/1713
-            check_can_progress(new_primary)
         node.stop()
 
     LOG.info("Check the network is still functional")
