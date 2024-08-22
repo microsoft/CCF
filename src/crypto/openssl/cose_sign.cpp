@@ -134,9 +134,8 @@ namespace ccf::crypto
         fmt::format("Can't finish QCBOR encoding with error code {}", err));
     }
 
-    std::vector<uint8_t> cose_sign(signed_cose.len);
-    std::memcpy((void*)cose_sign.data(), signed_cose.ptr, signed_cose.len);
-
-    return cose_sign;
+    return {
+      static_cast<const uint8_t*>(signed_cose.ptr),
+      static_cast<const uint8_t*>(signed_cose.ptr) + signed_cose.len};
   }
 }
