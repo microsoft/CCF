@@ -342,7 +342,7 @@ def test_add_node_with_bad_code(network, args):
     )
 
     new_code_id = infra.utils.get_code_id(
-        args.enclave_type, args.enclave_platform, args.oe_binary, replacement_package
+        args.enclave_type, args.enclave_platform, replacement_package
     )
 
     LOG.info(f"Adding a node with unsupported code id {new_code_id}")
@@ -378,10 +378,10 @@ def test_update_all_nodes(network, args):
     primary, _ = network.find_nodes()
 
     first_code_id = infra.utils.get_code_id(
-        args.enclave_type, args.enclave_platform, args.oe_binary, args.package
+        args.enclave_type, args.enclave_platform, args.package
     )
     new_code_id = infra.utils.get_code_id(
-        args.enclave_type, args.enclave_platform, args.oe_binary, replacement_package
+        args.enclave_type, args.enclave_platform, replacement_package
     )
 
     if args.enclave_platform == "virtual":
@@ -458,7 +458,6 @@ def test_proposal_invalidation(network, args):
     temp_code_id = infra.utils.get_code_id(
         args.enclave_type,
         args.enclave_platform,
-        args.oe_binary,
         get_replacement_package(args),
     )
     network.consortium.add_new_code(primary, temp_code_id)
