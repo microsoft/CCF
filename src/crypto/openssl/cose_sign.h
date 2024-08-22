@@ -20,7 +20,7 @@ namespace ccf::crypto
        - key: integer label to be assigned in a COSE value
        - value: string behind the label.
 
-    Labels have to be unique. For standartised labels list check
+    Labels have to be unique. For standardised labels list check
     https://www.iana.org/assignments/cose/cose.xhtml#header-parameters.
    */
   std::vector<uint8_t> cose_sign1(
