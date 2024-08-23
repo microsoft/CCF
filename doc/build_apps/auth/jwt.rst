@@ -137,48 +137,6 @@ Token signing keys are stored in the ``public:ccf.gov.jwt.public_signing_keys`` 
 
 If an application uses multiple token issuers, then the ``public:ccf.gov.jwt.public_signing_key_issuer`` kv map which maps key IDs to issuers can be used to determine the issuer that a key belongs to.
 
-Advanced issuer configuration
------------------------------
-
-CCF has special support for IdPs that issue tokens within SGX enclaves, for example MAA (`Microsoft Azure Attestation <https://docs.microsoft.com/en-us/azure/attestation/>`_).
-The goal is to validate that a token has indeed been issued from an SGX enclave that has certain properties.
-CCF supports the approach taken by MAA where the token signing key and certificate are generated inside the enclave and the certificate embeds evidence from the enclave platform in an X.509 extension (see Open Enclave's  `oe_get_attestation_certificate_with_evidence() <https://openenclave.io/apidocs/v0.12/attester_8h_a2d7a05a906935c74a089d3b1240fad64.html#a2d7a05a906935c74a089d3b1240fad64>`_ for details).
-In this model it is sufficient to validate the evidence of the signing certificates when storing them in CCF.
-After the signing certificates have been stored, token validation follows the same methods as described in earlier sections.
-
-CCF validates embedded SGX evidence if a key policy is given in the issuer metadata:
-
-.. code-block:: json
-
-    {
-      "actions": [
-        {
-          "name": "set_jwt_issuer",
-          "args": {
-            "issuer": "https://shareduks.uks.attest.azure.net",
-            "key_filter": "sgx",
-            "key_policy": {
-              "sgx_claims": {
-                "signer_id": "5e5410aaf99a32e32df2a97d579e65f8310f274816ec4f34cedeeb1be410a526",
-                "attributes": "0300000000000000"
-              }
-            },
-            "auto_refresh": false
-          }
-        }
-      ]
-    }
-
-All claims contained in ``key_policy.sgx_claims`` must be identical to the ones embedded in the certificate.
-Any attempt to add a certificate with mismatching claims in a ``set_jwt_public_signing_keys`` proposal for that issuer would result in failure.
-
-.. note::
-
-    See Open Enclave's `oe_verify_evidence() <https://openenclave.io/apidocs/v0.12/verifier_8h_a5ad1a6314d2fe5b3470cb3a25c4c39df.html#a5ad1a6314d2fe5b3470cb3a25c4c39df>`_ for a list of available claim names and their meaning. Note that all claim values must be given hex-encoded.
-
-Some IdPs, like MAA, advertise a mix of SGX and non-SGX signing certificates.
-In this case, ``key_filter`` must be set to ``sgx`` such that only those certificates are stored which contain SGX evidence.
-
 Extracting JWT metrics
 ----------------------
 

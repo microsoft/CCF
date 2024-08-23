@@ -9,17 +9,8 @@
 #include "ccf/tx.h"
 #include "http/http_jwt.h"
 
-#ifdef SGX_ATTESTATION_VERIFICATION
-#  include <openenclave/attestation/verifier.h>
-#endif
-
 #include <set>
 #include <sstream>
-#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
-#  include <openenclave/enclave.h>
-#elif defined(SGX_ATTESTATION_VERIFICATION)
-#  include <openenclave/host_verify.h>
-#endif
 
 namespace ccf
 {
@@ -107,22 +98,6 @@ namespace ccf
     });
   }
 
-#ifdef SGX_ATTESTATION_VERIFICATION
-  static oe_result_t oe_verify_attestation_certificate_with_evidence_cb(
-    oe_claim_t* claims, size_t claims_length, void* arg)
-  {
-    auto claims_map = (std::map<std::string, std::vector<uint8_t>>*)arg;
-    for (size_t i = 0; i < claims_length; i++)
-    {
-      std::string claim_name(claims[i].name);
-      std::vector<uint8_t> claim_value(
-        claims[i].value, claims[i].value + claims[i].value_size);
-      claims_map->emplace(std::move(claim_name), std::move(claim_value));
-    }
-    return OE_OK;
-  }
-#endif
-
   static bool set_jwt_public_signing_keys(
     ccf::kv::Tx& tx,
     const std::string& log_prefix,
@@ -171,83 +146,21 @@ namespace ccf
         return false;
       }
 
-      std::map<std::string, std::vector<uint8_t>> claims;
-      bool has_key_policy_sgx_claims = issuer_metadata.key_policy.has_value() &&
-        issuer_metadata.key_policy.value().sgx_claims.has_value() &&
-        !issuer_metadata.key_policy.value().sgx_claims.value().empty();
-      if (
-        issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX ||
-        has_key_policy_sgx_claims)
+      try
       {
-#ifdef SGX_ATTESTATION_VERIFICATION
-        oe_verify_attestation_certificate_with_evidence(
-          der.data(),
-          der.size(),
-          oe_verify_attestation_certificate_with_evidence_cb,
-          &claims);
-#else
-        LOG_FAIL_FMT("{}: SGX claims not supported", log_prefix);
-        return false;
-#endif
+        ccf::crypto::make_unique_verifier(
+          (std::vector<uint8_t>)der); // throws on error
       }
-
-      if (
-        issuer_metadata.key_filter == JwtIssuerKeyFilter::SGX && claims.empty())
+      catch (std::invalid_argument& exc)
       {
-        LOG_INFO_FMT(
-          "{}: Skipping JWT signing key with kid {} (not OE "
-          "attested)",
+        LOG_FAIL_FMT(
+          "{}: JWKS kid {} has an invalid X.509 certificate: {}",
           log_prefix,
-          kid);
-        continue;
+          kid,
+          exc.what());
+        return false;
       }
 
-      if (has_key_policy_sgx_claims)
-      {
-        for (auto& [claim_name, expected_claim_val_hex] :
-             issuer_metadata.key_policy.value().sgx_claims.value())
-        {
-          if (claims.find(claim_name) == claims.end())
-          {
-            LOG_FAIL_FMT(
-              "{}: JWKS kid {} is missing the {} SGX claim",
-              log_prefix,
-              kid,
-              claim_name);
-            return false;
-          }
-          auto& actual_claim_val = claims[claim_name];
-          auto actual_claim_val_hex = ds::to_hex(actual_claim_val);
-          if (expected_claim_val_hex != actual_claim_val_hex)
-          {
-            LOG_FAIL_FMT(
-              "{}: JWKS kid {} has a mismatching {} SGX claim: {} != {}",
-              log_prefix,
-              kid,
-              claim_name,
-              expected_claim_val_hex,
-              actual_claim_val_hex);
-            return false;
-          }
-        }
-      }
-      else
-      {
-        try
-        {
-          ccf::crypto::make_unique_verifier(
-            (std::vector<uint8_t>)der); // throws on error
-        }
-        catch (std::invalid_argument& exc)
-        {
-          LOG_FAIL_FMT(
-            "{}: JWKS kid {} has an invalid X.509 certificate: {}",
-            log_prefix,
-            kid,
-            exc.what());
-          return false;
-        }
-      }
       LOG_INFO_FMT("{}: Storing JWT signing key with kid {}", log_prefix, kid);
       new_keys.emplace(kid, der);
 
