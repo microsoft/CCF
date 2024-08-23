@@ -549,11 +549,6 @@ namespace ccf::gov::endpoints
                 jwt_issuer["keyFilter"] = metadata.key_filter;
                 jwt_issuer["autoRefresh"] = metadata.auto_refresh;
 
-                if (metadata.key_policy.has_value())
-                {
-                  jwt_issuer["keyPolicy"] = metadata.key_policy.value();
-                }
-
                 if (metadata.ca_cert_bundle_name.has_value())
                 {
                   jwt_issuer["caCertBundleName"] =

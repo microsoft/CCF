@@ -611,8 +611,6 @@ class Consortium:
         obj = slurp_json(json_path)
         args = {
             "issuer": obj["issuer"],
-            "key_filter": obj.get("key_filter", "all"),
-            "key_policy": obj.get("key_policy"),
             "ca_cert_bundle_name": obj.get("ca_cert_bundle_name"),
             "auto_refresh": obj.get("auto_refresh", False),
             "jwks": obj.get("jwks"),
