@@ -546,7 +546,6 @@ namespace ccf::gov::endpoints
                 const ccf::JwtIssuerMetadata& metadata) {
                 auto jwt_issuer = nlohmann::json::object();
 
-                jwt_issuer["keyFilter"] = metadata.key_filter;
                 jwt_issuer["autoRefresh"] = metadata.auto_refresh;
 
                 if (metadata.ca_cert_bundle_name.has_value())

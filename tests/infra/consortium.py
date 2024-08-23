@@ -610,6 +610,9 @@ class Consortium:
     def set_jwt_issuer(self, remote_node, json_path):
         obj = slurp_json(json_path)
         args = {
+            # Key filter is no longer used, but kept for compatibility with
+            # lts_compatibility tests.
+            "key_filter": "all",
             "issuer": obj["issuer"],
             "ca_cert_bundle_name": obj.get("ca_cert_bundle_name"),
             "auto_refresh": obj.get("auto_refresh", False),
