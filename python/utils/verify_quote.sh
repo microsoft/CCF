@@ -4,13 +4,10 @@
 
 set -e
 
-quote_file_name="quote.bin"
-endorsements_file_name="endorsements.bin"
 open_enclave_path=${OPEN_ENCLAVE_PATH:-"/opt/openenclave"}
 default_port=443
 
-function usage()
-{
+function usage() {
     echo "Usage:"
     echo "  $0 https://<node-address> [--mrenclave <mrenclave_hex>] [CURL_OPTIONS]"
     echo "Verify target node's remote attestation quote."
@@ -33,20 +30,21 @@ shift
 
 # Add default port number if not included (required by openssl s_client)
 if ! [[ $node_address =~ .*:[0-9]+$ ]]; then
-  node_address="${node_address}:${default_port}"
+    node_address="${node_address}:${default_port}"
 fi
 
 while [ "$1" != "" ]; do
     case $1 in
-        -h|-\?|--help)
-            usage
-            exit 0
-            ;;
-        --mrenclave)
-            trusted_mrenclaves=("$2")
-            ;;
-        *)
-            break
+    -h | -\? | --help)
+        usage
+        exit 0
+        ;;
+    --mrenclave)
+        trusted_mrenclaves=("$2")
+        ;;
+    *)
+        break
+        ;;
     esac
     shift
     shift
@@ -65,55 +63,81 @@ fi
 # Temporary directory for storing retrieved quote
 tmp_dir=$(mktemp -d)
 function cleanup() {
-  rm -rf "${tmp_dir}"
+    rm -rf "${tmp_dir}"
 }
 trap cleanup EXIT
 
-curl_output=$(curl -sS --fail -X GET "${node_address}"/node/quotes/self "${@}")
+curl_output=$(curl -sS --fail -X GET "${node_address}"/node/quotes "${@}")
 
-echo "${curl_output}" | jq -r .raw | base64 --decode > "${tmp_dir}/${quote_file_name}"
-echo "${curl_output}" | jq -r .endorsements | base64 --decode > "${tmp_dir}/${endorsements_file_name}"
-
-if [ ! -s "${tmp_dir}/${quote_file_name}" ]; then
-    echo "Error: Node quote is empty. Virtual mode does not support SGX quotes."
-    exit 1
-fi
-
-echo "Node quote successfully retrieved."
-
-oeverify_output=$("${open_enclave_path}"/bin/oeverify -r "${tmp_dir}"/"${quote_file_name}" -e "${tmp_dir}"/"${endorsements_file_name}")
-
-# Extract SGX report data
-oeverify_report_data=$(echo "${oeverify_output}" | grep "sgx_report_data" | cut -d ":" -f 2)
-# Extract hex sha-256 (64 char) from report data (128 char)
-extracted_report_data=$(echo "${oeverify_report_data#*0x}" | head -c 64)
-
-# Remove protocol and compute hash of target node's public key (DER)
-stripped_node_address=${node_address#*//}
-node_pubk_hash=$(echo | openssl s_client -showcerts -connect "${stripped_node_address}" 2>/dev/null | openssl x509 -pubkey -noout | openssl ec -pubin -outform der 2>/dev/null | sha256sum | awk '{ print $1 }')
-
-# Extract mrenclave
-is_mrenclave_valid=false
-oeverify_mrenclave=$(echo "${oeverify_output}" | grep "unique_id" | cut -d ":" -f 2)
-extracted_mrenclave="${oeverify_mrenclave#*0x}"
-for mrenclave in "${trusted_mrenclaves[@]}"; do
-    if [ "${mrenclave}" == "${extracted_mrenclave}" ]; then
-        is_mrenclave_valid=true
-    fi
+# Query quotes for ALL nodes to support talking to load-balancer with no session tracking, resulting into talking to different nodes during script execution.
+# Save quotes in format
+# tmp_dir/node_1_id.endorsements
+# tmp_dir/node_1_id.quote
+# ...
+# tmp_dir/node_N_id.endorsements
+# tmp_dir/node_N_id.quote
+echo "${curl_output}" | jq -r '.quotes[] | .node_id as $id | .endorsements as $endorsements | .raw as $quote | "\($id).endorsements \($endorsements)\n\($id).quote \($quote)"' | while read -r line; do
+    filename=$(echo "${line}" | awk '{print $1}')
+    content=$(echo "${line}" | awk '{for (i=2; i<=NF; i++) printf $i;}')
+    echo "${content}" | base64 --decode >"${tmp_dir}/${filename}"
 done
 
-if [ "${extracted_report_data}" != "${node_pubk_hash}" ]; then
-    echo "Error: quote verification failed."
-    echo "Reported quote data does not match node certificate public key:"
-    echo "\"${extracted_report_data}\" != \"${node_pubk_hash}\""
+echo "${curl_output}" >out.txt
+
+# At least one quote has to be there.
+quotes_count=$(find "${tmp_dir}" -maxdepth 1 -type f -name "*.quote" | wc -l)
+if [ "$quotes_count" -eq 0 ]; then
+    echo "Error: No quotes find"
     exit 1
-elif [ "${is_mrenclave_valid}" != true ]; then
-    echo "Error: quote verification failed."
-    echo "Reported mrenclave \"${extracted_mrenclave}\" is not trusted. List of trusted mrenclave:"
-    echo "${trusted_mrenclaves[@]}"
-    exit 1
-else
-    echo "mrenclave: \"${extracted_mrenclave}\""
-    echo "Quote verification successful."
-    exit 0
 fi
+
+# All quotes must be non-empty.
+empty_quotes=$(find "${tmp_dir}" -maxdepth 1 -type f -name "*.quote" -empty)
+if [ -n "$empty_quotes" ]; then
+    echo "Error: Empty quote found. Virtual mode does not support SGX quotes."
+    exit 1
+fi
+
+echo "Nodes quotes successfully retrieved."
+
+nodes=()
+for file in "${tmp_dir}"/*.quote; do
+    base_name=$(basename "$file" .quote)
+    nodes+=("$base_name")
+done
+
+for node in "${nodes[@]}"; do
+    quote_file_name="${node}.quote"
+    endorsements_file_name="${node}.endorsements"
+
+    oeverify_output=$("${open_enclave_path}"/bin/oeverify -r "${tmp_dir}"/"${quote_file_name}" -e "${tmp_dir}"/"${endorsements_file_name}")
+
+    # Extract SGX report data
+    oeverify_report_data=$(echo "${oeverify_output}" | grep "sgx_report_data" | cut -d ":" -f 2)
+    # Extract hex sha-256 (64 char) from report data (128 char)
+    extracted_report_data=$(echo "${oeverify_report_data#*0x}" | head -c 64)
+
+    # Remove protocol and compute hash of target node's public key (DER)
+    stripped_node_address=${node_address#*//}
+    node_pubk_hash=$(echo | openssl s_client -showcerts -connect "${stripped_node_address}" 2>/dev/null | openssl x509 -pubkey -noout | openssl ec -pubin -outform der 2>/dev/null | sha256sum | awk '{ print $1 }')
+
+    # Extract mrenclave
+    is_mrenclave_valid=false
+    oeverify_mrenclave=$(echo "${oeverify_output}" | grep "unique_id" | cut -d ":" -f 2)
+    extracted_mrenclave="${oeverify_mrenclave#*0x}"
+    for mrenclave in "${trusted_mrenclaves[@]}"; do
+        if [ "${mrenclave}" == "${extracted_mrenclave}" ]; then
+            is_mrenclave_valid=true
+        fi
+    done
+
+    if [ "${extracted_report_data}" == "${node_pubk_hash}" ] && [ "${is_mrenclave_valid}" == true ]; then
+        echo "mrenclave: \"${extracted_mrenclave}\""
+        echo "Quote verification successful."
+        exit 0
+    fi
+
+done
+
+echo "Error: quote verification failed. No attested node found"
+exit 1
