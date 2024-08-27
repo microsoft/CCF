@@ -121,13 +121,26 @@ namespace ccf::kv
       auto success = ApplyResult::PASS;
 
       auto search = changes.find(ccf::Tables::SIGNATURES);
+      // TODO
+
       if (search != changes.end())
       {
-        // Transactions containing a signature must only contain the signature
-        // and the serialised Merkle tree and must be verified
+        // Transactions containing a signature must only contain the signature,
+        // COSE signature (optional), and the serialised Merkle tree and must be
+        // verified
         if (
-          changes.size() > 2 ||
+          changes.size() > 3 ||
           changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) == changes.end())
+        {
+          LOG_FAIL_FMT("Failed to deserialise");
+          LOG_DEBUG_FMT(
+            "Unexpected contents in signature transaction {}", version);
+          return ApplyResult::FAIL;
+        }
+
+        if (
+          changes.size() == 3 &&
+          changes.find(ccf::Tables::COSE_SIGNATURES) == changes.end())
         {
           LOG_FAIL_FMT("Failed to deserialise");
           LOG_DEBUG_FMT(

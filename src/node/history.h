@@ -5,7 +5,9 @@
 #include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
+#include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/hash.h"
+#include "crypto/openssl/key_pair.h"
 #include "ds/thread_messaging.h"
 #include "endian.h"
 #include "kv/kv_types.h"
@@ -105,6 +107,7 @@ namespace ccf
       auto sig = store.create_reserved_tx(txid);
       auto signatures =
         sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      // TODO
       auto serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
       PrimarySignature sig_value(id, txid.version);
@@ -336,6 +339,8 @@ namespace ccf
       auto sig = store.create_reserved_tx(txid);
       auto signatures =
         sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto cose_signatures =
+        sig.template wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
       auto serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
       ccf::crypto::Sha256Hash root = history.get_replicated_state_root();
@@ -353,7 +358,20 @@ namespace ccf
         primary_sig,
         endorsed_cert);
 
+      const auto root_str = root.hex_str();
+      std::vector<const uint8_t> root_bytes{
+        (const uint8_t*)root_str.c_str(),
+        (const uint8_t*)root_str.c_str() + root_str.size()};
+
+      ccf::crypto::KeyPair_OpenSSL kp2(
+        kp.private_key_pem()); // why can't we expose EVP_KEY from key pair?
+      auto cose_sign = crypto::cose_sign1(kp2, {}, root_bytes);
+
+      CoseSignature cose_sig_value(
+        id, txid.version, txid.term, root, cose_sign, endorsed_cert);
+
       signatures->put(sig_value);
+      cose_signatures->put(cose_sig_value);
       serialised_tree->put(history.serialise_tree(txid.version - 1));
       return sig.commit_reserved();
     }
