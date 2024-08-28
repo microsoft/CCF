@@ -350,7 +350,9 @@ namespace ccf
 
       std::vector<uint8_t> primary_sig;
 
-      primary_sig = kp.sign_hash(root.h.data(), root.h.size());
+      const std::vector<const uint8_t> root_hash{
+        root.h.data(), root.h.data() + root.h.size()};
+      primary_sig = kp.sign_hash(root_hash.data(), root_hash.size());
 
       PrimarySignature sig_value(
         id,
@@ -361,19 +363,15 @@ namespace ccf
         primary_sig,
         endorsed_cert);
 
-      const auto root_str = root.hex_str();
-      std::vector<const uint8_t> root_bytes{
-        (const uint8_t*)root_str.c_str(),
-        (const uint8_t*)root_str.c_str() + root_str.size()};
-
-      ccf::crypto::KeyPair_OpenSSL kp2(
-        kp.private_key_pem()); // why can't we expose EVP_KEY from key pair?
-      auto cose_sign = crypto::cose_sign1(kp2, {}, root_bytes);
-
-      CoseSignature cose_sig_value(cose_sign);
+      const auto as_openssl = dynamic_cast<ccf::crypto::KeyPair_OpenSSL*>(&kp);
+      if (as_openssl == nullptr)
+      {
+        throw std::logic_error("Can't COSE-sign the root with non-OpenSSL key");
+      }
+      auto cose_sign = crypto::cose_sign1(*as_openssl, {}, root_hash);
 
       signatures->put(sig_value);
-      cose_signatures->put(cose_sig_value);
+      cose_signatures->put(CoseSignature{cose_sign});
       serialised_tree->put(history.serialise_tree(txid.version - 1));
       return sig.commit_reserved();
     }
