@@ -107,11 +107,14 @@ namespace ccf
       auto sig = store.create_reserved_tx(txid);
       auto signatures =
         sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
-      // TODO
+      auto cose_signatures =
+        sig.template wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+
       auto serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
       PrimarySignature sig_value(id, txid.version);
       signatures->put(sig_value);
+      cose_signatures->put(ccf::CoseSignature{});
       serialised_tree->put({});
       return sig.commit_reserved();
     }
@@ -367,8 +370,7 @@ namespace ccf
         kp.private_key_pem()); // why can't we expose EVP_KEY from key pair?
       auto cose_sign = crypto::cose_sign1(kp2, {}, root_bytes);
 
-      CoseSignature cose_sig_value(
-        id, txid.version, txid.term, root, cose_sign, endorsed_cert);
+      CoseSignature cose_sig_value(cose_sign);
 
       signatures->put(sig_value);
       cose_signatures->put(cose_sig_value);

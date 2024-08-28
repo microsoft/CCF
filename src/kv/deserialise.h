@@ -121,7 +121,6 @@ namespace ccf::kv
       auto success = ApplyResult::PASS;
 
       auto search = changes.find(ccf::Tables::SIGNATURES);
-      // TODO
 
       if (search != changes.end())
       {
