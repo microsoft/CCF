@@ -169,12 +169,14 @@ if __name__ == "__main__":
         with block(ostream, "diagram", 3, "mermaid", ["sequenceDiagram"]):
             ostream.write(mermaid)
 
-        with open(
-            os.path.join(output_dir, f"{os.path.basename(scenario)}.ndjson"),
-            "w",
-            encoding="utf-8",
-        ) as f:
-            f.write(log)
+        ## Do not create an empty ndjson file if log is emtpy.
+        if log:
+            with open(
+                os.path.join(output_dir, f"{os.path.basename(scenario)}.ndjson"),
+                "w",
+                encoding="utf-8",
+            ) as f:
+                f.write(log)
 
     write_error_report(err_list)
 
