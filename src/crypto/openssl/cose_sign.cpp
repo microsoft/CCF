@@ -79,7 +79,6 @@ namespace
 
 namespace ccf::crypto
 {
-
   COSEParametersFactory cose_params_int_int(int64_t key, int64_t value)
   {
     const size_t args_size = sizeof(key) + sizeof(value);

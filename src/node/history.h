@@ -318,7 +318,8 @@ namespace ccf
     ccf::kv::Store& store;
     ccf::kv::TxHistory& history;
     NodeId id;
-    ccf::crypto::KeyPair& kp;
+    ccf::crypto::KeyPair& node_kp;
+    ccf::crypto::KeyPair_OpenSSL& service_kp;
     ccf::crypto::Pem& endorsed_cert;
 
   public:
@@ -327,13 +328,15 @@ namespace ccf
       ccf::kv::Store& store_,
       ccf::kv::TxHistory& history_,
       const NodeId& id_,
-      ccf::crypto::KeyPair& kp_,
+      ccf::crypto::KeyPair& node_kp_,
+      ccf::crypto::KeyPair_OpenSSL& service_kp_,
       ccf::crypto::Pem& endorsed_cert_) :
       txid(txid_),
       store(store_),
       history(history_),
       id(id_),
-      kp(kp_),
+      node_kp(node_kp_),
+      service_kp(service_kp_),
       endorsed_cert(endorsed_cert_)
     {}
 
@@ -352,7 +355,7 @@ namespace ccf
 
       const std::vector<const uint8_t> root_hash{
         root.h.data(), root.h.data() + root.h.size()};
-      primary_sig = kp.sign_hash(root_hash.data(), root_hash.size());
+      primary_sig = node_kp.sign_hash(root_hash.data(), root_hash.size());
 
       PrimarySignature sig_value(
         id,
@@ -362,12 +365,6 @@ namespace ccf
         {}, // Nonce is currently empty
         primary_sig,
         endorsed_cert);
-
-      const auto as_openssl = dynamic_cast<ccf::crypto::KeyPair_OpenSSL*>(&kp);
-      if (as_openssl == nullptr)
-      {
-        throw std::logic_error("Can't COSE-sign the root with non-OpenSSL key");
-      }
 
       constexpr int64_t vds_merkle_tree = 2;
       const auto pheaders = {
@@ -381,7 +378,7 @@ namespace ccf
         // TO
         // DO
       };
-      auto cose_sign = crypto::cose_sign1(*as_openssl, pheaders, root_hash);
+      auto cose_sign = crypto::cose_sign1(service_kp, pheaders, root_hash);
 
       signatures->put(sig_value);
       cose_signatures->put(CoseSignature{cose_sign});
@@ -527,7 +524,8 @@ namespace ccf
     NodeId id;
     T replicated_state_tree;
 
-    ccf::crypto::KeyPair& kp;
+    ccf::crypto::KeyPair& node_kp;
+    ccf::crypto::KeyPair_OpenSSL& service_kp;
 
     std::optional<::threading::TaskQueue::TimerEntry>
       emit_signature_timer_entry = std::nullopt;
@@ -544,13 +542,15 @@ namespace ccf
     HashedTxHistory(
       ccf::kv::Store& store_,
       const NodeId& id_,
-      ccf::crypto::KeyPair& kp_,
+      ccf::crypto::KeyPair& node_kp_,
+      ccf::crypto::KeyPair_OpenSSL& service_kp_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0,
       bool signature_timer = false) :
       store(store_),
       id(id_),
-      kp(kp_),
+      node_kp(node_kp_),
+      service_kp(service_kp_),
       sig_tx_interval(sig_tx_interval_),
       sig_ms_interval(sig_ms_interval_)
     {
@@ -698,7 +698,7 @@ namespace ccf
       ccf::kv::TxHistory::Result result = ccf::kv::TxHistory::Result::OK;
 
       sig.node = id;
-      sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
+      sig.sig = node_kp.sign_hash(sig.root.h.data(), sig.root.h.size());
 
       return result;
     }
@@ -817,7 +817,7 @@ namespace ccf
       store.commit(
         txid,
         std::make_unique<MerkleTreeHistoryPendingTx<T>>(
-          txid, store, *this, id, kp, endorsed_cert.value()),
+          txid, store, *this, id, node_kp, service_kp, endorsed_cert.value()),
         true);
     }
 

@@ -191,6 +191,7 @@ namespace ccf
           *snapshot_store.get(),
           self,
           *node_sign_kp,
+          *network.identity->get_key_pair(),
           sig_tx_interval,
           sig_ms_interval,
           false /* No signature timer on snapshot_history */);
@@ -1245,6 +1246,7 @@ namespace ccf
         *recovery_store.get(),
         self,
         *node_sign_kp,
+        *network.identity->get_key_pair(),
         sig_tx_interval,
         sig_ms_interval,
         false /* No signature timer on recovery_history */);
@@ -2404,6 +2406,7 @@ namespace ccf
         *network.tables.get(),
         self,
         *node_sign_kp,
+        *network.identity->get_key_pair(),
         sig_tx_interval,
         sig_ms_interval,
         false /* start timed signatures after first tx */);

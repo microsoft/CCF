@@ -21,7 +21,9 @@ std::unique_ptr<threading::ThreadMessaging>
   threading::ThreadMessaging::singleton = nullptr;
 
 constexpr auto buffer_size = 1024 * 16;
-auto kp = ccf::crypto::make_key_pair();
+auto node_kp = ccf::crypto::make_key_pair();
+auto service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
+  ccf::crypto::make_key_pair());
 
 using StringString = ccf::kv::Map<std::string, std::string>;
 using rb_msg = std::pair<ringbuffer::Message, size_t>;
@@ -142,7 +144,7 @@ TEST_CASE("Regular snapshotting")
 
   auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   auto history = std::make_shared<ccf::MerkleTxHistory>(
-    *network.tables.get(), ccf::kv::test::PrimaryNodeId, *kp);
+    *network.tables.get(), ccf::kv::test::PrimaryNodeId, *node_kp, *service_kp);
   network.tables->set_history(history);
   network.tables->initialise_term(2);
   network.tables->set_consensus(consensus);
@@ -305,7 +307,7 @@ TEST_CASE("Rollback before snapshot is committed")
   ccf::NetworkState network;
   auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   auto history = std::make_shared<ccf::MerkleTxHistory>(
-    *network.tables.get(), ccf::kv::test::PrimaryNodeId, *kp);
+    *network.tables.get(), ccf::kv::test::PrimaryNodeId, *node_kp, *service_kp);
   network.tables->set_history(history);
   network.tables->initialise_term(2);
   network.tables->set_consensus(consensus);
@@ -436,7 +438,7 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
 
   auto consensus = std::make_shared<ccf::kv::test::StubConsensus>();
   auto history = std::make_shared<ccf::MerkleTxHistory>(
-    *network.tables.get(), ccf::kv::test::PrimaryNodeId, *kp);
+    *network.tables.get(), ccf::kv::test::PrimaryNodeId, *node_kp, *service_kp);
   network.tables->set_history(history);
   network.tables->initialise_term(2);
   network.tables->set_consensus(consensus);
@@ -502,7 +504,10 @@ TEST_CASE("Rekey ledger while snapshot is in progress")
     // Snapshot can be deserialised to backup store
     ccf::NetworkState backup_network;
     auto backup_history = std::make_shared<ccf::MerkleTxHistory>(
-      *backup_network.tables.get(), ccf::kv::test::FirstBackupNodeId, *kp);
+      *backup_network.tables.get(),
+      ccf::kv::test::FirstBackupNodeId,
+      *node_kp,
+      *service_kp);
     backup_network.tables->set_history(backup_history);
     auto tx = network.tables->create_read_only_tx();
 
