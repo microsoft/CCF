@@ -129,16 +129,7 @@ namespace ccf::kv
         // verified
         if (
           changes.size() > 3 ||
-          changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) == changes.end())
-        {
-          LOG_FAIL_FMT("Failed to deserialise");
-          LOG_DEBUG_FMT(
-            "Unexpected contents in signature transaction {}", version);
-          return ApplyResult::FAIL;
-        }
-
-        if (
-          changes.size() == 3 &&
+          changes.find(ccf::Tables::SERIALISED_MERKLE_TREE) == changes.end() ||
           changes.find(ccf::Tables::COSE_SIGNATURES) == changes.end())
         {
           LOG_FAIL_FMT("Failed to deserialise");

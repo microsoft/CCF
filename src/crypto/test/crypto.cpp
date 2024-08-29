@@ -226,7 +226,9 @@ t_cose_err_t verify_detached(
 }
 
 void require_match_headers(
-  const std::unordered_map<int64_t, std::string>& headers,
+  std::pair<int64_t, std::optional<std::string_view>> kv1,
+  std::pair<std::string_view, std::optional<int64_t>> kv2,
+  std::pair<std::string_view, std::optional<std::string_view>> kv3,
   const std::vector<uint8_t>& cose_sign)
 {
   UsefulBufC msg{cose_sign.data(), cose_sign.size()};
@@ -244,39 +246,47 @@ void require_match_headers(
     &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
   QCBORDecode_EnterMap(&ctx, NULL);
 
-  QCBORItem header_items[headers.size() + 2];
-  size_t curr_id{0};
-  for (const auto& kv : headers)
-  {
-    header_items[curr_id].label.int64 = kv.first;
-    header_items[curr_id].uLabelType = QCBOR_TYPE_INT64;
-    header_items[curr_id].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-    curr_id++;
-  }
+  QCBORItem header_items[4 + 1];
 
   // Verify 'alg' is default-encoded.
-  header_items[curr_id].label.int64 = 1;
-  header_items[curr_id].uLabelType = QCBOR_TYPE_INT64;
-  header_items[curr_id].uDataType = QCBOR_TYPE_INT64;
+  header_items[0].label.int64 = 1;
+  header_items[0].uLabelType = QCBOR_TYPE_INT64;
+  header_items[0].uDataType = QCBOR_TYPE_INT64;
 
-  header_items[++curr_id].uLabelType = QCBOR_TYPE_NONE;
+  header_items[1].label.int64 = kv1.first;
+  header_items[1].uLabelType = QCBOR_TYPE_INT64;
+  header_items[1].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+  header_items[2].label.string = {kv2.first.data(), kv2.first.size()};
+  header_items[2].uLabelType = QCBOR_TYPE_TEXT_STRING;
+  header_items[2].uDataType = QCBOR_TYPE_INT64;
+
+  header_items[3].label.string = {kv3.first.data(), kv3.first.size()};
+  header_items[3].uLabelType = QCBOR_TYPE_TEXT_STRING;
+  header_items[3].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+  header_items[4].uLabelType = QCBOR_TYPE_NONE;
 
   QCBORDecode_GetItemsInMap(&ctx, header_items);
   REQUIRE_EQ(QCBORDecode_GetError(&ctx), QCBOR_SUCCESS);
 
-  curr_id = 0;
-  for (const auto& kv : headers)
-  {
-    REQUIRE_NE(header_items[curr_id].uDataType, QCBOR_TYPE_NONE);
-    REQUIRE_EQ(
-      qcbor_buf_to_string(header_items[curr_id].val.string), kv.second);
-
-    curr_id++;
-  }
-
   // 'alg'
-  REQUIRE_NE(header_items[curr_id].uDataType, QCBOR_TYPE_NONE);
+  REQUIRE_NE(header_items[0].uDataType, QCBOR_TYPE_NONE);
+
+  if (kv1.second)
+    REQUIRE_EQ(qcbor_buf_to_string(header_items[1].val.string), *kv1.second);
+  else
+    REQUIRE_EQ(header_items[1].uDataType, QCBOR_TYPE_NONE);
+
+  if (kv2.second)
+    REQUIRE_EQ(header_items[2].val.int64, *kv2.second);
+  else
+    REQUIRE_EQ(header_items[2].uDataType, QCBOR_TYPE_NONE);
+
+  if (kv3.second)
+    REQUIRE_EQ(qcbor_buf_to_string(header_items[3].val.string), *kv3.second);
+  else
+    REQUIRE_EQ(header_items[3].uDataType, QCBOR_TYPE_NONE);
 
   QCBORDecode_ExitMap(&ctx);
   QCBORDecode_ExitBstrWrapped(&ctx);
@@ -1224,8 +1234,10 @@ TEST_CASE("COSE sign & verify")
       ccf::crypto::make_key_pair(CurveID::SECP384R1));
 
   std::vector<uint8_t> payload{1, 10, 42, 43, 44, 45, 100};
-  const std::unordered_map<int64_t, std::string> protected_headers = {
-    {36, "thirsty six"}, {47, "hungry seven"}};
+  const auto protected_headers = {
+    ccf::crypto::cose_params_int_string(36, "thirsty six"),
+    ccf::crypto::cose_params_string_int("hungry seven", 47),
+    ccf::crypto::cose_params_string_string("string key", "string value")};
   auto cose_sign = cose_sign1(*kp, protected_headers, payload);
 
   if constexpr (false) // enable to see the whole cose_sign as byte string
@@ -1242,7 +1254,11 @@ TEST_CASE("COSE sign & verify")
     std::cout << std::endl;
   }
 
-  require_match_headers(protected_headers, cose_sign);
+  require_match_headers(
+    {36, "thirsty six"},
+    {"hungry seven", 47},
+    {"string key", "string value"},
+    cose_sign);
 
   REQUIRE_EQ(verify_detached(*kp, cose_sign, payload), T_COSE_SUCCESS);
 
@@ -1253,6 +1269,11 @@ TEST_CASE("COSE sign & verify")
 
   // Empty headers and payload handled correctly
   cose_sign = cose_sign1(*kp, {}, {});
-  require_match_headers({}, cose_sign);
+  require_match_headers(
+    {36, std::nullopt},
+    {"hungry seven", std::nullopt},
+    {"string key", std::nullopt},
+    cose_sign);
+
   REQUIRE_EQ(verify_detached(*kp, cose_sign, {}), T_COSE_SUCCESS);
 }

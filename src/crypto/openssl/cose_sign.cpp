@@ -6,15 +6,11 @@
 #include "ccf/ds/logger.h"
 
 #include <openssl/evp.h>
-#include <t_cose/t_cose_sign1_sign.h>
 
 namespace
 {
-  constexpr int64_t COSE_HEADER_PARAM_ALG =
-    1; // Duplicate of t_cose::COSE_HEADER_PARAM_ALG to keep it compatible.
-
   size_t estimate_buffer_size(
-    const ccf::crypto::COSEProtectedHeaders& protected_headers,
+    const std::vector<ccf::crypto::COSEParametersFactory>& protected_headers,
     std::span<const uint8_t> payload)
   {
     size_t result =
@@ -28,8 +24,8 @@ namespace
       protected_headers.begin(),
       protected_headers.end(),
       result,
-      [](auto result, const auto& kv) {
-        return result + sizeof(kv.first) + kv.second.size();
+      [](auto result, const auto& factory) {
+        return result + factory.estimated_size();
       });
 
     return result + payload.size();
@@ -38,7 +34,7 @@ namespace
   void encode_protected_headers(
     t_cose_sign1_sign_ctx* ctx,
     QCBOREncodeContext* encode_ctx,
-    const ccf::crypto::COSEProtectedHeaders& protected_headers)
+    const std::vector<ccf::crypto::COSEParametersFactory>& protected_headers)
   {
     QCBOREncode_BstrWrap(encode_ctx);
     QCBOREncode_OpenMap(encode_ctx);
@@ -46,12 +42,12 @@ namespace
     // This's what the t_cose implementation of `encode_protected_parameters`
     // sets unconditionally.
     QCBOREncode_AddInt64ToMapN(
-      encode_ctx, COSE_HEADER_PARAM_ALG, ctx->cose_algorithm_id);
+      encode_ctx, ccf::crypto::COSE_PHEADER_KEY_ALG, ctx->cose_algorithm_id);
 
     // Caller-provided headers follow
-    for (const auto& [label, value] : protected_headers)
+    for (const auto& factory : protected_headers)
     {
-      QCBOREncode_AddSZStringToMapN(encode_ctx, label, value.c_str());
+      factory.apply(encode_ctx);
     }
 
     QCBOREncode_CloseMap(encode_ctx);
@@ -68,7 +64,7 @@ namespace
   void encode_parameters_custom(
     struct t_cose_sign1_sign_ctx* me,
     QCBOREncodeContext* cbor_encode,
-    const ccf::crypto::COSEProtectedHeaders& protected_headers)
+    const std::vector<ccf::crypto::COSEParametersFactory>& protected_headers)
   {
     QCBOREncode_AddTag(cbor_encode, CBOR_TAG_COSE_SIGN1);
     QCBOREncode_OpenArray(cbor_encode);
@@ -83,9 +79,45 @@ namespace
 
 namespace ccf::crypto
 {
+  COSEParametersFactory cose_params_int_string(
+    int64_t key, std::string_view value)
+
+  {
+    const size_t args_size = sizeof(key) + value.size();
+    return COSEParametersFactory(
+      [=](QCBOREncodeContext* ctx) {
+        QCBOREncode_AddSZStringToMapN(ctx, key, value.data());
+      },
+      args_size);
+  }
+
+  COSEParametersFactory cose_params_string_int(
+    std::string_view key, int64_t value)
+  {
+    const size_t args_size = key.size() + sizeof(value);
+    return COSEParametersFactory(
+      [=](QCBOREncodeContext* ctx) {
+        QCBOREncode_AddSZString(ctx, key.data());
+        QCBOREncode_AddInt64(ctx, value);
+      },
+      args_size);
+  }
+
+  COSEParametersFactory cose_params_string_string(
+    std::string_view key, std::string_view value)
+  {
+    const size_t args_size = key.size() + value.size();
+    return COSEParametersFactory(
+      [=](QCBOREncodeContext* ctx) {
+        QCBOREncode_AddSZString(ctx, key.data());
+        QCBOREncode_AddSZString(ctx, value.data());
+      },
+      args_size);
+  }
+
   std::vector<uint8_t> cose_sign1(
     EVP_PKEY* key,
-    const COSEProtectedHeaders& protected_headers,
+    const std::vector<COSEParametersFactory>& protected_headers,
     std::span<const uint8_t> payload)
   {
     const auto buf_size = estimate_buffer_size(protected_headers, payload);

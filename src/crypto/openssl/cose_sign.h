@@ -5,16 +5,55 @@
 #include <openssl/ossl_typ.h>
 #include <span>
 #include <string>
+#include <t_cose/t_cose_sign1_sign.h>
 #include <unordered_map>
 
 namespace ccf::crypto
 {
+  // Algorithm used to sign, standardatised field
+  static constexpr int64_t COSE_PHEADER_KEY_ALG = 1;
+  // Verifiable data structure, standartised field
+  static constexpr int64_t COSE_PHEADER_KEY_VDS = 395;
+  // CCF-specifix, last signed TxID
+  static constexpr const char* COSE_PHEADER_KEY_TXID = "ccf.txid";
+
+  class COSEParametersFactory
+  {
+  public:
+    template <typename Callable>
+    COSEParametersFactory(Callable&& impl, size_t args_size) :
+      impl(std::forward<Callable>(impl)),
+      args_size{args_size}
+    {}
+
+    void apply(QCBOREncodeContext* ctx) const
+    {
+      impl(ctx);
+    }
+
+    size_t estimated_size() const
+    {
+      return args_size;
+    }
+
+  private:
+    std::function<void(QCBOREncodeContext*)> impl{};
+    size_t args_size{};
+  };
+
+  COSEParametersFactory cose_params_int_string(
+    int64_t key, std::string_view value);
+
+  COSEParametersFactory cose_params_string_int(
+    std::string_view key, int64_t value);
+
+  COSEParametersFactory cose_params_string_string(
+    std::string_view key, std::string_view value);
+
   struct COSESignError : public std::runtime_error
   {
     COSESignError(const std::string& msg) : std::runtime_error(msg) {}
   };
-
-  using COSEProtectedHeaders = std::unordered_map<int64_t, std::string>;
 
   /* Sign a cose_sign1 payload with custom protected headers as strings, where
        - key: integer label to be assigned in a COSE value
@@ -25,6 +64,6 @@ namespace ccf::crypto
    */
   std::vector<uint8_t> cose_sign1(
     EVP_PKEY* key,
-    const COSEProtectedHeaders& protected_headers,
+    const std::vector<COSEParametersFactory>& protected_headers,
     std::span<const uint8_t> payload);
 }
