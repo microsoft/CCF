@@ -368,7 +368,20 @@ namespace ccf
       {
         throw std::logic_error("Can't COSE-sign the root with non-OpenSSL key");
       }
-      auto cose_sign = crypto::cose_sign1(*as_openssl, {}, root_hash);
+
+      constexpr int64_t vds_merkle_tree = 2;
+      const auto pheaders = {
+        // 1. VDS
+        ccf::crypto::cose_params_int_int(
+          ccf::crypto::COSE_PHEADER_KEY_VDS, vds_merkle_tree),
+        // 2. TxID
+        ccf::crypto::cose_params_string_string(
+          ccf::crypto::COSE_PHEADER_KEY_TXID, txid.str())
+        // 3. Key digest
+        // TO
+        // DO
+      };
+      auto cose_sign = crypto::cose_sign1(*as_openssl, pheaders, root_hash);
 
       signatures->put(sig_value);
       cose_signatures->put(CoseSignature{cose_sign});

@@ -41,6 +41,8 @@ namespace ccf::crypto
     size_t args_size{};
   };
 
+  COSEParametersFactory cose_params_int_int(int64_t key, int64_t value);
+
   COSEParametersFactory cose_params_int_string(
     int64_t key, std::string_view value);
 
