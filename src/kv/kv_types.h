@@ -11,6 +11,7 @@
 #include "ccf/kv/hooks.h"
 #include "ccf/kv/version.h"
 #include "ccf/tx_id.h"
+#include "crypto/openssl/key_pair.h"
 #include "enclave/consensus_type.h"
 #include "enclave/reconfiguration_type.h"
 #include "serialiser_declare.h"
@@ -428,6 +429,8 @@ namespace ccf::kv
     virtual std::vector<uint8_t> serialise_tree(size_t to) = 0;
     virtual void set_endorsed_certificate(const ccf::crypto::Pem& cert) = 0;
     virtual void start_signature_emit_timer() = 0;
+    virtual void set_service_kp(
+      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL>) = 0;
   };
 
   class Consensus : public ConfigurableConsensus

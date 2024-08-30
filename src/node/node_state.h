@@ -191,7 +191,6 @@ namespace ccf
           *snapshot_store.get(),
           self,
           *node_sign_kp,
-          *network.identity->get_key_pair(),
           sig_tx_interval,
           sig_ms_interval,
           false /* No signature timer on snapshot_history */);
@@ -506,6 +505,8 @@ namespace ccf
 
           network.ledger_secrets->init();
 
+          history->set_service_kp(network.identity->get_key_pair());
+
           setup_consensus(
             ServiceStatus::OPENING,
             ReconfigurationType::ONE_TRANSACTION,
@@ -540,6 +541,8 @@ namespace ccf
             curve_id,
             config.startup_host_time,
             config.initial_service_certificate_validity_days);
+
+          history->set_service_kp(network.identity->get_key_pair());
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -643,6 +646,8 @@ namespace ccf
               resp.network_info->identity);
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
+
+            history->set_service_kp(network.identity->get_key_pair());
 
             ccf::crypto::Pem n2n_channels_cert;
             if (!resp.network_info->endorsed_certificate.has_value())
@@ -1246,7 +1251,6 @@ namespace ccf
         *recovery_store.get(),
         self,
         *node_sign_kp,
-        *network.identity->get_key_pair(),
         sig_tx_interval,
         sig_ms_interval,
         false /* No signature timer on recovery_history */);
@@ -2406,7 +2410,6 @@ namespace ccf
         *network.tables.get(),
         self,
         *node_sign_kp,
-        *network.identity->get_key_pair(),
         sig_tx_interval,
         sig_ms_interval,
         false /* start timed signatures after first tx */);

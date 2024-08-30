@@ -75,8 +75,6 @@ TEST_CASE("Check signature verification")
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
   auto node_kp = ccf::crypto::make_key_pair();
-  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
-    ccf::crypto::make_key_pair());
   const auto self_signed = node_kp->self_sign("CN=Node", valid_from, valid_to);
 
   ccf::kv::Store primary_store;
@@ -84,7 +82,7 @@ TEST_CASE("Check signature verification")
   constexpr auto store_term = 2;
   std::shared_ptr<ccf::kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      primary_store, ccf::kv::test::PrimaryNodeId, *node_kp, *service_kp);
+      primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
   primary_history->set_endorsed_certificate(self_signed);
   primary_store.set_history(primary_history);
   primary_store.initialise_term(store_term);
@@ -93,7 +91,7 @@ TEST_CASE("Check signature verification")
   backup_store.set_encryptor(encryptor);
   std::shared_ptr<ccf::kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp, *service_kp);
+      backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp);
   backup_history->set_endorsed_certificate(self_signed);
   backup_store.set_history(backup_history);
   backup_store.initialise_term(store_term);
@@ -142,8 +140,6 @@ TEST_CASE("Check signing works across rollback")
   auto encryptor = std::make_shared<ccf::kv::NullTxEncryptor>();
 
   auto node_kp = ccf::crypto::make_key_pair();
-  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
-    ccf::crypto::make_key_pair());
   const auto self_signed = node_kp->self_sign("CN=Node", valid_from, valid_to);
 
   ccf::kv::Store primary_store;
@@ -151,7 +147,7 @@ TEST_CASE("Check signing works across rollback")
   constexpr auto store_term = 2;
   std::shared_ptr<ccf::kv::TxHistory> primary_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      primary_store, ccf::kv::test::PrimaryNodeId, *node_kp, *service_kp);
+      primary_store, ccf::kv::test::PrimaryNodeId, *node_kp);
   primary_history->set_endorsed_certificate(self_signed);
   primary_store.set_history(primary_history);
   primary_store.initialise_term(store_term);
@@ -159,7 +155,7 @@ TEST_CASE("Check signing works across rollback")
   ccf::kv::Store backup_store;
   std::shared_ptr<ccf::kv::TxHistory> backup_history =
     std::make_shared<ccf::MerkleTxHistory>(
-      backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp, *service_kp);
+      backup_store, ccf::kv::test::FirstBackupNodeId, *node_kp);
   backup_history->set_endorsed_certificate(self_signed);
   backup_store.set_history(backup_history);
   backup_store.set_encryptor(encryptor);

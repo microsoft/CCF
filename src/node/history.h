@@ -201,6 +201,12 @@ namespace ccf
 
     void start_signature_emit_timer() override {}
 
+    void set_service_kp(
+      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_) override
+    {
+      std::ignore = std::move(service_kp_);
+    }
+
     ccf::crypto::Sha256Hash get_replicated_state_root() override
     {
       return ccf::crypto::Sha256Hash(std::to_string(version));
@@ -525,7 +531,7 @@ namespace ccf
     T replicated_state_tree;
 
     ccf::crypto::KeyPair& node_kp;
-    ccf::crypto::KeyPair_OpenSSL& service_kp;
+    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp{};
 
     std::optional<::threading::TaskQueue::TimerEntry>
       emit_signature_timer_entry = std::nullopt;
@@ -543,14 +549,12 @@ namespace ccf
       ccf::kv::Store& store_,
       const NodeId& id_,
       ccf::crypto::KeyPair& node_kp_,
-      ccf::crypto::KeyPair_OpenSSL& service_kp_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0,
       bool signature_timer = false) :
       store(store_),
       id(id_),
       node_kp(node_kp_),
-      service_kp(service_kp_),
       sig_tx_interval(sig_tx_interval_),
       sig_ms_interval(sig_ms_interval_)
     {
@@ -558,6 +562,12 @@ namespace ccf
       {
         start_signature_emit_timer();
       }
+    }
+
+    void set_service_kp(
+      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_) override
+    {
+      service_kp = std::move(service_kp_);
     }
 
     void start_signature_emit_timer() override
@@ -814,10 +824,16 @@ namespace ccf
 
       LOG_DEBUG_FMT("Signed at {} in view: {}", txid.version, txid.term);
 
+      if (!service_kp)
+      {
+        throw std::logic_error(
+          fmt::format("No service key has been set yet to sign"));
+      }
+
       store.commit(
         txid,
         std::make_unique<MerkleTreeHistoryPendingTx<T>>(
-          txid, store, *this, id, node_kp, service_kp, endorsed_cert.value()),
+          txid, store, *this, id, node_kp, *service_kp, endorsed_cert.value()),
         true);
     }
 

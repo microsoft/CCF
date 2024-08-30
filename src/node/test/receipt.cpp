@@ -69,8 +69,7 @@ void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
   const auto num_endorsements = rand() % 3;
   for (auto i = 0; i < num_endorsements; ++i)
   {
-    auto service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
-      ccf::crypto::make_key_pair());
+    auto service_kp = ccf::crypto::make_key_pair();
     auto service_cert =
       service_kp->self_sign("CN=service", valid_from, valid_to);
     const auto csr = node_kp->create_csr(fmt::format("CN=Test{}", i));
