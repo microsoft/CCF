@@ -399,6 +399,8 @@ Service constitution: JavaScript module, exporting ``validate()``, ``resolve()``
 
 **Value** JavaScript module, represented as a string.
 
+
+
 ``history``
 ~~~~~~~~~~~
 
@@ -470,6 +472,11 @@ Signatures emitted by the primary node at regular interval, over the root of the
 .. doxygenstruct:: ccf::NodeSignature
    :project: CCF
    :members:
+
+``cose_signatures``
+~~~~~~~~~~~~~~
+
+TO DO
 
 ``recovery_shares``
 ~~~~~~~~~~~~~~~~~~~
