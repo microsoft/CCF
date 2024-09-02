@@ -38,7 +38,7 @@ Extend(i) ==
 
 \* The only possible actions are to append log entries.
 \* By construction there cannot be any conflicting log entries
-\* Log entries are copied if the node is not the longest.
+\* Log entries are copied if the node's log is not the longest.
 Next ==
     \E i \in Servers : 
         \/ Copy(i) 
