@@ -136,9 +136,8 @@ MaxLogLength ==
 MappingToAbs == 
   INSTANCE abs WITH
     Servers <- Servers,
-    Terms <- 1..MaxTermLimit,
+    Terms <- StartTerm..MaxTermLimit,
     MaxLogLength <- MaxLogLength,
-    StartTerm <- StartTerm,
     CLogs <- [i \in Servers |-> [j \in 1..commitIndex[i] |-> log[i][j].term]]
 
 RefinementToAbsProp == MappingToAbs!AbsSpec

@@ -2,9 +2,9 @@
 \* Abstract specification for a distributed consensus algorithm.
 \* Assumes that any node can atomically inspect the state of all other nodes. 
 
-EXTENDS Sequences, SequencesExt, Naturals, FiniteSets
+EXTENDS Sequences, SequencesExt, Naturals, FiniteSets, FiniteSetsExt
 
-CONSTANT Servers, Terms, MaxLogLength, StartTerm
+CONSTANT Servers, Terms, MaxLogLength
 
 \* Commit logs from each node
 \* Each log is append-only and the logs will never diverge.
@@ -13,6 +13,8 @@ VARIABLE CLogs
 TypeOK ==
     /\ CLogs \in [Servers -> 
         UNION {[1..l -> Terms] : l \in 0..MaxLogLength}]
+
+StartTerm == Min(Terms)
 
 InitialLogs == {
     <<>>,
