@@ -1,11 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-set(ALLOWED_TARGETS "sgx;snp;virtual")
+set(ALLOWED_TARGETS "snp;virtual")
 
 if(NOT DEFINED COMPILE_TARGET)
   set(COMPILE_TARGET
-      "sgx"
+      "snp"
       CACHE STRING
             "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
   )
@@ -19,72 +19,8 @@ if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)
 endif()
 message(STATUS "Compile target platform: ${COMPILE_TARGET}")
 
-include(${CCF_DIR}/cmake/open_enclave.cmake)
-
 list(APPEND COMPILE_LIBCXX -stdlib=libc++)
 list(APPEND LINK_LIBCXX -lc++ -lc++abi -stdlib=libc++)
-
-# Sign a built enclave library with oesign
-function(sign_app_library name app_oe_conf_path enclave_sign_key_path)
-  cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "INSTALL_LIBS")
-
-  if(TARGET ${name})
-    # Produce a debuggable variant. This doesn't need to be signed, but oesign
-    # also stamps the other config (heap size etc) which _are_ needed
-    set(DEBUG_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.debuggable.conf)
-
-    add_custom_command(
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
-      # Copy conf file locally
-      COMMAND cp ${app_oe_conf_path} ${DEBUG_CONF_NAME}
-      # Remove any existing Debug= lines
-      COMMAND sed -i "/^Debug=\.*/d" ${DEBUG_CONF_NAME}
-      # Add Debug=1 line
-      COMMAND echo "Debug=1" >> ${DEBUG_CONF_NAME}
-      COMMAND
-        openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
-        ${DEBUG_CONF_NAME} -k ${enclave_sign_key_path} -o
-        ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
-      DEPENDS ${name} ${app_oe_conf_path} ${enclave_sign_key_path}
-    )
-
-    add_custom_target(
-      ${name}_debuggable ALL
-      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
-    )
-
-    # Produce a releaseable signed variant. This is NOT debuggable - oegdb
-    # cannot be attached
-    set(SIGNED_CONF_NAME ${CMAKE_CURRENT_BINARY_DIR}/${name}.signed.conf)
-    add_custom_command(
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-      # Copy conf file locally
-      COMMAND cp ${app_oe_conf_path} ${SIGNED_CONF_NAME}
-      # Remove any existing Debug= lines
-      COMMAND sed -i "/^Debug=\.*/d" ${SIGNED_CONF_NAME}
-      # Add Debug=0 line
-      COMMAND echo "Debug=0" >> ${SIGNED_CONF_NAME}
-      COMMAND
-        openenclave::oesign sign -e ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so -c
-        ${SIGNED_CONF_NAME} -k ${enclave_sign_key_path}
-      DEPENDS ${name} ${app_oe_conf_path} ${enclave_sign_key_path}
-    )
-
-    add_custom_target(
-      ${name}_signed ALL
-      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-    )
-
-    if(${PARSED_ARGS_INSTALL_LIBS})
-      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.debuggable
-              DESTINATION lib
-      )
-      install(FILES ${CMAKE_CURRENT_BINARY_DIR}/lib${name}.so.signed
-              DESTINATION lib
-      )
-    endif()
-  endif()
-endfunction()
 
 # Enclave library wrapper
 function(add_ccf_app name)
@@ -99,34 +35,8 @@ function(add_ccf_app name)
   )
   add_custom_target(${name} ALL)
 
-  if(COMPILE_TARGET STREQUAL "sgx")
-    set(enc_name ${name}.enclave)
-
-    add_library(${enc_name} SHARED ${PARSED_ARGS_SRCS})
-
-    target_compile_definitions(${enc_name} PUBLIC PLATFORM_SGX)
-
-    target_include_directories(${enc_name} PRIVATE ${PARSED_ARGS_INCLUDE_DIRS})
-    target_include_directories(
-      ${enc_name} SYSTEM PRIVATE ${PARSED_ARGS_SYSTEM_INCLUDE_DIRS}
-    )
-    add_warning_checks(${enc_name})
-    target_link_libraries(
-      ${enc_name} PRIVATE ${PARSED_ARGS_LINK_LIBS_ENCLAVE}
-                          ${OE_TARGET_ENCLAVE_CORE_LIBS} ccf.enclave
-    )
-
-    set_property(TARGET ${enc_name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-
-    add_lvi_mitigations(${enc_name})
-
-    add_dependencies(${name} ${enc_name})
-    if(PARSED_ARGS_DEPS)
-      add_dependencies(${enc_name} ${PARSED_ARGS_DEPS})
-    endif()
-
-  elseif(COMPILE_TARGET STREQUAL "snp")
-    # Build an SNP enclave, loaded as a shared library without OE
+  if(COMPILE_TARGET STREQUAL "snp")
+    # Build an SNP enclave, loaded as a shared library
     set(snp_name ${name}.snp)
 
     add_library(${snp_name} SHARED ${PARSED_ARGS_SRCS})
@@ -166,7 +76,7 @@ function(add_ccf_app name)
     endif()
 
   elseif(COMPILE_TARGET STREQUAL "virtual")
-    # Build a virtual enclave, loaded as a shared library without OE
+    # Build a virtual enclave, loaded as a shared library
     set(virt_name ${name}.virtual)
 
     add_library(${virt_name} SHARED ${PARSED_ARGS_SRCS})
@@ -206,33 +116,6 @@ function(add_ccf_app name)
     endif()
   endif()
 endfunction()
-
-# Convenience wrapper to build C-libraries that can be linked in enclave, ie. in
-# a CCF application.
-if(COMPILE_TARGET STREQUAL "sgx")
-  function(add_enclave_library_c name)
-    cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
-    set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
-    add_library(${name} STATIC ${files})
-    target_compile_options(${name} PRIVATE -nostdinc)
-    target_link_libraries(${name} PRIVATE ${OE_TARGET_LIBC})
-    set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-  endfunction()
-
-  # Convenience wrapper to build C++-libraries that can be linked in enclave,
-  # ie. in a CCF application.
-  function(add_enclave_library name)
-    cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
-    set(files ${PARSED_ARGS_UNPARSED_ARGUMENTS})
-    add_library(${name} ${files})
-    target_compile_options(${name} PUBLIC -nostdinc -nostdinc++)
-    target_compile_definitions(
-      ${name} PUBLIC INSIDE_ENCLAVE _LIBCPP_HAS_THREAD_API_PTHREAD
-    )
-    target_link_libraries(${name} PUBLIC ${OE_TARGET_ENCLAVE_AND_STD} -lgcc)
-    set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
-  endfunction()
-endif()
 
 function(add_host_library name)
   cmake_parse_arguments(PARSE_ARGV 1 PARSED_ARGS "" "" "")
