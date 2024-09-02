@@ -27,14 +27,14 @@ Copy(i) ==
     \E j \in Servers : 
         /\ Len(CLogs[j]) > Len(CLogs[i])
         /\ \E l \in 1..(Len(CLogs[j]) - Len(CLogs[i])) : 
-                CLogs' = [CLogs EXCEPT ![i] = CLogs[i] \o SubSeq(CLogs[j], Len(CLogs[i]) + 1, Len(CLogs[i]) + l)]
+                CLogs' = [CLogs EXCEPT ![i] = @ \o SubSeq(CLogs[j], Len(@) + 1, Len(@) + l)]
 
 \* The node with the longest log can extend its log.
 Extend(i) ==
     /\ \A j \in Servers : Len(CLogs[j]) \leq Len(CLogs[i])
     /\ \E l \in 0..(MaxLogLength - Len(CLogs[i])) : 
         \E s \in [1..l -> Terms] :
-            CLogs' = [CLogs EXCEPT ![i] = CLogs[i] \o s]
+            CLogs' = [CLogs EXCEPT ![i] = @ \o s]
 
 \* The only possible actions are to append log entries.
 \* By construction there cannot be any conflicting log entries
