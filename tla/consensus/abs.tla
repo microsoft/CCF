@@ -10,6 +10,9 @@ CONSTANT Servers, Terms, MaxLogLength, StartTerm
 \* Each log is append-only and the logs will never diverge.
 VARIABLE CLogs
 
+TypeOK ==
+    /\ CLogs \in [Servers -> 
+        UNION {[1..l -> Terms] : l \in 0..MaxLogLength}]
 
 InitialLogs == {
     <<>>,
@@ -42,10 +45,6 @@ Next ==
         \/ Extend(i)
 
 AbsSpec == Init /\ [][Next]_CLogs
-
-TypeOK ==
-    /\ CLogs \in [Servers -> 
-        UNION {[1..l -> Terms] : l \in 0..MaxLogLength}]
 
 AppendOnlyProp ==
     [][\A i \in Servers : IsPrefix(CLogs[i], CLogs'[i])]_CLogs
