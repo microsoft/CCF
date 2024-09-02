@@ -1,6 +1,6 @@
 ---- MODULE abs ----
 \* Abstract specification for a distributed consensus algorithm.
-\* Assumes that any node can inspect the state of all other nodes. 
+\* Assumes that any node can atomically inspect the state of all other nodes. 
 
 EXTENDS Sequences, SequencesExt, Naturals, FiniteSets
 
