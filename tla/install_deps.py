@@ -79,7 +79,7 @@ def _parse_args() -> argparse.Namespace:
 
 def install_tlc():
     java = "java"
-    tlaplus_path = "~/.vscode-remote/extensions/alygin.vscode-tlaplus-nightly-*/tools/tla2tools.jar"
+    tlaplus_path = "~/.vscode-remote/extensions/tlaplus.vscode-ide-*/tools/tla2tools.jar"
     copy_tlaplus = f"-cp {tlaplus_path} tlc2.TLC"
 
     set_alias("tlcrepl", f"{java} -cp {tlaplus_path} tlc2.REPL")
