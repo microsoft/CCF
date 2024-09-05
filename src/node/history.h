@@ -534,6 +534,7 @@ namespace ccf
 
     ccf::crypto::KeyPair& node_kp;
     std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp{};
+    ccf::crypto::COSEVerifierUniquePtr cose_verifier{};
 
     std::optional<::threading::TaskQueue::TimerEntry>
       emit_signature_timer_entry = std::nullopt;
@@ -570,6 +571,8 @@ namespace ccf
       std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_) override
     {
       service_kp = std::move(service_kp_);
+      cose_verifier =
+        ccf::crypto::make_cose_verifier_from_key(service_kp->public_key_pem());
     }
 
     void start_signature_emit_timer() override
@@ -744,21 +747,16 @@ namespace ccf
         return true;
       }
 
-      auto service = tx.template ro<ccf::Service>(Tables::SERVICE);
-      auto service_info = service->get();
-
-      if (!service_info.has_value())
+      if (!cose_verifier)
       {
         LOG_FAIL_FMT("No service key found to verify the signature");
         return false;
       }
 
-      auto verifier =
-        ccf::crypto::make_cose_verifier_from_cert(service_info->cert.raw());
       const std::vector<const uint8_t> root_hash{
         root.h.data(), root.h.data() + root.h.size()};
 
-      return verifier->verify_detached(cose_sig->sig, root_hash);
+      return cose_verifier->verify_detached(cose_sig->sig, root_hash);
     }
 
     std::vector<uint8_t> serialise_tree(size_t to) override

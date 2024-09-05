@@ -1272,12 +1272,14 @@ TEST_CASE("COSE sign & verify")
     {"string key", "string value"},
     cose_sign);
 
-  REQUIRE_EQ(verify_detached(*kp, cose_sign, payload), T_COSE_SUCCESS);
+  auto cose_verifier =
+    ccf::crypto::make_cose_verifier_from_key(kp->public_key_pem());
+
+  REQUIRE(cose_verifier->verify_detached(cose_sign, payload));
 
   // Wrong payload, must not pass verification.
-  REQUIRE_EQ(
-    verify_detached(*kp, cose_sign, std::vector<uint8_t>{1, 2, 3}),
-    T_COSE_ERR_SIG_VERIFY);
+  REQUIRE_FALSE(
+    cose_verifier->verify_detached(cose_sign, std::vector<uint8_t>{1, 2, 3}));
 
   // Empty headers and payload handled correctly
   cose_sign = cose_sign1(*kp, {}, {});
@@ -1288,5 +1290,5 @@ TEST_CASE("COSE sign & verify")
     {"string key", std::nullopt},
     cose_sign);
 
-  REQUIRE_EQ(verify_detached(*kp, cose_sign, {}), T_COSE_SUCCESS);
+  REQUIRE(cose_verifier->verify_detached(cose_sign, {}));
 }
