@@ -91,6 +91,39 @@ namespace ccf::crypto
     return false;
   }
 
+  bool COSEVerifier_OpenSSL::verify_detached(
+    std::span<const uint8_t> buf, std::span<const uint8_t> payload) const
+  {
+    EVP_PKEY* evp_key = *public_key;
+
+    t_cose_key cose_key;
+    cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
+    cose_key.k.key_ptr = evp_key;
+
+    t_cose_sign1_verify_ctx verify_ctx;
+    t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
+    t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
+
+    q_useful_buf_c buf_;
+    buf_.ptr = buf.data();
+    buf_.len = buf.size();
+
+    q_useful_buf_c payload_;
+    payload_.ptr = payload.data();
+    payload_.len = payload.size();
+
+    t_cose_err_t error = t_cose_sign1_verify_detached(
+      &verify_ctx, buf_, NULL_Q_USEFUL_BUF_C, payload_, nullptr);
+
+    if (error == T_COSE_SUCCESS)
+    {
+      return true;
+    }
+
+    LOG_DEBUG_FMT("COSE Sign1 verification failed with error {}", error);
+    return false;
+  }
+
   COSEVerifierUniquePtr make_cose_verifier_from_cert(
     const std::vector<uint8_t>& cert)
   {
