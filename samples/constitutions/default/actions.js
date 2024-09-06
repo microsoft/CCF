@@ -884,22 +884,6 @@ const actions = new Map([
         checkType(args.issuer, "string", "issuer");
         checkType(args.auto_refresh, "boolean?", "auto_refresh");
         checkType(args.ca_cert_bundle_name, "string?", "ca_cert_bundle_name");
-        checkEnum(args.key_filter, ["all", "sgx"], "key_filter");
-        checkType(args.key_policy, "object?", "key_policy");
-        if (args.key_policy) {
-          checkType(
-            args.key_policy.sgx_claims,
-            "object?",
-            "key_policy.sgx_claims",
-          );
-          if (args.key_policy.sgx_claims) {
-            for (const [name, value] of Object.entries(
-              args.key_policy.sgx_claims,
-            )) {
-              checkType(value, "string", `key_policy.sgx_claims["${name}"]`);
-            }
-          }
-        }
         checkType(args.jwks, "object?", "jwks");
         if (args.jwks) {
           checkJwks(args.jwks, "jwks");

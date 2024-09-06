@@ -1,7 +1,7 @@
 {
   "name": "TLA+ CCF",
   "extensions": [
-    "alygin.vscode-tlaplus-nightly",
+    "tlaplus.vscode-ide",
     "joaompinto.vscode-graphviz",
     "EFanZh.graphviz-preview",
     "cssho.vscode-svgviewer"
