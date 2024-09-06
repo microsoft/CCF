@@ -102,6 +102,7 @@ TEST_CASE("Check signature verification")
   backup_store.initialise_term(store_term);
 
   ccf::Nodes nodes(ccf::Tables::NODES);
+  ccf::Service service(ccf::Tables::SERVICE);
   ccf::Signatures signatures(ccf::Tables::SIGNATURES);
 
   std::shared_ptr<ccf::kv::Consensus> consensus =
@@ -112,7 +113,7 @@ TEST_CASE("Check signature verification")
     std::make_shared<DummyConsensus>(nullptr);
   backup_store.set_consensus(null_consensus);
 
-  INFO("Write certificate");
+  INFO("Write certificates");
   {
     auto txs = primary_store.create_tx();
     auto tx = txs.rw(nodes);
@@ -120,6 +121,11 @@ TEST_CASE("Check signature verification")
     ni.encryption_pub_key = node_kp->public_key_pem();
     ni.cert = self_signed;
     tx->put(ccf::kv::test::PrimaryNodeId, ni);
+
+    auto stx = txs.rw(service);
+    auto service_info = ccf::ServiceInfo{
+      .cert = service_kp->self_sign("CN=Service", valid_from, valid_to)};
+    stx->put(service_info);
     REQUIRE(txs.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
@@ -172,6 +178,7 @@ TEST_CASE("Check signing works across rollback")
   backup_store.initialise_term(store_term);
 
   ccf::Nodes nodes(ccf::Tables::NODES);
+  ccf::Service service(ccf::Tables::SERVICE);
 
   std::shared_ptr<ccf::kv::Consensus> consensus =
     std::make_shared<DummyConsensus>(&backup_store);
@@ -180,7 +187,7 @@ TEST_CASE("Check signing works across rollback")
     std::make_shared<DummyConsensus>(nullptr);
   backup_store.set_consensus(null_consensus);
 
-  INFO("Write certificate");
+  INFO("Write certificates");
   {
     auto txs = primary_store.create_tx();
     auto tx = txs.rw(nodes);
@@ -188,6 +195,11 @@ TEST_CASE("Check signing works across rollback")
     ni.encryption_pub_key = node_kp->public_key_pem();
     ni.cert = self_signed;
     tx->put(ccf::kv::test::PrimaryNodeId, ni);
+
+    auto stx = txs.rw(service);
+    auto service_info = ccf::ServiceInfo{
+      .cert = service_kp->self_sign("CN=Service", valid_from, valid_to)};
+    stx->put(service_info);
     REQUIRE(txs.commit() == ccf::kv::CommitResult::SUCCESS);
   }
 
