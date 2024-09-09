@@ -31,12 +31,14 @@ Copy(i) ==
         /\ \E l \in 1..(Len(cLogs[j]) - Len(cLogs[i])) : 
                 cLogs' = [cLogs EXCEPT ![i] = @ \o SubSeq(cLogs[j], Len(@) + 1, Len(@) + l)]
 
-\* The node with the longest log can extend its log.
-Extend(i) ==
+\* A node i with the longest log can extend its log upto length k.
+Extend(i, k) ==
     /\ \A j \in Servers : Len(cLogs[j]) \leq Len(cLogs[i])
-    /\ \E l \in 0..(MaxLogLength - Len(cLogs[i])) : 
+    /\ \E l \in 0..(k - Len(cLogs[i])) : 
         \E s \in [1..l -> Terms] :
             cLogs' = [cLogs EXCEPT ![i] = @ \o s]
+
+ExtendToMax(i) == Extend(i, MaxLogLength)
 
 \* The only possible actions are to append log entries.
 \* By construction there cannot be any conflicting log entries
@@ -44,7 +46,7 @@ Extend(i) ==
 Next ==
     \E i \in Servers : 
         \/ Copy(i) 
-        \/ Extend(i)
+        \/ ExtendToMax(i)
 
 AbsSpec == Init /\ [][Next]_CLogs
 
