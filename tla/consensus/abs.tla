@@ -48,10 +48,10 @@ Next ==
         \/ Copy(i) 
         \/ ExtendToMax(i)
 
-AbsSpec == Init /\ [][Next]_CLogs
+AbsSpec == Init /\ [][Next]_cLogs
 
 AppendOnlyProp ==
-    [][\A i \in Servers : IsPrefix(cLogs[i], cLogs'[i])]_CLogs
+    [][\A i \in Servers : IsPrefix(cLogs[i], cLogs'[i])]_cLogs
 
 NoConflicts ==
     \A i, j \in Servers : 
