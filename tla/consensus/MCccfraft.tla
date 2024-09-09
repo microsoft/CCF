@@ -138,7 +138,7 @@ MappingToAbs ==
     Servers <- Servers,
     Terms <- StartTerm..MaxTermLimit,
     MaxLogLength <- MaxLogLength,
-    CLogs <- [i \in Servers |-> [j \in 1..commitIndex[i] |-> log[i][j].term]]
+    cLogs <- [i \in Servers |-> [j \in 1..commitIndex[i] |-> log[i][j].term]]
 
 RefinementToAbsProp == MappingToAbs!AbsSpec
 

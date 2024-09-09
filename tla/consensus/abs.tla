@@ -8,10 +8,10 @@ CONSTANT Servers, Terms, MaxLogLength
 
 \* Commit logs from each node
 \* Each log is append-only and the logs will never diverge.
-VARIABLE CLogs
+VARIABLE cLogs
 
 TypeOK ==
-    /\ CLogs \in [Servers -> 
+    /\ cLogs \in [Servers -> 
         UNION {[1..l -> Terms] : l \in 0..MaxLogLength}]
 
 StartTerm == Min(Terms)
@@ -22,21 +22,21 @@ InitialLogs == {
     <<StartTerm, StartTerm, StartTerm, StartTerm>>}
     
 Init ==
-    CLogs \in [Servers -> InitialLogs]
+    cLogs \in [Servers -> InitialLogs]
 
 \* A node i can copy a ledger suffix from another node j.
 Copy(i) ==
     \E j \in Servers : 
-        /\ Len(CLogs[j]) > Len(CLogs[i])
-        /\ \E l \in 1..(Len(CLogs[j]) - Len(CLogs[i])) : 
-                CLogs' = [CLogs EXCEPT ![i] = @ \o SubSeq(CLogs[j], Len(@) + 1, Len(@) + l)]
+        /\ Len(cLogs[j]) > Len(cLogs[i])
+        /\ \E l \in 1..(Len(cLogs[j]) - Len(cLogs[i])) : 
+                cLogs' = [cLogs EXCEPT ![i] = @ \o SubSeq(cLogs[j], Len(@) + 1, Len(@) + l)]
 
 \* The node with the longest log can extend its log.
 Extend(i) ==
-    /\ \A j \in Servers : Len(CLogs[j]) \leq Len(CLogs[i])
-    /\ \E l \in 0..(MaxLogLength - Len(CLogs[i])) : 
+    /\ \A j \in Servers : Len(cLogs[j]) \leq Len(cLogs[i])
+    /\ \E l \in 0..(MaxLogLength - Len(cLogs[i])) : 
         \E s \in [1..l -> Terms] :
-            CLogs' = [CLogs EXCEPT ![i] = @ \o s]
+            cLogs' = [cLogs EXCEPT ![i] = @ \o s]
 
 \* The only possible actions are to append log entries.
 \* By construction there cannot be any conflicting log entries
@@ -49,11 +49,11 @@ Next ==
 AbsSpec == Init /\ [][Next]_CLogs
 
 AppendOnlyProp ==
-    [][\A i \in Servers : IsPrefix(CLogs[i], CLogs'[i])]_CLogs
+    [][\A i \in Servers : IsPrefix(cLogs[i], cLogs'[i])]_CLogs
 
 NoConflicts ==
     \A i, j \in Servers : 
-        \/ IsPrefix(CLogs[i], CLogs[j]) 
-        \/ IsPrefix(CLogs[j], CLogs[i])
+        \/ IsPrefix(cLogs[i], cLogs[j]) 
+        \/ IsPrefix(cLogs[j], cLogs[i])
 
 ====
