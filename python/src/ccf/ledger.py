@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives.asymmetric import utils, ec
 
 from ccf.merkletree import MerkleTree
 from ccf.tx_id import TxID
+from ccf.cose import validate_cose_sign1
 import ccf.receipt
 from hashlib import sha256
 import functools
@@ -31,6 +32,7 @@ LEDGER_HEADER_SIZE = 8
 
 # Public table names as defined in CCF
 SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.signatures"
+COSE_SIGNATURE_TX_TABLE_NAME = "public:ccf.internal.cose_signatures"
 NODES_TABLE_NAME = "public:ccf.gov.nodes.info"
 ENDORSED_NODE_CERTIFICATES_TABLE_NAME = "public:ccf.gov.nodes.endorsed_certificates"
 SERVICE_INFO_TABLE_NAME = "public:ccf.gov.service.info"
@@ -389,6 +391,7 @@ class LedgerValidator:
         self.last_verified_view = 0
 
         self.service_status = None
+        self.service_cert = None
 
     def last_verified_txid(self) -> TxID:
         return TxID(self.last_verified_view, self.last_verified_seqno)
@@ -509,6 +512,14 @@ class LedgerValidator:
             else:
                 assert self.service_status is None, self.service_status
             self.service_status = updated_status
+            self.service_cert = updated_service_json["cert"]
+
+        if COSE_SIGNATURE_TX_TABLE_NAME in tables:
+            cose_signature_table = tables[COSE_SIGNATURE_TX_TABLE_NAME]
+            cose_signature = cose_signature_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
+            signature = json.loads(cose_signature)
+            cose_sign1 = base64.b64decode(signature["sig"])
+            self._verify_root_cose_signature(self.merkle.get_merkle_root(), cose_sign1)
 
         # Checks complete, add this transaction to tree
         self.merkle.add_leaf(transaction.get_tx_digest(), False)
@@ -557,6 +568,18 @@ class LedgerValidator:
                 + f"\nSignature: {base64.b64encode(tx_info.signature).decode()}"
                 + f"\nRoot: {tx_info.existing_root.hex()}"
             ) from InvalidSignature
+
+    def _verify_root_cose_signature(self, root, cose_sign1):
+        try:
+            validate_cose_sign1(
+                payload=root, cert_pem=self.service_cert, cose_sign1=cose_sign1
+            )
+        except Exception as exc:
+            raise InvalidRootCoseSignatureException(
+                "Signature verification failed:"
+                + f"\nCertificate: {self.service_cert}"
+                + f"\nRoot: {root}"
+            ) from exc
 
     def _verify_merkle_root(self, merkletree: MerkleTree, existing_root: bytes):
         """Verify item 3, by comparing the roots from the merkle tree that's maintained by this class and from the one extracted from the ledger"""
@@ -1059,6 +1082,10 @@ class InvalidRootException(Exception):
 
 class InvalidRootSignatureException(Exception):
     """Signature of the MerkleRoot doesn't match with the signature that's reported in the signature's table"""
+
+
+class InvalidRootCoseSignatureException(Exception):
+    """COSE signature of the MerkleRoot doesn't pass COSE verification"""
 
 
 class CommitIdRangeException(Exception):
