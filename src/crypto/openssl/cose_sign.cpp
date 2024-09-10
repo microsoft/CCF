@@ -75,6 +75,22 @@ namespace
     // Explicitly leave unprotected headers empty to be an empty map.
     QCBOREncode_CloseMap(cbor_encode);
   }
+
+  int get_algorithm_id(ccf::crypto::KeyPair_OpenSSL& key)
+  {
+    const auto cid = key.get_curve_id();
+    switch (cid)
+    {
+      case ccf::crypto::CurveID::SECP256K1:
+      case ccf::crypto::CurveID::SECP256R1:
+        return T_COSE_ALGORITHM_ES256;
+      case ccf::crypto::CurveID::SECP384R1:
+        return T_COSE_ALGORITHM_ES384;
+      default:
+        throw ccf::crypto::COSESignError(
+          fmt::format("COSE sign: unsupported curve {}", cid));
+    }
+  }
 }
 
 namespace ccf::crypto
@@ -125,7 +141,7 @@ namespace ccf::crypto
   }
 
   std::vector<uint8_t> cose_sign1(
-    EVP_PKEY* key,
+    KeyPair_OpenSSL& key,
     const std::vector<COSEParametersFactory>& protected_headers,
     std::span<const uint8_t> payload)
   {
@@ -136,7 +152,8 @@ namespace ccf::crypto
     QCBOREncode_Init(&cbor_encode, signed_cose_buffer);
 
     t_cose_sign1_sign_ctx sign_ctx;
-    t_cose_sign1_sign_init(&sign_ctx, 0, T_COSE_ALGORITHM_ES384);
+    const int algorithm_id = get_algorithm_id(key);
+    t_cose_sign1_sign_init(&sign_ctx, 0, algorithm_id);
 
     t_cose_key signing_key;
     signing_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;

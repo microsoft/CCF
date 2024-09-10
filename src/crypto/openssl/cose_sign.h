@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "crypto/openssl/key_pair.h"
+
 #include <openssl/ossl_typ.h>
 #include <span>
 #include <string>
@@ -65,7 +67,7 @@ namespace ccf::crypto
     https://www.iana.org/assignments/cose/cose.xhtml#header-parameters.
    */
   std::vector<uint8_t> cose_sign1(
-    EVP_PKEY* key,
+    KeyPair_OpenSSL& key,
     const std::vector<COSEParametersFactory>& protected_headers,
     std::span<const uint8_t> payload);
 }
