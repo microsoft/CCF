@@ -375,17 +375,21 @@ namespace ccf
         endorsed_cert);
 
       constexpr int64_t vds_merkle_tree = 2;
+
+      const auto& service_key_der = service_kp.public_key_der();
+      std::vector<uint8_t> kid(SHA256_DIGEST_LENGTH);
+      SHA256(service_key_der.data(), service_key_der.size(), kid.data());
+
       const auto pheaders = {
-        // 1. VDS
+        // Key digest
+        ccf::crypto::cose_params_int_bytes(
+          ccf::crypto::COSE_PHEADER_KEY_ID, kid),
+        // VDS
         ccf::crypto::cose_params_int_int(
           ccf::crypto::COSE_PHEADER_KEY_VDS, vds_merkle_tree),
-        // 2. TxID
+        // TxID
         ccf::crypto::cose_params_string_string(
-          ccf::crypto::COSE_PHEADER_KEY_TXID, txid.str())
-        // 3. Key digest
-        // TO
-        // DO
-      };
+          ccf::crypto::COSE_PHEADER_KEY_TXID, txid.str())};
       auto cose_sign = crypto::cose_sign1(service_kp, pheaders, root_hash);
 
       signatures->put(sig_value);

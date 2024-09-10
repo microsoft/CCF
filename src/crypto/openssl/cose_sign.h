@@ -12,11 +12,13 @@
 
 namespace ccf::crypto
 {
-  // Algorithm used to sign, standardatised field
+  // Standartised field: algorithm used to sign
   static constexpr int64_t COSE_PHEADER_KEY_ALG = 1;
-  // Verifiable data structure, standartised field
+  // Standartised: hash of the signing key
+  static constexpr int64_t COSE_PHEADER_KEY_ID = 4;
+  // Standartised: verifiable data structure
   static constexpr int64_t COSE_PHEADER_KEY_VDS = 395;
-  // CCF-specifix, last signed TxID
+  // CCF-specific: last signed TxID
   static constexpr const char* COSE_PHEADER_KEY_TXID = "ccf.txid";
 
   class COSEParametersFactory
@@ -53,6 +55,9 @@ namespace ccf::crypto
 
   COSEParametersFactory cose_params_string_string(
     std::string_view key, std::string_view value);
+
+  COSEParametersFactory cose_params_int_bytes(
+    int64_t key, std::span<const uint8_t> value);
 
   struct COSESignError : public std::runtime_error
   {

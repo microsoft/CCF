@@ -141,6 +141,18 @@ namespace ccf::crypto
       args_size);
   }
 
+  COSEParametersFactory cose_params_int_bytes(
+    int64_t key, std::span<const uint8_t> value)
+  {
+    const size_t args_size = sizeof(key) + value.size();
+    q_useful_buf_c buf{value.data(), value.size()};
+    return COSEParametersFactory(
+      [=](QCBOREncodeContext* ctx) {
+        QCBOREncode_AddBytesToMapN(ctx, key, buf);
+      },
+      args_size);
+  }
+
   std::vector<uint8_t> cose_sign1(
     KeyPair_OpenSSL& key,
     const std::vector<COSEParametersFactory>& protected_headers,
