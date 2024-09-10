@@ -534,6 +534,8 @@ namespace ccf
 
     ccf::crypto::KeyPair& node_kp;
     std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp{};
+    ccf::crypto::COSEVerifierUniquePtr cose_verifier{};
+    std::vector<uint8_t> cose_cert_cached{};
 
     std::optional<::threading::TaskQueue::TimerEntry>
       emit_signature_timer_entry = std::nullopt;
@@ -753,13 +755,12 @@ namespace ccf
         return false;
       }
 
-      // TO DO try use cache
-      auto verifier =
-        ccf::crypto::make_cose_verifier_from_cert(service_info->cert.raw());
+      const auto raw_cert = service_info->cert.raw();
       const std::vector<const uint8_t> root_hash{
         root.h.data(), root.h.data() + root.h.size()};
 
-      return verifier->verify_detached(cose_sig->sig, root_hash);
+      return cose_verifier_cached(raw_cert)->verify_detached(
+        cose_sig->sig, root_hash);
     }
 
     std::vector<uint8_t> serialise_tree(size_t to) override
@@ -905,6 +906,19 @@ namespace ccf
     void set_endorsed_certificate(const ccf::crypto::Pem& cert) override
     {
       endorsed_cert = cert;
+    }
+
+  private:
+    ccf::crypto::COSEVerifierUniquePtr& cose_verifier_cached(
+      const std::vector<uint8_t>& cert)
+    {
+      if (cert != cose_cert_cached)
+      {
+        cose_cert_cached = cert;
+        cose_verifier =
+          ccf::crypto::make_cose_verifier_from_cert(cose_cert_cached);
+      }
+      return cose_verifier;
     }
   };
 
