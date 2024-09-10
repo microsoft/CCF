@@ -174,7 +174,7 @@ def create_cose_sign1_finish(
     return msg.encode(sign=False)
 
 
-def validate_cose_sign1(payload: bytes, cert_pem: Pem, cose_sign1: bytes) -> bool:
+def validate_cose_sign1(payload: bytes, cert_pem: Pem, cose_sign1: bytes):
     cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
     if not isinstance(cert.public_key(), EllipticCurvePublicKey):
         raise NotImplementedError("unsupported key type")
