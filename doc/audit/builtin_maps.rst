@@ -399,8 +399,6 @@ Service constitution: JavaScript module, exporting ``validate()``, ``resolve()``
 
 **Value** JavaScript module, represented as a string.
 
-
-
 ``history``
 ~~~~~~~~~~~
 
