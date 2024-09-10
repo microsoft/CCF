@@ -59,6 +59,8 @@ namespace ccf::crypto
     COSESignError(const std::string& msg) : std::runtime_error(msg) {}
   };
 
+  std::optional<int> key_to_cose_alg_id(ccf::crypto::PublicKey_OpenSSL& key);
+
   /* Sign a cose_sign1 payload with custom protected headers as strings, where
        - key: integer label to be assigned in a COSE value
        - value: string behind the label.

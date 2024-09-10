@@ -75,26 +75,28 @@ namespace
     // Explicitly leave unprotected headers empty to be an empty map.
     QCBOREncode_CloseMap(cbor_encode);
   }
+}
 
-  int get_algorithm_id(ccf::crypto::KeyPair_OpenSSL& key)
+namespace ccf::crypto
+{
+
+  std::optional<int> key_to_cose_alg_id(ccf::crypto::PublicKey_OpenSSL& key)
   {
     const auto cid = key.get_curve_id();
     switch (cid)
     {
       case ccf::crypto::CurveID::SECP256K1:
       case ccf::crypto::CurveID::SECP256R1:
+        std::cout << "Return ES256" << std::endl;
         return T_COSE_ALGORITHM_ES256;
       case ccf::crypto::CurveID::SECP384R1:
+        std::cout << "Return ES384" << std::endl;
         return T_COSE_ALGORITHM_ES384;
       default:
-        throw ccf::crypto::COSESignError(
-          fmt::format("COSE sign: unsupported curve {}", cid));
+        return std::nullopt;
     }
   }
-}
 
-namespace ccf::crypto
-{
   COSEParametersFactory cose_params_int_int(int64_t key, int64_t value)
   {
     const size_t args_size = sizeof(key) + sizeof(value);
@@ -152,12 +154,18 @@ namespace ccf::crypto
     QCBOREncode_Init(&cbor_encode, signed_cose_buffer);
 
     t_cose_sign1_sign_ctx sign_ctx;
-    const int algorithm_id = get_algorithm_id(key);
-    t_cose_sign1_sign_init(&sign_ctx, 0, algorithm_id);
+    const auto algorithm_id = key_to_cose_alg_id(key);
+    if (!algorithm_id.has_value())
+    {
+      throw ccf::crypto::COSESignError(fmt::format("Unsupported key type"));
+    }
 
+    t_cose_sign1_sign_init(&sign_ctx, 0, *algorithm_id);
+
+    EVP_PKEY* evp_key = key;
     t_cose_key signing_key;
     signing_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
-    signing_key.k.key_ptr = key;
+    signing_key.k.key_ptr = evp_key;
 
     t_cose_sign1_set_signing_key(&sign_ctx, signing_key, NULL_Q_USEFUL_BUF_C);
 
