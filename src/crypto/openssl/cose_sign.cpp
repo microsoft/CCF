@@ -136,7 +136,7 @@ namespace ccf::crypto
     QCBOREncode_Init(&cbor_encode, signed_cose_buffer);
 
     t_cose_sign1_sign_ctx sign_ctx;
-    t_cose_sign1_sign_init(&sign_ctx, 0, T_COSE_ALGORITHM_ES256);
+    t_cose_sign1_sign_init(&sign_ctx, 0, T_COSE_ALGORITHM_ES384);
 
     t_cose_key signing_key;
     signing_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
