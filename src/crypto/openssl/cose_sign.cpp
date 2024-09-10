@@ -79,7 +79,6 @@ namespace
 
 namespace ccf::crypto
 {
-
   std::optional<int> key_to_cose_alg_id(ccf::crypto::PublicKey_OpenSSL& key)
   {
     const auto cid = key.get_curve_id();
