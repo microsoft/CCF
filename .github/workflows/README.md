@@ -35,6 +35,13 @@ Main continuous integration job. Builds CCF for all target platforms, runs unit,
 File: `ci.yml`
 3rd party dependencies: None
 
+# Long Tests
+
+Secondary continuous integration job. Runs more expensive, longer tests, such as tests against ASAN builds, fuzzing etc. Runs daily.
+
+File: `long-test.yml`
+3rd party dependencies: None
+
 # CodeQL analysis
 
 Builds CCF with CodeQL, and runs the security-extended checks. Triggered on PRs that affect ".github/workflows/codeql-analysis.yml", and once a week on main.
@@ -91,10 +98,6 @@ File: `doc.yml`
 # Deprecated
 
 The following pipelines are still here to support 4.x, but will be removed when it reaches EOL.
-
-## CI containers ACR/MCR
-
-File: `ci-containers.yml`
 
 ## Release containers ACR/MCR
 
