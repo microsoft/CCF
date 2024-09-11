@@ -86,10 +86,8 @@ namespace ccf::crypto
     {
       case ccf::crypto::CurveID::SECP256K1:
       case ccf::crypto::CurveID::SECP256R1:
-        std::cout << "Return ES256" << std::endl;
         return T_COSE_ALGORITHM_ES256;
       case ccf::crypto::CurveID::SECP384R1:
-        std::cout << "Return ES384" << std::endl;
         return T_COSE_ALGORITHM_ES384;
       default:
         return std::nullopt;

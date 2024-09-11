@@ -12,11 +12,11 @@
 
 namespace ccf::crypto
 {
-  // Standartised field: algorithm used to sign
+  // Standardised field: algorithm used to sign
   static constexpr int64_t COSE_PHEADER_KEY_ALG = 1;
-  // Standartised: hash of the signing key
+  // Standardised: hash of the signing key
   static constexpr int64_t COSE_PHEADER_KEY_ID = 4;
-  // Standartised: verifiable data structure
+  // Standardised: verifiable data structure
   static constexpr int64_t COSE_PHEADER_KEY_VDS = 395;
   // CCF-specific: last signed TxID
   static constexpr const char* COSE_PHEADER_KEY_TXID = "ccf.txid";
