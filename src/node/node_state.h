@@ -595,7 +595,18 @@ namespace ccf
             return;
           }
 
-          if (status != HTTP_STATUS_OK)
+          if (status == HTTP_STATUS_BAD_REQUEST)
+          {
+            auto error_msg = fmt::format(
+              "Join request to {} returned 400 Bad Request: {}. Shutting "
+              "down node gracefully.",
+              config.join.target_rpc_address,
+              std::string(data.begin(), data.end()));
+            LOG_FAIL_FMT("{}", error_msg);
+            RINGBUFFER_WRITE_MESSAGE(
+              AdminMessage::fatal_error_msg, to_host, error_msg);
+          }
+          else if (status != HTTP_STATUS_OK)
           {
             const auto& location = headers.find(http::headers::LOCATION);
             if (

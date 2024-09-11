@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - The `set_jwt_issuer` governance action has been updated, and no longer accepts `key_filter` or `key_policy` arguments (#6450).
+- Nodes started in `Join` mode will shut down if they receive and unrecoverable condition such as `StartupSeqnoIsOld` when attempting to join (#6471).
 
 ### Removed
 
