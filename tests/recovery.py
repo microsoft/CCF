@@ -45,7 +45,7 @@ def get_and_verify_historical_receipt(network, ref_msg):
 
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
-def test_recover_service(network, args, from_snapshot=True):
+def test_recover_service(network, args, from_snapshot=True, no_ledger=False):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
@@ -71,7 +71,11 @@ def test_recover_service(network, args, from_snapshot=True):
 
     watcher.wait_for_recovery()
 
-    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+    if no_ledger:
+        current_ledger_dir = None
+        committed_ledger_dirs = None
+    else:
+        current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
     with tempfile.NamedTemporaryFile(mode="w+") as node_data_tf:
         start_node_data = {"this is a": "recovery node"}
@@ -116,7 +120,7 @@ def test_recover_service(network, args, from_snapshot=True):
         args.initial_service_cert_validity_days
     )
 
-    new_nodes = recovered_network.find_primary_and_any_backup()
+    new_nodes = recovered_network.get_joined_nodes()
     for n in new_nodes:
         with n.client() as c:
             r = c.get("/node/service/previous_identity")
@@ -811,6 +815,26 @@ def run(args):
     )
 
 
+def run_recover_snapshot_alone(args):
+    """
+    Recover a service from a snapshot alone, without any ledger files from a previous service.
+    """
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
+        # Recover node solely from snapshot
+        test_recover_service(network, args, from_snapshot=True, no_ledger=True)
+        return network
+
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -858,6 +882,13 @@ checked. Note that the key for each logging message is unique (per table).
         sig_ms_interval=1000,
         ledger_chunk_bytes="1GB",
         snapshot_tx_interval=1000000,
+    )
+
+    cr.add(
+        "recovery_snapshot_alone",
+        run_recover_snapshot_alone,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
     )
 
     cr.run()
