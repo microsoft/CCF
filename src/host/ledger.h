@@ -1392,8 +1392,16 @@ namespace asynchost
 
       LOG_DEBUG_FMT("Ledger truncate: {}/{}", idx, last_idx);
 
-      if (idx >= last_idx || idx < committed_idx)
+      // Conservative check to avoid truncating to future indices, or dropping
+      // committed entries. If the ledger is being initialised from a snapshot
+      // alone, the first truncation effectively sets the last index.
+      if (last_idx != 0 && (idx >= last_idx || idx < committed_idx))
       {
+        LOG_DEBUG_FMT(
+          "Ignoring truncate to {} - last_idx: {}, committed_idx: {}",
+          idx,
+          last_idx,
+          committed_idx);
         return;
       }
 
