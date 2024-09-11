@@ -11,8 +11,7 @@ CONSTANT Servers, Terms, MaxLogLength
 VARIABLE cLogs
 
 TypeOK ==
-    /\ cLogs \in [Servers -> 
-        UNION {[1..l -> Terms] : l \in 0..MaxLogLength}]
+    cLogs \in [Servers -> Seq(Terms)]
 
 StartTerm == Min(Terms)
 
