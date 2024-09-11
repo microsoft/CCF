@@ -864,10 +864,13 @@ def run_join_old_snapshot(args):
                     snapshots_dir=tmp_dir,
                     timeout=3,
                 )
-            except infra.network.StartupSeqnoIsOld:
+            except infra.network.StartupSeqnoIsOld as e:
                 LOG.info(
                     f"Node {new_node.local_node_id} started from old snapshot could not join the service, as expected"
                 )
+                assert e.args == (
+                    True,
+                ), "Node has stopped on receiving StartupSeqnoIsOld"
             else:
                 raise RuntimeError(
                     f"Node {new_node.local_node_id} started from old snapshot unexpectedly joined the service"
@@ -883,10 +886,13 @@ def run_join_old_snapshot(args):
                     from_snapshot=False,
                     timeout=3,
                 )
-            except infra.network.StartupSeqnoIsOld:
+            except infra.network.StartupSeqnoIsOld as e:
                 LOG.info(
                     f"Node {new_node.local_node_id} started without snapshot could not join the service, as expected"
                 )
+                assert e.args == (
+                    True,
+                ), "Node has stopped on receiving StartupSeqnoIsOld"
             else:
                 raise RuntimeError(
                     f"Node {new_node.local_node_id} started without snapshot unexpectedly joined the service successfully"
