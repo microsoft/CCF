@@ -84,7 +84,6 @@ namespace ccf::crypto
     const auto cid = key.get_curve_id();
     switch (cid)
     {
-      case ccf::crypto::CurveID::SECP256K1:
       case ccf::crypto::CurveID::SECP256R1:
         return T_COSE_ALGORITHM_ES256;
       case ccf::crypto::CurveID::SECP384R1:
