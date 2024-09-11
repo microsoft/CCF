@@ -105,7 +105,7 @@ namespace ccf::crypto
   }
 
   COSEParametersFactory cose_params_int_string(
-    int64_t key, std::string_view value)
+    int64_t key, const std::string& value)
   {
     const size_t args_size = sizeof(key) + value.size();
     return COSEParametersFactory(
@@ -116,7 +116,7 @@ namespace ccf::crypto
   }
 
   COSEParametersFactory cose_params_string_int(
-    std::string_view key, int64_t value)
+    const std::string& key, int64_t value)
   {
     const size_t args_size = key.size() + sizeof(value);
     return COSEParametersFactory(
@@ -128,7 +128,7 @@ namespace ccf::crypto
   }
 
   COSEParametersFactory cose_params_string_string(
-    std::string_view key, std::string_view value)
+    const std::string& key, const std::string& value)
   {
     const size_t args_size = key.size() + value.size();
     return COSEParametersFactory(
@@ -140,7 +140,7 @@ namespace ccf::crypto
   }
 
   COSEParametersFactory cose_params_int_bytes(
-    int64_t key, std::span<const uint8_t> value)
+    int64_t key, const std::vector<uint8_t>& value)
   {
     const size_t args_size = sizeof(key) + value.size();
     q_useful_buf_c buf{value.data(), value.size()};
