@@ -9,6 +9,9 @@
 
 namespace
 {
+  static constexpr size_t extra_size_for_int_tag = 1; // type
+  static constexpr size_t extra_size_for_seq_tag = 1 + 8; // type + size
+
   size_t estimate_buffer_size(
     const std::vector<ccf::crypto::COSEParametersFactory>& protected_headers,
     std::span<const uint8_t> payload)
@@ -95,7 +98,8 @@ namespace ccf::crypto
 
   COSEParametersFactory cose_params_int_int(int64_t key, int64_t value)
   {
-    const size_t args_size = sizeof(key) + sizeof(value);
+    const size_t args_size = sizeof(key) + sizeof(value) +
+      extra_size_for_int_tag + extra_size_for_int_tag;
     return COSEParametersFactory(
       [=](QCBOREncodeContext* ctx) {
         QCBOREncode_AddInt64ToMapN(ctx, key, value);
@@ -106,7 +110,8 @@ namespace ccf::crypto
   COSEParametersFactory cose_params_int_string(
     int64_t key, const std::string& value)
   {
-    const size_t args_size = sizeof(key) + value.size();
+    const size_t args_size = sizeof(key) + value.size() +
+      extra_size_for_int_tag + extra_size_for_seq_tag;
     return COSEParametersFactory(
       [=](QCBOREncodeContext* ctx) {
         QCBOREncode_AddSZStringToMapN(ctx, key, value.data());
@@ -117,7 +122,8 @@ namespace ccf::crypto
   COSEParametersFactory cose_params_string_int(
     const std::string& key, int64_t value)
   {
-    const size_t args_size = key.size() + sizeof(value);
+    const size_t args_size = key.size() + sizeof(value) +
+      extra_size_for_seq_tag + extra_size_for_int_tag;
     return COSEParametersFactory(
       [=](QCBOREncodeContext* ctx) {
         QCBOREncode_AddSZString(ctx, key.data());
@@ -129,7 +135,8 @@ namespace ccf::crypto
   COSEParametersFactory cose_params_string_string(
     const std::string& key, const std::string& value)
   {
-    const size_t args_size = key.size() + value.size();
+    const size_t args_size = key.size() + value.size() +
+      extra_size_for_seq_tag + extra_size_for_seq_tag;
     return COSEParametersFactory(
       [=](QCBOREncodeContext* ctx) {
         QCBOREncode_AddSZString(ctx, key.data());
@@ -141,7 +148,8 @@ namespace ccf::crypto
   COSEParametersFactory cose_params_int_bytes(
     int64_t key, const std::vector<uint8_t>& value)
   {
-    const size_t args_size = sizeof(key) + value.size();
+    const size_t args_size = sizeof(key) + value.size() +
+      +extra_size_for_int_tag + extra_size_for_seq_tag;
     q_useful_buf_c buf{value.data(), value.size()};
     return COSEParametersFactory(
       [=](QCBOREncodeContext* ctx) {
