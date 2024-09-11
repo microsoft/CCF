@@ -5,6 +5,7 @@
 
 #include "ccf/crypto/public_key.h"
 #include "ccf/ds/logger.h"
+#include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "x509_time.h"
@@ -13,7 +14,84 @@
 #include <openssl/ossl_typ.h>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
+#include <qcbor/qcbor_spiffy_decode.h>
 #include <t_cose/t_cose_sign1_verify.h>
+
+namespace
+{
+  static std::optional<int> extract_algorithm_from_header(
+    std::span<const uint8_t> cose_msg)
+  {
+    UsefulBufC msg{cose_msg.data(), cose_msg.size()};
+    QCBORError qcbor_result;
+
+    QCBORDecodeContext ctx;
+    QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
+
+    QCBORDecode_EnterArray(&ctx, nullptr);
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      LOG_DEBUG_FMT("Failed to parse COSE_Sign1 outer array");
+      return std::nullopt;
+    }
+
+    const uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
+    if (tag != CBOR_TAG_COSE_SIGN1)
+    {
+      LOG_DEBUG_FMT("Failed to parse COSE_Sign1 tag");
+      return std::nullopt;
+    }
+
+    struct q_useful_buf_c protected_parameters;
+    QCBORDecode_EnterBstrWrapped(
+      &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
+    QCBORDecode_EnterMap(&ctx, NULL);
+
+    enum
+    {
+      ALG_INDEX,
+      END_INDEX
+    };
+    QCBORItem header_items[END_INDEX + 1];
+
+    header_items[ALG_INDEX].label.int64 = ccf::crypto::COSE_PHEADER_KEY_ALG;
+    header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
+    header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
+
+    header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
+
+    QCBORDecode_GetItemsInMap(&ctx, header_items);
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      LOG_DEBUG_FMT("Failed to decode protected header");
+      return std::nullopt;
+    }
+
+    if (header_items[ALG_INDEX].uDataType == QCBOR_TYPE_NONE)
+    {
+      LOG_DEBUG_FMT("Failed to retrieve (missing) 'alg' parameter");
+      return std::nullopt;
+    }
+
+    const int alg = header_items[ALG_INDEX].val.int64;
+
+    // Complete decode to ensure well-formed CBOR.
+
+    QCBORDecode_ExitMap(&ctx);
+    QCBORDecode_ExitBstrWrapped(&ctx);
+
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      LOG_DEBUG_FMT("Failed to decode protected header: {}", qcbor_result);
+      return std::nullopt;
+    }
+
+    return alg;
+  }
+}
 
 namespace ccf::crypto
 {
@@ -87,6 +165,50 @@ namespace ccf::crypto
       authned_content = {(uint8_t*)authned_content_.ptr, authned_content_.len};
       return true;
     }
+    LOG_DEBUG_FMT("COSE Sign1 verification failed with error {}", error);
+    return false;
+  }
+
+  bool COSEVerifier_OpenSSL::verify_detached(
+    std::span<const uint8_t> buf, std::span<const uint8_t> payload) const
+  {
+    EVP_PKEY* evp_key = *public_key;
+
+    const auto alg_header = extract_algorithm_from_header(buf);
+    const auto alg_key = ccf::crypto::key_to_cose_alg_id(*public_key);
+    if (!alg_header || !alg_key || alg_key != alg_header)
+    {
+      LOG_DEBUG_FMT(
+        "COSE Sign1 verification: incompatible key IDS ({} vs {})",
+        alg_header,
+        alg_key);
+      return false;
+    }
+
+    t_cose_key cose_key;
+    cose_key.crypto_lib = T_COSE_CRYPTO_LIB_OPENSSL;
+    cose_key.k.key_ptr = evp_key;
+
+    t_cose_sign1_verify_ctx verify_ctx;
+    t_cose_sign1_verify_init(&verify_ctx, T_COSE_OPT_TAG_REQUIRED);
+    t_cose_sign1_set_verification_key(&verify_ctx, cose_key);
+
+    q_useful_buf_c buf_;
+    buf_.ptr = buf.data();
+    buf_.len = buf.size();
+
+    q_useful_buf_c payload_;
+    payload_.ptr = payload.data();
+    payload_.len = payload.size();
+
+    t_cose_err_t error = t_cose_sign1_verify_detached(
+      &verify_ctx, buf_, NULL_Q_USEFUL_BUF_C, payload_, nullptr);
+
+    if (error == T_COSE_SUCCESS)
+    {
+      return true;
+    }
+
     LOG_DEBUG_FMT("COSE Sign1 verification failed with error {}", error);
     return false;
   }
