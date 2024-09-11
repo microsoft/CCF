@@ -61,17 +61,7 @@ namespace ccf
   using SerialisedMerkleTree =
     ccf::kv::RawCopySerialisedValue<std::vector<uint8_t>>;
 
-  struct CoseSignature
-  {
-    std::vector<uint8_t> sig;
-
-    CoseSignature() {}
-
-    CoseSignature(const std::vector<uint8_t>& sig_) : sig(sig_) {}
-  };
-
-  DECLARE_JSON_TYPE(CoseSignature)
-  DECLARE_JSON_REQUIRED_FIELDS(CoseSignature, sig);
+  using CoseSignature = std::vector<uint8_t>;
 
   // Most recent COSE signature is a single Value in the KV
   using CoseSignatures = ServiceValue<CoseSignature>;

@@ -517,8 +517,7 @@ class LedgerValidator:
         if COSE_SIGNATURE_TX_TABLE_NAME in tables:
             cose_signature_table = tables[COSE_SIGNATURE_TX_TABLE_NAME]
             cose_signature = cose_signature_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
-            signature = json.loads(cose_signature)
-            cose_sign1 = base64.b64decode(signature["sig"])
+            cose_sign1 = base64.b64decode(cose_signature)
             self._verify_root_cose_signature(self.merkle.get_merkle_root(), cose_sign1)
 
         # Checks complete, add this transaction to tree

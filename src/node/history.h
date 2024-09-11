@@ -393,7 +393,7 @@ namespace ccf
       auto cose_sign = crypto::cose_sign1(service_kp, pheaders, root_hash);
 
       signatures->put(sig_value);
-      cose_signatures->put(CoseSignature{cose_sign});
+      cose_signatures->put(cose_sign);
       serialised_tree->put(history.serialise_tree(txid.version - 1));
       return sig.commit_reserved();
     }
@@ -764,7 +764,7 @@ namespace ccf
         root.h.data(), root.h.data() + root.h.size()};
 
       return cose_verifier_cached(raw_cert)->verify_detached(
-        cose_sig->sig, root_hash);
+        cose_sig.value(), root_hash);
     }
 
     std::vector<uint8_t> serialise_tree(size_t to) override
