@@ -138,6 +138,9 @@ namespace ccf
                   "{} after {} attempts",
                   server.front().host,
                   max_server_retries_count);
+                throw ccf::pal::AttestationCollateralFetchingTimeout(
+                  "Timed out fetching attestation endorsements from all "
+                  "configured servers");
                 return;
               }
             }
