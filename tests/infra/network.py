@@ -905,8 +905,9 @@ class Network:
                 )
             except TimeoutError as e:
                 LOG.error(f"New pending node {node.node_id} failed to join the network")
+                has_stopped = node.remote.check_done()
                 if stop_on_error:
-                    assert node.remote.check_done()
+                    assert has_stopped, "Node should have stopped"
                 node.stop()
                 out_path, err_path = node.get_logs()
                 if out_path is not None and err_path is not None:
@@ -920,7 +921,7 @@ class Network:
                         if "Quote does not contain known enclave measurement" in error:
                             raise CodeIdNotFound from e
                         if "StartupSeqnoIsOld" in error:
-                            raise StartupSeqnoIsOld from e
+                            raise StartupSeqnoIsOld(has_stopped) from e
                         if "invalid cert on handshake" in error:
                             raise ServiceCertificateInvalid from e
                 raise

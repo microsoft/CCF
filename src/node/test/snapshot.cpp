@@ -25,12 +25,16 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
   source_store.set_encryptor(encryptor);
   source_store.set_consensus(source_consensus);
 
+  auto service_kp = std::dynamic_pointer_cast<ccf::crypto::KeyPair_OpenSSL>(
+    ccf::crypto::make_key_pair());
+
   ccf::NodeId source_node_id = ccf::kv::test::PrimaryNodeId;
   auto source_node_kp = ccf::crypto::make_key_pair();
 
   auto source_history = std::make_shared<ccf::MerkleTxHistory>(
     source_store, source_node_id, *source_node_kp);
   source_history->set_endorsed_certificate({});
+  source_history->set_service_kp(service_kp);
   source_store.set_history(source_history);
   source_store.initialise_term(2);
 
@@ -98,6 +102,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
       auto target_history = std::make_shared<ccf::MerkleTxHistory>(
         target_store, ccf::kv::test::PrimaryNodeId, *target_node_kp);
       target_history->set_endorsed_certificate({});
+      target_history->set_service_kp(service_kp);
       target_store.set_history(target_history);
     }
 

@@ -174,6 +174,21 @@ def create_cose_sign1_finish(
     return msg.encode(sign=False)
 
 
+def validate_cose_sign1(payload: bytes, cert_pem: Pem, cose_sign1: bytes):
+    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
+    if not isinstance(cert.public_key(), EllipticCurvePublicKey):
+        raise NotImplementedError("unsupported key type")
+
+    key = cert.public_key()
+    cose_key = from_cryptography_eckey_obj(key)
+    msg = Sign1Message.decode(cose_sign1)
+    msg.key = cose_key
+    msg.payload = payload
+
+    if not msg.verify_signature():
+        raise ValueError("signature is invalid")
+
+
 _SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
 
 Note that this tool writes binary COSE Sign1 to standard output.

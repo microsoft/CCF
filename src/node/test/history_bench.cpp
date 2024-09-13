@@ -72,7 +72,7 @@ static void append(picobench::state& s)
   ::srand(42);
 
   ccf::kv::Store store;
-  auto kp = ccf::crypto::make_key_pair();
+  auto node_kp = ccf::crypto::make_key_pair();
 
   std::shared_ptr<ccf::kv::Consensus> consensus =
     std::make_shared<DummyConsensus>();
@@ -80,7 +80,7 @@ static void append(picobench::state& s)
 
   std::shared_ptr<ccf::kv::TxHistory> history =
     std::make_shared<ccf::MerkleTxHistory>(
-      store, ccf::kv::test::PrimaryNodeId, *kp);
+      store, ccf::kv::test::PrimaryNodeId, *node_kp);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;
@@ -111,7 +111,7 @@ static void append_compact(picobench::state& s)
   ::srand(42);
 
   ccf::kv::Store store;
-  auto kp = ccf::crypto::make_key_pair();
+  auto node_kp = ccf::crypto::make_key_pair();
 
   std::shared_ptr<ccf::kv::Consensus> consensus =
     std::make_shared<DummyConsensus>();
@@ -119,7 +119,7 @@ static void append_compact(picobench::state& s)
 
   std::shared_ptr<ccf::kv::TxHistory> history =
     std::make_shared<ccf::MerkleTxHistory>(
-      store, ccf::kv::test::PrimaryNodeId, *kp);
+      store, ccf::kv::test::PrimaryNodeId, *node_kp);
   store.set_history(history);
 
   std::vector<std::vector<uint8_t>> txs;

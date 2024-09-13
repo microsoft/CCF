@@ -12,37 +12,17 @@
 
 namespace ccf
 {
-  struct JwtIssuerKeyPolicy
-  {
-    /** OE claim name -> hex-encoded claim value
-        See openenclave/attestation/verifier.h */
-    std::optional<std::map<std::string, std::string>> sgx_claims;
-
-    bool operator!=(const JwtIssuerKeyPolicy& rhs) const
-    {
-      return rhs.sgx_claims != sgx_claims;
-    }
-  };
-
-  DECLARE_JSON_TYPE(JwtIssuerKeyPolicy);
-  DECLARE_JSON_REQUIRED_FIELDS(JwtIssuerKeyPolicy, sgx_claims);
-
   enum class JwtIssuerKeyFilter
   {
-    All,
-    SGX
+    All
   };
 
-  DECLARE_JSON_ENUM(
-    JwtIssuerKeyFilter,
-    {{JwtIssuerKeyFilter::All, "all"}, {JwtIssuerKeyFilter::SGX, "sgx"}});
+  DECLARE_JSON_ENUM(JwtIssuerKeyFilter, {{JwtIssuerKeyFilter::All, "all"}});
 
   struct JwtIssuerMetadata
   {
-    /// JWT issuer key filter
-    JwtIssuerKeyFilter key_filter;
-    /// Optional Key Policy
-    std::optional<JwtIssuerKeyPolicy> key_policy;
+    /// JWT issuer key filter, kept for compatibility with existing ledgers
+    JwtIssuerKeyFilter key_filter = JwtIssuerKeyFilter::All;
     /// Optional CA bundle name used for authentication when auto-refreshing
     std::optional<std::string> ca_cert_bundle_name;
     /// Whether to auto-refresh keys from the issuer
@@ -50,9 +30,9 @@ namespace ccf
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtIssuerMetadata);
-  DECLARE_JSON_REQUIRED_FIELDS(JwtIssuerMetadata, key_filter);
+  DECLARE_JSON_REQUIRED_FIELDS(JwtIssuerMetadata);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    JwtIssuerMetadata, key_policy, ca_cert_bundle_name, auto_refresh);
+    JwtIssuerMetadata, key_filter, ca_cert_bundle_name, auto_refresh);
 
   using JwtIssuer = std::string;
   using JwtKeyId = std::string;
