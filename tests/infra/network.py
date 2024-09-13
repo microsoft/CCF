@@ -76,6 +76,10 @@ class StartupSeqnoIsOld(Exception):
     pass
 
 
+class CollateralFetchTimeout(Exception):
+    pass
+
+
 class ServiceCertificateInvalid(Exception):
     pass
 
@@ -924,6 +928,11 @@ class Network:
                             raise StartupSeqnoIsOld(has_stopped) from e
                         if "invalid cert on handshake" in error:
                             raise ServiceCertificateInvalid from e
+                        if (
+                            "Timed out fetching attestation endorsements from all"
+                            in error
+                        ):
+                            raise CollateralFetchTimeout(has_stopped) from e
                 raise
 
     def join_node(
