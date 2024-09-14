@@ -24,10 +24,8 @@ TypeOK ==
 
 StartTerm == Min(Terms)
 
-InitialLogs == {
-    <<>>,
-    <<StartTerm, StartTerm>>,
-    <<StartTerm, StartTerm, StartTerm, StartTerm>>}
+InitialLogs == 
+    UNION {[ 1..n -> {StartTerm} ] : n \in {0,2,4}}
     
 Init ==
     cLogs \in [Servers -> InitialLogs]
