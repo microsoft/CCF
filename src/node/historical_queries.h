@@ -462,7 +462,7 @@ namespace ccf::historical
                 details->transaction_id = {sig->view, seqno};
                 details->receipt = std::make_shared<TxReceiptImpl>(
                   sig->sig,
-                  cose_sig.value(),
+                  cose_sig,
                   proof.get_root(),
                   proof.get_path(),
                   sig->node,
@@ -749,12 +749,7 @@ namespace ccf::historical
         assert(sig.has_value());
         details->transaction_id = {sig->view, sig->seqno};
         details->receipt = std::make_shared<TxReceiptImpl>(
-          sig->sig,
-          cose_sig.value(),
-          sig->root.h,
-          nullptr,
-          sig->node,
-          sig->cert);
+          sig->sig, cose_sig, sig->root.h, nullptr, sig->node, sig->cert);
       }
 
       auto request_it = requests.begin();
