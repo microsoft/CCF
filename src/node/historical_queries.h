@@ -74,6 +74,14 @@ namespace ccf::historical
     return signatures->get();
   }
 
+  static std::optional<ccf::CoseSignature> get_cose_signature(
+    const ccf::kv::StorePtr& sig_store)
+  {
+    auto tx = sig_store->create_read_only_tx();
+    auto signatures = tx.ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+    return signatures->get();
+  }
+
   static std::optional<std::vector<uint8_t>> get_tree(
     const ccf::kv::StorePtr& sig_store)
   {
@@ -430,6 +438,7 @@ namespace ccf::historical
         // Iterate through earlier indices. If this signature covers them
         // then create a receipt for them
         const auto sig = get_signature(sig_details->store);
+        const auto cose_sig = get_cose_signature(sig_details->store);
         ccf::MerkleTreeHistory tree(get_tree(sig_details->store).value());
 
         // This is either pointing at the sig itself, or the closest larger
@@ -453,6 +462,7 @@ namespace ccf::historical
                 details->transaction_id = {sig->view, seqno};
                 details->receipt = std::make_shared<TxReceiptImpl>(
                   sig->sig,
+                  cose_sig.value(),
                   proof.get_root(),
                   proof.get_path(),
                   sig->node,
@@ -735,10 +745,16 @@ namespace ccf::historical
         // the receipt _later_ for an already-fetched signature
         // transaction.
         const auto sig = get_signature(details->store);
+        const auto cose_sig = get_cose_signature(details->store);
         assert(sig.has_value());
         details->transaction_id = {sig->view, sig->seqno};
         details->receipt = std::make_shared<TxReceiptImpl>(
-          sig->sig, sig->root.h, nullptr, sig->node, sig->cert);
+          sig->sig,
+          cose_sig.value(),
+          sig->root.h,
+          nullptr,
+          sig->node,
+          sig->cert);
       }
 
       auto request_it = requests.begin();
