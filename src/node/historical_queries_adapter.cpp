@@ -10,6 +10,16 @@
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/tx_receipt_impl.h"
 
+namespace
+{
+  std::vector<uint8_t> from_string(std::string_view s)
+  {
+    auto data = reinterpret_cast<const uint8_t*>(s.data());
+    return {data, data + s.size()};
+  }
+
+}
+
 namespace ccf
 {
   nlohmann::json describe_receipt_v1(const TxReceiptImpl& receipt)
@@ -152,6 +162,35 @@ namespace ccf
     }
 
     return receipt;
+  }
+
+  nlohmann::json::binary_t describe_cose_receipt_v1(const TxReceiptImpl& in)
+  {
+    nlohmann::json out = nlohmann::json();
+    constexpr auto LEAF_LABEL = 1;
+    constexpr auto PROOF_LABEL = 2;
+
+    out[LEAF_LABEL] = {
+      nlohmann::json::binary_t(from_string(in.write_set_digest->hex_str())),
+      nlohmann::json::binary_t(from_string(in.commit_evidence.value())),
+      nlohmann::json::binary_t(
+        from_string(in.claims_digest.value().hex_str()))};
+
+    auto path = nlohmann::json::array();
+    for (const auto& node : *in.path)
+    {
+      auto n = nlohmann::json::object();
+      if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
+      {
+        path[false] = node.hash.to_string();
+      }
+      else
+      {
+        path[true] = node.hash.to_string();
+      }
+    }
+    out[PROOF_LABEL] = path;
+    return nlohmann::json::to_cbor(out);
   }
 }
 

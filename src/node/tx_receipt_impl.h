@@ -14,12 +14,13 @@ namespace ccf
     std::vector<uint8_t> signature = {};
     std::optional<std::vector<uint8_t>> cose_signature = std::nullopt;
     HistoryTree::Hash root = {};
-    std::shared_ptr<ccf::HistoryTree::Path> path = {};
+    std::shared_ptr<ccf::HistoryTree::Path> path = {}; // path
     ccf::NodeId node_id = {};
     std::optional<ccf::crypto::Pem> node_cert = std::nullopt;
-    std::optional<ccf::crypto::Sha256Hash> write_set_digest = std::nullopt;
-    std::optional<std::string> commit_evidence = std::nullopt;
-    ccf::ClaimsDigest claims_digest = {};
+    std::optional<ccf::crypto::Sha256Hash> write_set_digest =
+      std::nullopt; // leaf.1
+    std::optional<std::string> commit_evidence = std::nullopt; // leaf.2
+    ccf::ClaimsDigest claims_digest = {}; // leaf.3
     std::optional<std::vector<ccf::crypto::Pem>> service_endorsements =
       std::nullopt;
 

@@ -136,6 +136,7 @@ namespace ccf
   using TxReceiptImplPtr = std::shared_ptr<TxReceiptImpl>;
   nlohmann::json describe_receipt_v1(const TxReceiptImpl& receipt);
   ReceiptPtr describe_receipt_v2(const TxReceiptImpl& receipt);
+  nlohmann::json::binary_t describe_cose_receipt_v1(const TxReceiptImpl& in);
 
   // Manual JSON serializers are specified for these types as they are not
   // trivial POD structs
