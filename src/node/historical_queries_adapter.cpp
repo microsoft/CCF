@@ -166,8 +166,10 @@ namespace ccf
   nlohmann::json::binary_t describe_merkle_proof_v1(const TxReceiptImpl& in)
   {
     nlohmann::json out = nlohmann::json();
-    constexpr auto LEAF_LABEL = 1;
-    constexpr auto PROOF_LABEL = 2;
+    static constexpr int LEAF_LABEL = 404; // TBD
+    static constexpr int PROOF_LABEL = 404 + 1; // TBD
+    static constexpr bool TREE_PATH_LEFT = 0;
+    static constexpr bool TREE_PATH_RIGHT = 1;
 
     out[LEAF_LABEL] = {
       nlohmann::json::binary_t(from_string(in.write_set_digest->hex_str())),
@@ -181,11 +183,11 @@ namespace ccf
       auto n = nlohmann::json::object();
       if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
       {
-        path[false] = node.hash.to_string();
+        path[TREE_PATH_LEFT] = node.hash.to_string();
       }
       else
       {
-        path[true] = node.hash.to_string();
+        path[TREE_PATH_RIGHT] = node.hash.to_string();
       }
     }
     out[PROOF_LABEL] = path;
