@@ -17,7 +17,6 @@ namespace
     auto data = reinterpret_cast<const uint8_t*>(s.data());
     return {data, data + s.size()};
   }
-
 }
 
 namespace ccf
@@ -164,7 +163,7 @@ namespace ccf
     return receipt;
   }
 
-  nlohmann::json::binary_t describe_cose_receipt_v1(const TxReceiptImpl& in)
+  nlohmann::json::binary_t describe_merkle_proof_v1(const TxReceiptImpl& in)
   {
     nlohmann::json out = nlohmann::json();
     constexpr auto LEAF_LABEL = 1;
