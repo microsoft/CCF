@@ -4,9 +4,7 @@ env:
   LABEL_NAME: run-long-test
 
 on:
-  pull_request_target:
-    types:
-      - labeled
+  pull_request:
   schedule:
     - cron: "0 0 * * 1-5"
   workflow_dispatch:
@@ -14,7 +12,7 @@ on:
 jobs:
   scan_build:
     name: "Scan build"
-    if: ${{ github.event.pull_request.labels.*.name == '$LABEL_NAME' }}
+    if: ${{ github.event.pull_request.labels.*.name == 'run-long-test' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
@@ -32,7 +30,7 @@ jobs:
 
   long-asan:
     name: ASAN
-    if: ${{ github.event.pull_request.labels.*.name == 'LABEL_NAME' }}
+    if: ${{ github.event.pull_request.labels.*.name == 'run-long-test' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
@@ -75,7 +73,7 @@ jobs:
 
   long-tsan:
     name: TSAN
-    if: ${{ github.event.pull_request.labels.*.name == 'LABEL_NAME' }}
+    if: ${{ github.event.pull_request.labels.*.name == 'run-long-test' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
