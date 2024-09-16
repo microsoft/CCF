@@ -152,14 +152,6 @@ namespace ccf
       version++;
     }
 
-    ccf::kv::TxHistory::Result verify_and_sign(
-      PrimarySignature&,
-      ccf::kv::Term*,
-      ccf::kv::Configuration::Nodes&) override
-    {
-      return ccf::kv::TxHistory::Result::OK;
-    }
-
     bool verify_root_signatures() override
     {
       return true;
@@ -701,24 +693,6 @@ namespace ccf
          static_cast<ccf::kv::Version>(replicated_state_tree.end_index())},
         replicated_state_tree.get_root(),
         term_of_next_version};
-    }
-
-    ccf::kv::TxHistory::Result verify_and_sign(
-      PrimarySignature& sig,
-      ccf::kv::Term* term,
-      ccf::kv::Configuration::Nodes& config) override
-    {
-      if (!verify_root_signatures())
-      {
-        return ccf::kv::TxHistory::Result::FAIL;
-      }
-
-      ccf::kv::TxHistory::Result result = ccf::kv::TxHistory::Result::OK;
-
-      sig.node = id;
-      sig.sig = node_kp.sign_hash(sig.root.h.data(), sig.root.h.size());
-
-      return result;
     }
 
     bool verify_root_signatures() override
