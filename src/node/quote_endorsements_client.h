@@ -23,10 +23,6 @@ namespace ccf
     // remote server
     static constexpr size_t server_connection_timeout_s = 3;
 
-    // Maximum number of retries per remote server before giving up and moving
-    // on to the next server.
-    static constexpr size_t max_server_retries_count = 3;
-
     std::shared_ptr<RPCSessions> rpcsessions;
 
     pal::snp::EndorsementEndpointsConfiguration config;
@@ -123,7 +119,8 @@ namespace ccf
             auto& servers = msg->data.self->config.servers;
             msg->data.self->server_retries_count++;
             if (
-              msg->data.self->server_retries_count >= max_server_retries_count)
+              msg->data.self->server_retries_count >=
+              servers.front().front().max_retries_count)
             {
               if (servers.size() > 1)
               {
@@ -137,7 +134,7 @@ namespace ccf
                   "Giving up retrying fetching attestation endorsements from "
                   "{} after {} attempts",
                   server.front().host,
-                  max_server_retries_count);
+                  server.front().front().max_retries_count);
                 throw ccf::pal::AttestationCollateralFetchingTimeout(
                   "Timed out fetching attestation endorsements from all "
                   "configured servers");
