@@ -1,7 +1,5 @@
 name: Long Test
 
-env:
-  LABEL_NAME: run-long-test
 
 on:
   pull_request:
