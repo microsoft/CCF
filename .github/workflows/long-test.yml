@@ -8,6 +8,7 @@ on:
     - cron: "0 0 * * 1-5"
   workflow_dispatch:
 
+#
 jobs:
   scan_build:
     name: "Scan build"
