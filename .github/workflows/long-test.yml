@@ -5,6 +5,7 @@ env:
 
 on:
   pull_request:
+  labeled:
   schedule:
     - cron: "0 0 * * 1-5"
   workflow_dispatch:
