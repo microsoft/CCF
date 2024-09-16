@@ -1,5 +1,8 @@
 name: Long Test
 
+env:
+  LABEL_TRIGGER: 'run-long-test'
+
 on:
   pull_request:
     types:
@@ -11,7 +14,7 @@ on:
 jobs:
   scan_build:
     name: "Scan build"
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || (github.event.label && github.event.label.name == 'run-long-test') }}
+    if: ${{ contains(github.event.pull_request.labels.*.name, env.LABEL_TRIGGER) || (github.event.label && github.event.label.name == env.LABEL_TRIGGER) }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
@@ -29,7 +32,7 @@ jobs:
 
   long-asan:
     name: ASAN
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || (github.event.label && github.event.label.name == 'run-long-test') }}
+    if: ${{ contains(github.event.pull_request.labels.*.name, env.LABEL_TRIGGER) || (github.event.label && github.event.label.name == env.LABEL_TRIGGER) }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
@@ -71,7 +74,7 @@ jobs:
           if-no-files-found: ignore
 
   long-tsan:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || (github.event.label && github.event.label.name == 'run-long-test') }}
+    if: ${{ contains(github.event.pull_request.labels.*.name, env.LABEL_TRIGGER) || (github.event.label && github.event.label.name == env.LABEL_TRIGGER) }}
     name: TSAN
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
