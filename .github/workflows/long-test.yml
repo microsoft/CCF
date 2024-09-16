@@ -4,7 +4,9 @@ env:
   LABEL_NAME: run-long-test
 
 on:
-  pull_request:
+  pull_request_target:
+    types:
+      - labeled
   schedule:
     - cron: "0 0 * * 1-5"
   workflow_dispatch:
