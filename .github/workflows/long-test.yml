@@ -12,8 +12,7 @@ on:
 jobs:
   scan_build:
     name: "Scan build"
-    if: |
-      contains(github.event.pull_request.labels.*.name == 'run-long-test')
+    if: ${{ github.event.pull_request.labels.*.name == 'run-long-test' || github.event.label.name == 'run-long-test' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
@@ -31,7 +30,7 @@ jobs:
 
   long-asan:
     name: ASAN
-    if: ${{ github.event.pull_request.labels.*.name == 'run-long-test' }}
+    if: ${{ github.event.pull_request.labels.*.name == 'run-long-test' || github.event.label.name == 'run-long-test' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
@@ -73,8 +72,8 @@ jobs:
           if-no-files-found: ignore
 
   long-tsan:
+    if: ${{ github.event.pull_request.labels.*.name == 'run-long-test' || github.event.label.name == 'run-long-test' }}
     name: TSAN
-    if: ${{ github.event.pull_request.labels.*.name == 'run-long-test' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
