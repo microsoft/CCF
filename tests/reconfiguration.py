@@ -275,11 +275,14 @@ def test_add_node_endorsements_endpoints(network, args):
                 args_copy,
                 timeout=15,
             )
-        except TimeoutError:
-            assert not expected_result
+        except infra.network.CollateralFetchTimeout as e:
             LOG.info(
                 f"Node with invalid quote endorsement servers {servers} could not join as expected"
             )
+            assert not expected_result
+            assert e.args == (
+                True,
+            ), "Node has stopped after timing out on fetching collateral"
         else:
             assert (
                 expected_result
