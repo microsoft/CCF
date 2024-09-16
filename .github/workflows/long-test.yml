@@ -12,7 +12,8 @@ on:
 jobs:
   scan_build:
     name: "Scan build"
-    if: ${{ github.event.pull_request.labels.*.name == 'run-long-test' }}
+    if: |
+      contains(github.event.pull_request.labels.*.name == 'run-long-test')
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
