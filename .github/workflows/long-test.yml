@@ -5,7 +5,8 @@ env:
 
 on:
   pull_request:
-    types: [ labeled ]
+    types:
+      - labeled
   schedule:
     - cron: "0 0 * * 1-5"
   workflow_dispatch:
