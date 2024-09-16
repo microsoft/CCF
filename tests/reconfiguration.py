@@ -256,10 +256,13 @@ def test_add_node_endorsements_endpoints(network, args):
     test_vectors = [
         (["Azure:global.acccache.azure.net"], True),
         (["Azure:global.acccache.azure.net:443"], True),
+        (["Azure:invalid.azure.net:443"], False),
         (["AMD:kdsintf.amd.com"], True),
         (["AMD:invalid.amd.com"], False),
         (["THIM:$Fabric_NodeIPOrFQDN:2377"], True),
+        (["THIM:invalid:2377"], False),
         (["Azure:invalid.azure.com", "AMD:kdsintf.amd.com"], True),  # Fallback server
+        (["Azure:invalid.azure.com", "AMD:invalid.amd.com"], False),
     ]
 
     for servers, expected_result in test_vectors:
@@ -282,6 +285,7 @@ def test_add_node_endorsements_endpoints(network, args):
             assert not expected_result
             assert e.args == (
                 True,
+                4,
             ), "Node has stopped after timing out on fetching collateral"
         else:
             assert (
