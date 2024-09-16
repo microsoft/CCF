@@ -1,5 +1,7 @@
 name: Long Test
 
+env:
+  LABEL_TRIGGER: "run-long-test"
 
 on:
   pull_request:
