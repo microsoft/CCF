@@ -9,6 +9,21 @@ namespace ccf
 {
   using QuoteEndorsementsFetchedCallback =
     std::function<void(std::vector<uint8_t>&& endorsements)>;
+  using Server = pal::snp::EndorsementEndpointsConfiguration::Server;
+
+  static inline size_t max_retries_count(const Server& server)
+  {
+    // Each server should contain at least one endpoint definition
+    if (server.empty())
+    {
+      throw std::logic_error(
+        "No endpoints defined in SNP attestation collateral server");
+    }
+
+    // If multiple endpoints are defined, the max_retries_count of the first
+    // if the maximum number of retries for the server.
+    return server.front().max_retries_count;
+  }
 
   // Resilient client to fetch attestation report endorsement certificate.
   class QuoteEndorsementsClient
@@ -17,7 +32,6 @@ namespace ccf
   private:
     using EndpointInfo =
       pal::snp::EndorsementEndpointsConfiguration::EndpointInfo;
-    using Server = pal::snp::EndorsementEndpointsConfiguration::Server;
 
     // Resend request after this interval if no response was received from
     // remote server
@@ -81,19 +95,6 @@ namespace ccf
       return rpcsessions->create_unencrypted_client();
     }
 
-    size_t max_retries_count(const Server& server)
-    {
-      // Each server should contain at least one endpoint definition
-      if (server.empty())
-      {
-        throw std::logic_error("No endpoints in server");
-      }
-
-      // If multiple endpoints are defined, the max_retries_count of the first
-      // if the maximum number of retries for the server.
-      return server.front().max_retries_count;
-    }
-
     void send_request(
       const std::shared_ptr<ClientSession>& client,
       const EndpointInfo& endpoint)
@@ -141,7 +142,7 @@ namespace ccf
             msg->data.self->server_retries_count++;
             if (
               msg->data.self->server_retries_count >=
-              get_max_retries_count(servers.front()))
+              max_retries_count(servers.front()))
             {
               if (servers.size() > 1)
               {
