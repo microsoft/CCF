@@ -81,6 +81,19 @@ namespace ccf
       return rpcsessions->create_unencrypted_client();
     }
 
+    size_t max_retries_count(const Server& server)
+    {
+      // Each server should contain at least one endpoint definition
+      if (server.empty())
+      {
+        throw std::logic_error("No endpoints in server");
+      }
+
+      // If multiple endpoints are defined, the max_retries_count of the first
+      // if the maximum number of retries for the server.
+      return server.front().max_retries_count;
+    }
+
     void send_request(
       const std::shared_ptr<ClientSession>& client,
       const EndpointInfo& endpoint)
@@ -117,10 +130,18 @@ namespace ccf
           if (msg->data.request_id >= msg->data.self->last_received_request_id)
           {
             auto& servers = msg->data.self->config.servers;
+            // Should always contain at least one server,
+            // installed by ccf::pal::make_endorsement_endpoint_configuration()
+            if (servers.empty())
+            {
+              throw std::logic_error(
+                "No server specified to fetch endorsements");
+            }
+
             msg->data.self->server_retries_count++;
             if (
               msg->data.self->server_retries_count >=
-              servers.front().front().max_retries_count)
+              get_max_retries_count(servers.front()))
             {
               if (servers.size() > 1)
               {
