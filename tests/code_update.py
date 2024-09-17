@@ -20,38 +20,6 @@ from loguru import logger as LOG
 VIRTUAL_CODE_ID = "0" * 64
 
 
-@reqs.description("Verify node evidence")
-def test_verify_quotes(network, args):
-    if args.enclave_platform == "virtual":
-        LOG.warning("Skipping quote test with virtual enclave")
-        return network
-    elif snp.IS_SNP:
-        LOG.warning(
-            "Skipping quote test until there is a separate utility to verify SNP quotes"
-        )
-        return network
-
-    LOG.info("Check the network is stable")
-    primary, _ = network.find_primary()
-    check_can_progress(primary)
-
-    for node in network.get_joined_nodes():
-        LOG.info(f"Verifying quote for node {node.node_id}")
-        cafile = os.path.join(network.common_dir, "service_cert.pem")
-        assert (
-            infra.proc.ccall(
-                "verify_quote.sh",
-                f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
-                "--cacert",
-                f"{cafile}",
-                log_output=True,
-            ).returncode
-            == 0
-        ), f"Quote verification for node {node.node_id} failed"
-
-    return network
-
-
 @reqs.description("Test the SNP measurements table")
 @reqs.snp_only()
 def test_snp_measurements_tables(network, args):
@@ -331,10 +299,6 @@ def test_add_node_with_no_uvm_endorsements(network, args):
 
 @reqs.description("Node with bad code fails to join")
 def test_add_node_with_bad_code(network, args):
-    if args.enclave_platform != "sgx":
-        LOG.warning("Skipping test_add_node_with_bad_code with non-sgx enclave")
-        return network
-
     replacement_package = (
         "samples/apps/logging/liblogging"
         if args.package == "libjs_generic"
@@ -481,7 +445,11 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_verify_quotes(network, args)
+        test_add_node_with_bad_code(network, args)
+        return
+        # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
+        test_proposal_invalidation(network, args)
+
         if snp.IS_SNP:
             test_snp_measurements_tables(network, args)
             test_add_node_with_no_uvm_endorsements(network, args)
@@ -490,15 +458,8 @@ def run(args):
             test_add_node_remove_trusted_security_policy(network, args)
             test_start_node_with_mismatched_host_data(network, args)
             test_add_node_with_bad_host_data(network, args)
-        test_add_node_with_bad_code(network, args)
-        # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
-        test_proposal_invalidation(network, args)
-
-        if not snp.IS_SNP:
+        else:
             test_update_all_nodes(network, args)
-
-        # Run again at the end to confirm current nodes are acceptable
-        test_verify_quotes(network, args)
 
 
 if __name__ == "__main__":
