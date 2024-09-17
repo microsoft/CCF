@@ -134,7 +134,7 @@ namespace ccf
                   "Giving up retrying fetching attestation endorsements from "
                   "{} after {} attempts",
                   server.front().host,
-                  server.front().front().max_retries_count);
+                  server.front().max_retries_count);
                 throw ccf::pal::AttestationCollateralFetchingTimeout(
                   "Timed out fetching attestation endorsements from all "
                   "configured servers");
