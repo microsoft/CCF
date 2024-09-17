@@ -69,9 +69,6 @@ namespace
     QCBOREncodeContext* cbor_encode,
     const std::vector<ccf::crypto::COSEParametersFactory>& protected_headers)
   {
-    QCBOREncode_AddTag(cbor_encode, CBOR_TAG_COSE_SIGN1);
-    QCBOREncode_OpenArray(cbor_encode);
-
     encode_protected_headers(me, cbor_encode, protected_headers);
 
     QCBOREncode_OpenMap(cbor_encode);
@@ -184,6 +181,9 @@ namespace ccf::crypto
     signing_key.k.key_ptr = evp_key;
 
     t_cose_sign1_set_signing_key(&sign_ctx, signing_key, NULL_Q_USEFUL_BUF_C);
+
+    QCBOREncode_AddTag(&cbor_encode, CBOR_TAG_COSE_SIGN1);
+    QCBOREncode_OpenArray(&cbor_encode);
 
     encode_parameters_custom(&sign_ctx, &cbor_encode, protected_headers);
 
