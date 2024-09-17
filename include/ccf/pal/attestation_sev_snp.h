@@ -187,24 +187,31 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     auto chip_id_hex = fmt::format("{:02x}", fmt::join(quote.chip_id, ""));
     auto reported_tcb = fmt::format("{:0x}", *(uint64_t*)(&quote.reported_tcb));
 
+    constexpr size_t default_max_retries_count = 10;
+
     if (endorsements_servers.empty())
     {
       // Default to Azure server if no servers are specified
       config.servers.emplace_back(make_azure_endorsements_server(
-        default_azure_endorsements_endpoint, chip_id_hex, reported_tcb));
+        default_azure_endorsements_endpoint,
+        chip_id_hex,
+        reported_tcb,
+        default_max_retries_count));
       return config;
     }
 
     for (auto const& server : endorsements_servers)
     {
+      size_t max_retries_count =
+        server.max_retries_count.value_or(default_max_retries_count);
       switch (server.type)
       {
         case EndorsementsEndpointType::Azure:
         {
           auto loc =
             get_endpoint_loc(server, default_azure_endorsements_endpoint);
-          config.servers.emplace_back(
-            make_azure_endorsements_server(loc, chip_id_hex, reported_tcb));
+          config.servers.emplace_back(make_azure_endorsements_server(
+            loc, chip_id_hex, reported_tcb, max_retries_count));
           break;
         }
         case EndorsementsEndpointType::AMD:
@@ -217,15 +224,21 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
           auto loc =
             get_endpoint_loc(server, default_amd_endorsements_endpoint);
           config.servers.emplace_back(make_amd_endorsements_server(
-            loc, chip_id_hex, boot_loader, tee, snp, microcode));
+            loc,
+            chip_id_hex,
+            boot_loader,
+            tee,
+            snp,
+            microcode,
+            max_retries_count));
           break;
         }
         case EndorsementsEndpointType::THIM:
         {
           auto loc =
             get_endpoint_loc(server, default_thim_endorsements_endpoint);
-          config.servers.emplace_back(
-            make_thim_endorsements_server(loc, chip_id_hex, reported_tcb));
+          config.servers.emplace_back(make_thim_endorsements_server(
+            loc, chip_id_hex, reported_tcb, max_retries_count));
           break;
         }
         default:

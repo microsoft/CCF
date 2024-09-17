@@ -442,6 +442,19 @@ namespace ccf::pal
     measurement = claim_measurement.value();
     report_data = custom_claim_report_data.value();
   }
-
 #endif
+
+  class AttestationCollateralFetchingTimeout : public std::exception
+  {
+  private:
+    std::string msg;
+
+  public:
+    AttestationCollateralFetchingTimeout(const std::string& msg_) : msg(msg_) {}
+
+    virtual const char* what() const throw()
+    {
+      return msg.c_str();
+    }
+  };
 }
