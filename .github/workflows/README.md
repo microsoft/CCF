@@ -37,7 +37,10 @@ File: `ci.yml`
 
 # Long Tests
 
-Secondary continuous integration job. Runs more expensive, longer tests, such as tests against ASAN builds, fuzzing etc. Runs daily.
+Secondary continuous integration job. Runs more expensive, longer tests, such as tests against ASAN builds, fuzzing etc.
+
+- Runs daily.
+- Can be manually run on a PR by setting `run-long-test` label.
 
 File: `long-test.yml`
 3rd party dependencies: None

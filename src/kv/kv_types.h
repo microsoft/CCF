@@ -399,10 +399,6 @@ namespace ccf::kv
     };
 
     virtual ~TxHistory() {}
-    virtual Result verify_and_sign(
-      ccf::PrimarySignature& signature,
-      Term* term,
-      ccf::kv::Configuration::Nodes& nodes) = 0;
     virtual bool verify_root_signatures() = 0;
     virtual void try_emit_signature() = 0;
     virtual void emit_signature() = 0;
