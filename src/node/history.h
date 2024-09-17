@@ -2,10 +2,14 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/cose_verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
+#include "ccf/service/tables/service.h"
+#include "crypto/openssl/cose_sign.h"
 #include "crypto/openssl/hash.h"
+#include "crypto/openssl/key_pair.h"
 #include "ds/thread_messaging.h"
 #include "endian.h"
 #include "kv/kv_types.h"
@@ -105,10 +109,14 @@ namespace ccf
       auto sig = store.create_reserved_tx(txid);
       auto signatures =
         sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto cose_signatures =
+        sig.template wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+
       auto serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
       PrimarySignature sig_value(id, txid.version);
       signatures->put(sig_value);
+      cose_signatures->put(ccf::CoseSignature{});
       serialised_tree->put({});
       return sig.commit_reserved();
     }
@@ -144,15 +152,7 @@ namespace ccf
       version++;
     }
 
-    ccf::kv::TxHistory::Result verify_and_sign(
-      PrimarySignature&,
-      ccf::kv::Term*,
-      ccf::kv::Configuration::Nodes&) override
-    {
-      return ccf::kv::TxHistory::Result::OK;
-    }
-
-    bool verify(ccf::kv::Term*, ccf::PrimarySignature*) override
+    bool verify_root_signatures() override
     {
       return true;
     }
@@ -194,6 +194,12 @@ namespace ccf
     void try_emit_signature() override {}
 
     void start_signature_emit_timer() override {}
+
+    void set_service_kp(
+      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_) override
+    {
+      std::ignore = std::move(service_kp_);
+    }
 
     ccf::crypto::Sha256Hash get_replicated_state_root() override
     {
@@ -312,7 +318,8 @@ namespace ccf
     ccf::kv::Store& store;
     ccf::kv::TxHistory& history;
     NodeId id;
-    ccf::crypto::KeyPair& kp;
+    ccf::crypto::KeyPair& node_kp;
+    ccf::crypto::KeyPair_OpenSSL& service_kp;
     ccf::crypto::Pem& endorsed_cert;
 
   public:
@@ -321,13 +328,15 @@ namespace ccf
       ccf::kv::Store& store_,
       ccf::kv::TxHistory& history_,
       const NodeId& id_,
-      ccf::crypto::KeyPair& kp_,
+      ccf::crypto::KeyPair& node_kp_,
+      ccf::crypto::KeyPair_OpenSSL& service_kp_,
       ccf::crypto::Pem& endorsed_cert_) :
       txid(txid_),
       store(store_),
       history(history_),
       id(id_),
-      kp(kp_),
+      node_kp(node_kp_),
+      service_kp(service_kp_),
       endorsed_cert(endorsed_cert_)
     {}
 
@@ -336,13 +345,17 @@ namespace ccf
       auto sig = store.create_reserved_tx(txid);
       auto signatures =
         sig.template wo<ccf::Signatures>(ccf::Tables::SIGNATURES);
+      auto cose_signatures =
+        sig.template wo<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
       auto serialised_tree = sig.template wo<ccf::SerialisedMerkleTree>(
         ccf::Tables::SERIALISED_MERKLE_TREE);
       ccf::crypto::Sha256Hash root = history.get_replicated_state_root();
 
       std::vector<uint8_t> primary_sig;
 
-      primary_sig = kp.sign_hash(root.h.data(), root.h.size());
+      const std::vector<const uint8_t> root_hash{
+        root.h.data(), root.h.data() + root.h.size()};
+      primary_sig = node_kp.sign_hash(root_hash.data(), root_hash.size());
 
       PrimarySignature sig_value(
         id,
@@ -353,7 +366,26 @@ namespace ccf
         primary_sig,
         endorsed_cert);
 
+      constexpr int64_t vds_merkle_tree = 2;
+
+      const auto& service_key_der = service_kp.public_key_der();
+      std::vector<uint8_t> kid(SHA256_DIGEST_LENGTH);
+      SHA256(service_key_der.data(), service_key_der.size(), kid.data());
+
+      const auto pheaders = {
+        // Key digest
+        ccf::crypto::cose_params_int_bytes(
+          ccf::crypto::COSE_PHEADER_KEY_ID, kid),
+        // VDS
+        ccf::crypto::cose_params_int_int(
+          ccf::crypto::COSE_PHEADER_KEY_VDS, vds_merkle_tree),
+        // TxID
+        ccf::crypto::cose_params_string_string(
+          ccf::crypto::COSE_PHEADER_KEY_TXID, txid.str())};
+      auto cose_sign = crypto::cose_sign1(service_kp, pheaders, root_hash);
+
       signatures->put(sig_value);
+      cose_signatures->put(cose_sign);
       serialised_tree->put(history.serialise_tree(txid.version - 1));
       return sig.commit_reserved();
     }
@@ -496,7 +528,10 @@ namespace ccf
     NodeId id;
     T replicated_state_tree;
 
-    ccf::crypto::KeyPair& kp;
+    ccf::crypto::KeyPair& node_kp;
+    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp{};
+    ccf::crypto::COSEVerifierUniquePtr cose_verifier{};
+    std::vector<uint8_t> cose_cert_cached{};
 
     std::optional<::threading::TaskQueue::TimerEntry>
       emit_signature_timer_entry = std::nullopt;
@@ -513,13 +548,13 @@ namespace ccf
     HashedTxHistory(
       ccf::kv::Store& store_,
       const NodeId& id_,
-      ccf::crypto::KeyPair& kp_,
+      ccf::crypto::KeyPair& node_kp_,
       size_t sig_tx_interval_ = 0,
       size_t sig_ms_interval_ = 0,
       bool signature_timer = false) :
       store(store_),
       id(id_),
-      kp(kp_),
+      node_kp(node_kp_),
       sig_tx_interval(sig_tx_interval_),
       sig_ms_interval(sig_ms_interval_)
     {
@@ -527,6 +562,12 @@ namespace ccf
       {
         start_signature_emit_timer();
       }
+    }
+
+    void set_service_kp(
+      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_) override
+    {
+      service_kp = std::move(service_kp_);
     }
 
     void start_signature_emit_timer() override
@@ -654,29 +695,10 @@ namespace ccf
         term_of_next_version};
     }
 
-    ccf::kv::TxHistory::Result verify_and_sign(
-      PrimarySignature& sig,
-      ccf::kv::Term* term,
-      ccf::kv::Configuration::Nodes& config) override
-    {
-      if (!verify(term, &sig))
-      {
-        return ccf::kv::TxHistory::Result::FAIL;
-      }
-
-      ccf::kv::TxHistory::Result result = ccf::kv::TxHistory::Result::OK;
-
-      sig.node = id;
-      sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
-
-      return result;
-    }
-
-    bool verify(
-      ccf::kv::Term* term = nullptr,
-      PrimarySignature* signature = nullptr) override
+    bool verify_root_signatures() override
     {
       auto tx = store.create_read_only_tx();
+
       auto signatures =
         tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto sig = signatures->get();
@@ -685,20 +707,38 @@ namespace ccf
         LOG_FAIL_FMT("No signature found in signatures map");
         return false;
       }
-      auto& sig_value = sig.value();
-      if (term)
-      {
-        *term = sig_value.view;
-      }
-
-      if (signature)
-      {
-        *signature = sig_value;
-      }
 
       auto root = get_replicated_state_root();
       log_hash(root, VERIFY);
-      return verify_node_signature(tx, sig_value.node, sig_value.sig, root);
+      if (!verify_node_signature(tx, sig->node, sig->sig, root))
+      {
+        return false;
+      }
+
+      auto cose_signatures =
+        tx.template ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+      auto cose_sig = cose_signatures->get();
+
+      if (!cose_sig.has_value())
+      {
+        return true;
+      }
+
+      auto service = tx.template ro<ccf::Service>(Tables::SERVICE);
+      auto service_info = service->get();
+
+      if (!service_info.has_value())
+      {
+        LOG_FAIL_FMT("No service key found to verify the signature");
+        return false;
+      }
+
+      const auto raw_cert = service_info->cert.raw();
+      const std::vector<const uint8_t> root_hash{
+        root.h.data(), root.h.data() + root.h.size()};
+
+      return cose_verifier_cached(raw_cert)->verify_detached(
+        cose_sig.value(), root_hash);
     }
 
     std::vector<uint8_t> serialise_tree(size_t to) override
@@ -783,10 +823,16 @@ namespace ccf
 
       LOG_DEBUG_FMT("Signed at {} in view: {}", txid.version, txid.term);
 
+      if (!service_kp)
+      {
+        throw std::logic_error(
+          fmt::format("No service key has been set yet to sign"));
+      }
+
       store.commit(
         txid,
         std::make_unique<MerkleTreeHistoryPendingTx<T>>(
-          txid, store, *this, id, kp, endorsed_cert.value()),
+          txid, store, *this, id, node_kp, *service_kp, endorsed_cert.value()),
         true);
     }
 
@@ -838,6 +884,19 @@ namespace ccf
     void set_endorsed_certificate(const ccf::crypto::Pem& cert) override
     {
       endorsed_cert = cert;
+    }
+
+  private:
+    ccf::crypto::COSEVerifierUniquePtr& cose_verifier_cached(
+      const std::vector<uint8_t>& cert)
+    {
+      if (cert != cose_cert_cached)
+      {
+        cose_cert_cached = cert;
+        cose_verifier =
+          ccf::crypto::make_cose_verifier_from_cert(cose_cert_cached);
+      }
+      return cose_verifier;
     }
   };
 

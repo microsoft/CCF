@@ -24,6 +24,17 @@ namespace ccf
     ccf::crypto::Pem cert;
     std::optional<IdentityType> type = IdentityType::REPLICATED;
     std::string subject_name = "CN=CCF Service";
+    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> kp{};
+
+    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> get_key_pair()
+    {
+      if (!kp)
+      {
+        kp = std::make_shared<ccf::crypto::KeyPair_OpenSSL>(priv_key);
+      }
+
+      return kp;
+    }
 
     bool operator==(const NetworkIdentity& other) const
     {
@@ -86,11 +97,8 @@ namespace ccf
     virtual ccf::crypto::Pem issue_certificate(
       const std::string& valid_from, size_t validity_period_days) override
     {
-      auto identity_key_pair =
-        std::make_shared<ccf::crypto::KeyPair_OpenSSL>(priv_key);
-
       return ccf::crypto::create_self_signed_cert(
-        identity_key_pair,
+        get_key_pair(),
         subject_name,
         {} /* SAN */,
         valid_from,

@@ -505,6 +505,8 @@ namespace ccf
 
           network.ledger_secrets->init();
 
+          history->set_service_kp(network.identity->get_key_pair());
+
           setup_consensus(
             ServiceStatus::OPENING,
             ReconfigurationType::ONE_TRANSACTION,
@@ -539,6 +541,8 @@ namespace ccf
             curve_id,
             config.startup_host_time,
             config.initial_service_certificate_validity_days);
+
+          history->set_service_kp(network.identity->get_key_pair());
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -591,7 +595,18 @@ namespace ccf
             return;
           }
 
-          if (status != HTTP_STATUS_OK)
+          if (status == HTTP_STATUS_BAD_REQUEST)
+          {
+            auto error_msg = fmt::format(
+              "Join request to {} returned 400 Bad Request: {}. Shutting "
+              "down node gracefully.",
+              config.join.target_rpc_address,
+              std::string(data.begin(), data.end()));
+            LOG_FAIL_FMT("{}", error_msg);
+            RINGBUFFER_WRITE_MESSAGE(
+              AdminMessage::fatal_error_msg, to_host, error_msg);
+          }
+          else if (status != HTTP_STATUS_OK)
           {
             const auto& location = headers.find(http::headers::LOCATION);
             if (
@@ -642,6 +657,8 @@ namespace ccf
               resp.network_info->identity);
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
+
+            history->set_service_kp(network.identity->get_key_pair());
 
             ccf::crypto::Pem n2n_channels_cert;
             if (!resp.network_info->endorsed_certificate.has_value())

@@ -471,6 +471,19 @@ Signatures emitted by the primary node at regular interval, over the root of the
    :project: CCF
    :members:
 
+``cose_signatures``
+~~~~~~~~~~~~~~
+
+COSE signatures emitted by the primary node over the root of the Merkle Tree at that sequence number.
+
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value**
+
+.. doxygenstruct:: ccf::CoseSignature
+   :project: CCF
+   :members:
+
 ``recovery_shares``
 ~~~~~~~~~~~~~~~~~~~
 
