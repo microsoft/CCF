@@ -10,12 +10,55 @@
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/tx_receipt_impl.h"
 
+#include <t_cose/t_cose_sign1_sign.h>
+
 namespace
 {
+  static constexpr int64_t LEAF_LABEL = 404; // TBD
+  static constexpr int64_t PATH_LABEL = 404 + 1; // TBD
+
   std::vector<uint8_t> from_string(std::string_view s)
   {
     auto data = reinterpret_cast<const uint8_t*>(s.data());
     return {data, data + s.size()};
+  }
+
+  void encode_leaf_cbor(
+    QCBOREncodeContext& ctx, const ccf::TxReceiptImpl& receipt)
+  {
+    QCBOREncode_OpenArrayInMapN(&ctx, LEAF_LABEL);
+
+    // 1 WSD
+    const auto wsd = from_string(receipt.write_set_digest->hex_str());
+    QCBOREncode_AddBytes(&ctx, {wsd.data(), wsd.size()});
+
+    // 2. CE
+    const auto ce = receipt.commit_evidence.value();
+    QCBOREncode_AddSZString(&ctx, ce.data());
+
+    // 3. CD
+    const auto cd = from_string(receipt.claims_digest.value().hex_str());
+    QCBOREncode_AddBytes(&ctx, {cd.data(), cd.size()});
+
+    QCBOREncode_CloseArray(&ctx);
+  }
+
+  void encode_path_cbor(
+    QCBOREncodeContext& ctx, const ccf::HistoryTree::Path& path)
+  {
+    QCBOREncode_OpenArrayInMapN(&ctx, PATH_LABEL);
+    for (const auto& node : path)
+    {
+      const int64_t dir =
+        (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT);
+      const auto hash = from_string(node.hash.to_string());
+
+      QCBOREncode_OpenArray(&ctx);
+      QCBOREncode_AddInt64(&ctx, dir);
+      QCBOREncode_AddBytes(&ctx, {hash.data(), hash.size()});
+      QCBOREncode_CloseArray(&ctx);
+    }
+    QCBOREncode_CloseArray(&ctx);
   }
 }
 
@@ -163,35 +206,50 @@ namespace ccf
     return receipt;
   }
 
-  nlohmann::json::binary_t describe_merkle_proof_v1(const TxReceiptImpl& in)
+  std::vector<uint8_t> describe_merkle_proof_v1(const TxReceiptImpl& receipt)
   {
-    nlohmann::json out = nlohmann::json();
-    static constexpr int LEAF_LABEL = 404; // TBD
-    static constexpr int PROOF_LABEL = 404 + 1; // TBD
-    static constexpr bool TREE_PATH_LEFT = 0;
-    static constexpr bool TREE_PATH_RIGHT = 1;
+    constexpr size_t buf_size = 2048;
+    Q_USEFUL_BUF_MAKE_STACK_UB(buffer, buf_size);
 
-    out[LEAF_LABEL] = {
-      nlohmann::json::binary_t(from_string(in.write_set_digest->hex_str())),
-      nlohmann::json::binary_t(from_string(in.commit_evidence.value())),
-      nlohmann::json::binary_t(
-        from_string(in.claims_digest.value().hex_str()))};
+    QCBOREncodeContext ctx;
+    QCBOREncode_Init(&ctx, buffer);
 
-    auto path = nlohmann::json::array();
-    for (const auto& node : *in.path)
+    QCBOREncode_BstrWrap(&ctx);
+    QCBOREncode_OpenMap(&ctx);
+
+    const auto wsd = from_string(receipt.write_set_digest->hex_str());
+    QCBOREncode_AddBytes(&ctx, {wsd.data(), wsd.size()});
+
+    if (!receipt.commit_evidence)
     {
-      auto n = nlohmann::json::object();
-      if (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT)
-      {
-        path[TREE_PATH_LEFT] = node.hash.to_string();
-      }
-      else
-      {
-        path[TREE_PATH_RIGHT] = node.hash.to_string();
-      }
+      throw std::logic_error("Merkle proof is missing commit evidence");
     }
-    out[PROOF_LABEL] = path;
-    return nlohmann::json::to_cbor(out);
+    if (!receipt.write_set_digest)
+    {
+      throw std::logic_error("Merkle proof is missing write set digest");
+    }
+    encode_leaf_cbor(ctx, receipt);
+
+    if (!receipt.path)
+    {
+      throw std::logic_error("Merkle proof is missing path");
+    }
+    encode_path_cbor(ctx, *receipt.path);
+
+    QCBOREncode_CloseMap(&ctx);
+    QCBOREncode_CloseBstrWrap2(&ctx, false, nullptr);
+
+    struct q_useful_buf_c result;
+    auto qerr = QCBOREncode_Finish(&ctx, &result);
+    if (qerr)
+    {
+      throw std::logic_error(
+        fmt::format("Failed to encode merkle proof: {}", qerr));
+    }
+
+    return {
+      static_cast<const uint8_t*>(result.ptr),
+      static_cast<const uint8_t*>(result.ptr) + result.len};
   }
 }
 
