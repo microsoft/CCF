@@ -217,9 +217,6 @@ namespace ccf
     QCBOREncode_BstrWrap(&ctx);
     QCBOREncode_OpenMap(&ctx);
 
-    const auto wsd = from_string(receipt.write_set_digest->hex_str());
-    QCBOREncode_AddBytes(&ctx, {wsd.data(), wsd.size()});
-
     if (!receipt.commit_evidence)
     {
       throw std::logic_error("Merkle proof is missing commit evidence");
