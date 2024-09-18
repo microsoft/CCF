@@ -14,12 +14,6 @@
 
 namespace
 {
-  std::vector<uint8_t> from_string(std::string_view s)
-  {
-    auto data = reinterpret_cast<const uint8_t*>(s.data());
-    return {data, data + s.size()};
-  }
-
   void encode_leaf_cbor(
     QCBOREncodeContext& ctx, const ccf::TxReceiptImpl& receipt)
   {
