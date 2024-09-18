@@ -14,9 +14,6 @@
 
 namespace
 {
-  static constexpr int64_t LEAF_LABEL = 404; // TBD
-  static constexpr int64_t PATH_LABEL = 404 + 1; // TBD
-
   std::vector<uint8_t> from_string(std::string_view s)
   {
     auto data = reinterpret_cast<const uint8_t*>(s.data());
@@ -26,18 +23,19 @@ namespace
   void encode_leaf_cbor(
     QCBOREncodeContext& ctx, const ccf::TxReceiptImpl& receipt)
   {
-    QCBOREncode_OpenArrayInMapN(&ctx, LEAF_LABEL);
+    QCBOREncode_OpenArrayInMapN(
+      &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL);
 
     // 1 WSD
-    const auto wsd = from_string(receipt.write_set_digest->hex_str());
+    const auto& wsd = receipt.write_set_digest->h;
     QCBOREncode_AddBytes(&ctx, {wsd.data(), wsd.size()});
 
     // 2. CE
-    const auto ce = receipt.commit_evidence.value();
+    const auto& ce = receipt.commit_evidence.value();
     QCBOREncode_AddSZString(&ctx, ce.data());
 
     // 3. CD
-    const auto cd = from_string(receipt.claims_digest.value().hex_str());
+    const auto& cd = receipt.claims_digest.value().h;
     QCBOREncode_AddBytes(&ctx, {cd.data(), cd.size()});
 
     QCBOREncode_CloseArray(&ctx);
@@ -46,12 +44,13 @@ namespace
   void encode_path_cbor(
     QCBOREncodeContext& ctx, const ccf::HistoryTree::Path& path)
   {
-    QCBOREncode_OpenArrayInMapN(&ctx, PATH_LABEL);
+    QCBOREncode_OpenArrayInMapN(
+      &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL);
     for (const auto& node : path)
     {
       const int64_t dir =
         (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT);
-      const auto hash = from_string(node.hash.to_string());
+      std::vector<uint8_t> hash{node.hash};
 
       QCBOREncode_OpenArray(&ctx);
       QCBOREncode_AddInt64(&ctx, dir);
@@ -206,7 +205,8 @@ namespace ccf
     return receipt;
   }
 
-  std::vector<uint8_t> describe_merkle_proof_v1(const TxReceiptImpl& receipt)
+  std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
+    const TxReceiptImpl& receipt)
   {
     constexpr size_t buf_size = 2048;
     Q_USEFUL_BUF_MAKE_STACK_UB(buffer, buf_size);
@@ -219,17 +219,20 @@ namespace ccf
 
     if (!receipt.commit_evidence)
     {
-      throw std::logic_error("Merkle proof is missing commit evidence");
+      LOG_DEBUG_FMT("Merkle proof is missing commit evidence");
+      return std::nullopt;
     }
     if (!receipt.write_set_digest)
     {
-      throw std::logic_error("Merkle proof is missing write set digest");
+      LOG_DEBUG_FMT("Merkle proof is missing write set digest");
+      return std::nullopt;
     }
     encode_leaf_cbor(ctx, receipt);
 
     if (!receipt.path)
     {
-      throw std::logic_error("Merkle proof is missing path");
+      LOG_DEBUG_FMT("Merkle proof is missing path");
+      return std::nullopt;
     }
     encode_path_cbor(ctx, *receipt.path);
 
@@ -240,11 +243,11 @@ namespace ccf
     auto qerr = QCBOREncode_Finish(&ctx, &result);
     if (qerr)
     {
-      throw std::logic_error(
-        fmt::format("Failed to encode merkle proof: {}", qerr));
+      LOG_DEBUG_FMT("Failed to encode merkle proof: {}", qerr);
+      return std::nullopt;
     }
 
-    return {
+    return std::vector<uint8_t>{
       static_cast<const uint8_t*>(result.ptr),
       static_cast<const uint8_t*>(result.ptr) + result.len};
   }

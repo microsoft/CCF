@@ -136,7 +136,16 @@ namespace ccf
   using TxReceiptImplPtr = std::shared_ptr<TxReceiptImpl>;
   nlohmann::json describe_receipt_v1(const TxReceiptImpl& receipt);
   ReceiptPtr describe_receipt_v2(const TxReceiptImpl& receipt);
-  std::vector<uint8_t> describe_merkle_proof_v1(const TxReceiptImpl& in);
+
+  enum MerkleProofLabel : int64_t
+  {
+    // Values TBD:
+    // https://github.com/ietf-scitt/draft-birkholz-cose-cometre-ccf-profile
+    MERKLE_PROOF_LEAF_LABEL = 404,
+    MERKLE_PROOF_PATH_LABEL = 405
+  };
+  std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
+    const TxReceiptImpl& in);
 
   // Manual JSON serializers are specified for these types as they are not
   // trivial POD structs
