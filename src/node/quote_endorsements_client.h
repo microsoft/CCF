@@ -9,6 +9,21 @@ namespace ccf
 {
   using QuoteEndorsementsFetchedCallback =
     std::function<void(std::vector<uint8_t>&& endorsements)>;
+  using Server = pal::snp::EndorsementEndpointsConfiguration::Server;
+
+  static inline size_t max_retries_count(const Server& server)
+  {
+    // Each server should contain at least one endpoint definition
+    if (server.empty())
+    {
+      throw std::logic_error(
+        "No endpoints defined in SNP attestation collateral server");
+    }
+
+    // If multiple endpoints are defined, the max_retries_count of the first
+    // if the maximum number of retries for the server.
+    return server.front().max_retries_count;
+  }
 
   // Resilient client to fetch attestation report endorsement certificate.
   class QuoteEndorsementsClient
@@ -17,15 +32,10 @@ namespace ccf
   private:
     using EndpointInfo =
       pal::snp::EndorsementEndpointsConfiguration::EndpointInfo;
-    using Server = pal::snp::EndorsementEndpointsConfiguration::Server;
 
     // Resend request after this interval if no response was received from
     // remote server
     static constexpr size_t server_connection_timeout_s = 3;
-
-    // Maximum number of retries per remote server before giving up and moving
-    // on to the next server.
-    static constexpr size_t max_server_retries_count = 3;
 
     std::shared_ptr<RPCSessions> rpcsessions;
 
@@ -121,9 +131,18 @@ namespace ccf
           if (msg->data.request_id >= msg->data.self->last_received_request_id)
           {
             auto& servers = msg->data.self->config.servers;
+            // Should always contain at least one server,
+            // installed by ccf::pal::make_endorsement_endpoint_configuration()
+            if (servers.empty())
+            {
+              throw std::logic_error(
+                "No server specified to fetch endorsements");
+            }
+
             msg->data.self->server_retries_count++;
             if (
-              msg->data.self->server_retries_count >= max_server_retries_count)
+              msg->data.self->server_retries_count >=
+              max_retries_count(servers.front()))
             {
               if (servers.size() > 1)
               {
@@ -137,7 +156,10 @@ namespace ccf
                   "Giving up retrying fetching attestation endorsements from "
                   "{} after {} attempts",
                   server.front().host,
-                  max_server_retries_count);
+                  server.front().max_retries_count);
+                throw ccf::pal::AttestationCollateralFetchingTimeout(
+                  "Timed out fetching attestation endorsements from all "
+                  "configured servers");
                 return;
               }
             }

@@ -47,6 +47,7 @@ namespace ccf::pal::snp
       bool response_is_thim_json = false;
       std::map<std::string, std::string> headers = {};
       bool tls = true;
+      size_t max_retries_count = 3;
 
       bool operator==(const EndpointInfo&) const = default;
     };
@@ -73,12 +74,14 @@ namespace ccf::pal::snp
   {
     EndorsementsEndpointType type = Azure;
     std::optional<std::string> url = std::nullopt;
+    std::optional<size_t> max_retries_count = std::nullopt;
 
     bool operator==(const EndorsementsServer&) const = default;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(EndorsementsServer);
   DECLARE_JSON_REQUIRED_FIELDS(EndorsementsServer);
-  DECLARE_JSON_OPTIONAL_FIELDS(EndorsementsServer, type, url);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    EndorsementsServer, type, url, max_retries_count);
   using EndorsementsServers = std::vector<EndorsementsServer>;
 
   struct HostPort
@@ -94,15 +97,20 @@ namespace ccf::pal::snp
   make_azure_endorsements_server(
     const HostPort& endpoint,
     const std::string& chip_id_hex,
-    const std::string& reported_tcb)
+    const std::string& reported_tcb,
+    size_t max_retries_count)
   {
     std::map<std::string, std::string> params;
     params["api-version"] = "2020-10-15-preview";
-    return {
-      {endpoint.host,
-       endpoint.port,
-       fmt::format("/SevSnpVM/certificates/{}/{}", chip_id_hex, reported_tcb),
-       params}};
+    EndorsementEndpointsConfiguration::EndpointInfo info{
+      endpoint.host,
+      endpoint.port,
+      fmt::format("/SevSnpVM/certificates/{}/{}", chip_id_hex, reported_tcb),
+      params};
+
+    info.max_retries_count = max_retries_count;
+
+    return {info};
   }
 
   // AMD endorsements endpoints. See
@@ -116,7 +124,8 @@ namespace ccf::pal::snp
     const std::string& boot_loader,
     const std::string& tee,
     const std::string& snp,
-    const std::string& microcode)
+    const std::string& microcode,
+    size_t max_retries_count)
   {
     std::map<std::string, std::string> params;
     params["blSPL"] = boot_loader;
@@ -125,19 +134,23 @@ namespace ccf::pal::snp
     params["ucodeSPL"] = microcode;
 
     EndorsementEndpointsConfiguration::Server server;
-    server.push_back({
+    EndorsementEndpointsConfiguration::EndpointInfo leaf{
       endpoint.host,
       endpoint.port,
       fmt::format("/vcek/v1/{}/{}", product_name, chip_id_hex),
       params,
       true // DER
-    });
-    server.push_back(
-      {endpoint.host,
-       endpoint.port,
-       fmt::format("/vcek/v1/{}/cert_chain", product_name),
-       {}});
+    };
+    leaf.max_retries_count = max_retries_count;
+    EndorsementEndpointsConfiguration::EndpointInfo chain{
+      endpoint.host,
+      endpoint.port,
+      fmt::format("/vcek/v1/{}/cert_chain", product_name),
+      {}};
+    chain.max_retries_count = max_retries_count;
 
+    server.push_back(leaf);
+    server.push_back(chain);
     return server;
   }
 
@@ -148,12 +161,13 @@ namespace ccf::pal::snp
   make_thim_endorsements_server(
     const HostPort& endpoint,
     const std::string& chip_id_hex,
-    const std::string& reported_tcb)
+    const std::string& reported_tcb,
+    size_t max_retries_count)
   {
     std::map<std::string, std::string> params;
     params["tcbVersion"] = reported_tcb;
     params["platformId"] = chip_id_hex;
-    return {{
+    EndorsementEndpointsConfiguration::EndpointInfo info{
       endpoint.host,
       endpoint.port,
       "/metadata/THIM/amd/certification",
@@ -162,7 +176,10 @@ namespace ccf::pal::snp
       true, // But THIM JSON
       {{"Metadata", "true"}},
       false // No TLS
-    }};
+    };
+    info.max_retries_count = max_retries_count;
+
+    return {info};
   }
 }
 
