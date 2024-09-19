@@ -18,7 +18,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - SGX Platform support.
-- `BackupSignature` and related code as obsolete (#6462).
 
 ### Added
 
