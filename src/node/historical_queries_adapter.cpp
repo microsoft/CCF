@@ -203,7 +203,8 @@ namespace ccf
     const TxReceiptImpl& receipt)
   {
     constexpr size_t buf_size = 2048;
-    Q_USEFUL_BUF_MAKE_STACK_UB(buffer, buf_size);
+    std::vector<uint8_t> underlaying_buffer(buf_size);
+    q_useful_buf buffer{underlaying_buffer.data(), buf_size};
 
     QCBOREncodeContext ctx;
     QCBOREncode_Init(&ctx, buffer);
@@ -241,9 +242,17 @@ namespace ccf
       return std::nullopt;
     }
 
-    return std::vector<uint8_t>{
-      static_cast<const uint8_t*>(result.ptr),
-      static_cast<const uint8_t*>(result.ptr) + result.len};
+    if (result.ptr != underlaying_buffer.data())
+    {
+      LOG_FAIL_FMT("QCBOR encoded buffer doesn't match underlaing buffer");
+      return std::vector<uint8_t>{
+        static_cast<const uint8_t*>(result.ptr),
+        static_cast<const uint8_t*>(result.ptr) + result.len};
+    }
+
+    underlaying_buffer.resize(result.len);
+    underlaying_buffer.shrink_to_fit();
+    return underlaying_buffer;
   }
 }
 
