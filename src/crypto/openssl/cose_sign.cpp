@@ -161,8 +161,8 @@ namespace ccf::crypto
     std::span<const uint8_t> payload)
   {
     const auto buf_size = estimate_buffer_size(protected_headers, payload);
-    std::vector<uint8_t> underlaying_buffer(buf_size);
-    q_useful_buf signed_cose_buffer{underlaying_buffer.data(), buf_size};
+    std::vector<uint8_t> underlying_buffer(buf_size);
+    q_useful_buf signed_cose_buffer{underlying_buffer.data(), buf_size};
 
     QCBOREncodeContext cbor_encode;
     QCBOREncode_Init(&cbor_encode, signed_cose_buffer);
@@ -217,16 +217,12 @@ namespace ccf::crypto
         fmt::format("Can't finish QCBOR encoding with error code {}", err));
     }
 
-    if (signed_cose.ptr != underlaying_buffer.data())
-    {
-      LOG_FAIL_FMT("COSE sign1: QCBOR buffer doesn't match underlaing buffer");
-      return std::vector<uint8_t>{
-        static_cast<const uint8_t*>(signed_cose.ptr),
-        static_cast<const uint8_t*>(signed_cose.ptr) + signed_cose.len};
-    }
+    // Memory address is said to match:
+    // github.com/laurencelundblade/QCBOR/blob/v1.4.1/inc/qcbor/qcbor_encode.h#L2190-L2191
+    assert(signed_cose.ptr == underlying_buffer.data());
 
-    underlaying_buffer.resize(signed_cose.len);
-    underlaying_buffer.shrink_to_fit();
-    return underlaying_buffer;
+    underlying_buffer.resize(signed_cose.len);
+    underlying_buffer.shrink_to_fit();
+    return underlying_buffer;
   }
 }
