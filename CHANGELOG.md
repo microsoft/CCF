@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - SGX Platform support.
+- `BackupSignature` and related code as obsolete.
+
+### Added
+
+- Added COSE signatures over the Merkle root to the KV.
+  - Signing is done with service key (different from raw signatures, which are stil signed by the node key).
+  - New signature reside in `public:ccf.internal.cose_signatures`.
 
 ## [5.0.4]
 
