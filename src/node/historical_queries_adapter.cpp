@@ -244,7 +244,7 @@ namespace ccf
 
     // Memory address is said to match:
     // github.com/laurencelundblade/QCBOR/blob/v1.4.1/inc/qcbor/qcbor_encode.h#L2190-L2191
-    assert(signed_cose.ptr == underlying_buffer.data());
+    assert(result.ptr == underlying_buffer.data());
 
     underlying_buffer.resize(result.len);
     underlying_buffer.shrink_to_fit();
