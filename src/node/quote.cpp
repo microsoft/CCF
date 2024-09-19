@@ -16,31 +16,35 @@ namespace ccf
     const pal::PlatformAttestationMeasurement& quote_measurement,
     const std::vector<uint8_t>& uvm_endorsements)
   {
-    auto uvm_endorsements_data =
-      verify_uvm_endorsements(uvm_endorsements, quote_measurement);
+    // Uses KV-defined roots of trust (did -> (feed, svn)) to verify the
+    // UVM measurement against endorsements in the quote.
+    std::vector<UVMEndorsements> uvm_roots_of_trust_from_kv;
     auto uvmes = tx.ro<SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
-    if (uvmes == nullptr)
+    if (uvmes)
     {
-      // No recorded trusted UVM endorsements
-      return false;
+      uvmes->foreach(
+        [&uvm_roots_of_trust_from_kv](
+          const DID& did, const FeedToEndorsementsDataMap& endorsements_map) {
+          for (const auto& [feed, data] : endorsements_map)
+          {
+            uvm_roots_of_trust_from_kv.push_back(
+              UVMEndorsements{did, feed, data.svn});
+          }
+          return true;
+        });
     }
 
-    bool match = false;
-    uvmes->foreach([&match, &uvm_endorsements_data](
-                     const DID& did, const FeedToEndorsementsDataMap& value) {
-      if (uvm_endorsements_data.did == did)
-      {
-        auto search = value.find(uvm_endorsements_data.feed);
-        if (search != value.end())
-        {
-          match = true;
-          return false;
-        }
-      }
+    try
+    {
+      auto uvm_endorsements_data = verify_uvm_endorsements(
+        uvm_endorsements, quote_measurement, uvm_roots_of_trust_from_kv);
       return true;
-    });
-
-    return match;
+    }
+    catch (const std::logic_error& e)
+    {
+      LOG_FAIL_FMT("Failed to verify UVM endorsements: {}", e.what());
+      return false;
+    }
   }
 
   QuoteVerificationResult verify_enclave_measurement_against_store(
