@@ -9,6 +9,7 @@
 
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/pal/locking.h"
+#include "ccf/receipt.h"
 #include "crypto/openssl/hash.h"
 #include "ds/messaging.h"
 #include "ds/test/stub_writer.h"
@@ -252,6 +253,86 @@ size_t get_cache_limit_for_entries(
            [&](size_t prev, const std::vector<uint8_t>& entry) {
              return prev + entry.size();
            });
+}
+
+struct MerkleProofData
+{
+  std::vector<uint8_t> write_set_digest;
+  std::string commit_evidence;
+  std::vector<uint8_t> claims_digest;
+  std::vector<std::pair<int64_t, std::vector<uint8_t>>> path;
+};
+
+std::vector<uint8_t> bstring_to_bytes(QCBORItem& item)
+{
+  return {
+    static_cast<const uint8_t*>(item.val.string.ptr),
+    static_cast<const uint8_t*>(item.val.string.ptr) + item.val.string.len};
+}
+
+std::string tstring_to_string(QCBORItem& item)
+{
+  return {
+    static_cast<const char*>(item.val.string.ptr),
+    static_cast<const char*>(item.val.string.ptr) + item.val.string.len};
+}
+
+MerkleProofData decode_merkle_proof(const std::vector<uint8_t>& encoded)
+{
+  q_useful_buf_c buf{encoded.data(), encoded.size()};
+  QCBORDecodeContext ctx;
+  QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
+  struct q_useful_buf_c params;
+  QCBORDecode_EnterBstrWrapped(&ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &params);
+  QCBORDecode_EnterMap(&ctx, NULL);
+  QCBORDecode_EnterArrayFromMapN(
+    &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL);
+  QCBORItem item;
+  MerkleProofData data;
+
+  QCBORDecode_GetNext(&ctx, &item);
+  REQUIRE(item.uDataType == QCBOR_TYPE_BYTE_STRING);
+  data.write_set_digest = bstring_to_bytes(item);
+
+  QCBORDecode_GetNext(&ctx, &item);
+  REQUIRE(item.uDataType == QCBOR_TYPE_TEXT_STRING);
+  data.commit_evidence = tstring_to_string(item);
+
+  QCBORDecode_GetNext(&ctx, &item);
+  REQUIRE(item.uDataType == QCBOR_TYPE_BYTE_STRING);
+  data.claims_digest = bstring_to_bytes(item);
+
+  QCBORDecode_ExitArray(&ctx);
+  QCBORDecode_EnterArrayFromMapN(
+    &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL);
+
+  for (;;)
+  {
+    QCBORDecode_EnterArray(&ctx, &item);
+    if (QCBORDecode_GetError(&ctx) != QCBOR_SUCCESS)
+      break;
+
+    std::pair<int64_t, std::vector<uint8_t>> path_item;
+
+    REQUIRE(QCBORDecode_GetNext(&ctx, &item) == QCBOR_SUCCESS);
+    REQUIRE(item.uDataType == QCBOR_TYPE_INT64);
+    path_item.first = item.val.int64;
+
+    REQUIRE(QCBORDecode_GetNext(&ctx, &item) == QCBOR_SUCCESS);
+    REQUIRE(item.uDataType == QCBOR_TYPE_BYTE_STRING);
+    path_item.second = bstring_to_bytes(item);
+
+    data.path.push_back(path_item);
+    QCBORDecode_ExitArray(&ctx);
+  }
+
+  QCBORDecode_ExitArray(&ctx);
+  QCBORDecode_ExitMap(&ctx);
+  QCBORDecode_ExitBstrWrapped(&ctx);
+
+  REQUIRE(QCBORDecode_Finish(&ctx) == QCBOR_ERR_NO_MORE_ITEMS);
+
+  return data;
 }
 
 TEST_CASE("StateCache point queries")
@@ -1852,6 +1933,66 @@ TEST_CASE("Recover historical ledger secrets")
 
     validate_business_transaction(historical_state, first_seqno);
   }
+  ccf::crypto::openssl_sha256_shutdown();
+}
+
+TEST_CASE("Valid merkle proof from receipts")
+{
+  ccf::crypto::openssl_sha256_init();
+  auto state = create_and_init_state();
+  auto& kv_store = *state.kv_store;
+  auto sigseq = write_transactions_and_signature(kv_store, 10);
+  auto ledger = construct_host_ledger(kv_store.get_consensus());
+  REQUIRE(ledger.size() == sigseq);
+
+  auto writer = std::make_shared<StubWriter>();
+  ccf::historical::StateCache cache(kv_store, state.ledger_secrets, writer);
+
+  const auto target = sigseq - 1;
+  REQUIRE(cache.get_state_at(target, target) == nullptr);
+  REQUIRE(cache.handle_ledger_entry(target, ledger.at(target)));
+  REQUIRE(cache.handle_ledger_entry(sigseq, ledger.at(sigseq)));
+  auto historical_state = cache.get_state_at(target, target);
+  REQUIRE(historical_state != nullptr);
+  REQUIRE(historical_state->receipt != nullptr);
+
+  auto proof = ccf::describe_merkle_proof_v1(*historical_state->receipt);
+  REQUIRE(proof.has_value());
+
+  auto decoded = decode_merkle_proof(*proof);
+
+  REQUIRE_EQ(
+    ccf::ds::to_hex(decoded.write_set_digest),
+    historical_state->receipt->write_set_digest->hex_str());
+  REQUIRE_EQ(
+    decoded.commit_evidence, *historical_state->receipt->commit_evidence);
+  REQUIRE_EQ(
+    ccf::ds::to_hex(decoded.claims_digest),
+    historical_state->receipt->claims_digest.value()
+      .hex_str()); // HEX as workaround emmpy claims (set flag).
+
+  auto it = decoded.path.begin();
+  for (const auto& node : *historical_state->receipt->path)
+  {
+    const int64_t dir =
+      (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT);
+    std::vector<uint8_t> hash{node.hash};
+
+    REQUIRE_EQ(it->first, dir);
+    REQUIRE_EQ(it->second, hash);
+
+    ++it;
+  }
+
+  REQUIRE(it == decoded.path.end());
+
+  historical_state = cache.get_state_at(sigseq, sigseq);
+  REQUIRE(historical_state != nullptr);
+
+  // We don't provide a merkle proof for the signature itself.
+  proof = ccf::describe_merkle_proof_v1(*historical_state->receipt);
+  REQUIRE_FALSE(proof.has_value());
+
   ccf::crypto::openssl_sha256_shutdown();
 }
 

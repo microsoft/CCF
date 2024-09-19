@@ -161,6 +161,7 @@ namespace ccf
     cd.set(std::move(claims_digest));
     ccf::TxReceiptImpl tx_receipt(
       sig,
+      std::nullopt, // cose
       proof.get_root(),
       proof.get_path(),
       node_id,
