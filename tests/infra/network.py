@@ -21,6 +21,7 @@ from dataclasses import dataclass
 import http
 import pprint
 import functools
+import re
 from datetime import datetime, timedelta, timezone
 from infra.consortium import slurp_file
 from infra.snp import IS_SNP
@@ -73,6 +74,10 @@ class CodeIdNotFound(Exception):
 
 
 class StartupSeqnoIsOld(Exception):
+    pass
+
+
+class CollateralFetchTimeout(Exception):
     pass
 
 
@@ -916,6 +921,9 @@ class Network:
                     errors = []
                 self.nodes.remove(node)
                 if errors:
+                    giving_up_fetching = re.compile(
+                        "Giving up retrying fetching attestation endorsements from .* after (\d+) attempts"
+                    )
                     # Throw accurate exceptions if known errors found in
                     for error in errors:
                         if "Quote does not contain known enclave measurement" in error:
@@ -924,6 +932,11 @@ class Network:
                             raise StartupSeqnoIsOld(has_stopped) from e
                         if "invalid cert on handshake" in error:
                             raise ServiceCertificateInvalid from e
+                        match = giving_up_fetching.search(error)
+                        if match:
+                            raise CollateralFetchTimeout(
+                                has_stopped, int(match.group(1))
+                            ) from e
                 raise
 
     def join_node(

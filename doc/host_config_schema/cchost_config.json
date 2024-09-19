@@ -486,6 +486,11 @@
               "url": {
                 "type": "string",
                 "description": "Server URLs used to retrieve attestation report endorsement certificates, e.g. \"kdsintf.amd.com\" (AMD), \"global.acccache.azure.net\" (Azure) or \"169.254.169.254\" (THIM)"
+              },
+              "max_retries_count": {
+                "type": "integer",
+                "default": 3,
+                "description": "Maximum number of retries to fetch endorsements from the server"
               }
             },
             "required": ["url"],

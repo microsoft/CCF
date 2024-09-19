@@ -21,7 +21,6 @@
 #include "ccf/service/tables/users.h"
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "kv/store.h"
-#include "tables/backup_signatures.h"
 #include "tables/config.h"
 #include "tables/governance_history.h"
 #include "tables/previous_service_identity.h"
