@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - SGX Platform support.
 
+### Added
+
+- Added COSE signatures over the Merkle root to the KV (#6449).
+  - Signing is done with service key (different from raw signatures, which remain unchanged and are still signed by the node key).
+  - New signature reside in `public:ccf.internal.cose_signatures`.
+
 ## [5.0.4]
 
 [5.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.4
