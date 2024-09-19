@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - SGX Platform support.
 
+### Added
+
+- Exposed COSE signatures over the Merkle root in historical API as TxReceiptImpl::cose_signature.
+- Introduced `ccf::describe_merkle_proof_v1(receipt)` for Merkle proof construction in CBOR format.
+
 ## [5.0.4]
 
 [5.0.4]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.4
