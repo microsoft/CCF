@@ -12,6 +12,7 @@ namespace ccf
   struct TxReceiptImpl
   {
     std::vector<uint8_t> signature = {};
+    std::optional<std::vector<uint8_t>> cose_signature = std::nullopt;
     HistoryTree::Hash root = {};
     std::shared_ptr<ccf::HistoryTree::Path> path = {};
     ccf::NodeId node_id = {};
@@ -24,6 +25,7 @@ namespace ccf
 
     TxReceiptImpl(
       const std::vector<uint8_t>& signature_,
+      const std::optional<std::vector<uint8_t>>& cose_signature,
       const HistoryTree::Hash& root_,
       std::shared_ptr<ccf::HistoryTree::Path> path_,
       const NodeId& node_id_,
@@ -37,6 +39,7 @@ namespace ccf
       const std::optional<std::vector<ccf::crypto::Pem>>&
         service_endorsements_ = std::nullopt) :
       signature(signature_),
+      cose_signature(cose_signature),
       root(root_),
       path(path_),
       node_id(node_id_),

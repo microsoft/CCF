@@ -10,6 +10,51 @@
 #include "node/rpc/network_identity_subsystem.h"
 #include "node/tx_receipt_impl.h"
 
+#include <t_cose/t_cose_sign1_sign.h>
+
+namespace
+{
+  void encode_leaf_cbor(
+    QCBOREncodeContext& ctx, const ccf::TxReceiptImpl& receipt)
+  {
+    QCBOREncode_OpenArrayInMapN(
+      &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL);
+
+    // 1 WSD
+    const auto& wsd = receipt.write_set_digest->h;
+    QCBOREncode_AddBytes(&ctx, {wsd.data(), wsd.size()});
+
+    // 2. CE
+    const auto& ce = receipt.commit_evidence.value();
+    QCBOREncode_AddSZString(&ctx, ce.data());
+
+    // 3. CD
+    const auto& cd = receipt.claims_digest.value().h;
+    QCBOREncode_AddBytes(&ctx, {cd.data(), cd.size()});
+
+    QCBOREncode_CloseArray(&ctx);
+  }
+
+  void encode_path_cbor(
+    QCBOREncodeContext& ctx, const ccf::HistoryTree::Path& path)
+  {
+    QCBOREncode_OpenArrayInMapN(
+      &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL);
+    for (const auto& node : path)
+    {
+      const int64_t dir =
+        (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT);
+      std::vector<uint8_t> hash{node.hash};
+
+      QCBOREncode_OpenArray(&ctx);
+      QCBOREncode_AddInt64(&ctx, dir);
+      QCBOREncode_AddBytes(&ctx, {hash.data(), hash.size()});
+      QCBOREncode_CloseArray(&ctx);
+    }
+    QCBOREncode_CloseArray(&ctx);
+  }
+}
+
 namespace ccf
 {
   nlohmann::json describe_receipt_v1(const TxReceiptImpl& receipt)
@@ -152,6 +197,58 @@ namespace ccf
     }
 
     return receipt;
+  }
+
+  std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
+    const TxReceiptImpl& receipt)
+  {
+    constexpr size_t buf_size = 2048;
+    std::vector<uint8_t> underlying_buffer(buf_size);
+    q_useful_buf buffer{underlying_buffer.data(), buf_size};
+
+    QCBOREncodeContext ctx;
+    QCBOREncode_Init(&ctx, buffer);
+
+    QCBOREncode_BstrWrap(&ctx);
+    QCBOREncode_OpenMap(&ctx);
+
+    if (!receipt.commit_evidence)
+    {
+      LOG_DEBUG_FMT("Merkle proof is missing commit evidence");
+      return std::nullopt;
+    }
+    if (!receipt.write_set_digest)
+    {
+      LOG_DEBUG_FMT("Merkle proof is missing write set digest");
+      return std::nullopt;
+    }
+    encode_leaf_cbor(ctx, receipt);
+
+    if (!receipt.path)
+    {
+      LOG_DEBUG_FMT("Merkle proof is missing path");
+      return std::nullopt;
+    }
+    encode_path_cbor(ctx, *receipt.path);
+
+    QCBOREncode_CloseMap(&ctx);
+    QCBOREncode_CloseBstrWrap2(&ctx, false, nullptr);
+
+    struct q_useful_buf_c result;
+    auto qerr = QCBOREncode_Finish(&ctx, &result);
+    if (qerr)
+    {
+      LOG_DEBUG_FMT("Failed to encode merkle proof: {}", qerr);
+      return std::nullopt;
+    }
+
+    // Memory address is said to match:
+    // github.com/laurencelundblade/QCBOR/blob/v1.4.1/inc/qcbor/qcbor_encode.h#L2190-L2191
+    assert(result.ptr == underlying_buffer.data());
+
+    underlying_buffer.resize(result.len);
+    underlying_buffer.shrink_to_fit();
+    return underlying_buffer;
   }
 }
 
