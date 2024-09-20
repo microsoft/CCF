@@ -73,11 +73,6 @@ jobs:
           - name: snp
             image: default
             nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-          - name: sgx
-            image: sgx
-            nodes: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
-            container_options: --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx
-            cmake_options: -DLVI_MITIGATIONS=ON
     runs-on: ${{ matrix.platform.nodes }}
     container:
       image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-25-07-2024
@@ -185,14 +180,14 @@ jobs:
         with:
           name: compatibility
           path: build/compatibility_report.json
-        if: "${{ matrix.platform.name == 'sgx' }}"
+        if: "${{ matrix.platform.name == 'virtual' }}"
 
       - name: "Upload TLS Report"
         uses: actions/upload-artifact@v4
         with:
           name: tls
           path: build/tls_report.html
-        if: "${{ matrix.platform.name == 'sgx' }}"
+        if: "${{ matrix.platform.name == 'virtual' }}"
 
       - name: "Build Python Wheel"
         id: build_wheel
@@ -206,14 +201,14 @@ jobs:
           WHL=`ls dist/*.whl`
           echo "name=$WHL" >> $GITHUB_OUTPUT
         shell: bash
-        if: "${{ matrix.platform.name == 'sgx' }}"
+        if: "${{ matrix.platform.name == 'virtual' }}"
 
       - name: "Upload Python Wheel"
         uses: actions/upload-artifact@v4
         with:
           name: wheel
           path: python/${{ steps.build_wheel.outputs.name }}
-        if: "${{ matrix.platform.name == 'sgx' }}"
+        if: "${{ matrix.platform.name == 'virtual' }}"
 
       - name: "Build TS Package"
         id: build_tstgz
@@ -228,14 +223,14 @@ jobs:
           PKG=`ls *.tgz`
           echo "name=$PKG" >> $GITHUB_OUTPUT
         shell: bash
-        if: "${{ matrix.platform.name == 'sgx' }}"
+        if: "${{ matrix.platform.name == 'virtual' }}"
 
       - name: "Upload TS Package"
         uses: actions/upload-artifact@v4
         with:
           name: tstgz
           path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
-        if: "${{ matrix.platform.name == 'sgx' }}"
+        if: "${{ matrix.platform.name == 'virtual' }}"
 
   create_release:
     needs:
