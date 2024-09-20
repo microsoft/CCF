@@ -38,6 +38,16 @@ Extend(i, k) ==
         \E s \in [1..l -> Terms] :
             cLogs' = [cLogs EXCEPT ![i] = @ \o s]
 
+ExtendRefine(i, k) ==
+    /\ \A j \in Servers : Len(cLogs[j]) \leq Len(cLogs[i])
+    /\ cLogs' \in [Servers -> Seq(Terms)]
+    /\ \A j \in Servers: IsPrefix(cLogs[j], cLogs'[j])
+    /\ Len(cLogs'[i]) <= Len(cLogs[i]) + k
+
+LEMMA ASSUME NEW i \in Servers, NEW k \in Nat PROVE
+    ExtendRefine(i, k) <=> ExtendRefine(i, k)
+OMITTED 
+
 ExtendToMax(i) == Extend(i, MaxLogLength)
 
 \* The only possible actions are to append log entries.

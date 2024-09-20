@@ -142,4 +142,5 @@ MappingToAbs ==
 
 RefinementToAbsProp == MappingToAbs!AbsSpec
 
+ABSExtend(i,k) == MappingToAbs!ExtendRefine(i,k)
 ===================================
