@@ -479,7 +479,9 @@ def test_proposal_invalidation(network, args):
     return network
 
 
-@reqs.description("Node fails to join if KV contains no UVM endorsements roots of trust")
+@reqs.description(
+    "Node fails to join if KV contains no UVM endorsements roots of trust"
+)
 @reqs.snp_only()
 def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
     LOG.info("Remove KV endorsements roots of trust (expect failure)")
@@ -501,7 +503,7 @@ def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
         LOG.info("As expected, node with no UVM endorsements failed to join")
     else:
         raise AssertionError("Node join unexpectedly succeeded")
-    
+
     return network
 
 
