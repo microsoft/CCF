@@ -13,10 +13,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - The `set_jwt_issuer` governance action has been updated, and no longer accepts `key_filter` or `key_policy` arguments (#6450).
 - Nodes started in `Join` mode will shut down if they receive and unrecoverable condition such as `StartupSeqnoIsOld` when attempting to join (#6471).
+- In configuration, `attestation.snp_endorsements_servers` can specify a `max_retries_count`. If the count has been exhausted without success for all configured servers, the node will shut down (#6478).
 
 ### Removed
 
 - SGX Platform support.
+
+### Added
+
+- Provided API for getting COSE signatures and Merkle proofs (#6477).
+  - Exposed COSE signature in historical API via `TxReceiptImpl`.
+  - Introduced `ccf::describe_merkle_proof_v1(receipt)` for Merkle proof construction in CBOR format.
+- Added COSE signatures over the Merkle root to the KV (#6449).
+  - Signing is done with service key (different from raw signatures, which remain unchanged and are still signed by the node key).
+  - New signature reside in `public:ccf.internal.cose_signatures`.
 
 ## [5.0.4]
 
