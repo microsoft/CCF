@@ -826,6 +826,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       historical_queries_test PRIVATE http_parser.host sss.host ccf_kv.host
+                                      ccf_endpoints.host
     )
     # Temporarily disabled flaky test
     # https://github.com/microsoft/CCF/issues/4403 add_unit_test( indexing_test
