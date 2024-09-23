@@ -595,12 +595,13 @@ namespace ccf
             return;
           }
 
-          if (status == HTTP_STATUS_BAD_REQUEST)
+          if (is_http_status_client_error(status))
           {
             auto error_msg = fmt::format(
-              "Join request to {} returned 400 Bad Request: {}. Shutting "
+              "Join request to {} returned {} Bad Request: {}. Shutting "
               "down node gracefully.",
               config.join.target_rpc_address,
+              status,
               std::string(data.begin(), data.end()));
             LOG_FAIL_FMT("{}", error_msg);
             RINGBUFFER_WRITE_MESSAGE(

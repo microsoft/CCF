@@ -73,6 +73,10 @@ class CodeIdNotFound(Exception):
     pass
 
 
+class UVMEndorsementsNotAuthorised(Exception):
+    pass
+
+
 class StartupSeqnoIsOld(Exception):
     pass
 
@@ -928,6 +932,8 @@ class Network:
                     for error in errors:
                         if "Quote does not contain known enclave measurement" in error:
                             raise CodeIdNotFound from e
+                        if "UVM endorsements are not authorised" in error:
+                            raise UVMEndorsementsNotAuthorised from e
                         if "StartupSeqnoIsOld" in error:
                             raise StartupSeqnoIsOld(has_stopped) from e
                         if "invalid cert on handshake" in error:
