@@ -12,8 +12,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - The `set_jwt_issuer` governance action has been updated, and no longer accepts `key_filter` or `key_policy` arguments (#6450).
-- Nodes started in `Join` mode will shut down if they receive and unrecoverable condition such as `StartupSeqnoIsOld` when attempting to join (#6471).
+- Nodes started in `Join` mode will shut down if they receive an unrecoverable condition such as `StartupSeqnoIsOld` or `InvalidQuote` when attempting to join (#6471, #6489).
 - In configuration, `attestation.snp_endorsements_servers` can specify a `max_retries_count`. If the count has been exhausted without success for all configured servers, the node will shut down (#6478).
+- When deciding which nodes are allowed to join, only UVM roots of trust defined in `public:ccf.gov.nodes.snp.uvm_endorsements` are considered (#6489).
 
 ### Removed
 
