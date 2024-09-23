@@ -2,9 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/cose_verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
 #include "ccf/service/tables/nodes.h"
+#include "ccf/service/tables/service.h"
 #include "crypto/openssl/hash.h"
 #include "ds/thread_messaging.h"
 #include "endian.h"
@@ -152,7 +154,7 @@ namespace ccf
       return ccf::kv::TxHistory::Result::OK;
     }
 
-    bool verify(ccf::kv::Term*, ccf::PrimarySignature*) override
+    bool verify_root_signatures() override
     {
       return true;
     }
@@ -497,6 +499,8 @@ namespace ccf
     T replicated_state_tree;
 
     ccf::crypto::KeyPair& kp;
+    ccf::crypto::COSEVerifierUniquePtr cose_verifier{};
+    std::vector<uint8_t> cose_cert_cached{};
 
     std::optional<::threading::TaskQueue::TimerEntry>
       emit_signature_timer_entry = std::nullopt;
@@ -659,7 +663,7 @@ namespace ccf
       ccf::kv::Term* term,
       ccf::kv::Configuration::Nodes& config) override
     {
-      if (!verify(term, &sig))
+      if (!verify_root_signatures())
       {
         return ccf::kv::TxHistory::Result::FAIL;
       }
@@ -672,11 +676,10 @@ namespace ccf
       return result;
     }
 
-    bool verify(
-      ccf::kv::Term* term = nullptr,
-      PrimarySignature* signature = nullptr) override
+    bool verify_root_signatures() override
     {
       auto tx = store.create_read_only_tx();
+
       auto signatures =
         tx.template ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
       auto sig = signatures->get();
@@ -685,20 +688,38 @@ namespace ccf
         LOG_FAIL_FMT("No signature found in signatures map");
         return false;
       }
-      auto& sig_value = sig.value();
-      if (term)
-      {
-        *term = sig_value.view;
-      }
-
-      if (signature)
-      {
-        *signature = sig_value;
-      }
 
       auto root = get_replicated_state_root();
       log_hash(root, VERIFY);
-      return verify_node_signature(tx, sig_value.node, sig_value.sig, root);
+      if (!verify_node_signature(tx, sig->node, sig->sig, root))
+      {
+        return false;
+      }
+
+      auto cose_signatures =
+        tx.template ro<ccf::CoseSignatures>(ccf::Tables::COSE_SIGNATURES);
+      auto cose_sig = cose_signatures->get();
+
+      if (!cose_sig.has_value())
+      {
+        return true;
+      }
+
+      auto service = tx.template ro<ccf::Service>(Tables::SERVICE);
+      auto service_info = service->get();
+
+      if (!service_info.has_value())
+      {
+        LOG_FAIL_FMT("No service key found to verify the signature");
+        return false;
+      }
+
+      const auto raw_cert = service_info->cert.raw();
+      const std::vector<const uint8_t> root_hash{
+        root.h.data(), root.h.data() + root.h.size()};
+
+      return cose_verifier_cached(raw_cert)->verify_detached(
+        cose_sig.value(), root_hash);
     }
 
     std::vector<uint8_t> serialise_tree(size_t to) override
@@ -838,6 +859,19 @@ namespace ccf
     void set_endorsed_certificate(const ccf::crypto::Pem& cert) override
     {
       endorsed_cert = cert;
+    }
+
+  private:
+    ccf::crypto::COSEVerifierUniquePtr& cose_verifier_cached(
+      const std::vector<uint8_t>& cert)
+    {
+      if (cert != cose_cert_cached)
+      {
+        cose_cert_cached = cert;
+        cose_verifier =
+          ccf::crypto::make_cose_verifier_from_cert(cose_cert_cached);
+      }
+      return cose_verifier;
     }
   };
 
