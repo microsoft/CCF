@@ -499,7 +499,7 @@ def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
     try:
         new_node = network.create_node("local://localhost")
         network.join_node(new_node, args.package, args, timeout=3)
-    except infra.network.CodeIdNotFound:
+    except infra.network.UVMEndorsementsNotAuthorised:
         LOG.info("As expected, node with no UVM endorsements failed to join")
     else:
         raise AssertionError("Node join unexpectedly succeeded")
