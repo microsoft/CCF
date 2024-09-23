@@ -61,7 +61,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: tlc
+          name: tlc-model-checking-consistency
           path: |
             tla/consistency/*_TTrace_*.tla
             tla/*.json
@@ -111,7 +111,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: tlc
+          name: tlc-simulation-consistency
           path: |
             tla/consistency/*_TTrace_*.tla
             tla/*.json
@@ -151,7 +151,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: tlc
+          name: tlc-model-checking-consensus
           path: |
             tla/consensus/*_TTrace_*.tla
             tla/*.json
@@ -179,7 +179,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: tlc
+          name: tlc-model-checking-with-reconfig-consensus
           path: |
             tla/consensus/*_TTrace_*.tla
             tla/*.json
@@ -207,7 +207,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: tlc
+          name: tlc-simulation-consensus
           path: |
             tla/*
 
@@ -258,6 +258,6 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tlc
+          name: tlc-trace-validation-consensus
           path: |
             tla/traces/*
