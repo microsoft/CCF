@@ -61,9 +61,16 @@ namespace ccf
   using SerialisedMerkleTree =
     ccf::kv::RawCopySerialisedValue<std::vector<uint8_t>>;
 
+  using CoseSignature = std::vector<uint8_t>;
+
+  // Most recent COSE signature is a single Value in the KV
+  using CoseSignatures = ServiceValue<CoseSignature>;
+
   namespace Tables
   {
     static constexpr auto SIGNATURES = "public:ccf.internal.signatures";
+    static constexpr auto COSE_SIGNATURES =
+      "public:ccf.internal.cose_signatures";
     static constexpr auto SERIALISED_MERKLE_TREE = "public:ccf.internal.tree";
   }
 }
