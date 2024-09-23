@@ -52,6 +52,13 @@ def test_verify_quotes(network, args):
     return network
 
 
+def get_trusted_uvm_endorsements(node):
+    with node.api_versioned_client(api_version=args.gov_api_version) as client:
+        r = client.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        return r.body.json()["snp"]["uvmEndorsements"]
+
+
 @reqs.description("Test the SNP measurements table")
 @reqs.snp_only()
 def test_snp_measurements_tables(network, args):
@@ -87,12 +94,6 @@ def test_snp_measurements_tables(network, args):
     ), "Expected no measurement as UVM endorsements are used by default"
 
     LOG.info("SNP UVM endorsement table")
-
-    def get_trusted_uvm_endorsements(node):
-        with node.api_versioned_client(api_version=args.gov_api_version) as client:
-            r = client.get("/gov/service/join-policy")
-            assert r.status_code == http.HTTPStatus.OK, r
-            return r.body.json()["snp"]["uvmEndorsements"]
 
     uvm_endorsements = get_trusted_uvm_endorsements(primary)
     assert (
@@ -478,6 +479,34 @@ def test_proposal_invalidation(network, args):
     return network
 
 
+@reqs.description(
+    "Node fails to join if KV contains no UVM endorsements roots of trust"
+)
+@reqs.snp_only()
+def test_add_node_with_no_uvm_endorsements_in_kv(network, args):
+    LOG.info("Remove KV endorsements roots of trust (expect failure)")
+    primary, _ = network.find_nodes()
+
+    uvm_endorsements = get_trusted_uvm_endorsements(primary)
+    assert (
+        len(uvm_endorsements) == 1
+    ), f"Expected one UVM endorsement, {uvm_endorsements}"
+    did, value = next(iter(uvm_endorsements.items()))
+    feed, data = next(iter(value.items()))
+
+    network.consortium.remove_snp_uvm_endorsement(primary, did, feed)
+
+    try:
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, args.package, args, timeout=3)
+    except infra.network.UVMEndorsementsNotAuthorised:
+        LOG.info("As expected, node with no UVM endorsements failed to join")
+    else:
+        raise AssertionError("Node join unexpectedly succeeded")
+
+    return network
+
+
 def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
@@ -502,6 +531,9 @@ def run(args):
 
         # Run again at the end to confirm current nodes are acceptable
         test_verify_quotes(network, args)
+
+        if snp.IS_SNP:
+            test_add_node_with_no_uvm_endorsements_in_kv(network, args)
 
 
 if __name__ == "__main__":
