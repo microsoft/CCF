@@ -19,19 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        platform: [sgx, virtual, snp]
+        platform: [virtual, snp]
         type: [dev, run]
         run_js: [true, ""]
-        clang_version: ["11", "15"]
         exclude:
           - type: dev
             run_js: true
-          - platform: sgx
-            clang_version: "15"
-          - platform: virtual
-            clang_version: "11"
-          - platform: snp
-            clang_version: "11"
 
     steps:
       - uses: actions/checkout@v4
@@ -66,7 +59,7 @@ jobs:
           context: .
           file: ./docker/app_${{ matrix.type }}
           build-args: |
-            clang_version=${{ matrix.clang_version }}
+            clang_version=15
             platform=${{ matrix.platform }}
             "ansible_vars=ccf_ver=${{ steps.tref.outputs.tag }} ${{ matrix.run_js && 'run_js=true' || '' }}"
           push: true
