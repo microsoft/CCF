@@ -2,6 +2,8 @@
 # Licensed under the Apache 2.0 License.
 import os
 import time
+import glob
+import hashlib
 from enum import Enum, auto
 import paramiko
 import subprocess
@@ -422,6 +424,15 @@ class LocalRemote(CmdMixin):
             if len(path) > 0:
                 dst_path = os.path.join(self.root, os.path.basename(path))
                 self.cp(path, dst_path)
+
+        vencs = glob.glob(os.path.join(self.root, "*.virtual.so"))
+        for venc in vencs:
+            with open(venc, "rb") as f:
+                digest = hashlib.sha256(f.read()).hexdigest()
+                with open(
+                    os.path.join(self.root, "VIRTUAL_ENCLAVE_DIGEST"), "w"
+                ) as f:
+                    f.write(digest)
 
     def get(
         self,

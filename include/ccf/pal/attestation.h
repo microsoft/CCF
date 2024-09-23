@@ -10,6 +10,7 @@
 #include "ccf/ds/quote_info.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/snp_ioctl.h"
+#include "ds/files.h"
 
 #include <fcntl.h>
 #include <functional>
@@ -200,9 +201,19 @@ namespace ccf::pal
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
+    // Once we have merged cchost + .so, we can take the
+    // digest of argv[0] instead of using a files.
+    std::vector<uint8_t> so_digest;
+    if (files::exists("VIRTUAL_ENCLAVE_DIGEST"))
+    {
+      so_digest = files::slurp("VIRTUAL_ENCLAVE_DIGEST");
+    }
+    std::string so_digest_str = std::string(so_digest.begin(), so_digest.end());
+
     endorsement_cb(
       {
         .format = QuoteFormat::insecure_virtual,
+        .quote = ds::from_hex(so_digest_str),
       },
       {});
   }
@@ -246,8 +257,8 @@ namespace ccf::pal
         throw std::logic_error(
           "Cannot verify virtual attestation report if node is SEV-SNP");
       }
-      // For now, virtual resembles SGX (mostly for historical reasons)
-      measurement = SgxAttestationMeasurement();
+      // For historical reasons, virtual resembles SGX
+      measurement = SgxAttestationMeasurement(quote_info.quote);
       report_data = SgxAttestationReportData();
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
