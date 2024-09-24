@@ -109,3 +109,40 @@ jobs:
             build/workspace/*/out
             build/workspace/*/err
           if-no-files-found: ignore
+
+  long-lts:
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') }}
+    name: LTS
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Build"
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DLVI_MITIGATIONS=OFF -DWORKER_THREADS=2 ..
+          ninja
+
+      - name: "Test"
+        run: |
+          set +x
+          cd build
+          ./tests.sh --output-on-failure --timeout 1600 -R lts
+
+      - name: "Upload logs"
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-lts
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+          if-no-files-found: ignore
