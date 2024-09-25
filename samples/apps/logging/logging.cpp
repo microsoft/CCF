@@ -1940,9 +1940,9 @@ namespace loggingapp
           if (!cbor_proof.has_value())
           {
             ctx.rpc_ctx->set_error(
-              HTTP_STATUS_INTERNAL_SERVER_ERROR,
-              ccf::errors::InternalError,
-              "Failed to get merkle proof");
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              "No merkle proof available for this transaction");
             return;
           }
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);

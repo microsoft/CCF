@@ -37,6 +37,7 @@ import threading
 import copy
 import programmability
 import e2e_common_endpoints
+import cbor2
 
 from loguru import logger as LOG
 
@@ -911,12 +912,28 @@ def test_cbor_merkle_proof(network, args):
         assert r.status_code == http.HTTPStatus.OK
         last_txid = TxID.from_str(r.body.json()["transaction_id"])
 
-        for txid in range(last_txid.seqno, last_txid.seqno - 10, -1):
-            r = client.get(f"/log/public/cbor_merkle_proof?id={last_txid.view}.{last_txid.seqno}")
-            if r.status_code == http.HTTPStatus.OK:
-                cbor_proof = r.body.data()
-                assert False, "Validate CDDL here"
-                break
+        for seqno in range(last_txid.seqno, last_txid.seqno - 10, -1):
+            txid = f"{last_txid.view}.{seqno}"
+            LOG.debug(f"Trying to get CBOR Merkle proof for txid {txid}")
+            max_retries = 10
+            for _ in range(max_retries):
+                r = client.get(f"/log/public/cbor_merkle_proof", headers={infra.clients.CCF_TX_ID_HEADER: txid})
+                if r.status_code == http.HTTPStatus.OK:
+                    cbor_proof = r.body.data()
+                    proof = cbor2.loads(cbor_proof)
+                    # leaf
+                    assert 36 in proof
+                    # path
+                    assert 37 in proof
+                    break
+                elif r.status_code == http.HTTPStatus.ACCEPTED:
+                    LOG.debug(f"Transaction {txid} accepted, retrying")
+                    time.sleep(.1)
+                elif r.status_code == http.HTTPStatus.NOT_FOUND:
+                    LOG.debug(f"Transaction {txid} is a signature")
+                    break
+            else:
+                assert False, f"Failed to get receipt for txid {txid} after {max_retries} retries"
         else:
             assert False, "Failed to find a non-signature in the last 10 transactions"
         
