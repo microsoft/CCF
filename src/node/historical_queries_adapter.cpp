@@ -471,7 +471,7 @@ namespace ccf::historical
         {
           ehandler(
             HistoricalQueryErrorCode::TransactionIdMissing,
-            "Could not extract TX ID",
+            "Could not extract Transaction Id",
             args);
           return;
         }

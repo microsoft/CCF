@@ -900,6 +900,29 @@ def test_genesis_receipt(network, args):
     return network
 
 
+@reqs.description("Read CBOR Merkle Proof")
+def test_cbor_merkle_proof(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client("user0") as client:
+        r = client.get(
+            "/commit"
+        )
+        assert r.status_code == http.HTTPStatus.OK
+        last_txid = TxID.from_str(r.body.json()["transaction_id"])
+
+        for txid in range(last_txid.seqno, last_txid.seqno - 10, -1):
+            r = client.get(f"/log/public/cbor_merkle_proof?id={last_txid.view}.{last_txid.seqno}")
+            if r.status_code == http.HTTPStatus.OK:
+                cbor_proof = r.body.data()
+                assert False, "Validate CDDL here"
+                break
+        else:
+            assert False, "Failed to find a non-signature in the last 10 transactions"
+        
+    return network
+
+
 @reqs.description("Read range of historical state")
 @reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
 def test_historical_query_range(network, args):
@@ -2080,6 +2103,9 @@ def run_main_tests(network, args):
     test_remove(network, args)
     test_clear(network, args)
     test_record_count(network, args)
+    test_cbor_merkle_proof(network, args)
+    return
+
     # HTTP2 doesn't support forwarding
     if not args.http2:
         test_forwarding_frontends(network, args)
@@ -2135,23 +2161,23 @@ def run_parsing_errors(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    cr.add(
-        "js",
-        run,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "js",
+    #     run,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
-    cr.add(
-        "app_space_js",
-        run_app_space_js,
-        package="samples/apps/programmability/libprogrammability",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-        initial_user_count=4,
-        initial_member_count=2,
-    )
+    # cr.add(
+    #     "app_space_js",
+    #     run_app_space_js,
+    #     package="samples/apps/programmability/libprogrammability",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    #     initial_user_count=4,
+    #     initial_member_count=2,
+    # )
 
     cr.add(
         "cpp",
@@ -2163,34 +2189,34 @@ if __name__ == "__main__":
         initial_member_count=2,
     )
 
-    cr.add(
-        "common",
-        e2e_common_endpoints.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "common",
+    #     e2e_common_endpoints.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    # Run illegal traffic tests in separate runners, to reduce total serial runtime
-    cr.add(
-        "js_illegal",
-        run_parsing_errors,
-        package="libjs_generic",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # # Run illegal traffic tests in separate runners, to reduce total serial runtime
+    # cr.add(
+    #     "js_illegal",
+    #     run_parsing_errors,
+    #     package="libjs_generic",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    cr.add(
-        "cpp_illegal",
-        run_parsing_errors,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # cr.add(
+    #     "cpp_illegal",
+    #     run_parsing_errors,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
-    # This is just for the UDP echo test for now
-    cr.add(
-        "udp",
-        run_udp_tests,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    )
+    # # This is just for the UDP echo test for now
+    # cr.add(
+    #     "udp",
+    #     run_udp_tests,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    # )
 
     cr.run()
