@@ -50,6 +50,17 @@ OMITTED
 
 ExtendToMax(i) == Extend(i, MaxLogLength)
 
+\* Copy one of the longest logs (from whoever server
+\* has it) and extend it further upto length k. This
+\* is equivalent to  Copy(i) \cdot Extend(i, k)  ,
+\* that TLC cannot handle.
+CopyMaxAndExtend(i, k) ==
+    /\ \E j \in Servers :
+        /\ \A r \in Servers: Len(cLogs[r]) \leq Len(cLogs[j])
+        /\ \E l \in 0..(k - Len(cLogs[j])) : 
+            \E s \in [1..l -> Terms] :
+                cLogs' = [cLogs EXCEPT ![i] = cLogs[j] \o s]
+
 \* The only possible actions are to append log entries.
 \* By construction there cannot be any conflicting log entries
 \* Log entries are copied if the node's log is not the longest.
@@ -57,6 +68,7 @@ Next ==
     \E i \in Servers : 
         \/ Copy(i) 
         \/ ExtendToMax(i)
+        \/ CopyMaxAndExtend(i, MaxLogLength)
 
 AbsSpec == Init /\ [][Next]_cLogs
 
