@@ -12,8 +12,11 @@ CONSTANT Terms
 ASSUME /\ IsStrictlyTotallyOrderedUnder(<, Terms) 
        /\ \E min \in Terms : \A t \in Terms : t <= min
 
-CONSTANT MaxLogLength
-ASSUME MaxLogLength \in Nat
+\* See `max_uncommitted_tx_count` in raft.h: Maximum number of
+\* uncommitted transactions allowed before the primary refuses
+\* new transactions. Unlimited if set to 0.
+CONSTANT MaxUncommittedCount
+ASSUME MaxUncommittedCount \in Nat
 
 \* Commit logs from each node
 \* Each log is append-only and the logs will never diverge.
@@ -37,14 +40,14 @@ Copy(i) ==
         /\ \E l \in 1..(Len(cLogs[j]) - Len(cLogs[i])) : 
                 cLogs' = [cLogs EXCEPT ![i] = @ \o SubSeq(cLogs[j], Len(@) + 1, Len(@) + l)]
 
-\* A node i with the longest log can extend its log upto length k.
-Extend(i, k) ==
+\* A node i with the longest log can non-deterministically extend
+\* its log by any finite number of log entries.  An implementation
+\* may choose a particular number of log entries by which to extend
+\* the log to prevent the leader from racing ahead of the followers.
+Extend(i) ==
     /\ \A j \in Servers : Len(cLogs[j]) \leq Len(cLogs[i])
-    /\ \E l \in 0..(k - Len(cLogs[i])) : 
-        \E s \in [1..l -> Terms] :
+    /\ \E s \in BoundedSeq(Terms, MaxUncommittedCount) :
             cLogs' = [cLogs EXCEPT ![i] = @ \o s]
-
-ExtendToMax(i) == Extend(i, MaxLogLength)
 
 \* The only possible actions are to append log entries.
 \* By construction there cannot be any conflicting log entries
@@ -52,7 +55,7 @@ ExtendToMax(i) == Extend(i, MaxLogLength)
 Next ==
     \E i \in Servers : 
         \/ Copy(i) 
-        \/ ExtendToMax(i)
+        \/ Extend(i)
 
 AbsSpec == Init /\ [][Next]_cLogs
 
