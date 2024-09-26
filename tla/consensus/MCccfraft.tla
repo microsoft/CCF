@@ -145,13 +145,6 @@ DebugNotTooManySigsInv ==
 MaxLogLength == 
     4 + ((RequestLimit + Len(Configurations)) * 2) + MaxTermLimit
 
-MappingToAbs == 
-  INSTANCE abs WITH
-    Servers <- Servers,
-    Terms <- StartTerm..MaxTermLimit,
-    MaxUncommittedCount <- MaxLogLength,
-    cLogs <- [i \in Servers |-> [j \in 1..commitIndex[i] |-> log[i][j].term]]
-
-RefinementToAbsProp == MappingToAbs!AbsSpec
+MCRefinementToAbsProp == MappingToAbs(StartTerm..MaxTermLimit+1, MaxLogLength)!AbsSpec
 
 ===================================

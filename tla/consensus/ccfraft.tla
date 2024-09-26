@@ -1621,6 +1621,21 @@ LeaderProp ==
     []<><<\E i \in Servers : leadershipState[i] = Leader>>_vars
 
 ------------------------------------------------------------------------------
+\* Refinement of the more high-level specification abs.tla that abstracts the
+\* asynchronous network and the message passing between nodes.  Instead, any
+\* node may atomically observe the state of any other node.
+
+MappingToAbs(T, MUC) == 
+  INSTANCE abs WITH
+    Servers <- Servers,
+    Terms <- T,
+    MaxUncommittedCount <- MUC,
+    cLogs <- [i \in Servers |-> [j \in 1..commitIndex[i] |-> log[i][j].term]]
+
+RefinementToAbsProp == \EE T, M : MappingToAbs(T, M)!AbsSpec
+THEOREM Spec => RefinementToAbsProp
+
+------------------------------------------------------------------------------
 \* Debugging invariants
 \* These invariants should give error traces and are useful for debugging to see if important situations are possible
 \* These invariants are not checked unless specified in the .cfg file
