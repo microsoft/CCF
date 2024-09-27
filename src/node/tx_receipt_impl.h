@@ -22,6 +22,7 @@ namespace ccf
     ccf::ClaimsDigest claims_digest = {};
     std::optional<std::vector<ccf::crypto::Pem>> service_endorsements =
       std::nullopt;
+    // TODO COSE endorsements (optional)
 
     TxReceiptImpl(
       const std::vector<uint8_t>& signature_,

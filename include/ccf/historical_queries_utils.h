@@ -25,4 +25,15 @@ namespace ccf::historical
     AbstractStateCache& state_cache,
     std::shared_ptr<NetworkIdentitySubsystemInterface>
       network_identity_subsystem);
+
+  // TODO interface
+  // Same as above? True if complete no matter if endorsement was produced,
+  // false if in progress
+  bool populate_cose_service_endorsements(
+    ccf::kv::ReadOnlyTx& tx, // TODO check needed
+    ccf::historical::StatePtr& state, // TODO check needed
+    AbstractStateCache& state_cache, // TODO check needed
+    std::shared_ptr<NetworkIdentitySubsystemInterface>
+      network_identity_subsystem // TODO check needed
+  );
 }

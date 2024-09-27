@@ -16,5 +16,7 @@ namespace ccf
   {
     static constexpr auto PREVIOUS_SERVICE_IDENTITY =
       "public:ccf.gov.service.previous_service_identity";
+    static constexpr auto PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT =
+      "public:ccf.gov.service.previous_service_identity_endorsement";
   }
 }

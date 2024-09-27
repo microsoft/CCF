@@ -334,6 +334,7 @@ namespace ccf
         auto previous_service_identity = tx.wo<ccf::PreviousServiceIdentity>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
         previous_service_identity->put(prev_service_info->cert);
+        // TODO. Save COSE endorsement here
 
         // Record number of recoveries for service. If the value does
         // not exist in the table (i.e. pre 2.x ledger), assume it is the first

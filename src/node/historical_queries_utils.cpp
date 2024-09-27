@@ -145,5 +145,15 @@ namespace ccf
 
       return true;
     }
+
+    bool populate_cose_service_endorsements(
+      ccf::kv::ReadOnlyTx& tx,
+      ccf::historical::StatePtr& state,
+      AbstractStateCache& state_cache,
+      std::shared_ptr<NetworkIdentitySubsystemInterface>
+        network_identity_subsystem)
+    {
+      return true;
+    }
   }
 }
