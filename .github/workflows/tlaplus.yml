@@ -135,23 +135,23 @@ jobs:
           cd tla/
           ./tlc.sh -workers auto consensus/MCabs.tla -dumpTrace tla MCabs.trace.tla -dumpTrace json MCabs.json
 
-      - name: MCccfraft.cfg
+      - name: MCccfraft - Configurations=1C2N
         run: |
           set -x
           cd tla/
-          ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
+          Configurations=1C2N MaxTermLimit=2 RequestLimit=3 ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft1C2NT2R3.trace.tla -dumpTrace json MCccfraft1C2NT2R3.json
 
-      - name: MCccfraft2Nodes.cfg
+      - name: MCccfraft - Configurations=1C3N
         run: |
           set -x
           cd tla/
-          ./tlc.sh -workers auto -config consensus/MCccfraft2Nodes.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraft2Nodes.trace.tla -dumpTrace json MCccfraft2Nodes.json
+          Configurations=1C3N MaxTermLimit=2 RequestLimit=3 ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft1C3N2T3R.trace.tla -dumpTrace json MCccfraft1C3N2T3R.json
 
-      - name: MCccfraftAtomicReconfig.cfg
+      - name: MCccfraft - Configurations=2C2N (atomic reconf) MaxTermLimit=4 RequestLimit=3 NoCheckQuorum
         run: |
           set -x
           cd tla/
-          ./tlc.sh -workers auto -config consensus/MCccfraftAtomicReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftAtomicReconfig.trace.tla -dumpTrace json MCccfraftAtomicReconfig.json
+          Configurations=2C2N MaxTermLimit=4 RequestLimit=1 NoCheckQuorum= ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft2C2N4T1R.trace.tla -dumpTrace json MCccfraft2C2N4T1R.json
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v4
@@ -175,11 +175,11 @@ jobs:
           sudo apt install -y default-jre
           python3 ./tla/install_deps.py
 
-      - name: MCccfraftWithReconfig.cfg
+      - name: MCccfraft - Configurations=3C2N MaxTermLimit=4 RequestLimit=1 NoCheckQuorum
         run: |
           set -x
           cd tla/
-          ./tlc.sh -workers auto -config consensus/MCccfraftWithReconfig.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraftWithReconfig.trace.tla -dumpTrace json MCccfraftWithReconfig.json
+          Configurations=3C2N MaxTermLimit=4 RequestLimit=1 NoCheckQuorum= ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft3C2N4T1R.trace.tla -dumpTrace json MCccfraft3C2N4T1R.json
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v4
