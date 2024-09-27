@@ -87,13 +87,6 @@ Architecture
 
     ---
 
-    :fa:`gears` :doc:`quic_internals`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Internal implementation of QUIC communication (in progress).
-
-    ---
-
     :fa:`dragon` :doc:`performance/index`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -115,5 +108,4 @@ Architecture
     receipts
     tls_internals
     tcp_internals
-    quic_internals
     performance/index.rst
