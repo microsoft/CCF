@@ -50,6 +50,9 @@ DebugInvUpToDepth ==
 
 MCRefinementToAbsProp == MappingToAbs(StartTerm..100, 100)!AbsSpec
 
+ABSExtend(i) == MappingToAbs(Nat \ 0..StartTerm-1, 100)!ExtendAxiom(i)
+ABSCopyMaxAndExtend(i) == MappingToAbs(Nat \ 0..StartTerm-1, 100)!CopyMaxAndExtendAxiom(i)
+
 =============================================================================
 
 ------------------------------- MODULE SIMPostCondition -------------------------------

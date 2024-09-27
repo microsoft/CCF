@@ -49,6 +49,22 @@ Extend(i) ==
     /\ \E s \in BoundedSeq(Terms, MaxUncommittedCount) :
             cLogs' = [cLogs EXCEPT ![i] = @ \o s]
 
+ExtendAxiom(i) ==
+    \* i has the longest log.
+    /\ \A j \in Servers : Len(cLogs[j]) \leq Len(cLogs[i])
+    \* cLogs remains a function mapping from servers to logs.
+    /\ cLogs' \in [Servers -> Seq(Terms)]
+    \* i extends its log by at most k entries.
+    /\ Len(cLogs'[i]) <= Len(cLogs[i]) + MaxUncommittedCount
+    \* i *extends* its log
+    /\ IsPrefix(cLogs[i], cLogs'[i])
+    \* The other logs remain the same.
+    /\ \A j \in Servers \ {i} : cLogs'[j] = cLogs[j]
+
+LEMMA ASSUME NEW i \in Servers PROVE
+    ExtendAxiom(i) <=> Extend(i)
+OMITTED 
+
 \* Copy one of the longest logs (from whoever server
 \* has it) and extend it further upto length k. This
 \* is equivalent to  Copy(i) \cdot Extend(i, k)  ,
@@ -58,6 +74,22 @@ CopyMaxAndExtend(i) ==
         /\ \A r \in Servers: Len(cLogs[r]) \leq Len(cLogs[j])
         /\ \E s \in BoundedSeq(Terms, MaxUncommittedCount) :
             cLogs' = [cLogs EXCEPT ![i] = cLogs[j] \o s]
+
+CopyMaxAndExtendAxiom(i) ==
+    \E s \in Servers :
+        /\ \A r \in Servers: Len(cLogs[r]) \leq Len(cLogs[s])
+        \* cLogs remains a function mapping from servers to logs.
+        /\ cLogs' \in [Servers -> Seq(Terms)]
+        \* i extends s' log by at most k entries.
+        /\ Len(cLogs'[i]) <= Len(cLogs[s]) + MaxUncommittedCount
+        \* i *extends* s' log
+        /\ IsPrefix(cLogs[s], cLogs'[i])
+        \* The other logs remain the same.
+        /\ \A j \in Servers \ {i} : cLogs'[j] = cLogs[j]
+
+LEMMA ASSUME NEW i \in Servers PROVE
+    CopyMaxAndExtendAxiom(i) <=> CopyMaxAndExtend(i)
+OMITTED 
 
 \* The only possible actions are to append log entries.
 \* By construction there cannot be any conflicting log entries
@@ -78,4 +110,11 @@ NoConflicts ==
         \/ IsPrefix(cLogs[i], cLogs[j]) 
         \/ IsPrefix(cLogs[j], cLogs[i])
 
+EquivExtendProp ==
+    [][\A i \in Servers : 
+        Extend(i) <=> ExtendAxiom(i)]_cLogs
+
+EquivCopyMaxAndExtendProp ==
+    [][\A i \in Servers : 
+        CopyMaxAndExtend(i) <=> CopyMaxAndExtendAxiom(i)]_cLogs
 ====

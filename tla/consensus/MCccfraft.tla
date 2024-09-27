@@ -147,4 +147,6 @@ MaxLogLength ==
 
 MCRefinementToAbsProp == MappingToAbs(StartTerm..MaxTermLimit+1, MaxLogLength)!AbsSpec
 
+ABSExtend(i) == MappingToAbs(StartTerm..MaxTermLimit+1, MaxLogLength)!ExtendAxiom(i)
+ABSCopyMaxAndExtend(i) == MappingToAbs(StartTerm..MaxTermLimit+1, MaxLogLength)!CopyMaxAndExtendAxiom(i)
 ===================================
