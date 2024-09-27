@@ -2,24 +2,30 @@
 \* Abstract specification for a distributed consensus algorithm.
 \* Assumes that any node can atomically inspect the state of all other nodes. 
 
-EXTENDS Sequences, SequencesExt, Naturals, FiniteSets, FiniteSetsExt
+EXTENDS Sequences, SequencesExt, Naturals, FiniteSets, FiniteSetsExt, Relation
 
-CONSTANT Servers, Terms, MaxLogLength
+CONSTANT Servers
+ASSUME IsFiniteSet(Servers)
+
+\* Terms is (strictly) totally ordered with a smallest element.
+CONSTANT Terms
+ASSUME /\ IsStrictlyTotallyOrderedUnder(<, Terms) 
+       /\ \E min \in Terms : \A t \in Terms : t <= min
+
+CONSTANT MaxLogLength
+ASSUME MaxLogLength \in Nat
 
 \* Commit logs from each node
 \* Each log is append-only and the logs will never diverge.
 VARIABLE cLogs
 
 TypeOK ==
-    /\ cLogs \in [Servers -> 
-        UNION {[1..l -> Terms] : l \in 0..MaxLogLength}]
+    cLogs \in [Servers -> Seq(Terms)]
 
 StartTerm == Min(Terms)
 
-InitialLogs == {
-    <<>>,
-    <<StartTerm, StartTerm>>,
-    <<StartTerm, StartTerm, StartTerm, StartTerm>>}
+InitialLogs == 
+    UNION {[ 1..n -> {StartTerm} ] : n \in {0,2,4}}
     
 Init ==
     cLogs \in [Servers -> InitialLogs]
