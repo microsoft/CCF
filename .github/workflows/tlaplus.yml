@@ -141,6 +141,12 @@ jobs:
           cd tla/
           ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft.trace.tla -dumpTrace json MCccfraft.json
 
+      - name: MCccfraft2Nodes.cfg
+        run: |
+          set -x
+          cd tla/
+          ./tlc.sh -workers auto -config consensus/MCccfraft2Nodes.cfg consensus/MCccfraft.tla -dumpTrace tla MCccfraft2Nodes.trace.tla -dumpTrace json MCccfraft2Nodes.json
+
       - name: MCccfraftAtomicReconfig.cfg
         run: |
           set -x
