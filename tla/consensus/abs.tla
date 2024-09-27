@@ -49,6 +49,16 @@ Extend(i) ==
     /\ \E s \in BoundedSeq(Terms, MaxUncommittedCount) :
             cLogs' = [cLogs EXCEPT ![i] = @ \o s]
 
+\* Copy one of the longest logs (from whoever server
+\* has it) and extend it further upto length k. This
+\* is equivalent to  Copy(i) \cdot Extend(i, k)  ,
+\* that TLC cannot handle.
+CopyMaxAndExtend(i) ==
+    \E j \in Servers :
+        /\ \A r \in Servers: Len(cLogs[r]) \leq Len(cLogs[j])
+        /\ \E s \in BoundedSeq(Terms, MaxUncommittedCount) :
+            cLogs' = [cLogs EXCEPT ![i] = cLogs[j] \o s]
+
 \* The only possible actions are to append log entries.
 \* By construction there cannot be any conflicting log entries
 \* Log entries are copied if the node's log is not the longest.
@@ -56,6 +66,7 @@ Next ==
     \E i \in Servers : 
         \/ Copy(i) 
         \/ Extend(i)
+        \/ CopyMaxAndExtend(i)
 
 AbsSpec == Init /\ [][Next]_cLogs
 
