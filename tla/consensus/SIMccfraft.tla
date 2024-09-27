@@ -44,6 +44,12 @@ DebugInvUpToDepth ==
     \* The following invariant causes TLC to terminate with a counterexample of length
     \* -depth after generating the first trace.
     TLCGet("level") < TLCGet("config").depth
+
+----
+\* Refinement
+
+MCRefinementToAbsProp == MappingToAbs(StartTerm..100, 100)!AbsSpec
+
 =============================================================================
 
 ------------------------------- MODULE SIMPostCondition -------------------------------
