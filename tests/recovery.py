@@ -167,7 +167,7 @@ def test_recover_service_with_wrong_identity(network, args):
 
     with old_primary.client() as c:
         last_view, last_seq = (
-            c.get('/node/commit').body.json()['transaction_id'].split('.')
+            c.get("/node/commit").body.json()["transaction_id"].split(".")
         )
 
     network.stop_all_nodes()
@@ -259,10 +259,13 @@ def test_recover_service_with_wrong_identity(network, args):
         snapshots_dir=snapshots_dir,
     )
 
+    # Must fail with a dedicated error message if requesting a receipt for a TX
+    # from past epochs, as soon as ledger secrets are not yet available,
+    # therefore no proof can't be generated.
     primary, _ = recovered_network.find_primary()
     with primary.client() as cli:
         curr_view, curr_seq = (
-            cli.get('/node/commit').body.json()['transaction_id'].split('.')
+            cli.get("/node/commit").body.json()["transaction_id"].split(".")
         )
         response = cli.get(f"/node/receipt?transaction_id={last_view}.{last_seq}")
         assert response.status_code == http.HTTPStatus.NOT_FOUND, response
@@ -271,9 +274,10 @@ def test_recover_service_with_wrong_identity(network, args):
             in response.body.json()["error"]["message"]
         ), response
 
-    curr_receipt = primary.get_receipt(curr_view, curr_seq)
-    # verify_receipt(curr_receipt.json(), network.cert)
-    # verify_receipt fails - missing path?..
+    # TX from the current epoch though can be verified, as soon as the caller
+    # trusts the current service identity.
+    receipt = primary.get_receipt(curr_view, curr_seq).json()
+    verify_receipt(receipt, recovered_network.cert, is_signature_tx=True)
 
     recovered_network.recover(args)
     return recovered_network
