@@ -509,6 +509,28 @@ namespace ccf::historical
         }
       }
 
+      // If recovery in progress, prohibit any historical queries for previous
+      // epochs.
+      auto service = args.tx.template ro<ccf::Service>(Tables::SERVICE);
+      auto active_service = service->get();
+      if (active_service && active_service->status != ServiceStatus::OPEN)
+      {
+        if (
+          active_service->current_service_create_txid &&
+          target_tx_id.view < active_service->current_service_create_txid->view)
+        {
+          auto reason = fmt::format(
+            "Historical transaction {} is not signed by the current service "
+            "identity key and can't be retrieved until recovery is complete.",
+            target_tx_id.to_str());
+          ehandler(
+            HistoricalQueryErrorCode::TransactionInvalid,
+            std::move(reason),
+            args);
+          return;
+        }
+      }
+
       // We need a handle to determine whether this request is the 'same' as a
       // previous one. For simplicity we use target_tx_id.seqno. This means we
       // keep a lot of state around for old requests! It should be cleaned up

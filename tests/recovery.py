@@ -165,6 +165,11 @@ def test_recover_service_with_wrong_identity(network, args):
     network.save_service_identity(args)
     first_service_identity_file = args.previous_service_identity_file
 
+    with old_primary.client() as c:
+        last_view, last_seq = (
+            c.get('/node/commit').body.json()['transaction_id'].split('.')
+        )
+
     network.stop_all_nodes()
 
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
@@ -254,8 +259,23 @@ def test_recover_service_with_wrong_identity(network, args):
         snapshots_dir=snapshots_dir,
     )
 
-    recovered_network.recover(args)
+    primary, _ = recovered_network.find_primary()
+    with primary.client() as cli:
+        curr_view, curr_seq = (
+            cli.get('/node/commit').body.json()['transaction_id'].split('.')
+        )
+        response = cli.get(f"/node/receipt?transaction_id={last_view}.{last_seq}")
+        assert response.status_code == http.HTTPStatus.NOT_FOUND, response
+        assert (
+            "not signed by the current servic"
+            in response.body.json()["error"]["message"]
+        ), response
 
+    curr_receipt = primary.get_receipt(curr_view, curr_seq)
+    # verify_receipt(curr_receipt.json(), network.cert)
+    # verify_receipt fails - missing path?..
+
+    recovered_network.recover(args)
     return recovered_network
 
 
