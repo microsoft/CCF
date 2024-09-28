@@ -12,12 +12,6 @@ CONSTANT Terms
 ASSUME /\ IsStrictlyTotallyOrderedUnder(<, Terms) 
        /\ \E min \in Terms : \A t \in Terms : t <= min
 
-\* See `max_uncommitted_tx_count` in raft.h: Maximum number of
-\* uncommitted transactions allowed before the primary refuses
-\* new transactions. Unlimited if set to 0.
-CONSTANT MaxUncommittedCount
-ASSUME MaxUncommittedCount \in Nat
-
 \* Commit logs from each node
 \* Each log is append-only and the logs will never diverge.
 VARIABLE cLogs
@@ -46,7 +40,7 @@ Copy(i) ==
 \* the log to prevent the leader from racing ahead of the followers.
 Extend(i) ==
     /\ \A j \in Servers : Len(cLogs[j]) \leq Len(cLogs[i])
-    /\ \E s \in BoundedSeq(Terms, MaxUncommittedCount) :
+    /\ \E s \in Seq(Terms) :
             cLogs' = [cLogs EXCEPT ![i] = @ \o s]
 
 ExtendAxiom(i) ==
@@ -54,8 +48,6 @@ ExtendAxiom(i) ==
     /\ \A j \in Servers : Len(cLogs[j]) \leq Len(cLogs[i])
     \* cLogs remains a function mapping from servers to logs.
     /\ cLogs' \in [Servers -> Seq(Terms)]
-    \* i extends its log by at most k entries.
-    /\ Len(cLogs'[i]) <= Len(cLogs[i]) + MaxUncommittedCount
     \* i *extends* its log
     /\ IsPrefix(cLogs[i], cLogs'[i])
     \* The other logs remain the same.
@@ -72,7 +64,7 @@ OMITTED
 CopyMaxAndExtend(i) ==
     \E j \in Servers :
         /\ \A r \in Servers: Len(cLogs[r]) \leq Len(cLogs[j])
-        /\ \E s \in BoundedSeq(Terms, MaxUncommittedCount) :
+        /\ \E s \in Seq(Terms) :
             cLogs' = [cLogs EXCEPT ![i] = cLogs[j] \o s]
 
 CopyMaxAndExtendAxiom(i) ==
@@ -80,8 +72,6 @@ CopyMaxAndExtendAxiom(i) ==
         /\ \A r \in Servers: Len(cLogs[r]) \leq Len(cLogs[s])
         \* cLogs remains a function mapping from servers to logs.
         /\ cLogs' \in [Servers -> Seq(Terms)]
-        \* i extends s' log by at most k entries.
-        /\ Len(cLogs'[i]) <= Len(cLogs[s]) + MaxUncommittedCount
         \* i *extends* s' log
         /\ IsPrefix(cLogs[s], cLogs'[i])
         \* The other logs remain the same.
@@ -97,8 +87,8 @@ OMITTED
 Next ==
     \E i \in Servers : 
         \/ Copy(i) 
-        \/ Extend(i)
-        \/ CopyMaxAndExtend(i)
+        \/ ExtendAxiom(i)
+        \/ CopyMaxAndExtendAxiom(i)
 
 AbsSpec == Init /\ [][Next]_cLogs
 

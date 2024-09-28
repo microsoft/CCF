@@ -141,12 +141,8 @@ DebugNotTooManySigsInv ==
 ----
 \* Refinement
 
-\* The inital log is up to 4 entries long + one log entry per request/reconfiguration + one signature per request/reconfiguration or new view (no consecutive sigs except across views)
-MaxLogLength == 
-    4 + ((RequestLimit + Len(Configurations)) * 2) + MaxTermLimit
+MCRefinementToAbsProp == MappingToAbs(StartTerm..MaxTermLimit+1)!AbsSpec
 
-MCRefinementToAbsProp == MappingToAbs(StartTerm..MaxTermLimit+1, MaxLogLength)!AbsSpec
-
-ABSExtend(i) == MappingToAbs(StartTerm..MaxTermLimit+1, MaxLogLength)!ExtendAxiom(i)
-ABSCopyMaxAndExtend(i) == MappingToAbs(StartTerm..MaxTermLimit+1, MaxLogLength)!CopyMaxAndExtendAxiom(i)
+ABSExtend(i) == MappingToAbs(StartTerm..MaxTermLimit+1)!ExtendAxiom(i)
+ABSCopyMaxAndExtend(i) == MappingToAbs(StartTerm..MaxTermLimit+1)!CopyMaxAndExtendAxiom(i)
 ===================================
