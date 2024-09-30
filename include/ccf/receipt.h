@@ -141,8 +141,8 @@ namespace ccf
   {
     // Values to be confirmed by IANA, in:
     // https://github.com/ietf-scitt/draft-birkholz-cose-cometre-ccf-profile
-    MERKLE_PROOF_LEAF_LABEL = 36, // TBD_2
-    MERKLE_PROOF_PATH_LABEL = 37  // TBD_3
+    MERKLE_PROOF_LEAF_LABEL = 404, // TBD_2
+    MERKLE_PROOF_PATH_LABEL = 405 // TBD_3
   };
   std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
     const TxReceiptImpl& in);

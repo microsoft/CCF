@@ -1936,7 +1936,8 @@ namespace loggingapp
           auto historical_tx = historical_state->store->create_read_only_tx();
 
           assert(historical_state->receipt);
-          auto cbor_proof = describe_merkle_proof_v1(*historical_state->receipt);
+          auto cbor_proof =
+            describe_merkle_proof_v1(*historical_state->receipt);
           if (!cbor_proof.has_value())
           {
             ctx.rpc_ctx->set_error(

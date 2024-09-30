@@ -36,8 +36,8 @@ from types import MappingProxyType
 import threading
 import copy
 import programmability
-import e2e_common_endpoints
 import cbor2
+import e2e_common_endpoints
 
 from loguru import logger as LOG
 
@@ -906,9 +906,7 @@ def test_cbor_merkle_proof(network, args):
     primary, _ = network.find_nodes()
 
     with primary.client("user0") as client:
-        r = client.get(
-            "/commit"
-        )
+        r = client.get("/commit")
         assert r.status_code == http.HTTPStatus.OK
         last_txid = TxID.from_str(r.body.json()["transaction_id"])
 
@@ -916,27 +914,56 @@ def test_cbor_merkle_proof(network, args):
             txid = f"{last_txid.view}.{seqno}"
             LOG.debug(f"Trying to get CBOR Merkle proof for txid {txid}")
             max_retries = 10
+            found_proof = False
             for _ in range(max_retries):
-                r = client.get(f"/log/public/cbor_merkle_proof", headers={infra.clients.CCF_TX_ID_HEADER: txid})
+                r = client.get(
+                    "/log/public/cbor_merkle_proof",
+                    headers={infra.clients.CCF_TX_ID_HEADER: txid},
+                    log_capture=[],  # Do not emit raw binary to stdout
+                )
                 if r.status_code == http.HTTPStatus.OK:
                     cbor_proof = r.body.data()
-                    proof = cbor2.loads(cbor_proof)
-                    # leaf
-                    assert 36 in proof
+                    outer_proof = cbor2.loads(cbor_proof)
+                    # Double CBOR encoding because of QCBOREncode_BstrWrap at historical_queries_adapter.h:212
+                    proof = cbor2.loads(outer_proof)
+                    assert 404 in proof
+                    leaf = proof[404]
+                    assert len(leaf) == 3
+                    assert isinstance(leaf[0], bytes)  # bstr write_set_digest
+                    assert len(leaf[0]) == 32
+                    assert isinstance(leaf[1], str)  # tstr commit_evidence
+                    assert len(leaf[1]) < 1024
+                    assert isinstance(leaf[2], bytes)  # bstr claims_digest
+                    assert len(leaf[2]) == 32
                     # path
-                    assert 37 in proof
+                    assert 405 in proof
+                    path = proof[405]
+                    assert isinstance(path, list)
+                    for node in path:
+                        assert isinstance(node, list)
+                        assert len(node) == 2
+                        assert isinstance(node[0], int)
+                        assert node[0] in {0, 1}  # boolean left
+                        assert isinstance(node[1], bytes)  # bstr intermediary digest
+                        assert len(node[1]) == 32
+                    found_proof = True
+                    LOG.debug(f"Checked CBOR Merkle proof for txid {txid}")
                     break
                 elif r.status_code == http.HTTPStatus.ACCEPTED:
                     LOG.debug(f"Transaction {txid} accepted, retrying")
-                    time.sleep(.1)
+                    time.sleep(0.1)
                 elif r.status_code == http.HTTPStatus.NOT_FOUND:
                     LOG.debug(f"Transaction {txid} is a signature")
                     break
             else:
-                assert False, f"Failed to get receipt for txid {txid} after {max_retries} retries"
+                assert (
+                    False
+                ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
+            if found_proof:
+                break
         else:
             assert False, "Failed to find a non-signature in the last 10 transactions"
-        
+
     return network
 
 
@@ -2120,8 +2147,8 @@ def run_main_tests(network, args):
     test_remove(network, args)
     test_clear(network, args)
     test_record_count(network, args)
-    test_cbor_merkle_proof(network, args)
-    return
+    if args.package == "samples/apps/logging/liblogging":
+        test_cbor_merkle_proof(network, args)
 
     # HTTP2 doesn't support forwarding
     if not args.http2:
@@ -2178,23 +2205,23 @@ def run_parsing_errors(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    # cr.add(
-    #     "js",
-    #     run,
-    #     package="libjs_generic",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=4,
-    #     initial_member_count=2,
-    # )
+    cr.add(
+        "js",
+        run,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
-    # cr.add(
-    #     "app_space_js",
-    #     run_app_space_js,
-    #     package="samples/apps/programmability/libprogrammability",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    #     initial_user_count=4,
-    #     initial_member_count=2,
-    # )
+    cr.add(
+        "app_space_js",
+        run_app_space_js,
+        package="samples/apps/programmability/libprogrammability",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+        initial_user_count=4,
+        initial_member_count=2,
+    )
 
     cr.add(
         "cpp",
@@ -2206,34 +2233,34 @@ if __name__ == "__main__":
         initial_member_count=2,
     )
 
-    # cr.add(
-    #     "common",
-    #     e2e_common_endpoints.run,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    # )
+    cr.add(
+        "common",
+        e2e_common_endpoints.run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
 
-    # # Run illegal traffic tests in separate runners, to reduce total serial runtime
-    # cr.add(
-    #     "js_illegal",
-    #     run_parsing_errors,
-    #     package="libjs_generic",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    # )
+    # Run illegal traffic tests in separate runners, to reduce total serial runtime
+    cr.add(
+        "js_illegal",
+        run_parsing_errors,
+        package="libjs_generic",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
 
-    # cr.add(
-    #     "cpp_illegal",
-    #     run_parsing_errors,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    # )
+    cr.add(
+        "cpp_illegal",
+        run_parsing_errors,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
 
-    # # This is just for the UDP echo test for now
-    # cr.add(
-    #     "udp",
-    #     run_udp_tests,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.max_nodes(cr.args, f=0),
-    # )
+    # This is just for the UDP echo test for now
+    cr.add(
+        "udp",
+        run_udp_tests,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.max_nodes(cr.args, f=0),
+    )
 
     cr.run()
