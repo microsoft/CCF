@@ -11,6 +11,7 @@
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/users.h"
 #include "ccf/tx.h"
+#include "crypto/openssl/cose_sign.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
 #include "service/tables/governance_history.h"
@@ -320,6 +321,7 @@ namespace ccf
     static void create_service(
       ccf::kv::Tx& tx,
       const ccf::crypto::Pem& service_cert,
+      const ccf::crypto::KeyPair_OpenSSL& service_key,
       ccf::TxID create_txid,
       nlohmann::json service_data = nullptr,
       bool recovering = false)
@@ -331,10 +333,28 @@ namespace ccf
       if (service->has())
       {
         const auto prev_service_info = service->get();
+
         auto previous_service_identity = tx.wo<ccf::PreviousServiceIdentity>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
         previous_service_identity->put(prev_service_info->cert);
-        // TODO. Save COSE endorsement here
+
+        auto previous_identity_endorsement =
+          tx.wo<ccf::PreviousServiceIdentityEndorsement>(
+            ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+        try
+        {
+          const auto prev_ident_endorsement = cose_sign1(
+            service_key,
+            {}, // TO DO headers,
+            prev_service_info->cert.raw());
+          previous_identity_endorsement->put(prev_ident_endorsement);
+        }
+        catch (const ccf::crypto::COSESignError& e)
+        {
+          LOG_FAIL_FMT("Failed o sign previous service identity: {}", e.what());
+          throw; // TO DO catch re-throw in frontent? Or change to log and still
+                 // create service?
+        }
 
         // Record number of recoveries for service. If the value does
         // not exist in the table (i.e. pre 2.x ledger), assume it is the first

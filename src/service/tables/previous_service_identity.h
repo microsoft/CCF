@@ -12,6 +12,9 @@ namespace ccf
 {
   using PreviousServiceIdentity = ServiceValue<ccf::crypto::Pem>;
 
+  using ServiceEndorsement = std::vector<uint8_t>;
+  using PreviousServiceIdentityEndorsement = ServiceValue<ServiceEndorsement>;
+
   namespace Tables
   {
     static constexpr auto PREVIOUS_SERVICE_IDENTITY =

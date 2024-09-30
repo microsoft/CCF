@@ -64,7 +64,8 @@ namespace ccf::crypto
     COSESignError(const std::string& msg) : std::runtime_error(msg) {}
   };
 
-  std::optional<int> key_to_cose_alg_id(ccf::crypto::PublicKey_OpenSSL& key);
+  std::optional<int> key_to_cose_alg_id(
+    const ccf::crypto::PublicKey_OpenSSL& key);
 
   /* Sign a cose_sign1 payload with custom protected headers as strings, where
        - key: integer label to be assigned in a COSE value
@@ -74,7 +75,7 @@ namespace ccf::crypto
     https://www.iana.org/assignments/cose/cose.xhtml#header-parameters.
    */
   std::vector<uint8_t> cose_sign1(
-    KeyPair_OpenSSL& key,
+    const KeyPair_OpenSSL& key,
     const std::vector<COSEParametersFactory>& protected_headers,
     std::span<const uint8_t> payload);
 }
