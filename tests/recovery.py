@@ -270,7 +270,7 @@ def test_recover_service_with_wrong_identity(network, args):
         response = cli.get(f"/node/receipt?transaction_id={last_view}.{last_seq}")
         assert response.status_code == http.HTTPStatus.NOT_FOUND, response
         assert (
-            "not signed by the current servic"
+            "not signed by the current service"
             in response.body.json()["error"]["message"]
         ), response
 
