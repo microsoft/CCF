@@ -16,7 +16,7 @@ Triggered on every commit on `main`, but not on PR builds because the setup requ
 File: `bencher.yml`
 3rd party dependencies: `bencherdev/bencher@main`
 
-# CI Containers GHCR
+# Continuous Integration Containers GHCR
 
 Produces the build images used by nearly all other actions, particularly CI and release from 5.0.0-rc0 onwards. Complete images are attested and published to GHCR.
 Triggered on label creation (`build/*`).
@@ -28,7 +28,7 @@ File: `ci-containers-ghcr.yml`
 - `docker/metadata-action@v5`
 - `docker/build-push-action@v6`
 
-# CI
+# Continuous Integration
 
 Main continuous integration job. Builds CCF for all target platforms, runs unit, end to end and partition tests Virtual. Run on every commit, including PRs from forks, gates merging. Also runs once a week, regardless of commits.
 
@@ -52,11 +52,21 @@ Builds CCF with CodeQL, and runs the security-extended checks. Triggered on PRs 
 File: `codeql-analysis.yml`
 3rd party dependencies: None
 
-# Verification
+# Continuous Verification
 
-Runs all existing TLA+ jobs. Triggered on PRs that affect tla/ or src/consensus and weekly on main.
+Runs quick verification jobs: trace validation, simulation and short model checking configurations. Triggered on PRs that affect tla/ or src/consensus and weekly on main.
 
-File: tlaplus.yml
+File: `ci-verification.yml`
+3rd party dependencies: None
+
+# Long Verification
+
+Runs more expensive verification jobs, such as model checking with reconfiguration.
+
+- Runs weekly.
+- Can be manually run on a PR by setting `run-long-verification` label.
+
+File: `long-verification.yml`
 3rd party dependencies: None
 
 # Release
