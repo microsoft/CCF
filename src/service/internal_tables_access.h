@@ -343,10 +343,12 @@ namespace ccf
             ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
         try
         {
+          const auto pubkey = ccf::crypto::public_key_pem_from_cert(
+            ccf::crypto::cert_pem_to_der(prev_service_info->cert));
           const auto prev_ident_endorsement = cose_sign1(
             service_key,
             {}, // TO DO headers,
-            prev_service_info->cert.raw());
+            pubkey.raw());
           previous_identity_endorsement->put(prev_ident_endorsement);
         }
         catch (const ccf::crypto::COSESignError& e)
