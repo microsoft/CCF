@@ -261,7 +261,7 @@ def test_recover_service_with_wrong_identity(network, args):
 
     # Must fail with a dedicated error message if requesting a receipt for a TX
     # from past epochs, as soon as ledger secrets are not yet available,
-    # therefore no proof can't be generated.
+    # therefore no receipt can be generated.
     primary, _ = recovered_network.find_primary()
     with primary.client() as cli:
         curr_view, curr_seq = (
