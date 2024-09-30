@@ -521,7 +521,7 @@ namespace ccf::historical
         {
           auto reason = fmt::format(
             "Historical transaction {} is not signed by the current service "
-            "identity key and can't be retrieved until recovery is complete.",
+            "identity key and cannot be retrieved until recovery is complete.",
             target_tx_id.to_str());
           ehandler(
             HistoricalQueryErrorCode::TransactionInvalid,
