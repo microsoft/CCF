@@ -1,6 +1,9 @@
 ---- MODULE MCabs ----
 
-EXTENDS abs
+EXTENDS abs, TLC
+
+Symmetry ==
+      Permutations(Servers)
 
 CONSTANTS NodeOne, NodeTwo, NodeThree
 

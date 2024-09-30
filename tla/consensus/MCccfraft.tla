@@ -1,30 +1,42 @@
 ---------- MODULE MCccfraft ----------
-EXTENDS ccfraft, StatsFile, MCAliases
+EXTENDS ccfraft, StatsFile, MCAliases, TLC, IOUtils
 
 CONSTANTS
     NodeOne, NodeTwo, NodeThree
 
-\* No reconfiguration
-1Configuration == <<{NodeOne, NodeTwo, NodeThree}>>
-\* Atomic reconfiguration from NodeOne to NodeTwo
-2Configurations == <<{NodeOne}, {NodeTwo}>>
-\* Incremental reconfiguration from NodeOne to NodeOne and NodeTwo, and then to NodeTwo
-3Configurations == <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
-
-CONSTANT Configurations
+Configurations ==
+    LET default == <<{NodeOne, NodeTwo}>> IN
+    IF "Configurations" \in DOMAIN IOEnv THEN
+          \* Don't parse and process the string Configurations but keep it simple and just check for known values.
+          CASE IOEnv.Configurations = "1C1N" -> <<{NodeOne}>>
+            [] IOEnv.Configurations = "1C2N" -> default
+            [] IOEnv.Configurations = "1C3N" -> <<{NodeOne, NodeTwo, NodeThree}>>
+            [] IOEnv.Configurations = "2C2N" -> <<{NodeOne}, {NodeTwo}>>
+            [] IOEnv.Configurations = "3C2N" -> <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
+            [] OTHER -> Print("Unknown value for env var Configurations.  Falling back to <<{NodeOne, NodeTwo}>>.", default)
+    ELSE Print("Found no env var Configurations.  Falling back to <<{NodeOne, NodeTwo}>>.", default)
 ASSUME Configurations \in Seq(SUBSET Servers)
 
-CONSTANT MaxTermLimit
+MaxTermLimit ==
+    IF "MaxTermLimit" \in DOMAIN IOEnv
+    THEN atoi(IOEnv.MaxTermLimit)
+    ELSE Print("Found no env var MaxTermLimit.  Falling back to 2 terms.", 2)
 ASSUME MaxTermLimit \in Nat
 
 \* Limit on client requests
-CONSTANT RequestLimit
+RequestLimit ==
+    IF "RequestLimit" \in DOMAIN IOEnv
+    THEN atoi(IOEnv.RequestLimit)
+    ELSE Print("Found no env var RequestLimit.  Falling back to 3 requests.", 3)
 ASSUME RequestLimit \in Nat
 
 ToServers ==
     UNION Range(Configurations)
 
 CCF == INSTANCE ccfraft
+
+MCCheckQuorum(i) ==
+    IF "NoCheckQuorum" \in DOMAIN IOEnv THEN FALSE ELSE CCF!CheckQuorum(i)
 
 \* This file controls the constants as seen below.
 \* In addition to basic settings of how many nodes are to be model checked,
