@@ -8,11 +8,16 @@
 #include "kv/kv_types.h"
 #include "node/identity.h"
 #include "node/tx_receipt_impl.h"
+#include "service/tables/previous_service_identity.h"
 
 namespace ccf
 {
   static std::map<ccf::crypto::Pem, std::vector<ccf::crypto::Pem>>
     service_endorsement_cache;
+
+  // valid_from -> [valid_to, endorsement]
+  static std::map<ccf::SeqNo, std::pair<ccf::SeqNo, std::vector<uint8_t>>>
+    cose_endorsements;
 
   namespace historical
   {
@@ -149,10 +154,88 @@ namespace ccf
     bool populate_cose_service_endorsements(
       ccf::kv::ReadOnlyTx& tx,
       ccf::historical::StatePtr& state,
-      AbstractStateCache& state_cache,
-      std::shared_ptr<NetworkIdentitySubsystemInterface>
-        network_identity_subsystem)
+      AbstractStateCache& state_cache)
     {
+      const auto service_info = tx.template ro<Service>(Tables::SERVICE)->get();
+      const auto service_start = service_info->current_service_create_txid;
+      if (!service_start)
+      {
+        // TO DO log err
+        return true;
+      }
+
+      const auto target_seq = state->transaction_id.seqno;
+      if (service_start->seqno <= target_seq)
+      {
+        return true;
+      }
+
+      const auto prev_id_seq = service_info->previous_service_identity_version;
+      if (!prev_id_seq)
+      {
+        // TO DO log err
+        return true;
+      }
+
+      if (cose_endorsements.empty())
+      {
+        const auto endorsement =
+          tx.template ro<PreviousServiceIdentityEndorsement>(
+              Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+            ->get();
+        CCF_ASSERT(endorsement.has_value, "Endorsed identity not found");
+
+        cose_endorsements.insert({*prev_id_seq, {target_seq, *endorsement}});
+      }
+
+      while (cose_endorsements.begin()->first > target_seq)
+      {
+        auto earlist_seqno = cose_endorsements.begin()->first;
+        auto hstate = state_cache.get_state_at(earlist_seqno, earlist_seqno);
+        if (!hstate)
+        {
+          return false; // retry later
+        }
+        auto htx = hstate->store->create_read_only_tx();
+        const auto prev_service_info =
+          htx.template ro<Service>(Tables::SERVICE)->get();
+
+        if (!prev_service_info->previous_service_identity_version)
+        {
+          // TO DO log err
+          return true;
+        }
+        const auto endorsement =
+          htx
+            .template ro<PreviousServiceIdentityEndorsement>(
+              Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
+            ->get();
+
+        if (!endorsement)
+        {
+          // TO DO log err: cose endorsement not present there
+          return true;
+        }
+
+        cose_endorsements.insert(
+          {prev_service_info->previous_service_identity_version.value(),
+           {earlist_seqno, *endorsement}});
+      }
+
+      auto it = cose_endorsements.find(target_seq);
+      if (it->first != target_seq)
+      {
+        --it;
+      }
+      // TO DO check it
+
+      std::vector<std::vector<uint8_t>> endorsements;
+      for (it; it != cose_endorsements.end(); ++it)
+      {
+        endorsements.push_back(it->second.second);
+      }
+
+      state->receipt->cose_endorsements = endorsements;
       return true;
     }
   }
