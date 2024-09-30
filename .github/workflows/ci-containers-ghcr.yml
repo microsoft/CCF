@@ -1,4 +1,4 @@
-name: "CI Containers GHCR"
+name: "Continuous Integration Containers GHCR"
 
 on:
   push:
