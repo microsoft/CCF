@@ -41,6 +41,11 @@ def cli():
         help="Print out command and environment before running",
     )
     parser.add_argument(
+        "--dfs",
+        action="store_true",
+        help="Set TLC to use depth-first search",
+    )
+    parser.add_argument(
         "--workers",
         type=str,
         default="auto",
@@ -50,11 +55,20 @@ def cli():
         "--checkpoint", type=int, default=0, help="Checkpoint interval, default is 0"
     )
     parser.add_argument(
+        "--dot", action="store_true", help="Generate a dot file for the state graph"
+    )
+    parser.add_argument(
         "--lncheck",
         type=str,
         choices=["final", "default"],
         default="final",
         help="Liveness check, set to 'default' to run periodically or 'final' to run once at the end, default is final",
+    )
+    parser.add_argument(
+        "--trace-name",
+        type=str,
+        default=None,
+        help="Name to give to the trace files, defaults to base name of the spec, or config if provided",
     )
     parser.add_argument(
         "--config",
@@ -81,7 +95,9 @@ if __name__ == "__main__":
         "-lncheck",
         args.lncheck,
     ]
-    trace_name = os.path.basename(args.spec).replace(".tla", "")
+    trace_name = args.trace_name or os.path.basename(args.config or args.spec).replace(
+        ".tla", ""
+    )
 
     if "CI" in env:
         # When run in CI, format output for GitHub, and participate in statistics collection
@@ -89,8 +105,10 @@ if __name__ == "__main__":
         jvm_args.append(
             "-Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601"
         )
-        # When run in CI, always dump a JSON trace
-        tlc_args.extend(["-dumpTrace", "json", f"{trace_name}.json"])
+
+    if args.trace_name or "CI" in env:
+        # When run in CI, or told explicitly, dump a trace
+        tlc_args.extend(["-dumpTrace", "json", f"{trace_name}.trace.json"])
     if args.jmx:
         jvm_args.append("-Dcom.sun.management.jmxremote")
         jvm_args.append("-Dcom.sun.management.jmxremote.port=55449")
@@ -98,8 +116,14 @@ if __name__ == "__main__":
         jvm_args.append("-Dcom.sun.management.jmxremote.authenticate=false")
     if not args.disable_cdot:
         jvm_args.append("-Dtlc2.tool.impl.Tool.cdot=true")
+    if args.dfs:
+        jvm_args.append("-Dtlc2.tool.queue.IStateQueue=StateDeque")
     if args.config:
         tlc_args.extend(["-config", args.config])
+    if args.dot:
+        tlc_args.extend(
+            ["-dump", "dot,constrained,colorize,actionlabels", f"{trace_name}.dot"]
+        )
 
     cmd = ["java"] + jvm_args + cp_args + ["tlc2.TLC"] + tlc_args + [args.spec]
     if args.v:

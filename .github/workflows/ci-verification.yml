@@ -223,7 +223,7 @@ jobs:
           cd tla/
           mkdir -p traces/consensus
           mv ../build/consensus traces/
-          parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
+          parallel 'JSON={} ./tlc.py --workers 1 --dfs --dot --trace-name {} consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
         shell: bash
 
       - name: Upload artifacts.
