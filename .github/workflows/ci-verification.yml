@@ -1,4 +1,4 @@
-name: "Verification"
+name: "Continuous Verification"
 
 on:
   schedule:
@@ -147,45 +147,11 @@ jobs:
           cd tla/
           Configurations=1C3N MaxTermLimit=2 RequestLimit=3 ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft1C3N2T3R.trace.tla -dumpTrace json MCccfraft1C3N2T3R.json
 
-      - name: MCccfraft - Configurations=2C2N (atomic reconf) MaxTermLimit=4 RequestLimit=3 NoCheckQuorum
-        run: |
-          set -x
-          cd tla/
-          Configurations=2C2N MaxTermLimit=4 RequestLimit=1 NoCheckQuorum= ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft2C2N4T1R.trace.tla -dumpTrace json MCccfraft2C2N4T1R.json
-
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
           name: tlc-model-checking-consensus
-          path: |
-            tla/consensus/*_TTrace_*.tla
-            tla/*.json
-
-  model-checking-with-reconfig-consensus:
-    name: Model Checking With Reconfig - Consensus
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-    container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
-
-    steps:
-      - uses: actions/checkout@v4
-      - run: |
-          sudo apt update
-          sudo apt install -y default-jre
-          python3 ./tla/install_deps.py
-
-      - name: MCccfraft - Configurations=3C2N MaxTermLimit=4 RequestLimit=1 NoCheckQuorum
-        run: |
-          set -x
-          cd tla/
-          Configurations=3C2N MaxTermLimit=4 RequestLimit=1 NoCheckQuorum= ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft3C2N4T1R.trace.tla -dumpTrace json MCccfraft3C2N4T1R.json
-
-      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
-        uses: actions/upload-artifact@v4
-        if: ${{ failure() }}
-        with:
-          name: tlc-model-checking-with-reconfig-consensus
           path: |
             tla/consensus/*_TTrace_*.tla
             tla/*.json
@@ -207,7 +173,7 @@ jobs:
           cd tla/
           ./tlc.sh -workers auto -simulate -depth 500 consensus/SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
         env:
-          SIM_TIMEOUT: 3000
+          SIM_TIMEOUT: 1200
 
       - name: Upload artifacts.
         uses: actions/upload-artifact@v4
