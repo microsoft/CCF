@@ -35,27 +35,27 @@ jobs:
       - name: consistency/MCSingleNode.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto consistency/MCSingleNode.tla -dumpTrace json MCSingleNode.json
+          ./tlc.py consistency/MCSingleNode.tla
 
       - name: consistency/MCSingleNodeReads.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto consistency/MCSingleNodeReads.tla -dumpTrace json MCSingleNodeReads.json
+          ./tlc.py consistency/MCSingleNodeReads.tla
 
       - name: consistency/MCMultiNode.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto consistency/MCMultiNode.tla -dumpTrace json MCMultiNode.json
+          ./tlc.py consistency/MCMultiNode.tla
 
       - name: consistency/MCMultiNodeReads.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto consistency/MCMultiNodeReads.tla -dumpTrace json MCMultiNodeReads.json
+          ./tlc.py consistency/MCMultiNodeReads.tla
 
       - name: consistency/MCMultiNodeReadsAlt.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto consistency/MCMultiNodeReadsAlt.tla -dumpTrace json MCMultiNodeReadsAlt.json
+          ./tlc.py consistency/MCMultiNodeReadsAlt.tla
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v4
@@ -77,22 +77,22 @@ jobs:
       - name: consistency/MCSingleNodeCommitReachability.cfg
         run: |
           cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MCSingleNodeCommitReachability.cfg consistency/MCSingleNodeReads.tla
+          ./tlc_debug.sh --config consistency/MCSingleNodeCommitReachability.cfg consistency/MCSingleNodeReads.tla
 
       - name: consistency/MCMultiNodeCommitReachability.cfg
         run: |
           cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeCommitReachability.cfg consistency/MCMultiNodeReads.tla
+          ./tlc_debug.sh --config consistency/MCMultiNodeCommitReachability.cfg consistency/MCMultiNodeReads.tla
 
       - name: consistency/MCMultiNodeInvalidReachability.cfg
         run: |
           cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeInvalidReachability.cfg consistency/MCMultiNodeReads.tla
+          ./tlc_debug.sh --config consistency/MCMultiNodeInvalidReachability.cfg consistency/MCMultiNodeReads.tla
 
       - name: consistency/MCMultiNodeReadsNotLinearizable.cfg
         run: |
           cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeReadsNotLinearizable.cfg consistency/MCMultiNodeReads.tla
+          ./tlc_debug.sh --config consistency/MCMultiNodeReadsNotLinearizable.cfg consistency/MCMultiNodeReads.tla
 
   simulation-consistency:
     name: Simulation - Consistency
