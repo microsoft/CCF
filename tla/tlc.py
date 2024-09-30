@@ -41,11 +41,6 @@ def cli():
         help="Print out command and environment before running",
     )
     parser.add_argument(
-        "--dfs",
-        action="store_true",
-        help="Set TLC to use depth-first search",
-    )
-    parser.add_argument(
         "--workers",
         type=str,
         default="auto",
@@ -78,6 +73,19 @@ def cli():
     )
     parser.add_argument(
         "spec", type=pathlib.Path, help="Path to the TLA+ specification"
+    )
+
+    trace_validation = parser.add_argument_group(title="trace validation arguments")
+    trace_validation.add_argument(
+        "--dfs",
+        action="store_true",
+        help="Set TLC to use depth-first search",
+    )
+    trace_validation.add_argument(
+        "--driver-trace",
+        type=pathlib.Path,
+        default=None,
+        help="Path to a CCF Raft driver trace .ndjson file, produced by make_traces.sh",
     )
     return parser
 
@@ -124,6 +132,9 @@ if __name__ == "__main__":
         tlc_args.extend(
             ["-dump", "dot,constrained,colorize,actionlabels", f"{trace_name}.dot"]
         )
+
+    if args.driver_trace:
+        env["DRIVER_TRACE"] = args.driver_trace
 
     cmd = ["java"] + jvm_args + cp_args + ["tlc2.TLC"] + tlc_args + [args.spec]
     if args.v:

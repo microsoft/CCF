@@ -27,7 +27,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - run: |
+      - name: Install TLC dependencies
+        run: |
           sudo apt update
           sudo apt install -y default-jre
           python3 ./tla/install_deps.py
@@ -72,7 +73,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - run: python3 ./tla/install_deps.py
+      - name: Install TLC dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
 
       - name: consistency/MCSingleNodeCommitReachability.cfg
         run: |
@@ -100,7 +105,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - run: python3 ./tla/install_deps.py
+      - name: Install TLC dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 ./tla/install_deps.py
 
       - name: consistency/MultiNodeReads.cfg
         run: |
@@ -124,7 +133,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - run: |
+      - name: Install TLC dependencies
+        run: |
           sudo apt update
           sudo apt install -y default-jre
           python3 ./tla/install_deps.py
@@ -162,7 +172,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - run: |
+      - name: Install TLC dependencies
+        run: |
           sudo apt update
           sudo apt install -y default-jre
           python3 ./tla/install_deps.py
@@ -193,11 +204,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - run: |
+      - name: Install TLC dependencies
+        run: |
           sudo apt update
           sudo apt install -y default-jre parallel
           python3 ./tla/install_deps.py
-        shell: bash
 
       - name: "Build"
         run: |
@@ -223,7 +234,7 @@ jobs:
           cd tla/
           mkdir -p traces/consensus
           mv ../build/consensus traces/
-          parallel 'JSON={} ./tlc.py --workers 1 --dfs --dot --trace-name {} consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
+          parallel './tlc.py --workers 1 --dfs --driver-trace {} --dot --trace-name {} consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
         shell: bash
 
       - name: Upload artifacts.
