@@ -28,7 +28,7 @@ def cli():
         description="TLC model checker wrapper for the CCF project"
     )
     parser.add_argument(
-        "--disable-cdot", action="store_true", help="Disable \\\cdot support"
+        "--disable-cdot", action="store_true", help="Disable \\cdot support"
     )
     parser.add_argument(
         "--jmx",
