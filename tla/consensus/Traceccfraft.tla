@@ -82,7 +82,7 @@ JsonFile ==
 JsonLog ==
     \* Deserialize the System log as a sequence of records from the log file.
     \* Run TLC from under the tla/ directory with:
-    \* $ DRIVER_TRACE=../build/startup.ndjson ./tlc.sh consensus/Traceccfraft.tla
+    \* ./tlc.py --driver-trace ../build/startup.ndjson consensus/Traceccfraft.tla
     \* Traces can be generated with: ./make_traces.sh, also under the tla/ directory.
     ndJsonDeserialize(JsonFile)
 

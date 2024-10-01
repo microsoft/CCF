@@ -21,7 +21,7 @@ To download and then run TLC, simply execute:
 
     $ cd tla
     $ python install_deps.py
-    $ ./tlc.sh consensus/MCccfraft.tla
+    $ ./tlc.py consensus/MCccfraft.tla
 
 .. tip::  TLC works best if it can utilize all system resources. Use the ``-workers auto`` option to use all cores. 
 
@@ -29,7 +29,7 @@ You can also check the consensus specification including reconfiguration as foll
 
 .. code-block:: bash
 
-    $ Configurations=3C2N MaxTermLimit=4 RequestLimit=1 NoCheckQuorum= ./tlc.sh consensus/MCccfraft.tla
+    $ Configurations=3C2N MaxTermLimit=4 RequestLimit=1 NoCheckQuorum= ./tlc.py consensus/MCccfraft.tla
 
 Using TLC to exhaustively check our models can take any time between minutes (for small configurations) and days (especially for the full consensus model with reconfiguration) on a 128 core VM (specifically, we used an `Azure HBv3 instance <https://docs.microsoft.com/en-us/azure/virtual-machines/hbv3-series>`_.
 
@@ -42,6 +42,6 @@ Trace validation
 
 It is possible to produce fresh traces quickly from the driver by running the ``make_traces.sh`` script from the ``tla`` directory.
 
-Calling the trace validation on, for example, the ``append`` scenario can then be done with ``JSON=../build/append.ndjson ./tlc.sh consensus/Traceccfraft.tla``.
+Calling the trace validation on, for example, the ``append`` scenario can then be done with ``./tlc.py --driver-trace ../build/append.ndjson consensus/Traceccfraft.tla``.
 
 CCF also provides a command line trace visualizer to aid debugging, for example, the ``append`` scenario can be visualized with ``python ../tests/trace_viz.py ../build/append.ndjson``. 

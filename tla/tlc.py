@@ -59,6 +59,8 @@ def cli():
         default="final",
         help="Liveness check, set to 'default' to run periodically or 'final' to run once at the end, default is final",
     )
+    # It would be ideal if this could be derived from the current task name in GitHub Actions, rather than
+    # have to set it manually when we invoke the same spec or config with different parameters
     parser.add_argument(
         "--trace-name",
         type=str,
@@ -75,6 +77,8 @@ def cli():
         "spec", type=pathlib.Path, help="Path to the TLA+ specification"
     )
 
+    # Trace, simulation and model checking would be best as sub-commands, rather than a flat
+    # option space
     trace_validation = parser.add_argument_group(title="trace validation arguments")
     trace_validation.add_argument(
         "--dfs",

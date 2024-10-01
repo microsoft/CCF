@@ -35,7 +35,7 @@ jobs:
         run: |
           set -x
           cd tla/
-          Configurations=2C2N MaxTermLimit=4 RequestLimit=1 NoCheckQuorum= ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft2C2N4T1R.trace.tla -dumpTrace json MCccfraft2C2N4T1R.json
+          Configurations=2C2N MaxTermLimit=4 RequestLimit=1 NoCheckQuorum= ./tlc.py --trace-name MCccfraft2C2N4T1R consensus/MCccfraft.tla
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v4
@@ -64,7 +64,7 @@ jobs:
         run: |
           set -x
           cd tla/
-          Configurations=3C2N MaxTermLimit=4 RequestLimit=1 NoCheckQuorum= ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft3C2N4T1R.trace.tla -dumpTrace json MCccfraft3C2N4T1R.json
+          Configurations=3C2N MaxTermLimit=4 RequestLimit=1 NoCheckQuorum= ./tlc.py --trace-name MCccfraft3C2N4T1R consensus/MCccfraft.tla
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v4
@@ -91,7 +91,7 @@ jobs:
         run: |
           set -x
           cd tla/
-          ./tlc.sh -workers auto -simulate -depth 500 consensus/SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
+          ./tlc.py --simulate num=100 --depth 500 consensus/SIMccfraft.tla
         env:
           SIM_TIMEOUT: 3000
 
