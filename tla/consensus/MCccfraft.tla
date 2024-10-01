@@ -6,15 +6,15 @@ CONSTANTS
 
 Configurations ==
     LET default == <<{NodeOne, NodeTwo}>> IN
-    IF "Configurations" \in DOMAIN IOEnv THEN
+    IF "RAFT_CONFIGS" \in DOMAIN IOEnv THEN
           \* Don't parse and process the string Configurations but keep it simple and just check for known values.
-          CASE IOEnv.Configurations = "1C1N" -> <<{NodeOne}>>
-            [] IOEnv.Configurations = "1C2N" -> default
-            [] IOEnv.Configurations = "1C3N" -> <<{NodeOne, NodeTwo, NodeThree}>>
-            [] IOEnv.Configurations = "2C2N" -> <<{NodeOne}, {NodeTwo}>>
-            [] IOEnv.Configurations = "3C2N" -> <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
-            [] OTHER -> Print("Unknown value for env var Configurations.  Falling back to <<{NodeOne, NodeTwo}>>.", default)
-    ELSE Print("Found no env var Configurations.  Falling back to <<{NodeOne, NodeTwo}>>.", default)
+          CASE IOEnv.RAFT_CONFIGS = "1C1N" -> <<{NodeOne}>>
+            [] IOEnv.RAFT_CONFIGS = "1C2N" -> default
+            [] IOEnv.RAFT_CONFIGS = "1C3N" -> <<{NodeOne, NodeTwo, NodeThree}>>
+            [] IOEnv.RAFT_CONFIGS = "2C2N" -> <<{NodeOne}, {NodeTwo}>>
+            [] IOEnv.RAFT_CONFIGS = "3C2N" -> <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
+            [] OTHER -> Print("Unsupported value for RAFT_CONFIGS, defaulting to 1C2N: <<{NodeOne, NodeTwo}>>.", default)
+    ELSE Print("RAFT_CONFIGS is not set, defaulting to 1C2N: <<{NodeOne, NodeTwo}>>.", default)
 ASSUME Configurations \in Seq(SUBSET Servers)
 
 MaxTermCount ==
@@ -36,7 +36,7 @@ ToServers ==
 CCF == INSTANCE ccfraft
 
 MCCheckQuorum(i) ==
-    IF "NoCheckQuorum" \in DOMAIN IOEnv THEN FALSE ELSE CCF!CheckQuorum(i)
+    IF "DISABLE_CHECK_QUORUM" \in DOMAIN IOEnv THEN FALSE ELSE CCF!CheckQuorum(i)
 
 \* This file controls the constants as seen below.
 \* In addition to basic settings of how many nodes are to be model checked,

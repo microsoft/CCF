@@ -124,6 +124,15 @@ def cli():
         default=3,
         help="Maximum number of requests the nodes are allowed to advance through, defaults to 3",
     )
+    mc_ccfraft.add_argument(
+        "--raft-configs",
+        type=str,
+        default="1C2N",
+        help="Raft configuration sequence, defaults to 1C2N",
+    )
+    mc_ccfraft.add_argument(
+        "--disable-check-quorum", action="store_true", help="Disable CheckQuorum action"
+    )
     return parser
 
 
@@ -183,6 +192,10 @@ if __name__ == "__main__":
         env["MAX_TERM_COUNT"] = str(args.max_term_count)
     if args.max_request_count:
         env["MAX_REQUEST_COUNT"] = str(args.max_request_count)
+    if args.raft_configs:
+        env["RAFT_CONFIGS"] = args.raft_configs
+    if args.disable_check_quorum:
+        env["DISABLE_CHECK_QUORUM"] = "true"
 
     cmd = ["java"] + jvm_args + cp_args + ["tlc2.TLC"] + tlc_args + [args.spec]
     if args.v:

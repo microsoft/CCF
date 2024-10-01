@@ -35,7 +35,7 @@ jobs:
         run: |
           set -x
           cd tla/
-          Configurations=2C2N NoCheckQuorum= ./tlc.py --max-term-count 2 --max-request-count 1 --trace-name MCccfraft2C2N4T1R consensus/MCccfraft.tla
+          ./tlc.py --max-term-count 2 --max-request-count 1 --raft-configs 2C2N --disable-check-quorum --trace-name 2C2N consensus/MCccfraft.tla
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v4
@@ -64,7 +64,7 @@ jobs:
         run: |
           set -x
           cd tla/
-          Configurations=3C2N NoCheckQuorum= ./tlc.py --max-term-count 2 --max-request-count 0 --trace-name MCccfraft3C2N4T1R consensus/MCccfraft.tla
+          ./tlc.py --max-term-count 2 --max-request-count 0 --raft-configs 3C2N --disable-check-quorum --trace-name 3C2N consensus/MCccfraft.tla
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v4
