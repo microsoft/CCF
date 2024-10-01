@@ -53,6 +53,10 @@ ExtendAxiom(i) ==
     \* The other logs remain the same.
     /\ \A j \in Servers \ {i} : cLogs'[j] = cLogs[j]
 
+\* Extend and ExtendAxiom are logically equivalent definitions.  However,
+\* TLC can check ExtendAxiom more efficiently when checking refinement,
+\* due to the absence of the existential quantifier in the definition.
+\* The same is true for CopyMaxAndExtend and CopyMaxAndExtendAxiom below.
 LEMMA ASSUME NEW i \in Servers PROVE
     ExtendAxiom(i) <=> Extend(i)
 OMITTED 
