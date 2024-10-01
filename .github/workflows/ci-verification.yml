@@ -142,7 +142,7 @@ jobs:
           sudo apt install -y default-jre
           python3 install_deps.py
 
-      - run: tlc.py --simulate num=100 consensus/SIMccfraft.tla
+      - run: ./tlc.py --simulate num=100 consensus/SIMccfraft.tla
 
       - name: Upload TLC traces
         uses: actions/upload-artifact@v4
