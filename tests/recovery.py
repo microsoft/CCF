@@ -25,6 +25,10 @@ import shutil
 from loguru import logger as LOG
 
 
+def shifted_tx(tx, view_diff, seq_dif):
+    return ccf.tx_id.TxID(tx.view + view_diff, tx.seqno + seq_dif)
+
+
 def get_and_verify_historical_receipt(network, ref_msg):
     primary, _ = network.find_primary()
     if not ref_msg:
@@ -169,6 +173,9 @@ def test_recover_service_with_wrong_identity(network, args):
         before_recovery_tx_id = ccf.tx_id.TxID.from_str(
             c.get("/node/commit").body.json()["transaction_id"]
         )
+        previous_service_created_tx_id = ccf.tx_id.TxID.from_str(
+            c.get("/node/network").body.json()["current_service_create_txid"]
+        )
 
     network.stop_all_nodes()
 
@@ -275,12 +282,49 @@ def test_recover_service_with_wrong_identity(network, args):
             in response.body.json()["error"]["message"]
         ), response
 
+        current_service_created_tx_id = ccf.tx_id.TxID.from_str(
+            cli.get("/node/network").body.json()["current_service_create_txid"]
+        )
+
     # TX from the current epoch though can be verified, as soon as the caller
     # trusts the current service identity.
     receipt = primary.get_receipt(curr_tx_id.view, curr_tx_id.seqno).json()
     verify_receipt(receipt, recovered_network.cert, is_signature_tx=True)
 
     recovered_network.recover(args)
+
+    # Needs refreshing, recovery has completed.
+    with primary.client() as cli:
+        curr_tx_id = ccf.tx_id.TxID.from_str(
+            cli.get("/node/commit").body.json()["transaction_id"]
+        )
+
+    # Check receipts for transactions after multiple recoveries
+    txids = [
+        # Last TX before previous recovery
+        shifted_tx(previous_service_created_tx_id, -2, -1),
+        # First after previous recovery
+        previous_service_created_tx_id,
+        # Random TX before previous and last recovery
+        shifted_tx(current_service_created_tx_id, -2, -5),
+        # Last TX before last recovery
+        shifted_tx(current_service_created_tx_id, -2, -1),
+        # First TX after last recovery
+        current_service_created_tx_id,
+        # Random TX after last recovery
+        shifted_tx(curr_tx_id, 0, -3),
+    ]
+
+    for tx in txids:
+        receipt = primary.get_receipt(tx.view, tx.seqno).json()
+
+        try:
+            verify_receipt(receipt, recovered_network.cert)
+        except AssertionError:
+            # May fail due to missing leaf components if it's a signature TX,
+            # try again with a flag to force skip leaf components verification.
+            verify_receipt(receipt, recovered_network.cert, is_signature_tx=True)
+
     return recovered_network
 
 
