@@ -67,7 +67,7 @@ def cli():
         "--trace-name",
         type=str,
         default=None,
-        help="Name to give to the trace files, defaults to base name of the spec, or config if provided",
+        help="Name to give to the trace files, defaults to the config name if provided, otherwise to the base name of the spec",
     )
     parser.add_argument(
         "--config",
