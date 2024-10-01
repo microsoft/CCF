@@ -17,11 +17,11 @@ Configurations ==
     ELSE Print("Found no env var Configurations.  Falling back to <<{NodeOne, NodeTwo}>>.", default)
 ASSUME Configurations \in Seq(SUBSET Servers)
 
-MaxTermLimit ==
-    IF "MaxTermLimit" \in DOMAIN IOEnv
-    THEN atoi(IOEnv.MaxTermLimit)
-    ELSE Print("Found no env var MaxTermLimit.  Falling back to 2 terms.", 2)
-ASSUME MaxTermLimit \in Nat
+MaxTermCount ==
+    IF "MaxTermCount" \in DOMAIN IOEnv
+    THEN atoi(IOEnv.MaxTermCount)
+    ELSE Print("Found no env var MaxTermCount. Falling back to MaxTermCount=0.", 0)
+ASSUME MaxTermCount \in Nat
 
 \* Limit on client requests
 RequestLimit ==
@@ -55,7 +55,7 @@ MCChangeConfigurationInt(i, newConfiguration) ==
 \* constraint below is too restrictive.
 MCTimeout(i) ==
     \* Limit the term of each server to reduce state space
-    /\ currentTerm[i] < MaxTermLimit
+    /\ currentTerm[i] < StartTerm + MaxTermCount
     \* Limit max number of simultaneous candidates
     \* We made several restrictions to the state space of Raft. However since we
     \* made these restrictions, Deadlocks can occur at places that Raft would in
@@ -143,12 +143,12 @@ DebugNotTooManySigsInv ==
 
 \* The inital log is up to 4 entries long + one log entry per request/reconfiguration + one signature per request/reconfiguration or new view (no consecutive sigs except across views)
 MaxLogLength == 
-    4 + ((RequestLimit + Len(Configurations)) * 2) + MaxTermLimit
+    4 + ((RequestLimit + Len(Configurations)) * 2) + (StartTerm + MaxTermCount)
 
 MappingToAbs == 
   INSTANCE abs WITH
     Servers <- Servers,
-    Terms <- StartTerm..MaxTermLimit,
+    Terms <- StartTerm..(StartTerm + MaxTermCount),
     MaxLogLength <- MaxLogLength,
     cLogs <- [i \in Servers |-> [j \in 1..commitIndex[i] |-> log[i][j].term]]
 

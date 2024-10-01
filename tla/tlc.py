@@ -110,6 +110,14 @@ def cli():
         default=1200,
         help="Set the timeout of the simulation, defaults to 1200 seconds",
     )
+
+    mc_ccfraft = parser.add_argument_group(title="MCccfraft arguments")
+    mc_ccfraft.add_argument(
+        "--max-term-count",
+        type=int,
+        default=0,
+        help="Maximum number of terms the nodes are allowed to advance through, defaults to 0",
+    )
     return parser
 
 
@@ -164,6 +172,9 @@ if __name__ == "__main__":
         env["SIM_TIMEOUT"] = str(args.max_seconds)
     if args.depth:
         tlc_args.extend(["-depth", str(args.depth)])
+
+    if args.max_term_count:
+        env["MaxTermCount"] = str(args.max_term_count)
 
     cmd = ["java"] + jvm_args + cp_args + ["tlc2.TLC"] + tlc_args + [args.spec]
     if args.v:
