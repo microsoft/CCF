@@ -59,8 +59,6 @@ def cli():
         default="final",
         help="Liveness check, set to 'default' to run periodically or 'final' to run once at the end, default is final",
     )
-    # It would be ideal if this could be derived from the current task name in GitHub Actions, rather than
-    # have to set it manually when we invoke the same spec or config with different parameters
     parser.add_argument(
         "--trace-name",
         type=str,
@@ -77,8 +75,8 @@ def cli():
         "spec", type=pathlib.Path, help="Path to the TLA+ specification"
     )
 
-    # Trace, simulation and model checking would be best as sub-commands, rather than a flat
-    # option space
+    # It may make sense to split simulation, trace validation and model checking at sub-commands,
+    # to scope options appropriately, and introduce update defaults such as enabling dfs appropriately.
     trace_validation = parser.add_argument_group(title="trace validation arguments")
     trace_validation.add_argument(
         "--dfs",
@@ -172,29 +170,29 @@ if __name__ == "__main__":
         jvm_args.append("-Dtlc2.tool.impl.Tool.cdot=true")
     if args.dfs:
         jvm_args.append("-Dtlc2.tool.queue.IStateQueue=StateDeque")
-    if args.config:
+    if args.config is not None:
         tlc_args.extend(["-config", args.config])
     if args.dot:
         tlc_args.extend(
             ["-dump", "dot,constrained,colorize,actionlabels", f"{trace_name}.dot"]
         )
 
-    if args.driver_trace:
+    if args.driver_trace is not None:
         env["DRIVER_TRACE"] = args.driver_trace
 
-    if args.simulate:
+    if args.simulate is not None:
         tlc_args.extend(["-simulate", args.simulate])
         env["SIM_TIMEOUT"] = str(args.max_seconds)
-    if args.depth:
-        tlc_args.extend(["-depth", str(args.depth)])
+        if args.depth is not None:
+            tlc_args.extend(["-depth", str(args.depth)])
 
-    if args.max_term_count:
+    if args.max_term_count is not None:
         env["MAX_TERM_COUNT"] = str(args.max_term_count)
-    if args.max_request_count:
+    if args.max_request_count is not None:
         env["MAX_REQUEST_COUNT"] = str(args.max_request_count)
-    if args.raft_configs:
+    if args.raft_configs is not None:
         env["RAFT_CONFIGS"] = args.raft_configs
-    if args.disable_check_quorum:
+    if args.disable_check_quorum is not None:
         env["DISABLE_CHECK_QUORUM"] = "true"
 
     cmd = ["java"] + jvm_args + cp_args + ["tlc2.TLC"] + tlc_args + [args.spec]

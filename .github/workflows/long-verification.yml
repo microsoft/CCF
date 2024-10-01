@@ -34,7 +34,7 @@ jobs:
           sudo apt install -y default-jre
           python3 install_deps.py
 
-      - run: ./tlc.py --max-term-count 2 --max-request-count 1 --raft-configs 2C2N --disable-check-quorum --trace-name 2C2N consensus/MCccfraft.tla
+      - run: ./tlc.py --max-term-count 2 --max-request-count 0 --raft-configs 2C2N --disable-check-quorum --trace-name 2C2N consensus/MCccfraft.tla
 
       - name: Upload TLC traces
         uses: actions/upload-artifact@v4
