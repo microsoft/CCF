@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: tlc-simulation-consensus
+          name: tlc-model-checking-with-atomic-reconfig-consensus
           path: |
             tla/consensus/*_TTrace_*.tla
             tla/*.json
@@ -68,7 +68,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: tlc-simulation-consensus
+          name: tlc-model-checking-with-reconfig-consensus
           path: |
             tla/consensus/*_TTrace_*.tla
             tla/*.json
