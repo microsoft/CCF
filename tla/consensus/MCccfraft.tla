@@ -70,7 +70,7 @@ MCTimeout(i) ==
 
 \* Limit number of requests (new entries) that can be made
 MCClientRequest(i) ==
-    \* Allocation-free variant of Len(SelectSeq(log[i], LAMBDA e: e.contentType = TypeEntry)) < MaxRequestCount
+    \* Allocation-free variant of Len(SelectSeq(log[i], LAMBDA e: e.contentType = TypeEntry)) <= MaxRequestCount
     /\ FoldSeq(LAMBDA e, count: IF e.contentType = TypeEntry THEN count + 1 ELSE count, 0, log[i]) <= MaxRequestCount
     /\ CCF!ClientRequest(i)
 
