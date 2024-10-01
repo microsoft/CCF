@@ -143,7 +143,7 @@ DebugNotTooManySigsInv ==
 
 \* The inital log is up to 4 entries long + one log entry per request/reconfiguration + one signature per request/reconfiguration or new view (no consecutive sigs except across views)
 MaxLogLength == 
-    4 + ((MaxRequestCount + Len(Configurations)) * 2) + (StartTerm + MaxTermCount)
+    4 + ((MaxRequestCount + Len(Configurations)) * 2) + MaxTermCount
 
 MappingToAbs == 
   INSTANCE abs WITH
