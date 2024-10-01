@@ -146,6 +146,9 @@ def cli():
     return parser
 
 
+CI = "CI" in os.environ
+
+
 if __name__ == "__main__":
     env = os.environ.copy()
     args = cli().parse_args()
@@ -163,14 +166,14 @@ if __name__ == "__main__":
         ".tla", ""
     )
 
-    if "CI" in env:
+    if CI:
         # When run in CI, format output for GitHub, and participate in statistics collection
         jvm_args.append("-Dtlc2.TLC.ide=Github")
         jvm_args.append(
             "-Dutil.ExecutionStatisticsCollector.id=be29f6283abeed2fb1fd0be898bc6601"
         )
 
-    if args.trace_name or "CI" in env:
+    if args.trace_name or CI:
         # When run in CI, or told explicitly, dump a trace
         tlc_args.extend(["-dumpTrace", "json", f"{trace_name}.trace.json"])
     if args.jmx:
