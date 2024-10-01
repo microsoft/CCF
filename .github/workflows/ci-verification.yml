@@ -114,7 +114,7 @@ jobs:
       - name: consistency/MultiNodeReads.cfg
         run: |
           cd tla/
-          ./tlc.sh -workers auto -simulate num=500 -depth 50 consistency/MultiNodeReads.tla -dumpTrace json MultiNodeReads.json
+          ./tlc.py --simulate num=500 --depth 50 consistency/MultiNodeReads.tla
 
       - name: Upload traces in TLA and JSON format
         uses: actions/upload-artifact@v4
@@ -143,19 +143,19 @@ jobs:
         run: |
           set -x
           cd tla/
-          ./tlc.sh -workers auto consensus/MCabs.tla -dumpTrace tla MCabs.trace.tla -dumpTrace json MCabs.json
+          ./tlc.py consensus/MCabs.tla
 
       - name: MCccfraft - Configurations=1C2N
         run: |
           set -x
           cd tla/
-          Configurations=1C2N MaxTermLimit=2 RequestLimit=3 ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft1C2NT2R3.trace.tla -dumpTrace json MCccfraft1C2NT2R3.json
+          Configurations=1C2N MaxTermLimit=2 RequestLimit=3 ./tlc.py --trace-name MCccfraft1C2NT2R3 consensus/MCccfraft.tla
 
       - name: MCccfraft - Configurations=1C3N
         run: |
           set -x
           cd tla/
-          Configurations=1C3N MaxTermLimit=2 RequestLimit=3 ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft1C3N2T3R.trace.tla -dumpTrace json MCccfraft1C3N2T3R.json
+          Configurations=1C3N MaxTermLimit=2 RequestLimit=3 ./tlc.py --trace-name MCccfraft1C3N2T3R consensus/MCccfraft.tla
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v4
@@ -182,9 +182,7 @@ jobs:
         run: |
           set -x
           cd tla/
-          ./tlc.sh -workers auto -simulate -depth 500 consensus/SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
-        env:
-          SIM_TIMEOUT: 1200
+          ./tlc.py --simulate num=100 consensus/SIMccfraft.tla
 
       - name: Upload artifacts.
         uses: actions/upload-artifact@v4

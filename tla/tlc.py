@@ -87,6 +87,25 @@ def cli():
         default=None,
         help="Path to a CCF Raft driver trace .ndjson file, produced by make_traces.sh",
     )
+
+    simulation = parser.add_argument_group(title="simulation arguments")
+    simulation.add_argument(
+        "--simulate",
+        type=str,
+        help="Set TLC to simulate rather than model-check",
+    )
+    simulation.add_argument(
+        "--depth",
+        type=int,
+        default=500,
+        help="Set the depth of the simulation, defaults to 500",
+    )
+    simulation.add_argument(
+        "--max-seconds",
+        type=int,
+        default=1200,
+        help="Set the timeout of the simulation, defaults to 1200 seconds",
+    )
     return parser
 
 
@@ -135,6 +154,12 @@ if __name__ == "__main__":
 
     if args.driver_trace:
         env["DRIVER_TRACE"] = args.driver_trace
+
+    if args.simulate:
+        tlc_args.extend(["-simulate", args.simulate])
+        env["SIM_TIMEOUT"] = str(args.max_seconds)
+    if args.depth:
+        tlc_args.extend(["-depth", str(args.depth)])
 
     cmd = ["java"] + jvm_args + cp_args + ["tlc2.TLC"] + tlc_args + [args.spec]
     if args.v:
