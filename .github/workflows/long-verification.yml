@@ -23,25 +23,24 @@ jobs:
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+    defaults:
+      run:
+        working-directory: tla
 
     steps:
       - uses: actions/checkout@v4
       - run: |
           sudo apt update
           sudo apt install -y default-jre
-          python3 ./tla/install_deps.py
+          python3 install_deps.py
 
-      - name: MCccfraft - Configurations=2C2N (atomic reconf) MaxTermCount=2 MaxRequestCount=2 NoCheckQuorum
-        run: |
-          set -x
-          cd tla/
-          ./tlc.py --max-term-count 2 --max-request-count 1 --raft-configs 2C2N --disable-check-quorum --trace-name 2C2N consensus/MCccfraft.tla
+      - run: ./tlc.py --max-term-count 2 --max-request-count 1 --raft-configs 2C2N --disable-check-quorum --trace-name 2C2N consensus/MCccfraft.tla
 
-      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
+      - name: Upload TLC traces
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: tlc-model-checking-with-atomic-reconfig-consensus
+          name: tlc-simulation-consensus
           path: |
             tla/consensus/*_TTrace_*.tla
             tla/*.json
@@ -52,25 +51,24 @@ jobs:
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+    defaults:
+      run:
+        working-directory: tla
 
     steps:
       - uses: actions/checkout@v4
       - run: |
           sudo apt update
           sudo apt install -y default-jre
-          python3 ./tla/install_deps.py
+          python3 install_deps.py
 
-      - name: MCccfraft - Configurations=3C2N MaxTermCount=2 MaxRequestCount=1 NoCheckQuorum
-        run: |
-          set -x
-          cd tla/
-          ./tlc.py --max-term-count 2 --max-request-count 0 --raft-configs 3C2N --disable-check-quorum --trace-name 3C2N consensus/MCccfraft.tla
+      - run: ./tlc.py --max-term-count 2 --max-request-count 0 --raft-configs 3C2N --disable-check-quorum --trace-name 3C2N consensus/MCccfraft.tla
 
-      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
+      - name: Upload TLC traces
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
-          name: tlc-model-checking-with-reconfig-consensus
+          name: tlc-simulation-consensus
           path: |
             tla/consensus/*_TTrace_*.tla
             tla/*.json
@@ -79,26 +77,24 @@ jobs:
     name: Simulation - Consensus
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') }}
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tla
 
     steps:
       - uses: actions/checkout@v4
       - run: |
           sudo apt update
           sudo apt install -y default-jre
-          python3 ./tla/install_deps.py
+          python3 install_deps.py
 
-      - name: Simulation
-        run: |
-          set -x
-          cd tla/
-          ./tlc.py --simulate num=100 --depth 500 consensus/SIMccfraft.tla
-        env:
-          SIM_TIMEOUT: 3000
+      - run: ./tlc.py --simulate num=100 --max-seconds 3000 --depth 500 consensus/SIMccfraft.tla
 
-      - name: Upload artifacts.
+      - name: Upload TLC traces
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consensus
           path: |
-            tla/*
+            tla/consensus/*_TTrace_*.tla
+            tla/*.json

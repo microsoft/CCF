@@ -42,7 +42,7 @@ jobs:
       - run: ./tlc.py consistency/MCMultiNodeReads.tla
       - run: ./tlc.py consistency/MCMultiNodeReadsAlt.tla
 
-      - name: Upload TLC traces.
+      - name: Upload TLC traces
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
@@ -54,6 +54,9 @@ jobs:
   counterexamples-consistency:
     name: Counterexamples - Consistency
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tla
 
     steps:
       - uses: actions/checkout@v4
@@ -61,31 +64,19 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y default-jre
-          python3 ./tla/install_deps.py
+          python3 install_deps.py
 
-      - name: consistency/MCSingleNodeCommitReachability.cfg
-        run: |
-          cd tla/
-          ./tlc_debug.sh --config consistency/MCSingleNodeCommitReachability.cfg consistency/MCSingleNodeReads.tla
-
-      - name: consistency/MCMultiNodeCommitReachability.cfg
-        run: |
-          cd tla/
-          ./tlc_debug.sh --config consistency/MCMultiNodeCommitReachability.cfg consistency/MCMultiNodeReads.tla
-
-      - name: consistency/MCMultiNodeInvalidReachability.cfg
-        run: |
-          cd tla/
-          ./tlc_debug.sh --config consistency/MCMultiNodeInvalidReachability.cfg consistency/MCMultiNodeReads.tla
-
-      - name: consistency/MCMultiNodeReadsNotLinearizable.cfg
-        run: |
-          cd tla/
-          ./tlc_debug.sh --config consistency/MCMultiNodeReadsNotLinearizable.cfg consistency/MCMultiNodeReads.tla
+      - run: ./tlc_debug.sh --config consistency/MCSingleNodeCommitReachability.cfg consistency/MCSingleNodeReads.tla
+      - run: ./tlc_debug.sh --config consistency/MCMultiNodeCommitReachability.cfg consistency/MCMultiNodeReads.tla
+      - run: ./tlc_debug.sh --config consistency/MCMultiNodeInvalidReachability.cfg consistency/MCMultiNodeReads.tla
+      - run: ./tlc_debug.sh --config consistency/MCMultiNodeReadsNotLinearizable.cfg consistency/MCMultiNodeReads.tla
 
   simulation-consistency:
     name: Simulation - Consistency
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tla
 
     steps:
       - uses: actions/checkout@v4
@@ -93,14 +84,11 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y default-jre
-          python3 ./tla/install_deps.py
+          python3 install_deps.py
 
-      - name: consistency/MultiNodeReads.cfg
-        run: |
-          cd tla/
-          ./tlc.py --simulate num=500 --depth 50 consistency/MultiNodeReads.tla
+      - run: ./tlc.py --simulate num=500 --depth 50 consistency/MultiNodeReads.tla
 
-      - name: Upload traces in TLA and JSON format
+      - name: Upload TLC traces
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
@@ -114,6 +102,9 @@ jobs:
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+    defaults:
+      run:
+        working-directory: tla
 
     steps:
       - uses: actions/checkout@v4
@@ -121,27 +112,13 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y default-jre
-          python3 ./tla/install_deps.py
+          python3 install_deps.py
 
-      - name: MCabs.cfg
-        run: |
-          set -x
-          cd tla/
-          ./tlc.py consensus/MCabs.tla
+      - run: ./tlc.py consensus/MCabs.tla
+      - run: ./tlc.py --max-term-count 2 --max-request-count 2 --raft-configs 1C2N --trace-name 1C2N consensus/MCccfraft.tla
+      - run: ./tlc.py --max-term-count 2 --max-request-count 2 --raft-configs 1C3N --trace-name 1C3N consensus/MCccfraft.tla
 
-      - name: MCccfraft - 1C2N
-        run: |
-          set -x
-          cd tla/
-          ./tlc.py --max-term-count 2 --max-request-count 2 --raft-configs 1C2N --trace-name 1C2N consensus/MCccfraft.tla
-
-      - name: MCccfraft - 1C3N
-        run: |
-          set -x
-          cd tla/
-          ./tlc.py --max-term-count 2 --max-request-count 2 --raft-configs 1C3N --trace-name 1C3N consensus/MCccfraft.tla
-
-      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
+      - name: Upload TLC traces
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
@@ -153,6 +130,9 @@ jobs:
   simulation-consensus:
     name: Simulation - Consensus
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tla
 
     steps:
       - uses: actions/checkout@v4
@@ -160,21 +140,18 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y default-jre
-          python3 ./tla/install_deps.py
+          python3 install_deps.py
 
-      - name: Simulation
-        run: |
-          set -x
-          cd tla/
-          ./tlc.py --simulate num=100 consensus/SIMccfraft.tla
+      - run: tlc.py --simulate num=100 consensus/SIMccfraft.tla
 
-      - name: Upload artifacts.
+      - name: Upload TLC traces
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consensus
           path: |
-            tla/*
+            tla/consensus/*_TTrace_*.tla
+            tla/*.json
 
   trace-validation-consensus:
     name: Trace Validation - Consensus
