@@ -119,10 +119,10 @@ def cli():
         help="Set TLC to use depth-first search",
     )
     tv.add_argument(
-        "--driver-trace",
+        "--ccf-raft-trace",
         type=pathlib.Path,
         default=None,
-        help="Path to a CCF Raft driver trace .ndjson file, produced by make_traces.sh",
+        help="Path to a CCF Raft trace .ndjson file, for example produced by make_traces.sh",
     )
 
     # Simulation

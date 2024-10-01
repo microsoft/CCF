@@ -193,7 +193,7 @@ jobs:
           cd tla/
           mkdir -p traces/consensus
           mv ../build/consensus traces/
-          parallel './tlc.py --workers 1 --dot --trace-name {} tv --driver-trace {} consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
+          parallel './tlc.py --workers 1 --dot --trace-name {} tv --ccf-raft-trace {} consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
         shell: bash
 
       - name: Upload artifacts.
