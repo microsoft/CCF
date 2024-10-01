@@ -4,6 +4,7 @@
 import dataclasses
 import sys
 
+
 @dataclasses.dataclass
 class LOC:
     code: int = 0
@@ -21,8 +22,9 @@ class LOC:
         return LOC(
             self.code + other.code,
             self.comment + other.comment,
-            self.blank + other.blank
+            self.blank + other.blank,
         )
+
 
 def is_comment(line: str) -> bool:
     if line.startswith(r"\*"):
@@ -33,14 +35,18 @@ def is_comment(line: str) -> bool:
         return True
     return False
 
+
 def is_multiline_comment_start(line: str) -> bool:
     return line.startswith("(*")
+
 
 def is_footer(line: str) -> bool:
     return all(c == "=" for c in line)
 
+
 def is_multiline_comment_end(line: str) -> bool:
     return line.endswith("*)")
+
 
 def count_loc(lines) -> LOC:
     loc = LOC()
@@ -67,6 +73,7 @@ def count_loc(lines) -> LOC:
         else:
             loc.code += 1
     return loc
+
 
 JUST_CODE = r"""
 ---------- MODULE MCccfraft ----------
@@ -127,6 +134,7 @@ IsAppendEntriesRequest(msg, dst, src, logline) ==
     /\ msg.prevLogIndex = logline.msg.packet.prev_idx
 """
 
+
 def test_loc():
     """
     Run with py.test loc.py
@@ -135,7 +143,10 @@ def test_loc():
     assert count_loc(CODE_AND_COMMENTS.splitlines()) == LOC(code=2, comment=2, blank=1)
     assert count_loc(FOOTER.splitlines()) == LOC(code=0, comment=9, blank=1)
     assert count_loc(MULTILINE_COMMENT.splitlines()) == LOC(code=2, comment=4, blank=2)
-    assert count_loc(MULTILINE_COMMENT_2.splitlines()) == LOC(code=7, comment=12, blank=1)
+    assert count_loc(MULTILINE_COMMENT_2.splitlines()) == LOC(
+        code=7, comment=12, blank=1
+    )
+
 
 if __name__ == "__main__":
     locs = []
