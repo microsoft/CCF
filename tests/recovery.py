@@ -166,8 +166,8 @@ def test_recover_service_with_wrong_identity(network, args):
     first_service_identity_file = args.previous_service_identity_file
 
     with old_primary.client() as c:
-        last_view, last_seq = (
-            c.get("/node/commit").body.json()["transaction_id"].split(".")
+        before_recovery_tx_id = ccf.tx_id.TxID.from_str(
+            c.get("/node/commit").body.json()["transaction_id"]
         )
 
     network.stop_all_nodes()
@@ -264,10 +264,11 @@ def test_recover_service_with_wrong_identity(network, args):
     # therefore no receipt can be generated.
     primary, _ = recovered_network.find_primary()
     with primary.client() as cli:
-        curr_view, curr_seq = (
-            cli.get("/node/commit").body.json()["transaction_id"].split(".")
+        curr_tx_id = ccf.tx_id.TxID.from_str(
+            cli.get("/node/commit").body.json()["transaction_id"]
         )
-        response = cli.get(f"/node/receipt?transaction_id={last_view}.{last_seq}")
+
+        response = cli.get(f"/node/receipt?transaction_id={str(before_recovery_tx_id)}")
         assert response.status_code == http.HTTPStatus.NOT_FOUND, response
         assert (
             "not signed by the current service"
@@ -276,7 +277,7 @@ def test_recover_service_with_wrong_identity(network, args):
 
     # TX from the current epoch though can be verified, as soon as the caller
     # trusts the current service identity.
-    receipt = primary.get_receipt(curr_view, curr_seq).json()
+    receipt = primary.get_receipt(curr_tx_id.view, curr_tx_id.seqno).json()
     verify_receipt(receipt, recovered_network.cert, is_signature_tx=True)
 
     recovered_network.recover(args)
