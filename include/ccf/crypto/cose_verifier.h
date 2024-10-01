@@ -27,4 +27,7 @@ namespace ccf::crypto
   COSEVerifierUniquePtr make_cose_verifier_from_cert(
     const std::vector<uint8_t>& cert);
   COSEVerifierUniquePtr make_cose_verifier_from_key(const Pem& public_key);
+
+  std::pair<std::string, std::string> extract_cose_endorsement_validity(
+    std::span<const uint8_t> cose_msg);
 }

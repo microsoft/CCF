@@ -19,6 +19,11 @@
 
 namespace
 {
+  static std::string qcbor_buf_to_string(const UsefulBufC& buf)
+  {
+    return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
+  }
+
   static std::optional<int> extract_algorithm_from_header(
     std::span<const uint8_t> cose_msg)
   {
@@ -222,5 +227,90 @@ namespace ccf::crypto
   COSEVerifierUniquePtr make_cose_verifier_from_key(const Pem& public_key)
   {
     return std::make_unique<COSEKeyVerifier_OpenSSL>(public_key);
+  }
+
+  std::pair<std::string, std::string> extract_cose_endorsement_validity(
+    std::span<const uint8_t> cose_msg)
+  {
+    UsefulBufC msg{cose_msg.data(), cose_msg.size()};
+    QCBORError qcbor_result;
+
+    QCBORDecodeContext ctx;
+    QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
+
+    QCBORDecode_EnterArray(&ctx, nullptr);
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      LOG_DEBUG_FMT("Failed to parse COSE_Sign1 outer array");
+      return {};
+    }
+
+    const uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
+    if (tag != CBOR_TAG_COSE_SIGN1)
+    {
+      LOG_DEBUG_FMT("Failed to parse COSE_Sign1 tag");
+      return {};
+    }
+
+    struct q_useful_buf_c protected_parameters;
+    QCBORDecode_EnterBstrWrapped(
+      &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
+    QCBORDecode_EnterMap(&ctx, NULL);
+
+    enum
+    {
+      FROM_INDEX,
+      TILL_INDEX,
+      END_INDEX
+    };
+    QCBORItem header_items[END_INDEX + 1];
+
+    header_items[FROM_INDEX].label.string = UsefulBufC{"from", 4};
+    header_items[FROM_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
+    header_items[FROM_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+    header_items[TILL_INDEX].label.string = UsefulBufC{"till", 4};
+    header_items[TILL_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
+    header_items[TILL_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+    header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
+
+    QCBORDecode_GetItemsInMap(&ctx, header_items);
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      LOG_DEBUG_FMT("Failed to decode protected header");
+      return {};
+    }
+
+    if (header_items[FROM_INDEX].uDataType == QCBOR_TYPE_NONE)
+    {
+      LOG_DEBUG_FMT("Failed to retrieve (missing) 'from' parameter");
+      return {};
+    }
+
+    if (header_items[TILL_INDEX].uDataType == QCBOR_TYPE_NONE)
+    {
+      LOG_DEBUG_FMT("Failed to retrieve (missing) 'till' parameter");
+      return {};
+    }
+
+    const auto from = qcbor_buf_to_string(header_items[FROM_INDEX].val.string);
+    const auto till = qcbor_buf_to_string(header_items[TILL_INDEX].val.string);
+
+    // Complete decode to ensure well-formed CBOR.
+
+    QCBORDecode_ExitMap(&ctx);
+    QCBORDecode_ExitBstrWrapped(&ctx);
+
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      LOG_DEBUG_FMT("Failed to decode protected header: {}", qcbor_result);
+      return {};
+    }
+
+    return {from, till};
   }
 }

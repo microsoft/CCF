@@ -345,10 +345,14 @@ namespace ccf
         {
           const auto pubkey = ccf::crypto::public_key_pem_from_cert(
             ccf::crypto::cert_pem_to_der(prev_service_info->cert));
-          const auto prev_ident_endorsement = cose_sign1(
-            service_key,
-            {}, // TO DO headers,
-            pubkey.raw());
+          ;
+          const auto pheaders = {
+            ccf::crypto::cose_params_string_string(
+              "from", prev_service_info->current_service_create_txid->to_str()),
+            ccf::crypto::cose_params_string_string(
+              "till", create_txid.to_str())};
+          const auto prev_ident_endorsement =
+            cose_sign1(service_key, pheaders, pubkey.raw());
           previous_identity_endorsement->put(prev_ident_endorsement);
         }
         catch (const ccf::crypto::COSESignError& e)

@@ -521,7 +521,12 @@ namespace ccf::historical
       if (
         historical_state == nullptr ||
         (!populate_service_endorsements(
-          args.tx, historical_state, state_cache, network_identity_subsystem)))
+          args.tx,
+          historical_state,
+          state_cache,
+          network_identity_subsystem)) ||
+        !populate_cose_service_endorsements(
+          args.tx, historical_state, state_cache))
       {
         auto reason = fmt::format(
           "Historical transaction {} is not currently available.",
