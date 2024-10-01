@@ -24,6 +24,9 @@ jobs:
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+    defaults:
+      run:
+        working-directory: tla
 
     steps:
       - uses: actions/checkout@v4
@@ -31,34 +34,15 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y default-jre
-          python3 ./tla/install_deps.py
+          python3 install_deps.py
 
-      - name: consistency/MCSingleNode.cfg
-        run: |
-          cd tla/
-          ./tlc.py consistency/MCSingleNode.tla
+      - run: ./tlc.py consistency/MCSingleNode.tla
+      - run: ./tlc.py consistency/MCSingleNodeReads.tla
+      - run: ./tlc.py consistency/MCMultiNode.tla
+      - run: ./tlc.py consistency/MCMultiNodeReads.tla
+      - run: ./tlc.py consistency/MCMultiNodeReadsAlt.tla
 
-      - name: consistency/MCSingleNodeReads.cfg
-        run: |
-          cd tla/
-          ./tlc.py consistency/MCSingleNodeReads.tla
-
-      - name: consistency/MCMultiNode.cfg
-        run: |
-          cd tla/
-          ./tlc.py consistency/MCMultiNode.tla
-
-      - name: consistency/MCMultiNodeReads.cfg
-        run: |
-          cd tla/
-          ./tlc.py consistency/MCMultiNodeReads.tla
-
-      - name: consistency/MCMultiNodeReadsAlt.cfg
-        run: |
-          cd tla/
-          ./tlc.py consistency/MCMultiNodeReadsAlt.tla
-
-      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
+      - name: Upload TLC traces.
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
