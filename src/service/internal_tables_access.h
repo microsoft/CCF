@@ -345,7 +345,7 @@ namespace ccf
         {
           const auto pubkey = ccf::crypto::public_key_pem_from_cert(
             ccf::crypto::cert_pem_to_der(prev_service_info->cert));
-          ;
+
           const auto pheaders = {
             ccf::crypto::cose_params_string_string(
               "from", prev_service_info->current_service_create_txid->to_str()),
@@ -357,9 +357,10 @@ namespace ccf
         }
         catch (const ccf::crypto::COSESignError& e)
         {
-          LOG_FAIL_FMT("Failed o sign previous service identity: {}", e.what());
-          throw; // TO DO catch re-throw in frontent? Or change to log and still
-                 // create service?
+          LOG_FAIL_FMT(
+            "Failed to sign previous service identity: {}", e.what());
+          throw std::logic_error(fmt::format(
+            "Failed to sign previous service identity: {}", e.what()));
         }
 
         // Record number of recoveries for service. If the value does

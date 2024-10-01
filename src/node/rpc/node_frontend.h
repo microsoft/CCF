@@ -1509,13 +1509,21 @@ namespace ccf
             "Service is already created.");
         }
 
-        InternalTablesAccess::create_service(
-          ctx.tx,
-          in.service_cert,
-          *this->network.identity->get_key_pair(),
-          in.create_txid,
-          in.service_data,
-          recovering);
+        try
+        {
+          InternalTablesAccess::create_service(
+            ctx.tx,
+            in.service_cert,
+            *this->network.identity->get_key_pair(),
+            in.create_txid,
+            in.service_data,
+            recovering);
+        }
+        catch (const std::logic_error& e)
+        {
+          return make_error(
+            HTTP_STATUS_FORBIDDEN, ccf::errors::InternalError, e.what());
+        }
 
         // Retire all nodes, in case there are any (i.e. post recovery)
         InternalTablesAccess::retire_active_nodes(ctx.tx);
