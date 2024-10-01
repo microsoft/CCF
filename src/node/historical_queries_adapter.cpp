@@ -510,7 +510,8 @@ namespace ccf::historical
       }
 
       // If recovery in progress, prohibit any historical queries for previous
-      // epochs.
+      // epochs, because the service does not yet have access to the
+      // ledger secrets necessary to produce commit evidence.
       auto service = args.tx.template ro<ccf::Service>(Tables::SERVICE);
       auto active_service = service->get();
       if (active_service && active_service->status != ServiceStatus::OPEN)
