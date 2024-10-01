@@ -73,7 +73,7 @@ def cli():
         "--config",
         type=pathlib.Path,
         default=None,
-        help="Path to the TLA+ configuration",
+        help="Path to the TLA+ configuration, defaults to spec name",
     )
 
     subparsers = parser.add_subparsers(dest="cmd")
