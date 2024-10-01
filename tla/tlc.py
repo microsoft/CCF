@@ -27,18 +27,16 @@ def cli():
     parser = argparse.ArgumentParser(
         description="TLC model checker wrapper for the CCF project"
     )
-    parser.add_argument(
-        "--disable-cdot", action="store_true", help="Disable \\cdot support"
-    )
-    parser.add_argument(
-        "--jmx",
-        action="store_true",
-        help="Enable JMX to allow monitoring, use echo 'get -b tlc2.tool:type=ModelChecker CurrentState' | jmxterm -l localhost:55449 -i to query",
-    )
+
+    # Common options for all commands
     parser.add_argument(
         "-v",
         action="store_true",
         help="Print out command and environment before running",
+    )
+    # Changes to TLC defaults
+    parser.add_argument(
+        "--disable-cdot", action="store_true", help="Disable \\cdot support"
     )
     parser.add_argument(
         "--workers",
@@ -50,14 +48,20 @@ def cli():
         "--checkpoint", type=int, default=0, help="Checkpoint interval, default is 0"
     )
     parser.add_argument(
-        "--dot", action="store_true", help="Generate a dot file for the state graph"
-    )
-    parser.add_argument(
         "--lncheck",
         type=str,
         choices=["final", "default"],
         default="final",
         help="Liveness check, set to 'default' to run periodically or 'final' to run once at the end, default is final",
+    )
+    # Convenient shortcuts applicable to all commands
+    parser.add_argument(
+        "--jmx",
+        action="store_true",
+        help="Enable JMX to allow monitoring, use echo 'get -b tlc2.tool:type=ModelChecker CurrentState' | jmxterm -l localhost:55449 -i to query",
+    )
+    parser.add_argument(
+        "--dot", action="store_true", help="Generate a dot file for the state graph"
     )
     parser.add_argument(
         "--trace-name",
@@ -71,66 +75,74 @@ def cli():
         default=None,
         help="Path to the TLA+ configuration",
     )
-    parser.add_argument(
-        "spec", type=pathlib.Path, help="Path to the TLA+ specification"
+
+    subparsers = parser.add_subparsers(dest="cmd")
+
+    # Model checking
+    mc = subparsers.add_parser("mc", help="Model checking")
+    # Control spec options of MCccfraft
+    mc.add_argument(
+        "--max-term-count",
+        type=int,
+        default=0,
+        help="Maximum number of terms the nodes are allowed to advance through, defaults to 0",
+    )
+    mc.add_argument(
+        "--max-request-count",
+        type=int,
+        default=3,
+        help="Maximum number of requests the nodes are allowed to advance through, defaults to 3",
+    )
+    mc.add_argument(
+        "--raft-configs",
+        type=str,
+        default="1C2N",
+        help="Raft configuration sequence, defaults to 1C2N",
+    )
+    mc.add_argument(
+        "--disable-check-quorum", action="store_true", help="Disable CheckQuorum action"
     )
 
-    # It may make sense to split simulation, trace validation and model checking at sub-commands,
-    # to scope options appropriately, and introduce update defaults such as enabling dfs appropriately.
-    trace_validation = parser.add_argument_group(title="trace validation arguments")
-    trace_validation.add_argument(
-        "--dfs",
+    # Trace validation
+    tv = subparsers.add_parser("tv", help="Trace validation")
+    # DFS is a good default for trace validation
+    tv.add_argument(
+        "--disable-dfs",
         action="store_true",
         help="Set TLC to use depth-first search",
     )
-    trace_validation.add_argument(
+    tv.add_argument(
         "--driver-trace",
         type=pathlib.Path,
         default=None,
         help="Path to a CCF Raft driver trace .ndjson file, produced by make_traces.sh",
     )
 
-    simulation = parser.add_argument_group(title="simulation arguments")
-    simulation.add_argument(
-        "--simulate",
-        type=str,
-        help="Set TLC to simulate rather than model-check",
+    # Simulation
+    sim = subparsers.add_parser("sim", help="Simulation")
+    sim.add_argument(
+        "--num",
+        type=int,
+        default=None,
+        help="Number of behaviours to simulate",
     )
-    simulation.add_argument(
+    sim.add_argument(
         "--depth",
         type=int,
         default=500,
         help="Set the depth of the simulation, defaults to 500",
     )
-    simulation.add_argument(
+    sim.add_argument(
         "--max-seconds",
         type=int,
         default=1200,
         help="Set the timeout of the simulation, defaults to 1200 seconds",
     )
 
-    mc_ccfraft = parser.add_argument_group(title="MCccfraft arguments")
-    mc_ccfraft.add_argument(
-        "--max-term-count",
-        type=int,
-        default=0,
-        help="Maximum number of terms the nodes are allowed to advance through, defaults to 0",
+    parser.add_argument(
+        "spec", type=pathlib.Path, help="Path to the TLA+ specification"
     )
-    mc_ccfraft.add_argument(
-        "--max-request-count",
-        type=int,
-        default=3,
-        help="Maximum number of requests the nodes are allowed to advance through, defaults to 3",
-    )
-    mc_ccfraft.add_argument(
-        "--raft-configs",
-        type=str,
-        default="1C2N",
-        help="Raft configuration sequence, defaults to 1C2N",
-    )
-    mc_ccfraft.add_argument(
-        "--disable-check-quorum", action="store_true", help="Disable CheckQuorum action"
-    )
+
     return parser
 
 
@@ -168,8 +180,6 @@ if __name__ == "__main__":
         jvm_args.append("-Dcom.sun.management.jmxremote.authenticate=false")
     if not args.disable_cdot:
         jvm_args.append("-Dtlc2.tool.impl.Tool.cdot=true")
-    if args.dfs:
-        jvm_args.append("-Dtlc2.tool.queue.IStateQueue=StateDeque")
     if args.config is not None:
         tlc_args.extend(["-config", args.config])
     if args.dot:
@@ -177,23 +187,29 @@ if __name__ == "__main__":
             ["-dump", "dot,constrained,colorize,actionlabels", f"{trace_name}.dot"]
         )
 
-    if args.driver_trace is not None:
-        env["DRIVER_TRACE"] = args.driver_trace
-
-    if args.simulate is not None:
-        tlc_args.extend(["-simulate", args.simulate])
+    if args.cmd == "mc":
+        if args.max_term_count is not None:
+            env["MAX_TERM_COUNT"] = str(args.max_term_count)
+        if args.max_request_count is not None:
+            env["MAX_REQUEST_COUNT"] = str(args.max_request_count)
+        if args.raft_configs is not None:
+            env["RAFT_CONFIGS"] = args.raft_configs
+        if args.disable_check_quorum is not None:
+            env["DISABLE_CHECK_QUORUM"] = "true"
+    elif args.cmd == "tv":
+        if not args.disable_dfs:
+            jvm_args.append("-Dtlc2.tool.queue.IStateQueue=StateDeque")
+        if args.driver_trace is not None:
+            env["DRIVER_TRACE"] = args.driver_trace
+    elif args.cmd == "sim":
+        tlc_args.extend(["-simulate"])
+        if args.num is not None:
+            tlc_args.extend([f"num={args.num}"])
         env["SIM_TIMEOUT"] = str(args.max_seconds)
         if args.depth is not None:
             tlc_args.extend(["-depth", str(args.depth)])
-
-    if args.max_term_count is not None:
-        env["MAX_TERM_COUNT"] = str(args.max_term_count)
-    if args.max_request_count is not None:
-        env["MAX_REQUEST_COUNT"] = str(args.max_request_count)
-    if args.raft_configs is not None:
-        env["RAFT_CONFIGS"] = args.raft_configs
-    if args.disable_check_quorum is not None:
-        env["DISABLE_CHECK_QUORUM"] = "true"
+    else:
+        raise ValueError(f"Unknown command: {args.cmd}")
 
     cmd = ["java"] + jvm_args + cp_args + ["tlc2.TLC"] + tlc_args + [args.spec]
     if args.v:
