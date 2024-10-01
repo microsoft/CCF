@@ -11,6 +11,8 @@
 # - Provide a useful --help, and basic sanity checks
 
 import os
+import sys
+import shlex
 import argparse
 import pprint
 import pathlib
@@ -30,9 +32,14 @@ def cli():
 
     # Common options for all commands
     parser.add_argument(
-        "-v",
+        "-x",
         action="store_true",
         help="Print out command and environment before running",
+    )
+    parser.add_argument(
+        "-n",
+        action="store_true",
+        help="Print out command and environment, but do not run",
     )
     # Changes to TLC defaults
     parser.add_argument(
@@ -150,7 +157,7 @@ CI = "CI" in os.environ
 
 
 if __name__ == "__main__":
-    env = os.environ.copy()
+    env = {}
     args = cli().parse_args()
     jvm_args = DEFAULT_JVM_ARGS
     cp_args = DEFAULT_CLASSPATH_ARGS
@@ -215,7 +222,12 @@ if __name__ == "__main__":
         raise ValueError(f"Unknown command: {args.cmd}")
 
     cmd = ["java"] + jvm_args + cp_args + ["tlc2.TLC"] + tlc_args + [args.spec]
-    if args.v:
-        pprint.pprint(env)
-        pprint.pprint(cmd)
-    os.execvpe("java", cmd, env)
+    if args.x or args.n:
+        for key, value in env.items():
+            print(f"{key}={value}")
+        print(shlex.join(str(arg) for arg in cmd))
+    if args.n:
+        sys.exit(0)
+    merged_env = os.environ.copy()
+    merged_env.update(env)
+    os.execvpe("java", cmd, merged_env)
