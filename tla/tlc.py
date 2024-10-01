@@ -124,7 +124,7 @@ def cli():
         "--num",
         type=int,
         default=None,
-        help="Number of behaviours to simulate",
+        help="Number of behaviours to simulate per worker thread",
     )
     sim.add_argument(
         "--depth",
