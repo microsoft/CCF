@@ -118,6 +118,12 @@ def cli():
         default=0,
         help="Maximum number of terms the nodes are allowed to advance through, defaults to 0",
     )
+    mc_ccfraft.add_argument(
+        "--max-request-count",
+        type=int,
+        default=3,
+        help="Maximum number of requests the nodes are allowed to advance through, defaults to 3",
+    )
     return parser
 
 
@@ -174,7 +180,9 @@ if __name__ == "__main__":
         tlc_args.extend(["-depth", str(args.depth)])
 
     if args.max_term_count:
-        env["MaxTermCount"] = str(args.max_term_count)
+        env["MAX_TERM_COUNT"] = str(args.max_term_count)
+    if args.max_request_count:
+        env["MAX_REQUEST_COUNT"] = str(args.max_request_count)
 
     cmd = ["java"] + jvm_args + cp_args + ["tlc2.TLC"] + tlc_args + [args.spec]
     if args.v:

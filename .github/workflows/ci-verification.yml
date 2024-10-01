@@ -149,13 +149,13 @@ jobs:
         run: |
           set -x
           cd tla/
-          Configurations=1C2N RequestLimit=3 ./tlc.py --max-term-count 2 --trace-name MCccfraft1C2NT2R3 consensus/MCccfraft.tla
+          Configurations=1C2N ./tlc.py --max-term-count 2 --max-request-count 2 --trace-name MCccfraft1C2NT2R3 consensus/MCccfraft.tla
 
       - name: MCccfraft - Configurations=1C3N
         run: |
           set -x
           cd tla/
-          Configurations=1C3N RequestLimit=3 ./tlc.py --max-term-count 2 --trace-name MCccfraft1C3N2T3R consensus/MCccfraft.tla
+          Configurations=1C3N ./tlc.py --max-term-count 2 --max-request-count 2 --trace-name MCccfraft1C3N2T3R consensus/MCccfraft.tla
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v4

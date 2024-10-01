@@ -18,17 +18,17 @@ Configurations ==
 ASSUME Configurations \in Seq(SUBSET Servers)
 
 MaxTermCount ==
-    IF "MaxTermCount" \in DOMAIN IOEnv
-    THEN atoi(IOEnv.MaxTermCount)
-    ELSE Print("Found no env var MaxTermCount. Falling back to MaxTermCount=0.", 0)
+    IF "MAX_TERM_COUNT" \in DOMAIN IOEnv
+    THEN atoi(IOEnv.MAX_TERM_COUNT)
+    ELSE Print("MAX_TERM_COUNT is not set, defaulting to 0", 0)
 ASSUME MaxTermCount \in Nat
 
 \* Limit on client requests
-RequestLimit ==
-    IF "RequestLimit" \in DOMAIN IOEnv
-    THEN atoi(IOEnv.RequestLimit)
-    ELSE Print("Found no env var RequestLimit.  Falling back to 3 requests.", 3)
-ASSUME RequestLimit \in Nat
+MaxRequestCount ==
+    IF "MAX_REQUEST_COUNT" \in DOMAIN IOEnv
+    THEN atoi(IOEnv.MAX_REQUEST_COUNT)
+    ELSE Print("MAX_REQUEST_COUNT is not set, defaulting to 3", 3)
+ASSUME MaxRequestCount \in Nat
 
 ToServers ==
     UNION Range(Configurations)
@@ -70,8 +70,8 @@ MCTimeout(i) ==
 
 \* Limit number of requests (new entries) that can be made
 MCClientRequest(i) ==
-    \* Allocation-free variant of Len(SelectSeq(log[i], LAMBDA e: e.contentType = TypeEntry)) < RequestLimit
-    /\ FoldSeq(LAMBDA e, count: IF e.contentType = TypeEntry THEN count + 1 ELSE count, 0, log[i]) < RequestLimit
+    \* Allocation-free variant of Len(SelectSeq(log[i], LAMBDA e: e.contentType = TypeEntry)) < MaxRequestCount
+    /\ FoldSeq(LAMBDA e, count: IF e.contentType = TypeEntry THEN count + 1 ELSE count, 0, log[i]) <= MaxRequestCount
     /\ CCF!ClientRequest(i)
 
 MCSignCommittableMessages(i) ==
@@ -143,7 +143,7 @@ DebugNotTooManySigsInv ==
 
 \* The inital log is up to 4 entries long + one log entry per request/reconfiguration + one signature per request/reconfiguration or new view (no consecutive sigs except across views)
 MaxLogLength == 
-    4 + ((RequestLimit + Len(Configurations)) * 2) + (StartTerm + MaxTermCount)
+    4 + ((MaxRequestCount + Len(Configurations)) * 2) + (StartTerm + MaxTermCount)
 
 MappingToAbs == 
   INSTANCE abs WITH

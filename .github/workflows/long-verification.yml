@@ -31,11 +31,11 @@ jobs:
           sudo apt install -y default-jre
           python3 ./tla/install_deps.py
 
-      - name: MCccfraft - Configurations=2C2N (atomic reconf) MaxTermCount=2 RequestLimit=3 NoCheckQuorum
+      - name: MCccfraft - Configurations=2C2N (atomic reconf) MaxTermCount=2 MaxRequestCount=2 NoCheckQuorum
         run: |
           set -x
           cd tla/
-          Configurations=2C2N RequestLimit=1 NoCheckQuorum= ./tlc.py --max-term-count 2 --trace-name MCccfraft2C2N4T1R consensus/MCccfraft.tla
+          Configurations=2C2N NoCheckQuorum= ./tlc.py --max-term-count 2 --max-request-count 1 --trace-name MCccfraft2C2N4T1R consensus/MCccfraft.tla
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v4
@@ -60,11 +60,11 @@ jobs:
           sudo apt install -y default-jre
           python3 ./tla/install_deps.py
 
-      - name: MCccfraft - Configurations=3C2N MaxTermCount=2 RequestLimit=1 NoCheckQuorum
+      - name: MCccfraft - Configurations=3C2N MaxTermCount=2 MaxRequestCount=1 NoCheckQuorum
         run: |
           set -x
           cd tla/
-          Configurations=3C2N RequestLimit=1 NoCheckQuorum= ./tlc.py --max-term-count 2 --trace-name MCccfraft3C2N4T1R consensus/MCccfraft.tla
+          Configurations=3C2N NoCheckQuorum= ./tlc.py --max-term-count 2 --max-request-count 0 --trace-name MCccfraft3C2N4T1R consensus/MCccfraft.tla
 
       - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
         uses: actions/upload-artifact@v4
