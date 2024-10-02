@@ -174,17 +174,8 @@ PostConditions ==
 ----
 \* Refinement
 
-\* The inital log is up to 4 entries long + one log entry per request/reconfiguration + one signature per request/reconfiguration or new view (no consecutive sigs except across views)
-MaxLogLength == 
-    4 + ((RequestCount + Len(Configurations)) * 2) + TermCount
+MCRefinementToAbsProp == MappingToAbs(StartTerm..StartTerm + TermCount)!AbsSpec
 
-MappingToAbs == 
-  INSTANCE abs WITH
-    Servers <- Servers,
-    Terms <- StartTerm..(StartTerm + TermCount),
-    MaxLogLength <- MaxLogLength,
-    cLogs <- [i \in Servers |-> [j \in 1..commitIndex[i] |-> log[i][j].term]]
-
-RefinementToAbsProp == MappingToAbs!AbsSpec
-
+ABSExtend(i) == MappingToAbs(StartTerm..StartTerm + TermCount)!ExtendAxiom(i)
+ABSCopyMaxAndExtend(i) == MappingToAbs(StartTerm..StartTerm + TermCount)!CopyMaxAndExtendAxiom(i)
 ===================================
