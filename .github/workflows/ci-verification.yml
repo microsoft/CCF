@@ -115,8 +115,8 @@ jobs:
           python3 install_deps.py
 
       - run: ./tlc.py mc consensus/MCabs.tla
-      - run: ./tlc.py --trace-name 1C2N mc --max-term-count 2 --max-request-count 2 --raft-configs 1C2N consensus/MCccfraft.tla
-      - run: ./tlc.py --trace-name 1C3N mc --max-term-count 2 --max-request-count 2 --raft-configs 1C3N consensus/MCccfraft.tla
+      - run: ./tlc.py --trace-name 1C2N mc --term-count 2 --max-request-count 2 --raft-configs 1C2N consensus/MCccfraft.tla
+      - run: ./tlc.py --trace-name 1C3N mc --term-count 2 --max-request-count 2 --raft-configs 1C3N consensus/MCccfraft.tla
 
       - name: Upload TLC traces
         uses: actions/upload-artifact@v4

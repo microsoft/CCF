@@ -89,10 +89,10 @@ def cli():
     mc = subparsers.add_parser("mc", help="Model checking")
     # Control spec options of MCccfraft
     mc.add_argument(
-        "--max-term-count",
+        "--term-count",
         type=int,
         default=0,
-        help="Maximum number of terms the nodes are allowed to advance through, defaults to 0",
+        help="Number of terms the nodes are allowed to advance through, defaults to 0",
     )
     mc.add_argument(
         "--max-request-count",
@@ -199,7 +199,7 @@ if __name__ == "__main__":
 
     if args.cmd == "mc":
         if args.max_term_count is not None:
-            env["MAX_TERM_COUNT"] = str(args.max_term_count)
+            env["TERM_COUNT"] = str(args.max_term_count)
         if args.max_request_count is not None:
             env["MAX_REQUEST_COUNT"] = str(args.max_request_count)
         if args.raft_configs is not None:
