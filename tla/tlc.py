@@ -198,8 +198,8 @@ if __name__ == "__main__":
         )
 
     if args.cmd == "mc":
-        if args.max_term_count is not None:
-            env["TERM_COUNT"] = str(args.max_term_count)
+        if args.term_count is not None:
+            env["TERM_COUNT"] = str(args.term_count)
         if args.request_count is not None:
             env["REQUEST_COUNT"] = str(args.request_count)
         if args.raft_configs is not None:
