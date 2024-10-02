@@ -24,11 +24,11 @@ TermCount ==
 ASSUME TermCount \in Nat
 
 \* Limit on client requests
-MaxRequestCount ==
-    IF "MAX_REQUEST_COUNT" \in DOMAIN IOEnv
-    THEN atoi(IOEnv.MAX_REQUEST_COUNT)
-    ELSE Print("MAX_REQUEST_COUNT is not set, defaulting to 3", 3)
-ASSUME MaxRequestCount \in Nat
+RequestCount ==
+    IF "REQUEST_COUNT" \in DOMAIN IOEnv
+    THEN atoi(IOEnv.REQUEST_COUNT)
+    ELSE Print("REQUEST_COUNT is not set, defaulting to 3", 3)
+ASSUME RequestCount \in Nat
 
 ToServers ==
     UNION Range(Configurations)
@@ -70,8 +70,8 @@ MCTimeout(i) ==
 
 \* Limit number of requests (new entries) that can be made
 MCClientRequest(i) ==
-    \* Allocation-free variant of Len(SelectSeq(log[i], LAMBDA e: e.contentType = TypeEntry)) <= MaxRequestCount
-    /\ FoldSeq(LAMBDA e, count: IF e.contentType = TypeEntry THEN count + 1 ELSE count, 0, log[i]) <= MaxRequestCount
+    \* Allocation-free variant of Len(SelectSeq(log[i], LAMBDA e: e.contentType = TypeEntry)) <= RequestCount
+    /\ FoldSeq(LAMBDA e, count: IF e.contentType = TypeEntry THEN count + 1 ELSE count, 0, log[i]) <= RequestCount
     /\ CCF!ClientRequest(i)
 
 MCSignCommittableMessages(i) ==
@@ -143,7 +143,7 @@ DebugNotTooManySigsInv ==
 
 \* The inital log is up to 4 entries long + one log entry per request/reconfiguration + one signature per request/reconfiguration or new view (no consecutive sigs except across views)
 MaxLogLength == 
-    4 + ((MaxRequestCount + Len(Configurations)) * 2) + TermCount
+    4 + ((RequestCount + Len(Configurations)) * 2) + TermCount
 
 MappingToAbs == 
   INSTANCE abs WITH

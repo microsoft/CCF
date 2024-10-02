@@ -95,7 +95,7 @@ def cli():
         help="Number of terms the nodes are allowed to advance through, defaults to 0",
     )
     mc.add_argument(
-        "--max-request-count",
+        "--request-count",
         type=int,
         default=3,
         help="Maximum number of requests the nodes are allowed to advance through, defaults to 3",
@@ -200,8 +200,8 @@ if __name__ == "__main__":
     if args.cmd == "mc":
         if args.max_term_count is not None:
             env["TERM_COUNT"] = str(args.max_term_count)
-        if args.max_request_count is not None:
-            env["MAX_REQUEST_COUNT"] = str(args.max_request_count)
+        if args.request_count is not None:
+            env["REQUEST_COUNT"] = str(args.request_count)
         if args.raft_configs is not None:
             env["RAFT_CONFIGS"] = args.raft_configs
         if args.disable_check_quorum is not None:
