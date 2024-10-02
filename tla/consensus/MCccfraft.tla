@@ -132,7 +132,8 @@ AllReconfigurationsCommitted ==
                 /\ Committed(s)[i].configuration = c
 
 DebugAllReconfigurationsReachableInv ==
-    ~AllReconfigurationsCommitted
+    \/ Len(Configurations) = 1 \* Prevent bogus violations if there is only one configuration.
+    \/ ~AllReconfigurationsCommitted
 
 DebugNotTooManySigsInv ==
     \A i \in Servers:
