@@ -143,6 +143,6 @@ DebugNotTooManySigsInv ==
 
 MCRefinementToAbsProp == MappingToAbs(StartTerm..StartTerm + TermCount)!AbsSpec
 
-ABSExtend(i) == MappingToAbs(StartTerm..MaxTermLimit+1)!ExtendAxiom(i)
-ABSCopyMaxAndExtend(i) == MappingToAbs(StartTerm..MaxTermLimit+1)!CopyMaxAndExtendAxiom(i)
+ABSExtend(i) == MappingToAbs(StartTerm..StartTerm + TermCount)!ExtendAxiom(i)
+ABSCopyMaxAndExtend(i) == MappingToAbs(StartTerm..StartTerm + TermCount)!CopyMaxAndExtendAxiom(i)
 ===================================
