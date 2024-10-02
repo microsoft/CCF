@@ -1,5 +1,5 @@
 ---------- MODULE MCccfraft ----------
-EXTENDS ccfraft, StatsFile, MCAliases, TLC, IOUtils
+EXTENDS ccfraft, MCAliases, TLC, IOUtils
 
 CONSTANTS
     NodeOne, NodeTwo, NodeThree
@@ -168,8 +168,7 @@ AreAllCovered ==
 ----
 
 PostConditions ==
-    /\ WriteStatsFile
-    /\ AreAllCovered
+    AreAllCovered
 
 ----
 \* Refinement
