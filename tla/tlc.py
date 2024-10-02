@@ -209,8 +209,8 @@ if __name__ == "__main__":
     elif args.cmd == "tv":
         if not args.disable_dfs:
             jvm_args.append("-Dtlc2.tool.queue.IStateQueue=StateDeque")
-        if args.driver_trace is not None:
-            env["DRIVER_TRACE"] = args.driver_trace
+        if args.ccf_raft_trace is not None:
+            env["CCF_RAFT_TRACE"] = args.ccf_raft_trace
     elif args.cmd == "sim":
         tlc_args.extend(["-simulate"])
         if args.num is not None:

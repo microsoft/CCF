@@ -77,7 +77,7 @@ IsMessage(msg, dst, src, logline) ==
 ASSUME TLCGet("config").mode = "bfs"
 
 JsonFile ==
-    IF "DRIVER_TRACE" \in DOMAIN IOEnv THEN IOEnv.DRIVER_TRACE ELSE "../traces/consensus/append.ndjson"
+    IF "CCF_RAFT_TRACE" \in DOMAIN IOEnv THEN IOEnv.CCF_RAFT_TRACE ELSE "../traces/consensus/append.ndjson"
 
 JsonLog ==
     \* Deserialize the System log as a sequence of records from the log file.
