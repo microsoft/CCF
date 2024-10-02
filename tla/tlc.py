@@ -98,7 +98,7 @@ def cli():
         "--request-count",
         type=int,
         default=3,
-        help="Maximum number of requests the nodes are allowed to advance through, defaults to 3",
+        help="Number of requests the nodes are allowed to advance through, defaults to 3",
     )
     mc.add_argument(
         "--raft-configs",
