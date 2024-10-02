@@ -140,6 +140,38 @@ DebugNotTooManySigsInv ==
         FoldSeq(LAMBDA e, count: IF e.contentType = TypeSignature THEN count + 1 ELSE count, 0, log[i]) < 8
 
 ----
+
+\* Initialize the counters for the Debug invariants to 0.
+ASSUME TLCSet(0, [ DebugInvLeaderCannotStepDown |-> 0,
+                   DebugInvSuccessfulCommitAfterReconfig |-> 0,
+                   DebugInvRetirementReachable |-> 0,
+                   DebugAppendEntriesRequests |-> 0,
+                   DebugCommittedEntriesTermsInv |-> 0,
+                   DebugNotTooManySigsInv |-> 0,  
+                   DebugAllReconfigurationsReachableInv |-> 0 ])
+
+\* A TLC state constraint that is always TRUE.  As a side-effect, it increments the counter for the given Debug invariant.
+CoverageExpressions ==
+    /\ DebugInvLeaderCannotStepDown => TLCSet(0, [ TLCGet(0) EXCEPT !.DebugInvLeaderCannotStepDown = @ + 1 ] )
+    /\ DebugInvSuccessfulCommitAfterReconfig => TLCSet(0, [ TLCGet(0) EXCEPT !.DebugInvSuccessfulCommitAfterReconfig = @ + 1 ] )
+    /\ DebugInvRetirementReachable => TLCSet(0, [ TLCGet(0) EXCEPT !.DebugInvRetirementReachable = @ + 1 ] )
+    /\ DebugAppendEntriesRequests => TLCSet(0, [ TLCGet(0) EXCEPT !.DebugAppendEntriesRequests = @ + 1 ] )
+    /\ DebugCommittedEntriesTermsInv => TLCSet(0, [ TLCGet(0) EXCEPT !.DebugCommittedEntriesTermsInv = @ + 1 ] )
+    /\ DebugNotTooManySigsInv => TLCSet(0, [ TLCGet(0) EXCEPT !.DebugNotTooManySigsInv = @ + 1 ] )
+    /\ DebugAllReconfigurationsReachableInv => TLCSet(0, [ TLCGet(0) EXCEPT !.DebugAllReconfigurationsReachableInv = @ + 1 ] )
+
+\* AreAllCovered is a postcondition that will be violated if any of the CoverageExpressions above are uncovered, i.e., they
+\* are *never* TRUE.
+AreAllCovered ==
+    \E s \in DOMAIN TLCGet(0) : TLCGet(0)[s] = 0 => Print(<<"Debug Invariant violations: ", ToString(TLCGet(0))>>, FALSE)
+
+----
+
+PostConditions ==
+    /\ WriteStatsFile
+    /\ AreAllCovered
+
+----
 \* Refinement
 
 \* The inital log is up to 4 entries long + one log entry per request/reconfiguration + one signature per request/reconfiguration or new view (no consecutive sigs except across views)
