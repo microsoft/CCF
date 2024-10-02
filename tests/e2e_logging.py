@@ -77,7 +77,12 @@ def verify_endorsements_openssl(service_cert, receipt):
 
 
 def verify_receipt(
-    receipt, service_cert, claims=None, generic=True, skip_endorsement_check=False
+    receipt,
+    service_cert,
+    claims=None,
+    generic=True,
+    skip_endorsement_check=False,
+    is_signature_tx=False,
 ):
     """
     Raises an exception on failure
@@ -115,7 +120,7 @@ def verify_receipt(
             .digest()
             .hex()
         )
-    else:
+    elif not is_signature_tx:
         assert "leaf_components" in receipt, receipt
         assert "write_set_digest" in receipt["leaf_components"]
         write_set_digest = bytes.fromhex(receipt["leaf_components"]["write_set_digest"])
@@ -133,6 +138,10 @@ def verify_receipt(
             .digest()
             .hex()
         )
+    else:
+        assert is_signature_tx
+        leaf = receipt["leaf"]
+
     root = ccf.receipt.root(leaf, receipt["proof"])
     ccf.receipt.verify(root, receipt["signature"], node_cert)
 
