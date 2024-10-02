@@ -1,0 +1,100 @@
+name: "Long Verification"
+
+on:
+  pull_request:
+    types:
+      - labeled
+      - synchronize
+      - opened
+      - reopened
+  schedule:
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  model-checking-with-atomic-reconfig-consensus:
+    name: Model Checking With Atomic Reconfig - Consensus
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') }}
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+    defaults:
+      run:
+        working-directory: tla
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 install_deps.py
+
+      - run: ./tlc.py --trace-name 2C2N mc --term-count 2 --request-count 0 --raft-configs 2C2N --disable-check-quorum consensus/MCccfraft.tla
+
+      - name: Upload TLC traces
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: tlc-model-checking-with-atomic-reconfig-consensus
+          path: |
+            tla/consensus/*_TTrace_*.tla
+            tla/*.json
+
+  model-checking-with-reconfig-consensus:
+    name: Model Checking With Reconfig - Consensus
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') }}
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+    defaults:
+      run:
+        working-directory: tla
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 install_deps.py
+
+      - run: ./tlc.py --trace-name 3C2N mc --term-count 2 --request-count 0 --raft-configs 3C2N --disable-check-quorum consensus/MCccfraft.tla
+
+      - name: Upload TLC traces
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: tlc-model-checking-with-reconfig-consensus
+          path: |
+            tla/consensus/*_TTrace_*.tla
+            tla/*.json
+
+  simulation-consensus:
+    name: Simulation - Consensus
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tla
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 install_deps.py
+
+      - run: ./tlc.py sim --max-seconds 3000 --depth 500 consensus/SIMccfraft.tla
+
+      - name: Upload TLC traces
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: tlc-simulation-consensus
+          path: |
+            tla/consensus/*_TTrace_*.tla
+            tla/*.json
