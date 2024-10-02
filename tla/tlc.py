@@ -24,10 +24,16 @@ DEFAULT_JVM_ARGS = [
 
 DEFAULT_CLASSPATH_ARGS = ["-cp", "tla2tools.jar:CommunityModules-deps.jar"]
 
+USAGE = """
+To pass arguments directly to TLC that the wrapper does not support,
+pass the -n flag, and evaluate the output beforehand, e.g. `./tlc.py -n mc Spec.tla` -debugger
+"""
+
 
 def cli():
     parser = argparse.ArgumentParser(
-        description="TLC model checker wrapper for the CCF project"
+        prog="TLC model checker wrapper for the CCF project",
+        usage=USAGE
     )
 
     # Common options for all commands
