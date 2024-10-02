@@ -247,11 +247,11 @@ namespace ccf
           {from_id->seqno, till_id->seqno, *endorsement});
       }
 
-      const auto final_endorsement = std::lower_bound(
+      const auto final_endorsement = std::upper_bound(
         cose_endorsements.begin(),
         cose_endorsements.end(),
         target_seq,
-        [](const auto& endorsement, const auto& seq) {
+        [](const auto& seq, const auto& endorsement) {
           return endorsement.from <= seq;
         });
 
