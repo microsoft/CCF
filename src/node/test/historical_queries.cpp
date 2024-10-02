@@ -283,7 +283,6 @@ MerkleProofData decode_merkle_proof(const std::vector<uint8_t>& encoded)
   QCBORDecodeContext ctx;
   QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
   struct q_useful_buf_c params;
-  QCBORDecode_EnterBstrWrapped(&ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &params);
   QCBORDecode_EnterMap(&ctx, NULL);
   QCBORDecode_EnterArrayFromMapN(
     &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_LEAF_LABEL);
@@ -328,7 +327,6 @@ MerkleProofData decode_merkle_proof(const std::vector<uint8_t>& encoded)
 
   QCBORDecode_ExitArray(&ctx);
   QCBORDecode_ExitMap(&ctx);
-  QCBORDecode_ExitBstrWrapped(&ctx);
 
   REQUIRE(QCBORDecode_Finish(&ctx) == QCBOR_ERR_NO_MORE_ITEMS);
 
