@@ -6,7 +6,7 @@
 # The debug invariant(s) should be the only invariant(s), otherwise 
 # this script might falsely return without errors
 
-./tlc.sh "$@"
+./tlc.py "$@"
 status=$?
 
 # TLC safety violation returns error code 12 

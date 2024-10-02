@@ -24,40 +24,25 @@ jobs:
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+    defaults:
+      run:
+        working-directory: tla
 
     steps:
       - uses: actions/checkout@v4
-      - run: |
+      - name: Install TLC dependencies
+        run: |
           sudo apt update
           sudo apt install -y default-jre
-          python3 ./tla/install_deps.py
+          python3 install_deps.py
 
-      - name: consistency/MCSingleNode.cfg
-        run: |
-          cd tla/
-          ./tlc.sh -workers auto consistency/MCSingleNode.tla -dumpTrace json MCSingleNode.json
+      - run: ./tlc.py mc consistency/MCSingleNode.tla
+      - run: ./tlc.py mc consistency/MCSingleNodeReads.tla
+      - run: ./tlc.py mc consistency/MCMultiNode.tla
+      - run: ./tlc.py mc consistency/MCMultiNodeReads.tla
+      - run: ./tlc.py mc consistency/MCMultiNodeReadsAlt.tla
 
-      - name: consistency/MCSingleNodeReads.cfg
-        run: |
-          cd tla/
-          ./tlc.sh -workers auto consistency/MCSingleNodeReads.tla -dumpTrace json MCSingleNodeReads.json
-
-      - name: consistency/MCMultiNode.cfg
-        run: |
-          cd tla/
-          ./tlc.sh -workers auto consistency/MCMultiNode.tla -dumpTrace json MCMultiNode.json
-
-      - name: consistency/MCMultiNodeReads.cfg
-        run: |
-          cd tla/
-          ./tlc.sh -workers auto consistency/MCMultiNodeReads.tla -dumpTrace json MCMultiNodeReads.json
-
-      - name: consistency/MCMultiNodeReadsAlt.cfg
-        run: |
-          cd tla/
-          ./tlc.sh -workers auto consistency/MCMultiNodeReadsAlt.tla -dumpTrace json MCMultiNodeReadsAlt.json
-
-      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
+      - name: Upload TLC traces
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
@@ -69,45 +54,41 @@ jobs:
   counterexamples-consistency:
     name: Counterexamples - Consistency
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tla
 
     steps:
       - uses: actions/checkout@v4
-      - run: python3 ./tla/install_deps.py
-
-      - name: consistency/MCSingleNodeCommitReachability.cfg
+      - name: Install TLC dependencies
         run: |
-          cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MCSingleNodeCommitReachability.cfg consistency/MCSingleNodeReads.tla
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 install_deps.py
 
-      - name: consistency/MCMultiNodeCommitReachability.cfg
-        run: |
-          cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeCommitReachability.cfg consistency/MCMultiNodeReads.tla
-
-      - name: consistency/MCMultiNodeInvalidReachability.cfg
-        run: |
-          cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeInvalidReachability.cfg consistency/MCMultiNodeReads.tla
-
-      - name: consistency/MCMultiNodeReadsNotLinearizable.cfg
-        run: |
-          cd tla/
-          ./tlc_debug.sh -workers auto -config consistency/MCMultiNodeReadsNotLinearizable.cfg consistency/MCMultiNodeReads.tla
+      - run: ./tlc_debug.sh --config consistency/MCSingleNodeCommitReachability.cfg mc consistency/MCSingleNodeReads.tla
+      - run: ./tlc_debug.sh --config consistency/MCMultiNodeCommitReachability.cfg mc consistency/MCMultiNodeReads.tla
+      - run: ./tlc_debug.sh --config consistency/MCMultiNodeInvalidReachability.cfg mc consistency/MCMultiNodeReads.tla
+      - run: ./tlc_debug.sh --config consistency/MCMultiNodeReadsNotLinearizable.cfg mc consistency/MCMultiNodeReads.tla
 
   simulation-consistency:
     name: Simulation - Consistency
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tla
 
     steps:
       - uses: actions/checkout@v4
-      - run: python3 ./tla/install_deps.py
-
-      - name: consistency/MultiNodeReads.cfg
+      - name: Install TLC dependencies
         run: |
-          cd tla/
-          ./tlc.sh -workers auto -simulate num=500 -depth 50 consistency/MultiNodeReads.tla -dumpTrace json MultiNodeReads.json
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 install_deps.py
 
-      - name: Upload traces in TLA and JSON format
+      - run: ./tlc.py sim --num 500 --depth 50 consistency/MultiNodeReads.tla
+
+      - name: Upload TLC traces
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
@@ -121,33 +102,23 @@ jobs:
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+    defaults:
+      run:
+        working-directory: tla
 
     steps:
       - uses: actions/checkout@v4
-      - run: |
+      - name: Install TLC dependencies
+        run: |
           sudo apt update
           sudo apt install -y default-jre
-          python3 ./tla/install_deps.py
+          python3 install_deps.py
 
-      - name: MCabs.cfg
-        run: |
-          set -x
-          cd tla/
-          ./tlc.sh -workers auto consensus/MCabs.tla -dumpTrace tla MCabs.trace.tla -dumpTrace json MCabs.json
+      - run: ./tlc.py mc consensus/MCabs.tla
+      - run: ./tlc.py --trace-name 1C2N mc --term-count 2 --request-count 2 --raft-configs 1C2N consensus/MCccfraft.tla
+      - run: ./tlc.py --trace-name 1C3N mc --term-count 2 --request-count 2 --raft-configs 1C3N consensus/MCccfraft.tla
 
-      - name: MCccfraft - Configurations=1C2N
-        run: |
-          set -x
-          cd tla/
-          Configurations=1C2N MaxTermLimit=2 RequestLimit=3 ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft1C2NT2R3.trace.tla -dumpTrace json MCccfraft1C2NT2R3.json
-
-      - name: MCccfraft - Configurations=1C3N
-        run: |
-          set -x
-          cd tla/
-          Configurations=1C3N MaxTermLimit=2 RequestLimit=3 ./tlc.sh -workers auto consensus/MCccfraft.tla -dumpTrace tla MCccfraft1C3N2T3R.trace.tla -dumpTrace json MCccfraft1C3N2T3R.json
-
-      - name: Upload TLC's out file as an artifact. Can be imported into the TLA+ Toolbox.
+      - name: Upload TLC traces
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
@@ -159,29 +130,28 @@ jobs:
   simulation-consensus:
     name: Simulation - Consensus
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tla
 
     steps:
       - uses: actions/checkout@v4
-      - run: |
+      - name: Install TLC dependencies
+        run: |
           sudo apt update
           sudo apt install -y default-jre
-          python3 ./tla/install_deps.py
+          python3 install_deps.py
 
-      - name: Simulation
-        run: |
-          set -x
-          cd tla/
-          ./tlc.sh -workers auto -simulate -depth 500 consensus/SIMccfraft.tla -dumpTrace tla SIMccfraft.trace.tla -dumpTrace json SIMccfraft.json
-        env:
-          SIM_TIMEOUT: 1200
+      - run: ./tlc.py sim consensus/SIMccfraft.tla
 
-      - name: Upload artifacts.
+      - name: Upload TLC traces
         uses: actions/upload-artifact@v4
         if: ${{ failure() }}
         with:
           name: tlc-simulation-consensus
           path: |
-            tla/*
+            tla/consensus/*_TTrace_*.tla
+            tla/*.json
 
   trace-validation-consensus:
     name: Trace Validation - Consensus
@@ -193,11 +163,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - run: |
+      - name: Install TLC dependencies
+        run: |
           sudo apt update
           sudo apt install -y default-jre parallel
           python3 ./tla/install_deps.py
-        shell: bash
 
       - name: "Build"
         run: |
@@ -223,7 +193,7 @@ jobs:
           cd tla/
           mkdir -p traces/consensus
           mv ../build/consensus traces/
-          parallel 'JVM_OPTIONS=-Dtlc2.tool.queue.IStateQueue=StateDeque JSON={} ./tlc.sh -dump dot,constrained,colorize,actionlabels {}.dot -dumpTrace tla {}.trace.tla -dumpTrace json {}.trace.json consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
+          parallel './tlc.py --workers 1 --dot --trace-name {} tv --ccf-raft-trace {} consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
         shell: bash
 
       - name: Upload artifacts.

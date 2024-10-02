@@ -25,7 +25,11 @@ PREFIX_BY_FILETYPE = {
     ".cpp": [SLASH_PREFIXED],
     ".h": HEADERS_WITH_PRAGMAS,
     ".hpp": HEADERS_WITH_PRAGMAS,
-    ".py": [HASH_PREFIXED],
+    ".py": [
+        HASH_PREFIXED,
+        # May have a shebang before the license
+        "#!/usr/bin/env python3" + os.linesep + HASH_PREFIXED,
+    ],
     ".sh": [
         HASH_PREFIXED,
         # May have a shebang before the license

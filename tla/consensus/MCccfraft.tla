@@ -6,29 +6,29 @@ CONSTANTS
 
 Configurations ==
     LET default == <<{NodeOne, NodeTwo}>> IN
-    IF "Configurations" \in DOMAIN IOEnv THEN
+    IF "RAFT_CONFIGS" \in DOMAIN IOEnv THEN
           \* Don't parse and process the string Configurations but keep it simple and just check for known values.
-          CASE IOEnv.Configurations = "1C1N" -> <<{NodeOne}>>
-            [] IOEnv.Configurations = "1C2N" -> default
-            [] IOEnv.Configurations = "1C3N" -> <<{NodeOne, NodeTwo, NodeThree}>>
-            [] IOEnv.Configurations = "2C2N" -> <<{NodeOne}, {NodeTwo}>>
-            [] IOEnv.Configurations = "3C2N" -> <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
-            [] OTHER -> Print("Unknown value for env var Configurations.  Falling back to <<{NodeOne, NodeTwo}>>.", default)
-    ELSE Print("Found no env var Configurations.  Falling back to <<{NodeOne, NodeTwo}>>.", default)
+          CASE IOEnv.RAFT_CONFIGS = "1C1N" -> <<{NodeOne}>>
+            [] IOEnv.RAFT_CONFIGS = "1C2N" -> default
+            [] IOEnv.RAFT_CONFIGS = "1C3N" -> <<{NodeOne, NodeTwo, NodeThree}>>
+            [] IOEnv.RAFT_CONFIGS = "2C2N" -> <<{NodeOne}, {NodeTwo}>>
+            [] IOEnv.RAFT_CONFIGS = "3C2N" -> <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
+            [] OTHER -> Print("Unsupported value for RAFT_CONFIGS, defaulting to 1C2N: <<{NodeOne, NodeTwo}>>.", default)
+    ELSE Print("RAFT_CONFIGS is not set, defaulting to 1C2N: <<{NodeOne, NodeTwo}>>.", default)
 ASSUME Configurations \in Seq(SUBSET Servers)
 
-MaxTermLimit ==
-    IF "MaxTermLimit" \in DOMAIN IOEnv
-    THEN atoi(IOEnv.MaxTermLimit)
-    ELSE Print("Found no env var MaxTermLimit.  Falling back to 2 terms.", 2)
-ASSUME MaxTermLimit \in Nat
+TermCount ==
+    IF "TERM_COUNT" \in DOMAIN IOEnv
+    THEN atoi(IOEnv.TERM_COUNT)
+    ELSE Print("TERM_COUNT is not set, defaulting to 0", 0)
+ASSUME TermCount \in Nat
 
 \* Limit on client requests
-RequestLimit ==
-    IF "RequestLimit" \in DOMAIN IOEnv
-    THEN atoi(IOEnv.RequestLimit)
-    ELSE Print("Found no env var RequestLimit.  Falling back to 3 requests.", 3)
-ASSUME RequestLimit \in Nat
+RequestCount ==
+    IF "REQUEST_COUNT" \in DOMAIN IOEnv
+    THEN atoi(IOEnv.REQUEST_COUNT)
+    ELSE Print("REQUEST_COUNT is not set, defaulting to 3", 3)
+ASSUME RequestCount \in Nat
 
 ToServers ==
     UNION Range(Configurations)
@@ -36,7 +36,7 @@ ToServers ==
 CCF == INSTANCE ccfraft
 
 MCCheckQuorum(i) ==
-    IF "NoCheckQuorum" \in DOMAIN IOEnv THEN FALSE ELSE CCF!CheckQuorum(i)
+    IF "DISABLE_CHECK_QUORUM" \in DOMAIN IOEnv THEN FALSE ELSE CCF!CheckQuorum(i)
 
 \* This file controls the constants as seen below.
 \* In addition to basic settings of how many nodes are to be model checked,
@@ -55,7 +55,7 @@ MCChangeConfigurationInt(i, newConfiguration) ==
 \* constraint below is too restrictive.
 MCTimeout(i) ==
     \* Limit the term of each server to reduce state space
-    /\ currentTerm[i] < MaxTermLimit
+    /\ currentTerm[i] < StartTerm + TermCount
     \* Limit max number of simultaneous candidates
     \* We made several restrictions to the state space of Raft. However since we
     \* made these restrictions, Deadlocks can occur at places that Raft would in
@@ -70,8 +70,8 @@ MCTimeout(i) ==
 
 \* Limit number of requests (new entries) that can be made
 MCClientRequest(i) ==
-    \* Allocation-free variant of Len(SelectSeq(log[i], LAMBDA e: e.contentType = TypeEntry)) < RequestLimit
-    /\ FoldSeq(LAMBDA e, count: IF e.contentType = TypeEntry THEN count + 1 ELSE count, 0, log[i]) < RequestLimit
+    \* Allocation-free variant of Len(SelectSeq(log[i], LAMBDA e: e.contentType = TypeEntry)) <= RequestCount
+    /\ FoldSeq(LAMBDA e, count: IF e.contentType = TypeEntry THEN count + 1 ELSE count, 0, log[i]) <= RequestCount
     /\ CCF!ClientRequest(i)
 
 MCSignCommittableMessages(i) ==
@@ -141,7 +141,7 @@ DebugNotTooManySigsInv ==
 ----
 \* Refinement
 
-MCRefinementToAbsProp == MappingToAbs(StartTerm..MaxTermLimit+1)!AbsSpec
+MCRefinementToAbsProp == MappingToAbs(StartTerm..StartTerm + TermCount)!AbsSpec
 
 ABSExtend(i) == MappingToAbs(StartTerm..MaxTermLimit+1)!ExtendAxiom(i)
 ABSCopyMaxAndExtend(i) == MappingToAbs(StartTerm..MaxTermLimit+1)!CopyMaxAndExtendAxiom(i)
