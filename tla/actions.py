@@ -21,7 +21,7 @@ SerializeCoverage ==
 
 """
 
-TOP=5
+TOP = 5
 
 if __name__ == "__main__":
     ts = defaultdict(list)
@@ -40,7 +40,9 @@ if __name__ == "__main__":
     top_TOP = [x[0] for x in col_max[-TOP:]]
     df_TOP = df[top_TOP]
     print(df_TOP)
-    plot = df_TOP.plot.line(y=df_TOP.columns, width=1200, height=600, title=f"Top {TOP} distinct actions")
+    plot = df_TOP.plot.line(
+        y=df_TOP.columns, width=1200, height=600, title=f"Top {TOP} distinct actions"
+    )
     if len(sys.argv) > 1:
         hvplot.save(plot, sys.argv[1])
     else:

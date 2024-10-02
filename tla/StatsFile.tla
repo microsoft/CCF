@@ -2,11 +2,17 @@
 EXTENDS TLC, Json, Sequences, Naturals, IOUtils
 
 \* Filename to write TLC stats to
-CONSTANT StatsFilename
+StatsFilename ==
+    IF "StatsFileName" \in DOMAIN IOEnv
+    THEN IOEnv.StatsFileName 
+    ELSE Print("Found no env var StatsFileName.  Falling back to MCccfraft_stats.json.", "MCccfraft_stats.json")
 ASSUME StatsFilename \in STRING
 
 \* Filename to write TLC coverage to
-CONSTANT CoverageFilename
+CoverageFilename ==
+    IF "CoverageFilename" \in DOMAIN IOEnv
+    THEN IOEnv.CoverageFilename 
+    ELSE Print("Found no env var CoverageFilename.  Falling back to MCccfraft_coverage.json.", "MCccfraft_coverage.json")
 ASSUME CoverageFilename \in STRING
 
 \* Writes TLC stats (such as number of states and duration) to StatsFilename in ndJson format

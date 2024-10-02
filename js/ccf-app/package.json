@@ -18,7 +18,7 @@
   "author": "Microsoft",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@types/chai": "^4.2.15",
+    "@types/chai": "^5.0.0",
     "@types/mocha": "^10.0.0",
     "@types/node": "^22.0.0",
     "@types/node-forge": "^1.0.0",

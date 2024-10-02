@@ -1,0 +1,205 @@
+name: "Continuous Verification"
+
+on:
+  schedule:
+    - cron: "0 0 * * 0"
+  pull_request:
+    paths:
+      - "tla/**"
+      - "src/consensus/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  model-checking-consistency:
+    name: Model Checking - Consistency
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+    defaults:
+      run:
+        working-directory: tla
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install TLC dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 install_deps.py
+
+      - run: ./tlc.py mc consistency/MCSingleNode.tla
+      - run: ./tlc.py mc consistency/MCSingleNodeReads.tla
+      - run: ./tlc.py mc consistency/MCMultiNode.tla
+      - run: ./tlc.py mc consistency/MCMultiNodeReads.tla
+      - run: ./tlc.py mc consistency/MCMultiNodeReadsAlt.tla
+
+      - name: Upload TLC traces
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: tlc-model-checking-consistency
+          path: |
+            tla/consistency/*_TTrace_*.tla
+            tla/*.json
+
+  counterexamples-consistency:
+    name: Counterexamples - Consistency
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tla
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install TLC dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 install_deps.py
+
+      - run: ./tlc_debug.sh --config consistency/MCSingleNodeCommitReachability.cfg mc consistency/MCSingleNodeReads.tla
+      - run: ./tlc_debug.sh --config consistency/MCMultiNodeCommitReachability.cfg mc consistency/MCMultiNodeReads.tla
+      - run: ./tlc_debug.sh --config consistency/MCMultiNodeInvalidReachability.cfg mc consistency/MCMultiNodeReads.tla
+      - run: ./tlc_debug.sh --config consistency/MCMultiNodeReadsNotLinearizable.cfg mc consistency/MCMultiNodeReads.tla
+
+  simulation-consistency:
+    name: Simulation - Consistency
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tla
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install TLC dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 install_deps.py
+
+      - run: ./tlc.py sim --num 500 --depth 50 consistency/MultiNodeReads.tla
+
+      - name: Upload TLC traces
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: tlc-simulation-consistency
+          path: |
+            tla/consistency/*_TTrace_*.tla
+            tla/*.json
+
+  model-checking-consensus:
+    name: Model Checking - Consensus
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+    defaults:
+      run:
+        working-directory: tla
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install TLC dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 install_deps.py
+
+      - run: ./tlc.py mc consensus/MCabs.tla
+      - run: ./tlc.py --trace-name 1C2N mc --term-count 2 --request-count 2 --raft-configs 1C2N consensus/MCccfraft.tla
+      - run: ./tlc.py --trace-name 1C3N mc --term-count 2 --request-count 2 --raft-configs 1C3N consensus/MCccfraft.tla
+
+      - name: Upload TLC traces
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: tlc-model-checking-consensus
+          path: |
+            tla/consensus/*_TTrace_*.tla
+            tla/*.json
+
+  simulation-consensus:
+    name: Simulation - Consensus
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tla
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install TLC dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y default-jre
+          python3 install_deps.py
+
+      - run: ./tlc.py sim consensus/SIMccfraft.tla
+
+      - name: Upload TLC traces
+        uses: actions/upload-artifact@v4
+        if: ${{ failure() }}
+        with:
+          name: tlc-simulation-consensus
+          path: |
+            tla/consensus/*_TTrace_*.tla
+            tla/*.json
+
+  trace-validation-consensus:
+    name: Trace Validation - Consensus
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install TLC dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y default-jre parallel
+          python3 ./tla/install_deps.py
+
+      - name: "Build"
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -L -GNinja .. -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DCOMPILE_TARGET=virtual -DCCF_RAFT_TRACING=ON
+          ninja raft_driver
+        shell: bash
+
+      - name: "Test"
+        run: |
+          set -x
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          ./tests.sh -VV --timeout --no-compress-output -T Test -L raft_scenario
+        shell: bash
+
+      - name: Run trace validation
+        run: |
+          set -x
+          cd tla/
+          mkdir -p traces/consensus
+          mv ../build/consensus traces/
+          parallel './tlc.py --workers 1 --dot --trace-name {} tv --ccf-raft-trace {} consensus/Traceccfraft.tla' ::: $(ls traces/consensus/*.ndjson)
+        shell: bash
+
+      - name: Upload artifacts.
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tlc-trace-validation-consensus
+          path: |
+            tla/traces/*
