@@ -82,6 +82,11 @@ def cli():
         default=None,
         help="Path to the TLA+ configuration, defaults to spec name",
     )
+    parser.add_argument(
+        "--difftrace",
+        action="store_true",
+        help="When printing a trace, show only the differences between states",
+    )
 
     subparsers = parser.add_subparsers(dest="cmd")
 
@@ -196,6 +201,8 @@ if __name__ == "__main__":
         tlc_args.extend(
             ["-dump", "dot,constrained,colorize,actionlabels", f"{trace_name}.dot"]
         )
+    if args.difftrace:
+        tlc_args.extend(["-difftrace"])
 
     if args.cmd == "mc":
         if args.term_count is not None:
@@ -223,9 +230,10 @@ if __name__ == "__main__":
 
     cmd = ["java"] + jvm_args + cp_args + ["tlc2.TLC"] + tlc_args + [args.spec]
     if args.x or args.n:
-        for key, value in env.items():
-            print(f"{key}={value}")
-        print(shlex.join(str(arg) for arg in cmd))
+        env_prefix = " ".join(
+            f"{key}={shlex.quote(value)}" for key, value in env.items()
+        )
+        print(f"env {env_prefix} {shlex.join(str(arg) for arg in cmd)}")
     if args.n:
         sys.exit(0)
     merged_env = os.environ.copy()
