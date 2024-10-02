@@ -923,11 +923,9 @@ def test_cbor_merkle_proof(network, args):
                 )
                 if r.status_code == http.HTTPStatus.OK:
                     cbor_proof = r.body.data()
-                    outer_proof = cbor2.loads(cbor_proof)
-                    # Double CBOR encoding because of QCBOREncode_BstrWrap at historical_queries_adapter.h:212
-                    proof = cbor2.loads(outer_proof)
-                    assert 404 in proof
-                    leaf = proof[404]
+                    proof = cbor2.loads(cbor_proof)
+                    assert 1 in proof
+                    leaf = proof[1]
                     assert len(leaf) == 3
                     assert isinstance(leaf[0], bytes)  # bstr write_set_digest
                     assert len(leaf[0]) == 32
@@ -936,8 +934,8 @@ def test_cbor_merkle_proof(network, args):
                     assert isinstance(leaf[2], bytes)  # bstr claims_digest
                     assert len(leaf[2]) == 32
                     # path
-                    assert 405 in proof
-                    path = proof[405]
+                    assert 2 in proof
+                    path = proof[2]
                     assert isinstance(path, list)
                     for node in path:
                         assert isinstance(node, list)

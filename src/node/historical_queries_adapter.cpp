@@ -209,7 +209,6 @@ namespace ccf
     QCBOREncodeContext ctx;
     QCBOREncode_Init(&ctx, buffer);
 
-    QCBOREncode_BstrWrap(&ctx);
     QCBOREncode_OpenMap(&ctx);
 
     if (!receipt.commit_evidence)
@@ -232,7 +231,6 @@ namespace ccf
     encode_path_cbor(ctx, *receipt.path);
 
     QCBOREncode_CloseMap(&ctx);
-    QCBOREncode_CloseBstrWrap2(&ctx, false, nullptr);
 
     struct q_useful_buf_c result;
     auto qerr = QCBOREncode_Finish(&ctx, &result);
