@@ -139,10 +139,10 @@ namespace ccf
 
   enum MerkleProofLabel : int64_t
   {
-    // Values TBD:
+    // Values set in
     // https://github.com/ietf-scitt/draft-birkholz-cose-cometre-ccf-profile
-    MERKLE_PROOF_LEAF_LABEL = 404,
-    MERKLE_PROOF_PATH_LABEL = 405
+    MERKLE_PROOF_LEAF_LABEL = 1,
+    MERKLE_PROOF_PATH_LABEL = 2
   };
   std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
     const TxReceiptImpl& in);

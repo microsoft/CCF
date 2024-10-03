@@ -263,7 +263,7 @@
   "info": {
     "description": "This CCF sample app implements a simple logging application, securely recording messages at client-specified IDs. It demonstrates most of the features available to CCF apps.",
     "title": "CCF Sample Logging App",
-    "version": "2.4.2"
+    "version": "2.4.3"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1183,6 +1183,30 @@
         ],
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/log/public/cbor_merkle_proof": {
+      "get": {
+        "operationId": "GetAppLogPublicCborMerkleProof",
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          },
+          {
+            "user_cose_sign1": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
