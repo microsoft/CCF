@@ -47,7 +47,7 @@ namespace
       std::vector<uint8_t> hash{node.hash};
 
       QCBOREncode_OpenArray(&ctx);
-      QCBOREncode_AddInt64(&ctx, dir);
+      QCBOREncode_AddBool(&ctx, dir);
       QCBOREncode_AddBytes(&ctx, {hash.data(), hash.size()});
       QCBOREncode_CloseArray(&ctx);
     }

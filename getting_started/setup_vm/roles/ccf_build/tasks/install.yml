@@ -57,3 +57,9 @@
   args:
     chdir: "{{ workspace }}/doxygen-{{ doxygen_ver }}"
   become: true
+
+- name: Install cddl checker
+  gem:
+    name: cddl
+    state: present
+  become: yes
