@@ -98,10 +98,7 @@ TEST_CASE("Add a node to an opening service")
   }
 
   InternalTablesAccess::create_service(
-    gen_tx,
-    network.identity->cert,
-    *network.identity->get_key_pair(),
-    ccf::TxID{2, 1});
+    gen_tx, network.identity->cert, ccf::TxID{2, 1});
   REQUIRE(gen_tx.commit() == ccf::kv::CommitResult::SUCCESS);
   auto tx = network.tables->create_tx();
 
@@ -202,10 +199,7 @@ TEST_CASE("Add a node to an open service")
     up_to_ledger_secret_seqno, make_ledger_secret());
 
   InternalTablesAccess::create_service(
-    gen_tx,
-    network.identity->cert,
-    *network.identity->get_key_pair(),
-    ccf::TxID{2, 1});
+    gen_tx, network.identity->cert, ccf::TxID{2, 1});
   InternalTablesAccess::init_configuration(gen_tx, {1});
   InternalTablesAccess::activate_member(
     gen_tx,
@@ -213,6 +207,8 @@ TEST_CASE("Add a node to an open service")
       gen_tx,
       {member_cert, ccf::crypto::make_rsa_key_pair()->public_key_pem()}));
   REQUIRE(InternalTablesAccess::open_service(gen_tx));
+  REQUIRE(InternalTablesAccess::endorse_previous_identity(
+    gen_tx, *network.identity->get_key_pair()));
   REQUIRE(gen_tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
   // Node certificate

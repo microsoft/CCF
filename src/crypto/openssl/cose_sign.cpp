@@ -156,10 +156,25 @@ namespace ccf::crypto
       args_size);
   }
 
+  COSEParametersFactory cose_params_string_bytes(
+    const std::string& key, const std::vector<uint8_t>& value)
+  {
+    const size_t args_size = key.size() + value.size() +
+      extra_size_for_seq_tag + extra_size_for_seq_tag;
+    q_useful_buf_c buf{value.data(), value.size()};
+    return COSEParametersFactory(
+      [=](QCBOREncodeContext* ctx) {
+        QCBOREncode_AddSZString(ctx, key.data());
+        QCBOREncode_AddBytes(ctx, buf);
+      },
+      args_size);
+  }
+
   std::vector<uint8_t> cose_sign1(
     const KeyPair_OpenSSL& key,
     const std::vector<COSEParametersFactory>& protected_headers,
-    std::span<const uint8_t> payload)
+    std::span<const uint8_t> payload,
+    bool detached_payload)
   {
     const auto buf_size = estimate_buffer_size(protected_headers, payload);
     std::vector<uint8_t> underlying_buffer(buf_size);
@@ -189,8 +204,16 @@ namespace ccf::crypto
 
     encode_parameters_custom(&sign_ctx, &cbor_encode, protected_headers);
 
-    // Mark empty payload manually.
-    QCBOREncode_AddNULL(&cbor_encode);
+    if (detached_payload)
+    {
+      // Mark empty payload explicitly.
+      QCBOREncode_AddNULL(&cbor_encode);
+    }
+    else
+    {
+      UsefulBufC payload_buffer{underlying_buffer.data(), buf_size};
+      QCBOREncode_AddBytes(&cbor_encode, payload_buffer);
+    }
 
     // If payload is empty - we still want to sign. Putting NULL_Q_USEFUL_BUF_C,
     // however, makes t_cose think that the payload is included into the

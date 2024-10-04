@@ -59,6 +59,9 @@ namespace ccf::crypto
   COSEParametersFactory cose_params_int_bytes(
     int64_t key, const std::vector<uint8_t>& value);
 
+  COSEParametersFactory cose_params_string_bytes(
+    const std::string& key, const std::vector<uint8_t>& value);
+
   struct COSESignError : public std::runtime_error
   {
     COSESignError(const std::string& msg) : std::runtime_error(msg) {}
@@ -77,5 +80,6 @@ namespace ccf::crypto
   std::vector<uint8_t> cose_sign1(
     const KeyPair_OpenSSL& key,
     const std::vector<COSEParametersFactory>& protected_headers,
-    std::span<const uint8_t> payload);
+    std::span<const uint8_t> payload,
+    bool detached_payload = true);
 }

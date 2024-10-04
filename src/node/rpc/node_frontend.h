@@ -1514,7 +1514,6 @@ namespace ccf
           InternalTablesAccess::create_service(
             ctx.tx,
             in.service_cert,
-            *this->network.identity->get_key_pair(),
             in.create_txid,
             in.service_data,
             recovering);

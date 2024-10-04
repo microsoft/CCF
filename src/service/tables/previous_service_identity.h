@@ -11,7 +11,21 @@
 namespace ccf
 {
   using PreviousServiceIdentity = ServiceValue<ccf::crypto::Pem>;
-  using PreviousServiceIdentityEndorsement = ServiceValue<std::vector<uint8_t>>;
+
+  struct CoseEndorsement
+  {
+    std::vector<uint8_t> endorsement{};
+    std::vector<uint8_t> endorsing_key{};
+    std::optional<ccf::kv::Version> previous_version{};
+    std::optional<std::pair<ccf::TxID, ccf::TxID>> endorsed_range{};
+  };
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CoseEndorsement);
+  DECLARE_JSON_REQUIRED_FIELDS(CoseEndorsement, endorsement, endorsing_key);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CoseEndorsement, previous_version, endorsed_range);
+
+  using PreviousServiceIdentityEndorsement = ServiceValue<CoseEndorsement>;
 
   namespace Tables
   {

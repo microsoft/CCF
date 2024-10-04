@@ -1176,7 +1176,10 @@ namespace ccf
         // previous ledger secrets have been recovered
         share_manager.issue_recovery_shares(tx);
 
-        if (!InternalTablesAccess::open_service(tx))
+        if (
+          !InternalTablesAccess::open_service(tx) ||
+          !InternalTablesAccess::endorse_previous_identity(
+            tx, *network.identity->get_key_pair()))
         {
           throw std::logic_error("Service could not be opened");
         }
@@ -1501,6 +1504,8 @@ namespace ccf
         }
 
         InternalTablesAccess::open_service(tx);
+        InternalTablesAccess::endorse_previous_identity(
+          tx, *network.identity->get_key_pair());
         trigger_snapshot(tx);
         return;
       }

@@ -321,7 +321,6 @@ namespace ccf
     static void create_service(
       ccf::kv::Tx& tx,
       const ccf::crypto::Pem& service_cert,
-      const ccf::crypto::KeyPair_OpenSSL& service_key,
       ccf::TxID create_txid,
       nlohmann::json service_data = nullptr,
       bool recovering = false)
@@ -337,33 +336,6 @@ namespace ccf
         auto previous_service_identity = tx.wo<ccf::PreviousServiceIdentity>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
         previous_service_identity->put(prev_service_info->cert);
-
-        auto previous_identity_endorsement =
-          tx.wo<ccf::PreviousServiceIdentityEndorsement>(
-            ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
-        try
-        {
-          const auto pubkey = ccf::crypto::public_key_der_from_cert(
-            ccf::crypto::cert_pem_to_der(prev_service_info->cert));
-
-          const auto pheaders = {
-            ccf::crypto::cose_params_string_string(
-              "from", prev_service_info->current_service_create_txid->to_str()),
-            ccf::crypto::cose_params_string_string(
-              "till", create_txid.to_str())};
-
-          const auto prev_ident_endorsement =
-            cose_sign1(service_key, pheaders, pubkey);
-
-          previous_identity_endorsement->put(prev_ident_endorsement);
-        }
-        catch (const ccf::crypto::COSESignError& e)
-        {
-          LOG_FAIL_FMT(
-            "Failed to sign previous service identity: {}", e.what());
-          throw std::logic_error(fmt::format(
-            "Failed to sign previous service identity: {}", e.what()));
-        }
 
         // Record number of recoveries for service. If the value does
         // not exist in the table (i.e. pre 2.x ledger), assume it is the first
@@ -385,6 +357,62 @@ namespace ccf
     {
       auto service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
       return service.has_value() && service->cert == expected_service_cert;
+    }
+
+    static bool endorse_previous_identity(
+      ccf::kv::Tx& tx, const ccf::crypto::KeyPair_OpenSSL& service_key)
+    {
+      auto service = tx.ro<ccf::Service>(Tables::SERVICE);
+      auto active_service = service->get();
+
+      auto previous_identity_endorsement =
+        tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+          ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+
+      ccf::CoseEndorsement endorsement{};
+      std::vector<ccf::crypto::COSEParametersFactory> pheaders{};
+      std::vector<uint8_t> key_to_endorse{};
+
+      endorsement.endorsing_key = service_key.public_key_der();
+
+      if (previous_identity_endorsement->has())
+      {
+        const auto prev_endorsement = previous_identity_endorsement->get();
+        const auto from = prev_endorsement->endorsed_range->second;
+        const auto till = active_service->current_service_create_txid.value();
+        pheaders.push_back(
+          ccf::crypto::cose_params_string_string("from", from.to_str()));
+        pheaders.push_back(
+          ccf::crypto::cose_params_string_string("till", till.to_str()));
+        endorsement.endorsed_range = {from, till};
+
+        endorsement.previous_version =
+          previous_identity_endorsement->get_version_of_previous_write();
+
+        key_to_endorse = prev_endorsement->endorsing_key;
+      }
+      else
+      {
+        key_to_endorse = endorsement.endorsing_key; // self-sign
+      }
+
+      try
+      {
+        endorsement.endorsement = cose_sign1(
+          service_key,
+          pheaders,
+          key_to_endorse,
+          false // detached payload
+        );
+      }
+      catch (const ccf::crypto::COSESignError& e)
+      {
+        LOG_FAIL_FMT("Failed to sign previous service identity: {}", e.what());
+        return false;
+      }
+
+      previous_identity_endorsement->put(endorsement);
+      return true;
     }
 
     static bool open_service(ccf::kv::Tx& tx)

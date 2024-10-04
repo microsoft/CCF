@@ -486,10 +486,7 @@ void prepare_callers(NetworkState& network)
   init_network(network);
 
   InternalTablesAccess::create_service(
-    tx,
-    network.identity->cert,
-    *network.identity->get_key_pair(),
-    ccf::TxID{2, 1});
+    tx, network.identity->cert, ccf::TxID{2, 1});
   user_id = InternalTablesAccess::add_user(tx, {user_caller});
   member_id = InternalTablesAccess::add_member(tx, member_cert);
   invalid_member_id = InternalTablesAccess::add_member(tx, invalid_caller);

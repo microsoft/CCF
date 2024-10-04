@@ -16,13 +16,7 @@ namespace ccf
   static std::map<ccf::crypto::Pem, std::vector<ccf::crypto::Pem>>
     service_endorsement_cache;
 
-  struct BoundedEndorsement
-  {
-    ccf::SeqNo from{};
-    ccf::SeqNo till{};
-    std::vector<uint8_t> endorsement{};
-  };
-  static std::vector<BoundedEndorsement> cose_endorsements;
+  static std::vector<CoseEndorsement> cose_endorsements;
 
   namespace historical
   {
@@ -120,6 +114,8 @@ namespace ccf
             auto hpubkey = ccf::crypto::public_key_pem_from_cert(
               ccf::crypto::cert_pem_to_der(opt_psi->cert));
 
+            std::cout << "PATTERN classic endorsement" << std::endl;
+
             auto eit = service_endorsement_cache.find(hpubkey);
             if (eit != service_endorsement_cache.end())
             {
@@ -185,36 +181,28 @@ namespace ccf
           tx.template ro<PreviousServiceIdentityEndorsement>(
               Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT)
             ->get();
+
         if (!endorsement)
         {
-          LOG_FAIL_FMT("Endorsed identity not found");
+          LOG_FAIL_FMT("COSE endorsement for current service not found");
           return true;
         }
 
-        const auto [from, till] =
-          ccf::crypto::extract_cose_endorsement_validity(*endorsement);
-
-        const auto from_id = TxID::from_str(from);
-        const auto till_id = TxID::from_str(till);
-
-        if (!from_id || !till_id)
-        {
-          LOG_FAIL_FMT("Can't parse COSE endorsement validity");
-          return true;
-        }
-
-        cose_endorsements.push_back(
-          {from_id->seqno, till_id->seqno, *endorsement});
+        cose_endorsements.push_back(*endorsement);
       }
 
-      while (cose_endorsements.back().from > target_seq)
+      while (cose_endorsements.back().previous_version &&
+             cose_endorsements.back().endorsed_range->first.seqno > target_seq)
       {
-        auto earliest_seqno = cose_endorsements.back().from;
-        auto hstate = state_cache.get_state_at(earliest_seqno, earliest_seqno);
+        const auto prev_endorsement_seqno =
+          cose_endorsements.back().previous_version.value();
+        const auto hstate = state_cache.get_state_at(
+          prev_endorsement_seqno, prev_endorsement_seqno);
         if (!hstate)
         {
-          return false; // retry later
+          return false; // fetching, retry later
         }
+
         auto htx = hstate->store->create_read_only_tx();
         const auto endorsement =
           htx
@@ -224,39 +212,41 @@ namespace ccf
 
         if (!endorsement)
         {
-          LOG_DEBUG_FMT(
-            "No COSE endorsement for service identity befire {}, can't provide "
-            "a full endorsement chain",
-            earliest_seqno);
+          fmt::println(
+            "PATTERN no cose endorsement before {}",
+            cose_endorsements.back().endorsed_range->first.seqno);
+
+          LOG_FAIL_FMT(
+            "Invalid previous COSE endorsement pointer to seqno {}",
+            prev_endorsement_seqno);
           return true;
         }
 
-        const auto [from, till] =
-          ccf::crypto::extract_cose_endorsement_validity(*endorsement);
-
-        const auto from_id = TxID::from_str(from);
-        const auto till_id = TxID::from_str(till);
-
-        if (!from_id || !till_id)
-        {
-          LOG_FAIL_FMT("Can't parse COSE endorsement validity");
-          return true;
-        }
-
-        cose_endorsements.push_back(
-          {from_id->seqno, till_id->seqno, *endorsement});
+        cose_endorsements.push_back(*endorsement);
       }
+
+      const bool last_is_self_endorsement =
+        !cose_endorsements.back().previous_version;
+
+      const auto search_to = last_is_self_endorsement ?
+        cose_endorsements.end() :
+        cose_endorsements.end() - 1;
 
       const auto final_endorsement = std::upper_bound(
         cose_endorsements.begin(),
-        cose_endorsements.end(),
+        search_to,
         target_seq,
         [](const auto& seq, const auto& endorsement) {
-          return endorsement.from <= seq;
+          return endorsement.endorsed_range->first.seqno <= seq;
         });
 
       if (final_endorsement == cose_endorsements.end())
       {
+        fmt::println(
+          "PATTERN loop error earliest is {} target is {}",
+          search_to->endorsed_range->first.seqno,
+          target_seq);
+
         LOG_FAIL_FMT(
           "Error during COSE endorsement chain reconstruction, seqno {} not "
           "found",
@@ -267,10 +257,15 @@ namespace ccf
       std::vector<std::vector<uint8_t>> endorsements;
       for (auto it = cose_endorsements.begin(); it <= final_endorsement; ++it)
       {
+        fmt::println(
+          "PATTERN Adding endorsement from {} to {}",
+          it->endorsed_range->first.seqno,
+          it->endorsed_range->second.seqno);
         endorsements.push_back(it->endorsement);
       }
 
       state->receipt->cose_endorsements = endorsements;
+      std::cout << "PATTERN good!!" << std::endl;
       return true;
     }
   }
