@@ -1961,6 +1961,44 @@ namespace loggingapp
         .set_auto_schema<void, void>()
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
+
+      auto get_cose_endorsements =
+        [this](
+          ccf::endpoints::ReadOnlyEndpointContext& ctx,
+          ccf::historical::StatePtr historical_state) {
+          auto historical_tx = historical_state->store->create_read_only_tx();
+
+          assert(historical_state->receipt);
+          auto endorsements =
+            describe_cose_endorsements_v1(*historical_state->receipt);
+          if (!endorsements.has_value())
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_NOT_FOUND,
+              ccf::errors::ResourceNotFound,
+              "No COSE endorsements available for this transaction");
+            return;
+          }
+          auto response = nlohmann::json::array();
+          for (const auto& endorsement : *endorsements)
+          {
+            response.push_back(endorsement);
+          }
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::CONTENT_TYPE,
+            ccf::http::headervalues::contenttype::JSON);
+          ctx.rpc_ctx->set_response_body(response.dump());
+        };
+      make_read_only_endpoint(
+        "/log/public/cose_endorsements",
+        HTTP_GET,
+        ccf::historical::read_only_adapter_v4(
+          get_cbor_merkle_proof, context, is_tx_committed),
+        auth_policies)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
     }
   };
 }

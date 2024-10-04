@@ -248,6 +248,12 @@ namespace ccf
     underlying_buffer.shrink_to_fit();
     return underlying_buffer;
   }
+
+  std::optional<std::vector<std::vector<uint8_t>>>
+  describe_cose_endorsements_v1(const TxReceiptImpl& receipt)
+  {
+    return receipt.cose_endorsements;
+  }
 }
 
 namespace ccf::historical

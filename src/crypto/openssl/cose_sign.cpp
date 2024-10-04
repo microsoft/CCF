@@ -211,7 +211,7 @@ namespace ccf::crypto
     }
     else
     {
-      UsefulBufC payload_buffer{underlying_buffer.data(), buf_size};
+      UsefulBufC payload_buffer{payload.data(), payload.size()};
       QCBOREncode_AddBytes(&cbor_encode, payload_buffer);
     }
 

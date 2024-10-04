@@ -146,6 +146,8 @@ namespace ccf
   };
   std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
     const TxReceiptImpl& in);
+  std::optional<std::vector<std::vector<uint8_t>>>
+  describe_cose_endorsements_v1(const TxReceiptImpl& in);
 
   // Manual JSON serializers are specified for these types as they are not
   // trivial POD structs
@@ -170,10 +172,10 @@ namespace ccf
   void add_schema_components(
     T& helper, nlohmann::json& schema, const ProofReceipt::Components* comp)
   {
-    helper.template add_schema_component<decltype(
-      ProofReceipt::Components::write_set_digest)>();
-    helper.template add_schema_component<decltype(
-      ProofReceipt::Components::claims_digest)>();
+    helper.template add_schema_component<
+      decltype(ProofReceipt::Components::write_set_digest)>();
+    helper.template add_schema_component<
+      decltype(ProofReceipt::Components::claims_digest)>();
 
     fill_json_schema(schema, comp);
   }

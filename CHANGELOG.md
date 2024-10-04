@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Provided API for getting COSE signatures and Merkle proofs (#6477).
   - Exposed COSE signature in historical API via `TxReceiptImpl`.
   - Introduced `ccf::describe_merkle_proof_v1(receipt)` for Merkle proof construction in CBOR format.
+  - Introduced `ccf::describe_cose_endorsements_v1(receipt)` for COSE-endorsements chain of previous service identities.
 - Added COSE signatures over the Merkle root to the KV (#6449).
   - Signing is done with service key (different from raw signatures, which remain unchanged and are still signed by the node key).
   - New signature reside in `public:ccf.internal.cose_signatures`.
