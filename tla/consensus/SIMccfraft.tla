@@ -1,5 +1,5 @@
 ---------- MODULE SIMccfraft ----------
-EXTENDS ccfraft, TLC, Integers, StatsFile, IOUtils, MCAliases
+EXTENDS ccfraft, TLC, Integers, IOUtils, MCAliases
 
 CONSTANTS
     NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive
@@ -44,6 +44,15 @@ DebugInvUpToDepth ==
     \* The following invariant causes TLC to terminate with a counterexample of length
     \* -depth after generating the first trace.
     TLCGet("level") < TLCGet("config").depth
+
+----
+\* Refinement
+
+MCRefinementToAbsProp == MappingToAbs(Nat \ 0..StartTerm-1)!AbsSpec
+
+ABSExtend(i) == MappingToAbs(Nat \ 0..StartTerm-1)!ExtendAxiom(i)
+ABSCopyMaxAndExtend(i) == MappingToAbs(Nat \ 0..StartTerm-1)!CopyMaxAndExtendAxiom(i)
+
 =============================================================================
 
 ------------------------------- MODULE SIMPostCondition -------------------------------
