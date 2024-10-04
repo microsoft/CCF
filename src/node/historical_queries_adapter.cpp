@@ -42,7 +42,7 @@ namespace
       &ctx, ccf::MerkleProofLabel::MERKLE_PROOF_PATH_LABEL);
     for (const auto& node : path)
     {
-      const int64_t dir =
+      const bool dir =
         (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT);
       std::vector<uint8_t> hash{node.hash};
 
