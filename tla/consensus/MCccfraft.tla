@@ -12,6 +12,7 @@ Configurations ==
             [] IOEnv.RAFT_CONFIGS = "1C2N" -> default
             [] IOEnv.RAFT_CONFIGS = "1C3N" -> <<{NodeOne, NodeTwo, NodeThree}>>
             [] IOEnv.RAFT_CONFIGS = "2C2N" -> <<{NodeOne}, {NodeTwo}>>
+            [] IOEnv.RAFT_CONFIGS = "2C3N" -> <<{NodeOne, NodeTwo}, {NodeTwo, NodeThree}>>
             [] IOEnv.RAFT_CONFIGS = "3C2N" -> <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
             [] OTHER -> Print("Unsupported value for RAFT_CONFIGS, defaulting to 1C2N: <<{NodeOne, NodeTwo}>>.", default)
     ELSE Print("RAFT_CONFIGS is not set, defaulting to 1C2N: <<{NodeOne, NodeTwo}>>.", default)
