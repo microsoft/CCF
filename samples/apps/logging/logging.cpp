@@ -1994,7 +1994,7 @@ namespace loggingapp
         "/log/public/cose_endorsements",
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
-          get_cbor_merkle_proof, context, is_tx_committed),
+          get_cose_endorsements, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, void>()
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
