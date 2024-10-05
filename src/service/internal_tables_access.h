@@ -378,13 +378,14 @@ namespace ccf
       if (previous_identity_endorsement->has())
       {
         const auto prev_endorsement = previous_identity_endorsement->get();
-        const auto from = prev_endorsement->endorsed_range->second;
-        const auto till = active_service->current_service_create_txid.value();
-        pheaders.push_back(
-          ccf::crypto::cose_params_string_string("from", from.to_str()));
-        pheaders.push_back(
-          ccf::crypto::cose_params_string_string("till", till.to_str()));
-        endorsement.endorsed_range = {from, till};
+
+        endorsement.endorsed_from =
+          prev_endorsement->endorsed_till.has_value() ?
+          prev_endorsement->endorsed_till.value() :
+          prev_endorsement->endorsed_from;
+
+        endorsement.endorsed_till =
+          active_service->current_service_create_txid.value();
 
         endorsement.previous_version =
           previous_identity_endorsement->get_version_of_previous_write();
@@ -393,7 +394,21 @@ namespace ccf
       }
       else
       {
-        key_to_endorse = endorsement.endorsing_key; // self-sign
+        // There's no till for the a self-endorsement, leave it open-ranged and
+        // sign the current service key.
+
+        endorsement.endorsed_from =
+          active_service->current_service_create_txid.value();
+
+        key_to_endorse = endorsement.endorsing_key;
+      }
+
+      pheaders.push_back(ccf::crypto::cose_params_string_string(
+        "from", endorsement.endorsed_from.to_str()));
+      if (endorsement.endorsed_till)
+      {
+        pheaders.push_back(ccf::crypto::cose_params_string_string(
+          "till", endorsement.endorsed_till->to_str()));
       }
 
       try

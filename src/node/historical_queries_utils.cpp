@@ -42,9 +42,9 @@ namespace
       const auto from_txid = ccf::TxID::from_str(from);
       const auto till_txid = ccf::TxID::from_str(till);
       if (
-        !from_txid || !till_txid || !endorsement->endorsed_range ||
-        endorsement->endorsed_range->first != *from_txid ||
-        endorsement->endorsed_range->second != *till_txid)
+        !till_txid || !endorsement->endorsed_till ||
+        endorsement->endorsed_from != *from_txid ||
+        endorsement->endorsed_till != *till_txid)
       {
         throw std::logic_error("COSE endorsement fetched but range is invalid");
       }
@@ -67,7 +67,7 @@ namespace
   bool keep_fetching(ccf::SeqNo target_seq)
   {
     return !is_self_endorsement(cose_endorsements_cache.back()) &&
-      cose_endorsements_cache.back().endorsed_range->second.seqno > target_seq;
+      cose_endorsements_cache.back().endorsed_till->seqno > target_seq;
   }
 
   FetchResult fetch_endorsements_for(
@@ -111,7 +111,7 @@ namespace
       cose_endorsements_cache.end() :
       cose_endorsements_cache.end() - 1;
 
-    if (search_to->endorsed_range->first.seqno > target_seq)
+    if (search_to->endorsed_from.seqno > target_seq)
     {
       // COSE-endorsements are fetched for newer epochs, but target_seq is far
       // behind and was never endorsed.
@@ -123,7 +123,7 @@ namespace
       search_to,
       target_seq,
       [](const auto& seq, const auto& endorsement) {
-        return endorsement.endorsed_range->first.seqno <= seq;
+        return endorsement.endorsed_from.seqno <= seq;
       });
 
     if (final_endorsement == search_to)
