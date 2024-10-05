@@ -299,6 +299,8 @@ namespace ccf
       if (!service_start)
       {
         LOG_FAIL_FMT("Service start txid not found");
+        assert(false); // In debug, fail fast.
+
         return true;
       }
 
