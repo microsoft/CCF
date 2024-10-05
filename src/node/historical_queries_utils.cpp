@@ -13,11 +13,18 @@
 
 namespace
 {
+  using Endorsements = std::vector<std::vector<uint8_t>>;
+  struct FetchResult
+  {
+    std::optional<Endorsements> endorsements{std::nullopt};
+    bool retry{false};
+  };
+
   static std::vector<ccf::CoseEndorsement> cose_endorsements_cache = {};
 
   bool is_self_endorsement(const ccf::CoseEndorsement& endorsement)
   {
-    return endorsement.previous_version.has_value();
+    return !endorsement.previous_version.has_value();
   }
 
   void validate_fetched_endorsement(
@@ -25,7 +32,7 @@ namespace
   {
     if (!endorsement)
     {
-      throw std::logic_error("COSE endorsement for current service not found");
+      throw std::logic_error("Fetched COSE endorsement is invalid");
     }
 
     if (!is_self_endorsement(*endorsement))
@@ -63,7 +70,7 @@ namespace
       cose_endorsements_cache.back().endorsed_range->second.seqno > target_seq;
   }
 
-  std::optional<std::vector<std::vector<uint8_t>>> fetch_endorsements_for(
+  FetchResult fetch_endorsements_for(
     ccf::kv::ReadOnlyTx& tx,
     ccf::historical::AbstractStateCache& state_cache,
     ccf::SeqNo target_seq)
@@ -79,7 +86,7 @@ namespace
 
       if (!hstate)
       {
-        return std::nullopt; // fetching, try later
+        return {.endorsements = std::nullopt, .retry = true};
       }
 
       auto htx = hstate->store->create_read_only_tx();
@@ -97,7 +104,7 @@ namespace
     {
       // Only current service self-endorsement was found, meaning no historical
       // TXs for previous epochs were COSE-endorsed.
-      return std::nullopt;
+      return {.endorsements = std::nullopt, .retry = false};
     }
 
     const auto search_to = is_self_endorsement(cose_endorsements_cache.back()) ?
@@ -108,7 +115,7 @@ namespace
     {
       // COSE-endorsements are fetched for newer epochs, but target_seq is far
       // behind and was never endorsed.
-      return std::nullopt;
+      return {.endorsements = std::nullopt, .retry = false};
     }
 
     const auto final_endorsement = std::upper_bound(
@@ -121,11 +128,6 @@ namespace
 
     if (final_endorsement == search_to)
     {
-      fmt::println(
-        "PATTERN loop error earliest is {} target is {}",
-        search_to->endorsed_range->first.seqno,
-        target_seq);
-
       LOG_FAIL_FMT(
         "Error during COSE endorsement chain reconstruction, seqno {} not "
         "found",
@@ -136,9 +138,9 @@ namespace
         target_seq));
     }
 
-    std::vector<std::vector<uint8_t>> endorsements;
-    endorsements.reserve(
-      std::distance(cose_endorsements_cache.begin(), final_endorsement) + 1);
+    const auto endorsements_count =
+      std::distance(cose_endorsements_cache.begin(), final_endorsement) + 1;
+    Endorsements endorsements(endorsements_count);
 
     std::transform(
       cose_endorsements_cache.begin(),
@@ -146,7 +148,7 @@ namespace
       std::back_inserter(endorsements),
       [](const auto& e) { return e.endorsement; });
 
-    return endorsements;
+    return {.endorsements = std::move(endorsements), .retry = false};
   }
 }
 
@@ -251,8 +253,6 @@ namespace ccf
             auto hpubkey = ccf::crypto::public_key_pem_from_cert(
               ccf::crypto::cert_pem_to_der(opt_psi->cert));
 
-            std::cout << "PATTERN classic endorsement" << std::endl;
-
             auto eit = service_endorsement_cache.find(hpubkey);
             if (eit != service_endorsement_cache.end())
             {
@@ -314,23 +314,23 @@ namespace ccf
 
       try
       {
-        auto endorsements =
+        auto result =
           fetch_endorsements_for(tx, state_cache, state->transaction_id.seqno);
-        if (!endorsements)
+        if (!result.endorsements)
         {
-          return false; // False means try later due to historical state
-                        // fetching.
+          const bool final_result = !result.retry;
+          return final_result;
         }
-        state->receipt->cose_endorsements = endorsements;
+        state->receipt->cose_endorsements = result.endorsements.value();
       }
       catch (const std::logic_error& e)
       {
         LOG_FAIL_FMT("Failed to fetch endorsements: {}", e.what());
 
-        assert(false); // In debug, fail fast and debug.
+        assert(false); // In debug, fail fast.
 
         return true; // In release, return true to avoid being stuck waiting for
-                     // endorsements that can't be done because of an error.
+                     // endorsements that can't be provided because of an error.
       }
 
       return true;
