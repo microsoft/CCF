@@ -67,7 +67,7 @@ namespace
   bool keep_fetching(ccf::SeqNo target_seq)
   {
     return !is_self_endorsement(cose_endorsements_cache.back()) &&
-      cose_endorsements_cache.back().endorsed_till->seqno > target_seq;
+      cose_endorsements_cache.back().endorsed_from.seqno > target_seq;
   }
 
   FetchResult fetch_endorsements_for(

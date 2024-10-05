@@ -1509,20 +1509,8 @@ namespace ccf
             "Service is already created.");
         }
 
-        try
-        {
-          InternalTablesAccess::create_service(
-            ctx.tx,
-            in.service_cert,
-            in.create_txid,
-            in.service_data,
-            recovering);
-        }
-        catch (const std::logic_error& e)
-        {
-          return make_error(
-            HTTP_STATUS_FORBIDDEN, ccf::errors::InternalError, e.what());
-        }
+        InternalTablesAccess::create_service(
+          ctx.tx, in.service_cert, in.create_txid, in.service_data, recovering);
 
         // Retire all nodes, in case there are any (i.e. post recovery)
         InternalTablesAccess::retire_active_nodes(ctx.tx);

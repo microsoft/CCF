@@ -332,7 +332,6 @@ namespace ccf
       if (service->has())
       {
         const auto prev_service_info = service->get();
-
         auto previous_service_identity = tx.wo<ccf::PreviousServiceIdentity>(
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
         previous_service_identity->put(prev_service_info->cert);
@@ -394,8 +393,8 @@ namespace ccf
       }
       else
       {
-        // There's no till for the a self-endorsement, leave it open-ranged and
-        // sign the current service key.
+        // There's no 'till' for the a self-endorsement, leave it open-ranged
+        // and sign the current service key.
 
         endorsement.endorsed_from =
           active_service->current_service_create_txid.value();
