@@ -174,16 +174,14 @@ def create_cose_sign1_finish(
     return msg.encode(sign=False)
 
 
-def validate_cose_sign1(payload: bytes, cert_pem: Pem, cose_sign1: bytes):
-    cert = load_pem_x509_certificate(cert_pem.encode("ascii"), default_backend())
-    if not isinstance(cert.public_key(), EllipticCurvePublicKey):
-        raise NotImplementedError("unsupported key type")
-
-    key = cert.public_key()
-    cose_key = from_cryptography_eckey_obj(key)
+def validate_cose_sign1(pubkey, cose_sign1, payload=None):
+    cose_key = from_cryptography_eckey_obj(pubkey)
     msg = Sign1Message.decode(cose_sign1)
     msg.key = cose_key
-    msg.payload = payload
+
+    if payload:
+        # Detached payload
+        msg.payload = payload
 
     if not msg.verify_signature():
         raise ValueError("signature is invalid")

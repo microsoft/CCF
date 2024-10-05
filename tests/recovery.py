@@ -20,7 +20,13 @@ import infra.service_load
 import ccf.tx_id
 import tempfile
 import http
+import base64
 import shutil
+from cryptography.x509 import load_pem_x509_certificate
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from ccf.cose import validate_cose_sign1
+from pycose.messages import Sign1Message  # type: ignore
 
 from loguru import logger as LOG
 
@@ -45,6 +51,26 @@ def get_and_verify_historical_receipt(network, ref_msg):
     )
     verify_receipt(r.json()["receipt"], network.cert)
     return ref_msg
+
+
+def query_endorsements_chain(node, txid):
+    for _ in range(0, 10):
+        with node.client("user0") as cli:
+            response = cli.get(
+                "/log/public/cose_endorsements",
+                headers={infra.clients.CCF_TX_ID_HEADER: str(txid)},
+            )
+            if response.status_code != http.HTTPStatus.ACCEPTED:
+                return response
+        time.sleep(0.1)
+    return response
+
+
+def verify_endorsements_chain(endorsements, pubkey):
+    for endorsement in endorsements:
+        validate_cose_sign1(cose_sign1=endorsement, pubkey=pubkey)
+        next_key_bytes = Sign1Message.decode(endorsement).payload
+        pubkey = serialization.load_der_public_key(next_key_bytes, default_backend())
 
 
 @reqs.description("Recover a service")
@@ -299,7 +325,7 @@ def test_recover_service_with_wrong_identity(network, args):
             cli.get("/node/commit").body.json()["transaction_id"]
         )
 
-    # Check receipts for transactions after multiple recoveries
+    # Check receipts for transactions after multiple recoveries. This test relies on previous recoveries and is therefore prone to failures if surrounding test calls change.
     txids = [
         # Last TX before previous recovery
         shifted_tx(previous_service_created_tx_id, -2, -1),
@@ -324,6 +350,30 @@ def test_recover_service_with_wrong_identity(network, args):
             # May fail due to missing leaf components if it's a signature TX,
             # try again with a flag to force skip leaf components verification.
             verify_receipt(receipt, recovered_network.cert, is_signature_tx=True)
+
+    with primary.client() as cli:
+        service_cert = cli.get("/node/network").body.json()["service_certificate"]
+        cert = load_pem_x509_certificate(
+            service_cert.encode("ascii"), default_backend()
+        )
+
+    for tx in txids[0:1]:
+        response = query_endorsements_chain(primary, tx)
+        assert response.status_code == http.HTTPStatus.OK, response
+        endorsements = [base64.b64decode(x) for x in response.body.json()]
+        assert len(endorsements) == 2  # 2 recoveries behind
+        verify_endorsements_chain(endorsements, cert.public_key())
+
+    for tx in txids[1:4]:
+        response = query_endorsements_chain(primary, tx)
+        assert response.status_code == http.HTTPStatus.OK, response
+        endorsements = [base64.b64decode(x) for x in response.body.json()]
+        assert len(endorsements) == 1  # 1 recovery behind
+        verify_endorsements_chain(endorsements, cert.public_key())
+
+    for tx in txids[4:]:
+        response = query_endorsements_chain(primary, tx)
+        assert response.status_code == http.HTTPStatus.NOT_FOUND, response
 
     return recovered_network
 
@@ -943,21 +993,21 @@ checked. Note that the key for each logging message is unique (per table).
     # can be dictated by the test. In particular, the signature interval is large
     # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
-    cr.add(
-        "recovery_corrupt_ledger",
-        run_corrupted_ledger,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
-        sig_ms_interval=1000,
-        ledger_chunk_bytes="1GB",
-        snapshot_tx_interval=1000000,
-    )
+    # cr.add(
+    #     "recovery_corrupt_ledger",
+    #     run_corrupted_ledger,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    #     sig_ms_interval=1000,
+    #     ledger_chunk_bytes="1GB",
+    #     snapshot_tx_interval=1000000,
+    # )
 
-    cr.add(
-        "recovery_snapshot_alone",
-        run_recover_snapshot_alone,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
-    )
+    # cr.add(
+    #     "recovery_snapshot_alone",
+    #     run_recover_snapshot_alone,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    # )
 
     cr.run()

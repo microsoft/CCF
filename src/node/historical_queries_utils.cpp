@@ -108,8 +108,8 @@ namespace
     }
 
     const auto search_to = is_self_endorsement(cose_endorsements_cache.back()) ?
-      cose_endorsements_cache.end() :
-      cose_endorsements_cache.end() - 1;
+      cose_endorsements_cache.end() - 1 :
+      cose_endorsements_cache.end();
 
     if (search_to->endorsed_from.seqno > target_seq)
     {
@@ -133,18 +133,18 @@ namespace
         "found",
         target_seq);
 
+      assert(false); // In debug, fail fast.
+
       throw std::logic_error(fmt::format(
         "Error during COSE endorsement chain reconstruction for seqno {}",
         target_seq));
     }
 
-    const auto endorsements_count =
-      std::distance(cose_endorsements_cache.begin(), final_endorsement) + 1;
-    Endorsements endorsements(endorsements_count);
+    Endorsements endorsements;
 
     std::transform(
       cose_endorsements_cache.begin(),
-      final_endorsement,
+      final_endorsement + 1, // Inclusive
       std::back_inserter(endorsements),
       [](const auto& e) { return e.endorsement; });
 
