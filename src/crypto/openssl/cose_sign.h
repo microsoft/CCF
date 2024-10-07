@@ -19,7 +19,11 @@ namespace ccf::crypto
   // Standardised: verifiable data structure
   static constexpr int64_t COSE_PHEADER_KEY_VDS = 395;
   // CCF-specific: last signed TxID
-  static constexpr const char* COSE_PHEADER_KEY_TXID = "ccf.txid";
+  static const std::string COSE_PHEADER_KEY_TXID = "ccf.txid";
+  // CCF-specific: first TX in the range.
+  static const std::string COSE_PHEADER_KEY_RANGE_BEGIN = "ccf.range.begin";
+  // CCF-specific: last TX included in the range.
+  static const std::string COSE_PHEADER_KEY_RANGE_END = "ccf.epoch.end";
 
   class COSEParametersFactory
   {

@@ -282,11 +282,15 @@ namespace ccf::crypto
     };
     QCBORItem header_items[END_INDEX + 1];
 
-    header_items[FROM_INDEX].label.string = UsefulBufC{"from", 4};
+    header_items[FROM_INDEX].label.string = UsefulBufC{
+      ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN.data(),
+      ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN.size()};
     header_items[FROM_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
     header_items[FROM_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-    header_items[TILL_INDEX].label.string = UsefulBufC{"till", 4};
+    header_items[TILL_INDEX].label.string = UsefulBufC{
+      ccf::crypto::COSE_PHEADER_KEY_RANGE_END.data(),
+      ccf::crypto::COSE_PHEADER_KEY_RANGE_END.size()};
     header_items[TILL_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
     header_items[TILL_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
 

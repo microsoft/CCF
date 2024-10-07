@@ -37,7 +37,7 @@ namespace
 
     if (!is_self_endorsement(*endorsement))
     {
-      const auto [from, till] = ccf::crypto::extract_cose_endorsement_validity(
+      const auto [from, to] = ccf::crypto::extract_cose_endorsement_validity(
         endorsement->endorsement);
 
       const auto from_txid = ccf::TxID::from_str(from);
@@ -47,30 +47,46 @@ namespace
           fmt::format("Can't parse COSE endorsement 'from' header: {}", from));
       }
 
-      const auto till_txid = ccf::TxID::from_str(till);
-      if (!till_txid)
+      const auto to_txid = ccf::TxID::from_str(to);
+      if (!to_txid)
       {
         throw std::logic_error(
-          fmt::format("Can't parse COSE endorsement 'till' header: ", till));
+          fmt::format("Can't parse COSE endorsement 'till' header: ", to));
       }
 
-      if (!endorsement->endorsed_till)
+      if (!endorsement->endorsed_to)
       {
         throw std::logic_error(
-          "COSE endorsement doesn't contain 'till' field in the table entry");
+          "COSE endorsement doesn't contain 'to' field in the table entry");
       }
       if (
         endorsement->endorsed_from != *from_txid ||
-        *endorsement->endorsed_till != *till_txid)
+        *endorsement->endorsed_to != *to_txid)
       {
         throw std::logic_error(fmt ::format(
-          "COSE endorsement fetched but range is invalid, from {} till {}, "
-          "header from: {}, header till: {}",
+          "COSE endorsement fetched but range is invalid, from {} to {}, "
+          "header from: {}, header to: {}",
           endorsement->endorsed_from.to_str(),
-          endorsement->endorsed_till->to_str(),
+          endorsement->endorsed_to->to_str(),
           from,
-          till));
+          to));
       }
+    }
+  }
+
+  void validate_chain_integrity(
+    const ccf::CoseEndorsement& newer, const ccf::CoseEndorsement& older)
+  {
+    if (
+      !is_self_endorsement(older) &&
+      (newer.endorsed_from.view - 2 != older.endorsed_to->view ||
+       newer.endorsed_from.seqno - 1 != older.endorsed_to->seqno))
+    {
+      throw std::logic_error(fmt::format(
+        "COSE endorsement chain integrity is violated, older endorsement end "
+        "{} is not chained with newer endorsement start {}",
+        older.endorsed_to->to_str(),
+        newer.endorsed_from.to_str()));
     }
   }
 
@@ -122,6 +138,8 @@ namespace
           ->get();
 
       validate_fetched_endorsement(endorsement);
+      validate_chain_integrity(
+        cose_endorsements_cache.back(), endorsement.value());
       cose_endorsements_cache.push_back(*endorsement);
     }
 
@@ -356,7 +374,11 @@ namespace ccf
       }
       catch (const std::logic_error& e)
       {
-        LOG_FAIL_FMT("Failed to fetch endorsements: {}", e.what());
+        LOG_FAIL_FMT("FAIL: Failed to fetch endorsements: {}", e.what());
+        LOG_DEBUG_FMT("DEBUG: Failed to fetch endorsements: {}", e.what());
+        LOG_INFO_FMT("INFO: Failed to fetch endorsements: {}", e.what());
+
+        std::cerr << "Failed to fetch endorsements: " << e.what() << std::endl;
 
         assert(false); // In debug, fail fast.
 

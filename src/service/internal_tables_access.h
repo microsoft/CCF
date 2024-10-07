@@ -22,6 +22,24 @@
 
 namespace ccf
 {
+
+  /* We can't query the past epochs' TXs if the service hasn't been opened
+   * yet. We do guess values based on epoch value and seqno changing rules. */
+  static int RECOVERED_SERVICE_EPOCH_DIFF = 2;
+  static int RECOVERED_SERVICE_SEQNO_DIFF = 1;
+  ccf::TxID previous_tx_if_recovery(ccf::TxID txid)
+  {
+    return ccf::TxID{
+      .view = txid.view - RECOVERED_SERVICE_EPOCH_DIFF,
+      .seqno = txid.seqno - RECOVERED_SERVICE_SEQNO_DIFF};
+  }
+  ccf::TxID next_tx_if_recovery(ccf::TxID txid)
+  {
+    return ccf::TxID{
+      .view = txid.view + RECOVERED_SERVICE_EPOCH_DIFF,
+      .seqno = txid.seqno + RECOVERED_SERVICE_SEQNO_DIFF};
+  }
+
   // This class provides functions for interacting with various internal
   // service-governance tables. Specifically, it aims to maintain some
   // invariants amongst these tables (eg - keys being present in multiple
@@ -378,13 +396,12 @@ namespace ccf
       {
         const auto prev_endorsement = previous_identity_endorsement->get();
 
-        endorsement.endorsed_from =
-          prev_endorsement->endorsed_till.has_value() ?
-          prev_endorsement->endorsed_till.value() :
+        endorsement.endorsed_from = prev_endorsement->endorsed_to.has_value() ?
+          next_tx_if_recovery(prev_endorsement->endorsed_to.value()) :
           prev_endorsement->endorsed_from;
 
-        endorsement.endorsed_till =
-          active_service->current_service_create_txid.value();
+        endorsement.endorsed_to = previous_tx_if_recovery(
+          active_service->current_service_create_txid.value());
 
         endorsement.previous_version =
           previous_identity_endorsement->get_version_of_previous_write();
@@ -403,11 +420,13 @@ namespace ccf
       }
 
       pheaders.push_back(ccf::crypto::cose_params_string_string(
-        "from", endorsement.endorsed_from.to_str()));
-      if (endorsement.endorsed_till)
+        ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN,
+        endorsement.endorsed_from.to_str()));
+      if (endorsement.endorsed_to)
       {
         pheaders.push_back(ccf::crypto::cose_params_string_string(
-          "till", endorsement.endorsed_till->to_str()));
+          ccf::crypto::COSE_PHEADER_KEY_RANGE_END,
+          endorsement.endorsed_to->to_str()));
       }
 
       try
