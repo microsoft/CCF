@@ -22,7 +22,6 @@
 
 namespace ccf
 {
-
   /* We can't query the past epochs' TXs if the service hasn't been opened
    * yet. We do guess values based on epoch value and seqno changing rules. */
   static int RECOVERED_SERVICE_EPOCH_DIFF = 2;
