@@ -173,8 +173,7 @@ PostConditions ==
 ----
 \* Refinement
 
-MCRefinementToAbsProp == MappingToAbs(StartTerm..StartTerm + TermCount)!AbsSpec
+ABSExtend(i) == MappingToAbs!ExtendAxiom(i)
+ABSCopyMaxAndExtend(i) == MappingToAbs!CopyMaxAndExtendAxiom(i)
 
-ABSExtend(i) == MappingToAbs(StartTerm..StartTerm + TermCount)!ExtendAxiom(i)
-ABSCopyMaxAndExtend(i) == MappingToAbs(StartTerm..StartTerm + TermCount)!CopyMaxAndExtendAxiom(i)
 ===================================

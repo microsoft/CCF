@@ -1,6 +1,6 @@
 ---- MODULE MCabs ----
 
-EXTENDS abs, TLC, SequencesExt
+EXTENDS abs, TLC, SequencesExt, FiniteSetsExt
 
 Symmetry ==
       Permutations(Servers)
@@ -9,6 +9,7 @@ CONSTANTS NodeOne, NodeTwo, NodeThree
 
 MCServers == {NodeOne, NodeTwo, NodeThree}
 MCTerms == 2..4
+MCStartTerm == Min(MCTerms)
 MaxExtend == 3
 
 MCTypeOK ==
