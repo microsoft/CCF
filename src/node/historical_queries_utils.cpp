@@ -112,6 +112,8 @@ namespace
         return {.endorsements = std::nullopt, .retry = true};
       }
 
+      assert(hstate->store); // TO DO remove me
+
       auto htx = hstate->store->create_read_only_tx();
       const auto endorsement =
         htx
