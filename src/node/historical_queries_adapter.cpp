@@ -249,8 +249,8 @@ namespace ccf
     return underlying_buffer;
   }
 
-  std::optional<std::vector<std::vector<uint8_t>>>
-  describe_cose_endorsements_v1(const TxReceiptImpl& receipt)
+  std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(
+    const TxReceiptImpl& receipt)
   {
     return receipt.cose_endorsements;
   }

@@ -39,14 +39,37 @@ namespace
     {
       const auto [from, till] = ccf::crypto::extract_cose_endorsement_validity(
         endorsement->endorsement);
+
       const auto from_txid = ccf::TxID::from_str(from);
-      const auto till_txid = ccf::TxID::from_str(till);
-      if (
-        !till_txid || !endorsement->endorsed_till ||
-        endorsement->endorsed_from != *from_txid ||
-        endorsement->endorsed_till != *till_txid)
+      if (!from_txid)
       {
-        throw std::logic_error("COSE endorsement fetched but range is invalid");
+        throw std::logic_error(
+          fmt::format("Can't parse COSE endorsement 'from' header: {}", from));
+      }
+
+      const auto till_txid = ccf::TxID::from_str(till);
+      if (!till_txid)
+      {
+        throw std::logic_error(
+          fmt::format("Can't parse COSE endorsement 'till' header: ", till));
+      }
+
+      if (!endorsement->endorsed_till)
+      {
+        throw std::logic_error(
+          "COSE endorsement doesn't contain 'till' field in the table entry");
+      }
+      if (
+        endorsement->endorsed_from != *from_txid ||
+        *endorsement->endorsed_till != *till_txid)
+      {
+        throw std::logic_error(fmt ::format(
+          "COSE endorsement fetched but range is invalid, from {} till {}, "
+          "header from: {}, header till: {}",
+          endorsement->endorsed_from.to_str(),
+          endorsement->endorsed_till->to_str(),
+          from,
+          till));
       }
     }
   }

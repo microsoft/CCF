@@ -146,8 +146,11 @@ namespace ccf
   };
   std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
     const TxReceiptImpl& in);
-  std::optional<std::vector<std::vector<uint8_t>>>
-  describe_cose_endorsements_v1(const TxReceiptImpl& in);
+
+  using SerialisedCoseEndorsement = std::vector<uint8_t>;
+  using SerialisedCoseEndorsements = std::vector<SerialisedCoseEndorsement>;
+  std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(
+    const TxReceiptImpl& in);
 
   // Manual JSON serializers are specified for these types as they are not
   // trivial POD structs
