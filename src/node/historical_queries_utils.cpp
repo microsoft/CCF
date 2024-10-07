@@ -102,8 +102,9 @@ namespace
 
     if (cose_endorsements_cache.size() == 1)
     {
-      // Only current service self-endorsement was found, meaning no historical
-      // TXs for previous epochs were COSE-endorsed.
+      LOG_TRACE_FMT(
+        "Only current service self-endorsement was found, no historical TXs "
+        "for previous epochs were COSE-endorsed.");
       return {.endorsements = std::nullopt, .retry = false};
     }
 
@@ -113,8 +114,11 @@ namespace
 
     if (search_to->endorsed_from.seqno > target_seq)
     {
-      // COSE-endorsements are fetched for newer epochs, but target_seq is far
-      // behind and was never endorsed.
+      LOG_TRACE_FMT(
+        "COSE-endorsements are fetched for newer epochs, but target_seq {} is "
+        "far behind and was never endorsed.",
+        target_seq);
+
       return {.endorsements = std::nullopt, .retry = false};
     }
 
