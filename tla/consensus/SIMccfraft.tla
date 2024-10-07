@@ -48,10 +48,8 @@ DebugInvUpToDepth ==
 ----
 \* Refinement
 
-MCRefinementToAbsProp == MappingToAbs(Nat \ 0..StartTerm-1)!AbsSpec
-
-ABSExtend(i) == MappingToAbs(Nat \ 0..StartTerm-1)!ExtendAxiom(i)
-ABSCopyMaxAndExtend(i) == MappingToAbs(Nat \ 0..StartTerm-1)!CopyMaxAndExtendAxiom(i)
+ABSExtend(i) == MappingToAbs!ExtendAxiom(i)
+ABSCopyMaxAndExtend(i) == MappingToAbs!CopyMaxAndExtendAxiom(i)
 
 =============================================================================
 
