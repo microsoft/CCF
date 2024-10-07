@@ -254,9 +254,25 @@ namespace ccf::crypto
     }
 
     struct q_useful_buf_c protected_parameters;
+
     QCBORDecode_EnterBstrWrapped(
       &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
+
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      LOG_DEBUG_FMT("Failed to parse COSE_Sign1 as bstr");
+      return {};
+    }
+
     QCBORDecode_EnterMap(&ctx, NULL);
+
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      LOG_DEBUG_FMT("Failed to parse COSE_Sign1 wrapped map");
+      return {};
+    }
 
     enum
     {
