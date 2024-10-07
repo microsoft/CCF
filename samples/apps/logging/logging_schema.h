@@ -98,6 +98,16 @@ namespace loggingapp
   DECLARE_JSON_OPTIONAL_FIELDS_WITH_RENAMES(
     LoggingGetHistoricalRange::Out, next_link, "@nextLink");
 
+  struct LoggingGetCoseEndorsements
+  {
+    struct Out
+    {
+      std::optional<ccf::SerialisedCoseEndorsements> endorsements;
+    };
+  };
+  DECLARE_JSON_TYPE(LoggingGetCoseEndorsements::Out);
+  DECLARE_JSON_REQUIRED_FIELDS(LoggingGetCoseEndorsements::Out, endorsements);
+
   // Public record/get
   // Manual schemas, verified then parsed in handler
   static const std::string j_record_public_in = R"!!!(

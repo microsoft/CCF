@@ -362,14 +362,18 @@ def test_recover_service_with_wrong_identity(network, args):
     for tx in txids[0:1]:
         response = query_endorsements_chain(primary, tx)
         assert response.status_code == http.HTTPStatus.OK, response
-        endorsements = [base64.b64decode(x) for x in response.body.json()]
+        endorsements = [
+            base64.b64decode(x) for x in response.body.json()["endorsements"]
+        ]
         assert len(endorsements) == 2  # 2 recoveries behind
         verify_endorsements_chain(endorsements, cert.public_key())
 
     for tx in txids[1:4]:
         response = query_endorsements_chain(primary, tx)
         assert response.status_code == http.HTTPStatus.OK, response
-        endorsements = [base64.b64decode(x) for x in response.body.json()]
+        endorsements = [
+            base64.b64decode(x) for x in response.body.json()["endorsements"]
+        ]
         assert len(endorsements) == 1  # 1 recovery behind
         verify_endorsements_chain(endorsements, cert.public_key())
 
