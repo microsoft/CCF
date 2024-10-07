@@ -8,7 +8,7 @@
   ],
   "settings": {
     "tlaplus.tlc.statisticsSharing": "share",
-    "tlaplus.java.options": "-XX:+UseParallelGC",
+    "tlaplus.java.options": "-XX:+UseParallelGC -Dtlc2.tool.impl.Tool.cdot=true",
     "tlaplus.java.home": "/home/codespace/java/current/",
     "[tlaplus]": {
       "editor.codeActionsOnSave": {
