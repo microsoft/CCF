@@ -510,3 +510,11 @@ Evidence inserted in the ledger by a primary producing a snapshot to establish p
 Used to persist submitted shares during a recovery.
 
 While the contents themselves are encrypted, the table is public so as to be accessible by nodes bootstrapping a recovery service.
+
+
+``previous_service_identity_endorsement``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Name of a network interface (string).
+
+**Value** Endorsed COSE sign1 for the interface, represented as a DER-encoded string.
