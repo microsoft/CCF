@@ -7,6 +7,7 @@ on:
     paths:
       - "tla/**"
       - "src/consensus/**"
+      - ".github/workflows/ci-verification.yml"
   workflow_dispatch:
 
 concurrency:
@@ -23,7 +24,7 @@ jobs:
     name: Model Checking - Consistency
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-07-10-2024
+      image: ghcr.io/microsoft/ccf/ci/default:build-07-10-2024-2
     defaults:
       run:
         working-directory: tla
@@ -101,7 +102,7 @@ jobs:
     name: Model Checking - Consensus
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-07-10-2024
+      image: ghcr.io/microsoft/ccf/ci/default:build-07-10-2024-2
     defaults:
       run:
         working-directory: tla
@@ -116,7 +117,7 @@ jobs:
 
       - run: ./tlc.py mc consensus/MCabs.tla
       - run: ./tlc.py --trace-name 1C2N mc --term-count 2 --request-count 2 --raft-configs 1C2N consensus/MCccfraft.tla
-      - run: ./tlc.py --trace-name 1C3N mc --term-count 2 --request-count 2 --raft-configs 1C3N consensus/MCccfraft.tla
+      - run: ./tlc.py --trace-name 1C3N mc --term-count 0 --request-count 3 --raft-configs 1C3N consensus/MCccfraft.tla
 
       - name: Upload TLC traces
         uses: actions/upload-artifact@v4
@@ -157,7 +158,7 @@ jobs:
     name: Trace Validation - Consensus
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-07-10-2024
+      image: ghcr.io/microsoft/ccf/ci/default:build-07-10-2024-2
 
     steps:
       - uses: actions/checkout@v4
