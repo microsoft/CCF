@@ -68,6 +68,11 @@ MCTimeout(i) ==
     /\ Cardinality({ s \in GetServerSetForIndex(i, commitIndex[i]) : leadershipState[s] = Candidate}) < 1
     /\ CCF!Timeout(i)
 
+\* Limit the number of terms that can be reached
+MCRcvProposeVoteRequest(i, j) ==
+    /\ currentTerm[i] < StartTerm + TermCount
+    /\ CCF!RcvProposeVoteRequest(i, j)
+
 \* Limit number of requests (new entries) that can be made
 MCClientRequest(i) ==
     \* Allocation-free variant of Len(SelectSeq(log[i], LAMBDA e: e.contentType = TypeEntry)) <= RequestCount
