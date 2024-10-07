@@ -1625,13 +1625,14 @@ LeaderProp ==
 \* asynchronous network and the message passing between nodes.  Instead, any
 \* node may atomically observe the state of any other node.
 
-MappingToAbs(T) == 
+MappingToAbs == 
   INSTANCE abs WITH
     Servers <- Servers,
-    Terms <- T,
+    StartTerm <- StartTerm,
+    Terms <- Nat \ 0..StartTerm-1,
     cLogs <- [i \in Servers |-> [j \in 1..commitIndex[i] |-> log[i][j].term]]
 
-RefinementToAbsProp == \EE T : MappingToAbs(T)!AbsSpec
+RefinementToAbsProp == MappingToAbs!AbsSpec
 THEOREM Spec => RefinementToAbsProp
 
 ------------------------------------------------------------------------------
