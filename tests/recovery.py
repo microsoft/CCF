@@ -325,7 +325,9 @@ def test_recover_service_with_wrong_identity(network, args):
             cli.get("/node/commit").body.json()["transaction_id"]
         )
 
-    # Check receipts for transactions after multiple recoveries. This test relies on previous recoveries and is therefore prone to failures if surrounding test calls change.
+    # Check receipts for transactions after multiple recoveries. This test
+    # relies on previous recoveries and is therefore prone to failures if
+    # surrounding test calls change.
     txids = [
         # Last TX before previous recovery
         shifted_tx(previous_service_created_tx_id, -2, -1),
