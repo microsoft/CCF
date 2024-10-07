@@ -23,7 +23,7 @@ jobs:
     name: Model Checking - Consistency
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+      image: ghcr.io/microsoft/ccf/ci/default:build-07-10-2024
     defaults:
       run:
         working-directory: tla
@@ -101,7 +101,7 @@ jobs:
     name: Model Checking - Consensus
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+      image: ghcr.io/microsoft/ccf/ci/default:build-07-10-2024
     defaults:
       run:
         working-directory: tla
@@ -157,7 +157,7 @@ jobs:
     name: Trace Validation - Consensus
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-25-07-2024
+      image: ghcr.io/microsoft/ccf/ci/default:build-07-10-2024
 
     steps:
       - uses: actions/checkout@v4
