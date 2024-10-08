@@ -11,6 +11,7 @@
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/users.h"
 #include "ccf/tx.h"
+#include "consensus/aft/raft_types.h"
 #include "crypto/openssl/cose_sign.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
@@ -24,19 +25,15 @@ namespace ccf
 {
   /* We can't query the past epochs' TXs if the service hasn't been opened
    * yet. We do guess values based on epoch value and seqno changing rules. */
-  static int RECOVERED_SERVICE_EPOCH_DIFF = 2;
-  static int RECOVERED_SERVICE_SEQNO_DIFF = 1;
   ccf::TxID previous_tx_if_recovery(ccf::TxID txid)
   {
     return ccf::TxID{
-      .view = txid.view - RECOVERED_SERVICE_EPOCH_DIFF,
-      .seqno = txid.seqno - RECOVERED_SERVICE_SEQNO_DIFF};
+      .view = txid.view - aft::starting_view_change, .seqno = txid.seqno - 1};
   }
   ccf::TxID next_tx_if_recovery(ccf::TxID txid)
   {
     return ccf::TxID{
-      .view = txid.view + RECOVERED_SERVICE_EPOCH_DIFF,
-      .seqno = txid.seqno + RECOVERED_SERVICE_SEQNO_DIFF};
+      .view = txid.view + aft::starting_view_change, .seqno = txid.seqno + 1};
   }
 
   // This class provides functions for interacting with various internal

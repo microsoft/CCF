@@ -6,6 +6,7 @@
 #include "ccf/crypto/cose_verifier.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/service.h"
+#include "consensus/aft/raft_types.h"
 #include "kv/kv_types.h"
 #include "node/identity.h"
 #include "node/tx_receipt_impl.h"
@@ -79,7 +80,8 @@ namespace
   {
     if (
       !is_self_endorsement(older) &&
-      (newer.endorsed_from.view - 2 != older.endorsed_to->view ||
+      (newer.endorsed_from.view - aft::starting_view_change !=
+         older.endorsed_to->view ||
        newer.endorsed_from.seqno - 1 != older.endorsed_to->seqno))
     {
       throw std::logic_error(fmt::format(
