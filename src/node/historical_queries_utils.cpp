@@ -182,13 +182,6 @@ namespace
 
     if (final_endorsement == search_to)
     {
-      LOG_FAIL_FMT(
-        "Error during COSE endorsement chain reconstruction, seqno {} not "
-        "found",
-        target_seq);
-
-      assert(false); // In debug, fail fast.
-
       throw std::logic_error(fmt::format(
         "Error during COSE endorsement chain reconstruction for seqno {}",
         target_seq));
@@ -352,10 +345,8 @@ namespace ccf
       const auto service_start = service_info->current_service_create_txid;
       if (!service_start)
       {
-        LOG_FAIL_FMT("Service start txid not found");
-        assert(false); // In debug, fail fast.
-
-        return true;
+        throw std::logic_error(
+          "COSE endorsements fetch: current service create_txid not available");
       }
 
       const auto target_seq = state->transaction_id.seqno;
@@ -368,27 +359,15 @@ namespace ccf
         return true;
       }
 
-      try
+      const auto result =
+        fetch_endorsements_for(tx, state_cache, state->transaction_id.seqno);
+      if (!result.endorsements)
       {
-        auto result =
-          fetch_endorsements_for(tx, state_cache, state->transaction_id.seqno);
-        if (!result.endorsements)
-        {
-          const bool final_result = !result.retry;
-          return final_result;
-        }
-        state->receipt->cose_endorsements = result.endorsements.value();
-      }
-      catch (const std::logic_error& e)
-      {
-        LOG_FAIL_FMT("FAIL: Failed to fetch endorsements: {}", e.what());
-
-        assert(false); // In debug, fail fast.
-
-        return true; // In release, return true to avoid being stuck waiting for
-                     // endorsements that can't be provided because of an error.
+        const bool final_result = !result.retry;
+        return final_result;
       }
 
+      state->receipt->cose_endorsements = result.endorsements.value();
       return true;
     }
   }

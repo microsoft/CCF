@@ -242,15 +242,13 @@ namespace ccf::crypto
     qcbor_result = QCBORDecode_GetError(&ctx);
     if (qcbor_result != QCBOR_SUCCESS)
     {
-      LOG_DEBUG_FMT("Failed to parse COSE_Sign1 outer array");
-      return {};
+      throw std::logic_error("Failed to parse COSE_Sign1 outer array");
     }
 
     const uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
     if (tag != CBOR_TAG_COSE_SIGN1)
     {
-      LOG_DEBUG_FMT("Failed to parse COSE_Sign1 tag");
-      return {};
+      throw std::logic_error("Failed to parse COSE_Sign1 tag");
     }
 
     struct q_useful_buf_c protected_parameters;
@@ -261,8 +259,7 @@ namespace ccf::crypto
     qcbor_result = QCBORDecode_GetError(&ctx);
     if (qcbor_result != QCBOR_SUCCESS)
     {
-      LOG_DEBUG_FMT("Failed to parse COSE_Sign1 as bstr");
-      return {};
+      throw std::logic_error("Failed to parse COSE_Sign1 as bstr");
     }
 
     QCBORDecode_EnterMap(&ctx, NULL);
@@ -270,8 +267,7 @@ namespace ccf::crypto
     qcbor_result = QCBORDecode_GetError(&ctx);
     if (qcbor_result != QCBOR_SUCCESS)
     {
-      LOG_DEBUG_FMT("Failed to parse COSE_Sign1 wrapped map");
-      return {};
+      throw std::logic_error("Failed to parse COSE_Sign1 wrapped map");
     }
 
     enum
@@ -300,24 +296,21 @@ namespace ccf::crypto
     qcbor_result = QCBORDecode_GetError(&ctx);
     if (qcbor_result != QCBOR_SUCCESS)
     {
-      LOG_DEBUG_FMT("Failed to decode protected header");
-      return {};
+      throw std::logic_error("Failed to decode protected header");
     }
 
     if (header_items[FROM_INDEX].uDataType == QCBOR_TYPE_NONE)
     {
-      LOG_DEBUG_FMT(
+      throw std::logic_error(fmt::format(
         "Failed to retrieve (missing) {} parameter",
-        ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN);
-      return {};
+        ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN));
     }
 
     if (header_items[TO_INDEX].uDataType == QCBOR_TYPE_NONE)
     {
-      LOG_DEBUG_FMT(
+      throw std::logic_error(fmt::format(
         "Failed to retrieve (missing) {} parameter",
-        ccf::crypto::COSE_PHEADER_KEY_RANGE_END);
-      return {};
+        ccf::crypto::COSE_PHEADER_KEY_RANGE_END));
     }
 
     const auto from = qcbor_buf_to_string(header_items[FROM_INDEX].val.string);
@@ -331,8 +324,8 @@ namespace ccf::crypto
     qcbor_result = QCBORDecode_GetError(&ctx);
     if (qcbor_result != QCBOR_SUCCESS)
     {
-      LOG_DEBUG_FMT("Failed to decode protected header: {}", qcbor_result);
-      return {};
+      throw std::logic_error(fmt::format(
+        "Failed to decode protected header with error code: {}", qcbor_result));
     }
 
     return COSEEndorsementValidity{.from_txid = from, .to_txid = to};
