@@ -392,11 +392,12 @@ namespace ccf
       {
         const auto prev_endorsement = previous_identity_endorsement->get();
 
-        endorsement.endorsed_from = prev_endorsement->endorsed_to.has_value() ?
-          next_tx_if_recovery(prev_endorsement->endorsed_to.value()) :
-          prev_endorsement->endorsed_from;
+        endorsement.endorsement_epoch_begin =
+          prev_endorsement->endorsement_epoch_end.has_value() ?
+          next_tx_if_recovery(prev_endorsement->endorsement_epoch_end.value()) :
+          prev_endorsement->endorsement_epoch_begin;
 
-        endorsement.endorsed_to = previous_tx_if_recovery(
+        endorsement.endorsement_epoch_end = previous_tx_if_recovery(
           active_service->current_service_create_txid.value());
 
         endorsement.previous_version =
@@ -409,7 +410,7 @@ namespace ccf
         // There's no 'till' for the a self-endorsement, leave it open-ranged
         // and sign the current service key.
 
-        endorsement.endorsed_from =
+        endorsement.endorsement_epoch_begin =
           active_service->current_service_create_txid.value();
 
         key_to_endorse = endorsement.endorsing_key;
@@ -417,12 +418,12 @@ namespace ccf
 
       pheaders.push_back(ccf::crypto::cose_params_string_string(
         ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN,
-        endorsement.endorsed_from.to_str()));
-      if (endorsement.endorsed_to)
+        endorsement.endorsement_epoch_begin.to_str()));
+      if (endorsement.endorsement_epoch_end)
       {
         pheaders.push_back(ccf::crypto::cose_params_string_string(
           ccf::crypto::COSE_PHEADER_KEY_RANGE_END,
-          endorsement.endorsed_to->to_str()));
+          endorsement.endorsement_epoch_end->to_str()));
       }
 
       try

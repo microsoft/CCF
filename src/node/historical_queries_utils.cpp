@@ -44,31 +44,33 @@ namespace
       const auto from_txid = ccf::TxID::from_str(from);
       if (!from_txid)
       {
-        throw std::logic_error(
-          fmt::format("Cannot parse COSE endorsement 'from' header: {}", from));
+        throw std::logic_error(fmt::format(
+          "Cannot parse COSE endorsement header: {}",
+          ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN));
       }
 
       const auto to_txid = ccf::TxID::from_str(to);
       if (!to_txid)
       {
-        throw std::logic_error(
-          fmt::format("Cannot parse COSE endorsement 'to' header: {}", to));
+        throw std::logic_error(fmt::format(
+          "Cannot parse COSE endorsement header: {}",
+          ccf::crypto::COSE_PHEADER_KEY_RANGE_END));
       }
 
-      if (!endorsement->endorsed_to)
+      if (!endorsement->endorsement_epoch_end)
       {
         throw std::logic_error(
-          "COSE endorsement doesn't contain 'to' field in the table entry");
+          "COSE endorsement doesn't contain epoch end in the table entry");
       }
       if (
-        endorsement->endorsed_from != *from_txid ||
-        *endorsement->endorsed_to != *to_txid)
+        endorsement->endorsement_epoch_begin != *from_txid ||
+        *endorsement->endorsement_epoch_end != *to_txid)
       {
         throw std::logic_error(fmt ::format(
-          "COSE endorsement fetched but range is invalid, from {} to {}, "
-          "header from: {}, header to: {}",
-          endorsement->endorsed_from.to_str(),
-          endorsement->endorsed_to->to_str(),
+          "COSE endorsement fetched but range is invalid, epoch begin {}, "
+          "epoch end {}, header epoch begin: {}, header epoch end: {}",
+          endorsement->endorsement_epoch_begin.to_str(),
+          endorsement->endorsement_epoch_end->to_str(),
           from,
           to));
       }
@@ -80,15 +82,16 @@ namespace
   {
     if (
       !is_self_endorsement(older) &&
-      (newer.endorsed_from.view - aft::starting_view_change !=
-         older.endorsed_to->view ||
-       newer.endorsed_from.seqno - 1 != older.endorsed_to->seqno))
+      (newer.endorsement_epoch_begin.view - aft::starting_view_change !=
+         older.endorsement_epoch_end->view ||
+       newer.endorsement_epoch_begin.seqno - 1 !=
+         older.endorsement_epoch_end->seqno))
     {
       throw std::logic_error(fmt::format(
-        "COSE endorsement chain integrity is violated, older endorsement end "
-        "{} is not chained with newer endorsement start {}",
-        older.endorsed_to->to_str(),
-        newer.endorsed_from.to_str()));
+        "COSE endorsement chain integrity is violated, previous endorsement "
+        "epoch end {} is not chained with newer endorsement epoch begin {}",
+        older.endorsement_epoch_end->to_str(),
+        newer.endorsement_epoch_begin.to_str()));
     }
   }
 
@@ -108,7 +111,7 @@ namespace
   bool keep_fetching(ccf::SeqNo target_seq)
   {
     return !is_self_endorsement(cose_endorsements_cache.back()) &&
-      cose_endorsements_cache.back().endorsed_from.seqno > target_seq;
+      cose_endorsements_cache.back().endorsement_epoch_begin.seqno > target_seq;
   }
 
   FetchResult fetch_endorsements_for(
@@ -159,7 +162,7 @@ namespace
 
     const auto search_to = last_valid_endorsement + 1;
 
-    if (last_valid_endorsement->endorsed_from.seqno > target_seq)
+    if (last_valid_endorsement->endorsement_epoch_begin.seqno > target_seq)
     {
       LOG_TRACE_FMT(
         "COSE-endorsements are fetched for newer epochs, but target_seq {} is "
@@ -174,7 +177,7 @@ namespace
       search_to,
       target_seq,
       [](const auto& seq, const auto& endorsement) {
-        return endorsement.endorsed_from.seqno <= seq;
+        return endorsement.endorsement_epoch_begin.seqno <= seq;
       });
 
     if (final_endorsement == search_to)

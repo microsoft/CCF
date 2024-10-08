@@ -21,22 +21,23 @@ namespace ccf
     std::vector<uint8_t> endorsing_key{};
 
     /// The transaction ID when the *endorsed* service was created.
-    ccf::TxID endorsed_from{};
-
-    /// Pointer to the previous CoseEndorsement entry. Only present for previous
-    /// service endorsements, self-endorsed services must not have this set.
-    std::optional<ccf::kv::Version> previous_version{};
+    ccf::TxID endorsement_epoch_begin{};
 
     /// Last transaction ID that the endorsement is valid for. Only present for
     /// previouse services endorsements, self-endorsed services must not have
     /// this set.
-    std::optional<ccf::TxID> endorsed_to{};
+    std::optional<ccf::TxID> endorsement_epoch_end{};
+
+    /// Pointer to the previous CoseEndorsement entry. Only present for previous
+    /// service endorsements, self-endorsed services must not have this set.
+    std::optional<ccf::kv::Version> previous_version{};
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CoseEndorsement);
   DECLARE_JSON_REQUIRED_FIELDS(
-    CoseEndorsement, endorsement, endorsed_from, endorsing_key);
-  DECLARE_JSON_OPTIONAL_FIELDS(CoseEndorsement, previous_version, endorsed_to);
+    CoseEndorsement, endorsement, endorsement_epoch_begin, endorsing_key);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CoseEndorsement, previous_version, endorsement_epoch_end);
 
   using PreviousServiceIdentityEndorsement = ServiceValue<CoseEndorsement>;
 
