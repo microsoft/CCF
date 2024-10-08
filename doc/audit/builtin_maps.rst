@@ -515,6 +515,6 @@ While the contents themselves are encrypted, the table is public so as to be acc
 ``previous_service_identity_endorsement``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Key** Name of a network interface (string).
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
 **Value** Endorsed COSE sign1 for the interface, represented as a DER-encoded string.
