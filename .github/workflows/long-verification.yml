@@ -19,7 +19,7 @@ permissions:
 jobs:
   model-checking-with-atomic-reconfig-consensus:
     name: Model Checking With Atomic Reconfig - Consensus
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') }}
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') || github.event_name == 'workflow_dispatch' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-08-10-2024
@@ -47,7 +47,7 @@ jobs:
 
   model-checking-with-reconfig-consensus:
     name: Model Checking With Reconfig - Consensus
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') }}
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') || github.event_name == 'workflow_dispatch' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-08-10-2024
@@ -75,7 +75,7 @@ jobs:
 
   simulation-consensus:
     name: Simulation - Consensus
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') }}
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     defaults:
       run:
