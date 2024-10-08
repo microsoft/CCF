@@ -44,14 +44,14 @@ namespace
       if (!from_txid)
       {
         throw std::logic_error(
-          fmt::format("Can't parse COSE endorsement 'from' header: {}", from));
+          fmt::format("Cannot parse COSE endorsement 'from' header: {}", from));
       }
 
       const auto to_txid = ccf::TxID::from_str(to);
       if (!to_txid)
       {
         throw std::logic_error(
-          fmt::format("Can't parse COSE endorsement 'till' header: ", to));
+          fmt::format("Cannot parse COSE endorsement 'to' header: {}", to));
       }
 
       if (!endorsement->endorsed_to)
