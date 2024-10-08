@@ -407,8 +407,8 @@ namespace ccf
       }
       else
       {
-        // There's no 'till' for the a self-endorsement, leave it open-ranged
-        // and sign the current service key.
+        // There's no `epoch_end` for the a self-endorsement, leave it
+        // open-ranged and sign the current service key.
 
         endorsement.endorsement_epoch_begin =
           active_service->current_service_create_txid.value();
