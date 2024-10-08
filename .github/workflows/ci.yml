@@ -20,7 +20,7 @@ jobs:
   checks:
     name: "Format and License Checks"
     runs-on: ubuntu-latest
-    container: ghcr.io/microsoft/ccf/ci/default:build-07-10-2024-2
+    container: ghcr.io/microsoft/ccf/ci/default:build-08-10-2024
 
     steps:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -44,7 +44,7 @@ jobs:
             options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
     runs-on: ${{ matrix.platform.nodes }}
     container:
-      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-07-10-2024-2
+      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-08-10-2024
       options: ${{ matrix.platform.options }}
     steps:
       - uses: actions/checkout@v4
