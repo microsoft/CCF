@@ -335,6 +335,6 @@ namespace ccf::crypto
       return {};
     }
 
-    return COSEEndorsementValidity{.from = from, .to = to};
+    return COSEEndorsementValidity{.from_txid = from, .to_txid = to};
   }
 }
