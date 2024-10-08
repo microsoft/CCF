@@ -107,6 +107,9 @@ endif()
 # openenclave::oesnmalloc
 option(USE_SNMALLOC "Link virtual build against snmalloc" ON)
 
+# Default inherited from Open Enclave usage
+option(USE_LIBCXX "Use libc++ instead of libstdc++" ON)
+
 enable_language(ASM)
 
 set(CCF_GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)

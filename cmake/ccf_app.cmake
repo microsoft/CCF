@@ -19,8 +19,10 @@ if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)
 endif()
 message(STATUS "Compile target platform: ${COMPILE_TARGET}")
 
-list(APPEND COMPILE_LIBCXX -stdlib=libc++)
-list(APPEND LINK_LIBCXX -lc++ -lc++abi -stdlib=libc++)
+if (USE_LIBCXX)
+  list(APPEND COMPILE_LIBCXX -stdlib=libc++)
+  list(APPEND LINK_LIBCXX -lc++ -lc++abi -stdlib=libc++)
+endif()
 
 # Enclave library wrapper
 function(add_ccf_app name)
