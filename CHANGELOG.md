@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.0-pre2]
+
+### Added
+
+- Introduced `ccf::describe_cose_endorsements_v1(receipt)` for COSE-endorsements chain of previous service identities (#6500).
+
 ## [6.0.0-dev1]
 
 [6.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev1
@@ -34,7 +40,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Provided API for getting COSE signatures and Merkle proofs (#6477).
   - Exposed COSE signature in historical API via `TxReceiptImpl`.
   - Introduced `ccf::describe_merkle_proof_v1(receipt)` for Merkle proof construction in CBOR format.
-  - Introduced `ccf::describe_cose_endorsements_v1(receipt)` for COSE-endorsements chain of previous service identities.
 - Added COSE signatures over the Merkle root to the KV (#6449).
   - Signing is done with service key (different from raw signatures, which remain unchanged and are still signed by the node key).
   - New signature reside in `public:ccf.internal.cose_signatures`.
