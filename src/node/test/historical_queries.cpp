@@ -314,8 +314,19 @@ MerkleProofData decode_merkle_proof(const std::vector<uint8_t>& encoded)
     std::pair<int64_t, std::vector<uint8_t>> path_item;
 
     REQUIRE(QCBORDecode_GetNext(&ctx, &item) == QCBOR_SUCCESS);
-    REQUIRE(item.uDataType == QCBOR_TYPE_INT64);
-    path_item.first = item.val.int64;
+    if (item.uDataType == CBOR_SIMPLEV_TRUE)
+    {
+      path_item.first = true;
+    }
+    else if (item.uDataType == CBOR_SIMPLEV_FALSE)
+    {
+      path_item.first = false;
+    }
+    else
+    {
+      // Not a valid CBOR boolean
+      REQUIRE(false);
+    }
 
     REQUIRE(QCBORDecode_GetNext(&ctx, &item) == QCBOR_SUCCESS);
     REQUIRE(item.uDataType == QCBOR_TYPE_BYTE_STRING);
@@ -1972,7 +1983,7 @@ TEST_CASE("Valid merkle proof from receipts")
   auto it = decoded.path.begin();
   for (const auto& node : *historical_state->receipt->path)
   {
-    const int64_t dir =
+    const bool dir =
       (node.direction == ccf::HistoryTree::Path::Direction::PATH_LEFT);
     std::vector<uint8_t> hash{node.hash};
 

@@ -1,0 +1,15 @@
+ccf-inclusion-proof = {
+  &(leaf: 1) => ccf-leaf
+  &(path: 2) => [+ ccf-proof-element]
+}
+
+ccf-leaf = [
+  internal-transaction-hash: bstr .size 32 ; a string of HASH_SIZE(32) bytes
+  internal-evidence: tstr .size (1..1024)  ; a string of at most 1024 bytes
+  data-hash: bstr .size 32                 ; a string of HASH_SIZE(32) bytes
+]
+
+ccf-proof-element = [
+  left: bool                               ; position of the element
+  hash: bstr .size 32                      ; hash of the proof element (string of HASH_SIZE(32) bytes)
+]
