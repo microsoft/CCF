@@ -229,7 +229,7 @@ namespace ccf::crypto
     return std::make_unique<COSEKeyVerifier_OpenSSL>(public_key);
   }
 
-  std::pair<std::string, std::string> extract_cose_endorsement_validity(
+  COSEEndorsementValidity extract_cose_endorsement_validity(
     std::span<const uint8_t> cose_msg)
   {
     UsefulBufC msg{cose_msg.data(), cose_msg.size()};
@@ -277,7 +277,7 @@ namespace ccf::crypto
     enum
     {
       FROM_INDEX,
-      TILL_INDEX,
+      TO_INDEX,
       END_INDEX
     };
     QCBORItem header_items[END_INDEX + 1];
@@ -288,11 +288,11 @@ namespace ccf::crypto
     header_items[FROM_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
     header_items[FROM_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
 
-    header_items[TILL_INDEX].label.string = UsefulBufC{
+    header_items[TO_INDEX].label.string = UsefulBufC{
       ccf::crypto::COSE_PHEADER_KEY_RANGE_END.data(),
       ccf::crypto::COSE_PHEADER_KEY_RANGE_END.size()};
-    header_items[TILL_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
-    header_items[TILL_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+    header_items[TO_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
+    header_items[TO_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
 
     header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
 
@@ -306,18 +306,22 @@ namespace ccf::crypto
 
     if (header_items[FROM_INDEX].uDataType == QCBOR_TYPE_NONE)
     {
-      LOG_DEBUG_FMT("Failed to retrieve (missing) 'from' parameter");
+      LOG_DEBUG_FMT(
+        "Failed to retrieve (missing) {} parameter",
+        ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN);
       return {};
     }
 
-    if (header_items[TILL_INDEX].uDataType == QCBOR_TYPE_NONE)
+    if (header_items[TO_INDEX].uDataType == QCBOR_TYPE_NONE)
     {
-      LOG_DEBUG_FMT("Failed to retrieve (missing) 'till' parameter");
+      LOG_DEBUG_FMT(
+        "Failed to retrieve (missing) {} parameter",
+        ccf::crypto::COSE_PHEADER_KEY_RANGE_END);
       return {};
     }
 
     const auto from = qcbor_buf_to_string(header_items[FROM_INDEX].val.string);
-    const auto till = qcbor_buf_to_string(header_items[TILL_INDEX].val.string);
+    const auto to = qcbor_buf_to_string(header_items[TO_INDEX].val.string);
 
     // Complete decode to ensure well-formed CBOR.
 
@@ -331,6 +335,6 @@ namespace ccf::crypto
       return {};
     }
 
-    return {from, till};
+    return COSEEndorsementValidity{.from = from, .to = to};
   }
 }
