@@ -36,8 +36,8 @@ from types import MappingProxyType
 import threading
 import copy
 import programmability
-import cbor2
 import e2e_common_endpoints
+import subprocess
 
 from loguru import logger as LOG
 
@@ -932,27 +932,15 @@ def test_cbor_merkle_proof(network, args):
                 )
                 if r.status_code == http.HTTPStatus.OK:
                     cbor_proof = r.body.data()
-                    proof = cbor2.loads(cbor_proof)
-                    assert 1 in proof
-                    leaf = proof[1]
-                    assert len(leaf) == 3
-                    assert isinstance(leaf[0], bytes)  # bstr write_set_digest
-                    assert len(leaf[0]) == 32
-                    assert isinstance(leaf[1], str)  # tstr commit_evidence
-                    assert len(leaf[1]) < 1024
-                    assert isinstance(leaf[2], bytes)  # bstr claims_digest
-                    assert len(leaf[2]) == 32
-                    # path
-                    assert 2 in proof
-                    path = proof[2]
-                    assert isinstance(path, list)
-                    for node in path:
-                        assert isinstance(node, list)
-                        assert len(node) == 2
-                        assert isinstance(node[0], int)
-                        assert node[0] in {0, 1}  # boolean left
-                        assert isinstance(node[1], bytes)  # bstr intermediary digest
-                        assert len(node[1]) == 32
+                    cbor_proof_filename = os.path.join(
+                        network.common_dir, f"proof_{txid}.cbor"
+                    )
+                    with open(cbor_proof_filename, "wb") as f:
+                        f.write(cbor_proof)
+                    subprocess.run(
+                        ["cddl", "../cddl/ccf-tree-alg.cddl", "v", cbor_proof_filename],
+                        check=True,
+                    )
                     found_proof = True
                     LOG.debug(f"Checked CBOR Merkle proof for txid {txid}")
                     break
