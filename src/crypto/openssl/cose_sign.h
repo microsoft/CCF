@@ -21,7 +21,7 @@ namespace ccf::crypto
   // CCF-specific: last signed TxID
   static const std::string COSE_PHEADER_KEY_TXID = "ccf.txid";
   // CCF-specific: first TX in the range.
-  static const std::string COSE_PHEADER_KEY_RANGE_BEGIN = "ccf.range.begin";
+  static const std::string COSE_PHEADER_KEY_RANGE_BEGIN = "ccf.epoch.begin";
   // CCF-specific: last TX included in the range.
   static const std::string COSE_PHEADER_KEY_RANGE_END = "ccf.epoch.end";
 
