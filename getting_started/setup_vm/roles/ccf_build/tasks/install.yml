@@ -62,4 +62,5 @@
   gem:
     name: cddl
     state: present
+    user_install: no
   become: yes
