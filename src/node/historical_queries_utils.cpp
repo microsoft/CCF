@@ -128,8 +128,6 @@ namespace
         return {.endorsements = std::nullopt, .retry = true};
       }
 
-      assert(hstate->store); // TO DO remove me
-
       auto htx = hstate->store->create_read_only_tx();
       const auto endorsement =
         htx
@@ -151,11 +149,15 @@ namespace
       return {.endorsements = std::nullopt, .retry = false};
     }
 
-    const auto search_to = is_self_endorsement(cose_endorsements_cache.back()) ?
-      cose_endorsements_cache.end() - 1 :
-      cose_endorsements_cache.end();
+    auto last_valid_endorsement = cose_endorsements_cache.end() - 1;
+    if (is_self_endorsement(*last_valid_endorsement))
+    {
+      --last_valid_endorsement;
+    }
 
-    if (search_to->endorsed_from.seqno > target_seq)
+    const auto search_to = last_valid_endorsement + 1;
+
+    if (last_valid_endorsement->endorsed_from.seqno > target_seq)
     {
       LOG_TRACE_FMT(
         "COSE-endorsements are fetched for newer epochs, but target_seq {} is "
@@ -375,10 +377,6 @@ namespace ccf
       catch (const std::logic_error& e)
       {
         LOG_FAIL_FMT("FAIL: Failed to fetch endorsements: {}", e.what());
-        LOG_DEBUG_FMT("DEBUG: Failed to fetch endorsements: {}", e.what());
-        LOG_INFO_FMT("INFO: Failed to fetch endorsements: {}", e.what());
-
-        std::cerr << "Failed to fetch endorsements: " << e.what() << std::endl;
 
         assert(false); // In debug, fail fast.
 
