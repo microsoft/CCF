@@ -11,7 +11,7 @@ jobs:
     name: Continuous Benchmarking with Bencher
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-07-10-2024-2
+      image: ghcr.io/microsoft/ccf/ci/default:build-08-10-2024
     steps:
       - uses: actions/checkout@v4
         with:
