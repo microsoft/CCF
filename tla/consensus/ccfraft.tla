@@ -1296,8 +1296,10 @@ Spec ==
     /\ \A s, t \in Servers : WF_vars(RequestVote(s, t))
     /\ \A s \in Servers : WF_vars(SignCommittableMessages(s))
     /\ \A s \in Servers : WF_vars(AdvanceCommitIndex(s))
+    /\ \A s \in Servers : WF_vars(AppendRetiredCommitted(s))
     /\ \A s \in Servers : WF_vars(BecomeLeader(s))
     /\ \A s \in Servers : WF_vars(Timeout(s))
+    /\ \A s \in Servers : WF_vars(ChangeConfiguration(s))
 
 ------------------------------------------------------------------------------
 \* Correctness invariants
