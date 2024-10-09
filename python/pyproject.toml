@@ -1,12 +1,10 @@
 [build-system]
-requires = ["setuptools>=71.0", "setuptools_scm>=8"]
+requires = ["setuptools>=71.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ccf"
-# Automatically extract version number from git environment
-# See https://github.com/pypa/setuptools_scm for details
-dynamic = ["version"]
+version = "6.0.0-dev1"
 authors = [
   { name="CCF Team", email="CCF-Sec@microsoft.com" },
 ]
@@ -32,11 +30,6 @@ script-files = [
     "utils/submit_recovery_share.sh",
     "utils/verify_quote.sh"
 ]
-
-[tool.setuptools_scm]
-version_file = "src/ccf/version.py"
-root = ".."
-git_describe_command = "git describe --tags --long --match \"ccf-*\""
 
 [project.urls]
 Homepage = "https://github.com/microsoft/ccf"
