@@ -12,6 +12,7 @@ Configurations ==
             [] IOEnv.RAFT_CONFIGS = "1C2N" -> default
             [] IOEnv.RAFT_CONFIGS = "1C3N" -> <<{NodeOne, NodeTwo, NodeThree}>>
             [] IOEnv.RAFT_CONFIGS = "2C2N" -> <<{NodeOne}, {NodeTwo}>>
+            [] IOEnv.RAFT_CONFIGS = "2C3N" -> <<{NodeOne, NodeTwo}, {NodeTwo, NodeThree}>>
             [] IOEnv.RAFT_CONFIGS = "3C2N" -> <<{NodeOne}, {NodeOne, NodeTwo}, {NodeTwo}>>
             [] OTHER -> Print("Unsupported value for RAFT_CONFIGS, defaulting to 1C2N: <<{NodeOne, NodeTwo}>>.", default)
     ELSE Print("RAFT_CONFIGS is not set, defaulting to 1C2N: <<{NodeOne, NodeTwo}>>.", default)
@@ -114,11 +115,6 @@ MCInit ==
        THEN InitLogConfigServerVars(Configurations[1], StartLog)
        \* If we want to start with multiple nodes, we can start with a four-tx log with a reconfiguration already appended.
        ELSE InitLogConfigServerVars(Configurations[1], JoinedLog)
-
-\* Alternative to CCF!Spec that uses the above MCInit
-mc_spec ==   
-    /\ MCInit
-    /\ [][Next]_vars
 
 \* Symmetry set over possible servers. May dangerous and is only enabled
 \* via the Symmetry option in cfg file.
