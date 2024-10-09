@@ -11,6 +11,8 @@
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/users.h"
 #include "ccf/tx.h"
+#include "consensus/aft/raft_types.h"
+#include "crypto/openssl/cose_sign.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
 #include "service/tables/governance_history.h"
@@ -21,6 +23,19 @@
 
 namespace ccf
 {
+  /* We can't query the past epochs' TXs if the service hasn't been opened
+   * yet. We do guess values based on epoch value and seqno changing rules. */
+  ccf::TxID previous_tx_if_recovery(ccf::TxID txid)
+  {
+    return ccf::TxID{
+      .view = txid.view - aft::starting_view_change, .seqno = txid.seqno - 1};
+  }
+  ccf::TxID next_tx_if_recovery(ccf::TxID txid)
+  {
+    return ccf::TxID{
+      .view = txid.view + aft::starting_view_change, .seqno = txid.seqno + 1};
+  }
+
   // This class provides functions for interacting with various internal
   // service-governance tables. Specifically, it aims to maintain some
   // invariants amongst these tables (eg - keys being present in multiple
@@ -355,6 +370,79 @@ namespace ccf
     {
       auto service = tx.ro<ccf::Service>(Tables::SERVICE)->get();
       return service.has_value() && service->cert == expected_service_cert;
+    }
+
+    static bool endorse_previous_identity(
+      ccf::kv::Tx& tx, const ccf::crypto::KeyPair_OpenSSL& service_key)
+    {
+      auto service = tx.ro<ccf::Service>(Tables::SERVICE);
+      auto active_service = service->get();
+
+      auto previous_identity_endorsement =
+        tx.rw<ccf::PreviousServiceIdentityEndorsement>(
+          ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
+
+      ccf::CoseEndorsement endorsement{};
+      std::vector<ccf::crypto::COSEParametersFactory> pheaders{};
+      std::vector<uint8_t> key_to_endorse{};
+
+      endorsement.endorsing_key = service_key.public_key_der();
+
+      if (previous_identity_endorsement->has())
+      {
+        const auto prev_endorsement = previous_identity_endorsement->get();
+
+        endorsement.endorsement_epoch_begin =
+          prev_endorsement->endorsement_epoch_end.has_value() ?
+          next_tx_if_recovery(prev_endorsement->endorsement_epoch_end.value()) :
+          prev_endorsement->endorsement_epoch_begin;
+
+        endorsement.endorsement_epoch_end = previous_tx_if_recovery(
+          active_service->current_service_create_txid.value());
+
+        endorsement.previous_version =
+          previous_identity_endorsement->get_version_of_previous_write();
+
+        key_to_endorse = prev_endorsement->endorsing_key;
+      }
+      else
+      {
+        // There's no `epoch_end` for the a self-endorsement, leave it
+        // open-ranged and sign the current service key.
+
+        endorsement.endorsement_epoch_begin =
+          active_service->current_service_create_txid.value();
+
+        key_to_endorse = endorsement.endorsing_key;
+      }
+
+      pheaders.push_back(ccf::crypto::cose_params_string_string(
+        ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN,
+        endorsement.endorsement_epoch_begin.to_str()));
+      if (endorsement.endorsement_epoch_end)
+      {
+        pheaders.push_back(ccf::crypto::cose_params_string_string(
+          ccf::crypto::COSE_PHEADER_KEY_RANGE_END,
+          endorsement.endorsement_epoch_end->to_str()));
+      }
+
+      try
+      {
+        endorsement.endorsement = cose_sign1(
+          service_key,
+          pheaders,
+          key_to_endorse,
+          false // detached payload
+        );
+      }
+      catch (const ccf::crypto::COSESignError& e)
+      {
+        LOG_FAIL_FMT("Failed to sign previous service identity: {}", e.what());
+        return false;
+      }
+
+      previous_identity_endorsement->put(endorsement);
+      return true;
     }
 
     static bool open_service(ccf::kv::Tx& tx)

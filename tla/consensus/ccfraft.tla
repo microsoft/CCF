@@ -201,8 +201,7 @@ ConfigurationsTypeInv ==
 VARIABLE hasJoined
 
 HasJoinedTypeInv ==
-    \A i \in Servers :
-        hasJoined[i] \in BOOLEAN
+    hasJoined \in [ Servers -> BOOLEAN ]
 
 \* retirementCompleted keeps track of nodes that have been retired completed,
 \* i.e., their reconfiguration transaction has been committed, and all the configs to which
@@ -211,8 +210,7 @@ HasJoinedTypeInv ==
 VARIABLE retirementCompleted
 
 RetirementCompletedTypeInv ==
-    \A i \in Servers :
-        retirementCompleted[i] \subseteq Servers
+    retirementCompleted \in [ Servers -> SUBSET Servers ]
 
 reconfigurationVars == << 
     configurations,
@@ -229,26 +227,26 @@ ReconfigurationVarsTypeInv ==
 VARIABLE currentTerm
 
 CurrentTermTypeInv ==
-    \A i \in Servers : currentTerm[i] \in Nat
+    currentTerm \in [ Servers -> Nat ]
 
 \* The leadership state.
 VARIABLE leadershipState
 
 LeadershipStateTypeInv ==
-    \A i \in Servers : leadershipState[i] \in LeadershipStates
+    leadershipState \in [ Servers -> LeadershipStates ]
 
 \* The membership state.
 VARIABLE membershipState
 
 MembershipStateTypeInv ==
-    \A i \in Servers : membershipState[i] \in MembershipStates
+    membershipState \in [ Servers -> MembershipStates ]
 
 \* The candidate the server voted for in its current term, or
 \* Nil if it hasn't voted for any.
 VARIABLE votedFor
 
 VotedForTypeInv ==
-    \A i \in Servers : votedFor[i] \in {Nil} \cup Servers
+    votedFor \in [ Servers -> {Nil} \cup Servers ]
 
 \* isNewFollower is a flag used by followers to limit the
 \* number of times they rollback to once per term
@@ -263,7 +261,7 @@ VotedForTypeInv ==
 VARIABLE isNewFollower
 
 IsNewFollowerTypeInv ==
-    \A i \in Servers : isNewFollower[i] \in BOOLEAN
+    isNewFollower \in [ Servers -> BOOLEAN ]
 
 serverVars == <<currentTerm, leadershipState, membershipState, votedFor, isNewFollower>>
 
@@ -286,7 +284,7 @@ LogTypeInv ==
 VARIABLE commitIndex
 
 CommitIndexTypeInv ==
-    \A i \in Servers : commitIndex[i] \in Nat
+    commitIndex \in [ Servers -> Nat ]
 
 logVars == <<log, commitIndex>>
 
@@ -303,8 +301,7 @@ LogVarsTypeInv ==
 VARIABLE votesGranted
 
 VotesGrantedTypeInv ==
-    \A i \in Servers :
-        votesGranted[i] \subseteq Servers
+    votesGranted \in [ Servers -> SUBSET Servers ]
 
 candidateVars == <<votesGranted>>
 
@@ -323,16 +320,14 @@ CandidateVarsTypeInv ==
 VARIABLE sentIndex
 
 SentIndexTypeInv ==
-    \A i, j \in Servers : i /= j =>
-        /\ sentIndex[i][j] \in Nat
+    sentIndex \in [ Servers -> [ Servers -> Nat ] ]
 
 \* The latest entry that each follower has acknowledged is the same as the
 \* leader's. This is used to calculate commitIndex on the leader.
 VARIABLE matchIndex
 
 MatchIndexTypeInv ==
-    \A i, j \in Servers : i /= j =>
-        matchIndex[i][j] \in Nat
+    matchIndex \in [ Servers -> [ Servers -> Nat ] ]
 
 leaderVars == <<sentIndex, matchIndex>>
 
@@ -1278,11 +1273,7 @@ NextInt(i) ==
 Next ==
     \E i \in Servers: NextInt(i)
 
-\* The specification must start with the initial state and transition according
-\* to Next.
-Spec == 
-    /\ Init
-    /\ [][Next]_vars
+Fairness ==
     \* Network actions
     /\ \A i, j \in Servers : WF_vars(RcvDropIgnoredMessage(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvUpdateTerm(i, j))
@@ -1296,8 +1287,17 @@ Spec ==
     /\ \A s, t \in Servers : WF_vars(RequestVote(s, t))
     /\ \A s \in Servers : WF_vars(SignCommittableMessages(s))
     /\ \A s \in Servers : WF_vars(AdvanceCommitIndex(s))
+    /\ \A s \in Servers : WF_vars(AppendRetiredCommitted(s))
     /\ \A s \in Servers : WF_vars(BecomeLeader(s))
     /\ \A s \in Servers : WF_vars(Timeout(s))
+    /\ \A s \in Servers : WF_vars(ChangeConfiguration(s))
+
+\* The specification must start with the initial state and transition according
+\* to Next.
+Spec == 
+    /\ Init
+    /\ [][Next]_vars
+    /\ Fairness
 
 ------------------------------------------------------------------------------
 \* Correctness invariants
@@ -1618,7 +1618,8 @@ LogMatchingProp ==
     \A i, j \in Servers : []<>(log[i] = log[j])
 
 LeaderProp ==
-    []<><<\E i \in Servers : leadershipState[i] = Leader>>_vars
+    \* There is repeatedly a non-retired leader.
+    []<><<\E i \in Servers : leadershipState[i] = Leader /\ membershipState[i] # RetiredCommitted>>_vars
 
 ------------------------------------------------------------------------------
 \* Refinement of the more high-level specification abs.tla that abstracts the

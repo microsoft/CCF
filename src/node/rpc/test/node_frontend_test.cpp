@@ -207,6 +207,8 @@ TEST_CASE("Add a node to an open service")
       gen_tx,
       {member_cert, ccf::crypto::make_rsa_key_pair()->public_key_pem()}));
   REQUIRE(InternalTablesAccess::open_service(gen_tx));
+  REQUIRE(InternalTablesAccess::endorse_previous_identity(
+    gen_tx, *network.identity->get_key_pair()));
   REQUIRE(gen_tx.commit() == ccf::kv::CommitResult::SUCCESS);
 
   // Node certificate

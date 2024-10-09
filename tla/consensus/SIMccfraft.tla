@@ -33,6 +33,31 @@ SIMTimeout(i) ==
           /\ Network!Messages = {}
     /\ CCF!Timeout(i)
 
+\* See https://github.com/tlaplus/tlaplus/issues/1039#issue-2574569206
+\* for why we need to redefine the fairness constraint.
+SIMFairness ==
+    \* Network actions
+    /\ \A i, j \in Servers : WF_vars(RcvDropIgnoredMessage(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvUpdateTerm(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvRequestVoteRequest(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvRequestVoteResponse(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesRequest(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvAppendEntriesResponse(i, j))
+    /\ \A i, j \in Servers : WF_vars(RcvProposeVoteRequest(i, j))
+    \* Node actions
+    /\ \A s, t \in Servers : WF_vars(AppendEntries(s, t))
+    /\ \A s, t \in Servers : WF_vars(RequestVote(s, t))
+    /\ \A s \in Servers : WF_vars(SignCommittableMessages(s))
+    /\ \A s \in Servers : WF_vars(AdvanceCommitIndex(s))
+    /\ \A s \in Servers : WF_vars(AppendRetiredCommitted(s))
+    /\ \A s \in Servers : WF_vars(BecomeLeader(s))
+    \* The following fairness conditions reference the original CCF actions
+    \* and, thus, do not include the RandomElement conjunct.
+    /\ \A s \in Servers : WF_vars(CCF!Timeout(s))
+    /\ \A s \in Servers : 
+        \E newConfiguration \in SUBSET(Servers) \ {{}}:
+            WF_vars(CCF!ChangeConfigurationInt(s, newConfiguration))
+
 \* The state constraint  StopAfter  stops TLC after the alloted
 \* time budget is up, unless TLC encounters an error first.
 StopAfter ==

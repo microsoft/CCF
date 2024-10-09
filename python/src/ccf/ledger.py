@@ -571,8 +571,11 @@ class LedgerValidator:
 
     def _verify_root_cose_signature(self, root, cose_sign1):
         try:
+            cert = load_pem_x509_certificate(
+                self.service_cert.encode("ascii"), default_backend()
+            )
             validate_cose_sign1(
-                payload=root, cert_pem=self.service_cert, cose_sign1=cose_sign1
+                cose_sign1=cose_sign1, pubkey=cert.public_key(), payload=root
             )
         except Exception as exc:
             raise InvalidRootCoseSignatureException(

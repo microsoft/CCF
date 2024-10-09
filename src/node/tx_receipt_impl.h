@@ -22,6 +22,8 @@ namespace ccf
     ccf::ClaimsDigest claims_digest = {};
     std::optional<std::vector<ccf::crypto::Pem>> service_endorsements =
       std::nullopt;
+    std::optional<std::vector<std::vector<uint8_t>>> cose_endorsements =
+      std::nullopt;
 
     TxReceiptImpl(
       const std::vector<uint8_t>& signature_,
@@ -37,7 +39,9 @@ namespace ccf
       // May not be set on historical transactions
       const ccf::ClaimsDigest& claims_digest_ = ccf::no_claims(),
       const std::optional<std::vector<ccf::crypto::Pem>>&
-        service_endorsements_ = std::nullopt) :
+        service_endorsements_ = std::nullopt,
+      const std::optional<std::vector<std::vector<uint8_t>>>&
+        cose_endorsements_ = std::nullopt) :
       signature(signature_),
       cose_signature(cose_signature),
       root(root_),
@@ -47,7 +51,8 @@ namespace ccf
       write_set_digest(write_set_digest_),
       commit_evidence(commit_evidence_),
       claims_digest(claims_digest_),
-      service_endorsements(service_endorsements_)
+      service_endorsements(service_endorsements_),
+      cose_endorsements(cose_endorsements_)
     {}
   };
 
