@@ -1623,7 +1623,8 @@ LogMatchingProp ==
     \A i, j \in Servers : []<>(log[i] = log[j])
 
 LeaderProp ==
-    []<><<\E i \in Servers : leadershipState[i] = Leader>>_vars
+    \* There is repeatedly a non-retired leader.
+    []<><<\E i \in Servers : leadershipState[i] = Leader /\ membershipState[i] # RetiredCommitted>>_vars
 
 ------------------------------------------------------------------------------
 \* Refinement of the more high-level specification abs.tla that abstracts the
