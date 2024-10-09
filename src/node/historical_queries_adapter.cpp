@@ -248,6 +248,12 @@ namespace ccf
     underlying_buffer.shrink_to_fit();
     return underlying_buffer;
   }
+
+  std::optional<SerialisedCoseEndorsements> describe_cose_endorsements_v1(
+    const TxReceiptImpl& receipt)
+  {
+    return receipt.cose_endorsements;
+  }
 }
 
 namespace ccf::historical
@@ -539,18 +545,36 @@ namespace ccf::historical
       // Get a state at the target version from the cache, if it is present
       auto historical_state =
         state_cache.get_state_at(historic_request_handle, target_tx_id.seqno);
-      if (
-        historical_state == nullptr ||
-        (!populate_service_endorsements(
-          args.tx, historical_state, state_cache, network_identity_subsystem)))
+      try
+      {
+        if (
+          historical_state == nullptr ||
+          (!populate_service_endorsements(
+            args.tx,
+            historical_state,
+            state_cache,
+            network_identity_subsystem)) ||
+          !populate_cose_service_endorsements(
+            args.tx, historical_state, state_cache))
+        {
+          auto reason = fmt::format(
+            "Historical transaction {} is not currently available.",
+            target_tx_id.to_str());
+          ehandler(
+            HistoricalQueryErrorCode::TransactionPartiallyReady,
+            std::move(reason),
+            args);
+          return;
+        }
+      }
+      catch (const std::exception& e)
       {
         auto reason = fmt::format(
-          "Historical transaction {} is not currently available.",
-          target_tx_id.to_str());
+          "Historical transaction {} failed with error: {}",
+          target_tx_id.to_str(),
+          e.what());
         ehandler(
-          HistoricalQueryErrorCode::TransactionPartiallyReady,
-          std::move(reason),
-          args);
+          HistoricalQueryErrorCode::InternalError, std::move(reason), args);
         return;
       }
 

@@ -19,6 +19,11 @@
 
 namespace
 {
+  static std::string qcbor_buf_to_string(const UsefulBufC& buf)
+  {
+    return std::string(reinterpret_cast<const char*>(buf.ptr), buf.len);
+  }
+
   static std::optional<int> extract_algorithm_from_header(
     std::span<const uint8_t> cose_msg)
   {
@@ -222,5 +227,107 @@ namespace ccf::crypto
   COSEVerifierUniquePtr make_cose_verifier_from_key(const Pem& public_key)
   {
     return std::make_unique<COSEKeyVerifier_OpenSSL>(public_key);
+  }
+
+  COSEEndorsementValidity extract_cose_endorsement_validity(
+    std::span<const uint8_t> cose_msg)
+  {
+    UsefulBufC msg{cose_msg.data(), cose_msg.size()};
+    QCBORError qcbor_result;
+
+    QCBORDecodeContext ctx;
+    QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);
+
+    QCBORDecode_EnterArray(&ctx, nullptr);
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      throw std::logic_error("Failed to parse COSE_Sign1 outer array");
+    }
+
+    const uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
+    if (tag != CBOR_TAG_COSE_SIGN1)
+    {
+      throw std::logic_error("Failed to parse COSE_Sign1 tag");
+    }
+
+    struct q_useful_buf_c protected_parameters;
+
+    QCBORDecode_EnterBstrWrapped(
+      &ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, &protected_parameters);
+
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      throw std::logic_error("Failed to parse COSE_Sign1 as bstr");
+    }
+
+    QCBORDecode_EnterMap(&ctx, NULL);
+
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      throw std::logic_error("Failed to parse COSE_Sign1 wrapped map");
+    }
+
+    enum
+    {
+      FROM_INDEX,
+      TO_INDEX,
+      END_INDEX
+    };
+    QCBORItem header_items[END_INDEX + 1];
+
+    header_items[FROM_INDEX].label.string = UsefulBufC{
+      ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN.data(),
+      ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN.size()};
+    header_items[FROM_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
+    header_items[FROM_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+    header_items[TO_INDEX].label.string = UsefulBufC{
+      ccf::crypto::COSE_PHEADER_KEY_RANGE_END.data(),
+      ccf::crypto::COSE_PHEADER_KEY_RANGE_END.size()};
+    header_items[TO_INDEX].uLabelType = QCBOR_TYPE_TEXT_STRING;
+    header_items[TO_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+    header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
+
+    QCBORDecode_GetItemsInMap(&ctx, header_items);
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      throw std::logic_error("Failed to decode protected header");
+    }
+
+    if (header_items[FROM_INDEX].uDataType == QCBOR_TYPE_NONE)
+    {
+      throw std::logic_error(fmt::format(
+        "Failed to retrieve (missing) {} parameter",
+        ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN));
+    }
+
+    if (header_items[TO_INDEX].uDataType == QCBOR_TYPE_NONE)
+    {
+      throw std::logic_error(fmt::format(
+        "Failed to retrieve (missing) {} parameter",
+        ccf::crypto::COSE_PHEADER_KEY_RANGE_END));
+    }
+
+    const auto from = qcbor_buf_to_string(header_items[FROM_INDEX].val.string);
+    const auto to = qcbor_buf_to_string(header_items[TO_INDEX].val.string);
+
+    // Complete decode to ensure well-formed CBOR.
+
+    QCBORDecode_ExitMap(&ctx);
+    QCBORDecode_ExitBstrWrapped(&ctx);
+
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      throw std::logic_error(fmt::format(
+        "Failed to decode protected header with error code: {}", qcbor_result));
+    }
+
+    return COSEEndorsementValidity{.from_txid = from, .to_txid = to};
   }
 }

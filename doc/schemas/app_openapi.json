@@ -98,6 +98,17 @@
         ],
         "type": "object"
       },
+      "LoggingGetCoseEndorsements__Out": {
+        "properties": {
+          "endorsements": {
+            "$ref": "#/components/schemas/base64string_array"
+          }
+        },
+        "required": [
+          "endorsements"
+        ],
+        "type": "object"
+      },
       "LoggingGetHistoricalRange__Entry": {
         "properties": {
           "id": {
@@ -214,6 +225,16 @@
           "Invalid"
         ],
         "type": "string"
+      },
+      "base64string": {
+        "format": "base64",
+        "type": "string"
+      },
+      "base64string_array": {
+        "items": {
+          "$ref": "#/components/schemas/base64string"
+        },
+        "type": "array"
       },
       "boolean": {
         "type": "boolean"
@@ -1191,6 +1212,37 @@
         "operationId": "GetAppLogPublicCborMerkleProof",
         "responses": {
           "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          },
+          {
+            "user_cose_sign1": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
+    "/app/log/public/cose_endorsements": {
+      "get": {
+        "operationId": "GetAppLogPublicCoseEndorsements",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingGetCoseEndorsements__Out"
+                }
+              }
+            },
             "description": "Default response description"
           },
           "default": {

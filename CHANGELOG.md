@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.0-dev2]
+
+[6.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev2
+
+### Added
+
+- Introduced `ccf::describe_cose_endorsements_v1(receipt)` for COSE-endorsements chain of previous service identities (#6500).
+
 ## [6.0.0-dev1]
 
 [6.0.0-dev1]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev1
