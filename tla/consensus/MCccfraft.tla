@@ -116,11 +116,6 @@ MCInit ==
        \* If we want to start with multiple nodes, we can start with a four-tx log with a reconfiguration already appended.
        ELSE InitLogConfigServerVars(Configurations[1], JoinedLog)
 
-\* Alternative to CCF!Spec that uses the above MCInit
-mc_spec ==   
-    /\ MCInit
-    /\ [][Next]_vars
-
 \* Symmetry set over possible servers. May dangerous and is only enabled
 \* via the Symmetry option in cfg file.
 Symmetry == Permutations(Servers)
