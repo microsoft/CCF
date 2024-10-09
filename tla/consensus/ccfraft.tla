@@ -1278,11 +1278,7 @@ NextInt(i) ==
 Next ==
     \E i \in Servers: NextInt(i)
 
-\* The specification must start with the initial state and transition according
-\* to Next.
-Spec == 
-    /\ Init
-    /\ [][Next]_vars
+Fairness ==
     \* Network actions
     /\ \A i, j \in Servers : WF_vars(RcvDropIgnoredMessage(i, j))
     /\ \A i, j \in Servers : WF_vars(RcvUpdateTerm(i, j))
@@ -1300,6 +1296,13 @@ Spec ==
     /\ \A s \in Servers : WF_vars(BecomeLeader(s))
     /\ \A s \in Servers : WF_vars(Timeout(s))
     /\ \A s \in Servers : WF_vars(ChangeConfiguration(s))
+
+\* The specification must start with the initial state and transition according
+\* to Next.
+Spec == 
+    /\ Init
+    /\ [][Next]_vars
+    /\ Fairness
 
 ------------------------------------------------------------------------------
 \* Correctness invariants
