@@ -68,6 +68,16 @@ def main():
     release_notes = {}
     links_found = []
 
+    # Check that pyproject.toml is up to date
+    # Once we have upgraded to Python 3.11, we can use tomllib to parse pyproject.toml
+    pyproject_version = None
+    with open("python/pyproject.toml") as pyproject:
+        for line in pyproject:
+            if line.startswith("version"):
+                _, version = line.split("=")
+                pyproject_version = version.strip().strip('"')
+    assert pyproject_version is not None, "Could not find version in pyproject.toml"
+
     # Parse file, bucketing lines into each version's release notes
     current_release_notes = None
     with open(args.changelog) as f:
@@ -75,6 +85,10 @@ def main():
             if match := version_header.match(line):
                 log_version = match.group(1)
                 current_release_notes = []
+                if not release_notes:
+                    assert (
+                        log_version == pyproject_version
+                    ), f"First version in CHANGELOG must match version in pyproject.toml: {pyproject_version}"
                 release_notes[log_version] = current_release_notes
             elif match := link_definition.match(line):
                 link_version = match.group(1)
