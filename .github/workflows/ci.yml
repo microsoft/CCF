@@ -93,3 +93,24 @@ jobs:
             build/workspace/*/err
           if-no-files-found: ignore
         if: success() || failure()
+
+  build_libstdcxx:
+    needs: checks
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-08-10-2024
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Build Debug with libstdc++"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DUSE_LIBCXX=OFF ..
+          ninja
+        shell: bash

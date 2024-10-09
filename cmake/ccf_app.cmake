@@ -19,7 +19,7 @@ if(NOT COMPILE_TARGET IN_LIST ALLOWED_TARGETS)
 endif()
 message(STATUS "Compile target platform: ${COMPILE_TARGET}")
 
-if (USE_LIBCXX)
+if(USE_LIBCXX)
   list(APPEND COMPILE_LIBCXX -stdlib=libc++)
   list(APPEND LINK_LIBCXX -lc++ -lc++abi -stdlib=libc++)
 endif()

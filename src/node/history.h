@@ -353,7 +353,7 @@ namespace ccf
 
       std::vector<uint8_t> primary_sig;
 
-      const std::vector<const uint8_t> root_hash{
+      std::vector<uint8_t> root_hash{
         root.h.data(), root.h.data() + root.h.size()};
       primary_sig = node_kp.sign_hash(root_hash.data(), root_hash.size());
 
@@ -734,7 +734,7 @@ namespace ccf
       }
 
       const auto raw_cert = service_info->cert.raw();
-      const std::vector<const uint8_t> root_hash{
+      std::vector<uint8_t> root_hash{
         root.h.data(), root.h.data() + root.h.size()};
 
       return cose_verifier_cached(raw_cert)->verify_detached(
