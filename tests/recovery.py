@@ -66,10 +66,18 @@ def query_endorsements_chain(node, txid):
     return response
 
 
-def verify_endorsements_chain(endorsements, pubkey):
+def verify_endorsements_chain(primary, endorsements, pubkey):
     for endorsement in endorsements:
         validate_cose_sign1(cose_sign1=endorsement, pubkey=pubkey)
-        next_key_bytes = Sign1Message.decode(endorsement).payload
+
+        cose_msg = Sign1Message.decode(endorsement)
+        last_tx = ccf.tx_id.TxID.from_str(cose_msg.phdr["ccf.epoch.end"])
+        receipt = primary.get_receipt(last_tx.view, last_tx.seqno)
+        root_from_receipt = bytes.fromhex(receipt.json()["leaf"])
+        root_from_headers = cose_msg.phdr["ccf.merkle.root"]
+        assert root_from_receipt == root_from_headers
+
+        next_key_bytes = cose_msg.payload
         pubkey = serialization.load_der_public_key(next_key_bytes, default_backend())
 
 
@@ -366,7 +374,7 @@ def test_recover_service_with_wrong_identity(network, args):
             base64.b64decode(x) for x in response.body.json()["endorsements"]
         ]
         assert len(endorsements) == 2  # 2 recoveries behind
-        verify_endorsements_chain(endorsements, cert.public_key())
+        verify_endorsements_chain(primary, endorsements, cert.public_key())
 
     for tx in txids[1:4]:
         response = query_endorsements_chain(primary, tx)
@@ -375,7 +383,7 @@ def test_recover_service_with_wrong_identity(network, args):
             base64.b64decode(x) for x in response.body.json()["endorsements"]
         ]
         assert len(endorsements) == 1  # 1 recovery behind
-        verify_endorsements_chain(endorsements, cert.public_key())
+        verify_endorsements_chain(primary, endorsements, cert.public_key())
 
     for tx in txids[4:]:
         response = query_endorsements_chain(primary, tx)

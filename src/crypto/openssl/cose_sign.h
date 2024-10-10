@@ -12,18 +12,20 @@
 
 namespace ccf::crypto
 {
-  // Standardised field: algorithm used to sign
+  // Standardised field: algorithm used to sign.
   static constexpr int64_t COSE_PHEADER_KEY_ALG = 1;
-  // Standardised: hash of the signing key
+  // Standardised: hash of the signing key.
   static constexpr int64_t COSE_PHEADER_KEY_ID = 4;
-  // Standardised: verifiable data structure
+  // Standardised: verifiable data structure.
   static constexpr int64_t COSE_PHEADER_KEY_VDS = 395;
-  // CCF-specific: last signed TxID
+  // CCF-specific: last signed TxID.
   static const std::string COSE_PHEADER_KEY_TXID = "ccf.txid";
   // CCF-specific: first TX in the range.
   static const std::string COSE_PHEADER_KEY_RANGE_BEGIN = "ccf.epoch.begin";
   // CCF-specific: last TX included in the range.
   static const std::string COSE_PHEADER_KEY_RANGE_END = "ccf.epoch.end";
+  // CCF-specific: Merkle root hash.
+  static const std::string COSE_PHEADER_KEY_MERKLE_ROOT = "ccf.merkle.root";
 
   class COSEParametersFactory
   {
