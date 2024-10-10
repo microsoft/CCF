@@ -1,5 +1,5 @@
 ---------- MODULE SIMccfraft ----------
-EXTENDS ccfraft, TLC, Integers, IOUtils, MCAliases
+EXTENDS ccfraft, TLC, Integers, IOUtils
 
 CONSTANTS
     NodeOne, NodeTwo, NodeThree, NodeFour, NodeFive
@@ -16,16 +16,32 @@ SIMInitReconfigurationVars ==
     \* Start with any subset of servers in the active configuration.
     \/ CCF!InitReconfigurationVars
 
+R ==
+    1..IF "R" \in DOMAIN IOEnv THEN atoi(IOEnv.R) ELSE 100
+
+SIMClientRequest(i) ==
+    /\ 1 = RandomElement(R)
+    /\ CCF!ClientRequest(i)
+
+Q ==
+    1..IF "Q" \in DOMAIN IOEnv THEN atoi(IOEnv.Q) ELSE 100
+
 SIMCheckQuorum(i) ==
-    /\ 1 = RandomElement(1..10)
+    /\ 1 = RandomElement(Q)
     /\ CCF!CheckQuorum(i)
 
+C ==
+    1..IF "C" \in DOMAIN IOEnv THEN atoi(IOEnv.C) ELSE 100
+
 SIMChangeConfigurationInt(i, newConfiguration) ==
-    /\ 1 = RandomElement(1..100)
+    /\ 1 = RandomElement(C)
     /\ CCF!ChangeConfigurationInt(i, newConfiguration)
 
+T ==
+    1..IF "T" \in DOMAIN IOEnv THEN atoi(IOEnv.T) ELSE 100
+
 SIMTimeout(i) ==
-    /\ \/ 1 = RandomElement(1..100)
+    /\ \/ 1 = RandomElement(T)
        \* Always allow Timeout if no messages are in the network
        \* and no node is a candidate or leader.  Otherwise, the system
        \* will deadlock if 1 # RandomElement(...).
@@ -64,6 +80,12 @@ StopAfter ==
     LET timeout == IF ("SIM_TIMEOUT" \in DOMAIN IOEnv) /\ IOEnv.SIM_TIMEOUT # "" THEN atoi(IOEnv.SIM_TIMEOUT) ELSE 1200
     (* The smoke test has a time budget of 20 minutes. *)
     IN TLCSet("exit", TLCGet("duration") > timeout)
+
+SerializeFilename ==
+    "SIMccfraft_" \o "R-" \o ToString(R) \o "_T-" \o ToString(T) \o "_Q-" \o ToString(Q) \o "_C-" \o ToString(C) \o "_ts-" \o ToString(JavaTime) \o ".ndjson"
+
+SerializeTLCStats ==
+    Serialize(<<TLCGet("stats")>>, SerializeFilename, [format |-> "NDJSON", charset |-> "UTF-8", openOptions |-> <<"WRITE", "CREATE", "APPEND">>])
 
 DebugInvUpToDepth ==
     \* The following invariant causes TLC to terminate with a counterexample of length
