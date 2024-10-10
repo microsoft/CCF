@@ -122,6 +122,17 @@ jobs:
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}"
 
+      - name: "Upload logs for ${{ matrix.platform.name }}"
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.platform.name }}
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+          if-no-files-found: ignore
+        if: success() || failure()
+
       - name: "Make .deb Package"
         id: make_deb
         run: |
