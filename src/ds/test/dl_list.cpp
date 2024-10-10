@@ -3,6 +3,7 @@
 
 #include "ds/dl_list.h"
 
+#include <cstddef>
 #include <doctest/doctest.h>
 
 using namespace ds;

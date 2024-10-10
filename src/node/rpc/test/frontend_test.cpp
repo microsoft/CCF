@@ -711,7 +711,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
   auto response = parse_response(rpc_ctx->serialise_response());
   CHECK(response.status == HTTP_STATUS_OK);
 
-  const auto response_body = parse_response_body(response.body);
+  const UserId response_body = parse_response_body(response.body);
   CHECK(response_body == user_id);
 }
 }
