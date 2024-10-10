@@ -12,6 +12,8 @@ namespace ccf
 {
   using PreviousServiceIdentity = ServiceValue<ccf::crypto::Pem>;
 
+  using PreviousServiceLastSignedRoot = ServiceValue<ccf::crypto::Sha256Hash>;
+
   struct CoseEndorsement
   {
     /// COSE-sign of the a previous service identity's public key.
@@ -45,6 +47,8 @@ namespace ccf
   {
     static constexpr auto PREVIOUS_SERVICE_IDENTITY =
       "public:ccf.gov.service.previous_service_identity";
+    static constexpr auto PREVIOUS_SERVICE_LAST_SIGNED_ROOT =
+      "public:ccf.internal.previous_service_last_signed_root";
     static constexpr auto PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT =
       "public:ccf.internal.previous_service_identity_endorsement";
   }

@@ -178,6 +178,8 @@ namespace ccf
     const Service service = {Tables::SERVICE};
     const PreviousServiceIdentity previous_service_identity = {
       Tables::PREVIOUS_SERVICE_IDENTITY};
+    const PreviousServiceLastSignedRoot previous_service_last_signed_root = {
+      Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT};
     const PreviousServiceIdentityEndorsement
       previous_service_identity_endorsement = {
         Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT};
