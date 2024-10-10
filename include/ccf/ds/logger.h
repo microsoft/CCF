@@ -9,6 +9,7 @@
 #define FMT_HEADER_ONLY
 #include <fmt/chrono.h>
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <optional>

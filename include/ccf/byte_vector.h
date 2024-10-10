@@ -6,6 +6,7 @@
 
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 #include <small_vector/SmallVector.h>
 
 namespace ccf
