@@ -16,29 +16,29 @@ SIMInitReconfigurationVars ==
     \* Start with any subset of servers in the active configuration.
     \/ CCF!InitReconfigurationVars
 
-R ==
-    1..IF "R" \in DOMAIN IOEnv THEN atoi(IOEnv.R) ELSE 100
+LOCAL R ==
+    1..IF "R" \in DOMAIN IOEnv THEN atoi(IOEnv.R) ELSE 10
 
 SIMClientRequest(i) ==
     /\ 1 = RandomElement(R)
     /\ CCF!ClientRequest(i)
 
-Q ==
-    1..IF "Q" \in DOMAIN IOEnv THEN atoi(IOEnv.Q) ELSE 100
+LOCAL Q ==
+    1..IF "Q" \in DOMAIN IOEnv THEN atoi(IOEnv.Q) ELSE 10
 
 SIMCheckQuorum(i) ==
     /\ 1 = RandomElement(Q)
     /\ CCF!CheckQuorum(i)
 
-C ==
-    1..IF "C" \in DOMAIN IOEnv THEN atoi(IOEnv.C) ELSE 100
+LOCAL C ==
+    1..IF "C" \in DOMAIN IOEnv THEN atoi(IOEnv.C) ELSE 10
 
 SIMChangeConfigurationInt(i, newConfiguration) ==
     /\ 1 = RandomElement(C)
     /\ CCF!ChangeConfigurationInt(i, newConfiguration)
 
-T ==
-    1..IF "T" \in DOMAIN IOEnv THEN atoi(IOEnv.T) ELSE 100
+LOCAL T ==
+    1..IF "T" \in DOMAIN IOEnv THEN atoi(IOEnv.T) ELSE 1000
 
 SIMTimeout(i) ==
     /\ \/ 1 = RandomElement(T)
