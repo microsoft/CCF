@@ -350,9 +350,19 @@ namespace ccf
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
         previous_service_identity->put(prev_service_info->cert);
 
+        auto last_signed_root = tx.wo<ccf::PreviousServiceLastSignedRoot>(
+          ccf::Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT);
+        auto sigs = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
+        if (!sigs->has())
+        {
+          throw std::logic_error(
+            "Previous service doesn't have any signed transactions");
+        }
+        last_signed_root->put(sigs->get()->root);
+
         // Record number of recoveries for service. If the value does
-        // not exist in the table (i.e. pre 2.x ledger), assume it is the first
-        // recovery.
+        // not exist in the table (i.e. pre 2.x ledger), assume it is the
+        // first recovery.
         recovery_count = prev_service_info->recovery_count.value_or(0) + 1;
       }
 
@@ -404,6 +414,21 @@ namespace ccf
           previous_identity_endorsement->get_version_of_previous_write();
 
         key_to_endorse = prev_endorsement->endorsing_key;
+
+        auto previous_service_last_signed_root =
+          tx.ro<ccf::PreviousServiceLastSignedRoot>(
+            ccf::Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT);
+        if (!previous_service_last_signed_root->has())
+        {
+          LOG_FAIL_FMT(
+            "Failed to sign previous service identity: no last signed root");
+          return false;
+        }
+
+        const auto root = previous_service_last_signed_root->get().value();
+        pheaders.push_back(ccf::crypto::cose_params_string_bytes(
+          ccf::crypto::COSE_PHEADER_KEY_MERKLE_ROOT,
+          std::vector<uint8_t>(root.h.begin(), root.h.end())));
       }
       else
       {
