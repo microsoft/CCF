@@ -518,3 +518,11 @@ While the contents themselves are encrypted, the table is public so as to be acc
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
 **Value** Endorsed COSE sign1 for the interface, represented as a DER-encoded string.
+
+
+``previous_service_last_signed_root``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value** Last signed Merkle root of previous service instance, represented as a hex-encoded string.
