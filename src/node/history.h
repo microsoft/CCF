@@ -381,7 +381,11 @@ namespace ccf
           ccf::crypto::COSE_PHEADER_KEY_VDS, vds_merkle_tree),
         // TxID
         ccf::crypto::cose_params_string_string(
-          ccf::crypto::COSE_PHEADER_KEY_TXID, txid.str())};
+          ccf::crypto::COSE_PHEADER_KEY_TXID, txid.str()),
+        // iat
+        ccf::crypto::cose_params_string_int(
+          ccf::crypto::COSE_PHEADER_IAT, static_cast<int64_t>(time(nullptr)))};
+
       auto cose_sign = crypto::cose_sign1(service_kp, pheaders, root_hash);
 
       signatures->put(sig_value);

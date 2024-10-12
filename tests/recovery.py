@@ -77,6 +77,8 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
         root_from_headers = cose_msg.phdr["ccf.merkle.root"]
         assert root_from_receipt == root_from_headers
 
+        assert "iat" in cose_msg.phdr
+
         next_key_bytes = cose_msg.payload
         pubkey = serialization.load_der_public_key(next_key_bytes, default_backend())
 

@@ -18,6 +18,8 @@ namespace ccf::crypto
   static constexpr int64_t COSE_PHEADER_KEY_ID = 4;
   // Standardised: verifiable data structure.
   static constexpr int64_t COSE_PHEADER_KEY_VDS = 395;
+  // Standardised: issued at CWT claim.
+  static const std::string COSE_PHEADER_IAT = "iat";
   // CCF-specific: last signed TxID.
   static const std::string COSE_PHEADER_KEY_TXID = "ccf.txid";
   // CCF-specific: first TX in the range.

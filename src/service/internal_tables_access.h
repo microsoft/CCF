@@ -451,6 +451,9 @@ namespace ccf
           endorsement.endorsement_epoch_end->to_str()));
       }
 
+      pheaders.push_back(ccf::crypto::cose_params_string_int(
+        ccf::crypto::COSE_PHEADER_IAT, static_cast<int64_t>(time(nullptr))));
+
       try
       {
         endorsement.endorsement = cose_sign1(
