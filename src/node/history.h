@@ -11,6 +11,7 @@
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/key_pair.h"
 #include "ds/thread_messaging.h"
+#include "enclave/enclave_time.h"
 #include "endian.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
@@ -372,6 +373,11 @@ namespace ccf
       std::vector<uint8_t> kid(SHA256_DIGEST_LENGTH);
       SHA256(service_key_der.data(), service_key_der.size(), kid.data());
 
+      const auto time_since_epoch =
+        std::chrono::duration_cast<std::chrono::seconds>(
+          ccf::get_enclave_time())
+          .count();
+
       const auto pheaders = {
         // Key digest
         ccf::crypto::cose_params_int_bytes(
@@ -384,7 +390,7 @@ namespace ccf
           ccf::crypto::COSE_PHEADER_KEY_TXID, txid.str()),
         // iat
         ccf::crypto::cose_params_string_int(
-          ccf::crypto::COSE_PHEADER_IAT, static_cast<int64_t>(time(nullptr)))};
+          ccf::crypto::COSE_PHEADER_IAT, time_since_epoch)};
 
       auto cose_sign = crypto::cose_sign1(service_kp, pheaders, root_hash);
 
