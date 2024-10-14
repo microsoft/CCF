@@ -129,11 +129,22 @@ jobs:
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
           # Source control
-          tdfn -y install ca-certificates git
+          tdnf -y install ca-certificates git
           # Build tools
-          tdnf -y install build-essential clang cmake
+          tdnf -y install build-essential clang cmake which
+          # Dependencies
+          tdnf -y install openssl-devel libuv-devel
         shell: bash
 
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DUSE_LIBCXX=OFF ..
+          make -j8
+        shell: bash
