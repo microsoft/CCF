@@ -126,8 +126,12 @@ jobs:
       - name: "Install dependencies"
         run: |
           set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
-          tdnf -y install build-essential clang git cmake
+          # Source control
+          tdfn -y install ca-certificates git
+          # Build tools
+          tdnf -y install build-essential clang cmake
         shell: bash
 
       - uses: actions/checkout@v4
