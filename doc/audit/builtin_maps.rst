@@ -478,7 +478,7 @@ COSE signatures emitted by the primary node over the root of the Merkle Tree at 
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
-**Value** Raw COSE Sign1 message as byte string with root as a detached payload.
+**Value** Raw COSE Sign1 message as byte string with Merkle tree root as a detached payload.
 
 ``recovery_shares``
 ~~~~~~~~~~~~~~~~~~~
