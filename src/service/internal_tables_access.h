@@ -426,7 +426,7 @@ namespace ccf
           return false;
         }
 
-        const auto root = previous_service_last_signed_root->get().value();
+        const auto& root = previous_service_last_signed_root->get().value();
         previous_root.assign(root.h.begin(), root.h.end());
       }
       else
