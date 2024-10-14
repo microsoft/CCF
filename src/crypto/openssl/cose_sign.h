@@ -16,6 +16,8 @@ namespace ccf::crypto
   static constexpr int64_t COSE_PHEADER_KEY_ALG = 1;
   // Standardised: hash of the signing key.
   static constexpr int64_t COSE_PHEADER_KEY_ID = 4;
+  // Standardised: CWT claims map.
+  static constexpr int64_t COSE_PHEADER_KEY_CWT = 15;
   // Standardised: verifiable data structure.
   static constexpr int64_t COSE_PHEADER_KEY_VDS = 395;
   // Standardised: issued at CWT claim.
@@ -28,6 +30,8 @@ namespace ccf::crypto
   static const std::string COSE_PHEADER_KEY_RANGE_END = "ccf.epoch.end";
   // CCF-specific: Merkle root hash.
   static const std::string COSE_PHEADER_KEY_MERKLE_ROOT = "ccf.merkle.root";
+
+  using CWTMap = std::unordered_map<std::string, int64_t>;
 
   class COSEParametersFactory
   {
@@ -52,6 +56,8 @@ namespace ccf::crypto
     std::function<void(QCBOREncodeContext*)> impl{};
     size_t args_size{};
   };
+
+  COSEParametersFactory cose_params_cwt_map(const CWTMap& m);
 
   COSEParametersFactory cose_params_int_int(int64_t key, int64_t value);
 

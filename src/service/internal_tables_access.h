@@ -460,8 +460,8 @@ namespace ccf
         std::chrono::duration_cast<std::chrono::seconds>(
           ccf::get_enclave_time())
           .count();
-      pheaders.push_back(ccf::crypto::cose_params_string_int(
-        ccf::crypto::COSE_PHEADER_IAT, time_since_epoch));
+      pheaders.push_back(ccf::crypto::cose_params_cwt_map(ccf::crypto::CWTMap{
+        {ccf::crypto::COSE_PHEADER_IAT, time_since_epoch}}));
 
       try
       {
