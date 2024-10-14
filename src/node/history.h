@@ -390,7 +390,7 @@ namespace ccf
           ccf::crypto::COSE_PHEADER_KEY_TXID, txid.str()),
         // iat
         ccf::crypto::cose_params_cwt_map(ccf::crypto::CWTMap{
-          {ccf::crypto::COSE_PHEADER_IAT, time_since_epoch}})};
+          {ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch}})};
 
       auto cose_sign = crypto::cose_sign1(service_kp, pheaders, root_hash);
 
