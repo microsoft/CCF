@@ -396,6 +396,7 @@ namespace ccf
       ccf::CoseEndorsement endorsement{};
       std::vector<ccf::crypto::COSEParametersFactory> pheaders{};
       std::vector<uint8_t> key_to_endorse{};
+      std::vector<uint8_t> previous_root{};
 
       endorsement.endorsing_key = service_key.public_key_der();
 
@@ -427,9 +428,7 @@ namespace ccf
         }
 
         const auto root = previous_service_last_signed_root->get().value();
-        pheaders.push_back(ccf::crypto::cose_params_string_bytes(
-          ccf::crypto::COSE_PHEADER_KEY_MERKLE_ROOT,
-          std::vector<uint8_t>(root.h.begin(), root.h.end())));
+        previous_root.assign(root.h.begin(), root.h.end());
       }
       else
       {
@@ -450,6 +449,11 @@ namespace ccf
         pheaders.push_back(ccf::crypto::cose_params_string_string(
           ccf::crypto::COSE_PHEADER_KEY_RANGE_END,
           endorsement.endorsement_epoch_end->to_str()));
+      }
+      if (!previous_root.empty())
+      {
+        pheaders.push_back(ccf::crypto::cose_params_string_bytes(
+          ccf::crypto::COSE_PHEADER_KEY_MERKLE_ROOT, previous_root));
       }
 
       const auto time_since_epoch =
