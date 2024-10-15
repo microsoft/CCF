@@ -99,7 +99,7 @@ namespace ccf::crypto
     size_t args_size = extra_size_for_seq_tag;
     for (const auto& [key, value] : m)
     {
-      args_size += key.size() + sizeof(value) + extra_size_for_seq_tag +
+      args_size += sizeof(key) + sizeof(value) + extra_size_for_int_tag +
         extra_size_for_int_tag;
     }
 
@@ -108,7 +108,7 @@ namespace ccf::crypto
         QCBOREncode_OpenMapInMapN(ctx, COSE_PHEADER_KEY_CWT);
         for (const auto& [key, value] : m)
         {
-          QCBOREncode_AddSZString(ctx, key.c_str());
+          QCBOREncode_AddInt64(ctx, key);
           QCBOREncode_AddInt64(ctx, value);
         }
         QCBOREncode_CloseMap(ctx);

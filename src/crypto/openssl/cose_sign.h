@@ -20,8 +20,16 @@ namespace ccf::crypto
   static constexpr int64_t COSE_PHEADER_KEY_CWT = 15;
   // Standardised: verifiable data structure.
   static constexpr int64_t COSE_PHEADER_KEY_VDS = 395;
-  // Standardised: issued at CWT claim.
-  static const std::string COSE_PHEADER_KEY_IAT = "iat";
+  // Standardised: issued at CWT claim. Value is **PLAIN INTEGER**, as per
+  // https://www.rfc-editor.org/rfc/rfc8392#section-2. Quote:
+  /* The "NumericDate" term in this specification has the same meaning and
+   * processing rules as the JWT "NumericDate" term defined in Section 2 of
+   * [RFC7519], except that it is represented as a CBOR numericdate (from
+   * Section 2.4.1 of [RFC7049]) instead of a JSON number.  The  encoding is
+   * modified so that the leading tag 1 (epoch-based date/time) MUST  be
+   * omitted.
+   */
+  static constexpr int64_t COSE_PHEADER_KEY_IAT = 6;
   // CCF-specific: last signed TxID.
   static const std::string COSE_PHEADER_KEY_TXID = "ccf.txid";
   // CCF-specific: first TX in the range.
@@ -31,7 +39,7 @@ namespace ccf::crypto
   // CCF-specific: Merkle root hash.
   static const std::string COSE_PHEADER_KEY_MERKLE_ROOT = "ccf.merkle.root";
 
-  using CWTMap = std::unordered_map<std::string, int64_t>;
+  using CWTMap = std::unordered_map<int64_t, int64_t>;
 
   class COSEParametersFactory
   {

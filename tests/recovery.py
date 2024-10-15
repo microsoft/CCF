@@ -78,7 +78,7 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
         assert root_from_receipt == root_from_headers
 
         CWT_KEY = 15
-        IAT_CWT_LABEL = "iat"
+        IAT_CWT_LABEL = 6
         assert (
             CWT_KEY in cose_msg.phdr and IAT_CWT_LABEL in cose_msg.phdr[CWT_KEY]
         ), cose_msg.phdr
