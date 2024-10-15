@@ -65,7 +65,7 @@ namespace ccf::crypto
     size_t args_size{};
   };
 
-  COSEParametersFactory cose_params_cwt_map(const CWTMap& m);
+  COSEParametersFactory cose_params_cwt_map_int_int(const CWTMap& m);
 
   COSEParametersFactory cose_params_int_int(int64_t key, int64_t value);
 

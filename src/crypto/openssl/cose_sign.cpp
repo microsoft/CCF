@@ -94,7 +94,7 @@ namespace ccf::crypto
     }
   }
 
-  COSEParametersFactory cose_params_cwt_map(const CWTMap& m)
+  COSEParametersFactory cose_params_cwt_map_int_int(const CWTMap& m)
   {
     size_t args_size = extra_size_for_seq_tag;
     for (const auto& [key, value] : m)
