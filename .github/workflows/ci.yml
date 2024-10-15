@@ -104,4 +104,3 @@ jobs:
       - run: |
           ls -l
           ls -la /dev/sev
-          ls
