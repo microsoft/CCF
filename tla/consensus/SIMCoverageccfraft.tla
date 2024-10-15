@@ -1,7 +1,7 @@
 
   $ wget https://nightly.tlapl.us/dist/tla2tools.jar
   $ wget https://github.com/tlaplus/CommunityModules/releases/latest/download/CommunityModules-deps.jar
-  ## Run wiht as many workers as you like to parallelize the nested simulation runs (auto uses all your cores).
+  ## Run with as many workers as you like to parallelize the nested simulation runs (auto uses all your cores).
   $ java -jar tla2tools.jar -config SIMCoverageccfraft.tla SIMCoverageccfraft.tla -workers auto
 
 ----------------------------- MODULE SIMCoverageccfraft -----------------------------
