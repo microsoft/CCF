@@ -1,0 +1,28 @@
+ccf-cose-root-signature-tagged = #6.18(ccf-cose-root-signature)
+
+ccf-cose-root-signature = [
+  phdr : bstr .cbor protected_headers,
+  uhdr : unprotected_headers,
+  payload : nil,
+  signature : bstr
+]
+
+unprotected_headers = {
+  ; empty map
+}
+
+protected_headers = {
+  1: int,
+  4: bstr,
+  15: cwt_map,
+  395: int,
+  "ccf.v1" : ccf_map
+}
+
+cwt_map = {
+  6: int
+}
+
+ccf_map = {
+  "txid": tstr
+}
