@@ -96,7 +96,7 @@ jobs:
 
   build_libstdcxx:
     needs: checks
-    runs-on: [self-hosted, 1ES.Pool=gha-aci]
+    runs-on: [self-hosted, 1ES.Pool=gha-c-aci]
     steps:
       - uses: actions/checkout@v4
         with:
