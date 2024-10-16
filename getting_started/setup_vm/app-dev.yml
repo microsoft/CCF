@@ -14,8 +14,5 @@
         name: ccf_install
         tasks_from: deb_install.yml
     - import_role:
-        name: protoc
-        tasks_from: install.yml
-    - import_role:
         name: autoremove
         tasks_from: install.yml
