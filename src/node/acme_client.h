@@ -303,7 +303,7 @@ namespace ACME
       if (nonces.empty())
       {
         request_new_nonce(
-          [=]() { post_as_get(account_url, resource_url, ok_callback); });
+          [this]() { post_as_get(account_url, resource_url, ok_callback); });
       }
       else
       {
@@ -326,7 +326,7 @@ namespace ACME
     {
       if (nonces.empty())
       {
-        request_new_nonce([=]() {
+        request_new_nonce([this]() {
           post_as_get_json(
             account_url, resource_url, ok_callback, empty_payload);
         });
