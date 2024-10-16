@@ -114,6 +114,8 @@ jobs:
           tdnf -y install build-essential clang cmake ninja-build which
           # Dependencies
           tdnf -y install openssl-devel libuv-devel
+          # Test dependencies
+          tdnf -y install libarrow-devel parquet-libs-devel
         shell: bash
 
       - uses: actions/checkout@v4
