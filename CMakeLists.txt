@@ -211,7 +211,6 @@ set(CCF_ENDPOINTS_SOURCES
 
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
-include(${CCF_DIR}/cmake/sss.cmake)
 include(${CCF_DIR}/cmake/nghttp2.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
@@ -567,7 +566,6 @@ if(COMPILE_TARGET STREQUAL "snp")
     PUBLIC ${LINK_LIBCXX}
            -lgcc
            http_parser.snp
-           sss.snp
            ccf_js.snp
            ccf_endpoints.snp
            ccfcrypto.snp
@@ -617,7 +615,6 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
     PUBLIC ${LINK_LIBCXX}
            -lgcc
            http_parser.host
-           sss.host
            ccf_js.host
            ccf_endpoints.host
            ccfcrypto.host
@@ -794,12 +791,6 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      secret_sharing_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secret_share.cpp
-    )
-    target_link_libraries(secret_sharing_test PRIVATE sss.host)
-
-    add_unit_test(
       encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
     )
     target_link_libraries(encryptor_test PRIVATE ccfcrypto.host ccf_kv.host)
@@ -829,7 +820,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
     )
     target_link_libraries(
-      historical_queries_test PRIVATE http_parser.host sss.host ccf_kv.host
+      historical_queries_test PRIVATE http_parser.host ccf_kv.host
                                       ccf_endpoints.host
     )
     # Temporarily disabled flaky test
@@ -838,7 +829,7 @@ if(BUILD_TESTS)
     # ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp )
     # target_link_libraries( indexing_test PRIVATE ccf_endpoints.host sss.host
     # ccf_kv.host ) target_link_libraries( indexing_test PRIVATE
-    # ccf_endpoints.host sss.host ccf_kv.host )
+    # ccf_endpoints.host ccf_kv.host )
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
@@ -898,13 +889,8 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
-              http_parser.host
-              sss.host
-              ccf_js.host
-              ccf_endpoints.host
-              ccfcrypto.host
-              ccf_kv.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
+              ccf_endpoints.host ccfcrypto.host ccf_kv.host
     )
 
     add_unit_test(
@@ -934,13 +920,8 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
-              http_parser.host
-              sss.host
-              ccf_js.host
-              ccf_endpoints.host
-              ccfcrypto.host
-              ccf_kv.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
+              ccf_endpoints.host ccfcrypto.host ccf_kv.host
     )
 
     add_unit_test(

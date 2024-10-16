@@ -179,16 +179,6 @@ namespace ccf
       const auto newly_active = member->status != MemberStatus::ACTIVE;
 
       member->status = MemberStatus::ACTIVE;
-      if (
-        is_recovery_member(tx, member_id) &&
-        (get_active_recovery_members(tx).size() >= max_active_recovery_members))
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot activate new recovery member {}: no more than {} active "
-          "recovery members are allowed",
-          member_id,
-          max_active_recovery_members));
-      }
       member_info->put(member_id, member.value());
 
       return newly_active;
