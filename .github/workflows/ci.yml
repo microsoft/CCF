@@ -29,7 +29,7 @@ jobs:
       - run: ./scripts/ci-checks.sh
 
   build_and_test:
-    name: "Ubuntu 20.04 CI"
+    name: CI
     needs: checks
     strategy:
       matrix:
