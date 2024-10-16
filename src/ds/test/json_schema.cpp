@@ -89,7 +89,7 @@ TEST_CASE("macro parser generation with base classes")
   j["e"] = 101;
   const Baz baz_1 = j;
   REQUIRE(baz_1.a == j["a"]);
-  REQUIRE(baz_1.b == j["b"]);
+  REQUIRE(baz_1.b == j["b"].get<std::string>());
   REQUIRE(baz_1.c == j["c"]);
   REQUIRE(baz_1.d == j["d"]);
   REQUIRE(baz_1.e == j["e"]);
