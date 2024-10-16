@@ -35,7 +35,7 @@ TEST_CASE("basic macro parser generation")
   j["c"] = 100;
   const Bar bar_1 = j;
   REQUIRE(bar_1.a == j["a"]);
-  REQUIRE(bar_1.b == j["b"]);
+  REQUIRE(bar_1.b == j["b"].get<std::string>());
   REQUIRE(bar_1.c == j["c"]);
 }
 
