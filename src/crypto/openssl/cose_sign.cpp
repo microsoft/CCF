@@ -94,6 +94,28 @@ namespace ccf::crypto
     }
   }
 
+  COSEParametersFactory cose_params_cwt_map_int_int(const CWTMap& m)
+  {
+    size_t args_size = extra_size_for_seq_tag;
+    for (const auto& [key, value] : m)
+    {
+      args_size += sizeof(key) + sizeof(value) + extra_size_for_int_tag +
+        extra_size_for_int_tag;
+    }
+
+    return COSEParametersFactory(
+      [=](QCBOREncodeContext* ctx) {
+        QCBOREncode_OpenMapInMapN(ctx, COSE_PHEADER_KEY_CWT);
+        for (const auto& [key, value] : m)
+        {
+          QCBOREncode_AddInt64(ctx, key);
+          QCBOREncode_AddInt64(ctx, value);
+        }
+        QCBOREncode_CloseMap(ctx);
+      },
+      args_size);
+  }
+
   COSEParametersFactory cose_params_int_int(int64_t key, int64_t value)
   {
     const size_t args_size = sizeof(key) + sizeof(value) +

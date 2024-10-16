@@ -77,6 +77,17 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
         root_from_headers = cose_msg.phdr["ccf.merkle.root"]
         assert root_from_receipt == root_from_headers
 
+        CWT_KEY = 15
+        IAT_CWT_LABEL = 6
+        assert (
+            CWT_KEY in cose_msg.phdr and IAT_CWT_LABEL in cose_msg.phdr[CWT_KEY]
+        ), cose_msg.phdr
+
+        last_five_minutes = 5 * 60
+        assert (
+            time.time() - cose_msg.phdr[CWT_KEY][IAT_CWT_LABEL] < last_five_minutes
+        ), cose_msg.phdr
+
         next_key_bytes = cose_msg.payload
         pubkey = serialization.load_der_public_key(next_key_bytes, default_backend())
 

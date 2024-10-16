@@ -13,6 +13,7 @@
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
 #include "crypto/openssl/cose_sign.h"
+#include "enclave/enclave_time.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
 #include "service/tables/governance_history.h"
@@ -454,6 +455,14 @@ namespace ccf
         pheaders.push_back(ccf::crypto::cose_params_string_bytes(
           ccf::crypto::COSE_PHEADER_KEY_MERKLE_ROOT, previous_root));
       }
+
+      const auto time_since_epoch =
+        std::chrono::duration_cast<std::chrono::seconds>(
+          ccf::get_enclave_time())
+          .count();
+      pheaders.push_back(
+        ccf::crypto::cose_params_cwt_map_int_int(ccf::crypto::CWTMap{
+          {ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch}}));
 
       try
       {
