@@ -287,7 +287,7 @@ namespace ccf
 
     const auto& did = phdr.iss;
 
-    auto did_document_str = didx509::resolve(pem_chain, did);
+    auto did_document_str = didx509::resolve(pem_chain, did, true /* ignore time */);
     did::DIDDocument did_document = nlohmann::json::parse(did_document_str);
 
     if (did_document.verification_method.empty())
