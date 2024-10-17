@@ -5,6 +5,7 @@
 #include "ccf/ds/json_schema.h"
 
 #define FMT_HEADER_ONLY
+#include <cstdint>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
 #include <sstream>

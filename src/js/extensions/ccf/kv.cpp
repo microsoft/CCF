@@ -151,7 +151,17 @@ namespace ccf::js::extensions
 namespace ccf::js
 {
   JSClassExoticMethods kv_exotic_methods = {
-    .get_own_property = extensions::js_kv_lookup};
+    .get_own_property = extensions::js_kv_lookup,
+    .get_own_property_names = {},
+    .delete_property = {},
+    .define_own_property = {},
+    .has_property = {},
+    .get_property = {},
+    .set_property = {}};
   JSClassDef kv_class_def = {
-    .class_name = "KV Tables", .exotic = &kv_exotic_methods};
+    .class_name = "KV Tables",
+    .finalizer = {},
+    .gc_mark = {},
+    .call = {},
+    .exotic = &kv_exotic_methods};
 }

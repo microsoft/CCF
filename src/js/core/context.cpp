@@ -13,6 +13,7 @@
 #include "js/global_class_ids.h"
 
 #include <chrono>
+#include <cstdarg>
 #include <quickjs/quickjs.h>
 
 #if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)

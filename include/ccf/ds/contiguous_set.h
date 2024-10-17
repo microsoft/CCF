@@ -447,7 +447,7 @@ namespace ccf::ds
 
     bool contains(const T& t) const
     {
-      return find_internal(t) != end();
+      return find_internal(t) != end().it;
     }
 
     ConstIterator find(const T& t) const

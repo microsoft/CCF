@@ -1606,14 +1606,16 @@ namespace asynchost
               job->from_idx = from_idx;
               job->to_idx = to_idx;
               job->max_size = max_entries_size;
-              job->result_cb =
-                [this, from_idx = from_idx, to_idx = to_idx, purpose = purpose](
-                  auto&& read_result, int status) {
-                  // NB: Even if status is cancelled (and entry is empty), we
-                  // want to write this result back to the enclave
-                  write_ledger_get_range_response(
-                    from_idx, to_idx, std::move(read_result), purpose);
-                };
+              job->result_cb = [this,
+                                from_idx_ = from_idx,
+                                to_idx_ = to_idx,
+                                purpose_ =
+                                  purpose](auto&& read_result, int status) {
+                // NB: Even if status is cancelled (and entry is empty), we
+                // want to write this result back to the enclave
+                write_ledger_get_range_response(
+                  from_idx_, to_idx_, std::move(read_result), purpose_);
+              };
 
               work_handle->data = job;
             }
