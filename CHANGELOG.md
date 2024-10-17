@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Introduced `ccf::describe_cose_endorsements_v1(receipt)` for COSE-endorsements chain of previous service identities (#6500).
+- Ignore time when resolving did:x509 against x5chain, resolution establishes a point-in-time endorsement, not ongoing validity (#6575).
 
 ## [6.0.0-dev1]
 
