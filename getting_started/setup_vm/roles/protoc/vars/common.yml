@@ -1,3 +1,0 @@
-workspace: "/tmp/"
-protoc_version: 21.5 # Should be in sync with 3rdparty/internal/protobuf
-protoc_install_prefix: "/opt/protoc"

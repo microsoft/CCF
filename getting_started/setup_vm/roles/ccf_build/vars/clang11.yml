@@ -26,7 +26,6 @@ debs:
   - curl # client test infra
   - shellcheck # bash lint
   - iptables # partition test infra
-  - unzip # required to unzip protoc install
 
 # Not installed on GitHub Actions environment because of conflicting package
 docker_debs:

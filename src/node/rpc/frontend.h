@@ -6,7 +6,6 @@
 #include "ccf/http_status.h"
 #include "ccf/node_context.h"
 #include "ccf/pal/locking.h"
-#include "ccf/research/grpc_status.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/jwt.h"

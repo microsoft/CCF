@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/claims_digest.h"
-#include "ccf/research/grpc_status.h"
 #include "ccf/rpc_context.h"
 
 namespace ccf
@@ -78,19 +77,9 @@ namespace ccf
       std::string&& msg,
       const std::vector<nlohmann::json>& details = {}) override
     {
-      auto content_type = get_request_header(ccf::http::headers::CONTENT_TYPE);
-      if (
-        content_type.has_value() &&
-        content_type.value() == http::headervalues::contenttype::GRPC)
-      {
-        set_grpc_error(http_status_to_grpc(status), std::move(msg));
-      }
-      else
-      {
-        nlohmann::json body = ccf::ODataErrorResponse{
-          ccf::ODataError{code, std::move(msg), details}};
-        set_response_json(body, status);
-      }
+      nlohmann::json body =
+        ccf::ODataErrorResponse{ccf::ODataError{code, std::move(msg), details}};
+      set_response_json(body, status);
     }
 
     void set_error(ccf::ErrorDetails&& error) override
@@ -112,21 +101,6 @@ namespace ccf
       set_response_header(
         ccf::http::headers::CONTENT_TYPE,
         http::headervalues::contenttype::JSON);
-    }
-
-    void set_grpc_error(grpc_status grpc_status, std::string&& msg)
-    {
-      if (http_version != HttpVersion::HTTP2)
-      {
-        throw std::logic_error("Cannot set gRPC error on non-HTTP/2 interface");
-      }
-
-      set_response_status(HTTP_STATUS_OK);
-      set_response_header(
-        ccf::http::headers::CONTENT_TYPE,
-        http::headervalues::contenttype::GRPC);
-      set_response_trailer(grpc::make_status_trailer(grpc_status));
-      set_response_trailer(grpc::make_message_trailer(msg));
     }
 
     bool response_is_pending = false;
