@@ -5,11 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.7]
+
+[5.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.7
+
+- Ignore time when resolving did:x509 against x5chain, resolution establishes a point-in-time endorsement, not ongoing validity (#6575).
+
 ## [5.0.6]
 
 [5.0.6]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.6
-
-### Bug fixes
 
 - Added COSE signature verification to consume signature transactions from upgraded primary (#6495).
 
