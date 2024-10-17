@@ -84,7 +84,7 @@ find doc/schemas/*.json -exec npx swagger-cli validate {} \;
 endgroup
 
 group "Copyright notice headers"
-python3.8 "$SCRIPT_DIR"/notice-check.py
+python3 "$SCRIPT_DIR"/notice-check.py
 endgroup
 
 group "CMake format"
@@ -99,7 +99,7 @@ group "Python dependencies"
 # Virtual Environment w/ dependencies for Python steps
 if [ ! -f "scripts/env/bin/activate" ]
     then
-        python3.8 -m venv scripts/env
+        python3 -m venv scripts/env
 fi
 
 source scripts/env/bin/activate
