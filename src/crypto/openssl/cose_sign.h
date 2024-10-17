@@ -30,32 +30,113 @@ namespace ccf::crypto
    * omitted.
    */
   static constexpr int64_t COSE_PHEADER_KEY_IAT = 6;
+  // CCF headers nested map key.
+  static const std::string COSE_PHEADER_KEY_CCF = "ccf.v1";
   // CCF-specific: last signed TxID.
-  static const std::string COSE_PHEADER_KEY_TXID = "ccf.txid";
+  static const std::string COSE_PHEADER_KEY_TXID = "txid";
   // CCF-specific: first TX in the range.
-  static const std::string COSE_PHEADER_KEY_RANGE_BEGIN = "ccf.epoch.begin";
+  static const std::string COSE_PHEADER_KEY_RANGE_BEGIN = "epoch.start.txid";
   // CCF-specific: last TX included in the range.
-  static const std::string COSE_PHEADER_KEY_RANGE_END = "ccf.epoch.end";
+  static const std::string COSE_PHEADER_KEY_RANGE_END = "epoch.end.txid";
   // CCF-specific: Merkle root hash.
-  static const std::string COSE_PHEADER_KEY_MERKLE_ROOT = "ccf.merkle.root";
+  static const std::string COSE_PHEADER_KEY_MERKLE_ROOT = "merkle.root";
 
-  using CWTMap = std::unordered_map<int64_t, int64_t>;
+  class COSEMapKey
+  {
+  public:
+    virtual void apply(QCBOREncodeContext* ctx) const = 0;
+    virtual size_t estimated_size() const = 0;
+
+    virtual ~COSEMapKey() = default;
+  };
+
+  class COSEMapIntKey : public COSEMapKey
+  {
+  public:
+    COSEMapIntKey(int64_t key_);
+    ~COSEMapIntKey() override = default;
+
+    void apply(QCBOREncodeContext* ctx) const override;
+    size_t estimated_size() const override;
+
+  private:
+    int64_t key;
+  };
+
+  class COSEMapStringKey : public COSEMapKey
+  {
+  public:
+    COSEMapStringKey(const std::string& key_);
+    ~COSEMapStringKey() override = default;
+
+    void apply(QCBOREncodeContext* ctx) const override;
+    size_t estimated_size() const override;
+
+  private:
+    std::string key;
+  };
 
   class COSEParametersFactory
   {
   public:
+    virtual void apply(QCBOREncodeContext* ctx) const = 0;
+    virtual size_t estimated_size() const = 0;
+
+    virtual ~COSEParametersFactory() = default;
+  };
+
+  class COSEParametersMap : public COSEParametersFactory
+  {
+  public:
+    COSEParametersMap(
+      std::shared_ptr<COSEMapKey> key_,
+      const std::vector<std::shared_ptr<COSEParametersFactory>>& factories_);
+
+    void apply(QCBOREncodeContext* ctx) const override;
+    size_t estimated_size() const override;
+
+    virtual ~COSEParametersMap() = default;
+
+  private:
+    std::shared_ptr<COSEMapKey> key;
+    std::vector<std::shared_ptr<COSEParametersFactory>> factories{};
+  };
+
+  std::shared_ptr<COSEParametersFactory> cose_params_int_int(
+    int64_t key, int64_t value);
+
+  std::shared_ptr<COSEParametersFactory> cose_params_int_string(
+    int64_t key, const std::string& value);
+
+  std::shared_ptr<COSEParametersFactory> cose_params_string_int(
+    const std::string& key, int64_t value);
+
+  std::shared_ptr<COSEParametersFactory> cose_params_string_string(
+    const std::string& key, const std::string& value);
+
+  std::shared_ptr<COSEParametersFactory> cose_params_int_bytes(
+    int64_t key, const std::vector<uint8_t>& value);
+
+  std::shared_ptr<COSEParametersFactory> cose_params_string_bytes(
+    const std::string& key, const std::vector<uint8_t>& value);
+
+  class COSEParametersPair : public COSEParametersFactory
+  {
+  public:
     template <typename Callable>
-    COSEParametersFactory(Callable&& impl, size_t args_size) :
+    COSEParametersPair(Callable&& impl, size_t args_size) :
       impl(std::forward<Callable>(impl)),
       args_size{args_size}
     {}
 
-    void apply(QCBOREncodeContext* ctx) const
+    virtual ~COSEParametersPair() = default;
+
+    void apply(QCBOREncodeContext* ctx) const override
     {
       impl(ctx);
     }
 
-    size_t estimated_size() const
+    size_t estimated_size() const override
     {
       return args_size;
     }
@@ -65,24 +146,8 @@ namespace ccf::crypto
     size_t args_size{};
   };
 
-  COSEParametersFactory cose_params_cwt_map_int_int(const CWTMap& m);
-
-  COSEParametersFactory cose_params_int_int(int64_t key, int64_t value);
-
-  COSEParametersFactory cose_params_int_string(
-    int64_t key, const std::string& value);
-
-  COSEParametersFactory cose_params_string_int(
-    const std::string& key, int64_t value);
-
-  COSEParametersFactory cose_params_string_string(
-    const std::string& key, const std::string& value);
-
-  COSEParametersFactory cose_params_int_bytes(
-    int64_t key, const std::vector<uint8_t>& value);
-
-  COSEParametersFactory cose_params_string_bytes(
-    const std::string& key, const std::vector<uint8_t>& value);
+  using COSEHeadersArray =
+    std::vector<std::shared_ptr<ccf::crypto::COSEParametersFactory>>;
 
   struct COSESignError : public std::runtime_error
   {
@@ -101,7 +166,8 @@ namespace ccf::crypto
    */
   std::vector<uint8_t> cose_sign1(
     const KeyPair_OpenSSL& key,
-    const std::vector<COSEParametersFactory>& protected_headers,
+    const std::vector<std::shared_ptr<COSEParametersFactory>>&
+      protected_headers,
     std::span<const uint8_t> payload,
     bool detached_payload = true);
 }

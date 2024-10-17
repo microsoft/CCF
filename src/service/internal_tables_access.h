@@ -394,7 +394,7 @@ namespace ccf
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
 
       ccf::CoseEndorsement endorsement{};
-      std::vector<ccf::crypto::COSEParametersFactory> pheaders{};
+      ccf::crypto::COSEHeadersArray pheaders{};
       std::vector<uint8_t> key_to_endorse{};
       std::vector<uint8_t> previous_root{};
 
@@ -460,9 +460,16 @@ namespace ccf
         std::chrono::duration_cast<std::chrono::seconds>(
           ccf::get_enclave_time())
           .count();
-      pheaders.push_back(
-        ccf::crypto::cose_params_cwt_map_int_int(ccf::crypto::CWTMap{
-          {ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch}}));
+
+      auto cwt_headers =
+        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
+          std::make_shared<ccf::crypto::COSEParametersMap>(
+            std::make_shared<ccf::crypto::COSEMapIntKey>(
+              ccf::crypto::COSE_PHEADER_KEY_CWT),
+            ccf::crypto::COSEHeadersArray{ccf::crypto::cose_params_int_int(
+              ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch)}));
+
+      pheaders.push_back(cwt_headers);
 
       try
       {
