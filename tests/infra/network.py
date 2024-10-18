@@ -22,6 +22,7 @@ import http
 import pprint
 import functools
 import re
+import hashlib
 from datetime import datetime, timedelta, timezone
 from infra.consortium import slurp_file
 from infra.snp import IS_SNP
@@ -1644,6 +1645,25 @@ class Network:
         LOG.info(
             f"Certificate validity period for service: {valid_from} - {valid_to} (for {validity_period})"
         )
+
+    def refresh_service_identity_file(self, args):
+        """
+        Refresh service_cert.pem from the current primary node, so that future client
+        connections pick up the new service certificate.
+        """
+        primary = self.find_random_node()
+        with primary.client() as c:
+            r = c.get("/node/network")
+            assert r.status_code == 200, r
+            new_service_identity = r.body.json()["service_certificate"]
+        identity_filepath = os.path.join(self.common_dir, "service_cert.pem")
+        with open(identity_filepath, "r", encoding="utf-8") as f:
+            before_digest = hashlib.sha256(f.read().encode()).hexdigest()
+        LOG.info(f"Before refresh, service_cert.pem was sha256:{before_digest}")
+        after_digest = hashlib.sha256(new_service_identity.encode()).hexdigest()
+        LOG.info(f"After refresh, service_cert.pem is sha256:{after_digest}")
+        with open(identity_filepath, "w", encoding="utf-8") as f:
+            f.write(new_service_identity)
 
     def save_service_identity(self, args):
         n = self.find_random_node()
