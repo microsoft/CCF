@@ -36,6 +36,7 @@ from types import MappingProxyType
 import threading
 import copy
 import programmability
+import e2e_common_endpoints
 import subprocess
 import base64
 
