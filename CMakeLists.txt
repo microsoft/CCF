@@ -215,9 +215,6 @@ include(${CCF_DIR}/cmake/sss.cmake)
 include(${CCF_DIR}/cmake/nghttp2.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
-set(MESSAGE_QUIET ON)
-include(${CCF_DIR}/cmake/protobuf.cmake)
-unset(MESSAGE_QUIET)
 
 # Host Executable
 if(SAN
