@@ -33,7 +33,6 @@ namespace ccf
         static constexpr auto JSON = "application/json";
         static constexpr auto TEXT = "text/plain";
         static constexpr auto OCTET_STREAM = "application/octet-stream";
-        static constexpr auto GRPC = "application/grpc";
         static constexpr auto COSE = "application/cose";
         static constexpr auto JAVASCRIPT = "text/javascript";
         static constexpr auto CBOR = "application/cbor";
