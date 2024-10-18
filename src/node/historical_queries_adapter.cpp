@@ -254,6 +254,12 @@ namespace ccf
   {
     return receipt.cose_endorsements;
   }
+
+  std::optional<SerialisedCoseSignature> describe_cose_signature_v1(
+    const TxReceiptImpl& receipt)
+  {
+    return receipt.cose_signature;
+  }
 }
 
 namespace ccf::historical

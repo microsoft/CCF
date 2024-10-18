@@ -262,7 +262,8 @@ namespace ccf::crypto
       throw std::logic_error("Failed to parse COSE_Sign1 as bstr");
     }
 
-    QCBORDecode_EnterMap(&ctx, NULL);
+    QCBORDecode_EnterMap(&ctx, NULL); // phdr
+    QCBORDecode_EnterMapFromMapSZ(&ctx, "ccf.v1"); // phdr["ccf.v1"]
 
     qcbor_result = QCBORDecode_GetError(&ctx);
     if (qcbor_result != QCBOR_SUCCESS)
@@ -318,7 +319,8 @@ namespace ccf::crypto
 
     // Complete decode to ensure well-formed CBOR.
 
-    QCBORDecode_ExitMap(&ctx);
+    QCBORDecode_ExitMap(&ctx); // phdr["ccf.v1"]
+    QCBORDecode_ExitMap(&ctx); // phdr
     QCBORDecode_ExitBstrWrapped(&ctx);
 
     qcbor_result = QCBORDecode_GetError(&ctx);
