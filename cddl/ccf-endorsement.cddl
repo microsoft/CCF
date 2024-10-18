@@ -1,0 +1,28 @@
+ccf-cose-endorsement-tagged = #6.18(ccf-cose-endorsement)
+
+ccf-cose-endorsement = [
+  phdr : bstr .cbor protected_headers,
+  uhdr : unprotected_headers,
+  payload : bstr,
+  signature : bstr
+]
+
+unprotected_headers = {
+  ; empty map
+}
+
+protected_headers = {
+  &(alg: 1) => int,
+  &(cwt: 15) => cwt_map,
+  &(ccf: "ccf.v1") => ccf_map
+}
+
+cwt_map = {
+  &(iat: 6) => int
+}
+
+ccf_map = {
+  &(endorsed_from: "epoch.start.txid") => tstr,
+  ? &(endorsed_to: "epoch.end.txid") => tstr,
+  ? &(last_endorsed_root: "merkle.root") => bstr
+}
