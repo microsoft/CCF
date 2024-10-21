@@ -1,28 +1,28 @@
 ccf-cose-root-signature-tagged = #6.18(ccf-cose-root-signature)
 
 ccf-cose-root-signature = [
-  phdr : bstr .cbor protected_headers,  ; bstr-wrapped protected headers
-  uhdr : unprotected_headers,           ; no unprotected headers included
+  phdr : bstr .cbor protected-headers,  ; bstr-wrapped protected headers
+  uhdr : unprotected-headers,           ; unwrappeed (plain map) unprotected headers
   payload : nil,                        ; signed Merkle tree root hash, *detached* payload
   signature : bstr                      ; COSE-signature
 ]
 
-unprotected_headers = {
+unprotected-headers = {
   ; empty map instead of 'nil'. QCBOR library verifier doesn't support 'nil'.
 }
 
-protected_headers = {
+protected-headers = {
   &(alg: 1) => int,                     ; signing algoritm ID, as per RFC8152
-  &(kid: 4) => bstr .size 32,           ; signing key hash (string of HASH_SIZE(32) bytes)
-  &(cwt: 15) => cwt_map,                ; CWT claims, as per RFC8392
+  &(kid: 4) => bstr .size 32,           ; signing key hash (string of HASH-SIZE(32) bytes)
+  &(cwt: 15) => cwt-map,                ; CWT claims, as per RFC8392
   &(vds: 395) => int,                   ; verifiable data structure, as per COSE Receipts (draft) RFC
-  "ccf.v1" => ccf_map                   ; a set of CCF-specific parameters
+  "ccf.v1" => ccf-map                   ; a set of CCF-specific parameters
 }
 
-cwt_map = {
+cwt-map = {
   &(iat: 6) => int                      ; "issued at", number of seconds since the epoch
 }
 
-ccf_map = {
-  &(last_signed_txid: "txid") => tstr   ; last committed transaction ID this COSE-signature signs
+ccf-map = {
+  &(last-signed-txid: "txid") => tstr   ; last committed transaction ID this COSE-signature signs
 }
