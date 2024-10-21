@@ -3,8 +3,12 @@
 #pragma once
 
 #include <span>
+#include <vector>
 
 namespace ccf::cose::edit
 {
-    static void insert_receipt_in_uhdr(const std::span<const uint8_t>& buf_);
+    std::vector<uint8_t> insert_map_in_uhdr(
+        const std::span<const uint8_t>& buf_,
+        size_t key,
+        const std::vector<uint8_t> value);
 }
