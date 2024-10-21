@@ -93,7 +93,12 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
         with open(endorsement_filename, "wb") as f:
             f.write(endorsement)
         subprocess.run(
-            ["cddl", "../cddl/ccf-endorsement.cddl", "v", endorsement_filename],
+            [
+                "cddl",
+                "../cddl/ccf-cose-endorsement-service-identity.cddl",
+                "v",
+                endorsement_filename,
+            ],
             check=True,
         )
 

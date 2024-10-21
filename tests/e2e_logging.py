@@ -987,7 +987,12 @@ def test_cose_signature_schema(network, args):
                 with open(signature_filename, "wb") as f:
                     f.write(signature)
                 subprocess.run(
-                    ["cddl", "../cddl/ccf-tree-sig.cddl", "v", signature_filename],
+                    [
+                        "cddl",
+                        "../cddl/ccf-merkle-tree-cose-signature.cddl",
+                        "v",
+                        signature_filename,
+                    ],
                     check=True,
                 )
                 LOG.debug(f"Checked COSE signature schema for txid {txid}")
