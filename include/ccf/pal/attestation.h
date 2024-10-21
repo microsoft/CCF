@@ -215,9 +215,11 @@ namespace ccf::pal
     const snp::EndorsementsServers& endorsements_servers = {})
   {
     endorsement_cb(
-      {
-        .format = QuoteFormat::insecure_virtual,
-      },
+      {.format = QuoteFormat::insecure_virtual,
+       .quote = {},
+       .endorsements = {},
+       .uvm_endorsements = {},
+       .endorsed_tcb = {}},
       {});
   }
 
