@@ -38,9 +38,7 @@ namespace ccf::crypto
   static const std::string COSE_PHEADER_KEY_RANGE_BEGIN = "epoch.start.txid";
   // CCF-specific: last TX included in the range.
   static const std::string COSE_PHEADER_KEY_RANGE_END = "epoch.end.txid";
-  // CCF-specific: Merkle root hash.
-  static const std::string COSE_PHEADER_KEY_MERKLE_ROOT = "merkle.root";
-  // CCF-specific: Merkle root hash.
+  // CCF-specific: last signed Merkle root hash in the range.
   static const std::string COSE_PHEADER_KEY_EPOCH_LAST_MERKLE_ROOT =
     "epoch.end.merkle.root";
 
