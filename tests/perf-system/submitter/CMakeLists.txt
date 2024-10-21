@@ -19,6 +19,7 @@ set(CCFCRYPTO_SRC
     ${CCF_DIR}/src/crypto/key_wrap.cpp
     ${CCF_DIR}/src/crypto/hmac.cpp
     ${CCF_DIR}/src/crypto/pem.cpp
+    ${CCF_DIR}/src/crypto/cose.cpp
     ${CCF_DIR}/src/crypto/openssl/symmetric_key.cpp
     ${CCF_DIR}/src/crypto/openssl/public_key.cpp
     ${CCF_DIR}/src/crypto/openssl/key_pair.cpp
@@ -32,6 +33,7 @@ set(CCFCRYPTO_SRC
 add_library(stdcxxccfcrypto.host STATIC "${CCFCRYPTO_SRC}")
 target_link_libraries(stdcxxccfcrypto.host PUBLIC crypto)
 target_link_libraries(stdcxxccfcrypto.host PUBLIC ssl)
+target_link_libraries(stdcxxccfcrypto.host PUBLIC qcbor.host)
 
 target_link_libraries(
   submit PRIVATE stdcxxhttp_parser.host stdcxxccfcrypto.host arrow parquet
