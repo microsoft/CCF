@@ -1,0 +1,28 @@
+ccf-cose-endorsement-tagged = #6.18(ccf-cose-endorsement)
+
+ccf-cose-endorsement = [
+  phdr : bstr .cbor protected-headers,                               ; bstr-wrapped protected headers
+  uhdr : unprotected-headers,                                        ; unwrappeed (plain map) unprotected headers
+  payload : bstr,                                                    ; previous servide identity public key
+  signature : bstr                                                   ; COSE-signature
+]
+
+unprotected-headers = {
+  ; empty map instead of 'nil'. QCBOR library verifier doesn't support 'nil'.
+}
+
+protected-headers = {
+  &(alg: 1) => int,                                                  ; signing algoritm ID, as per RFC8152
+  &(cwt: 15) => cwt-map,                                             ; CWT claims, as per RFC8392
+  &(ccf: "ccf.v1") => ccf-map                                        ; a set of CCF-specific parameters
+}
+
+cwt-map = {
+  &(iat: 6) => int                                                   ; "issued at", number of seconds since the epoch
+}
+
+ccf-map = {
+  &(endorsed-from: "epoch.start.txid") => tstr,                      ; first committed TxID in the endorsed epoch
+  ? &(endorsed-to: "epoch.end.txid") => tstr,                        ; last committed TxID in the endorsed epoch
+  ? &(last-endorsed-root: "epoch.end.merkle.root") => bstr .size 32  ; Merkle tree root of the last TxID in the endorsed epoch (string of HASH_SIZE(32) bytes)
+}
