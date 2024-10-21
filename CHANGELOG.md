@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.8]
+
+[5.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.8
+
+- Set VMPL value when creating SNP attestations, and check VMPL value is in guest range when verifiying attestation, since recent [updates allow host-initiated attestations](https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/programmer-references/56860.pdf) (#6583).
+
 ## [5.0.7]
 
 [5.0.7]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.7
