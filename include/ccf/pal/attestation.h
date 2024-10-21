@@ -75,6 +75,16 @@ namespace ccf::pal
         fmt::format("SEV-SNP: Mask chip key must not be set"));
     }
 
+    // Introduced in https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/programmer-references/56860.pdf
+    // The guest sets the VMPL field to a value from 0 thru 3 which indicates a request from the guest.
+    // For a Guest requested attestation report this field will contain the value (0-3). A Host requested attestation report will have a value of 0xffffffff.
+    // CCF current always sets VMPL to 0, and rejects non-guest values.
+    if (quote.vmpl > 3)
+    {
+      throw std::logic_error(
+        fmt::format("SEV-SNP: VMPL for guest attestations must be in 0-3 range, not {}", quote.vmpl));
+    }
+
     report_data = SnpAttestationReportData(quote.report_data);
     measurement = SnpAttestationMeasurement(quote.measurement);
 

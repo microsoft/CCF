@@ -23,7 +23,7 @@ namespace ccf::pal::snp::ioctl6
   struct AttestationReq
   {
     uint8_t report_data[snp_attestation_report_data_size];
-    uint32_t vmpl;
+    uint32_t vmpl = 0;
     uint8_t reserved[28]; // needs to be zero
   }; // aka snp_report_req in (linux) include/uapi/linux/sev-guest.h
 
