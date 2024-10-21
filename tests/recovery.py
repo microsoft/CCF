@@ -75,7 +75,7 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
         last_tx = ccf.tx_id.TxID.from_str(cose_msg.phdr["ccf.v1"]["epoch.end.txid"])
         receipt = primary.get_receipt(last_tx.view, last_tx.seqno)
         root_from_receipt = bytes.fromhex(receipt.json()["leaf"])
-        root_from_headers = cose_msg.phdr["ccf.v1"]["merkle.root"]
+        root_from_headers = cose_msg.phdr["ccf.v1"]["epoch.end.merkle.root"]
         assert root_from_receipt == root_from_headers
 
         CWT_KEY = 15

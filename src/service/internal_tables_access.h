@@ -454,7 +454,7 @@ namespace ccf
       if (!previous_root.empty())
       {
         ccf_headers_arr.push_back(ccf::crypto::cose_params_string_bytes(
-          ccf::crypto::COSE_PHEADER_KEY_MERKLE_ROOT, previous_root));
+          ccf::crypto::COSE_PHEADER_KEY_EPOCH_LAST_MERKLE_ROOT, previous_root));
       }
 
       const auto time_since_epoch =
