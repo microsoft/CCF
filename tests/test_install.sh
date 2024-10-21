@@ -51,7 +51,7 @@ if poll_for_service_open ${network_live_time}; then
     exit 1
 fi
 
-python3.8 -m venv env
+python3 -m venv env
 # shellcheck source=/dev/null
 source env/bin/activate
 python -m pip install -U pip

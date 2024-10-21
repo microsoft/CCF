@@ -36,9 +36,6 @@
         name: ccf_build
         tasks_from: install.yml
     - import_role:
-        name: protoc
-        tasks_from: install.yml
-    - import_role:
         name: perf-tool
         tasks_from: install.yml
     - import_role:

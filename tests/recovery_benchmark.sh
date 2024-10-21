@@ -96,7 +96,7 @@ if poll_for_service_open ${network_live_time} ${sandbox_pid}; then
 fi
 
 echo "** Load service"
-python3.8 -m venv .recovery_bench_env
+python3 -m venv .recovery_bench_env
 source .recovery_bench_env/bin/activate
 python -m pip -q install locust
 

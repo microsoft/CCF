@@ -1,7 +1,7 @@
 steps:
   - script: |
       set -ex
-      python3.8 -m venv env
+      python3 -m venv env
       source ./env/bin/activate
       pip install wheel build
       python -m build --wheel

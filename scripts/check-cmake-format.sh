@@ -30,7 +30,7 @@ fi
 
 if [ ! -f "scripts/env/bin/activate" ]
     then
-        python3.8 -m venv scripts/env
+        python3 -m venv scripts/env
 fi
 
 source scripts/env/bin/activate
