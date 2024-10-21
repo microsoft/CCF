@@ -109,6 +109,17 @@
         ],
         "type": "object"
       },
+      "LoggingGetCoseSignature__Out": {
+        "properties": {
+          "cose_signature": {
+            "$ref": "#/components/schemas/base64string"
+          }
+        },
+        "required": [
+          "cose_signature"
+        ],
+        "type": "object"
+      },
       "LoggingGetHistoricalRange__Entry": {
         "properties": {
           "id": {
@@ -1240,6 +1251,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LoggingGetCoseEndorsements__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          },
+          {
+            "user_cose_sign1": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
+    "/app/log/public/cose_signature": {
+      "get": {
+        "operationId": "GetAppLogPublicCoseSignature",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingGetCoseSignature__Out"
                 }
               }
             },
