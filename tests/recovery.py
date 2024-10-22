@@ -9,6 +9,7 @@ import infra.crypto
 import suite.test_requirements as reqs
 import ccf.ledger
 import os
+import subprocess
 import json
 from infra.runner import ConcurrentRunner
 from distutils.dir_util import copy_tree
@@ -71,10 +72,10 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
         validate_cose_sign1(cose_sign1=endorsement, pubkey=pubkey)
 
         cose_msg = Sign1Message.decode(endorsement)
-        last_tx = ccf.tx_id.TxID.from_str(cose_msg.phdr["ccf.epoch.end"])
+        last_tx = ccf.tx_id.TxID.from_str(cose_msg.phdr["ccf.v1"]["epoch.end.txid"])
         receipt = primary.get_receipt(last_tx.view, last_tx.seqno)
         root_from_receipt = bytes.fromhex(receipt.json()["leaf"])
-        root_from_headers = cose_msg.phdr["ccf.merkle.root"]
+        root_from_headers = cose_msg.phdr["ccf.v1"]["epoch.end.merkle.root"]
         assert root_from_receipt == root_from_headers
 
         CWT_KEY = 15
@@ -87,6 +88,19 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
         assert (
             time.time() - cose_msg.phdr[CWT_KEY][IAT_CWT_LABEL] < last_five_minutes
         ), cose_msg.phdr
+
+        endorsement_filename = "prev_service_identoty_endorsement.cose"
+        with open(endorsement_filename, "wb") as f:
+            f.write(endorsement)
+        subprocess.run(
+            [
+                "cddl",
+                "../cddl/ccf-cose-endorsement-service-identity.cddl",
+                "v",
+                endorsement_filename,
+            ],
+            check=True,
+        )
 
         next_key_bytes = cose_msg.payload
         pubkey = serialization.load_der_public_key(next_key_bytes, default_backend())

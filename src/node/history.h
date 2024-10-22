@@ -378,6 +378,23 @@ namespace ccf
           ccf::get_enclave_time())
           .count();
 
+      auto ccf_headers =
+        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
+          std::make_shared<ccf::crypto::COSEParametersMap>(
+            std::make_shared<ccf::crypto::COSEMapStringKey>(
+              ccf::crypto::COSE_PHEADER_KEY_CCF),
+            ccf::crypto::COSEHeadersArray{
+              ccf::crypto::cose_params_string_string(
+                ccf::crypto::COSE_PHEADER_KEY_TXID, txid.str())}));
+
+      auto cwt_headers =
+        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
+          std::make_shared<ccf::crypto::COSEParametersMap>(
+            std::make_shared<ccf::crypto::COSEMapIntKey>(
+              ccf::crypto::COSE_PHEADER_KEY_CWT),
+            ccf::crypto::COSEHeadersArray{ccf::crypto::cose_params_int_int(
+              ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch)}));
+
       const auto pheaders = {
         // Key digest
         ccf::crypto::cose_params_int_bytes(
@@ -385,12 +402,10 @@ namespace ccf
         // VDS
         ccf::crypto::cose_params_int_int(
           ccf::crypto::COSE_PHEADER_KEY_VDS, vds_merkle_tree),
-        // TxID
-        ccf::crypto::cose_params_string_string(
-          ccf::crypto::COSE_PHEADER_KEY_TXID, txid.str()),
-        // iat
-        ccf::crypto::cose_params_cwt_map_int_int(ccf::crypto::CWTMap{
-          {ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch}})};
+        // CWT claims
+        cwt_headers,
+        // CCF headers
+        ccf_headers};
 
       auto cose_sign = crypto::cose_sign1(service_kp, pheaders, root_hash);
 
