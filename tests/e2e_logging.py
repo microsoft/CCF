@@ -1011,6 +1011,58 @@ def test_cose_signature_schema(network, args):
     return network
 
 
+@reqs.description("Check COSE receipt CDDL schema")
+def test_cose_receipt_schema(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client("user0") as client:
+        r = client.get("/commit")
+        assert r.status_code == http.HTTPStatus.OK
+        last_txid = TxID.from_str(r.body.json()["transaction_id"])
+
+        for seqno in range(last_txid.seqno, last_txid.seqno - 10, -1):
+            txid = f"{last_txid.view}.{seqno}"
+            LOG.debug(f"Trying to get COSE receipt for txid {txid}")
+            max_retries = 10
+            found_proof = False
+            for _ in range(max_retries):
+                r = client.get(
+                    "/log/public/cose_receipt",
+                    headers={infra.clients.CCF_TX_ID_HEADER: txid},
+                    log_capture=[],  # Do not emit raw binary to stdout
+                )
+                if r.status_code == http.HTTPStatus.OK:
+                    cbor_proof = r.body.data()
+                    cbor_proof_filename = os.path.join(
+                        network.common_dir, f"receipt_{txid}.cose"
+                    )
+                    with open(cbor_proof_filename, "wb") as f:
+                        f.write(cbor_proof)
+                    subprocess.run(
+                        ["cddl", "../cddl/ccf-receipt.cddl", "v", cbor_proof_filename],
+                        check=True,
+                    )
+                    found_proof = True
+                    LOG.debug(f"Checked COSE receipt for txid {txid}")
+                    break
+                elif r.status_code == http.HTTPStatus.ACCEPTED:
+                    LOG.debug(f"Transaction {txid} accepted, retrying")
+                    time.sleep(0.1)
+                elif r.status_code == http.HTTPStatus.NOT_FOUND:
+                    LOG.debug(f"Transaction {txid} is a signature")
+                    break
+            else:
+                assert (
+                    False
+                ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
+            if found_proof:
+                break
+        else:
+            assert False, "Failed to find a non-signature in the last 10 transactions"
+
+    return network
+
+
 @reqs.description("Read range of historical state")
 @reqs.supports_methods("/app/log/public", "/app/log/public/historical/range")
 def test_historical_query_range(network, args):
@@ -2194,6 +2246,7 @@ def run_main_tests(network, args):
     if args.package == "samples/apps/logging/liblogging":
         test_cbor_merkle_proof(network, args)
         test_cose_signature_schema(network, args)
+        test_cose_receipt_schema(network, args)
 
     # HTTP2 doesn't support forwarding
     if not args.http2:

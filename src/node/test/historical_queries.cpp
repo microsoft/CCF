@@ -1978,7 +1978,7 @@ TEST_CASE("Valid merkle proof from receipts")
   REQUIRE_EQ(
     ccf::ds::to_hex(decoded.claims_digest),
     historical_state->receipt->claims_digest.value()
-      .hex_str()); // HEX as workaround emmpy claims (set flag).
+      .hex_str()); // HEX as workaround empty claims (set flag).
 
   auto it = decoded.path.begin();
   for (const auto& node : *historical_state->receipt->path)

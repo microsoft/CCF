@@ -14,6 +14,7 @@ namespace ccf::cose::edit
   std::vector<uint8_t> insert_at_key_in_uhdr(
     const std::span<const uint8_t>& buf_,
     size_t key,
+    size_t subkey,
     const std::vector<uint8_t> value)
   {
     UsefulBufC buf{buf_.data(), buf_.size()};
@@ -95,7 +96,13 @@ namespace ccf::cose::edit
     QCBOREncode_OpenArray(&ectx);
     QCBOREncode_AddBytes(&ectx, {phdr.data(), phdr.size()});
     QCBOREncode_OpenMap(&ectx);
-    QCBOREncode_AddBytesToMapN(&ectx, key, {value.data(), value.size()});
+    QCBOREncode_OpenMapInMapN(&ectx, key);
+
+    QCBOREncode_OpenArrayInMapN(&ectx, subkey);
+    QCBOREncode_AddBytes(&ectx, {value.data(), value.size()});
+    QCBOREncode_CloseArray(&ectx);
+    QCBOREncode_CloseMap(&ectx);
+
     QCBOREncode_CloseMap(&ectx);
     if (payload.has_value())
     {

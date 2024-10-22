@@ -11,5 +11,6 @@ namespace ccf::cose::edit
   std::vector<uint8_t> insert_at_key_in_uhdr(
     const std::span<const uint8_t>& buf_,
     size_t key,
+    size_t subkey,
     const std::vector<uint8_t> value);
 }

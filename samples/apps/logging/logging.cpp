@@ -7,6 +7,7 @@
 // CCF
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
+#include "ccf/crypto/cose.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hash.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
@@ -2036,6 +2037,50 @@ namespace loggingapp
           get_cose_signature, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetCoseSignature::Out>()
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto get_cose_receipt = [this](
+                                ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                                ccf::historical::StatePtr historical_state) {
+        auto historical_tx = historical_state->store->create_read_only_tx();
+
+        assert(historical_state->receipt);
+        auto signature = describe_cose_signature_v1(*historical_state->receipt);
+        if (!signature.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No COSE signature available for this transaction");
+          return;
+        }
+        auto proof = describe_merkle_proof_v1(*historical_state->receipt);
+        if (!proof.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No merkle proof available for this transaction");
+          return;
+        }
+
+        auto cose_receipt =
+          ccf::cose::edit::insert_at_key_in_uhdr(*signature, 396, -1, *proof);
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::COSE);
+        ctx.rpc_ctx->set_response_body(cose_receipt);
+      };
+      make_read_only_endpoint(
+        "/log/public/cose_receipt",
+        HTTP_GET,
+        ccf::historical::read_only_adapter_v4(
+          get_cose_receipt, context, is_tx_committed),
+        auth_policies)
+        .set_auto_schema<void, void>()
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
     }
