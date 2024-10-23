@@ -30,5 +30,16 @@ Abs(n) ==
 MaxDivergence ==
     \A i, j \in Servers :
         Abs(Len(cLogs[i]) - Len(cLogs[j])) <= 2
-        
+
+TailFrom(seq, idx) ==
+    SubSeq(seq, idx + 1, Len(seq))
+
+MonotonicReduction ==
+    \* Find the longest common prefix of all logs and drop it from all logs. We realign the terms in the remaining suffixes to start at StartTerm.
+    LET lcp == LongestCommonPrefix(Range(cLogs))
+        commonPrefixBound == Len(lcp)
+        minTerm == Min({Min(Range(TailFrom(cLogs[s], commonPrefixBound)) \cup {0}) : s \in Servers}) \* \cup {0} to handle the case where the log is empty.
+    IN 
+        [ s \in Servers |-> [i \in 1..Len(cLogs[s])-commonPrefixBound |-> cLogs[s][i + commonPrefixBound] - minTerm ] ]
+
 ====
