@@ -2,7 +2,7 @@
 \* Abstract specification for a distributed consensus algorithm.
 \* Assumes that any node can atomically inspect the state of all other nodes. 
 
-EXTENDS Sequences, SequencesExt, Naturals, FiniteSets, Relation
+EXTENDS Sequences, SequencesExt, Naturals, FiniteSets, FiniteSetsExt, Relation
 
 CONSTANT Servers
 ASSUME IsFiniteSet(Servers)
@@ -98,11 +98,23 @@ NextAxiom ==
 
 SpecAxiom == Init /\ [][NextAxiom]_cLogs
 
+TailFrom(seq, idx) ==
+    SubSeq(seq, idx + 1, Len(seq))
+
+MonotonicReduction ==
+    \* Find the longest common prefix of all logs and drop it from all logs. We realign the terms in the remaining suffixes to start at StartTerm.
+    LET lcp == LongestCommonPrefix(Range(cLogs))
+        commonPrefixBound == Len(lcp)
+        minTerm == Min({Min(Range(TailFrom(cLogs[s], commonPrefixBound)) \cup {0}) : s \in Servers}) \* \cup {0} to handle the case where the log is empty.
+    IN 
+        cLogs' = [ s \in Servers |-> [i \in 1..Len(cLogs[s])-commonPrefixBound |-> cLogs[s][i + commonPrefixBound] - minTerm ] ]
+
 Next ==
     \E i \in Servers : 
         \/ Copy(i) 
         \/ Extend(i)
         \/ CopyMaxAndExtend(i)
+        \/ MonotonicReduction
 
 Spec ==
     Init /\ [][Next]_cLogs

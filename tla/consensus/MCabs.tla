@@ -1,6 +1,6 @@
 ---- MODULE MCabs ----
 
-EXTENDS abs, TLC, SequencesExt, FiniteSetsExt
+EXTENDS abs, TLC, SequencesExt, FiniteSetsExt, Integers
 
 Symmetry ==
       Permutations(Servers)
@@ -23,4 +23,12 @@ MCSeq(S) ==
 MaxLogLengthConstraint ==
     \A i \in Servers :
         Len(cLogs[i]) <= 7
+
+Abs(n) ==
+    IF n >= 0 THEN n ELSE -n
+
+MaxDivergence ==
+    \A i, j \in Servers :
+        Abs(Len(cLogs[i]) - Len(cLogs[j])) <= 2
+        
 ====
