@@ -115,9 +115,10 @@ InSync ==
     []<>(\A i, j \in Servers : cLogs[i] = cLogs[j])
 
 FairSpec ==
-    Spec /\ InSync
+    /\ Spec
+    /\ WF_cLogs(Next) /\ \A s \in Servers: <>[][Copy(s)]_cLogs
 
-THEOREM Spec => InSync
+THEOREM FairSpec => InSync
 
 ----
 
