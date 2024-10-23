@@ -90,13 +90,36 @@ OMITTED
 \* The only possible actions are to append log entries.
 \* By construction there cannot be any conflicting log entries
 \* Log entries are copied if the node's log is not the longest.
-Next ==
+NextAxiom ==
     \E i \in Servers : 
         \/ Copy(i) 
         \/ ExtendAxiom(i)
         \/ CopyMaxAndExtendAxiom(i)
 
-AbsSpec == Init /\ [][Next]_cLogs
+SpecAxiom == Init /\ [][NextAxiom]_cLogs
+
+Next ==
+    \E i \in Servers : 
+        \/ Copy(i) 
+        \/ Extend(i)
+        \/ CopyMaxAndExtend(i)
+
+Spec ==
+    Init /\ [][Next]_cLogs
+
+THEOREM Spec <=> SpecAxiom
+
+----
+
+FairSpec ==
+    Spec /\ WF_cLogs(Next) \* TODO Won't suffice for InSync.
+
+InSync ==
+    []<>(\A i, j \in Servers : cLogs[i] = cLogs[j])
+
+THEOREM Spec => InSync
+
+----
 
 AppendOnlyProp ==
     [][\A i \in Servers : IsPrefix(cLogs[i], cLogs'[i])]_cLogs
