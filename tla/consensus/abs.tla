@@ -63,6 +63,9 @@ LEMMA ASSUME NEW i \in Servers PROVE
     ExtendAxiom(i) <=> Extend(i)
 OMITTED 
 
+TTail(seq) ==
+    IF seq = <<>> THEN <<>> ELSE Tail(seq)
+
 \* Copy one of the longest logs (from whoever server
 \* has it) and extend it further upto length k. This
 \* is equivalent to  Copy(i) \cdot Extend(i, k)  ,
@@ -71,7 +74,7 @@ CopyMaxAndExtend(i) ==
     \E j \in Servers :
         /\ \A r \in Servers: Len(cLogs[r]) \leq Len(cLogs[j])
         /\ \E s \in Seq(Terms) :
-            cLogs' = [cLogs EXCEPT ![i] = cLogs[j] \o s]
+            cLogs' = [cLogs EXCEPT ![i] = TTail(cLogs[j]) \o s]
 
 CopyMaxAndExtendAxiom(i) ==
     \E s \in Servers :
