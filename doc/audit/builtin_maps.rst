@@ -478,11 +478,7 @@ COSE signatures emitted by the primary node over the root of the Merkle Tree at 
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
-**Value**
-
-.. doxygenstruct:: ccf::CoseSignature
-   :project: CCF
-   :members:
+**Value** Raw COSE Sign1 message as byte string (DER-encoded). Implements the following :ccf_repo:`CDDL schema </cddl/ccf-merkle-tree-cose-signature.cddl>`.
 
 ``recovery_shares``
 ~~~~~~~~~~~~~~~~~~~
@@ -517,4 +513,12 @@ While the contents themselves are encrypted, the table is public so as to be acc
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
-**Value** Endorsed COSE sign1 for the interface, represented as a DER-encoded string.
+**Value** Raw COSE Sign1 message as byte string (DER-encoded). Implements the following :ccf_repo:`CDDL schema </cddl/ccf-cose-endorsement-service-identity.cddl>`.
+
+
+``previous_service_last_signed_root``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
+
+**Value** Last signed Merkle root of previous service instance, represented as a hex-encoded string.

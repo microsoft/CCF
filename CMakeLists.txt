@@ -215,9 +215,6 @@ include(${CCF_DIR}/cmake/sss.cmake)
 include(${CCF_DIR}/cmake/nghttp2.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
-set(MESSAGE_QUIET ON)
-include(${CCF_DIR}/cmake/protobuf.cmake)
-unset(MESSAGE_QUIET)
 
 # Host Executable
 if(SAN
@@ -787,6 +784,7 @@ if(BUILD_TESTS)
 
     add_unit_test(
       history_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/history.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
     target_link_libraries(
       history_test PRIVATE ccfcrypto.host http_parser.host ccf_kv.host
@@ -841,6 +839,7 @@ if(BUILD_TESTS)
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
     )
     target_link_libraries(snapshot_test PRIVATE ccf_kv.host)
 
@@ -1008,6 +1007,7 @@ if(BUILD_TESTS)
     add_picobench(
       history_bench
       SRCS src/node/test/history_bench.cpp src/enclave/thread_local.cpp
+           ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
       LINK_LIBS ccf_kv.host
     )
 

@@ -11,6 +11,7 @@
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/key_pair.h"
 #include "ds/thread_messaging.h"
+#include "enclave/enclave_time.h"
 #include "endian.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
@@ -372,6 +373,28 @@ namespace ccf
       std::vector<uint8_t> kid(SHA256_DIGEST_LENGTH);
       SHA256(service_key_der.data(), service_key_der.size(), kid.data());
 
+      const auto time_since_epoch =
+        std::chrono::duration_cast<std::chrono::seconds>(
+          ccf::get_enclave_time())
+          .count();
+
+      auto ccf_headers =
+        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
+          std::make_shared<ccf::crypto::COSEParametersMap>(
+            std::make_shared<ccf::crypto::COSEMapStringKey>(
+              ccf::crypto::COSE_PHEADER_KEY_CCF),
+            ccf::crypto::COSEHeadersArray{
+              ccf::crypto::cose_params_string_string(
+                ccf::crypto::COSE_PHEADER_KEY_TXID, txid.str())}));
+
+      auto cwt_headers =
+        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
+          std::make_shared<ccf::crypto::COSEParametersMap>(
+            std::make_shared<ccf::crypto::COSEMapIntKey>(
+              ccf::crypto::COSE_PHEADER_KEY_CWT),
+            ccf::crypto::COSEHeadersArray{ccf::crypto::cose_params_int_int(
+              ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch)}));
+
       const auto pheaders = {
         // Key digest
         ccf::crypto::cose_params_int_bytes(
@@ -379,9 +402,11 @@ namespace ccf
         // VDS
         ccf::crypto::cose_params_int_int(
           ccf::crypto::COSE_PHEADER_KEY_VDS, vds_merkle_tree),
-        // TxID
-        ccf::crypto::cose_params_string_string(
-          ccf::crypto::COSE_PHEADER_KEY_TXID, txid.str())};
+        // CWT claims
+        cwt_headers,
+        // CCF headers
+        ccf_headers};
+
       auto cose_sign = crypto::cose_sign1(service_kp, pheaders, root_hash);
 
       signatures->put(sig_value);

@@ -77,7 +77,7 @@ fi
 
 if [ ! -f "${VENV_DIR}/bin/activate" ]; then
     echo "Setting up Python environment..."
-    python3.8 -m venv "${VENV_DIR}"
+    python3 -m venv "${VENV_DIR}"
 
     # shellcheck source=/dev/null
     source "${VENV_DIR}"/bin/activate

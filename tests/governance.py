@@ -512,6 +512,22 @@ def test_service_cert_renewal_extended(network, args):
         else:
             assert expected_exception is None, "Proposal should have not succeeded"
 
+    # Confirm that we can renew the service certificate multiple times
+    # without issue
+    for _ in range(0, 5):
+        new_duration = random.randint(1, 100)
+        LOG.info(f"Renewing service certificate for {new_duration} days")
+        renew_service_certificate(network, args, now, new_duration)
+        # Old cert still valid
+        primary, _ = network.find_primary()
+        with primary.client() as c:
+            c.get("/node/network/nodes")
+        # Update service identity used by clients to connect to the network
+        network.refresh_service_identity_file(args)
+        # Using new cert also works
+        with primary.client() as c:
+            c.get("/node/network/nodes")
+
     return network
 
 

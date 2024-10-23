@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.0-dev3]
+
+[6.0.0-dev3]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev3
+
+### Changed
+
+- Set VMPL value when creating SNP attestations, and check VMPL value is in guest range when verifiying attestation, since recent [updates allow host-initiated attestations](https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/programmer-references/56860.pdf) (#6583).
+
 ## [6.0.0-dev2]
 
 [6.0.0-dev2]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev2
@@ -12,6 +20,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Introduced `ccf::describe_cose_endorsements_v1(receipt)` for COSE-endorsements chain of previous service identities (#6500).
+- Ignore time when resolving did:x509 against x5chain, resolution establishes a point-in-time endorsement, not ongoing validity (#6575).
 
 ## [6.0.0-dev1]
 

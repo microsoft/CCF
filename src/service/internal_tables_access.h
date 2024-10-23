@@ -13,6 +13,7 @@
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
 #include "crypto/openssl/cose_sign.h"
+#include "enclave/enclave_time.h"
 #include "node/ledger_secrets.h"
 #include "node/uvm_endorsements.h"
 #include "service/tables/governance_history.h"
@@ -350,9 +351,19 @@ namespace ccf
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY);
         previous_service_identity->put(prev_service_info->cert);
 
+        auto last_signed_root = tx.wo<ccf::PreviousServiceLastSignedRoot>(
+          ccf::Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT);
+        auto sigs = tx.ro<ccf::Signatures>(ccf::Tables::SIGNATURES);
+        if (!sigs->has())
+        {
+          throw std::logic_error(
+            "Previous service doesn't have any signed transactions");
+        }
+        last_signed_root->put(sigs->get()->root);
+
         // Record number of recoveries for service. If the value does
-        // not exist in the table (i.e. pre 2.x ledger), assume it is the first
-        // recovery.
+        // not exist in the table (i.e. pre 2.x ledger), assume it is the
+        // first recovery.
         recovery_count = prev_service_info->recovery_count.value_or(0) + 1;
       }
 
@@ -383,8 +394,8 @@ namespace ccf
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
 
       ccf::CoseEndorsement endorsement{};
-      std::vector<ccf::crypto::COSEParametersFactory> pheaders{};
       std::vector<uint8_t> key_to_endorse{};
+      std::vector<uint8_t> previous_root{};
 
       endorsement.endorsing_key = service_key.public_key_der();
 
@@ -404,6 +415,19 @@ namespace ccf
           previous_identity_endorsement->get_version_of_previous_write();
 
         key_to_endorse = prev_endorsement->endorsing_key;
+
+        auto previous_service_last_signed_root =
+          tx.ro<ccf::PreviousServiceLastSignedRoot>(
+            ccf::Tables::PREVIOUS_SERVICE_LAST_SIGNED_ROOT);
+        if (!previous_service_last_signed_root->has())
+        {
+          LOG_FAIL_FMT(
+            "Failed to sign previous service identity: no last signed root");
+          return false;
+        }
+
+        const auto root = previous_service_last_signed_root->get().value();
+        previous_root.assign(root.h.begin(), root.h.end());
       }
       else
       {
@@ -416,15 +440,44 @@ namespace ccf
         key_to_endorse = endorsement.endorsing_key;
       }
 
-      pheaders.push_back(ccf::crypto::cose_params_string_string(
+      std::vector<std::shared_ptr<ccf::crypto::COSEParametersFactory>>
+        ccf_headers_arr{};
+      ccf_headers_arr.push_back(ccf::crypto::cose_params_string_string(
         ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN,
         endorsement.endorsement_epoch_begin.to_str()));
       if (endorsement.endorsement_epoch_end)
       {
-        pheaders.push_back(ccf::crypto::cose_params_string_string(
+        ccf_headers_arr.push_back(ccf::crypto::cose_params_string_string(
           ccf::crypto::COSE_PHEADER_KEY_RANGE_END,
           endorsement.endorsement_epoch_end->to_str()));
       }
+      if (!previous_root.empty())
+      {
+        ccf_headers_arr.push_back(ccf::crypto::cose_params_string_bytes(
+          ccf::crypto::COSE_PHEADER_KEY_EPOCH_LAST_MERKLE_ROOT, previous_root));
+      }
+
+      const auto time_since_epoch =
+        std::chrono::duration_cast<std::chrono::seconds>(
+          ccf::get_enclave_time())
+          .count();
+
+      auto cwt_headers =
+        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
+          std::make_shared<ccf::crypto::COSEParametersMap>(
+            std::make_shared<ccf::crypto::COSEMapIntKey>(
+              ccf::crypto::COSE_PHEADER_KEY_CWT),
+            ccf::crypto::COSEHeadersArray{ccf::crypto::cose_params_int_int(
+              ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch)}));
+
+      auto ccf_headers =
+        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
+          std::make_shared<ccf::crypto::COSEParametersMap>(
+            std::make_shared<ccf::crypto::COSEMapStringKey>(
+              ccf::crypto::COSE_PHEADER_KEY_CCF),
+            ccf_headers_arr));
+
+      ccf::crypto::COSEHeadersArray pheaders{cwt_headers, ccf_headers};
 
       try
       {

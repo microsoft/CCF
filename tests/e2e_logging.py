@@ -38,6 +38,7 @@ import copy
 import programmability
 import e2e_common_endpoints
 import subprocess
+import base64
 
 from loguru import logger as LOG
 
@@ -958,6 +959,54 @@ def test_cbor_merkle_proof(network, args):
                 break
         else:
             assert False, "Failed to find a non-signature in the last 10 transactions"
+
+    return network
+
+
+@reqs.description("Check COSE signature CDDL model")
+def test_cose_signature_schema(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client("user0") as client:
+        r = client.get("/commit")
+        assert r.status_code == http.HTTPStatus.OK
+        txid = TxID.from_str(r.body.json()["transaction_id"])
+        max_retries = 10
+        for _ in range(max_retries):
+            response = client.get(
+                "/log/public/cose_signature",
+                headers={infra.clients.CCF_TX_ID_HEADER: f"{txid.view}.{txid.seqno}"},
+            )
+
+            if response.status_code == http.HTTPStatus.OK:
+                signature = response.body.json()["cose_signature"]
+                signature = base64.b64decode(signature)
+                signature_filename = os.path.join(
+                    network.common_dir, f"cose_signature_{txid}.cose"
+                )
+                with open(signature_filename, "wb") as f:
+                    f.write(signature)
+                subprocess.run(
+                    [
+                        "cddl",
+                        "../cddl/ccf-merkle-tree-cose-signature.cddl",
+                        "v",
+                        signature_filename,
+                    ],
+                    check=True,
+                )
+                LOG.debug(f"Checked COSE signature schema for txid {txid}")
+                break
+            elif response.status_code == http.HTTPStatus.ACCEPTED:
+                LOG.debug(f"Transaction {txid} accepted, retrying")
+                time.sleep(0.1)
+            else:
+                LOG.error(f"Failed to get COSE signature for txid {txid}")
+                break
+        else:
+            assert (
+                False
+            ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
 
     return network
 
@@ -2144,6 +2193,7 @@ def run_main_tests(network, args):
     test_record_count(network, args)
     if args.package == "samples/apps/logging/liblogging":
         test_cbor_merkle_proof(network, args)
+        test_cose_signature_schema(network, args)
 
     # HTTP2 doesn't support forwarding
     if not args.http2:
