@@ -1633,7 +1633,7 @@ MappingToAbs ==
     Terms <- Nat \ 0..StartTerm-1,
     cLogs <- [i \in Servers |-> [j \in 1..commitIndex[i] |-> log[i][j].term]]
 
-RefinementToAbsProp == MappingToAbs!AbsSpec
+RefinementToAbsProp == MappingToAbs!SpecAxiom
 THEOREM Spec => RefinementToAbsProp
 
 ------------------------------------------------------------------------------
