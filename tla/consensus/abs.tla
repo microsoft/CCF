@@ -124,7 +124,7 @@ THEOREM Spec <=> SpecAxiom
 ----
 
 FairSpec ==
-    Spec /\ WF_cLogs(Next) \* TODO Won't suffice for InSync.
+    Spec /\ \A i \in Servers: WF_cLogs(CopyMaxAndExtend(i))
 
 InSync ==
     []<>(\A i, j \in Servers : cLogs[i] = cLogs[j])
