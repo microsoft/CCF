@@ -60,10 +60,10 @@ TEST_CASE(
   REQUIRE(std::string(payload.begin(), payload.end()) == "payload");
 
   size_t key = 42;
-  size_t subkey = 43;
+  auto subkey = ccf::cose::edit::op::SetAtKey{43};
   std::vector<uint8_t> value = {1, 2, 3, 4};
-  auto enriched_cose_sign1 = ccf::cose::edit::insert_at_key_in_uhdr(
-    cose_sign1_sample0, key, subkey, value);
+  auto enriched_cose_sign1 =
+    ccf::cose::edit::insert_in_uhdr(cose_sign1_sample0, key, subkey, value);
 
   // Debug
   dump_bytes_to_file(enriched_cose_sign1, "enriched.bin");

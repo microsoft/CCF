@@ -2065,8 +2065,11 @@ namespace loggingapp
           return;
         }
 
-        auto cose_receipt =
-          ccf::cose::edit::insert_at_key_in_uhdr(*signature, 396, -1, *proof);
+        size_t vdp = 396;
+        auto inclusion_proof = ccf::cose::edit::op::SetAtKey{-1};
+
+        auto cose_receipt = ccf::cose::edit::insert_in_uhdr(
+          *signature, vdp, inclusion_proof, *proof);
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(

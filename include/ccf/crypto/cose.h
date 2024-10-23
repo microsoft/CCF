@@ -4,13 +4,27 @@
 
 #include <cstdint>
 #include <span>
+#include <variant>
 #include <vector>
 
 namespace ccf::cose::edit
 {
-  std::vector<uint8_t> insert_at_key_in_uhdr(
+  namespace op
+  {
+    struct Append
+    {};
+
+    struct SetAtKey
+    {
+      ssize_t key;
+    };
+
+    using Type = std::variant<Append, SetAtKey>;
+  }
+
+  std::vector<uint8_t> insert_in_uhdr(
     const std::span<const uint8_t>& buf_,
-    size_t key,
-    size_t subkey,
+    ssize_t key,
+    op::Type op,
     const std::vector<uint8_t> value);
 }
