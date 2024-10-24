@@ -15,13 +15,13 @@
 #include <string>
 #include <vector>
 
-static const std::vector<ssize_t> keys = {
-  42, std::numeric_limits<ssize_t>::min(), std::numeric_limits<ssize_t>::max()};
+static const std::vector<int64_t> keys = {
+  42, std::numeric_limits<int64_t>::min(), std::numeric_limits<int64_t>::max()};
 
 static const std::vector<ccf::cose::edit::pos::Type> positions = {
   ccf::cose::edit::pos::AtKey{42},
-  ccf::cose::edit::pos::AtKey{std::numeric_limits<ssize_t>::min()},
-  ccf::cose::edit::pos::AtKey{std::numeric_limits<ssize_t>::max()},
+  ccf::cose::edit::pos::AtKey{std::numeric_limits<int64_t>::min()},
+  ccf::cose::edit::pos::AtKey{std::numeric_limits<int64_t>::max()},
   ccf::cose::edit::pos::InArray{}};
 
 const std::vector<uint8_t> value = {1, 2, 3, 4};

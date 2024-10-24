@@ -13,7 +13,7 @@ namespace ccf::cose::edit
 {
   std::vector<uint8_t> set_unprotected_header(
     const std::span<const uint8_t>& cose_input,
-    ssize_t key,
+    int64_t key,
     pos::Type pos,
     const std::vector<uint8_t> value)
   {
