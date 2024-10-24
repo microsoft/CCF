@@ -2066,9 +2066,9 @@ namespace loggingapp
         }
 
         size_t vdp = 396;
-        auto inclusion_proof = ccf::cose::edit::op::SetAtKey{-1};
+        auto inclusion_proof = ccf::cose::edit::pos::AtKey{-1};
 
-        auto cose_receipt = ccf::cose::edit::insert_in_uhdr(
+        auto cose_receipt = ccf::cose::edit::set_unprotected_header(
           *signature, vdp, inclusion_proof, *proof);
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);

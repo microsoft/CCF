@@ -11,21 +11,24 @@
 
 namespace ccf::cose::edit
 {
-  std::vector<uint8_t> insert_in_uhdr(
+  std::vector<uint8_t> set_unprotected_header(
     const std::span<const uint8_t>& buf_,
     ssize_t key,
-    op::Type op,
+    pos::Type pos,
     const std::vector<uint8_t> value)
   {
     UsefulBufC buf{buf_.data(), buf_.size()};
 
-    QCBORError rc;
+    QCBORError err;
     QCBORDecodeContext ctx;
     QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
 
+    size_t pos_start = 0;
+    size_t pos_end = 0;
+
     QCBORDecode_EnterArray(&ctx, nullptr);
-    rc = QCBORDecode_GetError(&ctx);
-    if (rc != QCBOR_SUCCESS)
+    err = QCBORDecode_GetError(&ctx);
+    if (err != QCBOR_SUCCESS)
     {
       throw std::logic_error("Failed to parse COSE_Sign1 outer array");
     }
@@ -37,36 +40,30 @@ namespace ccf::cose::edit
     }
 
     QCBORItem item;
-    auto err = QCBORDecode_GetNext(&ctx, &item);
+    err = QCBORDecode_GetNext(&ctx, &item);
     if (err != QCBOR_SUCCESS || item.uDataType != QCBOR_TYPE_BYTE_STRING)
     {
       throw std::logic_error(
         "Failed to parse COSE_Sign1 protected header as bstr");
     }
-    std::span<const uint8_t> phdr = {
-      (uint8_t*)item.val.string.ptr, item.val.string.len};
+    UsefulBufC phdr = {item.val.string.ptr, item.val.string.len};
 
-    // Skip unprotected header for now
+    // Skip unprotected header
     QCBORDecode_VGetNextConsume(&ctx, &item);
 
-    std::optional<std::span<const uint8_t>> payload = std::nullopt;
-    err = QCBORDecode_GetNext(&ctx, &item);
-    if (err != QCBOR_SUCCESS)
+    err = QCBORDecode_PartialFinish(&ctx, &pos_start);
+    if (err != QCBOR_ERR_ARRAY_OR_MAP_UNCONSUMED)
     {
-      throw std::logic_error("Failed to parse COSE_Sign1 payload");
+      throw std::logic_error("Failed to find start of payload");
     }
-    if (item.uDataType == QCBOR_TYPE_BYTE_STRING)
+    QCBORDecode_VGetNextConsume(&ctx, &item);
+    err = QCBORDecode_PartialFinish(&ctx, &pos_end);
+    if (err != QCBOR_ERR_ARRAY_OR_MAP_UNCONSUMED)
     {
-      payload = {(uint8_t*)item.val.string.ptr, item.val.string.len};
+      throw std::logic_error("Failed to find end of payload");
     }
-    else if (item.uDataType == QCBOR_TYPE_NULL)
-    {
-      // No payload
-    }
-    else
-    {
-      throw std::logic_error("Invalid COSE_Sign1 payload");
-    }
+    UsefulBufC payload = {buf_.data() + pos_start, pos_end - pos_start};
+
     // QCBORDecode_PartialFinish() before and after should allow constructing a
     // span of the encoded payload, which can perhaps then be passed to
     // QCBOREncode_AddEncoded and would allow blindly copying the payload
@@ -77,8 +74,7 @@ namespace ccf::cose::edit
     {
       throw std::logic_error("Failed to parse COSE_Sign1 signature");
     }
-    std::span<const uint8_t> signature = {
-      (uint8_t*)item.val.string.ptr, item.val.string.len};
+    UsefulBufC signature = {item.val.string.ptr, item.val.string.len};
 
     QCBORDecode_ExitArray(&ctx);
     err = QCBORDecode_Finish(&ctx);
@@ -94,19 +90,19 @@ namespace ccf::cose::edit
     QCBOREncode_Init(&ectx, output_buf);
     QCBOREncode_AddTag(&ectx, CBOR_TAG_COSE_SIGN1);
     QCBOREncode_OpenArray(&ectx);
-    QCBOREncode_AddBytes(&ectx, {phdr.data(), phdr.size()});
+    QCBOREncode_AddBytes(&ectx, phdr);
     QCBOREncode_OpenMap(&ectx);
 
-    if (std::holds_alternative<op::Append>(op))
+    if (std::holds_alternative<pos::InArray>(pos))
     {
       QCBOREncode_OpenArrayInMapN(&ectx, key);
       QCBOREncode_AddBytes(&ectx, {value.data(), value.size()});
       QCBOREncode_CloseArray(&ectx);
     }
-    else if (std::holds_alternative<op::SetAtKey>(op))
+    else if (std::holds_alternative<pos::AtKey>(pos))
     {
       QCBOREncode_OpenMapInMapN(&ectx, key);
-      auto subkey = std::get<op::SetAtKey>(op).key;
+      auto subkey = std::get<pos::AtKey>(pos).key;
       QCBOREncode_OpenArrayInMapN(&ectx, subkey);
       QCBOREncode_AddBytes(&ectx, {value.data(), value.size()});
       QCBOREncode_CloseArray(&ectx);
@@ -118,15 +114,8 @@ namespace ccf::cose::edit
     }
 
     QCBOREncode_CloseMap(&ectx);
-    if (payload.has_value())
-    {
-      QCBOREncode_AddBytes(&ectx, {payload->data(), payload->size()});
-    }
-    else
-    {
-      QCBOREncode_AddSimple(&ectx, CBOR_SIMPLEV_NULL);
-    }
-    QCBOREncode_AddBytes(&ectx, {signature.data(), signature.size()});
+    QCBOREncode_AddEncoded(&ectx, payload);
+    QCBOREncode_AddBytes(&ectx, signature);
     QCBOREncode_CloseArray(&ectx);
 
     UsefulBufC cose;
