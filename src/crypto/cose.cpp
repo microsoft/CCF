@@ -12,12 +12,12 @@
 namespace ccf::cose::edit
 {
   std::vector<uint8_t> set_unprotected_header(
-    const std::span<const uint8_t>& buf_,
+    const std::span<const uint8_t>& cose_input,
     ssize_t key,
     pos::Type pos,
     const std::vector<uint8_t> value)
   {
-    UsefulBufC buf{buf_.data(), buf_.size()};
+    UsefulBufC buf{cose_input.data(), cose_input.size()};
 
     QCBORError err;
     QCBORDecodeContext ctx;
@@ -62,7 +62,7 @@ namespace ccf::cose::edit
     {
       throw std::logic_error("Failed to find end of payload");
     }
-    UsefulBufC payload = {buf_.data() + pos_start, pos_end - pos_start};
+    UsefulBufC payload = {cose_input.data() + pos_start, pos_end - pos_start};
 
     // QCBORDecode_PartialFinish() before and after should allow constructing a
     // span of the encoded payload, which can perhaps then be passed to
@@ -98,7 +98,7 @@ namespace ccf::cose::edit
     // the protected header bstr, which involves variable integer encoding, just
     // in case the library does not pick the most compact encoding.
     std::vector<uint8_t> output(
-      buf_.size() + additional_map_size + QCBOR_HEAD_BUFFER_SIZE);
+      cose_input.size() + additional_map_size + QCBOR_HEAD_BUFFER_SIZE);
     UsefulBuf output_buf{output.data(), output.size()};
 
     QCBOREncodeContext ectx;
@@ -133,13 +133,13 @@ namespace ccf::cose::edit
     QCBOREncode_AddBytes(&ectx, signature);
     QCBOREncode_CloseArray(&ectx);
 
-    UsefulBufC cose;
-    err = QCBOREncode_Finish(&ectx, &cose);
+    UsefulBufC cose_output;
+    err = QCBOREncode_Finish(&ectx, &cose_output);
     if (err != QCBOR_SUCCESS)
     {
       throw std::logic_error("Failed to encode COSE_Sign1");
     }
-    output.resize(cose.len);
+    output.resize(cose_output.len);
     output.shrink_to_fit();
     return output;
   };
