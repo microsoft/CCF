@@ -2,7 +2,7 @@
 \* Abstract specification for a distributed consensus algorithm.
 \* Assumes that any node can atomically inspect the state of all other nodes. 
 
-EXTENDS Sequences, SequencesExt, Naturals, FiniteSets, Relation
+EXTENDS Sequences, SequencesExt, Naturals, FiniteSets, FiniteSetsExt, Relation
 
 CONSTANT Servers
 ASSUME IsFiniteSet(Servers)
@@ -90,13 +90,36 @@ OMITTED
 \* The only possible actions are to append log entries.
 \* By construction there cannot be any conflicting log entries
 \* Log entries are copied if the node's log is not the longest.
-Next ==
+NextAxiom ==
     \E i \in Servers : 
         \/ Copy(i) 
         \/ ExtendAxiom(i)
         \/ CopyMaxAndExtendAxiom(i)
 
-AbsSpec == Init /\ [][Next]_cLogs
+SpecAxiom == Init /\ [][NextAxiom]_cLogs
+
+Next ==
+    \E i \in Servers : 
+        \/ Copy(i) 
+        \/ Extend(i)
+        \/ CopyMaxAndExtend(i)
+
+Spec ==
+    Init /\ [][Next]_cLogs
+
+THEOREM Spec <=> SpecAxiom
+
+----
+
+InSync ==
+    []<>(\A i, j \in Servers : cLogs[i] = cLogs[j])
+
+FairSpec ==
+    Spec /\ InSync
+
+THEOREM Spec => InSync
+
+----
 
 AppendOnlyProp ==
     [][\A i \in Servers : IsPrefix(cLogs[i], cLogs'[i])]_cLogs
