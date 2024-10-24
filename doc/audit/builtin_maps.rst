@@ -359,10 +359,6 @@ JWT issuers.
 .. doxygenenum:: ccf::JwtIssuerKeyFilter
    :project: CCF
 
-.. doxygenstruct:: ccf::JwtIssuerKeyPolicy
-   :project: CCF
-   :members:
-
 ``jwt.public_signing_keys``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -472,7 +468,7 @@ Signatures emitted by the primary node at regular interval, over the root of the
    :members:
 
 ``cose_signatures``
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 COSE signatures emitted by the primary node over the root of the Merkle Tree at that sequence number.
 
