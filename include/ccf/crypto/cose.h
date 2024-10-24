@@ -36,6 +36,7 @@ namespace ccf::cose::edit
    * @param key The key at which to insert either an array or a map.
    * @param position Either InArray or AtKey, to determine whether to insert an
    *                 array or a map.
+   * @param value The value to insert either in the array or the map.
    *
    * @return The COSE_Sign1 message with the new unprotected header.
    */
