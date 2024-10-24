@@ -83,7 +83,22 @@ namespace ccf::cose::edit
       throw std::logic_error("Failed to parse COSE_Sign1");
     }
 
-    std::vector<uint8_t> output(buf_.size() + value.size() + 1024 /* too much, should be encoded key size + potential varint bump in sizes */);
+    // Maximum expected size of the additional map, sub-map is the
+    // worst-case scenario
+    size_t additional_map_size = QCBOR_HEAD_BUFFER_SIZE + // map
+      QCBOR_HEAD_BUFFER_SIZE + // key
+      sizeof(key) + // key
+      QCBOR_HEAD_BUFFER_SIZE + // submap
+      QCBOR_HEAD_BUFFER_SIZE + // subkey
+      sizeof(pos::AtKey::key) + // subkey
+      QCBOR_HEAD_BUFFER_SIZE + // value
+      value.size(); // value
+
+    // We add one extra QCBOR_HEAD_BUFFER_SIZE, because we parse and re-encode
+    // the protected header bstr, which involves variable integer encoding, just
+    // in case the library does not pick the most compact encoding.
+    std::vector<uint8_t> output(
+      buf_.size() + additional_map_size + QCBOR_HEAD_BUFFER_SIZE);
     UsefulBuf output_buf{output.data(), output.size()};
 
     QCBOREncodeContext ectx;
