@@ -162,5 +162,15 @@ HTTP Entity Tags Matching
 COSE
 ----
 
+.. doxygenstruct:: ccf::cose::edit::pos::InArray
+   :project: CCF
+
+.. doxygenstruct:: ccf::cose::edit::pos::AtKey
+   :project: CCF
+   :members:
+
+.. doxygentypedef:: ccf::cose::edit::pos::Type
+   :project: CCF
+
 .. doxygenfunction:: ccf::cose::edit::set_unprotected_header
    :project: CCF

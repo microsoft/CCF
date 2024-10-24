@@ -16,6 +16,7 @@ namespace ccf::cose::edit
 
     struct AtKey
     {
+      /// @brief  The key at which to insert the value.
       int64_t key;
     };
 
