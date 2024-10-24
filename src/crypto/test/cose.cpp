@@ -77,7 +77,7 @@ struct Signer
       ccf::crypto::cose_params_int_bytes(300, value),
       ccf::crypto::cose_params_int_int(301, 34)};
 
-    return ccf::crypto::cose_sign1(kp, pheaders, payload, false);
+    return ccf::crypto::cose_sign1(kp, pheaders, payload, detached_payload);
   };
 
   void verify(const std::vector<uint8_t>& cose_sign1)
