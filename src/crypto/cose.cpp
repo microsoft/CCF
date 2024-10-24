@@ -85,7 +85,7 @@ namespace ccf::cose::edit
 
     // Maximum expected size of the additional map, sub-map is the
     // worst-case scenario
-    size_t additional_map_size = QCBOR_HEAD_BUFFER_SIZE + // map
+    const size_t additional_map_size = QCBOR_HEAD_BUFFER_SIZE + // map
       QCBOR_HEAD_BUFFER_SIZE + // key
       sizeof(key) + // key
       QCBOR_HEAD_BUFFER_SIZE + // submap
