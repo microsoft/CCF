@@ -10,6 +10,8 @@
 #include <doctest/doctest.h>
 #include <fstream>
 #include <limits>
+#include <qcbor/qcbor_decode.h>
+#include <qcbor/qcbor_spiffy_decode.h>
 #include <string>
 #include <vector>
 
@@ -136,6 +138,81 @@ TEST_CASE("Idempotence")
         auto csp_set_twice = ccf::cose::edit::set_unprotected_header(
           csp_set_once, key, position, value);
         REQUIRE(csp_set_once == csp_set_twice);
+      }
+    }
+  }
+}
+
+TEST_CASE("Check unprotected header")
+{
+  for (auto type :
+       {PayloadType::Detached, PayloadType::Flat, PayloadType::NestedCBOR})
+  {
+    Signer signer(type);
+    auto csp = signer.make_cose_sign1();
+
+    for (const auto& key : keys)
+    {
+      for (const auto& position : positions)
+      {
+        auto csp_set =
+          ccf::cose::edit::set_unprotected_header(csp, key, position, value);
+
+        std::vector<uint8_t> ref(1024);
+        {
+          // Create expected reference value for the unprotected header
+          UsefulBuf ref_buf{ref.data(), ref.size()};
+          QCBOREncodeContext ctx;
+          QCBOREncode_Init(&ctx, ref_buf);
+          QCBOREncode_OpenMap(&ctx);
+
+          if (std::holds_alternative<ccf::cose::edit::pos::InArray>(position))
+          {
+            QCBOREncode_OpenArrayInMapN(&ctx, key);
+            QCBOREncode_AddBytes(&ctx, {value.data(), value.size()});
+            QCBOREncode_CloseArray(&ctx);
+          }
+          else if (std::holds_alternative<ccf::cose::edit::pos::AtKey>(
+                     position))
+          {
+            QCBOREncode_OpenMapInMapN(&ctx, key);
+            auto subkey = std::get<ccf::cose::edit::pos::AtKey>(position).key;
+            QCBOREncode_OpenArrayInMapN(&ctx, subkey);
+            QCBOREncode_AddBytes(&ctx, {value.data(), value.size()});
+            QCBOREncode_CloseArray(&ctx);
+            QCBOREncode_CloseMap(&ctx);
+          }
+          QCBOREncode_CloseMap(&ctx);
+          UsefulBufC ref_buf_c;
+          QCBOREncode_Finish(&ctx, &ref_buf_c);
+          ref.resize(ref_buf_c.len);
+          ref.shrink_to_fit();
+        }
+
+        size_t uhdr_start, uhdr_end;
+        QCBORError err;
+        QCBORItem item;
+        QCBORDecodeContext ctx;
+        UsefulBufC buf{csp_set.data(), csp_set.size()};
+        QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
+        QCBORDecode_EnterArray(&ctx, nullptr);
+        QCBORDecode_GetNthTagOfLast(&ctx, 0);
+        // Protected header
+        QCBORDecode_VGetNextConsume(&ctx, &item);
+        // Unprotected header
+        QCBORDecode_PartialFinish(&ctx, &uhdr_start);
+        QCBORDecode_VGetNextConsume(&ctx, &item);
+        QCBORDecode_PartialFinish(&ctx, &uhdr_end);
+        std::vector<uint8_t> uhdr{
+          csp_set.data() + uhdr_start, csp_set.data() + uhdr_end};
+        REQUIRE(uhdr == ref);
+        // Payload
+        QCBORDecode_VGetNextConsume(&ctx, &item);
+        // Signature
+        QCBORDecode_VGetNextConsume(&ctx, &item);
+        QCBORDecode_ExitArray(&ctx);
+        err = QCBORDecode_Finish(&ctx);
+        REQUIRE(err == QCBOR_SUCCESS);
       }
     }
   }
