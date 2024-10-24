@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <doctest/doctest.h>
 #include <fstream>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -35,6 +36,18 @@ static const std::vector<uint8_t> cose_sign1_sample0 = {
   71,  61,  219, 170, 226, 134, 51,  140, 28,  36,  223, 249, 61,  113, 7,
   181, 126, 27,  133, 84,  7,   158, 114, 113, 115, 171, 215, 57,  233, 166,
   198, 159, 243, 140, 255, 152, 255, 2,   3,   126, 18};
+
+static const std::vector<ssize_t> keys = {
+  42, std::numeric_limits<ssize_t>::min(), std::numeric_limits<ssize_t>::max()};
+
+static const std::vector<ccf::cose::edit::pos::Type> positions = {
+  ccf::cose::edit::pos::AtKey{42},
+  ccf::cose::edit::pos::AtKey{std::numeric_limits<ssize_t>::min()},
+  ccf::cose::edit::pos::AtKey{std::numeric_limits<ssize_t>::max()},
+  ccf::cose::edit::pos::InArray{}};
+
+const std::vector<uint8_t> value = {1, 2, 3, 4};
+
 // Function to dump bytes to a file
 void dump_bytes_to_file(
   const std::vector<uint8_t>& bytes, const std::string& filename)
@@ -48,27 +61,47 @@ void dump_bytes_to_file(
   file.close();
 }
 
-TEST_CASE(
-  "Check insertion at key in unprotected header does not affect verification")
+TEST_CASE("Check setting does not affect verification")
 {
   auto verifier =
     ccf::crypto::make_cose_verifier_from_key(cose_sign1_sample0_cert);
   std::span<uint8_t> payload;
 
-  // Verify the original COSE_Sign1
   REQUIRE(verifier->verify(cose_sign1_sample0, payload));
   REQUIRE(std::string(payload.begin(), payload.end()) == "payload");
 
-  size_t key = 42;
-  auto subkey = ccf::cose::edit::pos::AtKey{43};
-  std::vector<uint8_t> value = {1, 2, 3, 4};
-  auto enriched_cose_sign1 = ccf::cose::edit::set_unprotected_header(
-    cose_sign1_sample0, key, subkey, value);
+  for (const auto& key : keys)
+  {
+    for (const auto& position : positions)
+    {
+      auto enriched_cose_sign1 = ccf::cose::edit::set_unprotected_header(
+        cose_sign1_sample0, key, position, value);
 
-  // Debug
-  dump_bytes_to_file(enriched_cose_sign1, "enriched.bin");
+      // Debug
+      dump_bytes_to_file(enriched_cose_sign1, "enriched.bin");
 
-  REQUIRE(verifier->verify(enriched_cose_sign1, payload));
-  REQUIRE(
-    enriched_cose_sign1.size() > cose_sign1_sample0.size() + value.size());
+      REQUIRE(verifier->verify(enriched_cose_sign1, payload));
+      REQUIRE(
+        enriched_cose_sign1.size() > cose_sign1_sample0.size() + value.size());
+    }
+  }
+}
+
+TEST_CASE("Check repeated setting is idempotent")
+{
+  for (const auto& key : keys)
+  {
+    for (const auto& position : positions)
+    {
+      auto enriched_cose_sign1 = ccf::cose::edit::set_unprotected_header(
+        cose_sign1_sample0, key, position, value);
+
+      auto enriched_cose_sign1_again = ccf::cose::edit::set_unprotected_header(
+        cose_sign1_sample0, key, position, value);
+      REQUIRE(enriched_cose_sign1 == enriched_cose_sign1_again);
+
+      // Debug
+      dump_bytes_to_file(enriched_cose_sign1, "enriched.bin");
+    }
+  }
 }
