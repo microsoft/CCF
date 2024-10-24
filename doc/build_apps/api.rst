@@ -158,3 +158,9 @@ HTTP Entity Tags Matching
 .. doxygenclass:: ccf::http::Matcher
    :project: CCF
    :members:
+
+COSE
+----
+
+.. doxygenfunction:: ccf::cose::edit::set_unprotected_header
+   :project: CCF

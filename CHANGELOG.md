@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Set VMPL value when creating SNP attestations, and check VMPL value is in guest range when verifiying attestation, since recent [updates allow host-initiated attestations](https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/programmer-references/56860.pdf) (#6583).
+- Added ccf::cose::edit::set_unprotected_header() API, to allow easy injection of proofs in signatures, and of receipts in signed statements (#6586).
 
 ## [6.0.0-dev2]
 
