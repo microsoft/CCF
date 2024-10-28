@@ -15,6 +15,8 @@ def run(cert_test):
                 [
                     "openssl",
                     "x509",
+                    "-nameopt",
+                    "space_eq",
                     "-in",
                     os.path.join(tempfile.gettempdir(), ntf.name),
                     "-text",
