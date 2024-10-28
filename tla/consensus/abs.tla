@@ -13,7 +13,8 @@ ASSUME /\ IsStrictlyTotallyOrderedUnder(<, Terms)
        /\ \E min \in Terms : \A t \in Terms : t <= min
 
 CONSTANT StartTerm
-ASSUME /\ StartTerm \in Terms
+ASSUME StartTermIsTerm ==
+       /\ StartTerm \in Terms
        /\ \A t \in Terms : StartTerm <= t
 
 \* Commit logs from each node
