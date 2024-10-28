@@ -124,6 +124,17 @@ MachineClosedFairSpec ==
     /\ Spec
     /\ WF_cLogs(Next)
 
+Syncing ==
+    \* At the level of ccfraft, the desired property is that commitIndex of
+    \* all (active) nodes repeatedly increases, i.e., 
+    \*      []<>(\A s \in Servers: commitIndex[s] < commitIndex'[s]) 
+    \* . Note the \le and not \leq comparison!  This is stronger (and a liveness
+    \* property) compared to 
+    \*      [][\A s \in Servers: commitIndex[s] < commitIndex'[s]]_commitIndex
+    []<><<\E s \in Servers: IsStrictPrefix(cLogs[s], cLogs'[s])>>_cLogs
+
+THEOREM MachineClosedFairSpec => Syncing
+
 ----
 
 \* abs models ccfraft's logs up to the commitIndex and the extension of the
