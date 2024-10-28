@@ -120,6 +120,10 @@ FairSpec ==
 
 THEOREM FairSpec => InSync
 
+MachineClosedFairSpec ==
+    /\ Spec
+    /\ WF_cLogs(Next)
+
 ----
 
 \* abs models ccfraft's logs up to the commitIndex and the extension of the
