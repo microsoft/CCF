@@ -122,6 +122,10 @@ THEOREM FairSpec => InSync
 
 ----
 
+\* abs models ccfraft's logs up to the commitIndex and the extension of the
+\* leader’s log past the commitIndex.  However, contrary to ccfraft, the
+\* leader’s log in abs is never trimmed.  The corresponding property in
+\* ccfraft is CommittedLogAppendOnlyProp.
 AppendOnlyProp ==
     [][\A i \in Servers : IsPrefix(cLogs[i], cLogs'[i])]_cLogs
 
