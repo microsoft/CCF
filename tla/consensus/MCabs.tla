@@ -19,11 +19,6 @@ MCTypeOK ==
 MCSeq(S) ==
     BoundedSeq(S, MaxExtend)
 
-\* Limit length of logs to terminate model checking.
-MaxLogLengthConstraint ==
-    \A i \in Servers :
-        Len(cLogs[i]) <= 7
-
 Abs(n) ==
     IF n >= 0 THEN n ELSE -n
 
