@@ -135,6 +135,10 @@ Syncing ==
 
 THEOREM MachineClosedFairSpec => Syncing
 
+AllSyncing ==
+    []<><<\A s \in Servers: IsStrictPrefix(cLogs[s], cLogs'[s])>>_cLogs
+
+\* NOT A THEOREM:  MachineClosedFairSpec => AllSyncing
 ----
 
 \* abs models ccfraft's logs up to the commitIndex and the extension of the
