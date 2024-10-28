@@ -111,35 +111,58 @@ Spec ==
 THEOREM Spec <=> SpecAxiom
 
 ----
+\* Liveness
 
 InSync ==
+    \A i, j \in Servers : []<>(cLogs[i] = cLogs[j])
+
+InSyncLockStep ==
     []<>(\A i, j \in Servers : cLogs[i] = cLogs[j])
+
+LEMMA InSyncLockStep => InSync
+
+Syncing ==
+    \* There exists one server whose log is repeatedly strictly extended.
+    \E s \in Servers: []<><<IsStrictPrefix(cLogs[s], cLogs'[s])>>_cLogs
+
+SynchingLockStep ==
+    \* Repeatedly, there exists a state where one server's log is strictly extended.
+    []<><<\E s \in Servers: IsStrictPrefix(cLogs[s], cLogs'[s])>>_cLogs
+
+AllExtending ==
+    \* Repeatedly, all logs of all servers are strictly extended.  However, it
+    \* is not required that all logs are strictly extended in the same state.
+    \A s \in Servers: []<><<IsStrictPrefix(cLogs[s], cLogs'[s])>>_cLogs
+
+AllExtendingLockStep ==
+    \* Repeatedly, there exists a state where all logs are strictly extended.
+    []<><<\A s \in Servers: IsStrictPrefix(cLogs[s], cLogs'[s])>>_cLogs
+
+LEMMA AllExtendingLockStep => AllExtending
+
+FairSpecLockStep ==
+    /\ Spec
+    \* There repeatedly exists a state where the logs of all servers are synced.
+    /\ WF_cLogs(Next) /\ []<><<\A s,t \in Servers: cLogs'[s] = cLogs'[t]>>_cLogs
 
 FairSpec ==
     /\ Spec
-    /\ WF_cLogs(Next) /\ \A s \in Servers: <>[][Copy(s)]_cLogs
-
-THEOREM FairSpec => InSync
+    \* For all pairs of logs, there repeatedly exists a state where they are synced.
+    /\ WF_cLogs(Next) /\ \A s,t \in Servers: []<><<cLogs'[s] = cLogs'[t]>>_cLogs
 
 MachineClosedFairSpec ==
     /\ Spec
     /\ WF_cLogs(Next)
 
-Syncing ==
-    \* At the level of ccfraft, the desired property is that commitIndex of
-    \* all (active) nodes repeatedly increases, i.e., 
-    \*      []<>(\A s \in Servers: commitIndex[s] < commitIndex'[s]) 
-    \* . Note the \le and not \leq comparison!  This is stronger (and a liveness
-    \* property) compared to 
-    \*      [][\A s \in Servers: commitIndex[s] < commitIndex'[s]]_commitIndex
-    []<><<\E s \in Servers: IsStrictPrefix(cLogs[s], cLogs'[s])>>_cLogs
+THEOREM FairSpecLockStep => 
+    (Syncing /\ SynchingLockStep /\ AllExtending /\ InSync /\ InSyncLockStep)
 
-THEOREM MachineClosedFairSpec => Syncing
+THEOREM FairSpec =>
+    (Syncing /\ SynchingLockStep /\ AllExtending /\ InSync)
 
-AllSyncing ==
-    []<><<\A s \in Servers: IsStrictPrefix(cLogs[s], cLogs'[s])>>_cLogs
+THEOREM MachineClosedFairSpec => 
+    (Syncing /\ SynchingLockStep /\ AllExtending)
 
-\* NOT A THEOREM:  MachineClosedFairSpec => AllSyncing
 ----
 
 \* abs models ccfraft's logs up to the commitIndex and the extension of the
