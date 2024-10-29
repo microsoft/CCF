@@ -1,5 +1,4 @@
 wheel
-paramiko
 loguru
 psutil
 openapi-spec-validator

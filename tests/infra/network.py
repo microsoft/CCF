@@ -3,7 +3,6 @@
 import os
 import time
 
-import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
 from infra.clients import flush_info
@@ -33,8 +32,6 @@ from loguru import logger as LOG
 
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
-
-logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 # JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
 JOIN_TIMEOUT = 40
