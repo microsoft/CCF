@@ -70,7 +70,11 @@ namespace http
 
       // Spec says these mime types are now equivalent. For stability, we
       // order them lexicographically
-      return mime_type < other.mime_type && mime_subtype < other.mime_subtype;
+      if (mime_type != other.mime_type)
+      {
+        return mime_type < other.mime_type;
+      }
+      return mime_subtype < other.mime_subtype;
     }
   };
 
