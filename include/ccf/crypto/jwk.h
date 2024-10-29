@@ -38,16 +38,12 @@ namespace ccf::crypto
   enum class JsonWebKeyECCurve
   {
     P256 = 0,
-    P256K1 = 1,
-    P384 = 2,
-    P521 = 3
+    P384 = 1,
+    P521 = 2
   };
   DECLARE_JSON_ENUM(
     JsonWebKeyECCurve,
     {{JsonWebKeyECCurve::P256, "P-256"},
-     {JsonWebKeyECCurve::P256K1,
-      "secp256k1"}, // As per
-                    // https://www.rfc-editor.org/rfc/rfc8812#name-jose-and-cose-secp256k1-cur
      {JsonWebKeyECCurve::P384, "P-384"},
      {JsonWebKeyECCurve::P521, "P-521"}});
 
@@ -59,8 +55,6 @@ namespace ccf::crypto
         return JsonWebKeyECCurve::P384;
       case CurveID::SECP256R1:
         return JsonWebKeyECCurve::P256;
-      case CurveID::SECP256K1:
-        return JsonWebKeyECCurve::P256K1;
       default:
         throw std::logic_error(fmt::format("Unknown curve {}", curve_id));
     }
@@ -74,8 +68,6 @@ namespace ccf::crypto
         return CurveID::SECP384R1;
       case JsonWebKeyECCurve::P256:
         return CurveID::SECP256R1;
-      case JsonWebKeyECCurve::P256K1:
-        return CurveID::SECP256K1;
       default:
         throw std::logic_error(fmt::format("Unknown JWK curve {}", jwk_curve));
     }

@@ -89,13 +89,6 @@ describe("polyfill", function () {
       assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
     });
   });
-  describe("generateEcdsaKeyPair/secp256k1", function () {
-    it("generates a random ECDSA P256K1 key pair", function () {
-      const pair = ccf.crypto.generateEcdsaKeyPair("secp256k1");
-      assert.isTrue(pair.publicKey.startsWith("-----BEGIN PUBLIC KEY-----"));
-      assert.isTrue(pair.privateKey.startsWith("-----BEGIN PRIVATE KEY-----"));
-    });
-  });
   describe("generateEcdsaKeyPair/secp384r1", function () {
     it("generates a random ECDSA P384R1 key pair", function () {
       const pair = ccf.crypto.generateEcdsaKeyPair("secp384r1");
@@ -586,7 +579,7 @@ describe("polyfill", function () {
   describe("pemToJwk and jwkToPem", function () {
     it("EC", function () {
       const my_kid = "my_kid";
-      const curves = ["secp256r1", "secp256k1", "secp384r1"];
+      const curves = ["secp256r1", "secp384r1"];
       for (const curve of curves) {
         const pair = ccf.crypto.generateEcdsaKeyPair(curve);
         {

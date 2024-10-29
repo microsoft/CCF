@@ -22,8 +22,6 @@ namespace ccf::crypto
     SECP384R1,
     /// The SECP256R1 curve
     SECP256R1,
-    /// The SECP256K1 curve
-    SECP256K1,
     /// The CURVE25519 curve
     CURVE25519,
     X25519
@@ -34,7 +32,6 @@ namespace ccf::crypto
     {{CurveID::NONE, "None"},
      {CurveID::SECP384R1, "Secp384R1"},
      {CurveID::SECP256R1, "Secp256R1"},
-     {CurveID::SECP256K1, "Secp256K1"},
      {CurveID::CURVE25519, "Curve25519"},
      {CurveID::X25519, "X25519"}});
 
@@ -49,8 +46,6 @@ namespace ccf::crypto
       case CurveID::SECP384R1:
         return MDType::SHA384;
       case CurveID::SECP256R1:
-        return MDType::SHA256;
-      case CurveID::SECP256K1:
         return MDType::SHA256;
       default:
       {
