@@ -23,6 +23,13 @@ MCTypeOK ==
 MCSeq(S) ==
     BoundedSeq(S, MaxExtend)
 
+-----
+
+\* Combining the following conditions makes the state space finite:
+\* - Terms is a *finite* set (MCTerms)
+\* - The divergence of any two logs is bounded (MaxDivergence)
+\* - The longest common prefix of all logs is discarded (MonotonicReduction)
+
 Abs(n) ==
     IF n >= 0 THEN n ELSE -n
 
