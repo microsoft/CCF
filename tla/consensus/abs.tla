@@ -140,6 +140,10 @@ AllExtendingLockStep ==
 
 LEMMA AllExtendingLockStep => AllExtending
 
+EmptyLeadsToNonEmpty ==
+    \A i \in Servers:
+        cLogs[i] = <<>> ~> cLogs[i] # <<>>
+
 FairSpecLockStep ==
     /\ Spec
     \* There repeatedly exists a state where the logs of all servers are synced.
@@ -155,13 +159,13 @@ WeakFairnessSpec ==
     /\ WF_cLogs(Next)
 
 THEOREM FairSpecLockStep => 
-    (Syncing /\ SynchingLockStep /\ AllExtending /\ InSync /\ InSyncLockStep)
+    (Syncing /\ SynchingLockStep /\ AllExtending /\ InSync /\ InSyncLockStep /\ EmptyLeadsToNonEmpty)
 
 THEOREM FairSpec =>
-    (Syncing /\ SynchingLockStep /\ AllExtending /\ InSync)
+    (Syncing /\ SynchingLockStep /\ AllExtending /\ InSync /\ EmptyLeadsToNonEmpty)
 
 THEOREM WeakFairnessSpec => 
-    (Syncing /\ SynchingLockStep /\ AllExtending)
+    (Syncing /\ SynchingLockStep /\ AllExtending /\ EmptyLeadsToNonEmpty)
 
 ----
 
