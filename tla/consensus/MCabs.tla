@@ -11,6 +11,10 @@ MCServers == {NodeOne, NodeTwo, NodeThree}
 MCTerms == 2..4
 MCStartTerm == Min(MCTerms)
 MaxExtend == 3
+ASSUME
+    \* LongestCommonPrefix in View for a single server would always shorten the
+    \* log to <<>>, reducing the state-space to a single state.
+    Cardinality(MCServers) > 1
 
 MCTypeOK ==
     \* 4 because of the initial log.
