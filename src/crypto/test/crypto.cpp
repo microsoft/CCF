@@ -179,9 +179,9 @@ void corrupt(T& buf)
 }
 
 static constexpr CurveID supported_curves[] = {
-  CurveID::SECP384R1, CurveID::SECP256R1, CurveID::SECP256K1};
+  CurveID::SECP384R1, CurveID::SECP256R1};
 
-static constexpr char const* labels[] = {"secp384r1", "secp256r1", "secp256k1"};
+static constexpr char const* labels[] = {"secp384r1", "secp256r1"};
 
 ccf::crypto::Pem generate_self_signed_cert(
   const KeyPairPtr& kp, const std::string& name)
@@ -1045,7 +1045,7 @@ TEST_CASE("PEM to JWK and back")
 
   INFO("EC");
   {
-    auto curves = {CurveID::SECP384R1, CurveID::SECP256R1, CurveID::SECP256K1};
+    auto curves = {CurveID::SECP384R1, CurveID::SECP256R1};
 
     for (auto const& curve : curves)
     {

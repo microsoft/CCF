@@ -138,8 +138,6 @@ namespace ccf::crypto
         return CurveID::SECP384R1;
       case NID_X9_62_prime256v1:
         return CurveID::SECP256R1;
-      case NID_secp256k1:
-        return CurveID::SECP256K1;
       default:
         throw std::runtime_error(fmt::format("Unknown OpenSSL curve {}", nid));
     }
@@ -163,10 +161,6 @@ namespace ccf::crypto
     {
       return NID_X9_62_prime256v1;
     }
-    else if (gname == SN_secp256k1)
-    {
-      return NID_secp256k1;
-    }
     else
     {
       throw std::runtime_error(fmt::format("Unknown OpenSSL group {}", gname));
@@ -187,8 +181,6 @@ namespace ccf::crypto
         return NID_secp384r1;
       case CurveID::SECP256R1:
         return NID_X9_62_prime256v1;
-      case CurveID::SECP256K1:
-        return NID_secp256k1;
       default:
         throw std::logic_error(
           fmt::format("unsupported OpenSSL CurveID {}", gid));
