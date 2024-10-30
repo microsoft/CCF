@@ -11,6 +11,47 @@ SpuriousPropA ==
     \A i \in Servers:
         cLogs[i] = <<>> ~> [](cLogs[i] # <<>>)
 
+----
+
+\* All (temporal) formulas below are expected to result in liveness violations,
+\* as there is nothing in the behavior spec that forces all Terms to be present
+\* in any/all logs.
+
+NotAPropA ==
+    <>(\A i \in Servers: Terms = Range(cLogs[i]) )
+
+NotAPropB ==
+    <>[](\A i \in Servers: Terms = Range(cLogs[i]) )
+
+NotAPropC ==
+    <>(\E i \in Servers: Terms = Range(cLogs[i]) )
+
+NotAPropD ==
+    <>[](\E i \in Servers: Terms = Range(cLogs[i]) )
+
+NotAPropE ==
+    \E i \in Servers:
+        cLogs[i] = <<>> ~> Terms = Range(cLogs[i])
+
+NotAPropF ==
+    \A i \in Servers:
+        \A n \in 1..10: \* 10 is arbitrary but TLC doesn't handle Nat.  LeadsTo is vacausously true if n > Len(cLogs[i]).
+            Len(cLogs[i]) = n ~> cLogs[i] = <<>>
+
+NotAPropG ==
+    \A i \in Servers:
+        \A n \in 1..10:
+            Len(cLogs[i]) = n ~> Len(cLogs[i]) = n - 1
+
+NotAPropH ==
+    \* We would expect NotAPropH to hold if we conjoin  Len(cLogs'[i]) = Len(cLogs[i]) + 1  to abs!Next.
+    \* Instead, we get a spurious violation of liveness properties, similar to SpuriousPropA.
+    \A i \in Servers:
+        \A n \in 0..1:
+            Len(cLogs[i]) = n ~> Len(cLogs[i]) = n + 1
+
+----
+
 Symmetry ==
       Permutations(Servers)
 
