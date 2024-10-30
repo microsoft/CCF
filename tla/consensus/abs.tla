@@ -150,7 +150,7 @@ FairSpec ==
     \* For all pairs of logs, there repeatedly exists a state where they are synced.
     /\ WF_cLogs(Next) /\ \A s,t \in Servers: []<><<cLogs'[s] = cLogs'[t]>>_cLogs
 
-MachineClosedFairSpec ==
+WeakFairnessSpec ==
     /\ Spec
     /\ WF_cLogs(Next)
 
@@ -160,7 +160,7 @@ THEOREM FairSpecLockStep =>
 THEOREM FairSpec =>
     (Syncing /\ SynchingLockStep /\ AllExtending /\ InSync)
 
-THEOREM MachineClosedFairSpec => 
+THEOREM WeakFairnessSpec => 
     (Syncing /\ SynchingLockStep /\ AllExtending)
 
 ----
