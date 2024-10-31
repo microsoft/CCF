@@ -20,7 +20,6 @@ import hashlib
 import infra.clients
 from infra.log_capture import flush_info
 import ccf.receipt
-import ccf.cose_receipt
 from ccf.tx_id import TxID
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
@@ -1040,7 +1039,7 @@ def test_cose_receipt_schema(network, args):
                 )
                 if r.status_code == http.HTTPStatus.OK:
                     cbor_proof = r.body.data()
-                    ccf.cose_receipt.verify(cbor_proof, service_key)
+                    ccf.cose.verify_receipt(cbor_proof, service_key)
                     cbor_proof_filename = os.path.join(
                         network.common_dir, f"receipt_{txid}.cose"
                     )
