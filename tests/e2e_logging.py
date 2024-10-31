@@ -1015,6 +1015,12 @@ def test_cose_signature_schema(network, args):
 def test_cose_receipt_schema(network, args):
     primary, _ = network.find_nodes()
 
+    service_cert_path = os.path.join(network.common_dir, "service_cert.pem")
+    service_cert = load_pem_x509_certificate(
+        open(service_cert_path, "rb").read(), default_backend()
+    )
+    service_key = service_cert.public_key()
+
     with primary.client("user0") as client:
         r = client.get("/commit")
         assert r.status_code == http.HTTPStatus.OK
@@ -1033,6 +1039,7 @@ def test_cose_receipt_schema(network, args):
                 )
                 if r.status_code == http.HTTPStatus.OK:
                     cbor_proof = r.body.data()
+                    ccf.cose.verify_receipt(cbor_proof, service_key)
                     cbor_proof_filename = os.path.join(
                         network.common_dir, f"receipt_{txid}.cose"
                     )
