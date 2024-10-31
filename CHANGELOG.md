@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.0-dev4]
+
+[6.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev4
+
+### Added
+
+- `ccf.cose.verify_receipt()` to support verifiying [draft COSE receipts](https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/) (#6603).
+
 ### Removed
 
 - Remove SECP256K1 support as a part of the migration to Azure Linux (#6592).
