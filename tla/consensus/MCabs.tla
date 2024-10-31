@@ -2,6 +2,15 @@
 
 EXTENDS abs, TLC, SequencesExt, FiniteSetsExt, Integers
 
+\* All (temporal) formulas below are expected to hold but cause a
+\* spurious violation of liveness properties due to our MonothonicReduction
+\* view.
+
+SpuriousPropA ==
+    \* Stenghtened variant of EmptyLeadsToNonEmpty.
+    \A i \in Servers:
+        cLogs[i] = <<>> ~> [](cLogs[i] # <<>>)
+
 Symmetry ==
       Permutations(Servers)
 
