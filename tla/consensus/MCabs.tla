@@ -11,6 +11,8 @@ MCServers == {NodeOne, NodeTwo, NodeThree}
 MCTerms == 2..4
 MCStartTerm == Min(MCTerms)
 MaxExtend == 3
+MCMaxTerm == Max(MCTerms)
+
 ASSUME
     \* LongestCommonPrefix in View for a single server would always shorten the
     \* log to <<>>, reducing the state-space to a single state.
@@ -49,7 +51,7 @@ MonotonicReductionLongestCommonPrefix ==
 
 MonotonicReductionLongestCommonPrefixAndTerms ==
     \* Find the longest common prefix of all logs and drop it from all logs.
-    \* We also realign the terms in the remaining suffixes to start at StartTerm.
+    \* We also realign the terms in the remaining suffixes.
     LET commonPrefixBound == Len(LongestCommonPrefix(Range(cLogs)))
         minTerm ==
             \* 3) The minimum term out of all minima.
@@ -58,10 +60,15 @@ MonotonicReductionLongestCommonPrefixAndTerms ==
                 Min(
                     \* 1) All terms in the suffix of a log.
                     Range(TailFrom(cLogs[s], commonPrefixBound))
-                        \* \cup {0} to handle the case where a log is empty.
-                        \cup {0}) : s \in Servers})
+                        \* \cup {MCMaxTerm+1} to handle the case where a log is empty.
+                        \* MCMaxTerm+1 to always be greater than any term in the log.
+                        \* If all logs are empty, the minTerm does not matter.
+                        \cup {MCMaxTerm+1}) : s \in Servers})
+        delta == minTerm - StartTerm
     IN  [ s \in Servers |-> 
             [ i \in 1..Len(cLogs[s]) - commonPrefixBound |->
+                    cLogs[s][i + commonPrefixBound] - delta ] ]
+
 MonotonicReduction ==
     MonotonicReductionLongestCommonPrefixAndTerms
 
