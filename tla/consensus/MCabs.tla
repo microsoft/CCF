@@ -37,11 +37,20 @@ MaxDivergence ==
     \A i, j \in Servers :
         Abs(Len(cLogs[i]) - Len(cLogs[j])) <= 2
 
-MonotonicReduction ==
-    LET TailFrom(seq, idx) == SubSeq(seq, idx + 1, Len(seq))
-        \* Find the longest common prefix of all logs and drop it from all logs.
-        \* We realign the terms in the remaining suffixes to start at StartTerm.
-        commonPrefixBound == Len(LongestCommonPrefix(Range(cLogs)))
+-----
+
+TailFrom(seq, idx) ==
+    SubSeq(seq, idx + 1, Len(seq))
+
+MonotonicReductionLongestCommonPrefix ==
+    \* Find the longest common prefix of all logs and drop it from all logs.
+    LET commonPrefixBound == Len(LongestCommonPrefix(Range(cLogs)))
+    IN [ s \in Servers |-> TailFrom(cLogs[s], commonPrefixBound) ]
+
+MonotonicReductionLongestCommonPrefixAndTerms ==
+    \* Find the longest common prefix of all logs and drop it from all logs.
+    \* We also realign the terms in the remaining suffixes to start at StartTerm.
+    LET commonPrefixBound == Len(LongestCommonPrefix(Range(cLogs)))
         minTerm ==
             \* 3) The minimum term out of all minima.
             Min({
@@ -53,6 +62,7 @@ MonotonicReduction ==
                         \cup {0}) : s \in Servers})
     IN  [ s \in Servers |-> 
             [ i \in 1..Len(cLogs[s]) - commonPrefixBound |->
-                    cLogs[s][i + commonPrefixBound] - minTerm ] ]
+MonotonicReduction ==
+    MonotonicReductionLongestCommonPrefixAndTerms
 
 ====
