@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Updated `ccf::cose::edit::set_unprotected_header()` API, to allow removing the unprotected header altogether (#6607).
+- Updated `ccf.cose.verify_receipt()` to support checking the claim_digest against a reference value (#6607).
 
 ## [6.0.0-dev4]
 
