@@ -117,6 +117,12 @@ TEST_CASE("Verification and payload invariant")
         signer.verify(csp_set);
       }
     }
+
+    {
+      auto csp_set_empty = ccf::cose::edit::set_unprotected_header(
+        csp, ccf::cose::edit::desc::Empty{});
+      signer.verify(csp_set_empty);
+    }
   }
 }
 
@@ -139,6 +145,15 @@ TEST_CASE("Idempotence")
           ccf::cose::edit::set_unprotected_header(csp_set_once, desc);
         REQUIRE(csp_set_once == csp_set_twice);
       }
+    }
+
+    {
+      auto csp_set_empty = ccf::cose::edit::set_unprotected_header(
+        csp, ccf::cose::edit::desc::Empty{});
+      auto csp_set_twice_empty = ccf::cose::edit::set_unprotected_header(
+        csp_set_empty, ccf::cose::edit::desc::Empty{});
+
+      REQUIRE(csp_set_empty == csp_set_twice_empty);
     }
   }
 }
@@ -214,6 +229,49 @@ TEST_CASE("Check unprotected header")
         err = QCBORDecode_Finish(&ctx);
         REQUIRE(err == QCBOR_SUCCESS);
       }
+    }
+
+    {
+      auto csp_set_empty = ccf::cose::edit::set_unprotected_header(
+        csp, ccf::cose::edit::desc::Empty{});
+
+      std::vector<uint8_t> ref(1024);
+      {
+        // Create expected reference value for the unprotected header
+        UsefulBuf ref_buf{ref.data(), ref.size()};
+        QCBOREncodeContext ctx;
+        QCBOREncode_Init(&ctx, ref_buf);
+        QCBOREncode_OpenMap(&ctx);
+        QCBOREncode_CloseMap(&ctx);
+        UsefulBufC ref_buf_c;
+        QCBOREncode_Finish(&ctx, &ref_buf_c);
+        ref.resize(ref_buf_c.len);
+        ref.shrink_to_fit();
+      }
+
+      size_t uhdr_start, uhdr_end;
+      QCBORError err;
+      QCBORItem item;
+      QCBORDecodeContext ctx;
+      UsefulBufC buf{csp_set_empty.data(), csp_set_empty.size()};
+      QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
+      QCBORDecode_EnterArray(&ctx, nullptr);
+      QCBORDecode_GetNthTagOfLast(&ctx, 0);
+      // Protected header
+      QCBORDecode_VGetNextConsume(&ctx, &item);
+      // Unprotected header
+      QCBORDecode_PartialFinish(&ctx, &uhdr_start);
+      QCBORDecode_VGetNextConsume(&ctx, &item);
+      QCBORDecode_PartialFinish(&ctx, &uhdr_end);
+      std::vector<uint8_t> uhdr{
+        csp_set_empty.data() + uhdr_start, csp_set_empty.data() + uhdr_end};
+      REQUIRE(uhdr == ref);
+      // Payload
+      QCBORDecode_VGetNextConsume(&ctx, &item);
+      // Signature
+      QCBORDecode_VGetNextConsume(&ctx, &item);
+      QCBORDecode_ExitArray(&ctx);
+      err = QCBORDecode_Finish(&ctx);
     }
   }
 }
