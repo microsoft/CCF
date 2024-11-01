@@ -111,8 +111,8 @@ TEST_CASE("Verification and payload invariant")
     {
       for (const auto& position : positions)
       {
-        auto csp_set =
-          ccf::cose::edit::set_unprotected_header(csp, key, position, value);
+        ccf::cose::edit::desc::Value desc{position, key, value};
+        auto csp_set = ccf::cose::edit::set_unprotected_header(csp, desc);
 
         signer.verify(csp_set);
       }
@@ -132,11 +132,11 @@ TEST_CASE("Idempotence")
     {
       for (const auto& position : positions)
       {
-        auto csp_set_once =
-          ccf::cose::edit::set_unprotected_header(csp, key, position, value);
+        ccf::cose::edit::desc::Value desc{position, key, value};
+        auto csp_set_once = ccf::cose::edit::set_unprotected_header(csp, desc);
 
-        auto csp_set_twice = ccf::cose::edit::set_unprotected_header(
-          csp_set_once, key, position, value);
+        auto csp_set_twice =
+          ccf::cose::edit::set_unprotected_header(csp_set_once, desc);
         REQUIRE(csp_set_once == csp_set_twice);
       }
     }
@@ -155,8 +155,8 @@ TEST_CASE("Check unprotected header")
     {
       for (const auto& position : positions)
       {
-        auto csp_set =
-          ccf::cose::edit::set_unprotected_header(csp, key, position, value);
+        ccf::cose::edit::desc::Value desc{position, key, value};
+        auto csp_set = ccf::cose::edit::set_unprotected_header(csp, desc);
 
         std::vector<uint8_t> ref(1024);
         {
