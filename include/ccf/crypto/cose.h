@@ -16,7 +16,7 @@ namespace ccf::cose::edit
 
     struct AtKey
     {
-      /// @brief  The key at which to insert the value.
+      /// @brief  The sub-key at which to insert the value.
       int64_t key;
     };
 
@@ -30,8 +30,11 @@ namespace ccf::cose::edit
 
     struct Value
     {
+      /// @brief The type of position at which to insert the value.
       pos::Type position;
+      /// @brief The top-level key at which to insert the value.
       int64_t key;
+      /// @brief The value to insert in the unprotected header.
       const std::vector<uint8_t>& value;
     };
 
