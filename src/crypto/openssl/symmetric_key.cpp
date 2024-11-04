@@ -62,7 +62,9 @@ namespace ccf::crypto
     CHECK1(EVP_EncryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
     if (!aad.empty())
       CHECK1(EVP_EncryptUpdate(ctx, NULL, &len, aad.data(), aad.size()));
-    CHECK1(EVP_EncryptUpdate(ctx, cb.data(), &len, plain.data(), plain.size()));
+    if (!plain.empty())
+      CHECK1(
+        EVP_EncryptUpdate(ctx, cb.data(), &len, plain.data(), plain.size()));
     CHECK1(EVP_EncryptFinal_ex(ctx, cb.data() + len, &len));
     CHECK1(
       EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, GCM_SIZE_TAG, &tag[0]));
@@ -89,8 +91,10 @@ namespace ccf::crypto
     CHECK1(EVP_DecryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
     if (!aad.empty())
       CHECK1(EVP_DecryptUpdate(ctx, NULL, &len, aad.data(), aad.size()));
-    CHECK1(
-      EVP_DecryptUpdate(ctx, pb.data(), &len, cipher.data(), cipher.size()));
+    if (!cipher.empty())
+      CHECK1(
+        EVP_DecryptUpdate(ctx, pb.data(), &len, cipher.data(), cipher.size()));
+
     CHECK1(EVP_CIPHER_CTX_ctrl(
       ctx, EVP_CTRL_GCM_SET_TAG, GCM_SIZE_TAG, (uint8_t*)tag));
 
