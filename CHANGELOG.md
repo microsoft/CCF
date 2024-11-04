@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.0-dev5]
+
+[6.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev5
+
+### Added
+
+- Updated `ccf::cose::edit::set_unprotected_header()` API, to allow removing the unprotected header altogether (#6607).
+- Updated `ccf.cose.verify_receipt()` to support checking the claim_digest against a reference value (#6607).
+
 ## [6.0.0-dev4]
 
 [6.0.0-dev4]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev4
@@ -24,7 +33,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Set VMPL value when creating SNP attestations, and check VMPL value is in guest range when verifiying attestation, since recent [updates allow host-initiated attestations](https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/programmer-references/56860.pdf) (#6583).
-- Added ccf::cose::edit::set_unprotected_header() API, to allow easy injection of proofs in signatures, and of receipts in signed statements (#6586).
+- Added `ccf::cose::edit::set_unprotected_header()` API, to allow easy injection of proofs in signatures, and of receipts in signed statements (#6586).
 
 ## [6.0.0-dev2]
 

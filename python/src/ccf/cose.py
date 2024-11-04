@@ -201,7 +201,9 @@ def validate_cose_sign1(pubkey, cose_sign1, payload=None):
         raise ValueError("signature is invalid")
 
 
-def verify_receipt(receipt_bytes: bytes, key: CertificatePublicKeyTypes):
+def verify_receipt(
+    receipt_bytes: bytes, key: CertificatePublicKeyTypes, claim_digest: bytes
+):
     """
     Verify a COSE Sign1 receipt as defined in https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/,
     using the CCF tree algorithm defined in https://datatracker.ietf.org/doc/draft-birkholz-cose-receipts-ccf-profile/
@@ -239,6 +241,8 @@ def verify_receipt(receipt_bytes: bytes, key: CertificatePublicKeyTypes):
                 accumulator = sha256(accumulator + digest).digest()
         if not receipt.verify_signature(accumulator):
             raise ValueError("Signature verification failed")
+        if claim_digest != leaf[2]:
+            raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
 
 
 _SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance
