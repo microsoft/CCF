@@ -2065,11 +2065,13 @@ namespace loggingapp
           return;
         }
 
-        size_t vdp = 396;
+        int64_t vdp = 396;
         auto inclusion_proof = ccf::cose::edit::pos::AtKey{-1};
 
-        auto cose_receipt = ccf::cose::edit::set_unprotected_header(
-          *signature, vdp, inclusion_proof, *proof);
+        ccf::cose::edit::desc::Value desc{inclusion_proof, vdp, *proof};
+
+        auto cose_receipt =
+          ccf::cose::edit::set_unprotected_header(*signature, desc);
 
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
         ctx.rpc_ctx->set_response_header(

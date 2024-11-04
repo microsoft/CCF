@@ -12,10 +12,7 @@
 namespace ccf::cose::edit
 {
   std::vector<uint8_t> set_unprotected_header(
-    const std::span<const uint8_t>& cose_input,
-    int64_t key,
-    pos::Type pos,
-    const std::vector<uint8_t> value)
+    const std::span<const uint8_t>& cose_input, const desc::Type& descriptor)
   {
     UsefulBufC buf{cose_input.data(), cose_input.size()};
 
@@ -83,16 +80,31 @@ namespace ccf::cose::edit
       throw std::logic_error("Failed to parse COSE_Sign1");
     }
 
-    // Maximum expected size of the additional map, sub-map is the
-    // worst-case scenario
-    const size_t additional_map_size = QCBOR_HEAD_BUFFER_SIZE + // map
-      QCBOR_HEAD_BUFFER_SIZE + // key
-      sizeof(key) + // key
-      QCBOR_HEAD_BUFFER_SIZE + // submap
-      QCBOR_HEAD_BUFFER_SIZE + // subkey
-      sizeof(pos::AtKey::key) + // subkey
-      QCBOR_HEAD_BUFFER_SIZE + // value
-      value.size(); // value
+    size_t additional_map_size = 0;
+
+    if (std::holds_alternative<desc::Empty>(descriptor))
+    {
+      // Nothing to do
+    }
+    else if (std::holds_alternative<desc::Value>(descriptor))
+    {
+      auto& [pos, key, value] = std::get<desc::Value>(descriptor);
+
+      // Maximum expected size of the additional map, sub-map is the
+      // worst-case scenario
+      additional_map_size = QCBOR_HEAD_BUFFER_SIZE + // map
+        QCBOR_HEAD_BUFFER_SIZE + // key
+        sizeof(key) + // key
+        QCBOR_HEAD_BUFFER_SIZE + // submap
+        QCBOR_HEAD_BUFFER_SIZE + // subkey
+        sizeof(pos::AtKey::key) + // subkey
+        QCBOR_HEAD_BUFFER_SIZE + // value
+        value.size(); // value
+    }
+    else
+    {
+      throw std::logic_error("Invalid COSE_Sign1 edit descriptor");
+    }
 
     // We add one extra QCBOR_HEAD_BUFFER_SIZE, because we parse and re-encode
     // the protected header bstr, which involves variable integer encoding, just
@@ -108,24 +120,37 @@ namespace ccf::cose::edit
     QCBOREncode_AddBytes(&ectx, phdr);
     QCBOREncode_OpenMap(&ectx);
 
-    if (std::holds_alternative<pos::InArray>(pos))
+    if (std::holds_alternative<desc::Empty>(descriptor))
     {
-      QCBOREncode_OpenArrayInMapN(&ectx, key);
-      QCBOREncode_AddBytes(&ectx, {value.data(), value.size()});
-      QCBOREncode_CloseArray(&ectx);
+      // Nothing to do
     }
-    else if (std::holds_alternative<pos::AtKey>(pos))
+    else if (std::holds_alternative<desc::Value>(descriptor))
     {
-      QCBOREncode_OpenMapInMapN(&ectx, key);
-      auto subkey = std::get<pos::AtKey>(pos).key;
-      QCBOREncode_OpenArrayInMapN(&ectx, subkey);
-      QCBOREncode_AddBytes(&ectx, {value.data(), value.size()});
-      QCBOREncode_CloseArray(&ectx);
-      QCBOREncode_CloseMap(&ectx);
+      auto& [pos, key, value] = std::get<desc::Value>(descriptor);
+
+      if (std::holds_alternative<pos::InArray>(pos))
+      {
+        QCBOREncode_OpenArrayInMapN(&ectx, key);
+        QCBOREncode_AddBytes(&ectx, {value.data(), value.size()});
+        QCBOREncode_CloseArray(&ectx);
+      }
+      else if (std::holds_alternative<pos::AtKey>(pos))
+      {
+        QCBOREncode_OpenMapInMapN(&ectx, key);
+        auto subkey = std::get<pos::AtKey>(pos).key;
+        QCBOREncode_OpenArrayInMapN(&ectx, subkey);
+        QCBOREncode_AddBytes(&ectx, {value.data(), value.size()});
+        QCBOREncode_CloseArray(&ectx);
+        QCBOREncode_CloseMap(&ectx);
+      }
+      else
+      {
+        throw std::logic_error("Invalid COSE_Sign1 edit operation");
+      }
     }
     else
     {
-      throw std::logic_error("Invalid COSE_Sign1 edit operation");
+      throw std::logic_error("Invalid COSE_Sign1 edit descriptor");
     }
 
     QCBOREncode_CloseMap(&ectx);
