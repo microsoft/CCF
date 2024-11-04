@@ -31,6 +31,11 @@ namespace ccf
   static std::shared_ptr<MemberCertAuthnPolicy> member_cert_auth_policy =
     std::make_shared<MemberCertAuthnPolicy>();
 
+  /** Authenticate using TLS session identity, but do not check
+   * the certificate against any table, and let the application decide */
+  static std::shared_ptr<AnyCertAuthnPolicy> any_cert_auth_policy =
+    std::make_shared<AnyCertAuthnPolicy>();
+
   /** Authenticate using JWT, validating the token using the
    * @c public:ccf.gov.jwt.public_signing_keys_metadata table */
   static std::shared_ptr<JwtAuthnPolicy> jwt_auth_policy =
