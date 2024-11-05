@@ -287,23 +287,29 @@ namespace ccf::crypto
   Unique_PKEY key_from_raw_ec_point(const std::vector<uint8_t>& raw, int nid)
   {
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-    const unsigned char* pp = raw.data();
-    EVP_PKEY* pkey = NULL;
-    OSSL_PARAM params[2];
+    const auto curve_name = (char*)OSSL_EC_curve_nid2name(nid);
+
+    OSSL_PARAM params[3];
     params[0] = OSSL_PARAM_construct_utf8_string(
-      OSSL_PKEY_PARAM_GROUP_NAME, (char*)OSSL_EC_curve_nid2name(nid), 0);
-    params[1] = OSSL_PARAM_construct_end();
+      OSSL_PKEY_PARAM_GROUP_NAME, curve_name, 0);
+    params[1] = OSSL_PARAM_construct_octet_string(
+      OSSL_PKEY_PARAM_PUB_KEY, (void*)raw.data(), raw.size());
+    params[2] = OSSL_PARAM_construct_end();
 
-    Unique_EVP_PKEY_CTX pctx("EC");
-    EVP_PKEY_fromdata_init(pctx);
-    EVP_PKEY_fromdata(
-      pctx, &pkey, OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS, params);
+    auto pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
+    CHECK1(EVP_PKEY_fromdata_init(pctx));
 
-    pkey = d2i_PublicKey(EVP_PKEY_EC, &pkey, &pp, raw.size());
+    EVP_PKEY* pkey = NULL;
+    CHECK1(EVP_PKEY_fromdata(pctx, &pkey, EVP_PKEY_PUBLIC_KEY, params));
+
     if (pkey == NULL)
     {
       EVP_PKEY_free(pkey);
-      throw std::logic_error("Error loading public key");
+
+      throw std::logic_error(fmt::format(
+        "Error loading public key. Curve: {}, err: {}",
+        curve_name,
+        OpenSSL::error_string(ERR_get_error())));
     }
 
     Unique_PKEY pk(pkey);
