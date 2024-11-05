@@ -94,6 +94,8 @@ namespace ccf::crypto
     CHECK1(EVP_DecryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
     if (!aad.empty())
       CHECK1(EVP_DecryptUpdate(ctx, NULL, &len, aad.data(), aad.size()));
+
+    len = 0;
     if (!cipher.empty())
       CHECK1(
         EVP_DecryptUpdate(ctx, pb.data(), &len, cipher.data(), cipher.size()));
