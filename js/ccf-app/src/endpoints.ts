@@ -199,6 +199,7 @@ export interface AllOfAuthnIdentity extends AuthnIdentityCommon {
 
   user_cert?: UserCertAuthnIdentity;
   member_cert?: MemberCertAuthnIdentity;
+  any_cert?: AnyCertAuthnIdentity;
   user_cose_sign1?: UserCOSESign1AuthnIdentity;
   member_cose_sign1?: MemberCOSESign1AuthnIdentity;
   jwt?: JwtAuthnIdentity;
@@ -213,6 +214,7 @@ export type AuthnIdentity =
   | EmptyAuthnIdentity
   | UserCertAuthnIdentity
   | MemberCertAuthnIdentity
+  | AnyCertAuthnIdentity
   | JwtAuthnIdentity
   | MemberCOSESign1AuthnIdentity
   | UserCOSESign1AuthnIdentity
