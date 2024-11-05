@@ -298,11 +298,10 @@ namespace ccf::crypto
     {
       EVP_PKEY_free(pkey);
 
-      unsigned long err = ERR_get_error();
-      char err_msg[256];
-      ERR_error_string_n(err, err_msg, sizeof(err_msg));
       throw std::logic_error(fmt::format(
-        "Error loading public key. Curve: {}, err: {}", curve_name, err_msg));
+        "Error loading public key. Curve: {}, err: {}",
+        curve_name,
+        OpenSSL::error_string(ERR_get_error())));
     }
 
     Unique_PKEY pk(pkey);
