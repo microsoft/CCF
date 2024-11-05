@@ -54,6 +54,8 @@ namespace ccf::crypto
     std::vector<uint8_t>& cipher,
     uint8_t tag[GCM_SIZE_TAG]) const
   {
+    assert(!aad.empty() || !plain.empty());
+
     std::vector<uint8_t> cb(plain.size());
     int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
@@ -62,6 +64,7 @@ namespace ccf::crypto
     CHECK1(EVP_EncryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
     if (!aad.empty())
       CHECK1(EVP_EncryptUpdate(ctx, NULL, &len, aad.data(), aad.size()));
+    len = 0;
     if (!plain.empty())
       CHECK1(
         EVP_EncryptUpdate(ctx, cb.data(), &len, plain.data(), plain.size()));
