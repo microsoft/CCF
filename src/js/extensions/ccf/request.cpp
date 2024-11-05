@@ -165,7 +165,7 @@ namespace ccf::js::extensions
         return caller;
       }
 
-      // For any cert, instead of and id-based lookup for the PEM cert and
+      // For any cert, instead of an id-based lookup for the PEM cert and
       // potential associated data, we directly retrieve the cert bytes as
       // DER from the identity object, as provided by the session, and
       // convert them to PEM.
