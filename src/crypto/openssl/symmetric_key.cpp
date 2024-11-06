@@ -69,15 +69,24 @@ namespace ccf::crypto
     {
       int aad_outl{0};
       CHECK1(EVP_EncryptUpdate(ctx, NULL, &aad_outl, aad.data(), aad.size()));
+
+// As we set out buffer to NULL, we expect the output length to be 0.
+// However, openssl 1.1.1 sets it to the input length, which doesn't break
+// the encryption, but still looks wrong.
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+      assert(aad_outl == 0);
+#endif
     }
 
-    std::vector<uint8_t> cb(plain.size());
+    std::vector<uint8_t> ciphertext(plain.size());
     if (!plain.empty())
     {
-      int plain_outl{0};
+      int cypher_outl{0};
       CHECK1(EVP_EncryptUpdate(
-        ctx, cb.data(), &plain_outl, plain.data(), plain.size()));
-      assert(static_cast<size_t>(plain_outl) == plain.size());
+        ctx, ciphertext.data(), &cypher_outl, plain.data(), plain.size()));
+
+      // As we use no padding, we expect the input and output lengths to match.
+      assert(static_cast<size_t>(cypher_outl) == plain.size());
     }
 
     int final_outl{0};
@@ -92,7 +101,7 @@ namespace ccf::crypto
 
     if (!plain.empty())
     {
-      cipher = std::move(cb);
+      cipher = std::move(ciphertext);
     }
   }
 
@@ -112,15 +121,24 @@ namespace ccf::crypto
     {
       int aad_outl{0};
       CHECK1(EVP_DecryptUpdate(ctx, NULL, &aad_outl, aad.data(), aad.size()));
+
+// As we set out buffer to NULL, we expect the output length to be 0.
+// However, openssl 1.1.1 sets it to the input length, which doesn't break
+// the encryption, but still looks wrong.
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+      assert(aad_outl == 0);
+#endif
     }
 
-    std::vector<uint8_t> pb(cipher.size());
+    std::vector<uint8_t> plaintext(cipher.size());
     if (!cipher.empty())
     {
-      int cipher_outl{0};
+      int plain_outl{0};
       CHECK1(EVP_DecryptUpdate(
-        ctx, pb.data(), &cipher_outl, cipher.data(), cipher.size()));
-      assert(cipher_outl == cipher.size());
+        ctx, plaintext.data(), &plain_outl, cipher.data(), cipher.size()));
+
+      // As we use no padding, we expect the input and output lengths to match.
+      assert(plain_outl == cipher.size());
     }
 
     CHECK1(EVP_CIPHER_CTX_ctrl(
@@ -138,7 +156,7 @@ namespace ccf::crypto
 
     if (!cipher.empty())
     {
-      plain = std::move(pb);
+      plain = std::move(plaintext);
     }
 
     return true;
