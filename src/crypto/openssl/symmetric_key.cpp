@@ -69,7 +69,6 @@ namespace ccf::crypto
     {
       int aad_outl{0};
       CHECK1(EVP_EncryptUpdate(ctx, NULL, &aad_outl, aad.data(), aad.size()));
-      assert(aad_outl == 0); // Because of NULL out buffer
     }
 
     std::vector<uint8_t> cb(plain.size());
@@ -113,7 +112,6 @@ namespace ccf::crypto
     {
       int aad_outl{0};
       CHECK1(EVP_DecryptUpdate(ctx, NULL, &aad_outl, aad.data(), aad.size()));
-      assert(aad_outl == 0); // Because of NULL out buffer
     }
 
     std::vector<uint8_t> pb(cipher.size());
