@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.0-dev6]
+
+[6.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev6
+
+### Added
+
+- Added a `ccf::any_cert_auth_policy` (C++), or `any_cert` (JS/TS), implementing TLS client certificate authentication, but without checking for the presence of the certificate in the governance user or member tables. This enables applications wanting to do so to perform user management in application space, using application tables (#6608).
+
 ## [6.0.0-dev5]
 
 [6.0.0-dev5]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev5

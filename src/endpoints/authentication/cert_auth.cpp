@@ -219,7 +219,7 @@ namespace ccf
     const auto& caller_cert = ctx->get_session_context()->caller_cert;
     if (caller_cert.empty())
     {
-      error_reason = "No caller user certificate";
+      error_reason = "No caller certificate";
       return nullptr;
     }
 
