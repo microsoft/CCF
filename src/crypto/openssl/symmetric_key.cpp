@@ -54,21 +54,40 @@ namespace ccf::crypto
     std::vector<uint8_t>& cipher,
     uint8_t tag[GCM_SIZE_TAG]) const
   {
-    assert(!aad.empty() || !plain.empty());
+    if (aad.empty() && plain.empty())
+    {
+      throw std::logic_error("aad and plain cannot both be empty");
+    }
 
-    std::vector<uint8_t> cb(plain.size());
-    int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
     CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher, NULL, key.data(), NULL));
+
     CHECK1(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), NULL));
     CHECK1(EVP_EncryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
+
     if (!aad.empty())
-      CHECK1(EVP_EncryptUpdate(ctx, NULL, &len, aad.data(), aad.size()));
-    len = 0;
+    {
+      int aad_outl{0};
+      CHECK1(EVP_EncryptUpdate(ctx, NULL, &aad_outl, aad.data(), aad.size()));
+      assert(aad_outl == 0); // Because of NULL out buffer
+    }
+
+    std::vector<uint8_t> cb(plain.size());
     if (!plain.empty())
-      CHECK1(
-        EVP_EncryptUpdate(ctx, cb.data(), &len, plain.data(), plain.size()));
-    CHECK1(EVP_EncryptFinal_ex(ctx, cb.data() + len, &len));
+    {
+      int plain_outl{0};
+      CHECK1(EVP_EncryptUpdate(
+        ctx, cb.data(), &plain_outl, plain.data(), plain.size()));
+      assert(static_cast<size_t>(plain_outl) == plain.size());
+    }
+
+    int final_outl{0};
+    CHECK1(EVP_EncryptFinal_ex(ctx, NULL, &final_outl));
+
+    // Final outl must be 0, as we use no padding and we call EncryptFinal_ex to
+    // follow the common workflow and perform final checks if any.
+    assert(final_outl == 0);
+
     CHECK1(
       EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, GCM_SIZE_TAG, &tag[0]));
 
@@ -85,32 +104,46 @@ namespace ccf::crypto
     std::span<const uint8_t> aad,
     std::vector<uint8_t>& plain) const
   {
-    std::vector<uint8_t> pb(cipher.size());
-
-    int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
     CHECK1(EVP_DecryptInit_ex(ctx, evp_cipher, NULL, NULL, NULL));
     CHECK1(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), NULL));
+
     CHECK1(EVP_DecryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
     if (!aad.empty())
-      CHECK1(EVP_DecryptUpdate(ctx, NULL, &len, aad.data(), aad.size()));
+    {
+      int aad_outl{0};
+      CHECK1(EVP_DecryptUpdate(ctx, NULL, &aad_outl, aad.data(), aad.size()));
+      assert(aad_outl == 0); // Because of NULL out buffer
+    }
 
-    len = 0;
+    std::vector<uint8_t> pb(cipher.size());
     if (!cipher.empty())
-      CHECK1(
-        EVP_DecryptUpdate(ctx, pb.data(), &len, cipher.data(), cipher.size()));
+    {
+      int cipher_outl{0};
+      CHECK1(EVP_DecryptUpdate(
+        ctx, pb.data(), &cipher_outl, cipher.data(), cipher.size()));
+      assert(cipher_outl == cipher.size());
+    }
 
     CHECK1(EVP_CIPHER_CTX_ctrl(
       ctx, EVP_CTRL_GCM_SET_TAG, GCM_SIZE_TAG, (uint8_t*)tag));
 
-    int r = EVP_DecryptFinal_ex(ctx, pb.data() + len, &len) > 0;
+    int final_outl{0};
+    if (EVP_DecryptFinal_ex(ctx, NULL, &final_outl) != 1)
+    {
+      return false;
+    }
 
-    if (r == 1 && !cipher.empty())
+    // Final outl must be 0, as we use no padding and we call EncryptFinal_ex to
+    // follow the common workflow and perform final checks if any.
+    assert(final_outl == 0);
+
+    if (!cipher.empty())
     {
       plain = std::move(pb);
     }
 
-    return r == 1;
+    return true;
   }
 
   std::vector<uint8_t> KeyAesGcm_OpenSSL::ckm_aes_key_wrap_pad(
