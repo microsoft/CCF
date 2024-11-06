@@ -436,6 +436,11 @@ function describe_member_cert_ident(lines, obj) {
   lines.push(`The caller's cert is:\n${obj.cert}`);
 }
 
+function describe_any_cert_ident(lines, obj) {
+  lines.push("Any TLS cert");
+  lines.push(`The caller's cert is:\n${obj.cert}`);
+}
+
 function describe_jwt_ident(lines, obj) {
   lines.push("JWT");
   lines.push(
@@ -468,6 +473,7 @@ export function multi_auth(request) {
   const describers = {
     user_cert: describe_user_cert_ident,
     member_cert: describe_member_cert_ident,
+    any_cert: describe_any_cert_ident,
     jwt: describe_jwt_ident,
     user_cose_sign1: describe_cose_ident,
     no_auth: describe_noauth_ident,

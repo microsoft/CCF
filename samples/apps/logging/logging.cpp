@@ -290,6 +290,17 @@ namespace loggingapp
         return response;
       }
       else if (
+        auto any_cert_ident =
+          dynamic_cast<const ccf::AnyCertAuthnIdentity*>(caller.get()))
+      {
+        auto response = std::string("Any TLS cert");
+        auto caller_cert = ccf::crypto::cert_der_to_pem(any_cert_ident->cert);
+
+        response +=
+          fmt::format("\nThe caller's cert is:\n{}", caller_cert.str());
+        return response;
+      }
+      else if (
         auto jwt_ident =
           dynamic_cast<const ccf::JwtAuthnIdentity*>(caller.get()))
       {
@@ -1168,6 +1179,7 @@ namespace loggingapp
          user_cert_jwt_and_sig_auth_policy,
          ccf::user_cert_auth_policy,
          ccf::member_cert_auth_policy,
+         ccf::any_cert_auth_policy,
          ccf::jwt_auth_policy,
          ccf::user_cose_sign1_auth_policy,
          ccf::empty_auth_policy})

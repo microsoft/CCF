@@ -114,4 +114,38 @@ namespace ccf
       return SECURITY_SCHEME_NAME;
     };
   };
+
+  struct AnyCertAuthnIdentity : public AuthnIdentity
+  {
+    // Certificate as a vector of DER-encoded bytes
+    std::vector<uint8_t> cert;
+  };
+
+  class AnyCertAuthnPolicy : public AuthnPolicy
+  {
+  protected:
+    std::unique_ptr<ValidityPeriodsCache> validity_periods;
+
+  public:
+    static constexpr auto SECURITY_SCHEME_NAME = "any_cert";
+
+    AnyCertAuthnPolicy();
+    virtual ~AnyCertAuthnPolicy();
+
+    std::unique_ptr<AuthnIdentity> authenticate(
+      ccf::kv::ReadOnlyTx& tx,
+      const std::shared_ptr<ccf::RpcContext>& ctx,
+      std::string& error_reason) override;
+
+    std::optional<OpenAPISecuritySchema> get_openapi_security_schema()
+      const override
+    {
+      return get_cert_based_security_schema();
+    }
+
+    virtual std::string get_security_scheme_name() override
+    {
+      return SECURITY_SCHEME_NAME;
+    };
+  };
 }

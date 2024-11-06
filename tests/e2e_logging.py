@@ -665,6 +665,13 @@ def test_multi_auth(network, args):
             assert r.body.text().startswith("Member TLS cert"), r.body.text()
             require_new_response(r)
 
+        # Create a keypair that is not a user
+        network.create_user("not_a_user", args.participants_curve, record=False)
+        with primary.client("not_a_user") as c:
+            r = c.post("/app/multi_auth")
+            assert r.body.text().startswith("Any TLS cert"), r.body.text()
+            require_new_response(r)
+
         LOG.info("Authenticate via JWT token")
         jwt_issuer = infra.jwt_issuer.JwtIssuer()
         jwt_issuer.register(network)
