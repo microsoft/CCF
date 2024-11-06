@@ -117,6 +117,7 @@ namespace ccf
 
     if (!validity_periods->is_cert_valid_now(caller_cert, error_reason))
     {
+      // Error is set by the call when necessary
       return nullptr;
     }
 
@@ -202,5 +203,34 @@ namespace ccf
 
     error_reason = "Could not find matching node certificate";
     return nullptr;
+  }
+
+  AnyCertAuthnPolicy::AnyCertAuthnPolicy() :
+    validity_periods(std::make_unique<ValidityPeriodsCache>())
+  {}
+
+  AnyCertAuthnPolicy::~AnyCertAuthnPolicy() = default;
+
+  std::unique_ptr<AuthnIdentity> AnyCertAuthnPolicy::authenticate(
+    ccf::kv::ReadOnlyTx& tx,
+    const std::shared_ptr<ccf::RpcContext>& ctx,
+    std::string& error_reason)
+  {
+    const auto& caller_cert = ctx->get_session_context()->caller_cert;
+    if (caller_cert.empty())
+    {
+      error_reason = "No caller certificate";
+      return nullptr;
+    }
+
+    if (!validity_periods->is_cert_valid_now(caller_cert, error_reason))
+    {
+      // Error is set by the call when necessary
+      return nullptr;
+    }
+
+    auto identity = std::make_unique<AnyCertAuthnIdentity>();
+    identity->cert = caller_cert;
+    return identity;
   }
 }

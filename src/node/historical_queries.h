@@ -265,14 +265,14 @@ namespace ccf::historical
           auto new_it = new_seqnos.begin();
           while (new_it != new_seqnos.end())
           {
-            if (*new_it == prev_it->first)
+            if (prev_it != my_stores.end() && *new_it == prev_it->first)
             {
               // Asking for a seqno which was also requested previously - do
               // nothing and advance to compare next entries
               ++new_it;
               ++prev_it;
             }
-            else if (*new_it > prev_it->first)
+            else if (prev_it != my_stores.end() && *new_it > prev_it->first)
             {
               // No longer looking for a seqno which was previously requested.
               // Remove it from my_stores

@@ -154,9 +154,6 @@ namespace CREATE_KEYPAIRS
   auto create_256r1 = benchmark_create<KeyPair_OpenSSL, CurveID::SECP256R1>;
   PICOBENCH(create_256r1).iterations({1000}).samples(10);
 
-  auto create_256k1 = benchmark_create<KeyPair_OpenSSL, CurveID::SECP256K1>;
-  PICOBENCH(create_256k1).iterations({1000}).samples(10);
-
   auto create_384r1 = benchmark_create<KeyPair_OpenSSL, CurveID::SECP384R1>;
   PICOBENCH(create_384r1).iterations({1000}).samples(10);
 }
@@ -191,22 +188,6 @@ namespace SIGN_SECP256R1
   auto sign_256r1_ossl_100k =
     benchmark_sign<KeyPair_OpenSSL, CurveID::SECP256R1, 102400>;
   PICOBENCH(sign_256r1_ossl_100k).PICO_SUFFIX(CurveID::SECP256R1);
-}
-
-PICOBENCH_SUITE("sign secp256k1");
-namespace SIGN_SECP256K1
-{
-  auto sign_256k1_ossl_1byte =
-    benchmark_sign<KeyPair_OpenSSL, CurveID::SECP256K1, 1>;
-  PICOBENCH(sign_256k1_ossl_1byte).PICO_SUFFIX(CurveID::SECP256K1);
-
-  auto sign_256k1_ossl_1k =
-    benchmark_sign<KeyPair_OpenSSL, CurveID::SECP256K1, 1024>;
-  PICOBENCH(sign_256k1_ossl_1k).PICO_SUFFIX(CurveID::SECP256K1);
-
-  auto sign_256k1_ossl_100k =
-    benchmark_sign<KeyPair_OpenSSL, CurveID::SECP256K1, 102400>;
-  PICOBENCH(sign_256k1_ossl_100k).PICO_SUFFIX(CurveID::SECP256K1);
 }
 
 PICOBENCH_SUITE("verify secp384r1");
@@ -251,28 +232,6 @@ namespace SECP256R1
     CurveID::SECP256R1,
     102400>;
   PICOBENCH(verify_256r1_ossl_100k).PICO_SUFFIX(CurveID::SECP256R1);
-}
-
-PICOBENCH_SUITE("verify secp256k1");
-namespace SECP256K1
-{
-  auto verify_256k1_ossl_1byte =
-    benchmark_verify<KeyPair_OpenSSL, PublicKey_OpenSSL, CurveID::SECP256K1, 1>;
-  PICOBENCH(verify_256k1_ossl_1byte).PICO_SUFFIX(CurveID::SECP256K1);
-
-  auto verify_256k1_ossl_1k = benchmark_verify<
-    KeyPair_OpenSSL,
-    PublicKey_OpenSSL,
-    CurveID::SECP256K1,
-    1024>;
-  PICOBENCH(verify_256k1_ossl_1k).PICO_SUFFIX(CurveID::SECP256K1);
-
-  auto verify_256k1_ossl_100k = benchmark_verify<
-    KeyPair_OpenSSL,
-    PublicKey_OpenSSL,
-    CurveID::SECP256K1,
-    102400>;
-  PICOBENCH(verify_256k1_ossl_100k).PICO_SUFFIX(CurveID::SECP256K1);
 }
 
 PICOBENCH_SUITE("sign RSA-2048");

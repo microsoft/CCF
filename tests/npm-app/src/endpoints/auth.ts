@@ -36,6 +36,8 @@ export function checkMultiAuth(request: ccfapp.Request): ccfapp.Response {
     describe_user_cert_ident(lines, request.caller);
   } else if (request.caller.policy === "member_cert") {
     describe_member_cert_ident(lines, request.caller);
+  } else if (request.caller.policy === "any_cert") {
+    describe_any_cert_ident(lines, request.caller);
   } else if (request.caller.policy === "jwt") {
     describe_jwt_ident(lines, request.caller);
   } else if (request.caller.policy === "user_cose_sign1") {
@@ -70,6 +72,14 @@ function describe_member_cert_ident(
   lines.push("Member TLS cert");
   lines.push(`The caller is a member with ID: ${obj.id}`);
   lines.push(`The caller's user data is: ${JSON.stringify(obj.data, null, 2)}`);
+  lines.push(`The caller's cert is:\n${obj.cert}`);
+}
+
+function describe_any_cert_ident(
+  lines: Lines,
+  obj: ccfapp.AnyCertAuthnIdentity,
+) {
+  lines.push("Any TLS cert");
   lines.push(`The caller's cert is:\n${obj.cert}`);
 }
 

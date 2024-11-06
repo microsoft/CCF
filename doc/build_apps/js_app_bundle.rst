@@ -70,6 +70,7 @@ Each endpoint object contains the following information:
 
   - ``"user_cert"``
   - ``"member_cert"``
+  - ``"any_cert"``
   - ``"jwt"``
   - ``"user_cose_sign1"``
   - ``"no_auth"``

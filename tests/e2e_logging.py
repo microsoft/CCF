@@ -665,6 +665,13 @@ def test_multi_auth(network, args):
             assert r.body.text().startswith("Member TLS cert"), r.body.text()
             require_new_response(r)
 
+        # Create a keypair that is not a user
+        network.create_user("not_a_user", args.participants_curve, record=False)
+        with primary.client("not_a_user") as c:
+            r = c.post("/app/multi_auth")
+            assert r.body.text().startswith("Any TLS cert"), r.body.text()
+            require_new_response(r)
+
         LOG.info("Authenticate via JWT token")
         jwt_issuer = infra.jwt_issuer.JwtIssuer()
         jwt_issuer.register(network)
@@ -1015,6 +1022,18 @@ def test_cose_signature_schema(network, args):
 def test_cose_receipt_schema(network, args):
     primary, _ = network.find_nodes()
 
+    # Make sure the last transaction does not contain application claims
+    member = network.consortium.get_any_active_member()
+    r = member.update_ack_state_digest(primary)
+    with primary.client() as client:
+        client.wait_for_commit(r)
+
+    service_cert_path = os.path.join(network.common_dir, "service_cert.pem")
+    service_cert = load_pem_x509_certificate(
+        open(service_cert_path, "rb").read(), default_backend()
+    )
+    service_key = service_cert.public_key()
+
     with primary.client("user0") as client:
         r = client.get("/commit")
         assert r.status_code == http.HTTPStatus.OK
@@ -1031,8 +1050,10 @@ def test_cose_receipt_schema(network, args):
                     headers={infra.clients.CCF_TX_ID_HEADER: txid},
                     log_capture=[],  # Do not emit raw binary to stdout
                 )
+
                 if r.status_code == http.HTTPStatus.OK:
                     cbor_proof = r.body.data()
+                    ccf.cose.verify_receipt(cbor_proof, service_key, b"\0" * 32)
                     cbor_proof_filename = os.path.join(
                         network.common_dir, f"receipt_{txid}.cose"
                     )

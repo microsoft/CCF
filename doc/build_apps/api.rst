@@ -63,6 +63,9 @@ Policies
 .. doxygenvariable:: ccf::member_cert_auth_policy
    :project: CCF
 
+.. doxygenvariable:: ccf::any_cert_auth_policy
+   :project: CCF
+
 .. doxygenvariable:: ccf::member_cose_sign1_auth_policy
    :project: CCF
 
@@ -83,6 +86,10 @@ Identities
    :members:
 
 .. doxygenstruct:: ccf::MemberCertAuthnIdentity
+   :project: CCF
+   :members:
+
+.. doxygenstruct:: ccf::AnyCertAuthnIdentity
    :project: CCF
    :members:
 

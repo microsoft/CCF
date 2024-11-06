@@ -386,7 +386,7 @@ export interface CCFCrypto {
   /**
    * Generate an ECDSA key pair.
    *
-   * @param curve The name of the curve, one of "secp256r1", "secp256k1", "secp384r1".
+   * @param curve The name of the curve, one of "secp256r1", "secp384r1".
    */
   generateEcdsaKeyPair(curve: string): CryptoKeyPair;
 
