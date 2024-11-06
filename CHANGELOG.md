@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [5.0.8]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.8
 
+### Added
+
+- Added a `ccf::any_cert_auth_policy` (C++), or `any_cert` (JS/TS), implementing TLS client certificate authentication, but without checking for the presence of the certificate in the governance user or member tables. This enables applications wanting to do so to perform user management in application space, using application tables (#6608).
 - Set VMPL value when creating SNP attestations, and check VMPL value is in guest range when verifiying attestation, since recent [updates allow host-initiated attestations](https://www.amd.com/content/dam/amd/en/documents/epyc-technical-docs/programmer-references/56860.pdf) (#6583).
 
 ## [5.0.7]
