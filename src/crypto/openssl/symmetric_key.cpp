@@ -92,8 +92,11 @@ namespace ccf::crypto
     int final_outl{0};
     CHECK1(EVP_EncryptFinal_ex(ctx, NULL, &final_outl));
 
-    // Final outl must be 0, as we use no padding and we call EncryptFinal_ex to
-    // follow the common workflow and perform final checks if any.
+    // As long a we use GSM cipher, the final outl must be 0, because there's no
+    // padding and the block size is equal to 1, so EncryptUpdate() always does
+    // the whole thing. Final is still a must to finalize and check the error.
+    //
+    // See https://docs.openssl.org/3.3/man3/EVP_EncryptInit/#aead-interface.
     assert(final_outl == 0);
 
     CHECK1(
@@ -150,8 +153,11 @@ namespace ccf::crypto
       return false;
     }
 
-    // Final outl must be 0, as we use no padding and we call EncryptFinal_ex to
-    // follow the common workflow and perform final checks if any.
+    // As long a we use GSM cipher, the final outl must be 0, because there's no
+    // padding and the block size is equal to 1, so EncryptUpdate() always does
+    // the whole thing. Final is still a must to finalize and check the error.
+    //
+    // See https://docs.openssl.org/3.3/man3/EVP_EncryptInit/#aead-interface.
     assert(final_outl == 0);
 
     if (!cipher.empty())
