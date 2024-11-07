@@ -616,15 +616,15 @@ namespace ccf
         disp, ::tcp::tcp_inbound, [this](const uint8_t* data, size_t size) {
           auto id = serialized::peek<ccf::tls::ConnID>(data, size);
 
-          auto search = sessions.find(id);
-          if (search == sessions.end())
+          auto session = find_session(id);
+          if (session == nullptr)
           {
             LOG_DEBUG_FMT(
               "Ignoring tls_inbound for unknown or refused session: {}", id);
             return;
           }
 
-          search->second.second->handle_incoming_data({data, size});
+          session->handle_incoming_data({data, size});
         });
 
       DISPATCHER_SET_MESSAGE_HANDLER(
@@ -644,6 +644,7 @@ namespace ccf
         disp, udp::udp_inbound, [this](const uint8_t* data, size_t size) {
           auto id = serialized::peek<int64_t>(data, size);
 
+          // TODO: Take lock when accessing sessions
           auto search = sessions.find(id);
           if (search == sessions.end())
           {
