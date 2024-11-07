@@ -54,22 +54,57 @@ namespace ccf::crypto
     std::vector<uint8_t>& cipher,
     uint8_t tag[GCM_SIZE_TAG]) const
   {
-    std::vector<uint8_t> cb(plain.size());
-    int len = 0;
+    if (aad.empty() && plain.empty())
+    {
+      throw std::logic_error("aad and plain cannot both be empty");
+    }
+
     Unique_EVP_CIPHER_CTX ctx;
     CHECK1(EVP_EncryptInit_ex(ctx, evp_cipher, NULL, key.data(), NULL));
+
     CHECK1(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), NULL));
     CHECK1(EVP_EncryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
+
     if (!aad.empty())
-      CHECK1(EVP_EncryptUpdate(ctx, NULL, &len, aad.data(), aad.size()));
-    CHECK1(EVP_EncryptUpdate(ctx, cb.data(), &len, plain.data(), plain.size()));
-    CHECK1(EVP_EncryptFinal_ex(ctx, cb.data() + len, &len));
+    {
+      int aad_outl{0};
+      CHECK1(EVP_EncryptUpdate(ctx, NULL, &aad_outl, aad.data(), aad.size()));
+
+// As we set out buffer to NULL, we expect the output length to be 0.
+// However, openssl 1.1.1 sets it to the input length, which doesn't break
+// the encryption, but still looks wrong.
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+      assert(aad_outl == 0);
+#endif
+    }
+
+    std::vector<uint8_t> ciphertext(plain.size());
+    if (!plain.empty())
+    {
+      int cypher_outl{0};
+      CHECK1(EVP_EncryptUpdate(
+        ctx, ciphertext.data(), &cypher_outl, plain.data(), plain.size()));
+
+      // As we use no padding, we expect the input and output lengths to match.
+      assert(static_cast<size_t>(cypher_outl) == plain.size());
+    }
+
+    int final_outl{0};
+    CHECK1(EVP_EncryptFinal_ex(ctx, NULL, &final_outl));
+
+    // As long a we use GSM cipher, the final outl must be 0, because there's no
+    // padding and the block size is equal to 1, so EncryptUpdate() always does
+    // the whole thing. Final is still a must to finalize and check the error.
+    //
+    // See https://docs.openssl.org/3.3/man3/EVP_EncryptInit/#aead-interface.
+    assert(final_outl == 0);
+
     CHECK1(
       EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, GCM_SIZE_TAG, &tag[0]));
 
     if (!plain.empty())
     {
-      cipher = std::move(cb);
+      cipher = std::move(ciphertext);
     }
   }
 
@@ -80,28 +115,57 @@ namespace ccf::crypto
     std::span<const uint8_t> aad,
     std::vector<uint8_t>& plain) const
   {
-    std::vector<uint8_t> pb(cipher.size());
-
-    int len = 0;
     Unique_EVP_CIPHER_CTX ctx;
     CHECK1(EVP_DecryptInit_ex(ctx, evp_cipher, NULL, NULL, NULL));
     CHECK1(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, iv.size(), NULL));
+
     CHECK1(EVP_DecryptInit_ex(ctx, NULL, NULL, key.data(), iv.data()));
     if (!aad.empty())
-      CHECK1(EVP_DecryptUpdate(ctx, NULL, &len, aad.data(), aad.size()));
-    CHECK1(
-      EVP_DecryptUpdate(ctx, pb.data(), &len, cipher.data(), cipher.size()));
+    {
+      int aad_outl{0};
+      CHECK1(EVP_DecryptUpdate(ctx, NULL, &aad_outl, aad.data(), aad.size()));
+
+// As we set out buffer to NULL, we expect the output length to be 0.
+// However, openssl 1.1.1 sets it to the input length, which doesn't break
+// the encryption, but still looks wrong.
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+      assert(aad_outl == 0);
+#endif
+    }
+
+    std::vector<uint8_t> plaintext(cipher.size());
+    if (!cipher.empty())
+    {
+      int plain_outl{0};
+      CHECK1(EVP_DecryptUpdate(
+        ctx, plaintext.data(), &plain_outl, cipher.data(), cipher.size()));
+
+      // As we use no padding, we expect the input and output lengths to match.
+      assert(plain_outl == cipher.size());
+    }
+
     CHECK1(EVP_CIPHER_CTX_ctrl(
       ctx, EVP_CTRL_GCM_SET_TAG, GCM_SIZE_TAG, (uint8_t*)tag));
 
-    int r = EVP_DecryptFinal_ex(ctx, pb.data() + len, &len) > 0;
-
-    if (r == 1 && !cipher.empty())
+    int final_outl{0};
+    if (EVP_DecryptFinal_ex(ctx, NULL, &final_outl) != 1)
     {
-      plain = std::move(pb);
+      return false;
     }
 
-    return r == 1;
+    // As long a we use GSM cipher, the final outl must be 0, because there's no
+    // padding and the block size is equal to 1, so EncryptUpdate() always does
+    // the whole thing. Final is still a must to finalize and check the error.
+    //
+    // See https://docs.openssl.org/3.3/man3/EVP_EncryptInit/#aead-interface.
+    assert(final_outl == 0);
+
+    if (!cipher.empty())
+    {
+      plain = std::move(plaintext);
+    }
+
+    return true;
   }
 
   std::vector<uint8_t> KeyAesGcm_OpenSSL::ckm_aes_key_wrap_pad(
