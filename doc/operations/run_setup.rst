@@ -8,26 +8,19 @@ First, follow the steps described in :doc:`/build_apps/install_bin`.
 
 Then, to quickly set up the dependencies necessary to start CCF applications, simply run:
 
-.. tab:: SGX
-
-    .. code-block:: bash
-
-        $ cd /opt/ccf_sgx/getting_started/setup_vm
-        $ ./run.sh app-run.yml --extra-vars "platform=sgx" --extra-vars "clang_version=11"
-
 .. tab:: SNP
 
     .. code-block:: bash
 
         $ cd /opt/ccf_snp/getting_started/setup_vm
-        $ ./run.sh app-run.yml --extra-vars "platform=snp" --extra-vars "clang_version=15"
+        $ ./run.sh app-run.yml --extra-vars "platform=snp"
 
 .. tab:: Virtual
 
     .. code-block:: bash
 
         $ cd /opt/ccf_virtual/getting_started/setup_vm
-        $ ./run.sh app-run.yml --extra-vars "platform=virtual" --extra-vars "clang_version=15"
+        $ ./run.sh app-run.yml --extra-vars "platform=virtual"
 
 
 Runtime Containers
