@@ -1000,8 +1000,9 @@ if(BUILD_TESTS)
     )
   endif()
 
+  # Picobench benchmarks
   if(NOT TSAN)
-    # Picobench benchmarks
+    # Skip performance benchmarks when TASN is enabled - some are vvv slow
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
@@ -1025,402 +1026,395 @@ if(BUILD_TESTS)
     )
     add_picobench(merkle_bench SRCS src/node/test/merkle_bench.cpp)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
+  endif()
 
-    if(LONG_TESTS)
-      set(ADDITIONAL_RECOVERY_ARGS --with-load)
-
-      add_e2e_test(
-        NAME recovery_test_cft_api_0
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-        ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "classic"
-      )
-    endif()
+  if(LONG_TESTS)
+    set(ADDITIONAL_RECOVERY_ARGS --with-load)
 
     add_e2e_test(
-      NAME recovery_test_cft_api_1
+      NAME recovery_test_cft_api_0
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
-      ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version
-                      "2024-07-01"
-    )
-
-    add_e2e_test(
-      NAME recovery_test_suite
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-      LABEL suite
-      ADDITIONAL_ARGS
-        --test-duration
-        150
-        --test-suite
-        rekey_recovery
-        --test-suite
-        membership_recovery
-        --jinja-templates-path
-        ${CMAKE_SOURCE_DIR}/samples/templates
-    )
-
-    add_e2e_test(
-      NAME reconfiguration_test_suite
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-      LABEL suite
-      ADDITIONAL_ARGS
-        --test-duration 200 --test-suite reconfiguration --jinja-templates-path
-        ${CMAKE_SOURCE_DIR}/samples/templates
-    )
-
-    if(LONG_TESTS)
-      add_e2e_test(
-        NAME regression_test_suite
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-        LABEL suite
-        ADDITIONAL_ARGS --test-duration 200 --test-suite regression_5236
-      )
-    endif()
-
-    add_e2e_test(
-      NAME full_test_suite
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-      LABEL suite
-      ADDITIONAL_ARGS
-        --oe-binary
-        ${OE_BINDIR}
-        --ledger-recovery-timeout
-        20
-        --test-duration
-        200
-        --test-suite
-        all
-        --jinja-templates-path
-        ${CMAKE_SOURCE_DIR}/samples/templates
-    )
-
-    add_e2e_test(
-      NAME committable_suffix_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
-      ADDITIONAL_ARGS --sig-ms-interval 100
-    )
-
-    add_e2e_test(
-      NAME commit_latency
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
-      LABEL perf
-    )
-
-    add_e2e_test(
-      NAME js_batched_stress_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
-      ADDITIONAL_ARGS
-        --js-app-bundle
-        ${CMAKE_SOURCE_DIR}/src/apps/batched
-        --election-timeout-ms
-        10000 # Larger election timeout as recording large JS applications may
-              # trigger leadership changes
-    )
-
-    add_e2e_test(
-      NAME modules_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
-      ADDITIONAL_ARGS
-        --package
-        libjs_generic
-        --election-timeout-ms
-        10000 # Larger election timeout as recording
-        # large JS applications may trigger leadership changes
-    )
-
-    add_e2e_test(
-      NAME auth
-      PYTHON_SCRIPT
-        ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
-      ADDITIONAL_ARGS --package libjs_generic --js-app-bundle
-                      ${CMAKE_SOURCE_DIR}/tests
-    )
-
-    add_e2e_test(
-      NAME launch_host_process_test
-      PYTHON_SCRIPT
-        ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
-      ADDITIONAL_ARGS --js-app-bundle
-                      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
-    )
-
-    set(CONSTITUTION_ARGS
-        --constitution
-        ${CCF_DIR}/samples/constitutions/default/actions.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/test/test_actions.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/default/validate.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/test/resolve.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/default/apply.js
-    )
-
-    add_e2e_test(
-      NAME governance_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-      CONSTITUTION ${CONSTITUTION_ARGS}
-      ADDITIONAL_ARGS
-        --oe-binary ${OE_BINDIR} --initial-operator-count 1
-        --jinja-templates-path ${CMAKE_SOURCE_DIR}/samples/templates
-    )
-
-    add_e2e_test(
-      NAME jwt_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
-      LABEL snp_flaky
-    )
-
-    add_e2e_test(
-      NAME code_update_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
-                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-    )
-
-    if(BUILD_TPCC)
-      include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tpcc/tpcc.cmake)
-    endif()
-
-    if(CLIENT_PROTOCOLS_TEST)
-      add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
-        COMMAND
-          rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
-          --branch v3.0.7 --single-branch
-          https://github.com/drwetter/testssl.sh
-          ${CMAKE_CURRENT_BINARY_DIR}/testssl
-      )
-      add_custom_target(
-        testssl ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
-      )
-    endif()
-
-    add_e2e_test(
-      NAME e2e_logging_cft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      ADDITIONAL_ARGS --js-app-bundle
-                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-    )
-
-    set(RBAC_CONSTITUTION_ARGS
-        --constitution
-        ${CCF_DIR}/samples/constitutions/default/actions.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/roles/set_role_definition.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/default/validate.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/default/resolve.js
-        --constitution
-        ${CCF_DIR}/samples/constitutions/default/apply.js
-    )
-
-    add_e2e_test(
-      NAME programmability
-      CONSTITUTION ${RBAC_CONSTITUTION_ARGS}
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
-    )
-
-    # This test uses large requests (so too slow for SAN)
-    if(NOT SAN)
-      add_e2e_test(
-        NAME e2e_limits PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/limits.py
-      )
-    endif()
-
-    add_e2e_test(
-      NAME e2e_redirects
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
-      ADDITIONAL_ARGS --js-app-bundle
-                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-    )
-
-    add_e2e_test(
-      NAME e2e_logging_http2
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
-      ADDITIONAL_ARGS --js-app-bundle
-                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js --http2
-    )
-
-    if(LONG_TESTS)
-      add_e2e_test(
-        NAME membership_api_0
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-        ADDITIONAL_ARGS --gov-api-version "classic"
-      )
-    endif()
-
-    add_e2e_test(
-      NAME membership_api_1
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
-      ADDITIONAL_ARGS --gov-api-version "2024-07-01"
-    )
-
-    set(PARTITIONS_TEST_ARGS
-        # Higher snapshot interval as the test currently assumes that no
-        # transactions
-        # are emitted while partitions are up. To be removed when
-        # https://github.com/microsoft/CCF/issues/2577 is implemented
-        --snapshot-tx-interval 10000
-    )
-
-    add_e2e_test(
-      NAME partitions_cft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
-      LABEL partitions
-      CONFIGURATIONS partitions
-      ADDITIONAL_ARGS ${PARTITIONS_TEST_ARGS}
-    )
-
-    add_e2e_test(
-      NAME connections_cft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
-    )
-
-    add_e2e_test(
-      NAME consistency_trace_validation
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
-      LABEL snp_flaky
-    )
-
-    add_e2e_test(
-      NAME fuzz_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
-    )
-
-    if(CLIENT_PROTOCOLS_TEST)
-      add_e2e_test(
-        NAME client_protocols
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/client_protocols.py
-        LABEL protocolstest
-      )
-    endif()
-
-    add_e2e_test(
-      NAME schema_test_cft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
-      ADDITIONAL_ARGS
-        --schema-dir
-        ${CMAKE_SOURCE_DIR}/doc/schemas
-        --ledger-tutorial
-        ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
-        --config-samples-dir
-        ${CMAKE_SOURCE_DIR}/samples/config
-        --config-file-1x
-        ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
-    )
-
-    list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
-         ${CCF_VERSION}
-    )
-    if(LONG_TESTS)
-      list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
-    endif()
-
-    if(NOT SAN)
-      add_e2e_test(
-        NAME lts_compatibility
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
-        LABEL e2e
-        ADDITIONAL_ARGS ${LTS_TEST_ARGS}
-      )
-      set_property(
-        TEST lts_compatibility
-        APPEND
-        PROPERTY ENVIRONMENT "LTS_COMPAT_GOV_CLIENT=1"
-      )
-    endif()
-
-    if(LONG_TESTS)
-      set(ROTATION_TEST_ARGS --rotation-retirements 10)
-    endif()
-
-    add_e2e_test(
-      NAME rotation_test_cft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
-      LABEL rotation
-      ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
-    )
-
-    set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
-    add_e2e_test(
-      NAME reconfiguration_test_cft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
-    )
-
-    add_e2e_test(
-      NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
-    )
-
-    if(LONG_TESTS)
-      add_e2e_test(
-        NAME acme_endorsement_test
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
-        LABEL ACME
-      )
-    endif()
-
-    add_piccolo_test(
-      NAME pi_ls
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-      CLIENT_BIN ./submit PERF_LABEL "Logging"
-      ADDITIONAL_ARGS --package "samples/apps/logging/liblogging"
-                      --max-writes-ahead 1000 --repetitions 10000
-    )
-
-    add_piccolo_test(
-      NAME pi_basic
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-      CLIENT_BIN ./submit PERF_LABEL "Basic"
-      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
-                      "1,write,100000,primary"
-    )
-
-    add_piccolo_test(
-      NAME pi_basic_js
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-      CLIENT_BIN ./submit PERF_LABEL "Basic JS"
-      ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
-                      --client-def "1,write,100000,primary"
-    )
-
-    if(WORKER_THREADS)
-      add_piccolo_test(
-        NAME pi_basic_mt
-        PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
-        CLIENT_BIN ./submit PERF_LABEL "Basic Multi-Threaded"
-        ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
-                        "${WORKER_THREADS},write,100000,primary"
-      )
-    endif()
-
-    add_piccolo_test(
-      NAME pi_ls_jwt
-      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
-      CLIENT_BIN ./submit PERF_LABEL "Logging JWT"
-      ADDITIONAL_ARGS
-        --package
-        "samples/apps/logging/liblogging"
-        --max-writes-ahead
-        1000
-        --repetitions
-        1000
-        --use-jwt
-    )
-
-    add_e2e_test(
-      NAME historical_query_perf_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
-      LABEL perf PERF_LABEL "Historical Queries"
-      CONFIGURATIONS perf
-    )
-
-    add_e2e_test(
-      NAME historical_query_cache_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_cache.py
+      ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "classic"
     )
   endif()
+
+  add_e2e_test(
+    NAME recovery_test_cft_api_1
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/recovery.py
+    ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "2024-07-01"
+  )
+
+  add_e2e_test(
+    NAME recovery_test_suite
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+    LABEL suite
+    ADDITIONAL_ARGS
+      --test-duration
+      150
+      --test-suite
+      rekey_recovery
+      --test-suite
+      membership_recovery
+      --jinja-templates-path
+      ${CMAKE_SOURCE_DIR}/samples/templates
+  )
+
+  add_e2e_test(
+    NAME reconfiguration_test_suite
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+    LABEL suite
+    ADDITIONAL_ARGS
+      --test-duration 200 --test-suite reconfiguration --jinja-templates-path
+      ${CMAKE_SOURCE_DIR}/samples/templates
+  )
+
+  if(LONG_TESTS)
+    add_e2e_test(
+      NAME regression_test_suite
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+      LABEL suite
+      ADDITIONAL_ARGS --test-duration 200 --test-suite regression_5236
+    )
+  endif()
+
+  add_e2e_test(
+    NAME full_test_suite
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+    LABEL suite
+    ADDITIONAL_ARGS
+      --oe-binary
+      ${OE_BINDIR}
+      --ledger-recovery-timeout
+      20
+      --test-duration
+      200
+      --test-suite
+      all
+      --jinja-templates-path
+      ${CMAKE_SOURCE_DIR}/samples/templates
+  )
+
+  add_e2e_test(
+    NAME committable_suffix_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/committable.py
+    ADDITIONAL_ARGS --sig-ms-interval 100
+  )
+
+  add_e2e_test(
+    NAME commit_latency
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/commit_latency.py
+    LABEL perf
+  )
+
+  add_e2e_test(
+    NAME js_batched_stress_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_batched.py
+    ADDITIONAL_ARGS
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/src/apps/batched
+      --election-timeout-ms
+      10000 # Larger election timeout as recording large JS applications may
+            # trigger leadership changes
+  )
+
+  add_e2e_test(
+    NAME modules_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/js-modules/modules.py
+    ADDITIONAL_ARGS
+      --package libjs_generic --election-timeout-ms
+      10000 # Larger election timeout as recording
+      # large JS applications may trigger leadership changes
+  )
+
+  add_e2e_test(
+    NAME auth
+    PYTHON_SCRIPT
+      ${CMAKE_SOURCE_DIR}/tests/js-custom-authorization/custom_authorization.py
+    ADDITIONAL_ARGS --package libjs_generic --js-app-bundle
+                    ${CMAKE_SOURCE_DIR}/tests
+  )
+
+  add_e2e_test(
+    NAME launch_host_process_test
+    PYTHON_SCRIPT
+      ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process/host_process.py
+    ADDITIONAL_ARGS --js-app-bundle
+                    ${CMAKE_SOURCE_DIR}/tests/js-launch-host-process
+  )
+
+  set(CONSTITUTION_ARGS
+      --constitution
+      ${CCF_DIR}/samples/constitutions/default/actions.js
+      --constitution
+      ${CCF_DIR}/samples/constitutions/test/test_actions.js
+      --constitution
+      ${CCF_DIR}/samples/constitutions/default/validate.js
+      --constitution
+      ${CCF_DIR}/samples/constitutions/test/resolve.js
+      --constitution
+      ${CCF_DIR}/samples/constitutions/default/apply.js
+  )
+
+  add_e2e_test(
+    NAME governance_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+    CONSTITUTION ${CONSTITUTION_ARGS}
+    ADDITIONAL_ARGS
+      --oe-binary ${OE_BINDIR} --initial-operator-count 1
+      --jinja-templates-path ${CMAKE_SOURCE_DIR}/samples/templates
+  )
+
+  add_e2e_test(
+    NAME jwt_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/jwt_test.py
+    LABEL snp_flaky
+  )
+
+  add_e2e_test(
+    NAME code_update_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
+                    ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+  )
+
+  if(BUILD_TPCC)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tpcc/tpcc.cmake)
+  endif()
+
+  if(CLIENT_PROTOCOLS_TEST)
+    add_custom_command(
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
+      COMMAND
+        rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
+        --branch v3.0.7 --single-branch https://github.com/drwetter/testssl.sh
+        ${CMAKE_CURRENT_BINARY_DIR}/testssl
+    )
+    add_custom_target(
+      testssl ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
+    )
+  endif()
+
+  add_e2e_test(
+    NAME e2e_logging_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+  )
+
+  set(RBAC_CONSTITUTION_ARGS
+      --constitution
+      ${CCF_DIR}/samples/constitutions/default/actions.js
+      --constitution
+      ${CCF_DIR}/samples/constitutions/roles/set_role_definition.js
+      --constitution
+      ${CCF_DIR}/samples/constitutions/default/validate.js
+      --constitution
+      ${CCF_DIR}/samples/constitutions/default/resolve.js
+      --constitution
+      ${CCF_DIR}/samples/constitutions/default/apply.js
+  )
+
+  add_e2e_test(
+    NAME programmability
+    CONSTITUTION ${RBAC_CONSTITUTION_ARGS}
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/programmability.py
+  )
+
+  # This test uses large requests (so too slow for SAN)
+  if(NOT SAN)
+    add_e2e_test(
+      NAME e2e_limits PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/limits.py
+    )
+  endif()
+
+  add_e2e_test(
+    NAME e2e_redirects
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/redirects.py
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+  )
+
+  add_e2e_test(
+    NAME e2e_logging_http2
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_logging.py
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+                    --http2
+  )
+
+  if(LONG_TESTS)
+    add_e2e_test(
+      NAME membership_api_0
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
+      ADDITIONAL_ARGS --gov-api-version "classic"
+    )
+  endif()
+
+  add_e2e_test(
+    NAME membership_api_1
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/membership.py
+    ADDITIONAL_ARGS --gov-api-version "2024-07-01"
+  )
+
+  set(PARTITIONS_TEST_ARGS
+      # Higher snapshot interval as the test currently assumes that no
+      # transactions
+      # are emitted while partitions are up. To be removed when
+      # https://github.com/microsoft/CCF/issues/2577 is implemented
+      --snapshot-tx-interval 10000
+  )
+
+  add_e2e_test(
+    NAME partitions_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/partitions_test.py
+    LABEL partitions
+    CONFIGURATIONS partitions
+    ADDITIONAL_ARGS ${PARTITIONS_TEST_ARGS}
+  )
+
+  add_e2e_test(
+    NAME connections_cft PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/connections.py
+  )
+
+  add_e2e_test(
+    NAME consistency_trace_validation
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/consistency_trace_validation.py
+    LABEL snp_flaky
+  )
+
+  add_e2e_test(
+    NAME fuzz_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/fuzzing.py
+  )
+
+  if(CLIENT_PROTOCOLS_TEST)
+    add_e2e_test(
+      NAME client_protocols
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/client_protocols.py
+      LABEL protocolstest
+    )
+  endif()
+
+  add_e2e_test(
+    NAME schema_test_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
+    ADDITIONAL_ARGS
+      --schema-dir
+      ${CMAKE_SOURCE_DIR}/doc/schemas
+      --ledger-tutorial
+      ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
+      --config-samples-dir
+      ${CMAKE_SOURCE_DIR}/samples/config
+      --config-file-1x
+      ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
+  )
+
+  list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
+       ${CCF_VERSION}
+  )
+  if(LONG_TESTS)
+    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
+  endif()
+
+  if(NOT SAN)
+    add_e2e_test(
+      NAME lts_compatibility
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+      LABEL e2e
+      ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+    )
+    set_property(
+      TEST lts_compatibility
+      APPEND
+      PROPERTY ENVIRONMENT "LTS_COMPAT_GOV_CLIENT=1"
+    )
+  endif()
+
+  if(LONG_TESTS)
+    set(ROTATION_TEST_ARGS --rotation-retirements 10)
+  endif()
+
+  add_e2e_test(
+    NAME rotation_test_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/rotation.py
+    LABEL rotation
+    ADDITIONAL_ARGS ${ROTATION_TEST_ARGS}
+  )
+
+  set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
+  add_e2e_test(
+    NAME reconfiguration_test_cft
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
+    ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
+  )
+
+  add_e2e_test(
+    NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
+  )
+
+  if(LONG_TESTS)
+    add_e2e_test(
+      NAME acme_endorsement_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/acme_endorsement.py
+      LABEL ACME
+    )
+  endif()
+
+  add_piccolo_test(
+    NAME pi_ls
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
+    CLIENT_BIN ./submit PERF_LABEL "Logging"
+    ADDITIONAL_ARGS --package "samples/apps/logging/liblogging"
+                    --max-writes-ahead 1000 --repetitions 10000
+  )
+
+  add_piccolo_test(
+    NAME pi_basic
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
+    CLIENT_BIN ./submit PERF_LABEL "Basic"
+    ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+                    "1,write,100000,primary"
+  )
+
+  add_piccolo_test(
+    NAME pi_basic_js
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
+    CLIENT_BIN ./submit PERF_LABEL "Basic JS"
+    ADDITIONAL_ARGS --js-app-bundle ${CMAKE_SOURCE_DIR}/samples/apps/basic/js
+                    --client-def "1,write,100000,primary"
+  )
+
+  if(WORKER_THREADS)
+    add_piccolo_test(
+      NAME pi_basic_mt
+      PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/basicperf.py
+      CLIENT_BIN ./submit PERF_LABEL "Basic Multi-Threaded"
+      ADDITIONAL_ARGS --package "samples/apps/basic/libbasic" --client-def
+                      "${WORKER_THREADS},write,100000,primary"
+    )
+  endif()
+
+  add_piccolo_test(
+    NAME pi_ls_jwt
+    PYTHON_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/tests/infra/piccolo_driver.py
+    CLIENT_BIN ./submit PERF_LABEL "Logging JWT"
+    ADDITIONAL_ARGS
+      --package
+      "samples/apps/logging/liblogging"
+      --max-writes-ahead
+      1000
+      --repetitions
+      1000
+      --use-jwt
+  )
+
+  add_e2e_test(
+    NAME historical_query_perf_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_perf.py
+    LABEL perf PERF_LABEL "Historical Queries"
+    CONFIGURATIONS perf
+  )
+
+  add_e2e_test(
+    NAME historical_query_cache_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/historical_query_cache.py
+  )
 endif()
 
 # Generate and install CMake export file for consumers using CMake
