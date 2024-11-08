@@ -1,12 +1,19 @@
 # For ThreadSanitizerSuppressions
+
 # https://github.com/google/sanitizers/wiki/ThreadSanitizerSuppressions
 
 # Awkward usages of '*' in this file like '/ds/*ring_buffer.h' are necessary to handle the cases where tsan thinks
+
 # src/ds/ring_buffer.h as src/ds/test/../ring_buffer.h for example
 
 # For partitions_test
-deadlock:*/store.h
-deadlock:*/untyped_map.h
+
+# deadlock:\*/store.h
+
+# deadlock:\*/untyped_map.h
 
 # For governance_test
-race:*/node/*rpc/*frontend.h
+
+# race:*/node/*rpc/\*frontend.h
+
+deadlock:enclave_create_node
