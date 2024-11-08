@@ -674,7 +674,6 @@ namespace ccf
     bool init_from_snapshot(
       const std::vector<uint8_t>& hash_at_snapshot) override
     {
-      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
       // The history can be initialised after a snapshot has been applied by
       // deserialising the tree in the signatures table and then applying the
       // hash of the transaction at which the snapshot was taken
@@ -688,6 +687,9 @@ namespace ccf
         return false;
       }
 
+      // Delay taking this lock until _after_ the read above, to avoid lock
+      // inversions
+      std::lock_guard<ccf::pal::Mutex> guard(state_lock);
       CCF_ASSERT_FMT(
         !replicated_state_tree.in_range(1),
         "Tree is not empty before initialising from snapshot");
