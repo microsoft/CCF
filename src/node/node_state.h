@@ -86,8 +86,6 @@ namespace ccf
     std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> node_sign_kp;
     NodeId self;
     std::shared_ptr<ccf::crypto::RSAKeyPair> node_encrypt_kp;
-    ccf::crypto::Pem self_signed_node_cert;
-    std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     pal::PlatformAttestationMeasurement node_measurement;
     StartupConfig config;
@@ -95,6 +93,12 @@ namespace ccf
     std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
+
+    // These certs are protected by their own mutex. They are updated within
+    // hooks where it is unsafe to lock the entire-state mutex.
+    pal::Mutex certs_lock;
+    ccf::crypto::Pem self_signed_node_cert;
+    std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
 
     std::atomic<bool> stop_noticed = false;
 
@@ -479,12 +483,15 @@ namespace ccf
       subject_alt_names = get_subject_alternative_names();
 
       js::register_class_ids();
-      self_signed_node_cert = create_self_signed_cert(
-        node_sign_kp,
-        config.node_certificate.subject_name,
-        subject_alt_names,
-        config.startup_host_time,
-        config.node_certificate.initial_validity_days);
+      {
+        std::lock_guard<pal::Mutex> certs_guard(certs_lock);
+        self_signed_node_cert = create_self_signed_cert(
+          node_sign_kp,
+          config.node_certificate.subject_name,
+          subject_alt_names,
+          config.startup_host_time,
+          config.node_certificate.initial_validity_days);
+      }
 
       accept_node_tls_connections();
       open_frontend(ActorsType::nodes);
@@ -572,11 +579,15 @@ namespace ccf
       auto network_ca = std::make_shared<::tls::CA>(std::string(
         config.join.service_cert.begin(), config.join.service_cert.end()));
 
-      auto join_client_cert = std::make_unique<::tls::Cert>(
-        network_ca,
-        self_signed_node_cert,
-        node_sign_kp->private_key_pem(),
-        config.join.target_rpc_address);
+      std::unique_ptr<::tls::Cert> join_client_cert;
+      {
+        std::lock_guard<pal::Mutex> certs_guard(certs_lock);
+        join_client_cert = std::make_unique<::tls::Cert>(
+          network_ca,
+          self_signed_node_cert,
+          node_sign_kp->private_key_pem(),
+          config.join.target_rpc_address);
+      }
 
       // Create RPC client and connect to remote node
       // Note: For now, assume that target node accepts same application
@@ -847,15 +858,19 @@ namespace ccf
           "auto-refresh");
         return;
       }
-      jwt_key_auto_refresh = std::make_shared<JwtKeyAutoRefresh>(
-        config.jwt.key_refresh_interval.count_s(),
-        network,
-        consensus,
-        rpcsessions,
-        rpc_map,
-        node_sign_kp,
-        self_signed_node_cert);
-      jwt_key_auto_refresh->start();
+
+      {
+        std::lock_guard<pal::Mutex> certs_guard(certs_lock);
+        jwt_key_auto_refresh = std::make_shared<JwtKeyAutoRefresh>(
+          config.jwt.key_refresh_interval.count_s(),
+          network,
+          consensus,
+          rpcsessions,
+          rpc_map,
+          node_sign_kp,
+          self_signed_node_cert);
+        jwt_key_auto_refresh->start();
+      }
 
       network.tables->set_map_hook(
         network.jwt_issuers.get_name(),
@@ -1767,7 +1782,7 @@ namespace ccf
 
     ccf::crypto::Pem get_self_signed_certificate() override
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::lock_guard<pal::Mutex> certs_guard(certs_lock);
       return self_signed_node_cert;
     }
 
@@ -1827,6 +1842,7 @@ namespace ccf
     {
       // Accept TLS connections, presenting self-signed (i.e. non-endorsed)
       // node certificate.
+      // NB: Assumes certs_lock already held
       rpcsessions->set_node_cert(
         self_signed_node_cert, node_sign_kp->private_key_pem());
       LOG_INFO_FMT("Node TLS connections now accepted");
@@ -1836,6 +1852,7 @@ namespace ccf
     {
       // Accept TLS connections, presenting node certificate signed by network
       // certificate
+      // NB: Assumes certs_lock already held
       CCF_ASSERT_FMT(
         endorsed_node_cert.has_value(),
         "Node certificate should be endorsed before accepting endorsed "
@@ -1993,8 +2010,12 @@ namespace ccf
 
     bool send_create_request(const std::vector<uint8_t>& packed)
     {
-      auto node_session = std::make_shared<SessionContext>(
-        InvalidSessionId, self_signed_node_cert.raw());
+      std::shared_ptr<SessionContext> node_session;
+      {
+        std::lock_guard<pal::Mutex> certs_guard(certs_lock);
+        node_session = std::make_shared<SessionContext>(
+          InvalidSessionId, self_signed_node_cert.raw());
+      }
       auto ctx = make_rpc_context(node_session, packed);
 
       std::shared_ptr<ccf::RpcHandler> search =
@@ -2245,11 +2266,13 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<pal::Mutex> guard(lock);
-
+              std::lock_guard<pal::Mutex> certs_guard(certs_lock);
               endorsed_node_cert = endorsed_certificate.value();
               history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
+
+              // Stop iterating once this node's cert has been found
+              break;
             }
 
             return ccf::kv::ConsensusHookPtr(nullptr);
@@ -2274,8 +2297,7 @@ namespace ccf
                   "Could not find endorsed node certificate for {}", self));
               }
 
-              std::lock_guard<pal::Mutex> guard(lock);
-
+              std::lock_guard<pal::Mutex> certs_guard(certs_lock);
               accept_network_tls_connections();
 
               if (is_member_frontend_open_unsafe())
@@ -2478,8 +2500,12 @@ namespace ccf
 
       auto shared_state = std::make_shared<aft::State>(self);
 
-      auto node_client = std::make_shared<HTTPNodeClient>(
-        rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
+      std::shared_ptr<HTTPNodeClient> node_client;
+      {
+        std::lock_guard<pal::Mutex> certs_guard(certs_lock);
+        node_client = std::make_shared<HTTPNodeClient>(
+          rpc_map, node_sign_kp, self_signed_node_cert, endorsed_node_cert);
+      }
 
       ccf::kv::MembershipState membership_state =
         ccf::kv::MembershipState::Active;
@@ -2676,8 +2702,8 @@ namespace ccf
       std::optional<ccf::crypto::Pem> client_cert_key = std::nullopt;
       if (authenticate_as_node_client_certificate)
       {
-        client_cert =
-          endorsed_node_cert ? *endorsed_node_cert : self_signed_node_cert;
+        std::lock_guard<pal::Mutex> certs_guard(certs_lock);
+        client_cert = endorsed_node_cert.value_or(self_signed_node_cert);
         client_cert_key = node_sign_kp->private_key_pem();
       }
 
