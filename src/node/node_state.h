@@ -464,7 +464,13 @@ namespace ccf
       StartupConfig&& config_,
       std::vector<uint8_t>&& startup_snapshot_)
     {
+      // This lock is currently unnecessary - this function executes while the
+      // node is single-threaded. Taking this lock also raises a potential lock
+      // cycle in TSAN. That is currently suppressed, but in future it may be
+      // simpler to extract this function to where it is more clearly and
+      // robustly single-threaded.
       std::lock_guard<pal::Mutex> guard(lock);
+
       sm.expect(NodeStartupState::initialized);
       start_type = start_type_;
 
