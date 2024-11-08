@@ -9,26 +9,12 @@ Quickstart
 CCF builds and runs on Linux. It is primarily developed and tested on Ubuntu 20.04.
 The dependencies required to build and run CCF apps can be conveniently installed using the ``ansible`` playbooks in the CCF repository or `Install`_, depending on the target TEE platform:
 
-.. tab:: SGX
-
-    Running CCF with full security guarantees requires :term:`SGX` hardware with :term:`FLC`.
-    CCF on SGX requires the following dependencies to be first installed on your system:
-
-    - :term:`Intel SGX PSW`
-    - :term:`Azure DCAP`
-    - :term:`Open Enclave`
-
-    .. code-block:: bash
-
-        $ cd <ccf_path>/getting_started/setup_vm/
-        $ ./run.sh app-dev.yml --extra-vars "platform=sgx" --extra-vars "clang_version=11"
-
 .. tab:: SNP
 
     .. code-block:: bash
 
         $ cd <ccf_path>/getting_started/setup_vm/
-        $ ./run.sh app-dev.yml --extra-vars "platform=snp" --extra-vars "clang_version=15"
+        $ ./run.sh app-dev.yml --extra-vars "platform=snp"
 
 .. tab:: Virtual
 
@@ -37,7 +23,7 @@ The dependencies required to build and run CCF apps can be conveniently installe
     .. code-block:: bash
 
         $ cd <ccf_path>/getting_started/setup_vm/
-        $ ./run.sh app-dev.yml --extra-vars "platform=virtual" --extra-vars "clang_version=15"
+        $ ./run.sh app-dev.yml --extra-vars "platform=virtual"
         
 This will install the latest release of CCF, but a specific release can also be specified with ``--extra-vars "ccf_ver=X.Y.Z"`` if desired.
 
