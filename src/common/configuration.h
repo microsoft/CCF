@@ -110,6 +110,9 @@ DECLARE_JSON_REQUIRED_FIELDS(
 DECLARE_JSON_TYPE(StartupConfig::Recover);
 DECLARE_JSON_REQUIRED_FIELDS(StartupConfig::Recover, previous_service_identity);
 
+DECLARE_JSON_TYPE(COSESignaturesConfig);
+DECLARE_JSON_REQUIRED_FIELDS(COSESignaturesConfig, issuer, subject);
+
 DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
   StartupConfig,
@@ -117,6 +120,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   snapshot_tx_interval,
   initial_service_certificate_validity_days,
   service_subject_name,
+  cose_signatures,
   service_data,
   node_data,
   start,

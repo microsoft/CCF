@@ -75,6 +75,14 @@ struct CCFConfig
   Attestation attestation = {};
 };
 
+struct COSESignaturesConfig
+{
+  std::string issuer;
+  std::string subject;
+
+  bool operator==(const COSESignaturesConfig&) const = default;
+};
+
 struct StartupConfig : CCFConfig
 {
   StartupConfig() = default;
@@ -86,6 +94,7 @@ struct StartupConfig : CCFConfig
   // Only if starting or recovering
   size_t initial_service_certificate_validity_days = 1;
   std::string service_subject_name = "CN=CCF Service";
+  COSESignaturesConfig cose_signatures;
 
   nlohmann::json service_data = nullptr;
 
