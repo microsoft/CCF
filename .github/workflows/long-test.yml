@@ -85,6 +85,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: "Install deps"
+        run: |
+          sudo apt-get -y update
+          sudo apt install ansible -y
+          cd getting_started/setup_vm
+          ansible-playbook ccf-extended-testing.yml
+
       - name: "Build"
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
