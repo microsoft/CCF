@@ -1193,7 +1193,7 @@ namespace ccf
         // Trigger a snapshot (at next signature) to ensure we have a working
         // snapshot signed by the current (now new) service identity, in case
         // we need to recover soon again.
-        trigger_snapshot(tx);
+        NodeState::trigger_snapshot_impl(tx);
 
         if (tx.commit() != ccf::kv::CommitResult::SUCCESS)
         {
@@ -1322,7 +1322,14 @@ namespace ccf
         ccf::kv::CommittableTx::Flag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
     }
 
+    // Virtual override for dispatch purposes, but actual implementation is
+    // stateless and static
     void trigger_snapshot(ccf::kv::Tx& tx) override
+    {
+      trigger_snapshot_impl(tx);
+    }
+
+    static void trigger_snapshot_impl(ccf::kv::Tx& tx)
     {
       auto committable_tx = static_cast<ccf::kv::CommittableTx*>(&tx);
       if (committable_tx == nullptr)
@@ -1420,11 +1427,14 @@ namespace ccf
         AppMessage::launch_host_process, to_host, json, input);
     }
 
+    // transition_service_to_open is a virtual override for dispatch purposes,
+    // but that actual implementation is almost stateless, so marked as static
+    // to make that clear
     void transition_service_to_open(
       ccf::kv::Tx& tx,
       AbstractGovernanceEffects::ServiceIdentities identities) override
     {
-      std::lock_guard<pal::Mutex> guard(lock);
+      std::unique_lock<pal::Mutex> guard(lock);
 
       auto service = tx.rw<Service>(Tables::SERVICE);
       auto service_info = service->get();
@@ -1496,6 +1506,13 @@ namespace ccf
       }
       else if (is_part_of_network())
       {
+        auto ident = network.identity->get_key_pair();
+
+        // Nothing after this relies on state, so the lock can be dropped,
+        // allowing the Tx interactions to run without triggering lock
+        // inversions
+        guard.unlock();
+
         // Otherwise, if the node is part of the network. Open the network
         // straight away. Recovery shares are allocated to each recovery
         // member.
@@ -1510,9 +1527,8 @@ namespace ccf
         }
 
         InternalTablesAccess::open_service(tx);
-        InternalTablesAccess::endorse_previous_identity(
-          tx, *network.identity->get_key_pair());
-        trigger_snapshot(tx);
+        InternalTablesAccess::endorse_previous_identity(tx, *ident);
+        NodeState::trigger_snapshot_impl(tx);
         return;
       }
       else
