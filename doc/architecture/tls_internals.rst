@@ -4,7 +4,7 @@ TLS Internals
 Overview
 ~~~~~~~~
 
-In CCF, the :term:`TLS` layer is implemented using OpenSSL 1.1.1 from :term:`Open Enclave` (OE). However, the original implementation was using OE's MbedTLS library, which the current implementation replaced. During the transition period, the OpenSSL implementation had to emulate the previous MbedTLS one and the remaining code isn't particularly suited to OpenSSL.
+In CCF, the :term:`TLS` layer is implemented using OpenSSL 1.1.1 or 3.1. However, the original implementation was using OE's MbedTLS library, which the current implementation replaced. During the transition period, the OpenSSL implementation had to emulate the previous MbedTLS one and the remaining code isn't particularly suited to OpenSSL.
 
 In addition, we'll soon be adding :term:`QUIC` support to CCF, which has its own usage of TLS (supporting OpenSSL, but from its own tree).
 
@@ -65,11 +65,7 @@ The main reasons why we moved to OpenSSL are:
 - We wanted TLS 1.3 support and MbedTLS doesn't have it.
 - We want to support QUIC, that doesn't work with MbedTLS.
 
-By now we have removed any traces of MbedTLS, but we are still using OE's OpenSSL library, which doesn't have QUIC support.
-
-To implement the last point above, we need to build QUIC with its own OpenSSL and use that as our library for the remaining crypto, but OE has its own modifications to OpenSSL as well, and we can't have both.
-
-So, for now, the only way to have QUIC support is in 'virtual' mode, retaining OE's OpenSSL for 'sgx' mode. Once we have other types of enclaves that don't require Open Enclave we can use QUIC's version, too.
+By now we have removed any traces of MbedTLS, but we are still using a version of OpenSSL which doesn't have QUIC support.
 
 MbedTLS vs OpenSSL
 ~~~~~~~~~~~~~~~~~~

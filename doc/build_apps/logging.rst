@@ -26,7 +26,7 @@ These logging functions do several things:
 - Variable substitution. See `libfmt <https://fmt.dev/latest/>`_ for more details of the formatting syntax used in C++
 - Declare the severity of the entry. CCF defines 5 levels (``trace``, ``debug``, ``info``, ``fail``, and ``fatal``), and production nodes will generally ignore entries below ``info``
 - Prefix formatted metadata. The produced log line will include a timestamp, the name and line number where the line was produced, and an ``[app]`` tag
-- Write without an ECALL. The final write must be handled by the host, so writing directly from the enclave would require an expensive ECALL. Instead these macros will queue writes to a ringbuffer for the host to process, so diagnostic logging should not cause significant performance drops
+- Queue writes to a ringbuffer for the host to process, so diagnostic logging should not cause significant performance drops
 
 .. note:: The app's logging entries will be interleaved (line-by-line) with the framework's logging messages. Filter for entries containing ``[app]`` to extract only application log lines.
 
