@@ -15,13 +15,6 @@ The CCF team welcome contributions to any part of the framework, including this 
 
     ---
 
-    :fa:`cloud` :doc:`create_vm`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Create a SGX-enabled Azure Virtual Machine.
-
-    ---
-
     :fa:`laptop-code` :doc:`build_setup`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -53,7 +46,6 @@ The CCF team welcome contributions to any part of the framework, including this 
     :hidden:
 
     onboarding
-    create_vm
     build_setup
     build_ccf
     release_ccf

@@ -343,7 +343,7 @@
             "$ref": "#/components/responses/default"
           }
         },
-        "summary": "Permitted SGX code identities",
+        "summary": "Permitted code identities",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }

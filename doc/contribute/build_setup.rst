@@ -17,7 +17,7 @@ Then, to quickly set up the dependencies necessary to build CCF itself and CCF a
 
 .. tab:: Virtual
 
-    .. warning:: The `virtual` version of CCF can also be run on hardware that does not support SGX/SNP. Virtual mode does not provide any security guarantees and should be used for development purposes only.
+    .. warning:: The `virtual` version of CCF can also be run on hardware that does not support SEV-SNP. Virtual mode does not provide any security guarantees and should be used for development purposes only.
 
     .. code-block:: bash
 
@@ -34,16 +34,13 @@ The quickest way to get started building CCF applications is to use the CCF buil
 .. code-block:: bash
 
     $ export VERSION="4.0.0"
-    $ export PLATFORM="sgx" # One of sgx, snp or virtual
+    $ export PLATFORM="snp" # snp or virtual
     $ docker pull mcr.microsoft.com/ccf/app/dev:$VERSION-$PLATFORM
 
 The container contains the latest release of CCF along with a complete build toolchain, and startup scripts.
 
-If your hardware does support SGX, and has the appropriate driver installed and loaded, then you will only need to expose the device to the container by passing ``--device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx`` when you start it. It can be run on hardware that does not support SGX, in which case you will want to use the virtual binaries, or build in `virtual mode`.
-
 .. note::
 
-    - When running the build container on SGX-enabled hardware, pass the ``--device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx`` options to use SGX in the container.
     - `virtual` mode provides no security guarantee. It is only useful for development and prototyping.
 
 Visual Studio Code Setup

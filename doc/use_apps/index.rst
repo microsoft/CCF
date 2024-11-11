@@ -19,13 +19,6 @@ This section describes how :term:`Users` can issue transactions to CCF applicati
 
     ---
 
-    :fa:`search` :doc:`verify_quote`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Checking the quote of a CCF node to confirm it is part of a valid network and running in Enclave.
-
-    ---
-
     :fa:`terminal` :doc:`rpc_api`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -37,5 +30,4 @@ This section describes how :term:`Users` can issue transactions to CCF applicati
 
     issue_commands
     verify_tx
-    verify_quote
     rpc_api

@@ -37,13 +37,6 @@ C++ Apps
 
 The ``ghcr.io/microsoft/ccf/app/run/*`` containers can be run to deploy C++ apps. They contain the ``cchost`` binary and the dependencies required to spin up a CCF node.
 
-.. tab:: SGX
-
-    .. code-block:: bash
-
-        $ export VERSION="5.0.0-rc0"
-        $ docker pull ghcr.io/microsoft/ccf/app/run/sgx:ccf-$VERSION
-
 .. tab:: SNP
 
     .. code-block:: bash
@@ -63,13 +56,6 @@ JavaScript/TypeScript Apps
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``ghcr.io/microsoft/ccf/app/run-js/*`` containers can be run to deploy JavaScript/TypeScripts apps. They contain the ``cchost`` binary, the ``libjs_generic`` native application to run JavaScript/TypeScript apps, and the dependencies required to spin up a CCF node.
-
-.. tab:: SGX
-
-    .. code-block:: bash
-
-        $ export VERSION="5.0.0-rc0"
-        $ docker pull ghcr.io/microsoft/ccf/app/run-js/sgx:ccf-$VERSION
 
 .. tab:: SNP
 
