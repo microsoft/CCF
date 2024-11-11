@@ -11,16 +11,26 @@ First, checkout the CCF repository:
 
 To build CCF from source, run the following:
 
-.. code-block:: bash
+.. tab:: SNP
 
-    $ cd CCF
-    $ mkdir build
-    $ cd build
-    # Virtual build, insecure but can run anywhere
-    $ cmake -GNinja -DCOMPILE_TARGET=virtual ..
-    # SEV-SNP build, secure but requires supported hardware to run
-    $ cmake -GNinja -DCOMPILE_TARGET=snp .. 
-    $ ninja
+    .. code-block:: bash
+
+        $ cd CCF
+        $ mkdir build
+        $ cd build
+        $ cmake -GNinja -DCOMPILE_TARGET=snp .. 
+        $ ninja
+
+
+.. tab:: Virtual
+
+    .. code-block:: bash
+
+        $ cd CCF
+        $ mkdir build
+        $ cd build
+        $ cmake -GNinja -DCOMPILE_TARGET=virtual ..
+        $ ninja
 
 .. note:::
 
