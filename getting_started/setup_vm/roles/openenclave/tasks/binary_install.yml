@@ -1,7 +1,0 @@
-- name: Include vars
-  include_vars: common.yml
-
-- name: Install Open Enclave
-  apt:
-    deb: "{{ oe_deb }}"
-  become: yes

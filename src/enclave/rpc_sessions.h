@@ -644,59 +644,66 @@ namespace ccf
         disp, udp::udp_inbound, [this](const uint8_t* data, size_t size) {
           auto id = serialized::peek<int64_t>(data, size);
 
-          // TODO: Take lock when accessing sessions
-          auto search = sessions.find(id);
-          if (search == sessions.end())
+          std::shared_ptr<Session> session;
           {
-            LOG_DEBUG_FMT(
-              "Ignoring udp::udp_inbound for unknown or refused session: {}",
-              id);
-            return;
-          }
-          else if (!search->second.second && custom_protocol_subsystem)
-          {
-            LOG_DEBUG_FMT("Creating custom UDP session {}", id);
+            std::lock_guard<ccf::pal::Mutex> guard(lock);
 
-            try
+            auto search = sessions.find(id);
+            if (search == sessions.end())
             {
-              const auto& conn_id = search->first;
-              const auto& interface_id = search->second.first;
+              LOG_DEBUG_FMT(
+                "Ignoring udp::udp_inbound for unknown or refused session: {}",
+                id);
+              return;
+            }
+            else if (!search->second.second && custom_protocol_subsystem)
+            {
+              LOG_DEBUG_FMT("Creating custom UDP session {}", id);
 
-              auto iit = listening_interfaces.find(interface_id);
-              if (iit == listening_interfaces.end())
+              try
               {
-                LOG_DEBUG_FMT(
-                  "Failure to create custom protocol session because of "
-                  "unknown interface '{}', ignoring udp::udp_inbound for "
-                  "session: "
-                  "{}",
-                  interface_id,
-                  id);
+                const auto& conn_id = search->first;
+                const auto& interface_id = search->second.first;
+
+                auto iit = listening_interfaces.find(interface_id);
+                if (iit == listening_interfaces.end())
+                {
+                  LOG_DEBUG_FMT(
+                    "Failure to create custom protocol session because of "
+                    "unknown interface '{}', ignoring udp::udp_inbound for "
+                    "session: "
+                    "{}",
+                    interface_id,
+                    id);
+                }
+
+                const auto& interface = iit->second;
+
+                search->second.second =
+                  custom_protocol_subsystem->create_session(
+                    interface.app_protocol, conn_id, nullptr);
+
+                if (!search->second.second)
+                {
+                  LOG_DEBUG_FMT(
+                    "Failure to create custom protocol session, ignoring "
+                    "udp::udp_inbound for session: {}",
+                    id);
+                  return;
+                }
               }
-
-              const auto& interface = iit->second;
-
-              search->second.second = custom_protocol_subsystem->create_session(
-                interface.app_protocol, conn_id, nullptr);
-
-              if (!search->second.second)
+              catch (const std::exception& ex)
               {
                 LOG_DEBUG_FMT(
-                  "Failure to create custom protocol session, ignoring "
-                  "udp::udp_inbound for session: {}",
-                  id);
+                  "Failure to create custom protocol session: {}", ex.what());
                 return;
               }
             }
-            catch (const std::exception& ex)
-            {
-              LOG_DEBUG_FMT(
-                "Failure to create custom protocol session: {}", ex.what());
-              return;
-            }
+
+            session = search->second.second;
           }
 
-          search->second.second->handle_incoming_data({data, size});
+          session->handle_incoming_data({data, size});
         });
     }
   };

@@ -22,7 +22,7 @@ The following diagram shows a basic CCF network made of 3 nodes. All nodes run t
 Network and Nodes
 ~~~~~~~~~~~~~~~~~
 
-A CCF network consists of several nodes, each running on top of a Trusted Execution Environment (:term:`TEE`), such as Intel :term:`SGX`. A CCF network is decentralised and highly-available.
+A CCF network consists of several nodes, each running on top of a Trusted Execution Environment (:term:`TEE`), such as AMD :term:`SEV-SNP`. A CCF network is decentralised and highly-available.
 
 Nodes are run and maintained by :term:`Operators`. However, nodes must be trusted by the consortium of members before participating in a CCF network.
 
