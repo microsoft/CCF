@@ -370,7 +370,8 @@ namespace ccf
           this->network.ledger_secrets->get(tx),
           *this->network.identity.get(),
           service_status,
-          endorsed_certificate};
+          endorsed_certificate,
+          std::nullopt /* cose_signatures_config */};
       }
       return make_success(rep);
     }
@@ -485,7 +486,8 @@ namespace ccf
                 args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
               active_service->status,
-              existing_node_info->endorsed_certificate);
+              existing_node_info->endorsed_certificate,
+              std::nullopt /* cose_signatures_config */);
 
             return make_success(rep);
           }
@@ -561,7 +563,8 @@ namespace ccf
                 args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
               active_service->status,
-              existing_node_info->endorsed_certificate);
+              existing_node_info->endorsed_certificate,
+              std::nullopt /* cose_signatures_config */);
 
             return make_success(rep);
           }

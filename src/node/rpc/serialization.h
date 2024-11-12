@@ -60,7 +60,8 @@ namespace ccf
     service_status,
     endorsed_certificate,
     reconfiguration_type,
-    consensus_type)
+    consensus_type,
+    cose_signatures_config)
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status)
   DECLARE_JSON_OPTIONAL_FIELDS(
