@@ -20,11 +20,6 @@ if [ ! -f "${VERSION_FILE}" ]; then
     PLATFORM_FILE=PLATFORM
 fi
 platform=$(<"${PLATFORM_FILE}")
-if [ "${platform}" == "sgx" ]; then
-    enclave_type="release"
-else
-    enclave_type="debug"
-fi
 
 extra_args=()
 while [ "$1" != "" ]; do
@@ -119,7 +114,6 @@ export CURL_CLIENT=ON
 export INITIAL_MEMBER_COUNT=1
 exec python "${START_NETWORK_SCRIPT}" \
     --binary-dir "${BINARY_DIR}" \
-    --enclave-type "${enclave_type}" \
     --enclave-platform "${platform}" \
     --constitution "${CONSTITUTION_DIR}"/actions.js \
     --constitution "${CONSTITUTION_DIR}"/validate.js \

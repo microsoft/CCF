@@ -45,7 +45,7 @@ For example, deploying the generic JS application:
 
 .. note::
 
-    - ``sandbox.sh`` defaults to using CCF's `virtual` mode, which does not require or make use of TEEs. To load debug or release enclaves and make use of TEEs, ``--enclave-type`` must be set to the right value, for example: ``sandbox.sh --enclave-type release -p ./libjs.enclave.so.signed``
+    - ``sandbox.sh`` automatically uses the platform which either the local build or install of CCF targeted, i.e. either Virtual or SNP.
     - The ``--verbose`` argument can be used to display all commands issued by operators and members to start the network.
 
 The command output shows the addresses of the CCF nodes where commands may be submitted (ie, via ``curl https://127.0.0.1:8000/...``).
