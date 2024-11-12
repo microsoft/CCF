@@ -24,6 +24,7 @@ namespace ccf
     ccf::crypto::Pem cert;
     std::optional<IdentityType> type = IdentityType::REPLICATED;
     std::string subject_name = "CN=CCF Service";
+    COSESignaturesConfig cose_signatures_config;
     std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> kp{};
 
     std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> get_key_pair()
@@ -39,12 +40,14 @@ namespace ccf
     bool operator==(const NetworkIdentity& other) const
     {
       return cert == other.cert && priv_key == other.priv_key &&
-        type == other.type && subject_name == other.subject_name;
+        type == other.type && subject_name == other.subject_name &&
+        cose_signatures_config == other.cose_signatures_config;
     }
 
-    NetworkIdentity(const std::string& subject_name_) :
+    NetworkIdentity(const std::string& subject_name_, const COSESignaturesConfig& cose_signatures_config_):
       type(IdentityType::REPLICATED),
-      subject_name(subject_name_)
+      subject_name(subject_name_),
+      cose_signatures_config(cose_signatures_config_)
     {}
     NetworkIdentity() = default;
 

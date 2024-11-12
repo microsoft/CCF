@@ -39,7 +39,12 @@
         "maximum_service_certificate_validity_days": {{ maximum_service_certificate_validity_days }}
       },
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
-      "service_subject_name": {{ service_subject_name|tojson }}
+      "service_subject_name": {{ service_subject_name|tojson }},
+      "cose_signatures":
+      {
+        "issuer": {{ cose_signatures_issuer or "service.example.com" }},
+        "subject": {{ cose_signatures_subject or "ledger.signature" }}
+      }
     },
     "join":
     {

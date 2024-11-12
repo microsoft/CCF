@@ -640,6 +640,7 @@ int main(int argc, char** argv)
         config.command.start.initial_service_certificate_validity_days;
       startup_config.service_subject_name =
         config.command.start.service_subject_name;
+      startup_config.cose_signatures = config.command.start.cose_signatures;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",

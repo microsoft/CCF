@@ -296,6 +296,19 @@
                     "default": "CN=CCF Service",
                     "description": "Subject name to include in service certificate. Can only be set once on service start."
                   },
+                  "cose_signatures": {
+                    "type": "object",
+                    "properties": {
+                      "issuer": {
+                        "type": "string",
+                        "description": "Issuer, set in CWT_Claims of COSE ledger signatures. Can only be set once on service start."
+                      },
+                      "subject": {
+                        "type": "string",
+                        "description": "Subject, set in CWT_Claims of COSE ledger signatures. Can only be set once on service start."
+                      }
+                    }
+                  },
                   "members": {
                     "type": "array",
                     "items": {
