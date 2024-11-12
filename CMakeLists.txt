@@ -1002,7 +1002,7 @@ if(BUILD_TESTS)
 
   # Picobench benchmarks
   if(NOT TSAN)
-    # Skip performance benchmarks when TASN is enabled - some are vvv slow
+    # Skip performance benchmarks when TSAN is enabled - some are vvv slow
     add_picobench(map_bench SRCS src/ds/test/map_bench.cpp)
     add_picobench(logger_bench SRCS src/ds/test/logger_bench.cpp)
     add_picobench(json_bench SRCS src/ds/test/json_bench.cpp)
