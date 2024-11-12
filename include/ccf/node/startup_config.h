@@ -75,14 +75,6 @@ struct CCFConfig
   Attestation attestation = {};
 };
 
-struct COSESignaturesConfig
-{
-  std::string issuer;
-  std::string subject;
-
-  bool operator==(const COSESignaturesConfig&) const = default;
-};
-
 struct StartupConfig : CCFConfig
 {
   StartupConfig() = default;
