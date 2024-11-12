@@ -366,7 +366,6 @@ namespace ccf
         rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo{
           node_operation.is_part_of_public_network(),
           node_operation.get_last_recovered_signed_idx(),
-          ReconfigurationType::ONE_TRANSACTION,
           this->network.ledger_secrets->get(tx),
           *this->network.identity.get(),
           service_status,
@@ -481,7 +480,6 @@ namespace ccf
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               node_operation.is_part_of_public_network(),
               node_operation.get_last_recovered_signed_idx(),
-              ReconfigurationType::ONE_TRANSACTION,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
@@ -558,7 +556,6 @@ namespace ccf
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
               node_operation.is_part_of_public_network(),
               node_operation.get_last_recovered_signed_idx(),
-              ReconfigurationType::ONE_TRANSACTION,
               this->network.ledger_secrets->get(
                 args.tx, existing_node_info->ledger_secret_seqno),
               *this->network.identity.get(),
