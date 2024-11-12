@@ -373,7 +373,7 @@ Note that this removes the sandboxing protections described above. If the conten
 
 This behaviour is controlled in ``app.json``, with the ``"interpreter_reuse"`` property on each endpoint. The default behaviour, taken when the field is omitted, is to avoid any interpreter reuse, providing strict sandboxing safety. To reuse an interpreter, set ``"interpreter_reuse"`` to an object of the form ``{"key": "foo"}``, where ``foo`` is an arbitrary, app-defined string. Interpreters will be shared between endpoints where this string matches. For instance:
 
-.. code-block:: json
+.. code-block:: yaml
 
     {
       "endpoints": {
