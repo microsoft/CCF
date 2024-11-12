@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/curve.h"
+#include "ccf/node/cose_signatures_config.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/key_pair.h"
 
@@ -44,7 +45,9 @@ namespace ccf
         cose_signatures_config == other.cose_signatures_config;
     }
 
-    NetworkIdentity(const std::string& subject_name_, const COSESignaturesConfig& cose_signatures_config_):
+    NetworkIdentity(
+      const std::string& subject_name_,
+      const COSESignaturesConfig& cose_signatures_config_) :
       type(IdentityType::REPLICATED),
       subject_name(subject_name_),
       cose_signatures_config(cose_signatures_config_)
@@ -71,8 +74,9 @@ namespace ccf
       const std::string& subject_name_,
       ccf::crypto::CurveID curve_id,
       const std::string& valid_from,
-      size_t validity_period_days) :
-      NetworkIdentity(subject_name_)
+      size_t validity_period_days,
+      const COSESignaturesConfig& cose_signatures_config_) :
+      NetworkIdentity(subject_name_, cose_signatures_config_)
     {
       auto identity_key_pair =
         std::make_shared<ccf::crypto::KeyPair_OpenSSL>(curve_id);
@@ -87,7 +91,7 @@ namespace ccf
     }
 
     ReplicatedNetworkIdentity(const NetworkIdentity& other) :
-      NetworkIdentity(other.subject_name)
+      NetworkIdentity(other.subject_name, other.cose_signatures_config)
     {
       if (type != other.type)
       {

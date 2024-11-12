@@ -501,7 +501,8 @@ namespace ccf
             config.service_subject_name,
             curve_id,
             config.startup_host_time,
-            config.initial_service_certificate_validity_days);
+            config.initial_service_certificate_validity_days,
+            config.cose_signatures);
 
           network.ledger_secrets->init();
 
@@ -540,7 +541,8 @@ namespace ccf
             ccf::crypto::get_subject_name(previous_service_identity_cert),
             curve_id,
             config.startup_host_time,
-            config.initial_service_certificate_validity_days);
+            config.initial_service_certificate_validity_days,
+            config.cose_signatures);
 
           history->set_service_kp(network.identity->get_key_pair());
 

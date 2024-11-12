@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/curve.h"
 #include "ccf/ds/unit_strings.h"
+#include "ccf/node/cose_signatures_config.h"
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/service/consensus_config.h"
 #include "ccf/service/node_info_network.h"
