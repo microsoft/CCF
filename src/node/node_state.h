@@ -8,6 +8,7 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/js/core/context.h"
+#include "ccf/node/cose_signatures_config.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/locking.h"
 #include "ccf/pal/platform.h"
@@ -506,7 +507,8 @@ namespace ccf
 
           network.ledger_secrets->init();
 
-          history->set_service_kp(network.identity->get_key_pair());
+          history->set_service_signing_identity(
+            network.identity->get_key_pair(), config.cose_signatures);
 
           setup_consensus(
             ServiceStatus::OPENING,
@@ -544,7 +546,8 @@ namespace ccf
             config.initial_service_certificate_validity_days,
             config.cose_signatures);
 
-          history->set_service_kp(network.identity->get_key_pair());
+          history->set_service_signing_identity(
+            network.identity->get_key_pair(), config.cose_signatures);
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -656,12 +659,20 @@ namespace ccf
           // Set network secrets, node id and become part of network.
           if (resp.node_status == NodeStatus::TRUSTED)
           {
+            if (!resp.network_info.has_value())
+            {
+              throw std::logic_error("Expected network info in join response");
+            }
+
             network.identity = std::make_unique<ReplicatedNetworkIdentity>(
               resp.network_info->identity);
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
 
-            history->set_service_kp(network.identity->get_key_pair());
+            history->set_service_signing_identity(
+              network.identity->get_key_pair(),
+              resp.network_info->cose_signatures_config.value_or(
+                COSESignaturesConfig{}));
 
             ccf::crypto::Pem n2n_channels_cert;
             if (!resp.network_info->endorsed_certificate.has_value())

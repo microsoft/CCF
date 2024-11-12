@@ -341,6 +341,8 @@ class CCFRemote(object):
         snp_uvm_endorsements_file=None,
         service_subject_name="CN=CCF Test Service",
         historical_cache_soft_limit=None,
+        cose_signatures_issuer=None,
+        cose_signatures_subject=None,
         **kwargs,
     ):
         """

@@ -26,6 +26,8 @@ protected-headers = {
 }
 
 cwt-map = {
+  &(iss: 1) => tstr,                    ; "issuer", string
+  &(sub: 2) => tstr,                    ; "subject", string
   &(iat: 6) => int                      ; "issued at", number of seconds since the epoch
 }
 
