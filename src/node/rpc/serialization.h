@@ -33,9 +33,7 @@ namespace ccf
     public_encryption_key,
     startup_seqno)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    JoinNetworkNodeToNode::In,
-    certificate_signing_request,
-    node_data)
+    JoinNetworkNodeToNode::In, certificate_signing_request, node_data)
 
   DECLARE_JSON_ENUM(
     ccf::IdentityType,
