@@ -54,7 +54,7 @@ The joining node takes the certificate of the existing network to join via ``ser
 
 The join configuration option should be set in the :ref:`operations/configuration:``command.join``` section of the JSON configuration.
 
-A new node can only join an existing CCF network if its SGX quote is valid  [#remote_attestation]_. and runs an enclave application that is :ref:`trusted by the consortium <governance/common_member_operations:Updating Code Version>`.
+A new node can only join an existing CCF network if its hardware attestation is valid  [#remote_attestation]_. and runs an enclave application that is :ref:`trusted by the consortium <governance/common_member_operations:Updating Code Version>`.
 
 If the network has not yet been opened by members (see :ref:`governance/open_network:Opening the Network`), the joining node becomes part of the network immediately. Otherwise, if the network has already been opened to users, members need to trust the joining node before it can become part of the network and participate in the consensus (see :ref:`governance/common_member_operations:Trusting a New Node`).
 

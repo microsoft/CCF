@@ -122,7 +122,7 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 ``nodes.code_ids``
 ~~~~~~~~~~~~~~~~~~
 
-Versions of the code allowed to join the current network on :doc:`SGX <../operations/platforms/sgx>`.
+DEPRECATED. Previously contained versions of the code allowed to join the current network on SGX hardware.
 
 **Key** MRENCLAVE, represented as a base64 hex-encoded string (length: 64).
 

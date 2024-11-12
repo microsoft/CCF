@@ -17,7 +17,3 @@ However, this mode does not provide any security guarantees (e.g. no memory encr
 
 CCF itself can run on prem as well as in Azure. 
 However, for the :term:`TEE` security guarantees to be trusted by clients and operators, the deployment environment should have access to the endorsements of the TEE attestation reports.
-
-While Azure caches these endorsements transparently, on-prem CCF deployments require the development of a specific infrastructure to store and serve the endorsements.
-The procedure to follow is described `here <https://github.com/openenclave/openenclave/tree/master/docs/GettingStartedDocs/Contributors/NonAccMachineSGXLinuxGettingStarted.md>`_. 
-Note that this setup is not tested by the CCF team. Support can be obtained from the :term:`Open Enclave` project.
