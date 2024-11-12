@@ -341,8 +341,8 @@ class CCFRemote(object):
         snp_uvm_endorsements_file=None,
         service_subject_name="CN=CCF Test Service",
         historical_cache_soft_limit=None,
-        cose_signatures_issuer=None,
-        cose_signatures_subject=None,
+        cose_signatures_issuer="service.example.com",
+        cose_signatures_subject="ledger.signature",
         **kwargs,
     ):
         """
@@ -538,6 +538,8 @@ class CCFRemote(object):
                 snp_uvm_endorsements_file=snp_uvm_endorsements_file,
                 service_subject_name=service_subject_name,
                 historical_cache_soft_limit=historical_cache_soft_limit,
+                cose_signatures_issuer=cose_signatures_issuer,
+                cose_signatures_subject=cose_signatures_subject,
                 **kwargs,
             )
 

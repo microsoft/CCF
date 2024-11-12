@@ -1053,7 +1053,11 @@ def test_cose_receipt_schema(network, args):
 
                 if r.status_code == http.HTTPStatus.OK:
                     cbor_proof = r.body.data()
-                    ccf.cose.verify_receipt(cbor_proof, service_key, b"\0" * 32)
+                    receipt_phdr = ccf.cose.verify_receipt(
+                        cbor_proof, service_key, b"\0" * 32
+                    )
+                    assert receipt_phdr[15][1] == "service.example.com"
+                    assert receipt_phdr[15][2] == "ledger.signature"
                     cbor_proof_filename = os.path.join(
                         network.common_dir, f"receipt_{txid}.cose"
                     )
