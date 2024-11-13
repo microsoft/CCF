@@ -14,6 +14,7 @@
 #include "enclave/interface.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
+#include "node/rpc/cose_signatures_config.h"
 #include "node/uvm_endorsements.h"
 
 #include <nlohmann/json.hpp>
@@ -105,6 +106,8 @@ namespace ccf
         std::optional<ServiceStatus> service_status = std::nullopt;
 
         std::optional<ccf::crypto::Pem> endorsed_certificate = std::nullopt;
+        std::optional<COSESignaturesConfig> cose_signatures_config =
+          std::nullopt;
 
         NetworkInfo() {}
 
@@ -114,13 +117,15 @@ namespace ccf
           const LedgerSecretsMap& ledger_secrets,
           const NetworkIdentity& identity,
           ServiceStatus service_status,
-          const std::optional<ccf::crypto::Pem>& endorsed_certificate) :
+          const std::optional<ccf::crypto::Pem>& endorsed_certificate,
+          const std::optional<COSESignaturesConfig>& cose_signatures_config_) :
           public_only(public_only),
           last_recovered_signed_idx(last_recovered_signed_idx),
           ledger_secrets(ledger_secrets),
           identity(identity),
           service_status(service_status),
-          endorsed_certificate(endorsed_certificate)
+          endorsed_certificate(endorsed_certificate),
+          cose_signatures_config(cose_signatures_config_)
         {}
 
         bool operator==(const NetworkInfo& other) const
@@ -130,7 +135,8 @@ namespace ccf
             ledger_secrets == other.ledger_secrets &&
             identity == other.identity &&
             service_status == other.service_status &&
-            endorsed_certificate == other.endorsed_certificate;
+            endorsed_certificate == other.endorsed_certificate &&
+            cose_signatures_config == other.cose_signatures_config;
         }
 
         bool operator!=(const NetworkInfo& other) const
