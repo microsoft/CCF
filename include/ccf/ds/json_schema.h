@@ -9,6 +9,7 @@
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <set>
+#include <unordered_set>
 
 namespace ccf::ds
 {
@@ -113,7 +114,9 @@ namespace ccf::ds
           return fmt::format("{}_array", schema_name<typename T::value_type>());
         }
       }
-      else if constexpr (ccf::nonstd::is_specialization<T, std::set>::value)
+      else if constexpr (
+        ccf::nonstd::is_specialization<T, std::set>::value ||
+        ccf::nonstd::is_specialization<T, std::unordered_set>::value)
       {
         return fmt::format("{}_set", schema_name<typename T::value_type>());
       }
@@ -204,7 +207,8 @@ namespace ccf::ds
       }
       else if constexpr (
         ccf::nonstd::is_specialization<T, std::vector>::value ||
-        ccf::nonstd::is_specialization<T, std::set>::value)
+        ccf::nonstd::is_specialization<T, std::set>::value ||
+        ccf::nonstd::is_specialization<T, std::unordered_set>::value)
       {
         if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
         {
