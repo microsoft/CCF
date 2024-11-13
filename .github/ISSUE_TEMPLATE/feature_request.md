@@ -1,8 +1,8 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
+about: Request that a feature is implemented in CCF
 title: ""
-labels: enhancement
+type: feature
 assignees: ""
 ---
 
