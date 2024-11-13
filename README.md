@@ -1,8 +1,10 @@
 # The Confidential Consortium Framework [![CI](https://github.com/microsoft/CCF/actions/workflows/ci.yml/badge.svg)](https://github.com/microsoft/CCF/actions/workflows/ci.yml)
 
-<img alt="ccf" align="right" src="doc/_static/ccf_overview.png" width="200">
+The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available, and performant applications that focus on multi-party compute and data.</p>
 
-The Confidential Consortium Framework (CCF) is an open-source framework for building a new category of secure, highly available, and performant applications that focus on multi-party compute and data.
+<p align="center">
+<img alt="ccf" src="doc/_static/ccf_overview.png" width="700">
+</p>
 
 ## Get Started with CCF
 
