@@ -68,6 +68,9 @@ namespace ccf::indexing
       update_commit(newly_committed);
 
       std::optional<ccf::SeqNo> min_requested = std::nullopt;
+
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
+
       for (auto& strategy : strategies)
       {
         strategy->tick();

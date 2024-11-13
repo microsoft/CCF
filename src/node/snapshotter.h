@@ -114,6 +114,7 @@ namespace ccf
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot,
       uint32_t generation_count)
     {
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       if (pending_snapshots.size() >= max_pending_snapshots_count)
       {
         LOG_FAIL_FMT(
@@ -127,11 +128,7 @@ namespace ccf
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
       auto serialised_snapshot_size = serialised_snapshot.size();
-
-      auto tx = store->create_tx();
-      auto evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
       auto snapshot_hash = ccf::crypto::Sha256Hash(serialised_snapshot);
-      evidence->put({snapshot_hash, snapshot_version});
 
       ccf::ClaimsDigest cd;
       cd.set(std::move(snapshot_hash));
@@ -155,6 +152,11 @@ namespace ccf
       pending_snapshots[generation_count] = {};
       pending_snapshots[generation_count].version = snapshot_version;
 
+      // Temporarily unlock, while interacting with KV.
+      guard.unlock();
+      auto tx = store->create_tx();
+      auto evidence = tx.wo<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
+      evidence->put({snapshot_hash, snapshot_version});
       auto rc =
         tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
       if (rc != ccf::kv::CommitResult::SUCCESS)
@@ -165,6 +167,7 @@ namespace ccf
           rc);
         return;
       }
+      guard.lock();
 
       auto evidence_version = tx.commit_version();
 

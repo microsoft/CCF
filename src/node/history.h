@@ -690,7 +690,6 @@ namespace ccf
       // Delay taking this lock until _after_ the read above, to avoid lock
       // inversions
       std::lock_guard<ccf::pal::Mutex> guard(state_lock);
-
       CCF_ASSERT_FMT(
         !replicated_state_tree.in_range(1),
         "Tree is not empty before initialising from snapshot");

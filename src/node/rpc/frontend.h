@@ -44,7 +44,6 @@ namespace ccf
 
     ccf::kv::Consensus* consensus;
     std::shared_ptr<AbstractForwarder> cmd_forwarder;
-    ccf::kv::TxHistory* history;
 
     size_t sig_tx_interval = 5000;
     std::chrono::milliseconds sig_ms_interval = std::chrono::milliseconds(1000);
@@ -62,12 +61,6 @@ namespace ccf
         consensus = c;
         endpoints.set_consensus(consensus);
       }
-    }
-
-    void update_history()
-    {
-      history = tables.get_history().get();
-      endpoints.set_history(history);
     }
 
     endpoints::EndpointDefinitionPtr find_endpoint(
@@ -651,7 +644,6 @@ namespace ccf
         }
 
         ++attempts;
-        update_history();
 
         endpoint = find_endpoint(ctx, *tx_p);
         if (endpoint == nullptr)
@@ -815,11 +807,13 @@ namespace ccf
                 }
               }
 
-              if (
-                consensus != nullptr && consensus->can_replicate() &&
-                history != nullptr)
+              if (consensus != nullptr && consensus->can_replicate())
               {
-                history->try_emit_signature();
+                auto history = tables.get_history().get();
+                if (history != nullptr)
+                {
+                  history->try_emit_signature();
+                }
               }
 
               return;
@@ -917,8 +911,7 @@ namespace ccf
       tables(tables_),
       endpoints(handlers_),
       node_context(node_context_),
-      consensus(nullptr),
-      history(nullptr)
+      consensus(nullptr)
     {}
 
     void set_sig_intervals(
@@ -953,7 +946,7 @@ namespace ccf
     {
       if (endpoints.request_needs_root(ctx))
       {
-        update_history();
+        auto history = tables.get_history().get();
         if (history)
         {
           // Warning: Retrieving the current TxID and root from the history
