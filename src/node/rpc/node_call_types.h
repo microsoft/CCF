@@ -15,6 +15,7 @@
 #include "enclave/interface.h"
 #include "node/identity.h"
 #include "node/ledger_secrets.h"
+#include "node/rpc/cose_signatures_config.h"
 #include "node/uvm_endorsements.h"
 
 #include <nlohmann/json.hpp>
