@@ -12,6 +12,7 @@
 #include <regex>
 #include <set>
 #include <string_view>
+#include <unordered_set>
 
 namespace ccf::ds
 {
@@ -281,7 +282,8 @@ namespace ccf::ds
         }
         else if constexpr (
           ccf::nonstd::is_specialization<T, std::vector>::value ||
-          ccf::nonstd::is_specialization<T, std::set>::value)
+          ccf::nonstd::is_specialization<T, std::set>::value ||
+          ccf::nonstd::is_specialization<T, std::unordered_set>::value)
         {
           if constexpr (std::is_same<T, std::vector<uint8_t>>::value)
           {
