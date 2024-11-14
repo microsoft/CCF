@@ -8,6 +8,8 @@ import infra.logging_app as app
 import infra.e2e_args
 import infra.network
 import ccf.ledger
+from ccf.tx_id import TxID
+import base64
 import suite.test_requirements as reqs
 import infra.crypto
 import ipaddress
@@ -19,9 +21,11 @@ import json
 import subprocess
 import time
 import http
+import copy
 import infra.snp as snp
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from pycose.messages import Sign1Message
 
 from loguru import logger as LOG
 
@@ -589,6 +593,64 @@ def run_service_subject_name_check(args):
             assert cert.subject.rfc4514_string() == "CN=This test service", cert
 
 
+def run_cose_signatures_config_check(args):
+    nargs = copy.deepcopy(args)
+    nargs.nodes = infra.e2e_args.max_nodes(nargs, f=0)
+
+    with infra.network.network(
+        nargs.nodes,
+        nargs.binary_dir,
+        nargs.debug_nodes,
+        nargs.perf_nodes,
+        pdb=nargs.pdb,
+    ) as network:
+        network.start_and_open(
+            nargs,
+            cose_signatures_issuer="test.issuer.example.com",
+            cose_signatures_subject="test.subject",
+        )
+
+        for node in network.get_joined_nodes():
+            with node.client("user0") as client:
+                r = client.get("/commit")
+                assert r.status_code == http.HTTPStatus.OK
+                txid = TxID.from_str(r.body.json()["transaction_id"])
+                max_retries = 10
+                for _ in range(max_retries):
+                    response = client.get(
+                        "/log/public/cose_signature",
+                        headers={
+                            infra.clients.CCF_TX_ID_HEADER: f"{txid.view}.{txid.seqno}"
+                        },
+                    )
+
+                    if response.status_code == http.HTTPStatus.OK:
+                        signature = response.body.json()["cose_signature"]
+                        signature = base64.b64decode(signature)
+                        signature_filename = os.path.join(
+                            network.common_dir, f"cose_signature_{txid}.cose"
+                        )
+                        with open(signature_filename, "wb") as f:
+                            f.write(signature)
+                        sig = Sign1Message.decode(signature)
+                        assert sig.phdr[15][1] == "test.issuer.example.com"
+                        assert sig.phdr[15][2] == "test.subject"
+                        LOG.debug(
+                            "Checked COSE signature schema for issuer and subject"
+                        )
+                        break
+                    elif response.status_code == http.HTTPStatus.ACCEPTED:
+                        LOG.debug(f"Transaction {txid} accepted, retrying")
+                        time.sleep(0.1)
+                    else:
+                        LOG.error(f"Failed to get COSE signature for txid {txid}")
+                        break
+                else:
+                    assert (
+                        False
+                    ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -599,3 +661,4 @@ def run(args):
     run_preopen_readiness_check(args)
     run_sighup_check(args)
     run_service_subject_name_check(args)
+    run_cose_signatures_config_check(args)

@@ -8,8 +8,8 @@
 
 struct COSESignaturesConfig
 {
-  std::string issuer;
-  std::string subject;
+  std::string issuer = "";
+  std::string subject = "";
 
   bool operator==(const COSESignaturesConfig& other) const = default;
 };
