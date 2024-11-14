@@ -115,7 +115,7 @@ jobs:
           # Dependencies
           tdnf -y install openssl-devel libuv-devel
           # Test dependencies
-          tdnf -y install libarrow-devel parquet-libs-devel lldb npm
+          tdnf -y install libarrow-devel parquet-libs-devel lldb
         shell: bash
 
       - uses: actions/checkout@v4
