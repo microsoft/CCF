@@ -117,6 +117,7 @@ DECLARE_JSON_REQUIRED_FIELDS(
   snapshot_tx_interval,
   initial_service_certificate_validity_days,
   service_subject_name,
+  cose_signatures,
   service_data,
   node_data,
   start,

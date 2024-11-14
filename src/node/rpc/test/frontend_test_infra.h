@@ -123,7 +123,8 @@ std::unique_ptr<ccf::NetworkIdentity> make_test_network_ident()
     "CN=CCF test network",
     ccf::crypto::service_identity_curve_choice,
     valid_from,
-    2);
+    2,
+    COSESignaturesConfig{});
 }
 
 void init_network(NetworkState& network)

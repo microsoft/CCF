@@ -10,6 +10,7 @@
 #include "ccf/kv/get_name.h"
 #include "ccf/kv/hooks.h"
 #include "ccf/kv/version.h"
+#include "ccf/node/cose_signatures_config.h"
 #include "ccf/tx_id.h"
 #include "crypto/openssl/key_pair.h"
 #include "enclave/consensus_type.h"
@@ -424,8 +425,9 @@ namespace ccf::kv
     virtual std::vector<uint8_t> serialise_tree(size_t to) = 0;
     virtual void set_endorsed_certificate(const ccf::crypto::Pem& cert) = 0;
     virtual void start_signature_emit_timer() = 0;
-    virtual void set_service_kp(
-      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL>) = 0;
+    virtual void set_service_signing_identity(
+      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> keypair,
+      const COSESignaturesConfig& cose_signatures) = 0;
   };
 
   class Consensus : public ConfigurableConsensus

@@ -243,6 +243,7 @@ def verify_receipt(
             raise ValueError("Signature verification failed")
         if claim_digest != leaf[2]:
             raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
+    return receipt.phdr
 
 
 _SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance

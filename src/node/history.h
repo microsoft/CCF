@@ -196,8 +196,9 @@ namespace ccf
 
     void start_signature_emit_timer() override {}
 
-    void set_service_kp(
-      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_) override
+    void set_service_signing_identity(
+      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_,
+      const COSESignaturesConfig& cose_signatures) override
     {
       std::ignore = std::move(service_kp_);
     }
@@ -322,6 +323,7 @@ namespace ccf
     ccf::crypto::KeyPair& node_kp;
     ccf::crypto::KeyPair_OpenSSL& service_kp;
     ccf::crypto::Pem& endorsed_cert;
+    const COSESignaturesConfig& cose_signatures_config;
 
   public:
     MerkleTreeHistoryPendingTx(
@@ -331,14 +333,16 @@ namespace ccf
       const NodeId& id_,
       ccf::crypto::KeyPair& node_kp_,
       ccf::crypto::KeyPair_OpenSSL& service_kp_,
-      ccf::crypto::Pem& endorsed_cert_) :
+      ccf::crypto::Pem& endorsed_cert_,
+      const COSESignaturesConfig& cose_signatures_config_) :
       txid(txid_),
       store(store_),
       history(history_),
       id(id_),
       node_kp(node_kp_),
       service_kp(service_kp_),
-      endorsed_cert(endorsed_cert_)
+      endorsed_cert(endorsed_cert_),
+      cose_signatures_config(cose_signatures_config_)
     {}
 
     ccf::kv::PendingTxInfo call() override
@@ -392,8 +396,16 @@ namespace ccf
           std::make_shared<ccf::crypto::COSEParametersMap>(
             std::make_shared<ccf::crypto::COSEMapIntKey>(
               ccf::crypto::COSE_PHEADER_KEY_CWT),
-            ccf::crypto::COSEHeadersArray{ccf::crypto::cose_params_int_int(
-              ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch)}));
+            ccf::crypto::COSEHeadersArray{
+              ccf::crypto::cose_params_int_int(
+                ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch),
+              ccf::crypto::cose_params_int_string(
+                ccf::crypto::COSE_PHEADER_KEY_ISS,
+                cose_signatures_config.issuer),
+              ccf::crypto::cose_params_int_string(
+                ccf::crypto::COSE_PHEADER_KEY_SUB,
+                cose_signatures_config.subject),
+            }));
 
       const auto pheaders = {
         // Key digest
@@ -568,6 +580,7 @@ namespace ccf
     ccf::kv::Term term_of_next_version;
 
     std::optional<ccf::crypto::Pem> endorsed_cert = std::nullopt;
+    COSESignaturesConfig cose_signatures_config;
 
   public:
     HashedTxHistory(
@@ -589,10 +602,16 @@ namespace ccf
       }
     }
 
-    void set_service_kp(
-      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_) override
+    void set_service_signing_identity(
+      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_,
+      const COSESignaturesConfig& cose_signatures_config_) override
     {
       service_kp = std::move(service_kp_);
+      cose_signatures_config = cose_signatures_config_;
+      LOG_INFO_FMT(
+        "Setting service signing identity to iss: {} sub: {}",
+        cose_signatures_config.issuer,
+        cose_signatures_config.subject);
     }
 
     void start_signature_emit_timer() override
@@ -860,7 +879,14 @@ namespace ccf
       store.commit(
         txid,
         std::make_unique<MerkleTreeHistoryPendingTx<T>>(
-          txid, store, *this, id, node_kp, *service_kp, endorsed_cert.value()),
+          txid,
+          store,
+          *this,
+          id,
+          node_kp,
+          *service_kp,
+          endorsed_cert.value(),
+          cose_signatures_config),
         true);
     }
 

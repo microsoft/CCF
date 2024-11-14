@@ -30,6 +30,19 @@ namespace ccf::crypto
    * omitted.
    */
   static constexpr int64_t COSE_PHEADER_KEY_IAT = 6;
+  // Standardised: issuer CWT claim.
+  // https://www.iana.org/assignments/cose/cose.xhtml#header-parameters
+  /* The "iss" (issuer) claim identifies the principal that issued the CWT.
+   * The "iss" value is a case-sensitive string containing a StringOrURI value.
+   */
+  static constexpr int64_t COSE_PHEADER_KEY_ISS = 1;
+  // Standardised: subject CWT claim.
+  // https://www.iana.org/assignments/cose/cose.xhtml#header-parameters
+  /* The "sub" (subject) claim identifies the principal that is the subject of
+   * the CWT.  The claims in a CWT are normally statements about the subject.
+   * The "sub" value is a case-sensitive string containing a StringOrURI value.
+   */
+  static constexpr int64_t COSE_PHEADER_KEY_SUB = 2;
   // CCF headers nested map key.
   static const std::string COSE_PHEADER_KEY_CCF = "ccf.v1";
   // CCF-specific: last signed TxID.
