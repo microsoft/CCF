@@ -95,7 +95,7 @@ class TargetRole:
 
 @dataclass
 class NodeByRoleResolver:
-    target: TargetRole = TargetRole(role=NodeRole.primary)
+    target: TargetRole = field(default_factory=lambda: TargetRole(NodeRole.primary))
     kind: str = "NodeByRole"
 
     @staticmethod
@@ -131,9 +131,9 @@ RedirectionResolver = Union[NodeByRoleResolver, StaticAddressResolver]
 
 @dataclass
 class RedirectionConfig:
-    to_primary: RedirectionResolver = NodeByRoleResolver()
-    to_backup: RedirectionResolver = NodeByRoleResolver(
-        target=TargetRole(role=NodeRole.backup)
+    to_primary: NodeByRoleResolver = field(default_factory=lambda: NodeByRoleResolver())
+    to_backup: NodeByRoleResolver = field(
+        default_factory=lambda: NodeByRoleResolver(target=TargetRole(NodeRole.backup))
     )
 
     @staticmethod
@@ -167,27 +167,45 @@ class RedirectionConfig:
 @dataclass
 class RPCInterface(Interface):
     # How nodes are created (local, ssh, ...)
-    protocol: str = "local"
+    protocol: str = field(default_factory=lambda: "local")
     # Underlying transport layer protocol (tcp, udp)
-    transport: str = "tcp"
+    transport: str = field(default_factory=lambda: "tcp")
     # Host name/IP
     public_host: Optional[str] = None
     # Host port
     public_port: Optional[int] = None
-    max_open_sessions_soft: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_SOFT
-    max_open_sessions_hard: Optional[int] = DEFAULT_MAX_OPEN_SESSIONS_HARD
-    max_http_body_size: Optional[int] = DEFAULT_MAX_HTTP_BODY_SIZE
-    max_http_header_size: Optional[int] = DEFAULT_MAX_HTTP_HEADER_SIZE
-    max_http_headers_count: Optional[int] = DEFAULT_MAX_HTTP_HEADERS_COUNT
-    max_concurrent_streams_count: Optional[int] = DEFAULT_MAX_CONCURRENT_STREAMS_COUNT
-    initial_window_size: Optional[int] = DEFAULT_INITIAL_WINDOW_SIZE
-    max_frame_size: Optional[int] = DEFAULT_MAX_FRAME_SIZE
-    endorsement: Optional[Endorsement] = Endorsement()
+    max_open_sessions_soft: Optional[int] = field(
+        default_factory=lambda: DEFAULT_MAX_OPEN_SESSIONS_SOFT
+    )
+    max_open_sessions_hard: Optional[int] = field(
+        default_factory=lambda: DEFAULT_MAX_OPEN_SESSIONS_HARD
+    )
+    max_http_body_size: Optional[int] = field(
+        default_factory=lambda: DEFAULT_MAX_HTTP_BODY_SIZE
+    )
+    max_http_header_size: Optional[int] = field(
+        default_factory=lambda: DEFAULT_MAX_HTTP_HEADER_SIZE
+    )
+    max_http_headers_count: Optional[int] = field(
+        default_factory=lambda: DEFAULT_MAX_HTTP_HEADERS_COUNT
+    )
+    max_concurrent_streams_count: Optional[int] = field(
+        default_factory=lambda: DEFAULT_MAX_CONCURRENT_STREAMS_COUNT
+    )
+    initial_window_size: Optional[int] = field(
+        default_factory=lambda: DEFAULT_INITIAL_WINDOW_SIZE
+    )
+    max_frame_size: Optional[int] = field(
+        default_factory=lambda: DEFAULT_MAX_FRAME_SIZE
+    )
+    endorsement: Optional[Endorsement] = field(default_factory=lambda: Endorsement())
     acme_configuration: Optional[str] = None
     accepted_endpoints: Optional[str] = None
-    forwarding_timeout_ms: Optional[int] = DEFAULT_FORWARDING_TIMEOUT_MS
+    forwarding_timeout_ms: Optional[int] = field(
+        default_factory=lambda: DEFAULT_FORWARDING_TIMEOUT_MS
+    )
     redirections: Optional[RedirectionConfig] = None
-    app_protocol: str = "HTTP1"
+    app_protocol: str = field(default_factory=lambda: "HTTP1")
 
     @staticmethod
     def from_args(args):

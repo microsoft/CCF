@@ -71,6 +71,7 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
+            build/workspace/*.ledger/*
           if-no-files-found: ignore
 
   long-tsan:
@@ -108,6 +109,7 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
+            build/workspace/*.ledger/*
           if-no-files-found: ignore
 
   long-lts:
@@ -145,4 +147,5 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
+            build/workspace/*.ledger/*
           if-no-files-found: ignore
