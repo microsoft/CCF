@@ -730,6 +730,10 @@ namespace ccf::kv::untyped
       {
         for (auto& [version, writes] : commit_deltas)
         {
+          LOG_TRACE_FMT(
+            "Executing global hook on table {} at version {}",
+            get_name(),
+            version);
           global_hook(version, writes);
         }
       }
@@ -834,6 +838,10 @@ namespace ccf::kv::untyped
     {
       if (hook && !writes.empty())
       {
+        LOG_TRACE_FMT(
+          "Executing local hook on table {} at version {}",
+          get_name(),
+          version);
         return hook(version, writes);
       }
       return nullptr;

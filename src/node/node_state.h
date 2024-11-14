@@ -2187,22 +2187,42 @@ namespace ccf
             ccf::kv::Version hook_version,
             const NodeEndorsedCertificates::Write& w)
             -> ccf::kv::ConsensusHookPtr {
+            LOG_INFO_FMT(
+              "[local] node_endorsed_certificates local hook at version {}, "
+              "with {} writes",
+              hook_version,
+              w.size());
             for (auto const& [node_id, endorsed_certificate] : w)
             {
               if (node_id != self)
               {
+                LOG_INFO_FMT(
+                  "[local] Ignoring endorsed certificate for other node {}",
+                  node_id);
                 continue;
               }
 
               if (!endorsed_certificate.has_value())
               {
+                LOG_FAIL_FMT(
+                  "[local] Endorsed cert for self ({}) has been deleted", self);
                 throw std::logic_error(fmt::format(
                   "Could not find endorsed node certificate for {}", self));
               }
 
               std::lock_guard<pal::Mutex> guard(lock);
 
+              if (endorsed_node_cert.has_value())
+              {
+                LOG_INFO_FMT(
+                  "[local] Previous endorsed node cert was:\n{}",
+                  endorsed_node_cert->str());
+              }
+
               endorsed_node_cert = endorsed_certificate.value();
+              LOG_INFO_FMT(
+                "[local] Under lock, setting endorsed node cert to:\n{}",
+                endorsed_node_cert->str());
               history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
             }
@@ -2216,21 +2236,33 @@ namespace ccf
           [this](
             ccf::kv::Version hook_version,
             const NodeEndorsedCertificates::Write& w) {
+            LOG_INFO_FMT(
+              "[global] node_endorsed_certificates global hook at version {}, "
+              "with {} writes",
+              hook_version,
+              w.size());
             for (auto const& [node_id, endorsed_certificate] : w)
             {
               if (node_id != self)
               {
+                LOG_INFO_FMT(
+                  "[global] Ignoring endorsed certificate for other node {}",
+                  node_id);
                 continue;
               }
 
               if (!endorsed_certificate.has_value())
               {
+                LOG_FAIL_FMT(
+                  "[global] Endorsed cert for self ({}) has been deleted",
+                  self);
                 throw std::logic_error(fmt::format(
                   "Could not find endorsed node certificate for {}", self));
               }
 
               std::lock_guard<pal::Mutex> guard(lock);
 
+              LOG_INFO_FMT("[global] Accepting network connections");
               accept_network_tls_connections();
 
               if (is_member_frontend_open_unsafe())
@@ -2244,15 +2276,31 @@ namespace ccf
                 auto [valid_from, valid_to] =
                   ccf::crypto::make_verifier(endorsed_node_cert.value())
                     ->validity_period();
+                LOG_INFO_FMT(
+                  "[global] Member frontend is open, so refreshing self-signed "
+                  "node cert");
+                LOG_INFO_FMT(
+                  "[global] Previously:\n{}", self_signed_node_cert.str());
                 self_signed_node_cert = create_self_signed_cert(
                   node_sign_kp,
                   config.node_certificate.subject_name,
                   subject_alt_names,
                   valid_from,
                   valid_to);
+                LOG_INFO_FMT("[global] Now:\n{}", self_signed_node_cert.str());
+
+                LOG_INFO_FMT("[global] Accepting node connections");
                 accept_node_tls_connections();
               }
+              else
+              {
+                LOG_INFO_FMT("[global] Member frontend is NOT open");
+                LOG_INFO_FMT(
+                  "[global] Self-signed node cert remains:\n{}",
+                  self_signed_node_cert.str());
+              }
 
+              LOG_INFO_FMT("[global] Opening members frontend");
               open_frontend(ActorsType::members);
             }
           }));
@@ -2280,6 +2328,13 @@ namespace ccf
                 w->cert.str());
               return;
             }
+
+            LOG_INFO_FMT(
+              "Executing global hook for service table at {}, to service "
+              "status {}. Cert is:\n{}",
+              hook_version,
+              w->status,
+              w->cert.str());
 
             network.identity->set_certificate(w->cert);
             if (w->status == ServiceStatus::OPEN)
