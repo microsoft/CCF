@@ -938,8 +938,12 @@ namespace ccf
     void open() override
     {
       std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
-      is_open_ = true;
-      endpoints.init_handlers();
+      if (!is_open_)
+      {
+        LOG_INFO_FMT("Opening frontend");
+        is_open_ = true;
+        endpoints.init_handlers();
+      }
     }
 
     bool is_open() override
