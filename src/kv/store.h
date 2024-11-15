@@ -1255,8 +1255,7 @@ namespace ccf::kv
 
     ReservedTx create_reserved_tx(const TxID& tx_id)
     {
-      // version_lock should already been acquired in case term_of_last_version
-      // is incremented.
+      std::lock_guard<ccf::pal::Mutex> vguard(version_lock);
       return ReservedTx(this, term_of_last_version, tx_id, rollback_count);
     }
 
