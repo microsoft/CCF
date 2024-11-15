@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Improved logging (#6645).
+- Enhanced certificate renewal logging (#6645).
 
 ## [5.0.8]
 
