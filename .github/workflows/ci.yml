@@ -146,7 +146,6 @@ jobs:
 
   build_caci:
     name: "Experimental C-ACI CI"
-    needs: checks
     runs-on: [self-hosted, 1ES.Pool=gha-caci-ne]
 
     steps:
