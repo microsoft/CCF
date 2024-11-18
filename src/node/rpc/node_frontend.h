@@ -18,7 +18,6 @@
 #include "ds/std_formatters.h"
 #include "enclave/reconfiguration_type.h"
 #include "frontend.h"
-#include "host/snapshots.h"
 #include "node/network_state.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/no_create_tx_claims_digest.cpp"
@@ -27,6 +26,7 @@
 #include "node_interface.h"
 #include "service/internal_tables_access.h"
 #include "service/tables/previous_service_identity.h"
+#include "snapshots/filenames.h"
 
 namespace ccf
 {
@@ -1806,7 +1806,7 @@ namespace ccf
           node_configuration_subsystem->get().node_config.snapshots;
 
         auto latest_committed_snapshot =
-          asynchost::find_latest_committed_snapshot_in_directories(
+          snapshots::find_latest_committed_snapshot_in_directories(
             snapshots_config.directory, snapshots_config.read_only_directory);
 
         if (!latest_committed_snapshot.has_value())

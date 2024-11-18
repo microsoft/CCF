@@ -24,7 +24,7 @@
 #include "process_launcher.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
-#include "snapshots.h"
+#include "snapshots/snapshot_manager.h"
 #include "ticker.h"
 #include "time_updater.h"
 
@@ -373,7 +373,7 @@ int main(int argc, char** argv)
       config.ledger.read_only_directories);
     ledger.register_message_handlers(bp.get_dispatcher());
 
-    asynchost::SnapshotManager snapshots(
+    snapshots::SnapshotManager snapshots(
       config.snapshots.directory,
       writer_factory,
       config.snapshots.read_only_directory);
