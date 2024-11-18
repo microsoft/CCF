@@ -632,3 +632,68 @@ DOCTEST_TEST_CASE("Accept header MIME matching")
   DOCTEST_REQUIRE(c.matches("fob/bar"));
   DOCTEST_REQUIRE(c.matches("fob/baz"));
 }
+
+DOCTEST_TEST_CASE("Query parser getters")
+{
+  {
+    constexpr auto query = "foo=bar&baz=123";
+    const auto parsed = ccf::http::parse_query(query);
+
+    std::string err = "";
+
+    {
+      std::string val;
+      DOCTEST_REQUIRE(ccf::http::get_query_value(parsed, "foo", val, err));
+      DOCTEST_REQUIRE(val == "bar");
+      DOCTEST_REQUIRE(err.empty());
+    }
+
+    {
+      size_t val;
+      DOCTEST_REQUIRE(ccf::http::get_query_value(parsed, "baz", val, err));
+      DOCTEST_REQUIRE(val == 123);
+      DOCTEST_REQUIRE(err.empty());
+    }
+
+    {
+      std::string val;
+      DOCTEST_REQUIRE(ccf::http::get_query_value(parsed, "baz", val, err));
+      DOCTEST_REQUIRE(val == "123");
+      DOCTEST_REQUIRE(err.empty());
+    }
+
+    {
+      size_t val;
+      DOCTEST_REQUIRE(!ccf::http::get_query_value(parsed, "foo", val, err));
+      DOCTEST_REQUIRE(err == "Unable to parse value 'bar' in parameter 'foo'");
+    }
+  }
+
+  {
+    constexpr auto query = "t=true&f=false&fnf=filenotfound";
+    const auto parsed = ccf::http::parse_query(query);
+    std::string err = "";
+
+    {
+      bool val = false;
+      DOCTEST_REQUIRE(ccf::http::get_query_value(parsed, "t", val, err));
+      DOCTEST_REQUIRE(val == true);
+      DOCTEST_REQUIRE(err.empty());
+    }
+
+    {
+      bool val = true;
+      DOCTEST_REQUIRE(ccf::http::get_query_value(parsed, "f", val, err));
+      DOCTEST_REQUIRE(val == false);
+      DOCTEST_REQUIRE(err.empty());
+    }
+
+    {
+      bool val;
+      DOCTEST_REQUIRE(!ccf::http::get_query_value(parsed, "fnf", val, err));
+      DOCTEST_REQUIRE(
+        err ==
+        "Unable to parse value 'filenotfound' as bool in parameter 'fnf'");
+    }
+  }
+}
