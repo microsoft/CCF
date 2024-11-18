@@ -74,15 +74,24 @@ struct CCFConfig
     bool operator==(const Attestation&) const = default;
   };
   Attestation attestation = {};
+
+  struct Snapshots
+  {
+    std::string directory = "snapshots";
+    size_t tx_count = 10'000;
+    std::optional<std::string> read_only_directory = std::nullopt;
+
+    bool operator==(const Snapshots&) const = default;
+  };
+  Snapshots snapshots = {};
 };
 
-struct StartupConfig : CCFConfig
+struct StartupConfig : public CCFConfig
 {
   StartupConfig() = default;
   StartupConfig(const CCFConfig& common_base) : CCFConfig(common_base) {}
 
   std::string startup_host_time;
-  size_t snapshot_tx_interval = 10'000;
 
   // Only if starting or recovering
   size_t initial_service_certificate_validity_days = 1;

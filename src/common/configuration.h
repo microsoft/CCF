@@ -82,6 +82,11 @@ DECLARE_JSON_OPTIONAL_FIELDS(
   snp_security_policy_file,
   snp_uvm_endorsements_file);
 
+DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Snapshots);
+DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Snapshots);
+DECLARE_JSON_OPTIONAL_FIELDS(
+  CCFConfig::Snapshots, directory, tx_count, read_only_directory);
+
 DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
 DECLARE_JSON_OPTIONAL_FIELDS(
@@ -92,6 +97,7 @@ DECLARE_JSON_OPTIONAL_FIELDS(
   ledger_signatures,
   jwt,
   attestation,
+  snapshots,
   node_to_node_message_limit,
   historical_cache_soft_limit);
 
@@ -114,7 +120,6 @@ DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
 DECLARE_JSON_REQUIRED_FIELDS(
   StartupConfig,
   startup_host_time,
-  snapshot_tx_interval,
   initial_service_certificate_validity_days,
   service_subject_name,
   cose_signatures,

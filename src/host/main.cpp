@@ -504,8 +504,6 @@ int main(int argc, char** argv)
 
     StartupConfig startup_config(config);
 
-    startup_config.snapshot_tx_interval = config.snapshots.tx_count;
-
     if (startup_config.attestation.snp_security_policy_file.has_value())
     {
       auto security_policy_file =

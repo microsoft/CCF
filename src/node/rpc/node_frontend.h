@@ -14,9 +14,11 @@
 #include "ccf/version.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
+#include "ds/files.h"
 #include "ds/std_formatters.h"
 #include "enclave/reconfiguration_type.h"
 #include "frontend.h"
+#include "host/snapshots.h"
 #include "node/network_state.h"
 #include "node/rpc/jwt_management.h"
 #include "node/rpc/no_create_tx_claims_digest.cpp"
@@ -1184,13 +1186,14 @@ namespace ccf
               ccf::errors::InternalError,
               "NodeConfigurationSubsystem is not available");
           }
+          const auto& node_startup_config =
+            node_configuration_subsystem->get().node_config;
           return make_success(GetNode::Out{
             node_id,
             ccf::NodeStatus::PENDING,
             is_primary,
-            node_configuration_subsystem->get()
-              .node_config.network.rpc_interfaces,
-            node_configuration_subsystem->get().node_config.node_data,
+            node_startup_config.network.rpc_interfaces,
+            node_startup_config.node_data,
             0});
         }
       };
@@ -1785,6 +1788,55 @@ namespace ccf
         "/ready/gov", HTTP_GET, get_ready_gov, no_auth_required)
         .set_auto_schema<void, void>()
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto get_snapshot = [this](ccf::endpoints::CommandEndpointContext& ctx) {
+        auto node_configuration_subsystem =
+          this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!node_configuration_subsystem)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
+          return;
+        }
+
+        const auto& snapshots_config =
+          node_configuration_subsystem->get().node_config.snapshots;
+
+        auto latest_committed_snapshot =
+          asynchost::find_latest_committed_snapshot_in_directories(
+            snapshots_config.directory, snapshots_config.read_only_directory);
+
+        if (!latest_committed_snapshot.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "This node has no committed snapshots");
+          return;
+        }
+
+        auto& [snapshot_dir, snapshot_path] = latest_committed_snapshot.value();
+
+        LOG_DEBUG_FMT("Found snapshot: {}", snapshot_dir / snapshot_path);
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::OCTET_STREAM);
+        ctx.rpc_ctx->set_response_header(
+          "x-ms-ccf-snapshot-filename", snapshot_path.string());
+
+        ctx.rpc_ctx->set_response_body(
+          files::slurp(snapshot_dir / snapshot_path));
+      };
+      make_command_endpoint(
+        "/snapshot", HTTP_GET, get_snapshot, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
         .install();
     }
   };
