@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added OpenAPI support for `std::unordered_set`.
 
+### Changed
+
+- Service certificates and endorsements used for historical receipts now have a pathlen constraint of 1 instead of 0, reflecting the fact that there can be a single intermediate in endorsement chains. Historically the value had been 0, which happened to work because of a quirk in OpenSSL when Issuer and Subject match on an element in the chain.
+
 ### Fixed
 
 - Services upgrading from 4.x to 5.x may accidentally change their service's subject name, resulting in cryptographic errors when verifying anything endorsed by the old subject name. The subject name field is now correctly populated and retained across joins, renewals, and disaster recoveries.

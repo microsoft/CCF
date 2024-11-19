@@ -1797,7 +1797,7 @@ def test_basic_constraints(network, args):
     )
     assert basic_constraints.critical is True
     assert basic_constraints.value.ca is True
-    assert basic_constraints.value.path_length == 0
+    assert basic_constraints.value.path_length == 1
 
     node_pem = primary.get_tls_certificate_pem()
     node_cert = load_pem_x509_certificate(node_pem.encode(), default_backend())
