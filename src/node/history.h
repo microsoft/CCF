@@ -198,9 +198,14 @@ namespace ccf
 
     void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_,
-      const COSESignaturesConfig& cose_signatures) override
+      const ccf::COSESignaturesConfig& cose_signatures) override
     {
       std::ignore = std::move(service_kp_);
+    }
+
+    const ccf::COSESignaturesConfig& get_cose_signatures_config() override
+    {
+      throw std::logic_error("Unimplemented");
     }
 
     ccf::crypto::Sha256Hash get_replicated_state_root() override
@@ -323,7 +328,7 @@ namespace ccf
     ccf::crypto::KeyPair& node_kp;
     ccf::crypto::KeyPair_OpenSSL& service_kp;
     ccf::crypto::Pem& endorsed_cert;
-    const COSESignaturesConfig& cose_signatures_config;
+    const ccf::COSESignaturesConfig& cose_signatures_config;
 
   public:
     MerkleTreeHistoryPendingTx(
@@ -334,7 +339,7 @@ namespace ccf
       ccf::crypto::KeyPair& node_kp_,
       ccf::crypto::KeyPair_OpenSSL& service_kp_,
       ccf::crypto::Pem& endorsed_cert_,
-      const COSESignaturesConfig& cose_signatures_config_) :
+      const ccf::COSESignaturesConfig& cose_signatures_config_) :
       txid(txid_),
       store(store_),
       history(history_),
@@ -566,7 +571,6 @@ namespace ccf
     T replicated_state_tree;
 
     ccf::crypto::KeyPair& node_kp;
-    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp{};
     ccf::crypto::COSEVerifierUniquePtr cose_verifier{};
     std::vector<uint8_t> cose_cert_cached{};
 
@@ -580,7 +584,14 @@ namespace ccf
     ccf::kv::Term term_of_next_version;
 
     std::optional<ccf::crypto::Pem> endorsed_cert = std::nullopt;
-    COSESignaturesConfig cose_signatures_config;
+
+    struct ServiceSigningContext
+    {
+      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp;
+      ccf::COSESignaturesConfig cose_signatures_config;
+    };
+
+    std::optional<ServiceSigningContext> signing_context = std::nullopt;
 
   public:
     HashedTxHistory(
@@ -604,14 +615,33 @@ namespace ccf
 
     void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_,
-      const COSESignaturesConfig& cose_signatures_config_) override
+      const ccf::COSESignaturesConfig& cose_signatures_config_) override
     {
-      service_kp = std::move(service_kp_);
-      cose_signatures_config = cose_signatures_config_;
+      if (signing_context.has_value())
+      {
+        throw std::logic_error(
+          "Called set_service_signing_identity() multiple times");
+      }
+
+      signing_context =
+        ServiceSigningContext{service_kp_, cose_signatures_config_};
+
       LOG_INFO_FMT(
         "Setting service signing identity to iss: {} sub: {}",
-        cose_signatures_config.issuer,
-        cose_signatures_config.subject);
+        cose_signatures_config_.issuer,
+        cose_signatures_config_.subject);
+    }
+
+    const ccf::COSESignaturesConfig& get_cose_signatures_config() override
+    {
+      if (!signing_context.has_value())
+      {
+        throw std::logic_error(
+          "Called get_cose_signatures_config() before "
+          "set_service_signing_identity()");
+      }
+
+      return signing_context->cose_signatures_config;
     }
 
     void start_signature_emit_timer() override
@@ -870,7 +900,7 @@ namespace ccf
 
       LOG_DEBUG_FMT("Signed at {} in view: {}", txid.version, txid.term);
 
-      if (!service_kp)
+      if (!signing_context.has_value())
       {
         throw std::logic_error(
           fmt::format("No service key has been set yet to sign"));
@@ -884,9 +914,9 @@ namespace ccf
           *this,
           id,
           node_kp,
-          *service_kp,
+          *signing_context->service_kp,
           endorsed_cert.value(),
-          cose_signatures_config),
+          signing_context->cose_signatures_config),
         true);
     }
 

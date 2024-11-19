@@ -104,6 +104,11 @@ namespace ccf
     {
       return {};
     }
+
+    const ccf::COSESignaturesConfig& get_cose_signatures_config() override
+    {
+      throw std::logic_error("Unimplemented");
+    }
   };
 
   class StubGovernanceEffects : public ccf::AbstractGovernanceEffects

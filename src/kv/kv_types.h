@@ -428,6 +428,7 @@ namespace ccf::kv
     virtual void set_service_signing_identity(
       std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> keypair,
       const COSESignaturesConfig& cose_signatures) = 0;
+    virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
   };
 
   class Consensus : public ConfigurableConsensus

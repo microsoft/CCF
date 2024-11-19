@@ -18,35 +18,17 @@ namespace ccf
   {
     ccf::crypto::Pem priv_key;
     ccf::crypto::Pem cert;
-    std::string subject_name = "CN=CCF Service"; // TODO: Remove?
-    COSESignaturesConfig cose_signatures_config;
-    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> kp{}; // TODO: Remove
-
-    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> get_key_pair()
-    {
-      if (!kp)
-      {
-        kp = std::make_shared<ccf::crypto::KeyPair_OpenSSL>(priv_key);
-      }
-
-      return kp;
-    }
 
     bool operator==(const NetworkIdentity& other) const
     {
-      return cert == other.cert && priv_key == other.priv_key &&
-        subject_name == other.subject_name &&
-        cose_signatures_config == other.cose_signatures_config;
+      return cert == other.cert && priv_key == other.priv_key;
     }
 
     NetworkIdentity(
-      const std::string& subject_name_,
+      const std::string& subject_name,
       ccf::crypto::CurveID curve_id,
       const std::string& valid_from,
-      size_t validity_period_days,
-      const COSESignaturesConfig& cose_signatures_config_) :
-      subject_name(subject_name_),
-      cose_signatures_config(cose_signatures_config_)
+      size_t validity_period_days)
     {
       auto identity_key_pair =
         std::make_shared<ccf::crypto::KeyPair_OpenSSL>(curve_id);
@@ -61,13 +43,7 @@ namespace ccf
     }
 
     // TODO :Revisit this constructor
-    NetworkIdentity(const NetworkIdentity& other) :
-      subject_name(ccf::crypto::get_subject_name(other.cert)),
-      cose_signatures_config(other.cose_signatures_config)
-    {
-      priv_key = other.priv_key;
-      cert = other.cert;
-    }
+    NetworkIdentity(const NetworkIdentity& other) = default;
 
     NetworkIdentity() = default;
 
@@ -76,12 +52,12 @@ namespace ccf
       OPENSSL_cleanse(priv_key.data(), priv_key.size());
     }
 
-    ccf::crypto::Pem issue_certificate(
+    ccf::crypto::Pem renew_certificate(
       const std::string& valid_from, size_t validity_period_days)
     {
       return ccf::crypto::create_self_signed_cert(
         get_key_pair(),
-        subject_name,
+        ccf::crypto::get_subject_name(cert),
         {} /* SAN */,
         valid_from,
         validity_period_days);
@@ -90,6 +66,11 @@ namespace ccf
     void set_certificate(const ccf::crypto::Pem& new_cert)
     {
       cert = new_cert;
+    }
+
+    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> get_key_pair()
+    {
+      return std::make_shared<ccf::crypto::KeyPair_OpenSSL>(priv_key);
     }
   };
 }

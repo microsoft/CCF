@@ -502,8 +502,7 @@ namespace ccf
             config.service_subject_name,
             curve_id,
             config.startup_host_time,
-            config.initial_service_certificate_validity_days,
-            config.cose_signatures);
+            config.initial_service_certificate_validity_days);
 
           network.ledger_secrets->init();
 
@@ -543,8 +542,7 @@ namespace ccf
             ccf::crypto::get_subject_name(previous_service_identity_cert),
             curve_id,
             config.startup_host_time,
-            config.initial_service_certificate_validity_days,
-            config.cose_signatures);
+            config.initial_service_certificate_validity_days);
 
           history->set_service_signing_identity(
             network.identity->get_key_pair(), config.cose_signatures);
@@ -1759,6 +1757,18 @@ namespace ccf
     {
       std::lock_guard<pal::Mutex> guard(lock);
       return self_signed_node_cert;
+    }
+
+    const ccf::COSESignaturesConfig& get_cose_signatures_config() override
+    {
+      if (history == nullptr)
+      {
+        throw std::logic_error(
+          "Attempting to access COSE signatures config before history has been "
+          "constructed");
+      }
+
+      return history->get_cose_signatures_config();
     }
 
   private:
