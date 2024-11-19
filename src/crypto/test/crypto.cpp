@@ -1323,6 +1323,8 @@ TEST_CASE("Sign and verify a chain with an intermediate and different subjects")
   rc = verifier->verify_certificate(
     {&root_cert}, {}, true /* ignore time */
   );
+  
+  REQUIRE(!rc);
 
   // Invalid root
   rc = verifier->verify_certificate(
