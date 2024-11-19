@@ -1292,3 +1292,44 @@ TEST_CASE("COSE sign & verify")
 
   REQUIRE(cose_verifier->verify_detached(cose_sign, {}));
 }
+
+TEST_CASE("Sign and verify a chain with an intermediate and different subjects")
+{
+  auto root_kp = ccf::crypto::make_key_pair(CurveID::SECP384R1);
+  auto root_cert = generate_self_signed_cert(root_kp, "CN=root");
+
+  auto intermediate_kp = ccf::crypto::make_key_pair(CurveID::SECP384R1);
+  auto intermediate_csr = intermediate_kp->create_csr("CN=intermediate", {});
+
+  std::string valid_from = "20210311000000Z";
+  std::string valid_to = "20230611235959Z";
+  auto intermediate_cert =
+    root_kp->sign_csr(root_cert, intermediate_csr, valid_from, valid_to, true);
+
+  auto leaf_kp = ccf::crypto::make_key_pair(CurveID::SECP384R1);
+  auto leaf_csr = leaf_kp->create_csr("CN=leaf", {});
+  auto leaf_cert = intermediate_kp->sign_csr(
+    intermediate_cert, leaf_csr, valid_from, valid_to, true);
+
+  auto verifier = ccf::crypto::make_verifier(leaf_cert.raw());
+  auto rc = verifier->verify_certificate(
+    {&root_cert}, {&intermediate_cert}, true /* ignore time */
+  );
+
+  // Failed with pathlen: 0
+  REQUIRE(rc);
+
+  // Missing intermediate
+  rc = verifier->verify_certificate(
+    {&root_cert}, {}, true /* ignore time */
+  );
+
+  REQUIRE(!rc);
+
+  // Invalid root
+  rc = verifier->verify_certificate(
+    {&leaf_cert}, {}, true /* ignore time */
+  );
+
+  REQUIRE(!rc);
+}
