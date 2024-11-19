@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - `ccf::http::get_query_value()` now supports bool types with `"true"` and `"false"` as values.
+
 ### Fixed
 
 - Services upgrading from 4.x to 5.x may accidentally change their service's subject name, resulting in cryptographic errors when verifying anything endorsed by the old subject name. The subject name field is now correctly populated and retained across joins, renewals, and disaster recoveries.
