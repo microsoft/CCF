@@ -587,8 +587,8 @@ namespace ccf
 
     struct ServiceSigningContext
     {
-      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp;
-      ccf::COSESignaturesConfig cose_signatures_config;
+      const std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp;
+      const ccf::COSESignaturesConfig cose_signatures_config;
     };
 
     std::optional<ServiceSigningContext> signing_context = std::nullopt;
@@ -623,8 +623,8 @@ namespace ccf
           "Called set_service_signing_identity() multiple times");
       }
 
-      signing_context =
-        ServiceSigningContext{service_kp_, cose_signatures_config_};
+      signing_context.emplace(
+        ServiceSigningContext{service_kp_, cose_signatures_config_});
 
       LOG_INFO_FMT(
         "Setting service signing identity to iss: {} sub: {}",
