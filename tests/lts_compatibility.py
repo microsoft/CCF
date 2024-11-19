@@ -304,13 +304,24 @@ def run_code_upgrade_from(
                         version == expected_version
                     ), f"For node {node.local_node_id}, expect version {expected_version}, got {version}"
 
-                    # Verify that all report the correct service_subject_name
-                    r = c.get("/node/network")
-                    assert r.status_code == 200, r
-                    cert_pem = r.body.json()["service_certificate"]
-                    cert = x509.load_pem_x509_certificate(
-                        cert_pem.encode(), default_backend()
+            # Verify that either custom service_subject_name was applied,
+            # or that a default name is used
+            primary, _ = network.find_primary()
+            with primary.client() as c:
+                r = c.get("/node/network")
+                assert r.status_code == 200, r
+                cert_pem = r.body.json()["service_certificate"]
+                cert = x509.load_pem_x509_certificate(
+                    cert_pem.encode(), default_backend()
+                )
+                version = primary.version or args.ccf_version
+                if not infra.node.version_after(version, "ccf-5.0.0-dev14"):
+                    service_subject_name = cert.subject.rfc4514_string()
+                    LOG.info(
+                        f"Custom subject name not supported on {version}, so falling back to default {service_subject_name}"
                     )
+                else:
+                    LOG.info(f"Custom subject name should be supported on {version}")
                     assert cert.subject.rfc4514_string() == service_subject_name, cert
 
             LOG.info("Apply transactions to hybrid network, with primary as old node")
