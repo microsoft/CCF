@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Added OpenAPI support for `std::unordered_set`.
 
+### Fixed
+
+- Services upgrading from 4.x to 5.x may accidentally change their service's subject name, resulting in cryptographic errors when verifying anything endorsed by the old subject name. The subject name field is now correctly populated and retained across joins, renewals, and disaster recoveries.
+
 ## [5.0.9]
 
 [5.0.9]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.9
