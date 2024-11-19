@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- `ccf::http::get_query_value()` now supports bool types with `"true"` and `"false"` as values.
 - Service certificates and endorsements used for historical receipts now have a pathlen constraint of 1 instead of 0, reflecting the fact that there can be a single intermediate in endorsement chains. Historically the value had been 0, which happened to work because of a quirk in OpenSSL when Issuer and Subject match on an element in the chain.
 
 ### Fixed
