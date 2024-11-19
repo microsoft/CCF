@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.10]
+
+[5.0.10]: https://github.com/microsoft/CCF/releases/tag/5.0.10
+
+### Fixed
+
+- Services upgrading from 4.x to 5.x may accidentally change their service's subject name, resulting in cryptographic errors when verifying anything endorsed by the old subject name. The subject name field is now correctly populated and retained across joins, renewals, and disaster recoveries.
+
 ## [5.0.9]
 
 [5.0.9]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.9
