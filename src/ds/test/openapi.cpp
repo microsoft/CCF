@@ -160,6 +160,8 @@ TEST_CASE("Complex custom types")
     doc, "/app/complex", HTTP_POST);
   openapi::add_response_schema<std::map<Baz, std::vector<Buzz>>>(
     doc, "/app/complex", HTTP_POST, HTTP_STATUS_OK);
+  openapi::add_response_schema<std::unordered_set<Baz>>(
+    doc, "/app/complex", HTTP_POST, HTTP_STATUS_OK);
 
   required_doc_elements(doc);
 }

@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [5.0.10]
 
-[5.0.10]: https://github.com/microsoft/CCF/releases/tag/5.0.10
+[5.0.10]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.10
+
+- Added OpenAPI support for `std::unordered_set`.
 
 ### Fixed
 
