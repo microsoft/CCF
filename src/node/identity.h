@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/curve.h"
+#include "ccf/crypto/verifier.h"
 #include "ccf/node/cose_signatures_config.h"
 #include "crypto/certs.h"
 #include "crypto/openssl/key_pair.h"
@@ -91,7 +92,8 @@ namespace ccf
     }
 
     ReplicatedNetworkIdentity(const NetworkIdentity& other) :
-      NetworkIdentity(other.subject_name, other.cose_signatures_config)
+      NetworkIdentity(
+        ccf::crypto::get_subject_name(other.cert), other.cose_signatures_config)
     {
       if (type != other.type)
       {
