@@ -14,17 +14,10 @@
 
 namespace ccf
 {
-  enum class IdentityType
-  {
-    REPLICATED,
-    SPLIT
-  };
-
   struct NetworkIdentity
   {
     ccf::crypto::Pem priv_key;
     ccf::crypto::Pem cert;
-    std::optional<IdentityType> type = IdentityType::REPLICATED;
     std::string subject_name = "CN=CCF Service";
     COSESignaturesConfig cose_signatures_config;
     std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> kp{};
@@ -42,14 +35,13 @@ namespace ccf
     bool operator==(const NetworkIdentity& other) const
     {
       return cert == other.cert && priv_key == other.priv_key &&
-        type == other.type && subject_name == other.subject_name &&
+        subject_name == other.subject_name &&
         cose_signatures_config == other.cose_signatures_config;
     }
 
     NetworkIdentity(
       const std::string& subject_name_,
       const COSESignaturesConfig& cose_signatures_config_) :
-      type(IdentityType::REPLICATED),
       subject_name(subject_name_),
       cose_signatures_config(cose_signatures_config_)
     {}
@@ -95,10 +87,6 @@ namespace ccf
       NetworkIdentity(
         ccf::crypto::get_subject_name(other.cert), other.cose_signatures_config)
     {
-      if (type != other.type)
-      {
-        throw std::runtime_error("invalid identity type conversion");
-      }
       priv_key = other.priv_key;
       cert = other.cert;
     }
