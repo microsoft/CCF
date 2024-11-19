@@ -38,7 +38,6 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)
   DECLARE_JSON_OPTIONAL_FIELDS(NetworkIdentity, subject_name)
-  DECLARE_JSON_TYPE_WITH_BASE(ReplicatedNetworkIdentity, NetworkIdentity)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
     JoinNetworkNodeToNode::Out::NetworkInfo)

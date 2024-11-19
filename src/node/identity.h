@@ -18,9 +18,9 @@ namespace ccf
   {
     ccf::crypto::Pem priv_key;
     ccf::crypto::Pem cert;
-    std::string subject_name = "CN=CCF Service";
+    std::string subject_name = "CN=CCF Service"; // TODO: Remove?
     COSESignaturesConfig cose_signatures_config;
-    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> kp{};
+    std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> kp{}; // TODO: Remove
 
     std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> get_key_pair()
     {
@@ -41,35 +41,12 @@ namespace ccf
 
     NetworkIdentity(
       const std::string& subject_name_,
-      const COSESignaturesConfig& cose_signatures_config_) :
-      subject_name(subject_name_),
-      cose_signatures_config(cose_signatures_config_)
-    {}
-    NetworkIdentity() = default;
-
-    virtual ccf::crypto::Pem issue_certificate(
-      const std::string& valid_from, size_t validity_period_days)
-    {
-      return {};
-    }
-
-    virtual void set_certificate(const ccf::crypto::Pem& certificate) {}
-
-    virtual ~NetworkIdentity() {}
-  };
-
-  class ReplicatedNetworkIdentity : public NetworkIdentity
-  {
-  public:
-    ReplicatedNetworkIdentity() = default;
-
-    ReplicatedNetworkIdentity(
-      const std::string& subject_name_,
       ccf::crypto::CurveID curve_id,
       const std::string& valid_from,
       size_t validity_period_days,
       const COSESignaturesConfig& cose_signatures_config_) :
-      NetworkIdentity(subject_name_, cose_signatures_config_)
+      subject_name(subject_name_),
+      cose_signatures_config(cose_signatures_config_)
     {
       auto identity_key_pair =
         std::make_shared<ccf::crypto::KeyPair_OpenSSL>(curve_id);
@@ -83,16 +60,24 @@ namespace ccf
         validity_period_days);
     }
 
-    ReplicatedNetworkIdentity(const NetworkIdentity& other) :
-      NetworkIdentity(
-        ccf::crypto::get_subject_name(other.cert), other.cose_signatures_config)
+    // TODO :Revisit this constructor
+    NetworkIdentity(const NetworkIdentity& other) :
+      subject_name(ccf::crypto::get_subject_name(other.cert)),
+      cose_signatures_config(other.cose_signatures_config)
     {
       priv_key = other.priv_key;
       cert = other.cert;
     }
 
-    virtual ccf::crypto::Pem issue_certificate(
-      const std::string& valid_from, size_t validity_period_days) override
+    NetworkIdentity() = default;
+
+    virtual ~NetworkIdentity()
+    {
+      OPENSSL_cleanse(priv_key.data(), priv_key.size());
+    }
+
+    ccf::crypto::Pem issue_certificate(
+      const std::string& valid_from, size_t validity_period_days)
     {
       return ccf::crypto::create_self_signed_cert(
         get_key_pair(),
@@ -102,14 +87,9 @@ namespace ccf
         validity_period_days);
     }
 
-    virtual void set_certificate(const ccf::crypto::Pem& new_cert) override
+    void set_certificate(const ccf::crypto::Pem& new_cert)
     {
       cert = new_cert;
-    }
-
-    ~ReplicatedNetworkIdentity() override
-    {
-      OPENSSL_cleanse(priv_key.data(), priv_key.size());
     }
   };
 }

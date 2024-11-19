@@ -498,7 +498,7 @@ namespace ccf
       {
         case StartType::Start:
         {
-          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+          network.identity = std::make_unique<ccf::NetworkIdentity>(
             config.service_subject_name,
             curve_id,
             config.startup_host_time,
@@ -539,7 +539,7 @@ namespace ccf
           ccf::crypto::Pem previous_service_identity_cert(
             config.recover.previous_service_identity.value());
 
-          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+          network.identity = std::make_unique<ccf::NetworkIdentity>(
             ccf::crypto::get_subject_name(previous_service_identity_cert),
             curve_id,
             config.startup_host_time,
@@ -664,7 +664,7 @@ namespace ccf
               throw std::logic_error("Expected network info in join response");
             }
 
-            network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+            network.identity = std::make_unique<ccf::NetworkIdentity>(
               resp.network_info->identity);
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
