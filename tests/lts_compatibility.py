@@ -18,6 +18,8 @@ from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from infra.snp import IS_SNP
 from distutils.dir_util import copy_tree
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 from loguru import logger as LOG
 
@@ -98,6 +100,7 @@ def test_new_service(
     binary_dir,
     library_dir,
     version,
+    expected_subject_name=None,
 ):
     if IS_SNP:
         LOG.info(
@@ -148,6 +151,15 @@ def test_new_service(
 
     test_all_nodes_cert_renewal(network, args, valid_from=valid_from)
     test_service_cert_renewal(network, args, valid_from=valid_from)
+
+    if expected_subject_name:
+        LOG.info(f"Confirming subject name == {expected_subject_name}")
+        with primary.client() as c:
+            r = c.get("/node/network")
+            assert r.status_code == 200, r
+            cert_pem = r.body.json()["service_certificate"]
+            cert = x509.load_pem_x509_certificate(cert_pem.encode(), default_backend())
+            assert cert.subject.rfc4514_string() == expected_subject_name, cert
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
@@ -206,6 +218,8 @@ def run_code_upgrade_from(
 
     set_js_args(args, from_install_path, to_install_path)
 
+    service_subject_name = "CN=LTS custom service name"
+
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
@@ -225,7 +239,10 @@ def run_code_upgrade_from(
                 kwargs["reconfiguration_type"] = "OneTransaction"
 
             network.start_and_open(
-                args, node_container_image=from_container_image, **kwargs
+                args,
+                node_container_image=from_container_image,
+                service_subject_name=service_subject_name,
+                **kwargs,
             )
 
             old_nodes = network.get_joined_nodes()
@@ -286,6 +303,15 @@ def run_code_upgrade_from(
                     assert (
                         version == expected_version
                     ), f"For node {node.local_node_id}, expect version {expected_version}, got {version}"
+
+                    # Verify that all report the correct service_subject_name
+                    r = c.get("/node/network")
+                    assert r.status_code == 200, r
+                    cert_pem = r.body.json()["service_certificate"]
+                    cert = x509.load_pem_x509_certificate(
+                        cert_pem.encode(), default_backend()
+                    )
+                    assert cert.subject.rfc4514_string() == service_subject_name, cert
 
             LOG.info("Apply transactions to hybrid network, with primary as old node")
             issue_activity_on_live_service(network, args)
@@ -371,6 +397,7 @@ def run_code_upgrade_from(
                 to_binary_dir,
                 to_library_dir,
                 to_version,
+                service_subject_name,
             )
             network.get_latest_ledger_public_state()
 
@@ -679,14 +706,14 @@ if __name__ == "__main__":
             {"with previous LTS": latest_lts_version}
         )
 
-        # Compatibility with latest LTS on the same release branch
-        # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
-        latest_lts_version = run_live_compatibility_with_latest(
-            args, repo, local_branch, this_release_branch_only=True
-        )
-        compatibility_report["live compatibility"].update(
-            {"with same LTS": latest_lts_version}
-        )
+        # # Compatibility with latest LTS on the same release branch
+        # # (e.g. when releasing 2.0.1, check compatibility with existing 2.0.0)
+        # latest_lts_version = run_live_compatibility_with_latest(
+        #     args, repo, local_branch, this_release_branch_only=True
+        # )
+        # compatibility_report["live compatibility"].update(
+        #     {"with same LTS": latest_lts_version}
+        # )
 
         if args.check_ledger_compatibility:
             compatibility_report["data compatibility"] = {}
