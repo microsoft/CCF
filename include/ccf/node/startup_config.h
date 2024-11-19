@@ -85,8 +85,6 @@ struct StartupConfig : CCFConfig
   size_t snapshot_tx_interval = 10'000;
 
   // Only if starting or recovering
-  // TODO: Put these into one of the nested structures, to ensure they only
-  // exist in the right mode?
   size_t initial_service_certificate_validity_days = 1;
   std::string service_subject_name = "CN=CCF Service";
   ccf::COSESignaturesConfig cose_signatures;

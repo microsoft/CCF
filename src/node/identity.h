@@ -42,7 +42,6 @@ namespace ccf
         validity_period_days);
     }
 
-    // TODO :Revisit this constructor
     NetworkIdentity(const NetworkIdentity& other) = default;
 
     NetworkIdentity() = default;
