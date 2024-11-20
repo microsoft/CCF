@@ -79,12 +79,13 @@ static std::pair<std::string, size_t> make_validity_pair(bool expired)
   if (expired)
   {
     return std::make_pair(
-      ::ds::to_x509_time_string(now - std::chrono::days(2 * validity_days)),
+      ccf::ds::to_x509_time_string(now - std::chrono::days(2 * validity_days)),
       validity_days);
   }
   else
   {
-    return std::make_pair(::ds::to_x509_time_string(now - 24h), validity_days);
+    return std::make_pair(
+      ccf::ds::to_x509_time_string(now - 24h), validity_days);
   }
 }
 

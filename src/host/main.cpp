@@ -3,6 +3,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/ds/unit_strings.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/platform.h"
 #include "ccf/version.h"
@@ -28,7 +29,6 @@
 #include "time_updater.h"
 
 #include <CLI11/CLI11.hpp>
-#include <ccf/ds/x509_time_fmt.h>
 #include <codecvt>
 #include <cstdlib>
 #include <filesystem>
@@ -593,7 +593,7 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
     startup_config.startup_host_time =
-      ::ds::to_x509_time_string(startup_host_time);
+      ccf::ds::to_x509_time_string(startup_host_time);
 
     if (config.command.type == StartType::Start)
     {

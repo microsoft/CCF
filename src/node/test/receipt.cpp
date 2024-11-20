@@ -4,11 +4,11 @@
 #include "ccf/receipt.h"
 
 #include "ccf/crypto/key_pair.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/service/tables/nodes.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/key_pair.h"
 
-#include <ccf/ds/x509_time_fmt.h>
 #include <doctest/doctest.h>
 #include <iostream>
 #include <random>
@@ -31,9 +31,9 @@ void populate_receipt(std::shared_ptr<ccf::ProofReceipt> receipt)
 {
   using namespace std::literals;
   const auto valid_from =
-    ::ds::to_x509_time_string(std::chrono::system_clock::now() - 1h);
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 1h);
   const auto valid_to =
-    ::ds::to_x509_time_string(std::chrono::system_clock::now() + 1h);
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() + 1h);
 
   auto node_kp = ccf::crypto::make_key_pair();
   auto node_cert = node_kp->self_sign("CN=node", valid_from, valid_to);

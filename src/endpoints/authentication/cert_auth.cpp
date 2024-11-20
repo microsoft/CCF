@@ -3,6 +3,7 @@
 
 #include "ccf/endpoints/authentication/cert_auth.h"
 
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/members.h"
@@ -10,8 +11,6 @@
 #include "ccf/service/tables/users.h"
 #include "ds/lru.h"
 #include "enclave/enclave_time.h"
-
-#include <ccf/ds/x509_time_fmt.h>
 
 namespace ccf
 {
@@ -50,12 +49,12 @@ namespace ccf
 
         const auto valid_from_unix_time =
           duration_cast<seconds>(
-            ::ds::time_point_from_string(valid_from_timestring)
+            ccf::ds::time_point_from_string(valid_from_timestring)
               .time_since_epoch())
             .count();
         const auto valid_to_unix_time =
           duration_cast<seconds>(
-            ::ds::time_point_from_string(valid_to_timestring)
+            ccf::ds::time_point_from_string(valid_to_timestring)
               .time_since_epoch())
             .count();
 

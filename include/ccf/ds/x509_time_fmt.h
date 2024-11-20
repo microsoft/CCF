@@ -11,7 +11,7 @@
 #include <time.h>
 #include <vector>
 
-namespace ds
+namespace ccf::ds
 {
   static inline std::string to_x509_time_string(const std::tm& time)
   {
