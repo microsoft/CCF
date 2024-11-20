@@ -424,5 +424,12 @@ namespace ccf::crypto
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
     };
+
+    struct Unique_EVP_PKEY
+      : public Unique_SSL_OBJECT<EVP_PKEY, EVP_PKEY_new, EVP_PKEY_free>
+    {
+      Unique_EVP_PKEY() = default;
+      Unique_EVP_PKEY(EVP_PKEY* key) : Unique_SSL_OBJECT(key, EVP_PKEY_free) {}
+    };
   }
 }
