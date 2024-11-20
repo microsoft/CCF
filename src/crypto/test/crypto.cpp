@@ -12,6 +12,7 @@
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "crypto/openssl/cose_sign.h"
@@ -21,7 +22,6 @@
 #include "crypto/openssl/symmetric_key.h"
 #include "crypto/openssl/verifier.h"
 #include "crypto/openssl/x509_time.h"
-#include "ds/x509_time_fmt.h"
 
 #include <chrono>
 #include <cstring>
@@ -189,7 +189,7 @@ ccf::crypto::Pem generate_self_signed_cert(
   constexpr size_t certificate_validity_period_days = 365;
   using namespace std::literals;
   auto valid_from =
-    ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 
   return ccf::crypto::create_self_signed_cert(
     kp, name, {}, valid_from, certificate_validity_period_days);
@@ -755,71 +755,71 @@ void run_csr(bool corrupt_csr = false)
 TEST_CASE("2-digit years")
 {
   auto time_str = "220405175422Z";
-  auto tp = ::ds::time_point_from_string(time_str);
-  auto conv = ::ds::to_x509_time_string(tp);
+  auto tp = ccf::ds::time_point_from_string(time_str);
+  auto conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == std::string("20") + time_str);
 }
 
 TEST_CASE("Non-ASN.1 timepoint formats")
 {
   auto time_str = "2022-04-05 18:53:27";
-  auto tp = ::ds::time_point_from_string(time_str);
-  auto conv = ::ds::to_x509_time_string(tp);
+  auto tp = ccf::ds::time_point_from_string(time_str);
+  auto conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220405185327Z");
 
   time_str = "2022-04-05 18:53:27.190380";
-  tp = ::ds::time_point_from_string(time_str);
-  conv = ::ds::to_x509_time_string(tp);
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220405185327Z");
 
   time_str = "2022-04-05 18:53:27 +03:00";
-  tp = ::ds::time_point_from_string(time_str);
-  conv = ::ds::to_x509_time_string(tp);
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220405155327Z");
 
   time_str = "2022-04-05 18:53:27 +0300";
-  tp = ::ds::time_point_from_string(time_str);
-  conv = ::ds::to_x509_time_string(tp);
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220405155327Z");
 
   time_str = "2022-04-05 18:53:27.190380+03:00";
-  tp = ::ds::time_point_from_string(time_str);
-  conv = ::ds::to_x509_time_string(tp);
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220405155327Z");
 
   time_str = "2022-04-05 18:53:27 -03:00";
-  tp = ::ds::time_point_from_string(time_str);
-  conv = ::ds::to_x509_time_string(tp);
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220405215327Z");
 
   time_str = "2022-04-07T10:37:49.567612";
-  tp = ::ds::time_point_from_string(time_str);
-  conv = ::ds::to_x509_time_string(tp);
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220407103749Z");
 
   time_str = "2022-04-07T10:37:49.567612+03:00";
-  tp = ::ds::time_point_from_string(time_str);
-  conv = ::ds::to_x509_time_string(tp);
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220407073749Z");
 
   time_str = "2022-04-07T10:37:49.567612Z";
-  tp = ::ds::time_point_from_string(time_str);
-  conv = ::ds::to_x509_time_string(tp);
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220407103749Z");
 
   time_str = "220425165619+0000";
-  tp = ::ds::time_point_from_string(time_str);
-  conv = ::ds::to_x509_time_string(tp);
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220425165619Z");
 
   time_str = "220425165619+0200";
-  tp = ::ds::time_point_from_string(time_str);
-  conv = ::ds::to_x509_time_string(tp);
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220425145619Z");
 
   time_str = "20220425165619-0300";
-  tp = ::ds::time_point_from_string(time_str);
-  conv = ::ds::to_x509_time_string(tp);
+  tp = ccf::ds::time_point_from_string(time_str);
+  conv = ccf::ds::to_x509_time_string(tp);
   REQUIRE(conv == "20220425195619Z");
 }
 
@@ -987,9 +987,9 @@ TEST_CASE("x509 time")
       auto to = ccf::crypto::OpenSSL::Unique_X509_TIME(adjusted_time);
 
       // Convert to string and back to time_points
-      auto from_conv = ::ds::time_point_from_string(
+      auto from_conv = ccf::ds::time_point_from_string(
         ccf::crypto::OpenSSL::to_x509_time_string(from));
-      auto to_conv = ::ds::time_point_from_string(
+      auto to_conv = ccf::ds::time_point_from_string(
         ccf::crypto::OpenSSL::to_x509_time_string(to));
 
       // Diff is still the same amount of days
@@ -1007,7 +1007,7 @@ TEST_CASE("x509 time")
     for (auto const& days_offset : days_offsets)
     {
       auto adjusted_time = time + std::chrono::days(days_offset);
-      auto adjusted_str = ::ds::to_x509_time_string(adjusted_time);
+      auto adjusted_str = ccf::ds::to_x509_time_string(adjusted_time);
       auto asn1_time = ccf::crypto::OpenSSL::Unique_X509_TIME(adjusted_str);
       auto converted_str = ccf::crypto::OpenSSL::to_x509_time_string(asn1_time);
       REQUIRE(converted_str == adjusted_str);

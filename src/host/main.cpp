@@ -3,6 +3,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/ds/unit_strings.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/platform.h"
 #include "ccf/version.h"
@@ -13,7 +14,6 @@
 #include "ds/non_blocking.h"
 #include "ds/nonstd.h"
 #include "ds/oversized.h"
-#include "ds/x509_time_fmt.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
@@ -593,7 +593,7 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
     startup_config.startup_host_time =
-      ::ds::to_x509_time_string(startup_host_time);
+      ccf::ds::to_x509_time_string(startup_host_time);
 
     if (config.command.type == StartType::Start)
     {
