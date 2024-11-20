@@ -1790,6 +1790,51 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
+      // Redirects to endpoint for a single specific snapshot
+      auto find_snapshot = [this](ccf::endpoints::CommandEndpointContext& ctx) {
+        auto node_configuration_subsystem =
+          this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!node_configuration_subsystem)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
+          return;
+        }
+
+        const auto& snapshots_config =
+          node_configuration_subsystem->get().node_config.snapshots;
+
+        size_t latest_idx = 0;
+        auto latest_committed_snapshot =
+          snapshots::find_latest_committed_snapshot_in_directory(
+            snapshots_config.directory, latest_idx);
+
+        if (!latest_committed_snapshot.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "This node has no committed snapshots");
+          return;
+        }
+
+        const auto& snapshot_path = latest_committed_snapshot.value();
+
+        LOG_DEBUG_FMT("Redirecting to snapshot: {}", snapshot_path);
+
+        auto redirect_url = fmt::format("/node/snapshot/{}", snapshot_path);
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::LOCATION, redirect_url);
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+      };
+      make_command_endpoint(
+        "/snapshot", HTTP_GET, find_snapshot, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+
       auto get_snapshot = [this](ccf::endpoints::CommandEndpointContext& ctx) {
         auto node_configuration_subsystem =
           this->context.get_subsystem<NodeConfigurationSubsystem>();
@@ -1805,36 +1850,209 @@ namespace ccf
         const auto& snapshots_config =
           node_configuration_subsystem->get().node_config.snapshots;
 
-        auto latest_committed_snapshot =
-          snapshots::find_latest_committed_snapshot_in_directories(
-            snapshots_config.directory, snapshots_config.read_only_directory);
+        std::string snapshot_name;
+        std::string error;
+        if (!get_path_param(
+              ctx.rpc_ctx->get_request_path_params(),
+              "snapshot_name",
+              snapshot_name,
+              error))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidResourceName,
+            std::move(error));
+          return;
+        }
 
-        if (!latest_committed_snapshot.has_value())
+        fs::path snapshot_path =
+          fs::path(snapshots_config.directory) / snapshot_name;
+
+        std::ifstream f(snapshot_path);
+        if (!f.good())
         {
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
-            "This node has no committed snapshots");
+            fmt::format(
+              "This node does not have a snapshot named {}", snapshot_name));
           return;
         }
 
-        auto& [snapshot_dir, snapshot_path] = latest_committed_snapshot.value();
+        LOG_DEBUG_FMT("Found snapshot: {}", snapshot_path.string());
 
-        LOG_DEBUG_FMT("Found snapshot: {}", snapshot_dir / snapshot_path);
+        f.seekg(0, f.end);
+        const auto total_size = (size_t)f.tellg();
 
+        ctx.rpc_ctx->set_response_header("accept-ranges", "bytes");
+
+        if (ctx.rpc_ctx->get_request_verb() == HTTP_HEAD)
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          LOG_INFO_FMT("!!! Set explicit content length");
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::CONTENT_LENGTH, total_size);
+          return;
+        }
+
+        size_t range_start = 0;
+        size_t range_end = total_size;
+        {
+          const auto range_header = ctx.rpc_ctx->get_request_header("range");
+          if (range_header.has_value())
+          {
+            auto [unit, ranges] =
+              ccf::nonstd::split_1(range_header.value(), "=");
+            if (unit != "bytes")
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                "Only 'bytes' is supported as a Range header unit");
+              return;
+            }
+
+            if (ranges.find(",") != std::string::npos)
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                "Multiple ranges are not supported");
+              return;
+            }
+
+            auto [s_range_start, s_range_end] =
+              ccf::nonstd::split_1(ranges, "-");
+
+            if (!s_range_start.empty())
+            {
+              {
+                const auto [p, ec] = std::from_chars(
+                  s_range_start.begin(), s_range_start.end(), range_start);
+                if (ec != std::errc())
+                {
+                  ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_BAD_REQUEST,
+                    ccf::errors::InvalidHeaderValue,
+                    fmt::format(
+                      "Unable to parse start of range value {} in {}",
+                      s_range_start,
+                      range_header.value()));
+                  return;
+                }
+              }
+
+              if (range_start > total_size)
+              {
+                ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  fmt::format(
+                    "Start of range {} is larger than total file size {}",
+                    range_start,
+                    total_size));
+                return;
+              }
+
+              if (!s_range_end.empty())
+              {
+                // Fully-specified range, like "X-Y"
+                {
+                  const auto [p, ec] = std::from_chars(
+                    s_range_end.begin(), s_range_end.end(), range_end);
+                  if (ec != std::errc())
+                  {
+                    ctx.rpc_ctx->set_error(
+                      HTTP_STATUS_BAD_REQUEST,
+                      ccf::errors::InvalidHeaderValue,
+                      fmt::format(
+                        "Unable to parse end of range value {} in {}",
+                        s_range_end,
+                        range_header.value()));
+                    return;
+                  }
+                }
+
+                if (range_end > total_size)
+                {
+                  ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_BAD_REQUEST,
+                    ccf::errors::InvalidHeaderValue,
+                    fmt::format(
+                      "End of range {} is larger than total file size {}",
+                      range_end,
+                      total_size));
+                  return;
+                }
+
+                if (range_end < range_start)
+                {
+                  ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_BAD_REQUEST,
+                    ccf::errors::InvalidHeaderValue,
+                    fmt::format(
+                      "Invalid range: Start ({}) and end ({}) out of order",
+                      range_start,
+                      range_end));
+                  return;
+                }
+              }
+              else
+              {
+                // Else this is an open-ended range like "X-"
+                range_end = total_size;
+              }
+            }
+            else
+            {
+              if (!s_range_end.empty())
+              {
+                // Negative range, like "-Y"
+                size_t offset;
+                const auto [p, ec] = std::from_chars(
+                  s_range_end.begin(), s_range_end.end(), offset);
+                if (ec != std::errc())
+                {
+                  ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_BAD_REQUEST,
+                    ccf::errors::InvalidHeaderValue,
+                    fmt::format(
+                      "Unable to parse end of range offset value {} in {}",
+                      s_range_end,
+                      range_header.value()));
+                  return;
+                }
+
+                range_end = total_size;
+                range_start = range_end - offset;
+              }
+            }
+          }
+        }
+
+        // Range end is included
+        const auto range_size = range_end - range_start + 1;
+
+        // Read requested range into buffer
+        std::vector<uint8_t> contents(range_size);
+        f.seekg(range_start);
+        f.read((char*)contents.data(), contents.size());
+        f.close();
+
+        // Build successful response
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-
         ctx.rpc_ctx->set_response_header(
           ccf::http::headers::CONTENT_TYPE,
           ccf::http::headervalues::contenttype::OCTET_STREAM);
-        ctx.rpc_ctx->set_response_header(
-          "x-ms-ccf-snapshot-filename", snapshot_path.string());
-
-        ctx.rpc_ctx->set_response_body(
-          files::slurp(snapshot_dir / snapshot_path));
+        ctx.rpc_ctx->set_response_body(std::move(contents));
       };
       make_command_endpoint(
-        "/snapshot", HTTP_GET, get_snapshot, no_auth_required)
+        "/snapshot/{snapshot_name}", HTTP_HEAD, get_snapshot, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+      make_command_endpoint(
+        "/snapshot/{snapshot_name}", HTTP_GET, get_snapshot, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_openapi_hidden(true)
         .install();

@@ -162,38 +162,4 @@ namespace snapshots
 
     return latest_committed_snapshot_file_name;
   }
-
-  std::optional<std::pair<fs::path, fs::path>>
-  find_latest_committed_snapshot_in_directories(
-    const fs::path& main_directory,
-    const std::optional<fs::path>& read_only_directory)
-  {
-    // Keep track of latest snapshot file in both directories
-    size_t latest_idx = 0;
-
-    std::optional<fs::path> read_only_latest_committed_snapshot = std::nullopt;
-    if (read_only_directory.has_value())
-    {
-      read_only_latest_committed_snapshot =
-        find_latest_committed_snapshot_in_directory(
-          read_only_directory.value(), latest_idx);
-    }
-
-    auto main_latest_committed_snapshot =
-      find_latest_committed_snapshot_in_directory(main_directory, latest_idx);
-
-    if (main_latest_committed_snapshot.has_value())
-    {
-      return std::make_pair(
-        main_directory, main_latest_committed_snapshot.value());
-    }
-    else if (read_only_latest_committed_snapshot.has_value())
-    {
-      return std::make_pair(
-        read_only_directory.value(),
-        read_only_latest_committed_snapshot.value());
-    }
-
-    return std::nullopt;
-  }
 }
