@@ -7,8 +7,8 @@
 #include "ccf/service/tables/nodes.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/key_pair.h"
-#include "ds/x509_time_fmt.h"
 
+#include <ccf/ds/x509_time_fmt.h>
 #include <doctest/doctest.h>
 #include <iostream>
 #include <random>

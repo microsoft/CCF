@@ -21,8 +21,8 @@
 #include "crypto/openssl/symmetric_key.h"
 #include "crypto/openssl/verifier.h"
 #include "crypto/openssl/x509_time.h"
-#include "ds/x509_time_fmt.h"
 
+#include <ccf/ds/x509_time_fmt.h>
 #include <chrono>
 #include <cstring>
 #include <ctime>

@@ -9,8 +9,9 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/users.h"
 #include "ds/lru.h"
-#include "ds/x509_time_fmt.h"
 #include "enclave/enclave_time.h"
+
+#include <ccf/ds/x509_time_fmt.h>
 
 namespace ccf
 {

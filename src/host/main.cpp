@@ -13,7 +13,6 @@
 #include "ds/non_blocking.h"
 #include "ds/nonstd.h"
 #include "ds/oversized.h"
-#include "ds/x509_time_fmt.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
@@ -29,6 +28,7 @@
 #include "time_updater.h"
 
 #include <CLI11/CLI11.hpp>
+#include <ccf/ds/x509_time_fmt.h>
 #include <codecvt>
 #include <cstdlib>
 #include <filesystem>
