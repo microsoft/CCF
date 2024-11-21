@@ -856,6 +856,17 @@ class Snapshot(Entry):
         return self._file_size
 
 
+def latest_snapshot(snapshots_dir):
+    best_name, best_seqno = None, None
+    for s in os.listdir(snapshots_dir):
+        with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
+            snapshot_seqno = snapshot.get_public_domain().get_seqno()
+            if best_seqno is None or snapshot_seqno > best_seqno:
+                best_name = s
+                best_seqno = snapshot_seqno
+    return best_name
+
+
 class LedgerChunk:
     """
     Class used to parse and iterate over :py:class:`ccf.ledger.Transaction` in a CCF ledger chunk.

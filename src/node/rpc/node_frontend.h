@@ -1830,6 +1830,11 @@ namespace ccf
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
       };
       make_command_endpoint(
+        "/snapshot", HTTP_HEAD, find_snapshot, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+      make_command_endpoint(
         "/snapshot", HTTP_GET, find_snapshot, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .set_openapi_hidden(true)
@@ -1868,7 +1873,7 @@ namespace ccf
         fs::path snapshot_path =
           fs::path(snapshots_config.directory) / snapshot_name;
 
-        std::ifstream f(snapshot_path);
+        std::ifstream f(snapshot_path, std::ios::binary);
         if (!f.good())
         {
           ctx.rpc_ctx->set_error(
@@ -1889,7 +1894,6 @@ namespace ccf
         if (ctx.rpc_ctx->get_request_verb() == HTTP_HEAD)
         {
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          LOG_INFO_FMT("!!! Set explicit content length");
           ctx.rpc_ctx->set_response_header(
             ccf::http::headers::CONTENT_LENGTH, total_size);
           return;
@@ -1921,8 +1925,20 @@ namespace ccf
               return;
             }
 
-            auto [s_range_start, s_range_end] =
-              ccf::nonstd::split_1(ranges, "-");
+            const auto segments = ccf::nonstd::split(ranges, "-");
+            if (segments.size() != 2)
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                fmt::format(
+                  "Invalid format, cannot parse range in {}",
+                  range_header.value()));
+              return;
+            }
+
+            const auto s_range_start = segments[0];
+            const auto s_range_end = segments[1];
 
             if (!s_range_start.empty())
             {
@@ -2026,12 +2042,19 @@ namespace ccf
                 range_end = total_size;
                 range_start = range_end - offset;
               }
+              else
+              {
+                ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  "Invalid range: Must contain range-start or range-end");
+                return;
+              }
             }
           }
         }
 
-        // Range end is included
-        const auto range_size = range_end - range_start + 1;
+        const auto range_size = range_end - range_start;
 
         // Read requested range into buffer
         std::vector<uint8_t> contents(range_size);
@@ -2040,11 +2063,17 @@ namespace ccf
         f.close();
 
         // Build successful response
-        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_PARTIAL_CONTENT);
         ctx.rpc_ctx->set_response_header(
           ccf::http::headers::CONTENT_TYPE,
           ccf::http::headervalues::contenttype::OCTET_STREAM);
         ctx.rpc_ctx->set_response_body(std::move(contents));
+
+        // Partial Content responses describe the current response in
+        // Content-Range
+        ctx.rpc_ctx->set_response_header(
+          "content-range",
+          fmt::format("bytes {}-{}/{}", range_start, range_end, total_size));
       };
       make_command_endpoint(
         "/snapshot/{snapshot_name}", HTTP_HEAD, get_snapshot, no_auth_required)
