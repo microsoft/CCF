@@ -59,7 +59,7 @@ function(message)
 endfunction()
 
 option(PROFILE_TESTS "Profile tests" OFF)
-set(PYTHON python3)
+set(PYTHON unbuffer python3)
 
 set(DISTRIBUTE_PERF_TESTS
     ""
@@ -251,7 +251,7 @@ endif()
 
 target_link_libraries(
   cchost PRIVATE uv ${TLS_LIBRARY} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
-                 ${LINK_LIBCXX} ccfcrypto.host
+                 ${LINK_LIBCXX} ccfcrypto.host curl http_parser.host
 )
 
 install(TARGETS cchost DESTINATION bin)
@@ -742,6 +742,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/dl_list.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
