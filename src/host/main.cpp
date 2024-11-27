@@ -24,6 +24,7 @@
 #include "process_launcher.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
+#include "snapshots/fetch.h"
 #include "snapshots/snapshot_manager.h"
 #include "ticker.h"
 #include "time_updater.h"
@@ -680,6 +681,16 @@ int main(int argc, char** argv)
     }
 
     std::vector<uint8_t> startup_snapshot = {};
+
+    if (config.command.type == StartType::Join)
+    {
+      // TODO: Decide whether to use it
+      auto [snapshot_name, copied_snapshot] =
+        snapshots::fetch_from_peer(config.command.join.target_rpc_address);
+
+      files::dump(
+        copied_snapshot, fmt::format("copy_of_{}.foo", snapshot_name));
+    }
 
     if (
       config.command.type == StartType::Join ||

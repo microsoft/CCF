@@ -212,6 +212,10 @@ def test_large_snapshot(network, args):
 def test_snapshot_access(network, args):
     primary, _ = network.find_primary()
 
+    # TODO: Hacked in here to check copying
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args)
+
     snapshots_dir = network.get_committed_snapshots(primary)
     snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
 

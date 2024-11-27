@@ -87,7 +87,6 @@ namespace http
     void set_body(
       const uint8_t* b, size_t s, bool overwrite_content_length = true)
     {
-      LOG_INFO_FMT("!!! Called set_body (raw)");
       body = b;
       body_size = s;
 
@@ -102,7 +101,6 @@ namespace http
 
     void set_body(const std::string& s, bool overwrite_content_length = true)
     {
-      LOG_INFO_FMT("!!! Called set_body (string)");
       body = (uint8_t*)s.data();
       body_size = s.size();
 
