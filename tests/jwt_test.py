@@ -12,31 +12,14 @@ import infra.crypto
 import infra.e2e_args
 import infra.proposal
 import suite.test_requirements as reqs
-import infra.jwt_issuer
+from infra.jwt_issuer import get_jwt_issuers, get_jwt_keys
 from infra.runner import ConcurrentRunner
 import ca_certs
 import ccf.ledger
 from ccf.tx_id import TxID
 import infra.clients
-import http
 
 from loguru import logger as LOG
-
-
-def get_jwt_issuers(args, node):
-    with node.api_versioned_client(api_version=args.gov_api_version) as c:
-        r = c.get("/gov/service/jwk")
-        assert r.status_code == http.HTTPStatus.OK, r
-        body = r.body.json()
-        return body["issuers"]
-
-
-def get_jwt_keys(args, node):
-    with node.api_versioned_client(api_version=args.gov_api_version) as c:
-        r = c.get("/gov/service/jwk")
-        assert r.status_code == http.HTTPStatus.OK, r
-        body = r.body.json()
-        return body["keys"]
 
 
 def set_issuer_with_keys(network, primary, issuer, kids):

@@ -107,6 +107,22 @@ class OpenIDProviderServer(AbstractContextManager):
         self.stop()
 
 
+def get_jwt_issuers(args, node):
+    with node.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/jwk")
+        assert r.status_code == HTTPStatus.OK, r
+        body = r.body.json()
+        return body["issuers"]
+
+
+def get_jwt_keys(args, node):
+    with node.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/jwk")
+        assert r.status_code == HTTPStatus.OK, r
+        body = r.body.json()
+        return body["keys"]
+
+
 class JwtIssuer:
     TEST_JWT_ISSUER_NAME = "https://example.issuer"
     TEST_CA_BUNDLE_NAME = "test_ca_bundle_name"
@@ -243,25 +259,20 @@ class JwtIssuer:
                             return
                     time.sleep(0.1)
         else:
-            with primary.client(
-                network.consortium.get_any_active_member().local_id
-            ) as c:
-                while time.time() < end_time:
-                    logs = []
-                    r = c.get("/gov/jwt_keys/all", log_capture=logs)
-                    assert r.status_code == 200, r
-                    keys = r.body.json()
-                    if kid_ in keys:
-                        kid_vals = keys[kid_]
-                        if primary.version_after("ccf-5.0.0-dev17"):
-                            assert len(kid_vals) == 1
-                            stored_cert = kid_vals[0]["cert"]
-                        else:
-                            stored_cert = kid_vals["cert"]
-                        if self.cert_pem == stored_cert:
-                            flush_info(logs)
-                            return
-                    time.sleep(0.1)
+            while time.time() < end_time:
+                logs = []
+                keys = get_jwt_keys(args, primary)
+                if kid_ in keys:
+                    kid_vals = keys[kid_]
+                    if primary.version_after("ccf-5.0.0-dev17"):
+                        assert len(kid_vals) == 1
+                        stored_cert = kid_vals[0]["cert"]
+                    else:
+                        stored_cert = kid_vals["cert"]
+                    if self.cert_pem == stored_cert:
+                        flush_info(logs)
+                        return
+                time.sleep(0.1)
         flush_info(logs)
         raise TimeoutError(
             f"JWT public signing keys were not refreshed after {timeout}s"

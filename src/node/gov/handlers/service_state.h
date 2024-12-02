@@ -578,10 +578,29 @@ namespace ccf::gov::endpoints
                 {
                   auto info = nlohmann::json::object();
 
-                  // cert is stored as DER - convert to PEM for API
-                  const auto cert_pem =
-                    ccf::crypto::cert_der_to_pem(metadata.cert);
-                  info["certificate"] = cert_pem.str();
+                  std::string key{}, value{};
+                  if (metadata.public_key.has_value())
+                  {
+                    key = "publicKey";
+                    value = ccf::crypto::make_rsa_public_key(
+                              metadata.public_key.value())
+                              ->public_key_pem()
+                              .str();
+                  }
+                  else if (metadata.cert.has_value())
+                  {
+                    key = "certificate";
+                    value =
+                      ccf::crypto::cert_der_to_pem(metadata.cert.value()).str();
+                  }
+                  else
+                  {
+                    // This must not happen, but we intentionally ignore it here
+                    // as this is just a key reporting endpoint, this situation
+                    // must be prevented at the time of storing the new keys.
+                  }
+
+                  info[key] = value;
 
                   info["issuer"] = metadata.issuer;
                   info["constraint"] = metadata.constraint;

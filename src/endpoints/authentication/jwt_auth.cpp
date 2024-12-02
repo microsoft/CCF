@@ -3,6 +3,7 @@
 
 #include "ccf/endpoints/authentication/jwt_auth.h"
 
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
@@ -146,6 +147,7 @@ namespace ccf
       {
         token_keys = std::vector<OpenIDJWKMetadata>{OpenIDJWKMetadata{
           .cert = *fallback_key,
+          .public_key = std::nullopt,
           .issuer = *fallback_issuers->get(key_id),
           .constraint = std::nullopt}};
       }
@@ -160,10 +162,34 @@ namespace ccf
 
     for (const auto& metadata : *token_keys)
     {
-      auto verifier = verifiers->get_verifier(metadata.cert);
-      if (!::http::JwtVerifier::validate_token_signature(token, verifier))
+      if (metadata.public_key.has_value())
       {
-        error_reason = "Signature verification failed";
+        auto pubkey =
+          ccf::crypto::make_rsa_public_key(metadata.public_key.value());
+        // To Do cache
+        if (!pubkey->verify(
+              (uint8_t*)token.signed_content.data(),
+              token.signed_content.size(),
+              token.signature.data(),
+              token.signature.size(),
+              ccf::crypto::MDType::SHA256))
+        {
+          error_reason = "Signature verification failed (raw public key)";
+          continue;
+        }
+      }
+      else if (metadata.cert.has_value())
+      {
+        auto verifier = verifiers->get_verifier(metadata.cert.value());
+        if (!::http::JwtVerifier::validate_token_signature(token, verifier))
+        {
+          error_reason = "Signature verification failed (certificate)";
+          continue;
+        }
+      }
+      else
+      {
+        error_reason = "Missing public key or certificate";
         continue;
       }
 

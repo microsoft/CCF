@@ -291,27 +291,6 @@
         },
         "type": "object"
       },
-      "KeyIdInfo": {
-        "properties": {
-          "cert": {
-            "$ref": "#/components/schemas/Pem"
-          },
-          "issuer": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "issuer",
-          "cert"
-        ],
-        "type": "object"
-      },
-      "KeyIdInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/KeyIdInfo"
-        },
-        "type": "array"
-      },
       "MDType": {
         "enum": [
           "NONE",
@@ -808,10 +787,12 @@
           },
           "issuer": {
             "$ref": "#/components/schemas/string"
+          },
+          "public_key": {
+            "$ref": "#/components/schemas/base64string"
           }
         },
         "required": [
-          "cert",
           "issuer"
         ],
         "type": "object"
@@ -1222,12 +1203,6 @@
         },
         "type": "object"
       },
-      "string_to_KeyIdInfo_array": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/KeyIdInfo_array"
-        },
-        "type": "object"
-      },
       "string_to_OpenIDJWKMetadata_array": {
         "additionalProperties": {
           "$ref": "#/components/schemas/OpenIDJWKMetadata_array"
@@ -1472,31 +1447,6 @@
           }
         }
       ]
-    },
-    "/gov/jwt_keys/all": {
-      "get": {
-        "deprecated": true,
-        "description": "This endpoint is deprecated from 5.0.0. It is replaced by POST /gov/service/jwk",
-        "operationId": "GetGovJwtKeysAll",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/string_to_KeyIdInfo_array"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/always"
-        }
-      }
     },
     "/gov/kv/constitution": {
       "get": {

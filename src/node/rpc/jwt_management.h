@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
 #include "ccf/service/tables/jwt.h"
@@ -11,6 +12,67 @@
 
 #include <set>
 #include <sstream>
+
+namespace
+{
+  std::pair<std::vector<uint8_t>, bool> try_parse_jwk(
+    const ccf::crypto::JsonWebKeyExtended& jwk)
+  {
+    const auto& kid = jwk.kid.value();
+    if (
+      jwk.e.has_value() && !jwk.e->empty() && jwk.n.has_value() &&
+      !jwk.n->empty())
+    {
+      std::vector<uint8_t> der;
+      ccf::crypto::JsonWebKeyRSAPublic data;
+      data.kty = ccf::crypto::JsonWebKeyType::RSA;
+      data.kid = jwk.kid;
+      data.n = jwk.n.value();
+      data.e = jwk.e.value();
+      try
+      {
+        const auto pubkey = ccf::crypto::make_rsa_public_key(data);
+        der = pubkey->public_key_der();
+      }
+      catch (const std::invalid_argument& exc)
+      {
+        throw std::logic_error(
+          fmt::format("Failed to construct RSA public key: {}", exc.what()));
+      }
+      return {der, false};
+    }
+    else if (jwk.x5c.has_value() && !jwk.x5c->empty())
+    {
+      auto& der_base64 = jwk.x5c.value()[0];
+      ccf::Cert der;
+      try
+      {
+        der = ccf::crypto::raw_from_b64(der_base64);
+      }
+      catch (const std::invalid_argument& e)
+      {
+        throw std::logic_error(
+          fmt::format("Could not parse x5c of key id {}: {}", kid, e.what()));
+      }
+      try
+      {
+        ccf::crypto::make_unique_verifier(der); // throws
+      }
+      catch (std::invalid_argument& exc)
+      {
+        throw std::logic_error(fmt::format(
+          "JWKS kid {} has an invalid X.509 certificate: {}", kid, exc.what()));
+      }
+
+      return {der, true};
+    }
+    else
+    {
+      throw std::logic_error(
+        fmt::format("JWKS kid {} has neither x5c or RSA public key", kid));
+    }
+  }
+}
 
 namespace ccf
 {
@@ -37,8 +99,8 @@ namespace ccf
     const std::string& issuer, const std::string& constraint)
   {
     // Only accept key constraints for the same (sub)domain. This is to avoid
-    // setting keys from issuer A which will be used to validate iss claims for
-    // issuer B, so this doesn't make sense (at least for now).
+    // setting keys from issuer A which will be used to validate iss claims
+    // for issuer B, so this doesn't make sense (at least for now).
 
     const auto issuer_domain = ::http::parse_url_full(issuer).host;
     const auto constraint_domain = ::http::parse_url_full(constraint).host;
@@ -48,13 +110,13 @@ namespace ccf
       return false;
     }
 
-    // Either constraint's domain == issuer's domain or it is a subdomain, e.g.:
-    // limited.facebook.com
+    // Either constraint's domain == issuer's domain or it is a subdomain,
+    // e.g.: limited.facebook.com
     //        .facebook.com
     //
     // It may make sense to support vice-versa too, but we haven't found any
-    // instances of that so far, so leaveing it only-way only for facebook-like
-    // cases.
+    // instances of that so far, so leaveing it only-way only for
+    // facebook-like cases.
     if (issuer_domain != constraint_domain)
     {
       const auto pattern = "." + constraint_domain;
@@ -68,8 +130,8 @@ namespace ccf
     ccf::kv::Tx& tx, std::string issuer)
   {
     // Unlike resetting JWT keys for a particular issuer, removing keys can be
-    // safely done on both table revisions, as soon as the application shouldn't
-    // use them anyway after being ask about that explicitly.
+    // safely done on both table revisions, as soon as the application
+    // shouldn't use them anyway after being ask about that explicitly.
     legacy_remove_jwt_public_signing_keys(tx, issuer);
 
     auto keys =
@@ -113,73 +175,45 @@ namespace ccf
       LOG_FAIL_FMT("{}: JWKS has no keys", log_prefix);
       return false;
     }
-    std::map<std::string, std::vector<uint8_t>> new_keys;
+    using DerValue = std::pair<std::vector<uint8_t>, bool /* is cert */>;
+    std::map<std::string, DerValue> new_keys;
     std::map<std::string, JwtIssuer> issuer_constraints;
-    for (auto& jwk : jwks.keys)
+
+    try
     {
-      if (!jwk.kid.has_value())
+      for (auto& jwk : jwks.keys)
       {
-        LOG_FAIL_FMT("No kid for JWT signing key");
-        return false;
-      }
-
-      if (!jwk.x5c.has_value() && jwk.x5c->empty())
-      {
-        LOG_FAIL_FMT("{}: JWKS is invalid (empty x5c)", log_prefix);
-        return false;
-      }
-
-      auto& der_base64 = jwk.x5c.value()[0];
-      ccf::Cert der;
-      auto const& kid = jwk.kid.value();
-      try
-      {
-        der = ccf::crypto::raw_from_b64(der_base64);
-      }
-      catch (const std::invalid_argument& e)
-      {
-        LOG_FAIL_FMT(
-          "{}: Could not parse x5c of key id {}: {}",
-          log_prefix,
-          kid,
-          e.what());
-        return false;
-      }
-
-      try
-      {
-        ccf::crypto::make_unique_verifier(
-          (std::vector<uint8_t>)der); // throws on error
-      }
-      catch (std::invalid_argument& exc)
-      {
-        LOG_FAIL_FMT(
-          "{}: JWKS kid {} has an invalid X.509 certificate: {}",
-          log_prefix,
-          kid,
-          exc.what());
-        return false;
-      }
-
-      LOG_INFO_FMT("{}: Storing JWT signing key with kid {}", log_prefix, kid);
-      new_keys.emplace(kid, der);
-
-      if (jwk.issuer)
-      {
-        if (!check_issuer_constraint(issuer, *jwk.issuer))
+        if (!jwk.kid.has_value())
         {
-          LOG_FAIL_FMT(
-            "{}: JWKS kid {} with issuer constraint {} fails validation "
-            "against issuer {}",
-            log_prefix,
-            kid,
-            *jwk.issuer,
-            issuer);
-          return false;
+          throw(std::logic_error("Missing kid for JWT signing key"));
         }
 
-        issuer_constraints.emplace(kid, *jwk.issuer);
+        const auto& kid = jwk.kid.value();
+        auto [der, is_cert] = try_parse_jwk(jwk);
+
+        if (jwk.issuer)
+        {
+          if (!check_issuer_constraint(issuer, *jwk.issuer))
+          {
+            throw std::logic_error(fmt::format(
+              "JWKS kid {} with issuer constraint {} fails validation "
+              "against "
+              "issuer {}",
+              kid,
+              *jwk.issuer,
+              issuer));
+          }
+
+          issuer_constraints.emplace(kid, *jwk.issuer);
+        }
+
+        new_keys.emplace(kid, DerValue{std::move(der), is_cert});
       }
+    }
+    catch (const std::exception& exc)
+    {
+      LOG_FAIL_FMT("{}: {}", log_prefix, exc.what());
+      return false;
     }
 
     if (new_keys.empty())
@@ -201,9 +235,20 @@ namespace ccf
       return true;
     });
 
-    for (auto& [kid, der] : new_keys)
+    for (auto& [kid, data] : new_keys)
     {
-      OpenIDJWKMetadata value{der, issuer, std::nullopt};
+      OpenIDJWKMetadata value{std::nullopt, std::nullopt, issuer, std::nullopt};
+
+      const auto& [der, is_cert] = data;
+      if (is_cert)
+      {
+        value.cert = der;
+      }
+      else
+      {
+        value.public_key = der;
+      }
+
       const auto it = issuer_constraints.find(kid);
       if (it != issuer_constraints.end())
       {

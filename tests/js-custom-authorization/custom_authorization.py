@@ -20,6 +20,8 @@ import uuid
 from http import HTTPStatus
 import subprocess
 from contextlib import contextmanager
+from cryptography.x509 import load_pem_x509_certificate
+from cryptography.hazmat.backends import default_backend
 
 from loguru import logger as LOG
 
@@ -92,6 +94,35 @@ def set_issuer_with_a_key(primary, network, issuer, kid, constraint):
                         "kty": "RSA",
                         "kid": kid,
                         "x5c": [der_b64],
+                        "issuer": constraint,
+                    }
+                ]
+            },
+        }
+        json.dump(data, metadata_fp)
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+
+def to_b64(number: int):
+    as_bytes = number.to_bytes((number.bit_length() + 7) // 8, "big")
+    return base64.b64encode(as_bytes).decode("ascii")
+
+
+def set_issuer_with_a_raw_key(primary, network, issuer, kid, constraint):
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        cert = load_pem_x509_certificate(issuer.cert_pem.encode(), default_backend())
+        pubkey = cert.public_key()
+        data = {
+            "issuer": issuer.issuer_url,
+            "auto_refresh": False,
+            "jwks": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": kid,
+                        "n": to_b64(pubkey.public_numbers().n),
+                        "e": to_b64(pubkey.public_numbers().e),
                         "issuer": constraint,
                     }
                 ]
@@ -389,6 +420,40 @@ def test_jwt_auth(network, args):
         )
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
         assert "is after token's Expiration Time" in parse_error_message(r), r
+
+    network.consortium.remove_jwt_issuer(primary, issuer.name)
+    return network
+
+
+@reqs.description("JWT authentication as by OpenID spec with raw public key")
+def test_jwt_auth_raw_key(network, args):
+    primary, _ = network.find_nodes()
+
+    issuer = infra.jwt_issuer.JwtIssuer("https://example.issuer")
+
+    jwt_kid = "my_key_id"
+
+    LOG.info("Add JWT issuer with initial keys")
+
+    set_issuer_with_a_raw_key(primary, network, issuer, jwt_kid, issuer.name)
+
+    LOG.info("Calling jwt endpoint after storing keys")
+    with primary.client("user0") as c:
+        r = c.get("/app/jwt", headers=infra.jwt_issuer.make_bearer_header("garbage"))
+        assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
+        assert "Malformed JWT" in parse_error_message(r), r
+
+        jwt_mismatching_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
+        jwt = infra.crypto.create_jwt({}, jwt_mismatching_key_priv_pem, jwt_kid)
+        r = c.get("/app/jwt", headers=infra.jwt_issuer.make_bearer_header(jwt))
+        assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
+        assert "JWT payload is missing required field" in parse_error_message(r), r
+
+        r = c.get(
+            "/app/jwt",
+            headers=infra.jwt_issuer.make_bearer_header(issuer.issue_jwt(jwt_kid)),
+        )
+        assert r.status_code == HTTPStatus.OK, r.status_code
 
     network.consortium.remove_jwt_issuer(primary, issuer.name)
     return network
@@ -708,6 +773,7 @@ def run_authn(args):
         network.start_and_open(args)
         network = test_cert_auth(network, args)
         network = test_jwt_auth(network, args)
+        network = test_jwt_auth_raw_key(network, args)
         network = test_jwt_auth_msft_single_tenant(network, args)
         network = test_jwt_auth_msft_multitenancy(network, args)
         network = test_jwt_auth_msft_same_kids_different_issuers(network, args)

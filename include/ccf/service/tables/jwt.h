@@ -37,16 +37,18 @@ namespace ccf
   using JwtIssuer = std::string;
   using JwtKeyId = std::string;
   using Cert = std::vector<uint8_t>;
+  using PublicKey = std::vector<uint8_t>;
 
   struct OpenIDJWKMetadata
   {
-    Cert cert;
+    std::optional<Cert> cert;
+    std::optional<PublicKey> public_key;
     JwtIssuer issuer;
     std::optional<JwtIssuer> constraint;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(OpenIDJWKMetadata);
-  DECLARE_JSON_REQUIRED_FIELDS(OpenIDJWKMetadata, cert, issuer);
-  DECLARE_JSON_OPTIONAL_FIELDS(OpenIDJWKMetadata, constraint);
+  DECLARE_JSON_REQUIRED_FIELDS(OpenIDJWKMetadata, issuer);
+  DECLARE_JSON_OPTIONAL_FIELDS(OpenIDJWKMetadata, cert, public_key, constraint);
 
   using JwtIssuers = ServiceMap<JwtIssuer, JwtIssuerMetadata>;
   using JwtPublicSigningKeys =
@@ -75,7 +77,7 @@ namespace ccf
 
   struct JsonWebKeySet
   {
-    std::vector<ccf::crypto::JsonWebKey> keys;
+    std::vector<ccf::crypto::JsonWebKeyExtended> keys;
 
     bool operator!=(const JsonWebKeySet& rhs) const
     {

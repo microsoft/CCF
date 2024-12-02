@@ -130,15 +130,22 @@ function checkJwks(value, field) {
   for (const [i, jwk] of value.keys.entries()) {
     checkType(jwk.kid, "string", `${field}.keys[${i}].kid`);
     checkType(jwk.kty, "string", `${field}.keys[${i}].kty`);
-    checkType(jwk.x5c, "array", `${field}.keys[${i}].x5c`);
-    checkLength(jwk.x5c, 1, null, `${field}.keys[${i}].x5c`);
-    for (const [j, b64der] of jwk.x5c.entries()) {
-      checkType(b64der, "string", `${field}.keys[${i}].x5c[${j}]`);
-      const pem =
-        "-----BEGIN CERTIFICATE-----\n" +
-        b64der +
-        "\n-----END CERTIFICATE-----";
-      checkX509CertBundle(pem, `${field}.keys[${i}].x5c[${j}]`);
+    if (jwk.x5c) {
+      checkType(jwk.x5c, "array", `${field}.keys[${i}].x5c`);
+      checkLength(jwk.x5c, 1, null, `${field}.keys[${i}].x5c`);
+      for (const [j, b64der] of jwk.x5c.entries()) {
+        checkType(b64der, "string", `${field}.keys[${i}].x5c[${j}]`);
+        const pem =
+          "-----BEGIN CERTIFICATE-----\n" +
+          b64der +
+          "\n-----END CERTIFICATE-----";
+        checkX509CertBundle(pem, `${field}.keys[${i}].x5c[${j}]`);
+      }
+    } else if (jwk.n && jwk.e) {
+      checkType(jwk.n, "string", `${field}.keys[${i}].n`);
+      checkType(jwk.e, "string", `${field}.keys[${i}].e`);
+    } else {
+      throw new Error("JWK must contain either x5c or n and e");
     }
   }
 }
