@@ -1,6 +1,5 @@
 import { injectable } from "inversify";
 import { fibonacci } from "./bad_fib";
-import "reflect-metadata";
 
 @injectable()
 export class SlowConstructorService {
