@@ -666,10 +666,16 @@ namespace ccf
             return;
           }
 
-          const auto listen_interface =
-            ctx->get_session_context()->interface_id.value_or(
-              PRIMARY_RPC_INTERFACE);
-          const auto redirections = get_redirections_config(listen_interface);
+          std::optional<ccf::NodeInfoNetwork_v2::NetInterface::Redirections>
+            redirections = std::nullopt;
+
+          // If there's no interface ID, this is already forwarded or otherwise
+          // special - don't try to redirect it
+          if (ctx->get_session_context()->interface_id.has_value())
+          {
+            redirections = get_redirections_config(
+              ctx->get_session_context()->interface_id.value());
+          }
 
           // If a redirections config was specified, then redirections are used
           // and no forwarding is done
