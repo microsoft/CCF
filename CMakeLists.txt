@@ -60,7 +60,8 @@ endfunction()
 
 option(PROFILE_TESTS "Profile tests" OFF)
 
-# Add CCF_PYTHON_PRELAUNCH=unbuffer to env when calling cmake to get coloured test output
+# Add CCF_PYTHON_PRELAUNCH=unbuffer to env when calling cmake to get coloured
+# test output
 set(PYTHON "$ENV{CCF_PYTHON_PRELAUNCH}" python3)
 
 set(DISTRIBUTE_PERF_TESTS
