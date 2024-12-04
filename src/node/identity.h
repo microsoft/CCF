@@ -19,10 +19,7 @@ namespace ccf
     ccf::crypto::Pem priv_key;
     ccf::crypto::Pem cert;
 
-    bool operator==(const NetworkIdentity& other) const
-    {
-      return cert == other.cert && priv_key == other.priv_key;
-    }
+    bool operator==(const NetworkIdentity& other) const = default;
 
     NetworkIdentity(
       const std::string& subject_name,
