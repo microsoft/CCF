@@ -342,11 +342,11 @@ namespace ccf::logger
 // 2. Be a higher precedence than &&, such that the log statement is bound
 // more tightly than the short-circuiting.
 // This allows:
-// CCF_LOG_OUT(DEBUG, "foo") << "this " << "msg";
+// CCF_LOG_OUT(ccf::DEBUG, "foo") << "this " << "msg";
 #define CCF_LOG_OUT(LVL, TAG) \
-  ccf::logger::config::ok(LoggerLevel::LVL) && \
+  ccf::logger::config::ok(ccf::LoggerLevel::LVL) && \
     ccf::logger::Out() == \
-      ccf::logger::LogLine(LoggerLevel::LVL, TAG, __FILE__, __LINE__)
+      ccf::logger::LogLine(ccf::LoggerLevel::LVL, TAG, __FILE__, __LINE__)
 
 // To avoid repeating the (s, ...) args for every macro, we cheat with a curried
 // macro here by ending the macro with another macro name, which then accepts
