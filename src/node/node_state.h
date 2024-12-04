@@ -591,7 +591,7 @@ namespace ccf
         target_host,
         target_port,
         [this](
-          http_status status,
+          ccf::http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           std::lock_guard<pal::Mutex> guard(lock);
@@ -631,7 +631,7 @@ namespace ccf
               LOG_FAIL_FMT(
                 "An error occurred while joining the network: {} {}{}",
                 status,
-                http_status_str(status),
+                ccf::http_status_str(status),
                 data.empty() ?
                   "" :
                   fmt::format("  '{}'", std::string(data.begin(), data.end())));
@@ -1970,7 +1970,7 @@ namespace ccf
         LOG_FAIL_FMT(
           "Create response is error: {} {}",
           status,
-          http_status_str((http_status)status));
+          ccf::http_status_str((ccf::http_status)status));
         return false;
       }
 
@@ -2715,8 +2715,8 @@ namespace ccf
     virtual void make_http_request(
       const ::http::URL& url,
       ::http::Request&& req,
-      std::function<
-        bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
+      std::function<bool(
+        ccf::http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
       const std::vector<std::string>& ca_certs = {},
       const std::string& app_protocol = "HTTP1",
@@ -2739,7 +2739,7 @@ namespace ccf
         url.host,
         url.port,
         [callback](
-          http_status status,
+          ccf::http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           return callback(status, std::move(headers), std::move(data));

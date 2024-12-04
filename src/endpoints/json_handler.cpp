@@ -116,14 +116,14 @@ namespace ccf
   }
 
   jsonhandler::JsonAdapterResponse make_error(
-    http_status status, const std::string& code, const std::string& msg)
+    ccf::http_status status, const std::string& code, const std::string& msg)
   {
     LOG_DEBUG_FMT(
       "Frontend error: status={} code={} msg={}", status, code, msg);
     return ErrorDetails{status, code, msg};
   }
 
-  jsonhandler::JsonAdapterResponse make_redirect(http_status status)
+  jsonhandler::JsonAdapterResponse make_redirect(ccf::http_status status)
   {
     return RedirectDetails{status};
   }

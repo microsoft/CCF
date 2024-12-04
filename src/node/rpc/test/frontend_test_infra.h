@@ -65,7 +65,7 @@ std::string parse_response_body(const TResponse& r)
   return std::string(r.body.begin(), r.body.end());
 }
 
-void check_error(const TResponse& r, http_status expected)
+void check_error(const TResponse& r, ccf::http_status expected)
 {
   DOCTEST_CHECK(r.status == expected);
 }

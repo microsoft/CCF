@@ -71,8 +71,9 @@ namespace ccf
       const ::http::URL& url,
       ::http::Request&& req,
       std::function<bool(
-        http_status status, ccf::http::HeaderMap&&, std::vector<uint8_t>&&)>
-        callback,
+        ccf::http_status status,
+        ccf::http::HeaderMap&&,
+        std::vector<uint8_t>&&)> callback,
       const std::vector<std::string>& ca_certs = {},
       const std::string& app_protocol = "HTTP1",
       bool use_node_client_certificate = false) = 0;
