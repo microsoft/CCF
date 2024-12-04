@@ -15,6 +15,7 @@ namespace ccf
   {
   public:
     bool is_public = false;
+    ccf::COSESignaturesConfig cose_signatures_config = {};
 
     ExtendedState state() override
     {
@@ -107,7 +108,7 @@ namespace ccf
 
     const ccf::COSESignaturesConfig& get_cose_signatures_config() override
     {
-      throw std::logic_error("Unimplemented");
+      return cose_signatures_config;
     }
   };
 
