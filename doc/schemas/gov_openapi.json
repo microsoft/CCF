@@ -779,9 +779,6 @@
       },
       "OpenIDJWKMetadata": {
         "properties": {
-          "cert": {
-            "$ref": "#/components/schemas/base64string"
-          },
           "constraint": {
             "$ref": "#/components/schemas/string"
           },
