@@ -102,17 +102,16 @@ namespace ccf
           updated.push_back(key);
         }
       }
-      if (updated.size() < v.size())
+
+      if (updated.empty())
       {
-        if (!updated.empty())
-        {
-          metadata->put(k, updated);
-        }
-        else
-        {
-          metadata->remove(k);
-        }
+        metadata->remove(k);
       }
+      else if (updated.size() < v.size())
+      {
+        metadata->put(k, updated);
+      }
+
       return true;
     });
   }
