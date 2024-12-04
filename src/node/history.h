@@ -585,13 +585,13 @@ namespace ccf
 
     std::optional<ccf::crypto::Pem> endorsed_cert = std::nullopt;
 
-    struct ServiceSigningContext
+    struct ServiceSigningIdentity
     {
       const std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp;
       const ccf::COSESignaturesConfig cose_signatures_config;
     };
 
-    std::optional<ServiceSigningContext> signing_context = std::nullopt;
+    std::optional<ServiceSigningIdentity> signing_identity = std::nullopt;
 
   public:
     HashedTxHistory(
@@ -617,14 +617,14 @@ namespace ccf
       std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> service_kp_,
       const ccf::COSESignaturesConfig& cose_signatures_config_) override
     {
-      if (signing_context.has_value())
+      if (signing_identity.has_value())
       {
         throw std::logic_error(
           "Called set_service_signing_identity() multiple times");
       }
 
-      signing_context.emplace(
-        ServiceSigningContext{service_kp_, cose_signatures_config_});
+      signing_identity.emplace(
+        ServiceSigningIdentity{service_kp_, cose_signatures_config_});
 
       LOG_INFO_FMT(
         "Setting service signing identity to iss: {} sub: {}",
@@ -634,14 +634,14 @@ namespace ccf
 
     const ccf::COSESignaturesConfig& get_cose_signatures_config() override
     {
-      if (!signing_context.has_value())
+      if (!signing_identity.has_value())
       {
         throw std::logic_error(
           "Called get_cose_signatures_config() before "
           "set_service_signing_identity()");
       }
 
-      return signing_context->cose_signatures_config;
+      return signing_identity->cose_signatures_config;
     }
 
     void start_signature_emit_timer() override
@@ -900,7 +900,7 @@ namespace ccf
 
       LOG_DEBUG_FMT("Signed at {} in view: {}", txid.version, txid.term);
 
-      if (!signing_context.has_value())
+      if (!signing_identity.has_value())
       {
         throw std::logic_error(
           fmt::format("No service key has been set yet to sign"));
@@ -914,9 +914,9 @@ namespace ccf
           *this,
           id,
           node_kp,
-          *signing_context->service_kp,
+          *signing_identity->service_kp,
           endorsed_cert.value(),
-          signing_context->cose_signatures_config),
+          signing_identity->cose_signatures_config),
         true);
     }
 
