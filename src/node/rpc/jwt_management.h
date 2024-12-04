@@ -90,6 +90,16 @@ namespace ccf
         }
         return true;
       });
+
+    auto metadata = tx.rw<Tables::Legacy::JwtPublicSigningKeysMetadata>(
+      Tables::JwtPublicSigningKeysMetadataLegacy);
+    metadata->foreach([&issuer, &metadata](const auto& k, const auto& v) {
+      if (v.issuer == issuer)
+      {
+        metadata->remove(k);
+      }
+      return true;
+    });
   }
 
   static bool check_issuer_constraint(
