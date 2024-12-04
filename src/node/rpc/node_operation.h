@@ -104,5 +104,10 @@ namespace ccf
     {
       return impl.get_self_signed_certificate();
     }
+
+    const ccf::COSESignaturesConfig& get_cose_signatures_config() override
+    {
+      return impl.get_cose_signatures_config();
+    }
   };
 }

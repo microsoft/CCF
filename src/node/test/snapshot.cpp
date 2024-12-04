@@ -35,7 +35,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
     source_store, source_node_id, *source_node_kp);
   source_history->set_endorsed_certificate({});
   source_history->set_service_signing_identity(
-    service_kp, COSESignaturesConfig{});
+    service_kp, ccf::COSESignaturesConfig{});
   source_store.set_history(source_history);
   source_store.initialise_term(2);
 
@@ -104,7 +104,7 @@ TEST_CASE("Snapshot with merkle tree" * doctest::test_suite("snapshot"))
         target_store, ccf::kv::test::PrimaryNodeId, *target_node_kp);
       target_history->set_endorsed_certificate({});
       target_history->set_service_signing_identity(
-        service_kp, COSESignaturesConfig{});
+        service_kp, ccf::COSESignaturesConfig{});
       target_store.set_history(target_history);
     }
 

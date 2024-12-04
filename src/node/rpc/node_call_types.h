@@ -106,7 +106,7 @@ namespace ccf
         std::optional<ServiceStatus> service_status = std::nullopt;
 
         std::optional<ccf::crypto::Pem> endorsed_certificate = std::nullopt;
-        std::optional<COSESignaturesConfig> cose_signatures_config =
+        std::optional<ccf::COSESignaturesConfig> cose_signatures_config =
           std::nullopt;
 
         NetworkInfo() {}
@@ -118,7 +118,8 @@ namespace ccf
           const NetworkIdentity& identity,
           ServiceStatus service_status,
           const std::optional<ccf::crypto::Pem>& endorsed_certificate,
-          const std::optional<COSESignaturesConfig>& cose_signatures_config_) :
+          const std::optional<ccf::COSESignaturesConfig>&
+            cose_signatures_config_) :
           public_only(public_only),
           last_recovered_signed_idx(last_recovered_signed_idx),
           ledger_secrets(ledger_secrets),

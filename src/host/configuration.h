@@ -144,7 +144,7 @@ namespace host
         ccf::ServiceConfiguration service_configuration;
         size_t initial_service_certificate_validity_days = 1;
         std::string service_subject_name = "CN=CCF Service";
-        COSESignaturesConfig cose_signatures;
+        ccf::COSESignaturesConfig cose_signatures;
 
         bool operator==(const Start&) const = default;
       };

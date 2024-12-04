@@ -163,7 +163,7 @@ namespace ccf::js::extensions
 
       try
       {
-        auto renewed_cert = network->identity->issue_certificate(
+        auto renewed_cert = network->identity->renew_certificate(
           valid_from, validity_period_days);
 
         return JS_NewString(ctx, renewed_cert.str().c_str());

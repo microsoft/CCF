@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/pem.h"
 #include "ccf/ds/quote_info.h"
+#include "ccf/node/cose_signatures_config.h"
 #include "ccf/node/quote.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/node_subsystem_interface.h"
@@ -57,5 +58,7 @@ namespace ccf
     virtual void initiate_private_recovery(ccf::kv::Tx& tx) = 0;
 
     virtual ccf::crypto::Pem get_self_signed_node_certificate() = 0;
+
+    virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
   };
 }
