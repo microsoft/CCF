@@ -10,7 +10,7 @@ mkdir -p /etc/init
 echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
 
 UBUNTU=focal
-PSW_VERSION=2.20.100
+PSW_VERSION=2.25.100
 
 if [ -z "$PSW_VERSION" ]; then 
     echo "Please set PSW_VERSION (e.g. 2.11)." >&2; 
