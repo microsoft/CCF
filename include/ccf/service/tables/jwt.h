@@ -41,24 +41,38 @@ namespace ccf
 
   struct OpenIDJWKMetadata
   {
-    std::optional<PublicKey> public_key;
+    PublicKey public_key;
     JwtIssuer issuer;
     std::optional<JwtIssuer> constraint;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(OpenIDJWKMetadata);
-  DECLARE_JSON_REQUIRED_FIELDS(OpenIDJWKMetadata, issuer);
-  DECLARE_JSON_OPTIONAL_FIELDS(OpenIDJWKMetadata, public_key, constraint);
+  DECLARE_JSON_REQUIRED_FIELDS(OpenIDJWKMetadata, issuer, public_key);
+  DECLARE_JSON_OPTIONAL_FIELDS(OpenIDJWKMetadata, constraint);
+
+  using JwtPublicSigningKeysMetadata =
+    ServiceMap<JwtKeyId, std::vector<OpenIDJWKMetadata>>;
+
+  struct OpenIDJWKMetadataLegacy
+  {
+    Cert cert;
+    JwtIssuer issuer;
+    std::optional<JwtIssuer> constraint;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(OpenIDJWKMetadataLegacy);
+  DECLARE_JSON_REQUIRED_FIELDS(OpenIDJWKMetadataLegacy, issuer, cert);
+  DECLARE_JSON_OPTIONAL_FIELDS(OpenIDJWKMetadataLegacy, constraint);
+
+  using JwtPublicSigningKeysMetadataLegacy =
+    ServiceMap<JwtKeyId, std::vector<OpenIDJWKMetadataLegacy>>;
 
   using JwtIssuers = ServiceMap<JwtIssuer, JwtIssuerMetadata>;
-  using JwtPublicSigningKeys =
-    ServiceMap<JwtKeyId, std::vector<OpenIDJWKMetadata>>;
 
   namespace Tables
   {
     static constexpr auto JWT_ISSUERS = "public:ccf.gov.jwt.issuers";
 
     static constexpr auto JWT_PUBLIC_SIGNING_KEYS_METADATA =
-      "public:ccf.gov.jwt.public_signing_keys_metadata";
+      "public:ccf.gov.jwt.public_signing_keys_metadata_v2";
 
     namespace Legacy
     {
@@ -66,6 +80,8 @@ namespace ccf
         "public:ccf.gov.jwt.public_signing_key";
       static constexpr auto JWT_PUBLIC_SIGNING_KEY_ISSUER =
         "public:ccf.gov.jwt.public_signing_key_issuer";
+      static constexpr auto JWT_PUBLIC_SIGNING_KEYS_METADATA =
+        "public:ccf.gov.jwt.public_signing_keys_metadata";
 
       using JwtPublicSigningKeys =
         ccf::kv::RawCopySerialisedMap<JwtKeyId, Cert>;

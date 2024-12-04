@@ -76,8 +76,8 @@ namespace ccf
   static void legacy_remove_jwt_public_signing_keys(
     ccf::kv::Tx& tx, std::string issuer)
   {
-    auto keys =
-      tx.rw<JwtPublicSigningKeys>(Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS);
+    auto keys = tx.rw<Tables::Legacy::JwtPublicSigningKeys>(
+      Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS);
     auto key_issuer = tx.rw<Tables::Legacy::JwtPublicSigningKeyIssuer>(
       Tables::Legacy::JWT_PUBLIC_SIGNING_KEY_ISSUER);
 
@@ -131,8 +131,8 @@ namespace ccf
     // shouldn't use them anyway after being ask about that explicitly.
     legacy_remove_jwt_public_signing_keys(tx, issuer);
 
-    auto keys =
-      tx.rw<JwtPublicSigningKeys>(Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
+    auto keys = tx.rw<JwtPublicSigningKeysMetadata>(
+      Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
 
     keys->foreach([&issuer, &keys](const auto& k, const auto& v) {
       auto it = find_if(v.begin(), v.end(), [&](const auto& metadata) {
@@ -164,8 +164,8 @@ namespace ccf
     const JwtIssuerMetadata& issuer_metadata,
     const JsonWebKeySet& jwks)
   {
-    auto keys =
-      tx.rw<JwtPublicSigningKeys>(Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
+    auto keys = tx.rw<JwtPublicSigningKeysMetadata>(
+      Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
     // add keys
     if (jwks.keys.empty())
     {

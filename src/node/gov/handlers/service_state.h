@@ -566,7 +566,7 @@ namespace ccf::gov::endpoints
             auto keys = nlohmann::json::object();
 
             auto jwt_keys_handle =
-              ctx.tx.template ro<ccf::JwtPublicSigningKeys>(
+              ctx.tx.template ro<ccf::JwtPublicSigningKeysMetadata>(
                 ccf::Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
 
             jwt_keys_handle->foreach(
@@ -578,13 +578,10 @@ namespace ccf::gov::endpoints
                 {
                   auto info = nlohmann::json::object();
 
-                  if (metadata.public_key.has_value())
-                  {
-                    info["publicKey"] = ccf::crypto::make_rsa_public_key(
-                                          metadata.public_key.value())
-                                          ->public_key_pem()
-                                          .str();
-                  }
+                  info["publicKey"] =
+                    ccf::crypto::make_rsa_public_key(metadata.public_key)
+                      ->public_key_pem()
+                      .str();
                   info["issuer"] = metadata.issuer;
                   info["constraint"] = metadata.constraint;
 

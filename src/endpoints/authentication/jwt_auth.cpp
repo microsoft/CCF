@@ -128,11 +128,42 @@ namespace ccf
     }
 
     auto& token = token_opt.value();
-    auto keys = tx.ro<JwtPublicSigningKeys>(
+    auto keys = tx.ro<JwtPublicSigningKeysMetadata>(
       ccf::Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
     const auto key_id = token.header_typed.kid;
     auto token_keys = keys->get(key_id);
 
+    // For metadata KID->(cert,issuer,constraint).
+    //
+    // Note, that Legacy keys are stored as certs, new approach is raw keys, so
+    // conversion from cert to raw key is needed.
+    if (!token_keys)
+    {
+      auto fallback_certs = tx.ro<JwtPublicSigningKeysMetadataLegacy>(
+        ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS_METADATA);
+      auto fallback_data = fallback_certs->get(key_id);
+      if (fallback_data)
+      {
+        auto new_keys = std::vector<OpenIDJWKMetadata>();
+        for (const auto& metadata : *fallback_data)
+        {
+          auto verifier = ccf::crypto::make_unique_verifier(metadata.cert);
+          new_keys.push_back(OpenIDJWKMetadata{
+            .public_key = verifier->public_key_der(),
+            .issuer = metadata.issuer,
+            .constraint = metadata.constraint});
+        }
+        if (!new_keys.empty())
+        {
+          token_keys = new_keys;
+        }
+      }
+    }
+
+    // For metadata as two separate tables, KID->JwtIssuer and KID->Cert.
+    //
+    // Note, that Legacy keys are stored as certs, new approach is raw keys, so
+    // conversion from certs to keys is needed.
     if (!token_keys)
     {
       auto fallback_keys = tx.ro<Tables::Legacy::JwtPublicSigningKeys>(
@@ -143,8 +174,6 @@ namespace ccf
       auto fallback_cert = fallback_keys->get(key_id);
       if (fallback_cert)
       {
-        // Legacy keys are stored as certs, new approach is raw keys, so
-        // conversion is needed to implicitly work futher down the code.
         auto verifier = ccf::crypto::make_unique_verifier(*fallback_cert);
         token_keys = std::vector<OpenIDJWKMetadata>{OpenIDJWKMetadata{
           .public_key = verifier->public_key_der(),
@@ -162,14 +191,7 @@ namespace ccf
 
     for (const auto& metadata : *token_keys)
     {
-      if (!metadata.public_key.has_value())
-      {
-        error_reason =
-          fmt::format("Missing public key for a given kid: {}", key_id);
-        continue;
-      }
-
-      const auto pubkey = keys_cache->get_key(metadata.public_key.value());
+      const auto pubkey = keys_cache->get_key(metadata.public_key);
       // Obsolote PKCS1 padding is chosen for JWT, as explained in details here:
       // https://github.com/microsoft/CCF/issues/6601#issuecomment-2512059875.
       if (!pubkey->verify_pkcs1(
