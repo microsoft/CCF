@@ -219,15 +219,19 @@ namespace asynchost
       from_existing_file(from_existing_file_)
     {
       auto file_path = (fs::path(dir) / fs::path(file_name));
-      file = fopen(file_path.c_str(), "r+b");
+
+      committed = is_ledger_file_name_committed(file_name);
+      start_idx = get_start_idx_from_file_name(file_name);
+
+      const auto mode = committed ? "rb" : "r+b";
+
+      file = fopen(file_path.c_str(), mode);
+
       if (!file)
       {
         throw std::logic_error(fmt::format(
           "Unable to open ledger file {}: {}", file_path, strerror(errno)));
       }
-
-      committed = is_ledger_file_name_committed(file_name);
-      start_idx = get_start_idx_from_file_name(file_name);
 
       // First, get full size of file
       fseeko(file, 0, SEEK_END);
