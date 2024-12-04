@@ -91,12 +91,27 @@ namespace ccf
         return true;
       });
 
-    auto metadata = tx.rw<Tables::Legacy::JwtPublicSigningKeysMetadata>(
-      Tables::JwtPublicSigningKeysMetadataLegacy);
+    auto metadata = tx.rw<JwtPublicSigningKeysMetadataLegacy>(
+      Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS_METADATA);
     metadata->foreach([&issuer, &metadata](const auto& k, const auto& v) {
-      if (v.issuer == issuer)
+      std::vector<OpenIDJWKMetadataLegacy> updated;
+      for (const auto& key : v)
       {
-        metadata->remove(k);
+        if (key.issuer != issuer)
+        {
+          updated.push_back(key);
+        }
+      }
+      if (updated.size() < v.size())
+      {
+        if (!updated.empty())
+        {
+          metadata->put(k, updated);
+        }
+        else
+        {
+          metadata->remove(k);
+        }
       }
       return true;
     });
