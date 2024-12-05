@@ -370,7 +370,7 @@ namespace ccf
           *this->network.identity.get(),
           service_status,
           endorsed_certificate,
-          std::nullopt /* cose_signatures_config */};
+          node_operation.get_cose_signatures_config()};
       }
       return make_success(rep);
     }
@@ -485,7 +485,7 @@ namespace ccf
               *this->network.identity.get(),
               active_service->status,
               existing_node_info->endorsed_certificate,
-              std::nullopt /* cose_signatures_config */);
+              node_operation.get_cose_signatures_config());
 
             return make_success(rep);
           }
@@ -561,7 +561,7 @@ namespace ccf
               *this->network.identity.get(),
               active_service->status,
               existing_node_info->endorsed_certificate,
-              std::nullopt /* cose_signatures_config */);
+              node_operation.get_cose_signatures_config());
 
             return make_success(rep);
           }
