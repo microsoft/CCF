@@ -279,10 +279,16 @@ class JwtIssuer:
                     LOG.warning(body)
                     keys = body["keys"]
                     if kid_ in keys:
-                        stored_key = keys[kid_][0]["publicKey"]
-                        if self.key_pub_pem == stored_key:
-                            flush_info(logs)
-                            return
+                        if self._use_raw_keys:
+                            stored_key = keys[kid_][0]["publicKey"]
+                            if self.key_pub_pem == stored_key:
+                                flush_info(logs)
+                                return
+                        else:
+                            stored_cert = keys[kid_][0]["certificate"]
+                            if self.cert_pem == stored_cert:
+                                flush_info(logs)
+                                return
                     time.sleep(0.1)
         else:
             with primary.client(
