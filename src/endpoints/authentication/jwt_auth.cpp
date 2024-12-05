@@ -209,7 +209,7 @@ namespace ccf
       const size_t time_now = std::chrono::duration_cast<std::chrono::seconds>(
                                 ccf::get_enclave_time())
                                 .count();
-      if (time_now < token.payload_typed.nbf)
+      if (token.payload_typed.nbf && time_now < *token.payload_typed.nbf)
       {
         error_reason = fmt::format(
           "Current time {} is before token's Not Before (nbf) claim {}",
