@@ -8,53 +8,57 @@ unset(CCF_VERSION_SUFFIX)
 set(CCF_PROJECT "ccf_${COMPILE_TARGET}")
 
 # If possible, deduce project version from git environment
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
-  find_package(Git)
+# if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
+#   find_package(Git)
 
-  execute_process(
-    COMMAND "bash" "-c" "${GIT_EXECUTABLE} describe --tags --match=\"ccf-*\""
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    OUTPUT_VARIABLE "CCF_VERSION"
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    RESULT_VARIABLE RETURN_CODE
-  )
-  if(NOT RETURN_CODE STREQUAL "0")
-    message(FATAL_ERROR "Error calling git describe")
-  endif()
+#   execute_process(
+#     COMMAND "bash" "-c" "${GIT_EXECUTABLE} describe --tags --match=\"ccf-*\""
+#     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+#     OUTPUT_VARIABLE "CCF_VERSION"
+#     OUTPUT_STRIP_TRAILING_WHITESPACE
+#     RESULT_VARIABLE RETURN_CODE
+#   )
+#   if(NOT RETURN_CODE STREQUAL "0")
+#     message(FATAL_ERROR "Error calling git describe")
+#   endif()
 
-  # Convert git description into cmake list, separated at '-'
-  string(REPLACE "-" ";" CCF_VERSION_COMPONENTS ${CCF_VERSION})
+#   # Convert git description into cmake list, separated at '-'
+#   string(REPLACE "-" ";" CCF_VERSION_COMPONENTS ${CCF_VERSION})
 
-  # Check that the first element equals "ccf"
-  list(GET CCF_VERSION_COMPONENTS 0 FIRST)
-  if(NOT FIRST STREQUAL "ccf")
-    message(
-      FATAL_ERROR
-        "Git repository does not appear to contain any tag starting with ccf- (the repository should be cloned with sufficient depth to access the latest \"ccf-*\" tag)"
-    )
-  endif()
-else()
-  # If not in a git environment (e.g. release tarball), deduce version from the
-  # source directory name
-  execute_process(
-    COMMAND "bash" "-c" "basename ${CMAKE_CURRENT_SOURCE_DIR}"
-    OUTPUT_VARIABLE "CCF_VERSION"
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
+#   # Check that the first element equals "ccf"
+#   list(GET CCF_VERSION_COMPONENTS 0 FIRST)
+#   if(NOT FIRST STREQUAL "ccf")
+#     message(
+#       FATAL_ERROR
+#         "Git repository does not appear to contain any tag starting with ccf- (the repository should be cloned with sufficient depth to access the latest \"ccf-*\" tag)"
+#     )
+#   endif()
+# else()
+#   # If not in a git environment (e.g. release tarball), deduce version from the
+#   # source directory name
+#   execute_process(
+#     COMMAND "bash" "-c" "basename ${CMAKE_CURRENT_SOURCE_DIR}"
+#     OUTPUT_VARIABLE "CCF_VERSION"
+#     OUTPUT_STRIP_TRAILING_WHITESPACE
+#   )
 
-  # Convert directory name into cmake list, separated at '-'
-  string(REPLACE "-" ";" CCF_VERSION_COMPONENTS ${CCF_VERSION})
+#   # Convert directory name into cmake list, separated at '-'
+#   string(REPLACE "-" ";" CCF_VERSION_COMPONENTS ${CCF_VERSION})
 
-  # Check that the first element equals "ccf"
-  list(GET CCF_VERSION_COMPONENTS 0 FIRST)
-  if(NOT FIRST STREQUAL "ccf")
-    message(FATAL_ERROR "Sources directory is not in \"ccf-...\" folder")
-  endif()
+#   # Check that the first element equals "ccf"
+#   list(GET CCF_VERSION_COMPONENTS 0 FIRST)
+#   if(NOT FIRST STREQUAL "ccf")
+#     message(FATAL_ERROR "Sources directory is not in \"ccf-...\" folder")
+#   endif()
 
-  message(
-    STATUS "Extracting CCF version from sources directory: ${CCF_VERSION}"
-  )
-endif()
+#   message(
+#     STATUS "Extracting CCF version from sources directory: ${CCF_VERSION}"
+#   )
+# endif()
+
+# TODO (gsinha): Fix the version to the image we are working off.
+set(CCF_VERSION "ccf-6.0.0-dev2")
+set(CCF_VERSION_COMPONENTS 1 2 3)
 
 # Check that we have at least ccf-x.y.z
 list(LENGTH CCF_VERSION_COMPONENTS CCF_VERSION_COMPONENTS_LENGTH)
