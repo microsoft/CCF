@@ -1484,7 +1484,7 @@ namespace ccf
         .install();
 
       auto create = [this](auto& ctx, nlohmann::json&& params) {
-        LOG_DEBUG_FMT("Processing create RPC");
+        LOG_INFO_FMT("Processing create RPC");
 
         bool recovering = node_operation.is_reading_public_ledger();
 
