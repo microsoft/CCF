@@ -87,7 +87,7 @@ struct StartupConfig : CCFConfig
   // Only if starting or recovering
   size_t initial_service_certificate_validity_days = 1;
   std::string service_subject_name = "CN=CCF Service";
-  COSESignaturesConfig cose_signatures;
+  ccf::COSESignaturesConfig cose_signatures;
 
   nlohmann::json service_data = nullptr;
 
