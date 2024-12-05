@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.11]
+
+[5.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.11
+
+### Dependencies
+
+- Updated Open Enclave from 0.19.7 to 0.19.8 (#6685).
+- Updated Intel PSW from 2.20.100 to 2.25.100 (#6685).
+
 ## [5.0.10]
 
 [5.0.10]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.10
