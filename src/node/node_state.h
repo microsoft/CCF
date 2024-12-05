@@ -1963,16 +1963,18 @@ namespace ccf
       }
 
       const auto status = ctx->get_response_status();
+      const auto& raw_body = ctx->get_response_body();
       if (status != HTTP_STATUS_OK)
       {
         LOG_FAIL_FMT(
-          "Create response is error: {} {}",
+          "Create response is error: {} {}\n{}",
           status,
-          http_status_str((http_status)status));
+          http_status_str((http_status)status),
+          std::string(raw_body.begin(), raw_body.end()));
         return false;
       }
 
-      const auto body = nlohmann::json::parse(ctx->get_response_body());
+      const auto body = nlohmann::json::parse(raw_body);
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT("Expected boolean body in create response");
