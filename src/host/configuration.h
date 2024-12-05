@@ -57,7 +57,7 @@ namespace host
   DECLARE_JSON_OPTIONAL_FIELDS(
     ParsedMemberInfo, encryption_public_key_file, data_json_file);
 
-  struct CCHostConfig : CCFConfig
+  struct CCHostConfig : public ccf::CCFConfig
   {
     struct Enclave
     {
@@ -115,7 +115,7 @@ namespace host
 
     struct Logging
     {
-      LoggerLevel host_level = LoggerLevel::INFO;
+      ccf::LoggerLevel host_level = ccf::LoggerLevel::INFO;
       LogFormat format = LogFormat::TEXT;
 
       bool operator==(const Logging&) const = default;
@@ -230,7 +230,7 @@ namespace host
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig::Command, service_certificate_file, start, join, recover);
 
-  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, CCFConfig);
+  DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, ccf::CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig,

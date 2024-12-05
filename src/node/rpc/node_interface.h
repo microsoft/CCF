@@ -60,7 +60,7 @@ namespace ccf
     virtual size_t get_jwt_attempts() = 0;
     virtual ccf::crypto::Pem get_self_signed_certificate() = 0;
     virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
-    virtual const StartupConfig& get_node_config() const = 0;
+    virtual const ccf::StartupConfig& get_node_config() const = 0;
     virtual ccf::crypto::Pem get_network_cert() = 0;
     virtual void stop_notice() = 0;
     virtual bool has_received_stop_notice() = 0;
@@ -72,8 +72,9 @@ namespace ccf
       const ::http::URL& url,
       ::http::Request&& req,
       std::function<bool(
-        http_status status, ccf::http::HeaderMap&&, std::vector<uint8_t>&&)>
-        callback,
+        ccf::http_status status,
+        ccf::http::HeaderMap&&,
+        std::vector<uint8_t>&&)> callback,
       const std::vector<std::string>& ca_certs = {},
       const std::string& app_protocol = "HTTP1",
       bool use_node_client_certificate = false) = 0;
