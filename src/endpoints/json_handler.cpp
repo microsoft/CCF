@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/json_handler.h"
 
+#include "ccf/ds/logger.h"
 #include "ccf/http_consts.h"
 #include "ccf/odata_error.h"
 #include "ccf/redirect.h"
