@@ -20,8 +20,6 @@ import uuid
 from http import HTTPStatus
 import subprocess
 from contextlib import contextmanager
-from cryptography.x509 import load_pem_x509_certificate
-from cryptography.hazmat.backends import default_backend
 
 from loguru import logger as LOG
 
@@ -104,15 +102,9 @@ def set_issuer_with_a_key(primary, network, issuer, kid, constraint):
         network.consortium.set_jwt_issuer(primary, metadata_fp.name)
 
 
-def to_b64(number: int):
-    as_bytes = number.to_bytes((number.bit_length() + 7) // 8, "big")
-    return base64.b64encode(as_bytes).decode("ascii")
-
-
 def set_issuer_with_a_raw_key(primary, network, issuer, kid, constraint):
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
-        cert = load_pem_x509_certificate(issuer.cert_pem.encode(), default_backend())
-        pubkey = cert.public_key()
+        n, e = issuer.public_key_numbers()
         data = {
             "issuer": issuer.issuer_url,
             "auto_refresh": False,
@@ -121,8 +113,8 @@ def set_issuer_with_a_raw_key(primary, network, issuer, kid, constraint):
                     {
                         "kty": "RSA",
                         "kid": kid,
-                        "n": to_b64(pubkey.public_numbers().n),
-                        "e": to_b64(pubkey.public_numbers().e),
+                        "n": n,
+                        "e": e,
                         "issuer": constraint,
                     }
                 ]
