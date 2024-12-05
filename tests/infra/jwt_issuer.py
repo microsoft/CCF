@@ -279,7 +279,7 @@ class JwtIssuer:
                     LOG.warning(body)
                     keys = body["keys"]
                     if kid_ in keys:
-                        if self._use_raw_keys:
+                        if "publicKey" in keys[kid_][0]:
                             stored_key = keys[kid_][0]["publicKey"]
                             if self.key_pub_pem == stored_key:
                                 flush_info(logs)
