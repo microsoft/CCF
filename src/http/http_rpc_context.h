@@ -29,7 +29,7 @@ namespace http
   }
 
   inline std::vector<uint8_t> error(
-    http_status status, const std::string& code, std::string&& msg)
+    ccf::http_status status, const std::string& code, std::string&& msg)
   {
     return error({status, code, std::move(msg)});
   }
@@ -56,7 +56,7 @@ namespace http
     ccf::http::HeaderMap response_headers;
     ccf::http::HeaderMap response_trailers;
     std::vector<uint8_t> response_body = {};
-    http_status response_status = HTTP_STATUS_OK;
+    ccf::http_status response_status = HTTP_STATUS_OK;
 
     bool serialised = false;
 
@@ -136,7 +136,7 @@ namespace http
       return response_body;
     }
 
-    http_status get_response_http_status() const
+    ccf::http_status get_response_http_status() const
     {
       return response_status;
     }
@@ -237,7 +237,7 @@ namespace http
 
     virtual void set_response_status(int status) override
     {
-      response_status = (http_status)status;
+      response_status = (ccf::http_status)status;
     }
 
     virtual int get_response_status() const override

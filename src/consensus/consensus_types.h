@@ -4,9 +4,9 @@
 
 #include "ccf/ds/unit_strings.h"
 #include "ccf/service/consensus_config.h"
+#include "ccf/service/consensus_type.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/tx_id.h"
-#include "enclave/consensus_type.h"
 
 #include <stdint.h>
 

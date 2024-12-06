@@ -267,14 +267,15 @@ namespace http2
 
     void submit_response(
       StreamId stream_id,
-      http_status status,
+      ccf::http_status status,
       const ccf::http::HeaderMap& base_headers,
       const ccf::http::HeaderMap& extra_headers = {})
     {
       std::vector<nghttp2_nv> hdrs = {};
 
       auto status_str = fmt::format(
-        "{}", static_cast<std::underlying_type<http_status>::type>(status));
+        "{}",
+        static_cast<std::underlying_type<ccf::http_status>::type>(status));
       hdrs.emplace_back(
         make_nv(ccf::http2::headers::STATUS, status_str.data()));
 
@@ -325,7 +326,7 @@ namespace http2
 
     void respond(
       StreamId stream_id,
-      http_status status,
+      ccf::http_status status,
       const ccf::http::HeaderMap& headers,
       ccf::http::HeaderMap&& trailers,
       std::span<const uint8_t> body)
@@ -374,7 +375,7 @@ namespace http2
 
     void start_stream(
       StreamId stream_id,
-      http_status status,
+      ccf::http_status status,
       const ccf::http::HeaderMap& headers)
     {
       LOG_TRACE_FMT(
@@ -559,12 +560,12 @@ namespace http2
 
       auto& headers = stream_data->incoming.headers;
 
-      http_status status = {};
+      ccf::http_status status = {};
       {
         const auto status_it = headers.find(ccf::http2::headers::STATUS);
         if (status_it != headers.end())
         {
-          status = http_status(std::stoi(status_it->second));
+          status = ccf::http_status(std::stoi(status_it->second));
         }
       }
 

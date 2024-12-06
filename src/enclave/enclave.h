@@ -219,7 +219,7 @@ namespace ccf
 
     CreateNodeStatus create_new_node(
       StartType start_type_,
-      StartupConfig&& ccf_config_,
+      ccf::StartupConfig&& ccf_config_,
       std::vector<uint8_t>&& startup_snapshot,
       uint8_t* node_cert,
       size_t node_cert_size,
