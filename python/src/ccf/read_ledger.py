@@ -17,12 +17,6 @@ class PrintMode(Enum):
     Contents = auto()
 
 
-class VerifyMode(Enum):
-    Skip = auto()
-    ChunkBoundaries = auto()
-    Full = auto()
-
-
 def indent(n):
     return " " * n
 
@@ -143,9 +137,9 @@ def dump_entry(entry, table_filter, tables_format_rules):
 def run(
     paths,
     print_mode: PrintMode,
-    verify_mode: VerifyMode,
     is_snapshot=False,
     tables_regex=None,
+    insecure_skip_verification=False,
     uncommitted=False,
     tables_format_rules=None,
 ):
@@ -168,7 +162,7 @@ def run(
         return True
     else:
         validator = (
-            None if verify_mode == VerifyMode.Skip else ccf.ledger.LedgerValidator()
+            ccf.ledger.LedgerValidator() if not insecure_skip_verification else None
         )
         ledger_paths = paths
         ledger = ccf.ledger.Ledger(ledger_paths, committed_only=not uncommitted)
@@ -257,17 +251,11 @@ def main():
         default=None,
     )
 
-    verification_args = parser.add_mutually_exclusive_group()
-    verification_args.add_argument(
+    parser.add_argument(
         "--insecure-skip-verification",
         help="INSECURE: skip ledger Merkle tree integrity verification",
         action="store_true",
         default=False,
-    )
-    verification_args.add_argument(
-        "--fast-chunk-verification",
-        help="Don't verify every transaction, only the start and end of each chunk",
-        action="store_true",
     )
 
     args = parser.parse_args()
@@ -278,18 +266,12 @@ def main():
     elif args.digests_only:
         print_mode = PrintMode.Digests
 
-    verify_mode = VerifyMode.Full
-    if args.fast_chunk_verification:
-        verify_mode = VerifyMode.ChunkBoundaries
-    elif args.insecure_skip_verification:
-        verify_mode = VerifyMode.Skip
-
     if not run(
         args.paths,
         print_mode,
-        verify_mode,
         is_snapshot=args.snapshot,
         tables_regex=args.tables,
+        insecure_skip_verification=args.insecure_skip_verification,
         uncommitted=args.uncommitted,
     ):
         sys.exit(1)
