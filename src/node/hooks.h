@@ -4,7 +4,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/service/node_info_network.h"
-#include "enclave/reconfiguration_type.h"
+#include "ccf/service/reconfiguration_type.h"
 #include "service/tables/config.h"
 #include "service/tables/signatures.h"
 

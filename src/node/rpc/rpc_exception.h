@@ -14,7 +14,7 @@ namespace ccf
     ErrorDetails error;
 
     RpcException(
-      http_status status, const std::string& code, std::string&& msg) :
+      ccf::http_status status, const std::string& code, std::string&& msg) :
       error{status, code, std::move(msg)}
     {}
 

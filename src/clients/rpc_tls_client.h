@@ -28,7 +28,7 @@ namespace client
     struct Response
     {
       size_t id;
-      http_status status;
+      ccf::http_status status;
       ccf::http::HeaderMap headers;
       std::vector<uint8_t> body;
     };
@@ -231,7 +231,7 @@ namespace client
     }
 
     virtual void handle_response(
-      http_status status,
+      ccf::http_status status,
       ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {

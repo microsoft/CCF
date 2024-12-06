@@ -11,11 +11,11 @@
 #include "ccf/odata_error.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/mem.h"
+#include "ccf/service/reconfiguration_type.h"
 #include "ccf/version.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
 #include "ds/std_formatters.h"
-#include "enclave/reconfiguration_type.h"
 #include "frontend.h"
 #include "node/network_state.h"
 #include "node/rpc/jwt_management.h"
@@ -266,7 +266,7 @@ namespace ccf
       const JoinNetworkNodeToNode::In& in,
       NodeStatus node_status,
       ServiceStatus service_status,
-      ReconfigurationType reconfiguration_type)
+      ccf::ReconfigurationType reconfiguration_type)
     {
       auto nodes = tx.rw(network.nodes);
       auto node_endorsed_certificates =
@@ -532,7 +532,7 @@ namespace ccf
             in,
             joining_node_status,
             active_service->status,
-            ReconfigurationType::ONE_TRANSACTION);
+            ccf::ReconfigurationType::ONE_TRANSACTION);
         }
 
         // If the service is open, new nodes are first added as pending and
@@ -624,7 +624,7 @@ namespace ccf
             in,
             NodeStatus::PENDING,
             active_service->status,
-            ReconfigurationType::ONE_TRANSACTION);
+            ccf::ReconfigurationType::ONE_TRANSACTION);
         }
       };
       make_endpoint("/join", HTTP_POST, json_adapter(accept), no_auth_required)
@@ -1484,7 +1484,7 @@ namespace ccf
         .install();
 
       auto create = [this](auto& ctx, nlohmann::json&& params) {
-        LOG_DEBUG_FMT("Processing create RPC");
+        LOG_INFO_FMT("Processing create RPC");
 
         bool recovering = node_operation.is_reading_public_ledger();
 

@@ -11,7 +11,7 @@ namespace ccf
   {
   public:
     using HandleDataCallback = std::function<void(
-      http_status status,
+      ccf::http_status status,
       http::HeaderMap&& headers,
       std::vector<uint8_t>&& body)>;
 

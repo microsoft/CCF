@@ -72,7 +72,7 @@ extern "C"
     size_t enclave_version_size,
     size_t* enclave_version_len,
     StartType start_type,
-    LoggerLevel enclave_log_level,
+    ccf::LoggerLevel enclave_log_level,
     size_t num_worker_threads,
     void* time_location)
   {
@@ -215,7 +215,7 @@ extern "C"
 
     ccf::pal::speculation_barrier();
 
-    StartupConfig cc =
+    ccf::StartupConfig cc =
       nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
 
     // 2-tx reconfiguration is currently experimental, disable it in release
@@ -223,7 +223,7 @@ extern "C"
     if (
       cc.start.service_configuration.reconfiguration_type.has_value() &&
       cc.start.service_configuration.reconfiguration_type.value() !=
-        ReconfigurationType::ONE_TRANSACTION)
+        ccf::ReconfigurationType::ONE_TRANSACTION)
     {
       LOG_FAIL_FMT(
         "2TX reconfiguration is experimental, disabled in release mode");

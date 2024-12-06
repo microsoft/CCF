@@ -240,7 +240,7 @@ namespace ccf
         endpoint.host,
         endpoint.port,
         [this, server, endpoint](
-          http_status status,
+          ccf::http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           last_received_request_id++;

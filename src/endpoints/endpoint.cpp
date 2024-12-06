@@ -3,6 +3,8 @@
 
 #include "ccf/endpoint.h"
 
+#include "ccf/ds/logger.h"
+
 namespace ccf::endpoints
 {
   Endpoint& Endpoint::set_openapi_hidden(bool hidden)

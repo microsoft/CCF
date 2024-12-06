@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ccf_assert.h"
 #include "ccf/historical_queries_interface.h"
 #include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
+#include "ds/ccf_assert.h"
 #include "kv/store.h"
 #include "node/encryptor.h"
 #include "node/history.h"

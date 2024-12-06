@@ -211,12 +211,12 @@ namespace host
 
     CreateNodeStatus create_node(
       const EnclaveConfig& enclave_config,
-      const StartupConfig& ccf_config,
+      const ccf::StartupConfig& ccf_config,
       std::vector<uint8_t>&& startup_snapshot,
       std::vector<uint8_t>& node_cert,
       std::vector<uint8_t>& service_cert,
       StartType start_type,
-      LoggerLevel enclave_log_level,
+      ccf::LoggerLevel enclave_log_level,
       size_t num_worker_thread,
       void* time_location)
     {

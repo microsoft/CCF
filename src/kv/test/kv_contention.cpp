@@ -36,7 +36,7 @@ public:
 
 DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 {
-  ccf::logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
 
   // Multiple threads write random entries into random tables, and attempt to
   // commit them. A single thread continually compacts the kv to the latest
@@ -252,7 +252,7 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 DOCTEST_TEST_CASE(
   "get_version_of_previous_write ordering" * doctest::test_suite("concurrency"))
 {
-  ccf::logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
 
   // Many threads attempt to produce a chain of transactions pointing at the
   // previous write to a single key, at that key.

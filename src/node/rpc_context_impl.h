@@ -72,7 +72,7 @@ namespace ccf
     }
 
     virtual void set_error(
-      http_status status,
+      ccf::http_status status,
       const std::string& code,
       std::string&& msg,
       const std::vector<nlohmann::json>& details = {}) override
@@ -90,7 +90,7 @@ namespace ccf
     }
 
     void set_response_json(
-      const nlohmann::json& body, http_status status) override
+      const nlohmann::json& body, ccf::http_status status) override
     {
       // Set error_handler to replace, to avoid throwing if the error message
       // contains non-UTF8 characters. Other args are default values

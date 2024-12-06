@@ -68,7 +68,7 @@ namespace http
     return s;
   }
 
-  inline bool status_success(http_status status)
+  inline bool status_success(ccf::http_status status)
   {
     return status >= 200 && status < 300;
   }
@@ -102,7 +102,7 @@ namespace http
   public:
     struct Response
     {
-      http_status status;
+      ccf::http_status status;
       ccf::http::HeaderMap headers;
       std::vector<uint8_t> body;
     };
@@ -110,7 +110,7 @@ namespace http
     std::queue<Response> received;
 
     virtual void handle_response(
-      http_status status,
+      ccf::http_status status,
       ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
@@ -462,7 +462,7 @@ namespace http
     void handle_completed_message() override
     {
       proc.handle_response(
-        http_status(parser.status_code),
+        ccf::http_status(parser.status_code),
         std::move(headers),
         std::move(body_buf));
     }

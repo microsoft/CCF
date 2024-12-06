@@ -266,7 +266,7 @@ int main(int argc, char** argv)
   signal(SIGPIPE, SIG_IGN);
 
   ccf::logger::config::default_init();
-  ccf::logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
   ccf::crypto::openssl_sha256_init();
   CLI::App cli_app{"Perf Tool"};
   ArgumentParser args("Perf Tool", cli_app);

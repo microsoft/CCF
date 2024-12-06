@@ -2,8 +2,18 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-enum ReconfigurationType
+#include "ccf/ds/json.h"
+
+namespace ccf
 {
-  ONE_TRANSACTION = 0,
-  TWO_TRANSACTION = 1
-};
+  enum ReconfigurationType
+  {
+    ONE_TRANSACTION = 0,
+    TWO_TRANSACTION = 1
+  };
+
+  DECLARE_JSON_ENUM(
+    ReconfigurationType,
+    {{ReconfigurationType::ONE_TRANSACTION, "OneTransaction"},
+     {ReconfigurationType::TWO_TRANSACTION, "TwoTransaction"}})
+}

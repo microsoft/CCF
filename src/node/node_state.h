@@ -13,6 +13,7 @@
 #include "ccf/pal/locking.h"
 #include "ccf/pal/platform.h"
 #include "ccf/service/node_info_network.h"
+#include "ccf/service/reconfiguration_type.h"
 #include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/service.h"
 #include "ccf_acme_client.h"
@@ -20,7 +21,6 @@
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
 #include "ds/state_machine.h"
-#include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
@@ -91,7 +91,7 @@ namespace ccf
     std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     pal::PlatformAttestationMeasurement node_measurement;
-    StartupConfig config;
+    ccf::StartupConfig config;
     std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
@@ -462,7 +462,7 @@ namespace ccf
 
     NodeCreateInfo create(
       StartType start_type_,
-      StartupConfig&& config_,
+      ccf::StartupConfig&& config_,
       std::vector<uint8_t>&& startup_snapshot_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
@@ -511,7 +511,7 @@ namespace ccf
 
           setup_consensus(
             ServiceStatus::OPENING,
-            ReconfigurationType::ONE_TRANSACTION,
+            ccf::ReconfigurationType::ONE_TRANSACTION,
             false,
             endorsed_node_cert);
 
@@ -589,7 +589,7 @@ namespace ccf
         target_host,
         target_port,
         [this](
-          http_status status,
+          ccf::http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           std::lock_guard<pal::Mutex> guard(lock);
@@ -629,7 +629,7 @@ namespace ccf
               LOG_FAIL_FMT(
                 "An error occurred while joining the network: {} {}{}",
                 status,
-                http_status_str(status),
+                ccf::http_status_str(status),
                 data.empty() ?
                   "" :
                   fmt::format("  '{}'", std::string(data.begin(), data.end())));
@@ -670,7 +670,7 @@ namespace ccf
             history->set_service_signing_identity(
               network.identity->get_key_pair(),
               resp.network_info->cose_signatures_config.value_or(
-                COSESignaturesConfig{}));
+                ccf::COSESignaturesConfig{}));
 
             ccf::crypto::Pem n2n_channels_cert;
             if (!resp.network_info->endorsed_certificate.has_value())
@@ -684,7 +684,7 @@ namespace ccf
             setup_consensus(
               resp.network_info->service_status.value_or(
                 ServiceStatus::OPENING),
-              ReconfigurationType::ONE_TRANSACTION,
+              ccf::ReconfigurationType::ONE_TRANSACTION,
               resp.network_info->public_only,
               n2n_channels_cert);
             auto_refresh_jwt_keys();
@@ -1059,7 +1059,9 @@ namespace ccf
       auto service_config = tx.ro(network.config)->get();
 
       setup_consensus(
-        ServiceStatus::OPENING, ReconfigurationType::ONE_TRANSACTION, true);
+        ServiceStatus::OPENING,
+        ccf::ReconfigurationType::ONE_TRANSACTION,
+        true);
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
@@ -1973,16 +1975,18 @@ namespace ccf
       }
 
       const auto status = ctx->get_response_status();
+      const auto& raw_body = ctx->get_response_body();
       if (status != HTTP_STATUS_OK)
       {
         LOG_FAIL_FMT(
-          "Create response is error: {} {}",
+          "Create response is error: {} {}\n{}",
           status,
-          http_status_str((http_status)status));
+          ccf::http_status_str((ccf::http_status)status),
+          std::string(raw_body.begin(), raw_body.end()));
         return false;
       }
 
-      const auto body = nlohmann::json::parse(ctx->get_response_body());
+      const auto body = nlohmann::json::parse(raw_body);
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT("Expected boolean body in create response");
@@ -2526,7 +2530,7 @@ namespace ccf
 
     void setup_consensus(
       ServiceStatus service_status,
-      ReconfigurationType reconfiguration_type,
+      ccf::ReconfigurationType reconfiguration_type,
       bool public_only = false,
       const std::optional<ccf::crypto::Pem>& endorsed_node_certificate_ =
         std::nullopt)
@@ -2702,7 +2706,7 @@ namespace ccf
       n2n_channels->set_idle_timeout(idle_timeout);
     }
 
-    virtual const StartupConfig& get_node_config() const override
+    virtual const ccf::StartupConfig& get_node_config() const override
     {
       return config;
     }
@@ -2723,8 +2727,8 @@ namespace ccf
     virtual void make_http_request(
       const ::http::URL& url,
       ::http::Request&& req,
-      std::function<
-        bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
+      std::function<bool(
+        ccf::http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
       const std::vector<std::string>& ca_certs = {},
       const std::string& app_protocol = "HTTP1",
@@ -2747,7 +2751,7 @@ namespace ccf
         url.host,
         url.port,
         [callback](
-          http_status status,
+          ccf::http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           return callback(status, std::move(headers), std::move(data));

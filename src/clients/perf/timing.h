@@ -245,7 +245,7 @@ namespace timing
           throw runtime_error(fmt::format(
             "{} failed with status {}: {}",
             get_tx_status,
-            http_status_str(response.status),
+            ccf::http_status_str(response.status),
             body.dump()));
         }
 

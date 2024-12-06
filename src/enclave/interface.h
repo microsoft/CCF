@@ -38,7 +38,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   std::chrono::microseconds::rep,
   std::string,
   size_t,
-  LoggerLevel,
+  ccf::LoggerLevel,
   std::string,
   uint16_t,
   std::string);

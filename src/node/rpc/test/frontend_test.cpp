@@ -135,10 +135,10 @@ public:
       const auto it = params.find("error");
       if (it != params.end())
       {
-        const http_status error_code = (*it)["code"];
+        const ccf::http_status error_code = (*it)["code"];
         const std::string error_msg = (*it)["message"];
 
-        return make_error((http_status)error_code, "Error", error_msg);
+        return make_error((ccf::http_status)error_code, "Error", error_msg);
       }
 
       return make_success(true);
@@ -731,7 +731,7 @@ TEST_CASE("JsonWrappedEndpointFunction")
   for (const auto err : {
          HTTP_STATUS_INTERNAL_SERVER_ERROR,
          HTTP_STATUS_BAD_REQUEST,
-         (http_status)418 // Teapot
+         (ccf::http_status)418 // Teapot
        })
   {
     INFO("Calling failable, with error");
@@ -871,7 +871,7 @@ TEST_CASE("Explicit commitability")
 
   for (const auto status : all_statuses)
   {
-    INFO(http_status_str(status));
+    INFO(ccf::http_status_str(status));
 
     {
       INFO("Without override...");
@@ -1559,7 +1559,7 @@ TEST_CASE("Manual conflicts")
 
   auto call_pausable = [&](
                          std::shared_ptr<ccf::SessionContext> session,
-                         http_status expected_status) {
+                         ccf::http_status expected_status) {
     ccf::crypto::openssl_sha256_init();
     auto req = create_simple_request("/pausable");
     auto serialized_call = req.build_request();
@@ -1612,7 +1612,7 @@ TEST_CASE("Manual conflicts")
   auto run_test = [&](
                     std::function<void()>&& read_write_op,
                     std::shared_ptr<ccf::SessionContext> session = user_session,
-                    http_status expected_status = HTTP_STATUS_OK) {
+                    ccf::http_status expected_status = HTTP_STATUS_OK) {
     ccf::crypto::openssl_sha256_init();
     frontend.registry.before_read.ready = false;
     frontend.registry.after_read.ready = false;

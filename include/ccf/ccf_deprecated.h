@@ -3,3 +3,7 @@
 #pragma once
 
 #define CCF_DEPRECATED(reason) [[deprecated(reason)]]
+
+// ci-checks exception - only defines a macro
+namespace ccf
+{}
