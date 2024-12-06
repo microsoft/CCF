@@ -901,6 +901,23 @@ class LedgerChunk:
         self._filename = name
         self.start_seqno, self.end_seqno = range_from_filename(name)
 
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            position = self._positions[key]
+            f = open(self._filename, mode="rb")
+            f.seek(position)
+            return Transaction(f)
+        elif isinstance(key, slice):
+            positions = self._positions[key]
+            transactions = []
+            for p in positions:
+                f = open(self._filename, mode="rb")
+                f.seek(p)
+                transactions.append(Transaction(f))
+            return transactions
+        else:
+            raise KeyError(f"Unsupported type ({type(key)}) passed to LedgerChunk[]")
+
     def __iter__(self):
         return TransactionIterator(
             self._positions,
@@ -1022,6 +1039,15 @@ class Ledger:
 
     def __len__(self):
         return len(self._filenames)
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return LedgerChunk(self.filenames[key], self._validator)
+        elif isinstance(key, slice):
+            files = self.file_names[key]
+            return [LedgerChunk(file, self._validator) for file in files]
+        else:
+            raise KeyError(f"Unsupported type ({type(key)}) passed to Ledger[]")
 
     def __iter__(self):
         return ChunkIterator(self._filenames, self._validator)
