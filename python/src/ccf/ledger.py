@@ -813,18 +813,15 @@ class Snapshot(Entry):
 class TransactionIterator:
     _positions = List[int]
     _filename = str
-    _ledger_validator: Optional[LedgerValidator] = None
     _idx: int = -1
 
     def __init__(
         self,
         positions: List[int],
         filename: str,
-        ledger_validator: Optional[LedgerValidator] = None,
     ):
         self._positions = positions
         self._filename = filename
-        self._ledger_validator = ledger_validator
 
     def __next__(self):
         self._idx += 1
@@ -832,12 +829,6 @@ class TransactionIterator:
             f = open(self._filename, mode="rb")
             f.seek(self._positions[self._idx])
             tx = Transaction(f)
-
-            # Adds every transaction to the ledger validator
-            # LedgerValidator does verification for every added transaction
-            # and throws when it finds any anomaly.
-            if self._ledger_validator is not None:
-                self._ledger_validator.add_transaction(tx)
 
             return tx
         else:
@@ -861,15 +852,11 @@ class LedgerChunk:
     Class used to parse and iterate over :py:class:`ccf.ledger.Transaction` in a CCF ledger chunk.
 
     :param str name: Name for a single ledger chunk.
-    :param LedgerValidator ledger_validator: :py:class:`LedgerValidator` instance used to verify ledger integrity.
     """
 
     _filename: str
-    _ledger_validator: Optional[LedgerValidator] = None
 
-    def __init__(self, name: str, ledger_validator: Optional[LedgerValidator] = None):
-        self._ledger_validator = ledger_validator
-
+    def __init__(self, name: str):
         file = open(name, "rb")
 
         self._pos_offset = int.from_bytes(
@@ -922,7 +909,6 @@ class LedgerChunk:
         return TransactionIterator(
             self._positions,
             self._filename,
-            self._ledger_validator,
         )
 
     def filename(self):
@@ -942,18 +928,14 @@ class ChunkIterator:
     _filenames: list
     _fileindex: int = -1
     _current_chunk: LedgerChunk
-    _validator: Optional[LedgerValidator] = None
 
     def __init__(self, filenames: list, validator: Optional[LedgerValidator] = None):
         self._filenames = filenames
-        self._validator = validator
 
     def __next__(self) -> LedgerChunk:
         self._fileindex += 1
         if len(self._filenames) > self._fileindex:
-            self._current_chunk = LedgerChunk(
-                self._filenames[self._fileindex], self._validator
-            )
+            self._current_chunk = LedgerChunk(self._filenames[self._fileindex])
             return self._current_chunk
         else:
             raise StopIteration
@@ -967,14 +949,12 @@ class Ledger:
     """
 
     _filenames: list
-    _validator: Optional[LedgerValidator]
 
     def __init__(
         self,
         paths: List[str],
         committed_only: bool = True,
         read_recovery_files: bool = False,
-        validator: Optional[LedgerValidator] = None,
     ):
         self._filenames = []
 
@@ -1025,12 +1005,10 @@ class Ledger:
                 raise ValueError(
                     f"Ledger cannot parse committed chunk {file_b} following uncommitted chunk {file_a}"
                 )
-            if validator and range_a[1] is not None and range_a[1] + 1 != range_b[0]:
+            if range_a[1] is not None and range_a[1] + 1 != range_b[0]:
                 raise ValueError(
                     f"Ledger cannot parse non-contiguous chunks {file_a} and {file_b}"
                 )
-
-        self._validator = validator
 
     @property
     def last_committed_chunk_range(self) -> Tuple[int, Optional[int]]:
@@ -1042,15 +1020,15 @@ class Ledger:
 
     def __getitem__(self, key):
         if isinstance(key, int):
-            return LedgerChunk(self._filenames[key], self._validator)
+            return LedgerChunk(self._filenames[key])
         elif isinstance(key, slice):
             files = self._filenames[key]
-            return [LedgerChunk(file, self._validator) for file in files]
+            return [LedgerChunk(file) for file in files]
         else:
             raise KeyError(f"Unsupported type ({type(key)}) passed to Ledger[]")
 
     def __iter__(self):
-        return ChunkIterator(self._filenames, self._validator)
+        return ChunkIterator(self._filenames)
 
     def transactions(self):
         for chunk in self:
@@ -1117,9 +1095,6 @@ class Ledger:
             print(f"Error reading ledger entry. Latest read seqno: {latest_seqno}")
             print(f"Error: {e}")
         return public_tables, latest_seqno
-
-    def validator(self):
-        return self._validator
 
 
 class InvalidRootException(Exception):

@@ -157,9 +157,7 @@ def run(
             ccf.ledger.LedgerValidator() if not insecure_skip_verification else None
         )
         ledger_paths = paths
-        ledger = ccf.ledger.Ledger(
-            ledger_paths, committed_only=not uncommitted, validator=validator
-        )
+        ledger = ccf.ledger.Ledger(ledger_paths, committed_only=not uncommitted)
 
         LOG.info(f"Reading ledger from {ledger_paths}")
         LOG.info(f"Contains {counted_string(ledger, 'chunk')}")
@@ -170,6 +168,8 @@ def run(
                     f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
                 )
                 for transaction in chunk:
+                    if validator:
+                        validator.add_transaction(transaction)
                     if digests_only:
                         print(
                             f"{transaction.gcm_header.view}.{transaction.gcm_header.seqno} {transaction.get_write_set_digest().hex()}"
