@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ccf_assert.h"
 #include "ccf/ds/hash.h"
+#include "ds/ccf_assert.h"
 #include "ds/map_serializers.h"
 
 #include <algorithm>

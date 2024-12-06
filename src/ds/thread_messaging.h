@@ -2,9 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ccf_assert.h"
 #include "ccf/ds/logger.h"
 #include "ccf/threading/thread_ids.h"
+#include "ds/ccf_assert.h"
 
 #include <atomic>
 #include <chrono>
