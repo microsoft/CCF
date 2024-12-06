@@ -74,8 +74,10 @@ def check_ccf():
     missing = []
     for file_suffix, notice_lines in PREFIX_BY_FILETYPE.items():
         for path in list_files(file_suffix):
-            if not has_notice(path, notice_lines):
-                missing.append(path)
+            # git ls-files returns moved/deleted files - ignore those
+            if os.path.isfile(path):
+                if not has_notice(path, notice_lines):
+                    missing.append(path)
     return missing
 
 

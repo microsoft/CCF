@@ -98,7 +98,7 @@ namespace ccf
     // and sets the HTTP response
     static void set_gov_error(
       const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-      http_status status,
+      ccf::http_status status,
       const std::string& code,
       std::string&& msg)
     {
