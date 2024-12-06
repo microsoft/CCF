@@ -471,6 +471,10 @@ class LedgerValidator:
                 existing_root = bytes.fromhex(signature["root"])
                 sig = base64.b64decode(signature["sig"])
 
+                # Check that cert in signature matches locally tracked
+                sig_cert = signature["cert"].encode("utf-8")
+                assert cert == sig_cert
+
                 tx_info = TxBundleInfo(
                     self.merkle,
                     existing_root,

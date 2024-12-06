@@ -6,8 +6,21 @@ import sys
 import json
 import re
 import argparse
+from enum import Enum, auto
 
 from loguru import logger as LOG
+
+
+class PrintMode(Enum):
+    Quiet = auto()
+    Digests = auto()
+    Contents = auto()
+
+
+class VerifyMode(Enum):
+    Skip = auto()
+    ChunkBoundaries = auto()
+    Full = auto()
 
 
 def indent(n):
@@ -129,15 +142,16 @@ def dump_entry(entry, table_filter, tables_format_rules):
 
 def run(
     paths,
+    print_mode: PrintMode,
+    verify_mode: VerifyMode,
     is_snapshot=False,
-    tables=None,
+    tables_regex=None,
     uncommitted=False,
-    insecure_skip_verification=False,
     tables_format_rules=None,
-    digests_only=None,
 ):
+    table_filter = re.compile(tables_regex) if tables_regex is not None else None
+
     # Extend and compile rules
-    table_filter = re.compile(tables) if tables is not None else None
     tables_format_rules = tables_format_rules or []
     tables_format_rules.extend(default_tables_format_rules)
     tables_format_rules = [
@@ -154,7 +168,7 @@ def run(
         return True
     else:
         validator = (
-            ccf.ledger.LedgerValidator() if not insecure_skip_verification else None
+            None if verify_mode == VerifyMode.Skip else ccf.ledger.LedgerValidator()
         )
         ledger_paths = paths
         ledger = ccf.ledger.Ledger(ledger_paths, committed_only=not uncommitted)
@@ -168,14 +182,17 @@ def run(
                     f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
                 )
                 for transaction in chunk:
-                    if validator:
-                        validator.add_transaction(transaction)
-                    if digests_only:
+                    if print_mode == PrintMode.Quiet:
+                        pass
+                    elif print_mode == PrintMode.Digests:
                         print(
                             f"{transaction.gcm_header.view}.{transaction.gcm_header.seqno} {transaction.get_write_set_digest().hex()}"
                         )
-                    else:
+                    elif print_mode == PrintMode.Contents:
                         dump_entry(transaction, table_filter, tables_format_rules)
+
+                    if validator:
+                        validator.add_transaction(transaction)
         except Exception as e:
             LOG.exception(f"Error parsing ledger: {e}")
             has_error = True
@@ -216,37 +233,64 @@ def main():
         action="store_true",
     )
     parser.add_argument(
+        "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
+    )
+
+    display_options = parser.add_mutually_exclusive_group()
+    display_options.add_argument(
+        "-q",
+        "--quiet",
+        help="Don't print transaction digests or contents",
+        action="store_true",
+    )
+    display_options.add_argument(
         "-d",
         "--digests-only",
         help="Only print transaction digests",
         action="store_true",
     )
-    parser.add_argument(
+    display_options.add_argument(
         "-t",
         "--tables",
         help="Regex filter for tables to display",
         type=str,
         default=None,
     )
-    parser.add_argument(
-        "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
-    )
-    parser.add_argument(
+
+    verification_args = parser.add_mutually_exclusive_group()
+    verification_args.add_argument(
         "--insecure-skip-verification",
         help="INSECURE: skip ledger Merkle tree integrity verification",
         action="store_true",
         default=False,
     )
+    verification_args.add_argument(
+        "--fast-chunk-verification",
+        help="Don't verify every transaction, only the start and end of each chunk",
+        action="store_true",
+    )
+
     args = parser.parse_args()
+
+    print_mode = PrintMode.Contents
+    if args.quiet:
+        print_mode = PrintMode.Quiet
+    elif args.digests_only:
+        print_mode = PrintMode.Digests
+
+    verify_mode = VerifyMode.Full
+    if args.fast_chunk_verification:
+        verify_mode = VerifyMode.ChunkBoundaries
+    elif args.insecure_skip_verification:
+        verify_mode = VerifyMode.Skip
 
     if not run(
         args.paths,
-        args.snapshot,
-        args.tables,
-        args.uncommitted,
-        args.insecure_skip_verification,
-        None,
-        args.digests_only,
+        print_mode,
+        verify_mode,
+        is_snapshot=args.snapshot,
+        tables_regex=args.tables,
+        uncommitted=args.uncommitted,
     ):
         sys.exit(1)
 
