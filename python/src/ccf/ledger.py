@@ -616,16 +616,13 @@ class TransactionHeader:
             buffer[: TransactionHeader.VERSION_LENGTH], byteorder="little"
         )
 
+        end_of_flags = TransactionHeader.VERSION_LENGTH + TransactionHeader.FLAGS_LENGTH
         self.flags = int.from_bytes(
-            buffer[
-                TransactionHeader.VERSION_LENGTH : TransactionHeader.VERSION_LENGTH
-                + TransactionHeader.FLAGS_LENGTH
-            ],
+            buffer[TransactionHeader.VERSION_LENGTH : end_of_flags],
             byteorder="little",
         )
-        self.size = int.from_bytes(
-            buffer[-TransactionHeader.SIZE_LENGTH :], byteorder="little"
-        )
+        end_of_size = end_of_flags + TransactionHeader.SIZE_LENGTH
+        self.size = int.from_bytes(buffer[end_of_flags:end_of_size], byteorder="little")
 
     @staticmethod
     def get_size():
@@ -644,13 +641,11 @@ class Entry:
     _file_size: int = 0
     gcm_header: Optional[GcmHeader] = None
 
-    def __init__(self, filename: str):
+    def __init__(self, file: BinaryIO):
         if type(self) is Entry:
             raise TypeError("Entry is not instantiable")
 
-        self._file = open(filename, mode="rb")
-        if self._file is None:
-            raise RuntimeError(f"File {filename} could not be opened")
+        self._file = file
 
     def __enter__(self):
         return self
@@ -711,31 +706,13 @@ class Transaction(Entry):
     A transaction represents one entry in the CCF ledger.
     """
 
-    _next_offset: int = LEDGER_HEADER_SIZE
     _tx_offset: int = 0
-    _ledger_validator: Optional[LedgerValidator] = None
     _dgst = functools.partial(digest, hashes.SHA256())
 
-    def __init__(
-        self, filename: str, ledger_validator: Optional[LedgerValidator] = None
-    ):
-        super().__init__(filename)
-        self._ledger_validator = ledger_validator
-
-        self._pos_offset = int.from_bytes(
-            _byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little"
-        )
-        # If the ledger chunk is not yet committed, the ledger header will be empty.
-        # Default to reading the file size instead.
-        self._file_size = (
-            self._pos_offset if self._pos_offset > 0 else os.path.getsize(filename)
-        )
-
-    def _read_header(self):
+    def __init__(self, file: BinaryIO):
+        super().__init__(file)
         self._tx_offset = self._file.tell()
         super()._read_header()
-        self._next_offset += self._header.size
-        self._next_offset += TransactionHeader.get_size()
 
     def get_raw_tx(self) -> bytes:
         """
@@ -755,7 +732,7 @@ class Transaction(Entry):
         return len(self.get_raw_tx())
 
     def get_offsets(self) -> Tuple[int, int]:
-        return (self._tx_offset, self._next_offset)
+        return (self._tx_offset, TransactionHeader.get_size() + self._header.size)
 
     def get_write_set_digest(self) -> bytes:
         self._dgst = functools.partial(digest, hashes.SHA256())
@@ -776,29 +753,6 @@ class Transaction(Entry):
             ), "Invalid transaction: commit_evidence_digest not set"
             return self._dgst(write_set_digest + commit_evidence_digest + claims_digest)
 
-    def _complete_read(self):
-        self._file.seek(self._next_offset, 0)
-        self._public_domain = None
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self._next_offset == self._file_size:
-            super().close()
-            raise StopIteration()
-
-        self._complete_read()
-        self._read_header()
-
-        # Adds every transaction to the ledger validator
-        # LedgerValidator does verification for every added transaction
-        # and throws when it finds any anomaly.
-        if self._ledger_validator is not None:
-            self._ledger_validator.add_transaction(self)
-
-        return self
-
 
 class Snapshot(Entry):
     """
@@ -808,7 +762,7 @@ class Snapshot(Entry):
     _filename: str
 
     def __init__(self, filename: str):
-        super().__init__(filename)
+        super().__init__(open(filename, "rb"))
         self._filename = filename
         self._file_size = os.path.getsize(filename)
 
@@ -856,6 +810,52 @@ class Snapshot(Entry):
         return self._file_size
 
 
+class TransactionIterator:
+    _positions = List[int]
+    _filename = str
+    _ledger_validator: Optional[LedgerValidator] = None
+    _idx: int = -1
+
+    def __init__(
+        self,
+        positions: List[int],
+        filename: str,
+        ledger_validator: Optional[LedgerValidator] = None,
+    ):
+        self._positions = positions
+        self._filename = filename
+        self._ledger_validator = ledger_validator
+
+    def __next__(self):
+        self._idx += 1
+        if len(self._positions) > self._idx:
+            f = open(self._filename, mode="rb")
+            f.seek(self._positions[self._idx])
+            tx = Transaction(f)
+
+            # Adds every transaction to the ledger validator
+            # LedgerValidator does verification for every added transaction
+            # and throws when it finds any anomaly.
+            if self._ledger_validator is not None:
+                self._ledger_validator.add_transaction(tx)
+
+            return tx
+        else:
+            raise StopIteration
+
+
+def find_tx_positions(file: BinaryIO, file_size: int) -> List[int]:
+    pos = LEDGER_HEADER_SIZE
+    ps = []
+    while pos < file_size:
+        ps.append(pos)
+        file.seek(pos)
+        buffer = _byte_read_safe(file, TransactionHeader.get_size())
+        header = TransactionHeader(buffer)
+        pos += header.size + TransactionHeader.get_size()
+    return ps
+
+
 class LedgerChunk:
     """
     Class used to parse and iterate over :py:class:`ccf.ledger.Transaction` in a CCF ledger chunk.
@@ -870,16 +870,46 @@ class LedgerChunk:
 
     def __init__(self, name: str, ledger_validator: Optional[LedgerValidator] = None):
         self._ledger_validator = ledger_validator
-        self._current_tx = Transaction(name, ledger_validator)
-        self._pos_offset = self._current_tx._pos_offset
+
+        file = open(name, "rb")
+
+        self._pos_offset = int.from_bytes(
+            _byte_read_safe(file, LEDGER_HEADER_SIZE), byteorder="little"
+        )
+
+        # If the ledger chunk is not yet committed, the ledger header will be empty.
+        # Default to reading the file size instead.
+        if self._pos_offset > 0:
+            self._file_size = self._pos_offset
+
+            positions_buffer = _peek_all(file, self._pos_offset)
+            buf_len = len(positions_buffer)
+            assert (
+                buf_len % 4 == 0
+            ), f"Expected positions to contain uint32s, but contains {buf_len} bytes"
+            positions_count = buf_len // 4
+            self._positions = [
+                int.from_bytes(
+                    positions_buffer[i * 4 : (i + 1) * 4],
+                    byteorder="little",
+                )
+                for i in range(positions_count)
+            ]
+        else:
+            self._file_size = os.path.getsize(name)
+            self._positions = find_tx_positions(file, self._file_size)
+
+        self._current_tx = Transaction(file, ledger_validator)
+
         self._filename = name
         self.start_seqno, self.end_seqno = range_from_filename(name)
 
-    def __next__(self) -> Transaction:
-        return next(self._current_tx)
-
     def __iter__(self):
-        return self
+        return TransactionIterator(
+            self._positions,
+            self._filename,
+            self._ledger_validator,
+        )
 
     def filename(self):
         return self._filename
@@ -894,7 +924,7 @@ class LedgerChunk:
         return self.start_seqno, self.end_seqno
 
 
-class LedgerIterator:
+class ChunkIterator:
     _filenames: list
     _fileindex: int = -1
     _current_chunk: LedgerChunk
@@ -913,12 +943,6 @@ class LedgerIterator:
             return self._current_chunk
         else:
             raise StopIteration
-
-    def signature_count(self) -> int:
-        return self._validator.signature_count if self._validator else 0
-
-    def last_verified_txid(self) -> Optional[TxID]:
-        return self._validator.last_verified_txid() if self._validator else None
 
 
 class Ledger:
@@ -1003,7 +1027,7 @@ class Ledger:
         return len(self._filenames)
 
     def __iter__(self):
-        return LedgerIterator(self._filenames, self._validator)
+        return ChunkIterator(self._filenames, self._validator)
 
     def transactions(self):
         for chunk in self:
