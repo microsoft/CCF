@@ -361,7 +361,85 @@ class TxBundleInfo(NamedTuple):
     signing_node: str
 
 
-class LedgerValidator:
+class BaseValidator:
+    @staticmethod
+    def _verify_tx_bundle(tx_info: TxBundleInfo):
+        """
+        Verify items 1, 2, and 3 for all the transactions up until a signature.
+        """
+        # 1) The merkle root is signed by a Trusted node in the given network, else throws
+        BaseValidator._verify_node_status(tx_info)
+        # 2) The merkle root and signature are verified with the node cert, else throws
+        BaseValidator._verify_root_signature(
+            tx_info.node_cert, tx_info.existing_root, tx_info.signature
+        )
+        # 3) The merkle root is correct for the set of transactions and matches with the one extracted from the ledger, else throws
+        BaseValidator._verify_merkle_root(tx_info.merkle_tree, tx_info.existing_root)
+
+    @staticmethod
+    def _verify_node_status(tx_info: TxBundleInfo):
+        """Verify item 1, The merkle root is signed by a valid node in the given network"""
+        # Note: A retired primary will still issue signature transactions until
+        # its retirement is committed
+        node_info = tx_info.node_activity[tx_info.signing_node]
+        node_status = NodeStatus(node_info[0])
+        if node_status not in (
+            NodeStatus.TRUSTED,
+            NodeStatus.RETIRED,
+        ) or (node_status == NodeStatus.RETIRED and node_info[2]):
+            raise UntrustedNodeException(
+                f"The signing node {tx_info.signing_node} has unexpected status {node_status.value}"
+            )
+
+    @staticmethod
+    def _verify_root_signature(node_cert: bytes, root: bytes, signature: bytes):
+        """Verify item 2, that the Merkle root signature validates against the node certificate"""
+        try:
+            cert = load_pem_x509_certificate(node_cert, default_backend())
+            pub_key = cert.public_key()
+
+            assert isinstance(pub_key, ec.EllipticCurvePublicKey)
+            pub_key.verify(
+                signature,
+                root,
+                ec.ECDSA(utils.Prehashed(hashes.SHA256())),
+            )  # type: ignore[override]
+        # This exception is thrown from x509, catch for logging and raise our own
+        except InvalidSignature:
+            raise InvalidRootSignatureException(
+                "Signature verification failed:"
+                + f"\nCertificate: {node_cert.decode()}"
+                + f"\nSignature: {base64.b64encode(signature).decode()}"
+                + f"\nRoot: {root.hex()}"
+            ) from InvalidSignature
+
+    @staticmethod
+    def _verify_root_cose_signature(service_cert, root, cose_sign1):
+        try:
+            cert = load_pem_x509_certificate(
+                service_cert.encode("ascii"), default_backend()
+            )
+            validate_cose_sign1(
+                cose_sign1=cose_sign1, pubkey=cert.public_key(), payload=root
+            )
+        except Exception as exc:
+            raise InvalidRootCoseSignatureException(
+                "Signature verification failed:"
+                + f"\nCertificate: {service_cert}"
+                + f"\nRoot: {root}"
+            ) from exc
+
+    @staticmethod
+    def _verify_merkle_root(merkletree: MerkleTree, existing_root: bytes):
+        """Verify item 3, by comparing the roots from the merkle tree that's maintained by this class and from the one extracted from the ledger"""
+        root = merkletree.get_merkle_root()
+        if root != existing_root:
+            raise InvalidRootException(
+                f"\nComputed root: {root.hex()} \nExisting root from ledger: {existing_root.hex()}"
+            )
+
+
+class LedgerValidator(BaseValidator):
     """
     Ledger Validator contains the logic to verify that the ledger hasn't been tampered with.
     It has the ability to take transactions and it maintains a MerkleTree data structure similar to CCF.
@@ -379,7 +457,6 @@ class LedgerValidator:
 
     def __init__(self, accept_deprecated_entry_types: bool = True):
         self.accept_deprecated_entry_types = accept_deprecated_entry_types
-        self.chosen_hash = ec.ECDSA(utils.Prehashed(hashes.SHA256()))
 
         # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of its merkle tree.
         # Don't hash empty bytes array.
@@ -486,7 +563,7 @@ class LedgerValidator:
 
                 # validations for 1, 2 and 3
                 # throws if ledger validation failed.
-                self._verify_tx_set(tx_info)
+                self._verify_tx_bundle(tx_info)
 
                 self.last_verified_seqno = current_seqno
                 self.last_verified_view = current_view
@@ -523,78 +600,12 @@ class LedgerValidator:
             cose_signature = cose_signature_table.get(WELL_KNOWN_SINGLETON_TABLE_KEY)
             signature = json.loads(cose_signature)
             cose_sign1 = base64.b64decode(signature)
-            self._verify_root_cose_signature(self.merkle.get_merkle_root(), cose_sign1)
+            self._verify_root_cose_signature(
+                self.service_cert, self.merkle.get_merkle_root(), cose_sign1
+            )
 
         # Checks complete, add this transaction to tree
         self.merkle.add_leaf(transaction.get_tx_digest(), False)
-
-    def _verify_tx_set(self, tx_info: TxBundleInfo):
-        """
-        Verify items 1, 2, and 3 for all the transactions up until a signature.
-        """
-        # 1) The merkle root is signed by a Trusted node in the given network, else throws
-        self._verify_node_status(tx_info)
-        # 2) The merkle root and signature are verified with the node cert, else throws
-        self._verify_root_signature(tx_info)
-        # 3) The merkle root is correct for the set of transactions and matches with the one extracted from the ledger, else throws
-        self._verify_merkle_root(tx_info.merkle_tree, tx_info.existing_root)
-
-    @staticmethod
-    def _verify_node_status(tx_info: TxBundleInfo):
-        """Verify item 1, The merkle root is signed by a valid node in the given network"""
-        # Note: A retired primary will still issue signature transactions until
-        # its retirement is committed
-        node_info = tx_info.node_activity[tx_info.signing_node]
-        node_status = NodeStatus(node_info[0])
-        if node_status not in (
-            NodeStatus.TRUSTED,
-            NodeStatus.RETIRED,
-        ) or (node_status == NodeStatus.RETIRED and node_info[2]):
-            raise UntrustedNodeException(
-                f"The signing node {tx_info.signing_node} has unexpected status {node_status.value}"
-            )
-
-    def _verify_root_signature(self, tx_info: TxBundleInfo):
-        """Verify item 2, that the Merkle root signature validates against the node certificate"""
-        try:
-            cert = load_pem_x509_certificate(tx_info.node_cert, default_backend())
-            pub_key = cert.public_key()
-
-            assert isinstance(pub_key, ec.EllipticCurvePublicKey)
-            pub_key.verify(
-                tx_info.signature, tx_info.existing_root, self.chosen_hash
-            )  # type: ignore[override]
-        # This exception is thrown from x509, catch for logging and raise our own
-        except InvalidSignature:
-            raise InvalidRootSignatureException(
-                "Signature verification failed:"
-                + f"\nCertificate: {tx_info.node_cert.decode()}"
-                + f"\nSignature: {base64.b64encode(tx_info.signature).decode()}"
-                + f"\nRoot: {tx_info.existing_root.hex()}"
-            ) from InvalidSignature
-
-    def _verify_root_cose_signature(self, root, cose_sign1):
-        try:
-            cert = load_pem_x509_certificate(
-                self.service_cert.encode("ascii"), default_backend()
-            )
-            validate_cose_sign1(
-                cose_sign1=cose_sign1, pubkey=cert.public_key(), payload=root
-            )
-        except Exception as exc:
-            raise InvalidRootCoseSignatureException(
-                "Signature verification failed:"
-                + f"\nCertificate: {self.service_cert}"
-                + f"\nRoot: {root}"
-            ) from exc
-
-    def _verify_merkle_root(self, merkletree: MerkleTree, existing_root: bytes):
-        """Verify item 3, by comparing the roots from the merkle tree that's maintained by this class and from the one extracted from the ledger"""
-        root = merkletree.get_merkle_root()
-        if root != existing_root:
-            raise InvalidRootException(
-                f"\nComputed root: {root.hex()} \nExisting root from ledger: {existing_root.hex()}"
-            )
 
 
 @dataclass
@@ -914,6 +925,9 @@ class LedgerChunk:
             self._positions,
             self._filename,
         )
+
+    def __len__(self):
+        return len(self._positions)
 
     def filename(self):
         return self._filename
