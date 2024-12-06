@@ -81,8 +81,10 @@ int main(int argc, char** argv)
     "configuration file itself is unattested.\n"};
 
   std::string config_file_path;
-  app.add_option(
-    "-c,--config", config_file_path, "Path to JSON configuration file")->required();
+  app
+    .add_option(
+      "-c,--config", config_file_path, "Path to JSON configuration file")
+    ->required();
 
   ccf::ds::TimeString config_timeout = {"0s"};
   app.add_option(
