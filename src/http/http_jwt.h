@@ -30,14 +30,14 @@ namespace http
 
   struct JwtPayload
   {
-    size_t nbf;
     size_t exp;
     std::string iss;
+    std::optional<size_t> nbf;
     std::optional<std::string> tid;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtPayload)
-  DECLARE_JSON_REQUIRED_FIELDS(JwtPayload, nbf, exp, iss);
-  DECLARE_JSON_OPTIONAL_FIELDS(JwtPayload, tid)
+  DECLARE_JSON_REQUIRED_FIELDS(JwtPayload, exp, iss);
+  DECLARE_JSON_OPTIONAL_FIELDS(JwtPayload, nbf, tid);
 
   class JwtVerifier
   {

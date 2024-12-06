@@ -208,6 +208,22 @@ namespace ccf::crypto
              pctx, signature, signature_size, hash.data(), hash.size()) == 1;
   }
 
+  bool RSAPublicKey_OpenSSL::verify_pkcs1(
+    const uint8_t* contents,
+    size_t contents_size,
+    const uint8_t* signature,
+    size_t signature_size,
+    MDType md_type)
+  {
+    auto hash = OpenSSLHashProvider().Hash(contents, contents_size, md_type);
+    Unique_EVP_PKEY_CTX pctx(key);
+    CHECK1(EVP_PKEY_verify_init(pctx));
+    CHECK1(EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PADDING));
+    CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
+    return EVP_PKEY_verify(
+             pctx, signature, signature_size, hash.data(), hash.size()) == 1;
+  }
+
   std::vector<uint8_t> RSAPublicKey_OpenSSL::bn_bytes(const BIGNUM* bn)
   {
     std::vector<uint8_t> r(BN_num_bytes(bn));

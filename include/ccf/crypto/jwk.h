@@ -27,13 +27,27 @@ namespace ccf::crypto
     JsonWebKeyType kty;
     std::optional<std::string> kid = std::nullopt;
     std::optional<std::vector<std::string>> x5c = std::nullopt;
-    std::optional<std::string> issuer = std::nullopt;
 
     bool operator==(const JsonWebKey&) const = default;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, kty);
-  DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c, issuer);
+  DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c);
+
+  struct JsonWebKeyExtended
+  {
+    JsonWebKeyType kty;
+    std::optional<std::string> kid = std::nullopt;
+    std::optional<std::vector<std::string>> x5c = std::nullopt;
+    std::optional<std::string> n = std::nullopt;
+    std::optional<std::string> e = std::nullopt;
+    std::optional<std::string> issuer = std::nullopt;
+
+    bool operator==(const JsonWebKeyExtended&) const = default;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKeyExtended);
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyExtended, kty);
+  DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKeyExtended, kid, x5c, n, e, issuer);
 
   enum class JsonWebKeyECCurve
   {
