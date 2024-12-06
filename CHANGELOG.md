@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - JWT authentication now supports raw public keys along with certificates (#6601).
   - Public key information ('n' and 'e' claims) now have a priority if defined in JWK set, 'x5c' remains as a backup option.
   - Has same side-effects as #5809 does please see the changelog entry for that change for more details. In short:
-    - using stalled JWKs for JWT validation may be used during the upgrade.
+    - stale JWKs may be used for JWT validation on older nodes during the upgrade.
     - old tables are not cleaned up, #6222 is tracking those.
 
 ## [6.0.0-dev7]
