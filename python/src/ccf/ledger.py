@@ -864,7 +864,6 @@ class LedgerChunk:
     :param LedgerValidator ledger_validator: :py:class:`LedgerValidator` instance used to verify ledger integrity.
     """
 
-    _current_tx: Transaction
     _filename: str
     _ledger_validator: Optional[LedgerValidator] = None
 
@@ -898,8 +897,6 @@ class LedgerChunk:
         else:
             self._file_size = os.path.getsize(name)
             self._positions = find_tx_positions(file, self._file_size)
-
-        self._current_tx = Transaction(file, ledger_validator)
 
         self._filename = name
         self.start_seqno, self.end_seqno = range_from_filename(name)
