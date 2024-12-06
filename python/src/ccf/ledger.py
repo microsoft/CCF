@@ -1042,9 +1042,9 @@ class Ledger:
 
     def __getitem__(self, key):
         if isinstance(key, int):
-            return LedgerChunk(self.filenames[key], self._validator)
+            return LedgerChunk(self._filenames[key], self._validator)
         elif isinstance(key, slice):
-            files = self.file_names[key]
+            files = self._filenames[key]
             return [LedgerChunk(file, self._validator) for file in files]
         else:
             raise KeyError(f"Unsupported type ({type(key)}) passed to Ledger[]")
@@ -1069,23 +1069,17 @@ class Ledger:
         :return: :py:class:`ccf.ledger.Transaction`
         """
         if seqno < 1:
-            raise ValueError("Ledger first seqno is 1")
+            raise ValueError(f"Ledger first seqno is 1, cannot get {seqno}")
 
-        transaction = None
-        for chunk in self:
-            _, chunk_end = chunk.get_seqnos()
-            for tx in chunk:
-                if chunk_end and chunk_end < seqno:
-                    continue
-                public_transaction = tx.get_public_domain()
-                if public_transaction.get_seqno() == seqno:
-                    return tx
+        for filename in self._filenames:
+            start, end = range_from_filename(filename)
+            if seqno >= start and end is None or seqno <= end:
+                chunk = LedgerChunk(filename)
+                return chunk[seqno - start]
 
-        if transaction is None:
-            raise UnknownTransaction(
-                f"Transaction at seqno {seqno} does not exist in ledger"
-            )
-        return transaction
+        raise UnknownTransaction(
+            f"Transaction at seqno {seqno} does not exist in ledger"
+        )
 
     def get_latest_public_state(self) -> Tuple[dict, int]:
         """
@@ -1102,24 +1096,26 @@ class Ledger:
         # If a transaction cannot be read (e.g. because it was only partially written to disk
         # before a crash), return public state so far. This is consistent with CCF's behaviour
         # which discards the incomplete transaction on recovery.
+
         try:
-            for chunk in self:
-                for tx in chunk:
-                    public_domain = tx.get_public_domain()
-                    latest_seqno = public_domain.get_seqno()
-                    for table_name, records in public_domain.get_tables().items():
-                        if table_name in public_tables:
-                            public_tables[table_name].update(records)
-                            # Remove deleted keys
-                            public_tables[table_name] = {
-                                k: v
-                                for k, v in public_tables[table_name].items()
-                                if v is not None
-                            }
-                        else:
-                            public_tables[table_name] = records
-        except Exception:
+            last_chunk = self[-1]
+            tx = last_chunk[-1]
+            public_domain = tx.get_public_domain()
+            latest_seqno = public_domain.get_seqno()
+            for table_name, records in public_domain.get_tables().items():
+                if table_name in public_tables:
+                    public_tables[table_name].update(records)
+                    # Remove deleted keys
+                    public_tables[table_name] = {
+                        k: v
+                        for k, v in public_tables[table_name].items()
+                        if v is not None
+                    }
+                else:
+                    public_tables[table_name] = records
+        except Exception as e:
             print(f"Error reading ledger entry. Latest read seqno: {latest_seqno}")
+            print(f"Error: {e}")
         return public_tables, latest_seqno
 
     def validator(self):
