@@ -80,9 +80,11 @@ int main(int argc, char** argv)
     "platforms) their value is captured in an attestation even if the "
     "configuration file itself is unattested.\n"};
 
-  std::string config_file_path = "config.json";
-  app.add_option(
-    "-c,--config", config_file_path, "Path to JSON configuration file");
+  std::string config_file_path;
+  app
+    .add_option(
+      "-c,--config", config_file_path, "Path to JSON configuration file")
+    ->required();
 
   ccf::ds::TimeString config_timeout = {"0s"};
   app.add_option(
