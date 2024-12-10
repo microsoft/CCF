@@ -130,6 +130,19 @@ def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
         raise ValueError(f"Could not read seqno range from ledger file {filename}")
 
 
+def snapshot_index_from_filename(filename: str) -> Tuple[int, int]:
+    elements = (
+        os.path.basename(filename)
+        .replace(COMMITTED_FILE_SUFFIX, "")
+        .replace("snapshot_", "")
+        .split("_")
+    )
+    if len(elements) == 2:
+        return (int(elements[0]), int(elements[1]))
+    else:
+        raise ValueError(f"Could not read snapshot index from file name {filename}")
+
+
 class GcmHeader:
     _gcm_tag = ["\0"] * GCM_SIZE_TAG
     _gcm_iv = ["\0"] * GCM_SIZE_IV

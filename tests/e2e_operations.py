@@ -218,6 +218,7 @@ def test_snapshot_access(network, args):
 
     snapshots_dir = network.get_committed_snapshots(primary)
     snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
+    snapshot_index, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
 
     with open(os.path.join(snapshots_dir, snapshot_name), "rb") as f:
         snapshot_data = f.read()
@@ -229,6 +230,28 @@ def test_snapshot_access(network, args):
         location = r.headers["location"]
         assert location == f"/node/snapshot/{snapshot_name}"
         LOG.warning(r.headers)
+
+        for since, expected in (
+            (0, location),
+            (1, location),
+            (snapshot_index // 2, location),
+            (snapshot_index - 1, location),
+            (snapshot_index, None),
+            (snapshot_index + 1, None),
+        ):
+            for method in ("GET", "HEAD"):
+                r = c.call(
+                    f"/node/snapshot?since={since}",
+                    allow_redirects=False,
+                    http_verb=method,
+                )
+                if expected is None:
+                    assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+                else:
+                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+                    assert "location" in r.headers, r.headers
+                    actual = r.headers["location"]
+                    assert actual == expected
 
         r = c.head(location)
         assert r.status_code == http.HTTPStatus.OK.value, r

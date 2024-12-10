@@ -1790,6 +1790,7 @@ namespace ccf
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
         .install();
 
+      static constexpr auto snapshot_since_param_key = "since";
       // Redirects to endpoint for a single specific snapshot
       auto find_snapshot = [this](ccf::endpoints::CommandEndpointContext& ctx) {
         auto node_configuration_subsystem =
@@ -1807,6 +1808,30 @@ namespace ccf
           node_configuration_subsystem->get().node_config.snapshots;
 
         size_t latest_idx = 0;
+        {
+          // Get latest_idx from query param, if present
+          const auto parsed_query =
+            http::parse_query(ctx.rpc_ctx->get_request_query());
+
+          std::string error_reason;
+          auto snapshot_since = http::get_query_value_opt<ccf::SeqNo>(
+            parsed_query, snapshot_since_param_key, error_reason);
+
+          if (snapshot_since.has_value())
+          {
+            if (error_reason != "")
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidQueryParameterValue,
+                std::move(error_reason));
+              return;
+            }
+            latest_idx = snapshot_since.value();
+          }
+        }
+
+        const auto orig_latest = latest_idx;
         auto latest_committed_snapshot =
           snapshots::find_latest_committed_snapshot_in_directory(
             snapshots_config.directory, latest_idx);
@@ -1816,7 +1841,8 @@ namespace ccf
           ctx.rpc_ctx->set_error(
             HTTP_STATUS_NOT_FOUND,
             ccf::errors::ResourceNotFound,
-            "This node has no committed snapshots");
+            fmt::format(
+              "This node has no committed snapshots since {}", orig_latest));
           return;
         }
 
@@ -1832,11 +1858,15 @@ namespace ccf
       make_command_endpoint(
         "/snapshot", HTTP_HEAD, find_snapshot, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .add_query_parameter<ccf::SeqNo>(
+          snapshot_since_param_key, ccf::endpoints::OptionalParameter)
         .set_openapi_hidden(true)
         .install();
       make_command_endpoint(
         "/snapshot", HTTP_GET, find_snapshot, no_auth_required)
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .add_query_parameter<ccf::SeqNo>(
+          snapshot_since_param_key, ccf::endpoints::OptionalParameter)
         .set_openapi_hidden(true)
         .install();
 
