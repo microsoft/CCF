@@ -67,14 +67,6 @@ namespace ccf
   DECLARE_JSON_TYPE(JsBundle)
   DECLARE_JSON_REQUIRED_FIELDS(JsBundle, metadata, modules)
 
-  struct KeyIdInfo
-  {
-    JwtIssuer issuer;
-    ccf::crypto::Pem cert;
-  };
-  DECLARE_JSON_TYPE(KeyIdInfo)
-  DECLARE_JSON_REQUIRED_FIELDS(KeyIdInfo, issuer, cert)
-
   struct FullMemberDetails : public ccf::MemberDetails
   {
     ccf::crypto::Pem cert;
@@ -1096,30 +1088,6 @@ namespace ccf
           "recovery")
         .set_openapi_deprecated_replaced(
           "5.0.0", "POST /gov/recovery/members/{memberId}:recover")
-        .install();
-
-      using JWTKeyMap = std::map<JwtKeyId, std::vector<KeyIdInfo>>;
-
-      auto get_jwt_keys = [this](auto& ctx, nlohmann::json&& body) {
-        auto keys = ctx.tx.ro(network.jwt_public_signing_keys_metadata);
-        JWTKeyMap kmap;
-        keys->foreach([&kmap](const auto& k, const auto& v) {
-          std::vector<KeyIdInfo> info;
-          for (const auto& metadata : v)
-          {
-            info.push_back(KeyIdInfo{
-              metadata.issuer, ccf::crypto::cert_der_to_pem(metadata.cert)});
-          }
-          kmap.emplace(k, std::move(info));
-          return true;
-        });
-
-        return make_success(kmap);
-      };
-      make_endpoint(
-        "/jwt_keys/all", HTTP_GET, json_adapter(get_jwt_keys), no_auth_required)
-        .set_auto_schema<void, JWTKeyMap>()
-        .set_openapi_deprecated_replaced("5.0.0", "POST /gov/service/jwk")
         .install();
 
       auto post_proposals_js = [this](ccf::endpoints::EndpointContext& ctx) {

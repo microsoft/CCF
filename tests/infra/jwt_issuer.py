@@ -14,9 +14,17 @@ import uuid
 from infra.log_capture import flush_info
 from loguru import logger as LOG
 
+from cryptography.x509 import load_pem_x509_certificate
+from cryptography.hazmat.backends import default_backend
+
 
 def make_bearer_header(jwt):
     return {"authorization": "Bearer " + jwt}
+
+
+def to_b64(number: int):
+    as_bytes = number.to_bytes((number.bit_length() + 7) // 8, "big")
+    return base64.b64encode(as_bytes).decode("ascii")
 
 
 class MyHTTPRequestHandler(BaseHTTPRequestHandler):
@@ -107,6 +115,22 @@ class OpenIDProviderServer(AbstractContextManager):
         self.stop()
 
 
+def get_jwt_issuers(args, node):
+    with node.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/jwk")
+        assert r.status_code == HTTPStatus.OK, r
+        body = r.body.json()
+        return body["issuers"]
+
+
+def get_jwt_keys(args, node):
+    with node.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/jwk")
+        assert r.status_code == HTTPStatus.OK, r
+        body = r.body.json()
+        return body["keys"]
+
+
 class JwtIssuer:
     TEST_JWT_ISSUER_NAME = "https://example.issuer"
     TEST_CA_BUNDLE_NAME = "test_ca_bundle_name"
@@ -117,7 +141,12 @@ class JwtIssuer:
         return (key_priv, key_pub), cert
 
     def __init__(
-        self, name=TEST_JWT_ISSUER_NAME, cert=None, refresh_interval=3, cn=None
+        self,
+        name=TEST_JWT_ISSUER_NAME,
+        cert=None,
+        refresh_interval=3,
+        cn=None,
+        use_raw_keys=True,
     ):
         self.name = name
         self.default_kid = f"{uuid.uuid4()}"
@@ -129,10 +158,16 @@ class JwtIssuer:
         (self.tls_priv, _), self.tls_cert = self._generate_cert(
             cn or stripped_host or name
         )
+        self._use_raw_keys = use_raw_keys
         if not cert:
             self.refresh_keys()
         else:
             self.cert_pem = cert
+
+    def public_key_numbers(self):
+        cert = load_pem_x509_certificate(self.cert_pem.encode(), default_backend())
+        pubkey = cert.public_key()
+        return to_b64(pubkey.public_numbers().n), to_b64(pubkey.public_numbers().e)
 
     @property
     def issuer_url(self):
@@ -150,6 +185,9 @@ class JwtIssuer:
             self.server.set_jwks(self.create_jwks(kid_))
 
     def _create_jwks(self, kid, test_invalid_is_key=False):
+        if self._use_raw_keys and not test_invalid_is_key:
+            return self._create_jwks_with_raw_key(kid)
+
         der_b64 = base64.b64encode(
             infra.crypto.cert_pem_to_der(self.cert_pem)
             if not test_invalid_is_key
@@ -160,6 +198,10 @@ class JwtIssuer:
     def create_jwks(self, kid=None, test_invalid_is_key=False):
         kid_ = kid or self.default_kid
         return {"keys": [self._create_jwks(kid_, test_invalid_is_key)]}
+
+    def _create_jwks_with_raw_key(self, kid):
+        n, e = self.public_key_numbers()
+        return {"kty": "RSA", "kid": kid, "n": n, "e": e, "issuer": self.name[::]}
 
     def create_jwks_for_kids(self, kids):
         jwks = {}
@@ -237,10 +279,16 @@ class JwtIssuer:
                     LOG.warning(body)
                     keys = body["keys"]
                     if kid_ in keys:
-                        stored_cert = keys[kid_][0]["certificate"]
-                        if self.cert_pem == stored_cert:
-                            flush_info(logs)
-                            return
+                        if "publicKey" in keys[kid_][0]:
+                            stored_key = keys[kid_][0]["publicKey"]
+                            if self.key_pub_pem == stored_key:
+                                flush_info(logs)
+                                return
+                        else:
+                            stored_cert = keys[kid_][0]["certificate"]
+                            if self.cert_pem == stored_cert:
+                                flush_info(logs)
+                                return
                     time.sleep(0.1)
         else:
             with primary.client(
