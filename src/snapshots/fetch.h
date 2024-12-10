@@ -15,6 +15,36 @@
 #include <string>
 #include <vector>
 
+#define CHECK_CURL_EASY(fn, ...) \
+  do \
+  { \
+    const auto res = fn(__VA_ARGS__); \
+    if (res != CURLE_OK) \
+    { \
+      throw std::runtime_error(fmt::format( \
+        "Error calling " #fn ": {} ({})", res, curl_easy_strerror(res))); \
+    } \
+  } while (0)
+
+#define CHECK_CURL_EASY_SETOPT(handle, info, arg) \
+  CHECK_CURL_EASY(curl_easy_setopt, handle, info, arg)
+#define CHECK_CURL_EASY_GETINFO(handle, info, arg) \
+  CHECK_CURL_EASY(curl_easy_getinfo, handle, info, arg)
+
+#define EXPECT_HTTP_RESPONSE_STATUS(request, response, expected) \
+  do \
+  { \
+    if (response.status_code != expected) \
+    { \
+      throw std::runtime_error(fmt::format( \
+        "Expected {} response from {} {}, instead received {}", \
+        ccf::http_status_str(expected), \
+        request.method.c_str(), \
+        request.url, \
+        response.status_code)); \
+    } \
+  } while (0)
+
 namespace snapshots
 {
   // Using curl 7.68.0, so missing niceties like curl_easy_header
@@ -76,6 +106,7 @@ namespace snapshots
     ccf::RESTVerb method;
     std::string url;
     HeaderMap headers;
+    std::string ca_path;
     BodyHandler body_handler = nullptr;
   };
 
@@ -96,14 +127,14 @@ namespace snapshots
       throw std::runtime_error("Error initialising curl easy request");
     }
 
-    curl_easy_setopt(curl, CURLOPT_URL, request.url.c_str());
+    CHECK_CURL_EASY_SETOPT(curl, CURLOPT_URL, request.url.c_str());
     if (request.method == HTTP_HEAD)
     {
-      curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_NOBODY, 1L);
     }
     else if (request.method == HTTP_GET)
     {
-      curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HTTPGET, 1L);
     }
     else
     {
@@ -112,35 +143,38 @@ namespace snapshots
     }
 
     SimpleHTTPResponse response;
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response.headers);
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, append_header);
+    CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HEADERDATA, &response.headers);
+    CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HEADERFUNCTION, append_header);
 
-    // TODO: Should have a cert for them, right?
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_CAINFO, request.ca_path.c_str());
 
-    struct curl_slist* list = nullptr;
+    curl_slist* list = nullptr;
     for (const auto& [k, v] : request.headers)
     {
       list = curl_slist_append(list, fmt::format("{}: {}", k, v).c_str());
     }
 
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, list);
+    CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HTTPHEADER, list);
 
     if (request.body_handler != nullptr)
     {
-      curl_easy_setopt(curl, CURLOPT_WRITEDATA, &request.body_handler);
-      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_callback);
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEDATA, &request.body_handler);
+      CHECK_CURL_EASY_SETOPT(curl, CURLOPT_WRITEFUNCTION, curl_write_callback);
     }
 
-    LOG_INFO_FMT(
-      "!!! Sending curl request {} {}", request.method.c_str(), request.url);
+    LOG_TRACE_FMT(
+      "Sending curl request {} {}", request.method.c_str(), request.url);
 
-    auto res = curl_easy_perform(curl);
+    CHECK_CURL_EASY(curl_easy_perform, curl);
 
-    // TODO: Handle errors
-    LOG_INFO_FMT("!!! Curl perform result is {}", res);
+    CHECK_CURL_EASY_GETINFO(
+      curl, CURLINFO_RESPONSE_CODE, &response.status_code);
 
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response.status_code);
+    LOG_TRACE_FMT(
+      "{} {} returned {}",
+      request.method.c_str(),
+      request.url,
+      response.status_code);
 
     curl_slist_free_all(list);
     curl_easy_cleanup(curl);
@@ -155,100 +189,131 @@ namespace snapshots
   };
 
   static std::optional<SnapshotResponse> fetch_from_peer(
-    const std::string& peer_address, size_t latest_local_snapshot)
+    const std::string& peer_address,
+    const std::string& path_to_peer_cert,
+    size_t latest_local_snapshot)
   {
-    const auto initial_url = fmt::format(
-      "https://{}/node/snapshot?since={}", peer_address, latest_local_snapshot);
-
-    SimpleHTTPRequest initial_request;
-    initial_request.method = HTTP_HEAD;
-    initial_request.url = initial_url;
-    const auto initial_response = make_curl_request(initial_request);
-    if (initial_response.status_code == HTTP_STATUS_NOT_FOUND)
+    // Make initial request, which returns a redirect response to specific
+    // snapshot
+    std::string snapshot_url;
     {
-      LOG_INFO_FMT("Peer has no snapshot newer than {}", latest_local_snapshot);
-      return std::nullopt;
+      const auto initial_url = fmt::format(
+        "https://{}/node/snapshot?since={}",
+        peer_address,
+        latest_local_snapshot);
+
+      SimpleHTTPRequest initial_request;
+      initial_request.method = HTTP_HEAD;
+      initial_request.url = initial_url;
+      initial_request.ca_path = path_to_peer_cert;
+
+      const auto initial_response = make_curl_request(initial_request);
+      if (initial_response.status_code == HTTP_STATUS_NOT_FOUND)
+      {
+        LOG_INFO_FMT(
+          "Peer has no snapshot newer than {}", latest_local_snapshot);
+        return std::nullopt;
+      }
+      else if (initial_response.status_code != HTTP_STATUS_PERMANENT_REDIRECT)
+      {
+        EXPECT_HTTP_RESPONSE_STATUS(
+          initial_request, initial_response, HTTP_STATUS_PERMANENT_REDIRECT);
+      }
+
+      auto location_it =
+        initial_response.headers.find(ccf::http::headers::LOCATION);
+      if (location_it == initial_response.headers.end())
+      {
+        throw std::runtime_error(fmt::format(
+          "Expected {} header in redirect response from {} {}, none found",
+          ccf::http::headers::LOCATION,
+          initial_request.method.c_str(),
+          initial_request.url));
+      }
+
+      LOG_TRACE_FMT("Snapshot fetch redirected to {}", location_it->second);
+
+      snapshot_url =
+        fmt::format("https://{}{}", peer_address, location_it->second);
     }
-    else if (initial_response.status_code != HTTP_STATUS_PERMANENT_REDIRECT)
-    {
-      LOG_FAIL_FMT("TODO: Expected permanent redirect response");
-    }
 
-    auto location_it = initial_response.headers.find("location");
-    if (location_it == initial_response.headers.end())
-    {
-      LOG_FAIL_FMT("TODO: Missing Location header");
-    }
-
-    LOG_INFO_FMT("!!! Redirected to {}", location_it->second);
-
-    const auto snapshot_url =
-      fmt::format("https://{}{}", peer_address, location_it->second);
-
-    SimpleHTTPRequest snapshot_size_request;
-    snapshot_size_request.method = HTTP_HEAD;
-    snapshot_size_request.url = snapshot_url;
-    const auto snapshot_size_response =
-      make_curl_request(snapshot_size_request);
-    if (snapshot_size_response.status_code != HTTP_STATUS_OK)
-    {
-      LOG_FAIL_FMT("TODO: Expected OK response");
-    }
-
-    auto content_size_it =
-      snapshot_size_response.headers.find(ccf::http::headers::CONTENT_LENGTH);
-    if (content_size_it == snapshot_size_response.headers.end())
-    {
-      LOG_FAIL_FMT("TODO: Missing content-size header");
-    }
-
-    LOG_INFO_FMT(
-      "!!! Parsing content size header: {}", content_size_it->second);
+    // Make follow-up request to redirected URL, to fetch total content size
     size_t content_size;
-    const auto& content_size_s = content_size_it->second;
-    const auto [p, ec] = std::from_chars(
-      content_size_s.data(),
-      content_size_s.data() + content_size_s.size(),
-      content_size);
-    if (ec != std::errc())
     {
-      LOG_FAIL_FMT("TODO: Invalid content size!?");
+      SimpleHTTPRequest snapshot_size_request;
+      snapshot_size_request.method = HTTP_HEAD;
+      snapshot_size_request.url = snapshot_url;
+      snapshot_size_request.ca_path = path_to_peer_cert;
+
+      const auto snapshot_size_response =
+        make_curl_request(snapshot_size_request);
+
+      EXPECT_HTTP_RESPONSE_STATUS(
+        snapshot_size_request, snapshot_size_response, HTTP_STATUS_OK);
+
+      auto content_size_it =
+        snapshot_size_response.headers.find(ccf::http::headers::CONTENT_LENGTH);
+      if (content_size_it == snapshot_size_response.headers.end())
+      {
+        throw std::runtime_error(fmt::format(
+          "Expected {} header in redirect response from {} {}, none found",
+          ccf::http::headers::CONTENT_LENGTH,
+          snapshot_size_request.method.c_str(),
+          snapshot_size_request.url));
+      }
+
+      const auto& content_size_s = content_size_it->second;
+      const auto [p, ec] = std::from_chars(
+        content_size_s.data(),
+        content_size_s.data() + content_size_s.size(),
+        content_size);
+      if (ec != std::errc())
+      {
+        throw std::runtime_error(fmt::format(
+          "Invalid {} header in redirect response from {} {}: {}",
+          ccf::http::headers::CONTENT_LENGTH,
+          snapshot_size_request.method.c_str(),
+          snapshot_size_request.url,
+          ec));
+      }
     }
 
-    LOG_INFO_FMT("!!! Content size is {}", content_size);
+    // Fetch 4MB chunks at a time
+    constexpr size_t range_size = 4 * 1024 * 1024;
+    LOG_TRACE_FMT(
+      "Preparing to fetch {}-byte snapshot from peer, {} bytes per-request",
+      content_size,
+      range_size);
 
     std::vector<uint8_t> snapshot(content_size);
-    {
-      // TODO: Decide sensible chunk size, 4MB?
-      constexpr size_t range_size = 4 * 1024;
 
+    {
       auto range_start = 0;
       auto range_end = std::min(content_size, range_size);
 
       while (true)
       {
-        // TODO: Copy response body back
         SimpleHTTPRequest snapshot_range_request;
         snapshot_range_request.method = HTTP_GET;
         snapshot_range_request.url = snapshot_url;
         snapshot_range_request.headers["range"] =
           fmt::format("bytes={}-{}", range_start, range_end);
+        snapshot_range_request.ca_path = path_to_peer_cert;
 
         snapshot_range_request.body_handler = [&](const auto& data) {
           const auto range_size = range_end - range_start;
           if (data.size() != range_size)
           {
-            LOG_FAIL_FMT(
-              "Asked for a range from {} to {} ({} bytes). Received a response "
-              "of {} bytes",
-              range_start,
-              range_end,
+            throw std::runtime_error(fmt::format(
+              "Requested {} bytes from {} {}, received {} in response",
               range_size,
-              data.size());
+              snapshot_range_request.method.c_str(),
+              snapshot_range_request.url,
+              data.size()));
           }
 
-          LOG_INFO_FMT(
-            "!!! Copying {} bytes into snapshot, starting at {}",
+          LOG_TRACE_FMT(
+            "Copying {} bytes into snapshot, starting at {}",
             range_size,
             range_start);
           memcpy(snapshot.data() + range_start, data.data(), data.size());
@@ -256,11 +321,8 @@ namespace snapshots
 
         const auto range_response = make_curl_request(snapshot_range_request);
 
-        if (range_response.status_code != HTTP_STATUS_PARTIAL_CONTENT)
-        {
-          LOG_FAIL_FMT(
-            "Got error HTTP response: {}", range_response.status_code);
-        }
+        EXPECT_HTTP_RESPONSE_STATUS(
+          snapshot_range_request, range_response, HTTP_STATUS_PARTIAL_CONTENT);
 
         if (range_end == content_size)
         {
