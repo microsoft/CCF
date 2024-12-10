@@ -3,6 +3,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/ds/unit_strings.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/platform.h"
 #include "ccf/version.h"
@@ -13,7 +14,6 @@
 #include "ds/non_blocking.h"
 #include "ds/nonstd.h"
 #include "ds/oversized.h"
-#include "ds/x509_time_fmt.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
@@ -81,9 +81,11 @@ int main(int argc, char** argv)
     "platforms) their value is captured in an attestation even if the "
     "configuration file itself is unattested.\n"};
 
-  std::string config_file_path = "config.json";
-  app.add_option(
-    "-c,--config", config_file_path, "Path to JSON configuration file");
+  std::string config_file_path;
+  app
+    .add_option(
+      "-c,--config", config_file_path, "Path to JSON configuration file")
+    ->required();
 
   ccf::ds::TimeString config_timeout = {"0s"};
   app.add_option(
@@ -98,12 +100,13 @@ int main(int argc, char** argv)
   app.add_flag(
     "-v, --version", print_version, "Display CCF host version and exit");
 
-  LoggerLevel enclave_log_level = LoggerLevel::INFO;
-  std::map<std::string, LoggerLevel> log_level_options;
-  for (size_t i = ccf::logger::MOST_VERBOSE; i < LoggerLevel::MAX_LOG_LEVEL;
+  ccf::LoggerLevel enclave_log_level = ccf::LoggerLevel::INFO;
+  std::map<std::string, ccf::LoggerLevel> log_level_options;
+  for (size_t i = ccf::logger::MOST_VERBOSE;
+       i < ccf::LoggerLevel::MAX_LOG_LEVEL;
        ++i)
   {
-    const auto l = (LoggerLevel)i;
+    const auto l = (ccf::LoggerLevel)i;
     log_level_options[ccf::logger::to_string(l)] = l;
   }
 
@@ -503,7 +506,7 @@ int main(int argc, char** argv)
 
     enclave_config.writer_config = writer_config;
 
-    StartupConfig startup_config(config);
+    ccf::StartupConfig startup_config(config);
 
     if (startup_config.attestation.snp_security_policy_file.has_value())
     {
@@ -592,7 +595,7 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
     startup_config.startup_host_time =
-      ::ds::to_x509_time_string(startup_host_time);
+      ccf::ds::to_x509_time_string(startup_host_time);
 
     if (config.command.type == StartType::Start)
     {

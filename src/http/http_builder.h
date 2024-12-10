@@ -199,10 +199,10 @@ namespace http
   class Response : public Message
   {
   private:
-    http_status status;
+    ccf::http_status status;
 
   public:
-    Response(http_status s = HTTP_STATUS_OK) : status(s) {}
+    Response(ccf::http_status s = HTTP_STATUS_OK) : status(s) {}
 
     std::vector<uint8_t> build_response(bool header_only = false) const
     {
@@ -216,7 +216,7 @@ namespace http
         "\r\n"
         "{}",
         status,
-        http_status_str(status),
+        ccf::http_status_str(status),
         get_header_string(headers),
         body_view);
 

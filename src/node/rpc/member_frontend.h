@@ -98,7 +98,7 @@ namespace ccf
     // and sets the HTTP response
     static void set_gov_error(
       const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-      http_status status,
+      ccf::http_status status,
       const std::string& code,
       std::string&& msg)
     {
@@ -599,7 +599,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "4.4.0";
+      openapi_info.document_version = "4.5.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(

@@ -27,3 +27,7 @@ struct formatter<E, std::enable_if_t<std::is_enum_v<E>, char>>
   }
 };
 FMT_END_NAMESPACE
+
+// ci-checks exception - defines a struct in the fmt namespace
+namespace ccf
+{}

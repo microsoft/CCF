@@ -122,7 +122,7 @@ Note that, as in the sample above, it is possible to acquire different kinds of 
 Removing a key
 --------------
 
-If a Key-Value pair was written to a :cpp:type:`ccf::kv::Map` by a previous :cpp:class:`ccf::kv::Tx`, it is possible to delete this key. Because of the append-only nature of the KV, this Key-Value pair is not actually removed from the :cpp:type:`ccf::kv::Map` but instead explicitly marked as deleted in the version that the deleting :cpp:class:`ccf::kv::Tx` is applied at.
+If a Key-Value pair was written to a :cpp:type:`ccf::kv::Map` by a previous :cpp:class:`ccf::kv::Tx`, it is possible to delete this key.
 
 .. code-block:: cpp
 

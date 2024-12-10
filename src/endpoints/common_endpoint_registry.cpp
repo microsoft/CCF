@@ -246,28 +246,6 @@ namespace ccf
         "Invalid.")
       .install();
 
-    auto get_code = [](auto& ctx, nlohmann::json&&) {
-      GetCode::Out out;
-
-      auto codes_ids = ctx.tx.template ro<CodeIDs>(Tables::NODE_CODE_IDS);
-      codes_ids->foreach(
-        [&out](
-          const ccf::pal::SgxAttestationMeasurement& measurement,
-          const ccf::CodeStatus& status) {
-          auto digest = measurement.hex_str();
-          out.versions.push_back({digest, status});
-          return true;
-        });
-
-      return make_success(out);
-    };
-    make_read_only_endpoint(
-      "/code", HTTP_GET, json_read_only_adapter(get_code), no_auth_required)
-      .set_auto_schema<void, GetCode::Out>()
-      .set_openapi_summary("Permitted SGX code identities")
-      .set_openapi_deprecated_replaced("5.0.0", "GET /gov/service/join-policy")
-      .install();
-
     auto openapi = [this](auto& ctx) { this->api_endpoint(ctx); };
     make_read_only_endpoint("/api", HTTP_GET, openapi, no_auth_required)
       .set_auto_schema<void, GetAPI::Out>()
