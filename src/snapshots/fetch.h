@@ -154,16 +154,22 @@ namespace snapshots
     std::vector<uint8_t> snapshot_data;
   };
 
-  static SnapshotResponse fetch_from_peer(const std::string& peer_address)
+  static std::optional<SnapshotResponse> fetch_from_peer(
+    const std::string& peer_address, size_t latest_local_snapshot)
   {
-    const auto initial_url =
-      fmt::format("https://{}/node/snapshot", peer_address);
+    const auto initial_url = fmt::format(
+      "https://{}/node/snapshot?since={}", peer_address, latest_local_snapshot);
 
     SimpleHTTPRequest initial_request;
     initial_request.method = HTTP_HEAD;
     initial_request.url = initial_url;
     const auto initial_response = make_curl_request(initial_request);
-    if (initial_response.status_code != HTTP_STATUS_PERMANENT_REDIRECT)
+    if (initial_response.status_code == HTTP_STATUS_NOT_FOUND)
+    {
+      LOG_INFO_FMT("Peer has no snapshot newer than {}", latest_local_snapshot);
+      return std::nullopt;
+    }
+    else if (initial_response.status_code != HTTP_STATUS_PERMANENT_REDIRECT)
     {
       LOG_FAIL_FMT("TODO: Expected permanent redirect response");
     }
