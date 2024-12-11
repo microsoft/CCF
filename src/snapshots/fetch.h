@@ -301,22 +301,12 @@ namespace snapshots
         snapshot_range_request.ca_path = path_to_peer_cert;
 
         snapshot_range_request.body_handler = [&](const auto& data) {
-          const auto range_size = range_end - range_start;
-          if (data.size() != range_size)
-          {
-            throw std::runtime_error(fmt::format(
-              "Requested {} bytes from {} {}, received {} in response",
-              range_size,
-              snapshot_range_request.method.c_str(),
-              snapshot_range_request.url,
-              data.size()));
-          }
-
           LOG_TRACE_FMT(
             "Copying {} bytes into snapshot, starting at {}",
             range_size,
             range_start);
           memcpy(snapshot.data() + range_start, data.data(), data.size());
+          range_start += data.size();
         };
 
         const auto range_response = make_curl_request(snapshot_range_request);
