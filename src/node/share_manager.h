@@ -166,9 +166,9 @@ namespace ccf
         InternalTablesAccess::get_active_recovery_members(tx);
 
       size_t share_index = 0;
-      for (auto const& [member_id, enc_pub_key] : active_recovery_members_info)
+      for (auto const& [member_id, info] : active_recovery_members_info)
       {
-        auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
+        auto member_enc_pubk = ccf::crypto::make_rsa_public_key(info.enc_pub_key);
         auto raw_share = std::vector<uint8_t>(
           shares[share_index].begin(), shares[share_index].end());
         encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_share);

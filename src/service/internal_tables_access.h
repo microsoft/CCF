@@ -37,6 +37,26 @@ namespace ccf
       .view = txid.view + aft::starting_view_change, .seqno = txid.seqno + 1};
   }
 
+  struct ActiveRecoveryMemberInfo
+  {
+    ccf::crypto::Pem enc_pub_key;
+    std::optional<bool> recovery_owner;
+
+    ActiveRecoveryMemberInfo() {}
+
+    ActiveRecoveryMemberInfo(
+      const ccf::crypto::Pem& enc_pub_key_,
+      const std::optional<bool>& recovery_owner_ = std::nullopt) :
+      enc_pub_key(enc_pub_key_),
+      recovery_owner(recovery_owner_)
+    {}
+
+    bool operator==(const ActiveRecoveryMemberInfo& rhs) const
+    {
+      return enc_pub_key == rhs.enc_pub_key && recovery_owner == rhs.recovery_owner;
+    }    
+  };
+
   // This class provides functions for interacting with various internal
   // service-governance tables. Specifically, it aims to maintain some
   // invariants amongst these tables (eg - keys being present in multiple
@@ -92,7 +112,7 @@ namespace ccf
       return mi->status == MemberStatus::ACTIVE;
     }
 
-    static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_members(
+    static std::map<MemberId, ActiveRecoveryMemberInfo> get_active_recovery_members(
       ccf::kv::ReadOnlyTx& tx)
     {
       auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
@@ -100,7 +120,7 @@ namespace ccf
         tx.ro<ccf::MemberPublicEncryptionKeys>(
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-      std::map<MemberId, ccf::crypto::Pem> active_recovery_members;
+      std::map<MemberId, ActiveRecoveryMemberInfo> active_recovery_members;
 
       member_encryption_public_keys->foreach(
         [&active_recovery_members,
@@ -114,7 +134,7 @@ namespace ccf
 
           if (info->status == MemberStatus::ACTIVE)
           {
-            active_recovery_members[mid] = pem;
+            active_recovery_members[mid] = {pem, info->recovery_owner};
           }
           return true;
         });
@@ -142,7 +162,7 @@ namespace ccf
 
       member_certs->put(id, member_pub_info.cert);
       member_info->put(
-        id, {MemberStatus::ACCEPTED, member_pub_info.member_data});
+        id, {MemberStatus::ACCEPTED, member_pub_info.member_data, member_pub_info.recovery_owner});
 
       if (member_pub_info.encryption_pub_key.has_value())
       {
