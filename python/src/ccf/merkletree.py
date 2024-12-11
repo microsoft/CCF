@@ -10,18 +10,19 @@ class MerkleTree(object):
     """
 
     def __init__(self):
-        self.levels = None
         self.reset_tree()
 
     def reset_tree(self):
         self.leaves = list()
         self.levels = None
+        self._root = None
 
     def add_leaf(self, values: bytes, do_hash=True):
         digest = values
         if do_hash:
             digest = sha256(values).digest()
         self.leaves.append(digest)
+        self._root = None  # Need to recalculate
 
     def get_leaf(self, index: int) -> bytes:
         return self.leaves[index]
@@ -30,13 +31,15 @@ class MerkleTree(object):
         return len(self.leaves)
 
     def get_merkle_root(self) -> bytes:
-        # Always make tree before getting root
-        self._make_tree()
-        assert (
-            self.levels is not None
-        ), "Unexpected error while getting root. MerkleTree has no levels."
+        if self._root is None:
+            # Always make tree before getting root
+            self._make_tree()
+            assert (
+                self.levels is not None
+            ), "Unexpected error while getting root. MerkleTree has no levels."
+            self._root = self.levels[0][0]
 
-        return self.levels[0][0]
+        return self._root
 
     def _calculate_next_level(self):
         solo_leaf = None
