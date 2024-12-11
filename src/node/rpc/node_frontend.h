@@ -1935,6 +1935,8 @@ namespace ccf
           const auto range_header = ctx.rpc_ctx->get_request_header("range");
           if (range_header.has_value())
           {
+            LOG_TRACE_FMT("Parsing range header {}", range_header.value());
+
             auto [unit, ranges] =
               ccf::nonstd::split_1(range_header.value(), "=");
             if (unit != "bytes")
@@ -2085,6 +2087,12 @@ namespace ccf
         }
 
         const auto range_size = range_end - range_start;
+
+        LOG_TRACE_FMT(
+          "Reading {}-byte range from {} to {}",
+          range_size,
+          range_start,
+          range_end);
 
         // Read requested range into buffer
         std::vector<uint8_t> contents(range_size);
