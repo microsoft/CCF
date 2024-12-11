@@ -294,14 +294,14 @@ def test_snapshot_access(network, args):
         # Check error handling for invalid ranges
         for invalid_range, err_msg in [
             (f"{a}-foo", "Unable to parse end of range value foo"),
-            (f"foo-foo", "Unable to parse start of range value foo"),
+            ("foo-foo", "Unable to parse start of range value foo"),
             (f"foo-{b}", "Unable to parse start of range value foo"),
             (f"{b}-{a}", "out of order"),
             (f"0-{total_size + 1}", "larger than total file size"),
-            (f"-1-5", "Invalid format"),
-            (f"-", "Invalid range"),
-            (f"-foo", "Unable to parse end of range offset value foo"),
-            (f"", "Invalid format"),
+            ("-1-5", "Invalid format"),
+            ("-", "Invalid range"),
+            ("-foo", "Unable to parse end of range offset value foo"),
+            ("", "Invalid format"),
         ]:
             r = c.get(location, headers={"range": f"bytes={invalid_range}"})
             assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r

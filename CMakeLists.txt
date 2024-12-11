@@ -255,8 +255,15 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
 endif()
 
 target_link_libraries(
-  cchost PRIVATE uv ${TLS_LIBRARY} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
-                 ${LINK_LIBCXX} ccfcrypto.host curl http_parser.host
+  cchost
+  PRIVATE uv
+          ${TLS_LIBRARY}
+          ${CMAKE_DL_LIBS}
+          ${CMAKE_THREAD_LIBS_INIT}
+          ${LINK_LIBCXX}
+          ccfcrypto.host
+          curl
+          http_parser.host
 )
 
 install(TARGETS cchost DESTINATION bin)
