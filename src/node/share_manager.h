@@ -178,7 +178,7 @@ namespace ccf
       {
         auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
         auto raw_share = std::vector<uint8_t>(
-          shares[share_index].begin(), shares[share_index].end()); 
+          shares[share_index].begin(), shares[share_index].end());
         encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_share);
         OPENSSL_cleanse(raw_share.data(), raw_share.size());
         OPENSSL_cleanse(shares[share_index].data(), shares[share_index].size());

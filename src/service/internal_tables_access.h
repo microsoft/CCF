@@ -171,12 +171,10 @@ namespace ccf
         return id;
       }
 
-      if (member_pub_info.recovery_owner.has_value() &&
-        member_pub_info.recovery_owner.value() &&
-        !member_pub_info.encryption_pub_key.has_value())
+      if (member_pub_info.recovery_owner.has_value() && !member_pub_info.encryption_pub_key.has_value())
       {
         throw std::logic_error(fmt::format(
-          "Member {} cannot be added as recovery_owner is set to true but no encryption public key is specified", id));
+          "Member {} cannot be added as recovery_owner has a value set but no encryption public key is specified", id));
       }
 
       member_certs->put(id, member_pub_info.cert);
