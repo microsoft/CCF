@@ -212,10 +212,6 @@ def test_large_snapshot(network, args):
 def test_snapshot_access(network, args):
     primary, _ = network.find_primary()
 
-    # TODO: Hacked in here to check copying
-    new_node = network.create_node("local://localhost")
-    network.join_node(new_node, args.package, args)
-
     snapshots_dir = network.get_committed_snapshots(primary)
     snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
     snapshot_index, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
@@ -394,12 +390,11 @@ def run_file_operations(args):
                     r = c.get("/node/network").body.json()
                     assert r["service_data"] == service_data
 
-                # TODO
-                # test_save_committed_ledger_files(network, args)
-                # test_parse_snapshot_file(network, args)
-                # test_forced_ledger_chunk(network, args)
+                test_save_committed_ledger_files(network, args)
+                test_parse_snapshot_file(network, args)
+                test_forced_ledger_chunk(network, args)
                 test_forced_snapshot(network, args)
-                # test_large_snapshot(network, args)
+                test_large_snapshot(network, args)
                 test_snapshot_access(network, args)
 
                 primary, _ = network.find_primary()
@@ -757,14 +752,13 @@ def run_cose_signatures_config_check(args):
 
 
 def run(args):
-    # TODO
-    # run_max_uncommitted_tx_count(args)
+    run_max_uncommitted_tx_count(args)
     run_file_operations(args)
-    # run_tls_san_checks(args)
-    # run_config_timeout_check(args)
-    # run_configuration_file_checks(args)
-    # run_pid_file_check(args)
-    # run_preopen_readiness_check(args)
-    # run_sighup_check(args)
-    # run_service_subject_name_check(args)
-    # run_cose_signatures_config_check(args)
+    run_tls_san_checks(args)
+    run_config_timeout_check(args)
+    run_configuration_file_checks(args)
+    run_pid_file_check(args)
+    run_preopen_readiness_check(args)
+    run_sighup_check(args)
+    run_service_subject_name_check(args)
+    run_cose_signatures_config_check(args)
