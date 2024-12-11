@@ -15,7 +15,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Add and activate a new member to the consortium")
-def test_add_member(network, args, recovery_member=True):
+def test_add_member(network, args, recovery_member=True, recovery_owner=False):
     primary, _ = network.find_primary()
 
     member_data = {
@@ -28,6 +28,7 @@ def test_add_member(network, args, recovery_member=True):
         curve=infra.network.EllipticCurve(args.participants_curve).next(),
         member_data=member_data,
         recovery_member=recovery_member,
+        recovery_owner=recovery_owner,
     )
 
     r = new_member.ack(primary)
@@ -39,11 +40,13 @@ def test_add_member(network, args, recovery_member=True):
 
 @reqs.description("Retire existing member")
 def test_remove_member_no_reqs(
-    network, args, member_to_remove=None, recovery_member=True
+    network, args, member_to_remove=None, recovery_member=True, recovery_owner=False
 ):
     primary, _ = network.find_primary()
     if member_to_remove is None:
-        member_to_remove = network.consortium.get_any_active_member(recovery_member)
+        member_to_remove = network.consortium.get_any_active_member(
+            recovery_member, recovery_owner
+        )
     network.consortium.remove_member(primary, member_to_remove)
 
     # Check that remove member cannot be authenticated by the service
@@ -59,8 +62,12 @@ def test_remove_member_no_reqs(
 
 # Called by test suite. membership test deliberately attempts to remove recovery member.
 @reqs.sufficient_recovery_member_count()
-def test_remove_member(network, args, member_to_remove=None, recovery_member=True):
-    return test_remove_member_no_reqs(network, args, member_to_remove, recovery_member)
+def test_remove_member(
+    network, args, member_to_remove=None, recovery_member=True, recovery_owner=False
+):
+    return test_remove_member_no_reqs(
+        network, args, member_to_remove, recovery_member, recovery_owner
+    )
 
 
 @reqs.description("Issue new recovery shares (without re-key)")
@@ -120,6 +127,7 @@ def service_startups(args):
     LOG.info("Starting service with insufficient number of recovery members")
     args.initial_member_count = 2
     args.initial_recovery_member_count = 0
+    args.initial_recovery_owner_member_count = 0
     args.initial_operator_count = 1
     args.ledger_recovery_timeout = 5
     with infra.network.network(args.nodes, args.binary_dir, pdb=args.pdb) as network:
@@ -140,6 +148,7 @@ def service_startups(args):
     )
     args.initial_member_count = 3
     args.initial_recovery_member_count = 1
+    args.initial_recovery_owner_member_count = 0
     args.initial_operator_count = 2
     with infra.network.network(args.nodes, args.binary_dir, pdb=args.pdb) as network:
         network.start_and_open(args)
@@ -149,6 +158,7 @@ def service_startups(args):
     )
     args.initial_member_count = 3
     args.initial_recovery_member_count = 2
+    args.initial_recovery_owner_member_count = 0
     args.initial_operator_count = 1
     with infra.network.network(args.nodes, args.binary_dir, pdb=args.pdb) as network:
         network.start_and_open(args)
@@ -158,6 +168,7 @@ def recovery_shares_scenario(args):
     # Members 0 and 1 are recovery members, member 2 isn't
     args.initial_member_count = 3
     args.initial_recovery_member_count = 2
+    args.initial_recovery_owner_member_count = 0
     non_recovery_member_id = "member2"
 
     # Recovery threshold is initially set to number of recovery members (2)
@@ -216,6 +227,15 @@ def recovery_shares_scenario(args):
         assert_recovery_shares_update(
             True, test_add_member, network, args, recovery_member=True
         )
+        LOG.info("Adding one recovery owner member")
+        assert_recovery_shares_update(
+            True,
+            test_add_member,
+            network,
+            args,
+            recovery_member=True,
+            recovery_owner=True,
+        )
         LOG.info("Removing one non-recovery member")
         assert_recovery_shares_update(
             False, test_remove_member, network, args, recovery_member=False
@@ -223,6 +243,15 @@ def recovery_shares_scenario(args):
         LOG.info("Removing one recovery member")
         assert_recovery_shares_update(
             True, test_remove_member, network, args, recovery_member=True
+        )
+        LOG.info("Removing one recovery owner member")
+        assert_recovery_shares_update(
+            True,
+            test_remove_member,
+            network,
+            args,
+            recovery_member=True,
+            recovery_owner=True,
         )
 
         LOG.info("Reduce recovery threshold")

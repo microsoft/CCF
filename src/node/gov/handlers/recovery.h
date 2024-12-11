@@ -136,10 +136,10 @@ namespace ccf::gov::endpoints
             submitted_shares_count = share_manager.submit_recovery_share(
               ctx.tx, member_id, raw_recovery_share);
 
+            full_share_submitted = share_manager.is_full_share(raw_recovery_share);
+
             OPENSSL_cleanse(
               raw_recovery_share.data(), raw_recovery_share.size());
-
-            full_share_submitted = share_manager.is_full_share(raw_recovery_share);
           }
           catch (const std::exception& e)
           {

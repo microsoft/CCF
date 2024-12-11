@@ -356,10 +356,12 @@ namespace ccf
               // a full share or just a partial share (compare to zero).
               // If it is a full share, we can short-circuit and return a LedgerSecretWrappingKey
               // directly, otherwise we follow the existing flow.
+              LOG_INFO_FMT("Checking if its a full share");
               auto share = ccf::crypto::sharing::Share(decrypted_share);
               if (share.x == 0)
               {
                 // This is a full share.
+                LOG_INFO_FMT("Received a full share");
                 full_share = share;
               }
               else
@@ -580,7 +582,7 @@ namespace ccf
           return true;
         }     
       }
-
+      
       return false;
     }
 
