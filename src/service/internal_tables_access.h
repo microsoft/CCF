@@ -37,26 +37,6 @@ namespace ccf
       .view = txid.view + aft::starting_view_change, .seqno = txid.seqno + 1};
   }
 
-  struct ActiveRecoveryMemberInfo
-  {
-    ccf::crypto::Pem enc_pub_key;
-    std::optional<bool> recovery_owner;
-
-    ActiveRecoveryMemberInfo() {}
-
-    ActiveRecoveryMemberInfo(
-      const ccf::crypto::Pem& enc_pub_key_,
-      const std::optional<bool>& recovery_owner_ = std::nullopt) :
-      enc_pub_key(enc_pub_key_),
-      recovery_owner(recovery_owner_)
-    {}
-
-    bool operator==(const ActiveRecoveryMemberInfo& rhs) const
-    {
-      return enc_pub_key == rhs.enc_pub_key && recovery_owner == rhs.recovery_owner;
-    }    
-  };
-
   // This class provides functions for interacting with various internal
   // service-governance tables. Specifically, it aims to maintain some
   // invariants amongst these tables (eg - keys being present in multiple
@@ -112,7 +92,7 @@ namespace ccf
       return mi->status == MemberStatus::ACTIVE;
     }
 
-    static std::map<MemberId, ActiveRecoveryMemberInfo> get_active_recovery_members(
+    static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_members(
       ccf::kv::ReadOnlyTx& tx)
     {
       auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
@@ -120,7 +100,7 @@ namespace ccf
         tx.ro<ccf::MemberPublicEncryptionKeys>(
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-      std::map<MemberId, ActiveRecoveryMemberInfo> active_recovery_members;
+      std::map<MemberId, ccf::crypto::Pem> active_recovery_members;
 
       member_encryption_public_keys->foreach(
         [&active_recovery_members,
@@ -132,13 +112,44 @@ namespace ccf
               fmt::format("Recovery member {} has no member info", mid));
           }
 
-          if (info->status == MemberStatus::ACTIVE)
+          if (info->status == MemberStatus::ACTIVE &&
+             (!info->recovery_owner.has_value() || !info->recovery_owner.value()))
           {
-            active_recovery_members[mid] = {pem, info->recovery_owner};
+            active_recovery_members[mid] = pem;
           }
           return true;
         });
       return active_recovery_members;
+    }
+
+    static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_owners(
+      ccf::kv::ReadOnlyTx& tx)
+    {
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_encryption_public_keys =
+        tx.ro<ccf::MemberPublicEncryptionKeys>(
+          Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
+
+      std::map<MemberId, ccf::crypto::Pem> active_recovery_owners;
+
+      member_encryption_public_keys->foreach(
+        [&active_recovery_owners,
+         &member_info](const auto& mid, const auto& pem) {
+          auto info = member_info->get(mid);
+          if (!info.has_value())
+          {
+            throw std::logic_error(
+              fmt::format("Recovery member {} has no member info", mid));
+          }
+
+          if (info->status == MemberStatus::ACTIVE && info->recovery_owner.has_value()
+            && info->recovery_owner.value())
+          {
+            active_recovery_owners[mid] = pem;
+          }
+          return true;
+        });
+      return active_recovery_owners;
     }
 
     static MemberId add_member(
@@ -158,6 +169,14 @@ namespace ccf
       {
         // No effect if member already exists
         return id;
+      }
+
+      if (member_pub_info.recovery_owner.has_value() &&
+        member_pub_info.recovery_owner.value() &&
+        !member_pub_info.encryption_pub_key.has_value())
+      {
+        throw std::logic_error(fmt::format(
+          "Member {} cannot be added as recovery_owner is set to true but no encryption public key is specified", id));
       }
 
       member_certs->put(id, member_pub_info.cert);
