@@ -1000,7 +1000,9 @@ def run_recover_via_recovery_owner(args):
     Recover a service using the recovery owner member, without requiring any other recovery members to participate.
     """
     txs = app.LoggingTxs("user0")
-    args.initial_recovery_owner_count = 1
+    # TODO (gsinha): Setting to 1 does not work as recovery_owner=true is not passed into the genesis configuration
+    # hence adding a recovery owner after network creation.
+    args.initial_recovery_owner_count = 0
     with infra.network.network(
         args.nodes,
         args.binary_dir,
@@ -1011,7 +1013,19 @@ def run_recover_via_recovery_owner(args):
     ) as network:
         network.start_and_open(args)
         primary, _ = network.find_primary()
-        # Recover node solely via a recovery owner
+
+        # Add a recovery owner
+        recovery_owner = network.consortium.generate_and_add_new_member(
+            primary,
+            curve=args.participants_curve,
+            recovery_member=True,
+            recovery_owner=True,
+        )
+        r = recovery_owner.ack(primary)
+        with primary.client() as nc:
+            nc.wait_for_commit(r)
+
+        # Recover node solely via the recovery owner
         test_recover_service(network, args, from_snapshot=True, via_recovery_owner=True)
         return network
 

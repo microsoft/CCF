@@ -104,6 +104,14 @@ namespace ccf
       return ret;
     }
 
+    std::vector<uint8_t> get_full_share() const
+    {
+      std::vector<uint8_t> ret;
+      ret.resize(data.size());
+      std::copy_n(data.begin(), data.size(), ret.begin());
+      return ret;
+    }
+
     std::vector<uint8_t> wrap(const LedgerSecretPtr& ledger_secret)
     {
       if (has_wrapped)
@@ -167,6 +175,7 @@ namespace ccf
     EncryptedSharesMap compute_encrypted_shares(
       ccf::kv::Tx& tx, const LedgerSecretWrappingKey& ls_wrapping_key)
     {
+      LOG_INFO_FMT("Entering compute_encrypted_shares");
       EncryptedSharesMap encrypted_shares;
       auto shares = ls_wrapping_key.get_shares();
 
@@ -188,14 +197,16 @@ namespace ccf
       auto active_recovery_owners_info =
         InternalTablesAccess::get_active_recovery_owners(tx);
 
+      LOG_INFO_FMT("InternalTablesAccess::get_active_recovery_owners(tx).size(): {}",
+        active_recovery_owners_info.size());
       for (auto const& [member_id, enc_pub_key] : active_recovery_owners_info)
       {
         LOG_INFO_FMT("Assigning full share to member {}", member_id);
         auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
         LOG_INFO_FMT("Getting full share for member {}", member_id);
-        auto raw_share = ls_wrapping_key.get_raw_data<std::vector<uint8_t>>();
+        auto raw_secret = ls_wrapping_key.get_full_share();
         LOG_INFO_FMT("Wrapping full share for member {}", member_id);
-        encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_share);
+        encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_secret);
       }
 
       return encrypted_shares;
@@ -586,10 +597,14 @@ namespace ccf
 
     bool is_full_share(const std::vector<uint8_t>& submitted_recovery_share)
     {
-      LOG_INFO_FMT("Submitted_recovery_share.size(): {} serialized_size: {}", submitted_recovery_share.size(), ccf::crypto::sharing::Share::serialised_size)
+      LOG_INFO_FMT(
+        "Submitted_recovery_share.size(): {} serialized_size: {}",
+        submitted_recovery_share.size(),
+        ccf::crypto::sharing::Share::serialised_size);
       if (submitted_recovery_share.size() == ccf::crypto::sharing::Share::serialised_size)
       {
         auto share = ccf::crypto::sharing::Share(submitted_recovery_share);
+        LOG_INFO_FMT("share.x: {}", share.x);
         if (share.x == 0)
         {
           // Index value of 0 indicates a full share.

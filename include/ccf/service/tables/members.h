@@ -41,6 +41,7 @@ namespace ccf
     // TODO (gsinha): Should we be using std::optional<bool> recovery_owner = std::nullopt type?
     // It was giving trouble during deserialization.
     bool recovery_owner = false;
+    std::optional<std::string> recovery_owner_s = std::nullopt;
 
     NewMember() {}
 
@@ -48,22 +49,25 @@ namespace ccf
       const ccf::crypto::Pem& cert_,
       const std::optional<ccf::crypto::Pem>& encryption_pub_key_ = std::nullopt,
       const nlohmann::json& member_data_ = nullptr,
-      bool recovery_owner_ = false) :
+      bool recovery_owner_ = false,
+      const std::optional<std::string>& recovery_owner_s_ = std::nullopt) :
       cert(cert_),
       encryption_pub_key(encryption_pub_key_),
       member_data(member_data_),
-      recovery_owner(recovery_owner_)
+      recovery_owner(recovery_owner_),
+      recovery_owner_s(recovery_owner_s_)
     {}
 
     bool operator==(const NewMember& rhs) const
     {
       return cert == rhs.cert && encryption_pub_key == rhs.encryption_pub_key &&
-        member_data == rhs.member_data && recovery_owner == rhs.recovery_owner;
+        member_data == rhs.member_data && recovery_owner == rhs.recovery_owner &&
+        recovery_owner_s == rhs.recovery_owner_s;
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewMember)
   DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert)
-  DECLARE_JSON_OPTIONAL_FIELDS(NewMember, encryption_pub_key, member_data, recovery_owner)
+  DECLARE_JSON_OPTIONAL_FIELDS(NewMember, encryption_pub_key, member_data, recovery_owner, recovery_owner_s)
 
   struct MemberDetails
   {
@@ -78,15 +82,17 @@ namespace ccf
     // TODO (gsinha): Should we be using std::optional<bool> recovery_owner = std::nullopt type?
     // It was giving trouble during deserialization.
     bool recovery_owner = false;
+    std::optional<std::string> recovery_owner_s = std::nullopt;
 
     bool operator==(const MemberDetails& rhs) const
     {
-      return status == rhs.status && member_data == rhs.member_data && recovery_owner == rhs.recovery_owner;
+      return status == rhs.status && member_data == rhs.member_data
+       && recovery_owner == rhs.recovery_owner && recovery_owner_s == rhs.recovery_owner_s;
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberDetails)
   DECLARE_JSON_REQUIRED_FIELDS(MemberDetails, status)
-  DECLARE_JSON_OPTIONAL_FIELDS(MemberDetails, member_data, recovery_owner)
+  DECLARE_JSON_OPTIONAL_FIELDS(MemberDetails, member_data, recovery_owner, recovery_owner_s)
 
   using MemberInfo = ServiceMap<MemberId, MemberDetails>;
 

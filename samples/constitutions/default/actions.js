@@ -402,8 +402,8 @@ const actions = new Map([
 
         let member_info = {};
         member_info.member_data = args.member_data;
-        // member_info.recovery_owner = args.recovery_owner;
-        member_info.recovery_owner = false;
+        member_info.recovery_owner = false; //args.recovery_owner;
+        member_info.recovery_owner_s = "true"; //args.recovery_owner_s;
         member_info.status = "Accepted";
         ccf.kv["public:ccf.gov.members.info"].set(
           rawMemberId,

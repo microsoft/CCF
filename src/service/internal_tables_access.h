@@ -89,7 +89,8 @@ namespace ccf
         return false;
       }
 
-      return mi->recovery_owner;
+      //return mi->recovery_owner;
+      return mi->recovery_owner_s.has_value() && mi->recovery_owner_s.value() == "true";
     }
 
     static bool is_active_member(
@@ -137,6 +138,7 @@ namespace ccf
     static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_owners(
       ccf::kv::ReadOnlyTx& tx)
     {
+      LOG_INFO_FMT("Entering get_active_recovery_owners");
       auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto member_encryption_public_keys =
         tx.ro<ccf::MemberPublicEncryptionKeys>(
@@ -154,7 +156,7 @@ namespace ccf
               fmt::format("Recovery member {} has no member info", mid));
           }
 
-          if (info->status == MemberStatus::ACTIVE && info->recovery_owner)
+          if (info->status == MemberStatus::ACTIVE && info->recovery_owner_s.has_value() && info->recovery_owner_s.value() == "true")
           {
             active_recovery_owners[mid] = pem;
           }
