@@ -756,20 +756,15 @@ class Consortium:
         with remote_node.client() as nc:
             check_commit = infra.checker.Checker(nc)
 
-            for m in self.get_active_recovery_owners():
-                r = m.get_and_submit_recovery_share(remote_node)
-                submitted_shares_count += 1
-                check_commit(r)
-
-                assert (
-                    f"{submitted_shares_count}/{self.recovery_threshold}"
-                    in r.body.text()
-                )
-                if submitted_shares_count >= self.recovery_threshold:
-                    assert "End of recovery procedure initiated" in r.body.text()
-                    break
-                else:
-                    assert "End of recovery procedure initiated" not in r.body.text()
+            m = self.get_any_active_member(recovery_member=True, recovery_owner=True)
+            r = m.get_and_submit_recovery_share(remote_node)
+            submitted_shares_count += 1
+            check_commit(r)
+            assert (
+                f"{submitted_shares_count}/{self.recovery_threshold}" in r.body.text()
+            )
+            assert "Full recovery share successfully submitted" in r.body.text()
+            assert "End of recovery procedure initiated" in r.body.text()
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         proposal_body, careful_vote = self.make_proposal(

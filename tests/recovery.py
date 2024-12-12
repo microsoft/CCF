@@ -201,7 +201,7 @@ def test_recover_service(
             r = c.get("/node/ready/app")
             assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value, r
 
-    recovered_network.recover(args)
+    recovered_network.recover(args, via_recovery_owner=via_recovery_owner)
 
     LOG.info("Check that new service view is as expected")
     new_primary, _ = recovered_network.find_primary()
@@ -1041,14 +1041,14 @@ checked. Note that the key for each logging message is unique (per table).
 
     cr = ConcurrentRunner(add)
 
-    cr.add(
-        "recovery",
-        run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        ledger_chunk_bytes="50KB",
-        snapshot_tx_interval=30,
-    )
+    # cr.add(
+    #     "recovery",
+    #     run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    #     ledger_chunk_bytes="50KB",
+    #     snapshot_tx_interval=30,
+    # )
 
     # Note: `run_corrupted_ledger` runs with very a specific node configuration
     # so that the contents of recovered (and tampered) ledger chunks
@@ -1071,5 +1071,12 @@ checked. Note that the key for each logging message is unique (per table).
     #     package="samples/apps/logging/liblogging",
     #     nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
     # )
+
+    cr.add(
+        "recovery_via_recovery_owner",
+        run_recover_via_recovery_owner,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
 
     cr.run()

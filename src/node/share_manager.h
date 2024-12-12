@@ -586,6 +586,7 @@ namespace ccf
 
     bool is_full_share(const std::vector<uint8_t>& submitted_recovery_share)
     {
+      LOG_INFO_FMT("Submitted_recovery_share.size(): {} serialized_size: {}", submitted_recovery_share.size(), ccf::crypto::sharing::Share::serialised_size)
       if (submitted_recovery_share.size() == ccf::crypto::sharing::Share::serialised_size)
       {
         auto share = ccf::crypto::sharing::Share(submitted_recovery_share);
