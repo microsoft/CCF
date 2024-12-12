@@ -97,10 +97,16 @@ def exactly_n_nodes(n):
 
 
 def sufficient_recovery_member_count():
-    def check(network, args, recovery_member=True, *nargs, **kwargs):
-        if recovery_member and (
-            len(network.consortium.get_active_recovery_members())
-            <= network.consortium.recovery_threshold
+    def check(
+        network, args, recovery_member=True, recovery_owner=False, *nargs, **kwargs
+    ):
+        if (
+            recovery_member
+            and not recovery_owner
+            and (
+                len(network.consortium.get_active_recovery_members())
+                <= network.consortium.recovery_threshold
+            )
         ):
             raise TestRequirementsNotMet(
                 "Cannot remove recovery member since number of active recovery members"

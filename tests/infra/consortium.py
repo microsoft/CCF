@@ -273,10 +273,14 @@ class Consortium:
         return [
             member
             for member in self.members
-            if (member.is_active() and member.is_recovery_member)
+            if (
+                member.is_active()
+                and member.is_recovery_member
+                and not member.is_recovery_owner
+            )
         ]
 
-    def get_active_recovery_owner_members(self):
+    def get_active_recovery_owners(self):
         return [
             member
             for member in self.members
@@ -298,7 +302,7 @@ class Consortium:
         if recovery_member is not None:
             if recovery_member is True:
                 if recovery_owner is True:
-                    return random.choice(self.get_active_recovery_owner_members())
+                    return random.choice(self.get_active_recovery_owners())
                 return random.choice(self.get_active_recovery_members())
             elif recovery_member is False:
                 return random.choice(self.get_active_non_recovery_members())
@@ -733,6 +737,26 @@ class Consortium:
             check_commit = infra.checker.Checker(nc)
 
             for m in self.get_active_recovery_members():
+                r = m.get_and_submit_recovery_share(remote_node)
+                submitted_shares_count += 1
+                check_commit(r)
+
+                assert (
+                    f"{submitted_shares_count}/{self.recovery_threshold}"
+                    in r.body.text()
+                )
+                if submitted_shares_count >= self.recovery_threshold:
+                    assert "End of recovery procedure initiated" in r.body.text()
+                    break
+                else:
+                    assert "End of recovery procedure initiated" not in r.body.text()
+
+    def recover_with_owner_share(self, remote_node):
+        submitted_shares_count = 0
+        with remote_node.client() as nc:
+            check_commit = infra.checker.Checker(nc)
+
+            for m in self.get_active_recovery_owners():
                 r = m.get_and_submit_recovery_share(remote_node)
                 submitted_shares_count += 1
                 check_commit(r)

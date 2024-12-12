@@ -706,7 +706,7 @@ class Network:
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
-    def recover(self, args, expected_recovery_count=None):
+    def recover(self, args, expected_recovery_count=None, via_recovery_owner=False):
         """
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
@@ -735,7 +735,11 @@ class Network:
             self.find_random_node(),
             previous_service_identity=prev_service_identity,
         )
-        self.consortium.recover_with_shares(self.find_random_node())
+
+        if via_recovery_owner:
+            self.consortium.recover_with_owner_share(self.find_random_node())
+        else:
+            self.consortium.recover_with_shares(self.find_random_node())
 
         for node in self.get_joined_nodes():
             self.wait_for_state(

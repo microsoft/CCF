@@ -38,7 +38,9 @@ namespace ccf
 
     /** If set then the member is to receive a "super-share" allowing it to single-handedly
         recover the network without requiring any other recovery member to submit any shares. */
-    std::optional<bool> recovery_owner = std::nullopt;
+    // TODO (gsinha): Should we be using std::optional<bool> recovery_owner = std::nullopt type?
+    // It was giving trouble during deserialization.
+    bool recovery_owner = false;
 
     NewMember() {}
 
@@ -46,7 +48,7 @@ namespace ccf
       const ccf::crypto::Pem& cert_,
       const std::optional<ccf::crypto::Pem>& encryption_pub_key_ = std::nullopt,
       const nlohmann::json& member_data_ = nullptr,
-      const std::optional<bool>& recovery_owner_ = std::nullopt) :
+      bool recovery_owner_ = false) :
       cert(cert_),
       encryption_pub_key(encryption_pub_key_),
       member_data(member_data_),
@@ -73,7 +75,9 @@ namespace ccf
 
     /** If set then the member is to receive a "super-share" allowing it to single-handedly
         recover the network without requiring any other recovery member to submit any shares. */
-    std::optional<bool> recovery_owner = std::nullopt;
+    // TODO (gsinha): Should we be using std::optional<bool> recovery_owner = std::nullopt type?
+    // It was giving trouble during deserialization.
+    bool recovery_owner = false;
 
     bool operator==(const MemberDetails& rhs) const
     {

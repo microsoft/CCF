@@ -108,7 +108,9 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
 
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
-def test_recover_service(network, args, from_snapshot=True, no_ledger=False):
+def test_recover_service(
+    network, args, from_snapshot=True, no_ledger=False, via_recovery_owner=False
+):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
@@ -989,7 +991,28 @@ def run_recover_snapshot_alone(args):
         network.start_and_open(args)
         primary, _ = network.find_primary()
         # Recover node solely from snapshot
-        test_recover_service(network, args, from_snapshot=True, no_ledger=True)
+        test_recover_service(network, args, from_snapshot=True)
+        return network
+
+
+def run_recover_via_recovery_owner(args):
+    """
+    Recover a service using the recovery owner member, without requiring any other recovery members to participate.
+    """
+    txs = app.LoggingTxs("user0")
+    args.initial_recovery_owner_count = 1
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
+        # Recover node solely via a recovery owner
+        test_recover_service(network, args, from_snapshot=True, via_recovery_owner=True)
         return network
 
 
