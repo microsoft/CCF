@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - The `read_ledger.py` tool now has a `--quiet` option which avoids printing anything per-transaction, as well as other performance improvements, which should make it more useful in verifying the integrity of large ledgers.
+- COSE signatures now set a kid that is a hex-encoded SHA-256 of the DER representation of the key used to produce them (#6703).
 
 ## [6.0.0-dev8]
 

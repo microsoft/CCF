@@ -13,7 +13,7 @@ unprotected-headers = {
 
 protected-headers = {
   &(alg: 1) => int,                     ; signing algoritm ID, as per RFC8152
-  &(kid: 4) => bstr,                    ; signing key hash
+  &(kid: 4) => bstr,                    ; Opaque key identifier, hex-encoded SHA-256 of the public key encoded as DER.
   &(cwt: 15) => cwt-map,                ; CWT claims, as per RFC8392
   &(vds: 395) => int,                   ; verifiable data structure, as per COSE Receipts (draft) RFC (https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/)
   "ccf.v1" => ccf-map                   ; a set of CCF-specific parameters
