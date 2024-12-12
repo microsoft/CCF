@@ -13,14 +13,15 @@
     "build": "tsc",
     "test": "cross-env TS_NODE_PROJECT=test/tsconfig.json mocha --loader=ts-node/esm test/**/*.test.ts",
     "docs": "typedoc",
-    "docs:watch": "rm -rf html && typedoc --watch --preserveWatchOutput"
+    "docs:watch": "rm -rf html && typedoc --watch --preserveWatchOutput",
+    "ccfapp:build_bundle": "tsc && node scripts/build_bundle.js"
   },
   "author": "Microsoft",
   "license": "Apache-2.0",
   "devDependencies": {
     "@types/chai": "^5.0.0",
     "@types/mocha": "^10.0.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.10.2",
     "@types/node-forge": "^1.0.0",
     "chai": "^5.0.0",
     "colors": "1.4.0",
