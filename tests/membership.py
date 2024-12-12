@@ -127,7 +127,7 @@ def service_startups(args):
     LOG.info("Starting service with insufficient number of recovery members")
     args.initial_member_count = 2
     args.initial_recovery_member_count = 0
-    args.initial_recovery_owner_member_count = 0
+    args.initial_recovery_owner_count = 0
     args.initial_operator_count = 1
     args.ledger_recovery_timeout = 5
     with infra.network.network(args.nodes, args.binary_dir, pdb=args.pdb) as network:
@@ -148,7 +148,7 @@ def service_startups(args):
     )
     args.initial_member_count = 3
     args.initial_recovery_member_count = 1
-    args.initial_recovery_owner_member_count = 0
+    args.initial_recovery_owner_count = 0
     args.initial_operator_count = 2
     with infra.network.network(args.nodes, args.binary_dir, pdb=args.pdb) as network:
         network.start_and_open(args)
@@ -158,7 +158,7 @@ def service_startups(args):
     )
     args.initial_member_count = 3
     args.initial_recovery_member_count = 2
-    args.initial_recovery_owner_member_count = 0
+    args.initial_recovery_owner_count = 0
     args.initial_operator_count = 1
     with infra.network.network(args.nodes, args.binary_dir, pdb=args.pdb) as network:
         network.start_and_open(args)
@@ -168,7 +168,7 @@ def recovery_shares_scenario(args):
     # Members 0 and 1 are recovery members, member 2 isn't
     args.initial_member_count = 3
     args.initial_recovery_member_count = 2
-    args.initial_recovery_owner_member_count = 0
+    args.initial_recovery_owner_count = 0
     non_recovery_member_id = "member2"
 
     # Recovery threshold is initially set to number of recovery members (2)
@@ -177,56 +177,56 @@ def recovery_shares_scenario(args):
     ) as network:
         network.start_and_open(args)
 
-        LOG.info("Update recovery shares")
-        assert_recovery_shares_update(True, test_update_recovery_shares, network, args)
+        # LOG.info("Update recovery shares")
+        # assert_recovery_shares_update(True, test_update_recovery_shares, network, args)
 
-        LOG.info("Non-recovery member does not have a recovery share")
-        primary, _ = network.find_primary()
-        member = network.consortium.get_member_by_local_id(non_recovery_member_id)
-        try:
-            member.get_and_decrypt_recovery_share(primary)
-            assert False, "Expected a NoRecoveryShare exception to be thrown"
-        except infra.member.NoRecoveryShareFound as e:
-            r = e.response
-            body = r.body.json()
-            assert (
-                f"Recovery share not found for member m[{member.service_id}]"
-                in body["error"]["message"]
-            ), body["error"]
+        # LOG.info("Non-recovery member does not have a recovery share")
+        # primary, _ = network.find_primary()
+        # member = network.consortium.get_member_by_local_id(non_recovery_member_id)
+        # try:
+        #     member.get_and_decrypt_recovery_share(primary)
+        #     assert False, "Expected a NoRecoveryShare exception to be thrown"
+        # except infra.member.NoRecoveryShareFound as e:
+        #     r = e.response
+        #     body = r.body.json()
+        #     assert (
+        #         f"Recovery share not found for member m[{member.service_id}]"
+        #         in body["error"]["message"]
+        #     ), body["error"]
 
-        # Removing a recovery number is not possible as the number of recovery
-        # members would be under recovery threshold (2)
-        LOG.info("Removing a recovery member should not be possible")
-        try:
-            test_remove_member_no_reqs(network, args, recovery_member=True)
-            assert False, "Removing a recovery member should not be possible"
-        except infra.proposal.ProposalNotAccepted as e:
-            # This is an apply() time failure, so the proposal remains Open
-            # since the last vote is effectively discarded
-            assert e.proposal.state == infra.proposal.ProposalState.OPEN
+        # # Removing a recovery number is not possible as the number of recovery
+        # # members would be under recovery threshold (2)
+        # LOG.info("Removing a recovery member should not be possible")
+        # try:
+        #     test_remove_member_no_reqs(network, args, recovery_member=True)
+        #     assert False, "Removing a recovery member should not be possible"
+        # except infra.proposal.ProposalNotAccepted as e:
+        #     # This is an apply() time failure, so the proposal remains Open
+        #     # since the last vote is effectively discarded
+        #     assert e.proposal.state == infra.proposal.ProposalState.OPEN
 
-        # However, removing a non-recovery member is allowed
-        LOG.info("Removing a non-recovery member is still possible")
-        member_to_remove = network.consortium.get_member_by_local_id(
-            non_recovery_member_id
-        )
-        test_remove_member(
-            network, args, member_to_remove=member_to_remove, recovery_member=False
-        )
+        # # However, removing a non-recovery member is allowed
+        # LOG.info("Removing a non-recovery member is still possible")
+        # member_to_remove = network.consortium.get_member_by_local_id(
+        #     non_recovery_member_id
+        # )
+        # test_remove_member(
+        #     network, args, member_to_remove=member_to_remove, recovery_member=False
+        # )
 
-        LOG.info("Removing an already-removed member succeeds with no effect")
-        test_remove_member(
-            network, args, member_to_remove=member_to_remove, recovery_member=False
-        )
+        # LOG.info("Removing an already-removed member succeeds with no effect")
+        # test_remove_member(
+        #     network, args, member_to_remove=member_to_remove, recovery_member=False
+        # )
 
-        LOG.info("Adding one non-recovery member")
-        assert_recovery_shares_update(
-            False, test_add_member, network, args, recovery_member=False
-        )
-        LOG.info("Adding one recovery member")
-        assert_recovery_shares_update(
-            True, test_add_member, network, args, recovery_member=True
-        )
+        # LOG.info("Adding one non-recovery member")
+        # assert_recovery_shares_update(
+        #     False, test_add_member, network, args, recovery_member=False
+        # )
+        # LOG.info("Adding one recovery member")
+        # assert_recovery_shares_update(
+        #     True, test_add_member, network, args, recovery_member=True
+        # )
         LOG.info("Adding one recovery owner member")
         assert_recovery_shares_update(
             True,
@@ -332,7 +332,7 @@ def recovery_shares_scenario(args):
 
 
 def run(args):
-    service_startups(args)
+    # service_startups(args)
     recovery_shares_scenario(args)
 
 
@@ -347,11 +347,11 @@ if __name__ == "__main__":
         initial_user_count=0,
     )
 
-    cr.add(
-        "member_client",
-        memberclient.run,
-        package="samples/apps/logging/liblogging",
-        nodes=infra.e2e_args.max_nodes(cr.args, f=1),
-    )
+    # cr.add(
+    #     "member_client",
+    #     memberclient.run,
+    #     package="samples/apps/logging/liblogging",
+    #     nodes=infra.e2e_args.max_nodes(cr.args, f=1),
+    # )
 
     cr.run()

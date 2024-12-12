@@ -79,6 +79,19 @@ namespace ccf
       return member_encryption_public_keys->get(member_id).has_value();
     }
 
+    static bool is_recovery_owner(
+      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
+    {
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto mi = member_info->get(member_id);
+      if (!mi.has_value())
+      {
+        return false;
+      }
+
+      return mi->recovery_owner.has_value() && mi->recovery_owner.value();
+    }
+
     static bool is_active_member(
       ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
     {

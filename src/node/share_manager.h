@@ -190,8 +190,11 @@ namespace ccf
 
       for (auto const& [member_id, enc_pub_key] : active_recovery_owners_info)
       {
+        LOG_INFO_FMT("Assigning full share to member {}", member_id);
         auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
+        LOG_INFO_FMT("Getting full share for member {}", member_id);
         auto raw_share = ls_wrapping_key.get_raw_data<std::vector<uint8_t>>();
+        LOG_INFO_FMT("Wrapping full share for member {}", member_id);
         encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_share);
       }
 
@@ -201,6 +204,7 @@ namespace ccf
     void shuffle_recovery_shares(
       ccf::kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
     {
+      LOG_INFO_FMT("Shuffling recovery shares");
       auto active_recovery_members_info =
         InternalTablesAccess::get_active_recovery_members(tx);
       size_t recovery_threshold =
@@ -235,10 +239,19 @@ namespace ccf
 
       auto wrapped_latest_ls = ls_wrapping_key.wrap(latest_ledger_secret);
       auto recovery_shares = tx.rw<ccf::RecoveryShares>(Tables::SHARES);
-      recovery_shares->put(
-        {wrapped_latest_ls,
-         compute_encrypted_shares(tx, ls_wrapping_key),
-         latest_ledger_secret->previous_secret_stored_version});
+      try
+      {
+        recovery_shares->put(
+          {wrapped_latest_ls,
+          compute_encrypted_shares(tx, ls_wrapping_key),
+          latest_ledger_secret->previous_secret_stored_version});
+      }
+      catch(const std::exception& e)
+      {
+        LOG_FAIL_FMT("compute_encrypted_shares failure: {}", e.what());
+        throw std::logic_error(fmt::format(
+          "compute_encrypted_shares failure: {}", e.what()));
+      }
     }
 
     void set_recovery_shares_info(
