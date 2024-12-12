@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { readdirSync, statSync, readFileSync, writeFileSync } from "fs";
 import { join, posix, resolve, sep } from "path";
 
@@ -26,6 +28,11 @@ function removePrefix(s : string, prefix : string) : string {
 }
 
 const args = process.argv.slice(2);
+
+if (args.length < 1) {
+  console.log("Usage: build_bundle <root_directory>");
+  process.exit(1);
+}
 
 const rootDirPath = resolve(args[0]);
 const metadataPath = join(rootDirPath, "app.json");

@@ -13,8 +13,7 @@
     "build": "tsc",
     "test": "cross-env TS_NODE_PROJECT=test/tsconfig.json mocha --loader=ts-node/esm test/**/*.test.ts",
     "docs": "typedoc",
-    "docs:watch": "rm -rf html && typedoc --watch --preserveWatchOutput",
-    "ccfapp:build_bundle": "tsc && node scripts/build_bundle.js"
+    "docs:watch": "rm -rf html && typedoc --watch --preserveWatchOutput"
   },
   "author": "Microsoft",
   "license": "Apache-2.0",
@@ -32,5 +31,8 @@
     "ts-node": "^10.4.0",
     "typedoc": "^0.26.2",
     "typescript": "^5.0.2"
+  },
+  "bin": {
+    "build_bundle": "scripts/build_bundle.js"
   }
 }
