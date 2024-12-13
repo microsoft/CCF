@@ -15,7 +15,7 @@ from loguru import logger as LOG
 
 
 @reqs.description("Add and activate a new member to the consortium")
-def test_add_member(network, args, recovery_member=True, recovery_owner=False):
+def test_add_member(network, args, recovery_member=True, recovery_owner=None):
     primary, _ = network.find_primary()
 
     member_data = {
@@ -40,7 +40,7 @@ def test_add_member(network, args, recovery_member=True, recovery_owner=False):
 
 @reqs.description("Retire existing member")
 def test_remove_member_no_reqs(
-    network, args, member_to_remove=None, recovery_member=True, recovery_owner=False
+    network, args, member_to_remove=None, recovery_member=True, recovery_owner=None
 ):
     primary, _ = network.find_primary()
     if member_to_remove is None:
@@ -63,7 +63,7 @@ def test_remove_member_no_reqs(
 # Called by test suite. membership test deliberately attempts to remove recovery member.
 @reqs.sufficient_recovery_member_count()
 def test_remove_member(
-    network, args, member_to_remove=None, recovery_member=True, recovery_owner=False
+    network, args, member_to_remove=None, recovery_member=True, recovery_owner=None
 ):
     return test_remove_member_no_reqs(
         network, args, member_to_remove, recovery_member, recovery_owner

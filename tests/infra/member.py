@@ -274,7 +274,7 @@ class Member:
         common_dir,
         share_script,
         is_recovery_member=True,
-        is_recovery_owner=False,
+        is_recovery_owner=None,
         key_generator=None,
         member_data=None,
         authenticate_session=True,
@@ -305,9 +305,8 @@ class Member:
         self.member_info["data_json_file"] = (
             f"{self.local_id}_data.json" if member_data else None
         )
-        self.member_info["recovery_owner"] = (
-            is_recovery_owner if is_recovery_member else None
-        )
+        if is_recovery_owner is not None:
+            self.member_info["recovery_owner"] = is_recovery_owner
 
         if key_generator is not None:
             key_generator_args = [

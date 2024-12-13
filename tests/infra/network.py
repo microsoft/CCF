@@ -579,7 +579,7 @@ class Network:
                 (
                     i,
                     (i < args.initial_recovery_member_count),
-                    (i < args.initial_recovery_owner_count),
+                    True if (i < args.initial_recovery_owner_count) else None,
                     member_data,
                 )
             ]

@@ -204,7 +204,7 @@ class Consortium:
         curve,
         recovery_member=True,
         member_data=None,
-        recovery_owner=False,
+        recovery_owner=None,
     ):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
@@ -248,7 +248,7 @@ class Consortium:
         curve,
         recovery_member=True,
         member_data=None,
-        recovery_owner=False,
+        recovery_owner=None,
     ):
         proposal, new_member, careful_vote = self.generate_and_propose_new_member(
             remote_node, curve, recovery_member, member_data, recovery_owner
