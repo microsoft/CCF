@@ -65,7 +65,7 @@ std::string parse_response_body(const TResponse& r)
   return std::string(r.body.begin(), r.body.end());
 }
 
-void check_error(const TResponse& r, http_status expected)
+void check_error(const TResponse& r, ccf::http_status expected)
 {
   DOCTEST_CHECK(r.status == expected);
 }
@@ -119,12 +119,11 @@ std::unique_ptr<ccf::NetworkIdentity> make_test_network_ident()
   using namespace std::literals;
   const auto valid_from =
     ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
-  return std::make_unique<ReplicatedNetworkIdentity>(
+  return std::make_unique<ccf::NetworkIdentity>(
     "CN=CCF test network",
     ccf::crypto::service_identity_curve_choice,
     valid_from,
-    2,
-    COSESignaturesConfig{});
+    2);
 }
 
 void init_network(NetworkState& network)

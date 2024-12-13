@@ -6,13 +6,16 @@
 
 #include <string>
 
-struct COSESignaturesConfig
+namespace ccf
 {
-  std::string issuer = "";
-  std::string subject = "";
+  struct COSESignaturesConfig
+  {
+    std::string issuer = "";
+    std::string subject = "";
 
-  bool operator==(const COSESignaturesConfig& other) const = default;
-};
+    bool operator==(const COSESignaturesConfig& other) const = default;
+  };
 
-DECLARE_JSON_TYPE(COSESignaturesConfig);
-DECLARE_JSON_REQUIRED_FIELDS(COSESignaturesConfig, issuer, subject);
+  DECLARE_JSON_TYPE(COSESignaturesConfig);
+  DECLARE_JSON_REQUIRED_FIELDS(COSESignaturesConfig, issuer, subject);
+}

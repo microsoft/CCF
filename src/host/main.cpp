@@ -80,9 +80,11 @@ int main(int argc, char** argv)
     "platforms) their value is captured in an attestation even if the "
     "configuration file itself is unattested.\n"};
 
-  std::string config_file_path = "config.json";
-  app.add_option(
-    "-c,--config", config_file_path, "Path to JSON configuration file");
+  std::string config_file_path;
+  app
+    .add_option(
+      "-c,--config", config_file_path, "Path to JSON configuration file")
+    ->required();
 
   ccf::ds::TimeString config_timeout = {"0s"};
   app.add_option(
@@ -97,12 +99,13 @@ int main(int argc, char** argv)
   app.add_flag(
     "-v, --version", print_version, "Display CCF host version and exit");
 
-  LoggerLevel enclave_log_level = LoggerLevel::INFO;
-  std::map<std::string, LoggerLevel> log_level_options;
-  for (size_t i = ccf::logger::MOST_VERBOSE; i < LoggerLevel::MAX_LOG_LEVEL;
+  ccf::LoggerLevel enclave_log_level = ccf::LoggerLevel::INFO;
+  std::map<std::string, ccf::LoggerLevel> log_level_options;
+  for (size_t i = ccf::logger::MOST_VERBOSE;
+       i < ccf::LoggerLevel::MAX_LOG_LEVEL;
        ++i)
   {
-    const auto l = (LoggerLevel)i;
+    const auto l = (ccf::LoggerLevel)i;
     log_level_options[ccf::logger::to_string(l)] = l;
   }
 
@@ -502,7 +505,7 @@ int main(int argc, char** argv)
 
     enclave_config.writer_config = writer_config;
 
-    StartupConfig startup_config(config);
+    ccf::StartupConfig startup_config(config);
 
     startup_config.snapshot_tx_interval = config.snapshots.tx_count;
 

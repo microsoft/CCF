@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/crypto/key_pair.h"
+#include "ccf/http_accept.h"
 #include "ccf/http_query.h"
-#include "http/http_accept.h"
 #include "http/http_builder.h"
 #include "http/http_parser.h"
 
@@ -277,7 +277,7 @@ DOCTEST_TEST_CASE("URL parsing")
 
 DOCTEST_TEST_CASE("Pessimal transport")
 {
-  ccf::logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
 
   const ccf::http::HeaderMap h1 = {{"foo", "bar"}, {"baz", "42"}};
   const ccf::http::HeaderMap h2 = {
@@ -565,12 +565,12 @@ DOCTEST_TEST_CASE("Query parser")
 DOCTEST_TEST_CASE("Parse Accept header")
 {
   {
-    const auto fields = http::parse_accept_header("");
+    const auto fields = ccf::http::parse_accept_header("");
     DOCTEST_REQUIRE(fields.empty());
   }
 
   {
-    const auto fields = http::parse_accept_header("foo/bar;q=0.25");
+    const auto fields = ccf::http::parse_accept_header("foo/bar;q=0.25");
     DOCTEST_REQUIRE(fields.size() == 1);
     const auto& field = fields[0];
     DOCTEST_REQUIRE(field.mime_type == "foo");
@@ -581,7 +581,7 @@ DOCTEST_TEST_CASE("Parse Accept header")
   {
     // Shuffled and modified version of Firefox 91 default value, to test
     // sorting
-    const auto fields = http::parse_accept_header(
+    const auto fields = ccf::http::parse_accept_header(
       "image/webp;q=0.8, "
       "image/*;q=0.8, "
       "text/html, "
@@ -591,31 +591,35 @@ DOCTEST_TEST_CASE("Parse Accept header")
       "*/*;q=0.8");
     DOCTEST_REQUIRE(fields.size() == 7);
 
-    DOCTEST_REQUIRE(fields[0] == http::AcceptHeaderField{"text", "html", 1.0f});
     DOCTEST_REQUIRE(
-      fields[1] == http::AcceptHeaderField{"image", "avif", 1.0f});
+      fields[0] == ccf::http::AcceptHeaderField{"text", "html", 1.0f});
     DOCTEST_REQUIRE(
-      fields[2] == http::AcceptHeaderField{"application", "xhtml+xml", 1.0f});
+      fields[1] == ccf::http::AcceptHeaderField{"image", "avif", 1.0f});
     DOCTEST_REQUIRE(
-      fields[3] == http::AcceptHeaderField{"application", "xml", 0.9f});
+      fields[2] ==
+      ccf::http::AcceptHeaderField{"application", "xhtml+xml", 1.0f});
     DOCTEST_REQUIRE(
-      fields[4] == http::AcceptHeaderField{"image", "webp", 0.8f});
-    DOCTEST_REQUIRE(fields[5] == http::AcceptHeaderField{"image", "*", 0.8f});
-    DOCTEST_REQUIRE(fields[6] == http::AcceptHeaderField{"*", "*", 0.8f});
+      fields[3] == ccf::http::AcceptHeaderField{"application", "xml", 0.9f});
+    DOCTEST_REQUIRE(
+      fields[4] == ccf::http::AcceptHeaderField{"image", "webp", 0.8f});
+    DOCTEST_REQUIRE(
+      fields[5] == ccf::http::AcceptHeaderField{"image", "*", 0.8f});
+    DOCTEST_REQUIRE(fields[6] == ccf::http::AcceptHeaderField{"*", "*", 0.8f});
   }
 
   {
-    DOCTEST_REQUIRE_THROWS(http::parse_accept_header("not_a_mime_type"));
-    DOCTEST_REQUIRE_THROWS(http::parse_accept_header("valid/mime;q=notnum"));
-    DOCTEST_REQUIRE_THROWS(http::parse_accept_header(","));
+    DOCTEST_REQUIRE_THROWS(ccf::http::parse_accept_header("not_a_mime_type"));
+    DOCTEST_REQUIRE_THROWS(
+      ccf::http::parse_accept_header("valid/mime;q=notnum"));
+    DOCTEST_REQUIRE_THROWS(ccf::http::parse_accept_header(","));
   }
 }
 
 DOCTEST_TEST_CASE("Accept header MIME matching")
 {
-  const auto a = http::AcceptHeaderField{"foo", "bar", 1.0f};
-  const auto b = http::AcceptHeaderField{"foo", "*", 1.0f};
-  const auto c = http::AcceptHeaderField{"*", "*", 1.0f};
+  const auto a = ccf::http::AcceptHeaderField{"foo", "bar", 1.0f};
+  const auto b = ccf::http::AcceptHeaderField{"foo", "*", 1.0f};
+  const auto c = ccf::http::AcceptHeaderField{"*", "*", 1.0f};
 
   DOCTEST_REQUIRE(a.matches("foo/bar"));
   DOCTEST_REQUIRE_FALSE(a.matches("foo/baz"));

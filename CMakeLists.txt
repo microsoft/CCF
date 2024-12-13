@@ -59,7 +59,12 @@ function(message)
 endfunction()
 
 option(PROFILE_TESTS "Profile tests" OFF)
-set(PYTHON python3)
+
+if("$ENV{CI}" STREQUAL "")
+  set(PYTHON unbuffer python3)
+else()
+  set(PYTHON python3)
+endif()
 
 set(DISTRIBUTE_PERF_TESTS
     ""
