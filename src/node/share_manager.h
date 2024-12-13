@@ -65,7 +65,7 @@ namespace ccf
       std::vector<SecretSharing::Share>&& shares_, size_t recovery_threshold_) :
       recovery_threshold(recovery_threshold_)
     {
-      // TODO (gsinha): How to set ccf::crypto::sharing::Share secret member variable here?
+      // TBD (gsinha): How to set ccf::crypto::sharing::Share secret member variable here?
       auto combined_secret = SecretSharing::combine(shares_, shares_.size());
       data.resize(combined_secret.size());
       std::copy_n(combined_secret.begin(), combined_secret.size(), data.begin());
@@ -74,7 +74,7 @@ namespace ccf
 
     ~LedgerSecretWrappingKey()
     {
-      // TODO (gsinha): Need to cleanse ccf::crypto::sharing::Share secret member variable here?
+      // TBD (gsinha): Need to cleanse ccf::crypto::sharing::Share secret member variable here?
       // If so, how?
       OPENSSL_cleanse(data.data(), data.size());
     }
@@ -371,7 +371,7 @@ namespace ccf
               }
               else
               {
-                // TODO (gsinha): Is share cleanse needed or ~Share() destructor will do it?
+                // TBD (gsinha): Is share cleanse needed or ~Share() destructor will do it?
                 new_shares.emplace_back(decrypted_share);
               }
               break;
@@ -409,7 +409,7 @@ namespace ccf
 
       if (full_share.has_value())
       {
-        // TODO (gsinha): In this variation of the LedgerSecretWrappingKey constructor do we set
+        // TBD (gsinha): In this variation of the LedgerSecretWrappingKey constructor do we set
         //  shares and threshold member variables to any value?
         return LedgerSecretWrappingKey(full_share.value());
       }
@@ -583,7 +583,7 @@ namespace ccf
     {
       if (submitted_recovery_share.size() == ccf::crypto::sharing::Share::serialised_size)
       {
-        // TODO (gsinha): Does share need cleanse() or ~Share() will do it automatically?
+        // TBD (gsinha): Does share need cleanse() or ~Share() will do it automatically?
         auto share = ccf::crypto::sharing::Share(submitted_recovery_share);
         if (share.x == 0)
         {
