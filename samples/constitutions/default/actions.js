@@ -372,7 +372,6 @@ const actions = new Map([
             "Cannot specify a recovery_owner value when encryption_pub_key is not specified",
           );
         }
-
         // Also check that public encryption key is well formed, if it exists
 
         // Check if member exists
