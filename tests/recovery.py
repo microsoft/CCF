@@ -995,13 +995,30 @@ def run_recover_snapshot_alone(args):
         return network
 
 
-def run_recover_via_recovery_owner(args):
+def run_recover_via_initial_recovery_owner(args):
     """
-    Recover a service using the recovery owner member, without requiring any other recovery members to participate.
+    Recover a service using the recovery owner added as part of service creation, without requiring any other recovery members to participate.
     """
     txs = app.LoggingTxs("user0")
-    # TODO (gsinha): Setting to 1 does not work as recovery_owner=true is not passed into the genesis configuration
-    # hence adding a recovery owner after network creation.
+    args.initial_recovery_owner_count = 1
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        test_recover_service(network, args, from_snapshot=True, via_recovery_owner=True)
+        return network
+
+
+def run_recover_via_added_recovery_owner(args):
+    """
+    Recover a service using the recovery owner added after opening the service, without requiring any other recovery members to participate.
+    """
+    txs = app.LoggingTxs("user0")
     args.initial_recovery_owner_count = 0
     with infra.network.network(
         args.nodes,
@@ -1014,7 +1031,7 @@ def run_recover_via_recovery_owner(args):
         network.start_and_open(args)
         primary, _ = network.find_primary()
 
-        # Add a recovery owner
+        # Add a recovery owner after opening the network
         recovery_owner = network.consortium.generate_and_add_new_member(
             primary,
             curve=args.participants_curve,
@@ -1025,7 +1042,6 @@ def run_recover_via_recovery_owner(args):
         with primary.client() as nc:
             nc.wait_for_commit(r)
 
-        # Recover node solely via the recovery owner
         test_recover_service(network, args, from_snapshot=True, via_recovery_owner=True)
         return network
 
@@ -1087,8 +1103,15 @@ checked. Note that the key for each logging message is unique (per table).
     )
 
     cr.add(
-        "recovery_via_recovery_owner",
-        run_recover_via_recovery_owner,
+        "recovery_via_initial_recovery_owner",
+        run_recover_via_initial_recovery_owner,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_via_added_recovery_owner",
+        run_recover_via_added_recovery_owner,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
     )

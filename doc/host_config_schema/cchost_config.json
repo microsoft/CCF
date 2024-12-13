@@ -325,6 +325,11 @@
                         "data_json_file": {
                           "type": ["string", "null"],
                           "description": "Path to member data file (JSON)"
+                        },
+                        "recovery_owner": {
+                          "type": "boolean",
+                          "default": false,
+                          "description": "Whether the member acts as a recovery owner and gets assigned the full recovery share"
                         }
                       },
                       "required": ["certificate_file"],

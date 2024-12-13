@@ -84,7 +84,7 @@ class Consortium:
                     authenticate_session=authenticate_session,
                     gov_api_impl=self.gov_api_impl,
                 )
-                if has_share:
+                if has_share and not is_recovery_owner:
                     self.recovery_threshold += 1
                 self.members.append(new_member)
         else:
@@ -234,7 +234,6 @@ class Consortium:
                 else None
             ),
             member_data=member_data,
-            recovery_owner=recovery_owner if recovery_member else None,
             recovery_owner=recovery_owner if recovery_member else None,
         )
 

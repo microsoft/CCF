@@ -305,6 +305,9 @@ class Member:
         self.member_info["data_json_file"] = (
             f"{self.local_id}_data.json" if member_data else None
         )
+        self.member_info["recovery_owner"] = (
+            is_recovery_owner if is_recovery_member else None
+        )
 
         if key_generator is not None:
             key_generator_args = [

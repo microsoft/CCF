@@ -48,6 +48,7 @@ namespace host
     std::string certificate_file;
     std::optional<std::string> encryption_public_key_file = std::nullopt;
     std::optional<std::string> data_json_file = std::nullopt;
+    std::optional<bool> recovery_owner = std::nullopt;
 
     bool operator==(const ParsedMemberInfo& other) const = default;
   };
@@ -55,7 +56,7 @@ namespace host
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ParsedMemberInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ParsedMemberInfo, certificate_file);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    ParsedMemberInfo, encryption_public_key_file, data_json_file);
+    ParsedMemberInfo, encryption_public_key_file, data_json_file, recovery_owner);
 
   struct CCHostConfig : public ccf::CCFConfig
   {

@@ -46,7 +46,6 @@ namespace ccf
       const ccf::crypto::Pem& cert_,
       const std::optional<ccf::crypto::Pem>& encryption_pub_key_ = std::nullopt,
       const nlohmann::json& member_data_ = nullptr,
-      bool recovery_owner_ = false,
       const std::optional<bool>& recovery_owner_ = std::nullopt) :
       cert(cert_),
       encryption_pub_key(encryption_pub_key_),
