@@ -90,7 +90,7 @@ namespace ccf
       }
 
       //return mi->recovery_owner;
-      return mi->recovery_owner_s.has_value() && mi->recovery_owner_s.value() == "true";
+      return mi->recovery_owner_s.has_value() && mi->recovery_owner_s.value();
     }
 
     static bool is_active_member(
@@ -156,7 +156,7 @@ namespace ccf
               fmt::format("Recovery member {} has no member info", mid));
           }
 
-          if (info->status == MemberStatus::ACTIVE && info->recovery_owner_s.has_value() && info->recovery_owner_s.value() == "true")
+          if (info->status == MemberStatus::ACTIVE && info->recovery_owner_s.has_value() && info->recovery_owner_s.value())
           {
             active_recovery_owners[mid] = pem;
           }

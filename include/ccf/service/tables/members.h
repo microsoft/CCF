@@ -41,7 +41,7 @@ namespace ccf
     // TODO (gsinha): Should we be using std::optional<bool> recovery_owner = std::nullopt type?
     // It was giving trouble during deserialization.
     bool recovery_owner = false;
-    std::optional<std::string> recovery_owner_s = std::nullopt;
+    std::optional<bool> recovery_owner_s = std::nullopt;
 
     NewMember() {}
 
@@ -50,7 +50,7 @@ namespace ccf
       const std::optional<ccf::crypto::Pem>& encryption_pub_key_ = std::nullopt,
       const nlohmann::json& member_data_ = nullptr,
       bool recovery_owner_ = false,
-      const std::optional<std::string>& recovery_owner_s_ = std::nullopt) :
+      const std::optional<bool>& recovery_owner_s_ = std::nullopt) :
       cert(cert_),
       encryption_pub_key(encryption_pub_key_),
       member_data(member_data_),
@@ -82,7 +82,7 @@ namespace ccf
     // TODO (gsinha): Should we be using std::optional<bool> recovery_owner = std::nullopt type?
     // It was giving trouble during deserialization.
     bool recovery_owner = false;
-    std::optional<std::string> recovery_owner_s = std::nullopt;
+    std::optional<bool> recovery_owner_s = std::nullopt;
 
     bool operator==(const MemberDetails& rhs) const
     {
