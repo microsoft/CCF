@@ -166,7 +166,6 @@ namespace ccf::gov::endpoints
         case ApiVersion::v1:
         default:
         {
-          LOG_INFO_FMT("Ack: Entering method");
           // Get memberId from path parameter
           std::string error;
           std::string member_id_str;
@@ -267,21 +266,16 @@ namespace ccf::gov::endpoints
               return;
             }
 
-            // If this is a newly-active recovery member in an open service,
+            // If this is a newly-active recovery member/owner in an open service,
             // allocate them a recovery share immediately
-            LOG_INFO_FMT("Ack: Checking newly_active or not");
-            bool is_rm = InternalTablesAccess::is_recovery_member(ctx.tx, member_id);
-            bool is_owner = InternalTablesAccess::is_recovery_owner(ctx.tx, member_id);
-            LOG_INFO_FMT("Ack: newly_active {} is_recovery_member {} is_recovery_owner {} memberId: {}", newly_active, is_rm, is_owner, member_id);
             if (
               newly_active &&
-              InternalTablesAccess::is_recovery_member(ctx.tx, member_id))
+              InternalTablesAccess::is_recovery_member_or_owner(ctx.tx, member_id))
             {
               auto service_status =
                 InternalTablesAccess::get_service_status(ctx.tx);
               if (!service_status.has_value())
               {
-                LOG_FAIL_FMT("Ack: No service currently available.");
                 detail::set_gov_error(
                   ctx.rpc_ctx,
                   HTTP_STATUS_INTERNAL_SERVER_ERROR,
@@ -290,12 +284,10 @@ namespace ccf::gov::endpoints
                 return;
               }
 
-              LOG_INFO_FMT("Ack: service_status: {}", service_status.value());
               if (service_status.value() == ServiceStatus::OPEN)
               {
                 try
                 {
-                  LOG_INFO_FMT("Ack: Shuffling recovery shares {}", member_id);
                   share_manager.shuffle_recovery_shares(ctx.tx);
                 }
                 catch (const std::logic_error& e)

@@ -991,7 +991,7 @@ def run_recover_snapshot_alone(args):
         network.start_and_open(args)
         primary, _ = network.find_primary()
         # Recover node solely from snapshot
-        test_recover_service(network, args, from_snapshot=True)
+        test_recover_service(network, args, from_snapshot=True, no_ledger=True)
         return network
 
 
@@ -1055,36 +1055,36 @@ checked. Note that the key for each logging message is unique (per table).
 
     cr = ConcurrentRunner(add)
 
-    # cr.add(
-    #     "recovery",
-    #     run,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-    #     ledger_chunk_bytes="50KB",
-    #     snapshot_tx_interval=30,
-    # )
+    cr.add(
+        "recovery",
+        run,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
+    )
 
     # Note: `run_corrupted_ledger` runs with very a specific node configuration
     # so that the contents of recovered (and tampered) ledger chunks
     # can be dictated by the test. In particular, the signature interval is large
     # enough to create in-progress ledger files that do not end on a signature. The
     # test is also in control of the ledger chunking.
-    # cr.add(
-    #     "recovery_corrupt_ledger",
-    #     run_corrupted_ledger,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
-    #     sig_ms_interval=1000,
-    #     ledger_chunk_bytes="1GB",
-    #     snapshot_tx_interval=1000000,
-    # )
+    cr.add(
+        "recovery_corrupt_ledger",
+        run_corrupted_ledger,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+        sig_ms_interval=1000,
+        ledger_chunk_bytes="1GB",
+        snapshot_tx_interval=1000000,
+    )
 
-    # cr.add(
-    #     "recovery_snapshot_alone",
-    #     run_recover_snapshot_alone,
-    #     package="samples/apps/logging/liblogging",
-    #     nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
-    # )
+    cr.add(
+        "recovery_snapshot_alone",
+        run_recover_snapshot_alone,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
 
     cr.add(
         "recovery_via_recovery_owner",

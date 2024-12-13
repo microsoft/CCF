@@ -38,10 +38,7 @@ namespace ccf
 
     /** If set then the member is to receive a "super-share" allowing it to single-handedly
         recover the network without requiring any other recovery member to submit any shares. */
-    // TODO (gsinha): Should we be using std::optional<bool> recovery_owner = std::nullopt type?
-    // It was giving trouble during deserialization.
-    bool recovery_owner = false;
-    std::optional<bool> recovery_owner_s = std::nullopt;
+    std::optional<bool> recovery_owner = std::nullopt;
 
     NewMember() {}
 
@@ -54,20 +51,18 @@ namespace ccf
       cert(cert_),
       encryption_pub_key(encryption_pub_key_),
       member_data(member_data_),
-      recovery_owner(recovery_owner_),
-      recovery_owner_s(recovery_owner_s_)
+      recovery_owner(recovery_owner_s_)
     {}
 
     bool operator==(const NewMember& rhs) const
     {
       return cert == rhs.cert && encryption_pub_key == rhs.encryption_pub_key &&
-        member_data == rhs.member_data && recovery_owner == rhs.recovery_owner &&
-        recovery_owner_s == rhs.recovery_owner_s;
+        member_data == rhs.member_data && recovery_owner == rhs.recovery_owner;
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewMember)
   DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert)
-  DECLARE_JSON_OPTIONAL_FIELDS(NewMember, encryption_pub_key, member_data, recovery_owner, recovery_owner_s)
+  DECLARE_JSON_OPTIONAL_FIELDS(NewMember, encryption_pub_key, member_data, recovery_owner)
 
   struct MemberDetails
   {
@@ -77,22 +72,19 @@ namespace ccf
         members for example. */
     nlohmann::json member_data = nullptr;
 
-    /** If set then the member is to receive a "super-share" allowing it to single-handedly
+    /** If set then the member is to receive a  full share ("super-share") allowing it to single-handedly
         recover the network without requiring any other recovery member to submit any shares. */
-    // TODO (gsinha): Should we be using std::optional<bool> recovery_owner = std::nullopt type?
-    // It was giving trouble during deserialization.
-    bool recovery_owner = false;
-    std::optional<bool> recovery_owner_s = std::nullopt;
+    std::optional<bool> recovery_owner = std::nullopt;
 
     bool operator==(const MemberDetails& rhs) const
     {
       return status == rhs.status && member_data == rhs.member_data
-       && recovery_owner == rhs.recovery_owner && recovery_owner_s == rhs.recovery_owner_s;
+       && recovery_owner == rhs.recovery_owner;
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberDetails)
   DECLARE_JSON_REQUIRED_FIELDS(MemberDetails, status)
-  DECLARE_JSON_OPTIONAL_FIELDS(MemberDetails, member_data, recovery_owner, recovery_owner_s)
+  DECLARE_JSON_OPTIONAL_FIELDS(MemberDetails, member_data, recovery_owner)
 
   using MemberInfo = ServiceMap<MemberId, MemberDetails>;
 

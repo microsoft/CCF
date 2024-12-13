@@ -235,7 +235,7 @@ class Consortium:
             ),
             member_data=member_data,
             recovery_owner=recovery_owner if recovery_member else None,
-            recovery_owner_s=recovery_owner if recovery_member else None,
+            recovery_owner=recovery_owner if recovery_member else None,
         )
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
