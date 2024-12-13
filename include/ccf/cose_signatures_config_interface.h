@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/node/cose_signatures_config.h"
 #include "ccf/node_subsystem_interface.h"
 
 #include <chrono>
