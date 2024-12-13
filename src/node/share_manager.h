@@ -27,6 +27,7 @@ namespace ccf
     size_t num_shares;
     size_t recovery_threshold;
     std::vector<uint8_t> data; // Referred to as "kz" in TR
+    ccf::crypto::sharing::Share secret;
     std::vector<ccf::crypto::sharing::Share> shares;
 
   public:
@@ -35,7 +36,6 @@ namespace ccf
       recovery_threshold(recovery_threshold_)
     {
       shares.resize(num_shares);
-      ccf::crypto::sharing::Share secret;
       ccf::crypto::sharing::sample_secret_and_shares(
         secret, shares, recovery_threshold);
       data = secret.key(KZ_KEY_SIZE);
@@ -47,7 +47,6 @@ namespace ccf
       recovery_threshold(recovery_threshold_)
     {
       shares = shares_;
-      ccf::crypto::sharing::Share secret;
       ccf::crypto::sharing::recover_unauthenticated_secret(
         secret, shares, recovery_threshold);
       data = secret.key(KZ_KEY_SIZE);
@@ -55,6 +54,7 @@ namespace ccf
 
     LedgerSecretWrappingKey(ccf::crypto::sharing::Share& secret_)
     {
+      secret = secret_;
       num_shares = 1;
       shares.resize(num_shares);
       shares.emplace_back(secret_);
@@ -65,14 +65,17 @@ namespace ccf
       std::vector<SecretSharing::Share>&& shares_, size_t recovery_threshold_) :
       recovery_threshold(recovery_threshold_)
     {
-      auto secret = SecretSharing::combine(shares_, shares_.size());
-      data.resize(secret.size());
-      std::copy_n(secret.begin(), secret.size(), data.begin());
-      OPENSSL_cleanse(secret.data(), secret.size());
+      // TODO (gsinha): How to set ccf::crypto::sharing::Share secret member variable here?
+      auto combined_secret = SecretSharing::combine(shares_, shares_.size());
+      data.resize(combined_secret.size());
+      std::copy_n(combined_secret.begin(), combined_secret.size(), data.begin());
+      OPENSSL_cleanse(combined_secret.data(), combined_secret.size());
     }
 
     ~LedgerSecretWrappingKey()
     {
+      // TODO (gsinha): Need to cleanse ccf::crypto::sharing::Share secret member variable here?
+      // If so, how?
       OPENSSL_cleanse(data.data(), data.size());
     }
 
@@ -106,10 +109,11 @@ namespace ccf
 
     std::vector<uint8_t> get_full_share() const
     {
-      std::vector<uint8_t> ret;
-      ret.resize(data.size());
-      std::copy_n(data.begin(), data.size(), ret.begin());
-      return ret;
+      return secret.serialise();
+      // std::vector<uint8_t> ret;
+      // ret.resize(data.size());
+      // std::copy_n(data.begin(), data.size(), ret.begin());
+      // return ret;
     }
 
     std::vector<uint8_t> wrap(const LedgerSecretPtr& ledger_secret)
