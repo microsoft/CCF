@@ -363,6 +363,7 @@ const actions = new Map([
 
         if (
           args.encryption_pub_key == null &&
+          args.encryption_pub_key == undefined &&
           args.recovery_owner !== null &&
           args.recovery_owner !== undefined
         ) {
