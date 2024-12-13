@@ -5,11 +5,11 @@
 #include "ccf/ds/nonstd.h"
 #include "ccf/http_status.h"
 #include "ccf/odata_error.h"
-#include "node/rpc/rpc_exception.h"
+#include "ccf/rpc_exception.h"
 
 #include <string_view>
 
-namespace http
+namespace ccf::http
 {
   struct AcceptHeaderField
   {

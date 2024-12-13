@@ -166,6 +166,16 @@ HTTP Entity Tags Matching
    :project: CCF
    :members:
 
+HTTP Accept Header Matching
+---------------------------
+
+.. doxygenstruct:: ccf::http::AcceptHeaderField
+   :project: CCF
+   :members:
+
+.. doxygenfunction:: ccf::http::parse_accept_header
+   :project: CCF
+
 COSE
 ----
 
