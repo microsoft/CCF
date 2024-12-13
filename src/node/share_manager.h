@@ -76,8 +76,6 @@ namespace ccf
 
     ~LedgerSecretWrappingKey()
     {
-      // TBD (gsinha): Need to cleanse ccf::crypto::sharing::Share secret member
-      // variable here? If so, how?
       OPENSSL_cleanse(data.data(), data.size());
     }
 
@@ -109,7 +107,7 @@ namespace ccf
       return ret;
     }
 
-    std::vector<uint8_t> get_full_share() const
+    std::vector<uint8_t> get_full_share_serialised() const
     {
       return secret.serialise();
     }
@@ -201,7 +199,7 @@ namespace ccf
       for (auto const& [member_id, enc_pub_key] : active_recovery_owners_info)
       {
         auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
-        auto raw_secret = ls_wrapping_key.get_full_share();
+        auto raw_secret = ls_wrapping_key.get_full_share_serialised();
         encrypted_shares[member_id] =
           member_enc_pubk->rsa_oaep_wrap(raw_secret);
       }
@@ -375,8 +373,6 @@ namespace ccf
               }
               else
               {
-                // TBD (gsinha): Is share cleanse needed or ~Share() destructor
-                // will do it?
                 new_shares.emplace_back(decrypted_share);
               }
               break;
@@ -591,8 +587,6 @@ namespace ccf
         submitted_recovery_share.size() ==
         ccf::crypto::sharing::Share::serialised_size)
       {
-        // TBD (gsinha): Does share need cleanse() or ~Share() will do it
-        // automatically?
         auto share = ccf::crypto::sharing::Share(submitted_recovery_share);
         if (share.x == 0)
         {
