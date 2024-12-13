@@ -193,140 +193,150 @@ namespace snapshots
     const std::string& path_to_peer_cert,
     size_t latest_local_snapshot)
   {
-    // Make initial request, which returns a redirect response to specific
-    // snapshot
-    std::string snapshot_url;
+    try
     {
-      const auto initial_url = fmt::format(
-        "https://{}/node/snapshot?since={}",
-        peer_address,
-        latest_local_snapshot);
-
-      SimpleHTTPRequest initial_request;
-      initial_request.method = HTTP_HEAD;
-      initial_request.url = initial_url;
-      initial_request.ca_path = path_to_peer_cert;
-
-      const auto initial_response = make_curl_request(initial_request);
-      if (initial_response.status_code == HTTP_STATUS_NOT_FOUND)
+      // Make initial request, which returns a redirect response to specific
+      // snapshot
+      std::string snapshot_url;
       {
-        LOG_INFO_FMT(
-          "Peer has no snapshot newer than {}", latest_local_snapshot);
-        return std::nullopt;
-      }
-      else if (initial_response.status_code != HTTP_STATUS_PERMANENT_REDIRECT)
-      {
-        EXPECT_HTTP_RESPONSE_STATUS(
-          initial_request, initial_response, HTTP_STATUS_PERMANENT_REDIRECT);
-      }
+        const auto initial_url = fmt::format(
+          "https://{}/node/snapshot?since={}",
+          peer_address,
+          latest_local_snapshot);
 
-      auto location_it =
-        initial_response.headers.find(ccf::http::headers::LOCATION);
-      if (location_it == initial_response.headers.end())
-      {
-        throw std::runtime_error(fmt::format(
-          "Expected {} header in redirect response from {} {}, none found",
-          ccf::http::headers::LOCATION,
-          initial_request.method.c_str(),
-          initial_request.url));
-      }
+        SimpleHTTPRequest initial_request;
+        initial_request.method = HTTP_HEAD;
+        initial_request.url = initial_url;
+        initial_request.ca_path = path_to_peer_cert;
 
-      LOG_TRACE_FMT("Snapshot fetch redirected to {}", location_it->second);
-
-      snapshot_url =
-        fmt::format("https://{}{}", peer_address, location_it->second);
-    }
-
-    // Make follow-up request to redirected URL, to fetch total content size
-    size_t content_size;
-    {
-      SimpleHTTPRequest snapshot_size_request;
-      snapshot_size_request.method = HTTP_HEAD;
-      snapshot_size_request.url = snapshot_url;
-      snapshot_size_request.ca_path = path_to_peer_cert;
-
-      const auto snapshot_size_response =
-        make_curl_request(snapshot_size_request);
-
-      EXPECT_HTTP_RESPONSE_STATUS(
-        snapshot_size_request, snapshot_size_response, HTTP_STATUS_OK);
-
-      auto content_size_it =
-        snapshot_size_response.headers.find(ccf::http::headers::CONTENT_LENGTH);
-      if (content_size_it == snapshot_size_response.headers.end())
-      {
-        throw std::runtime_error(fmt::format(
-          "Expected {} header in redirect response from {} {}, none found",
-          ccf::http::headers::CONTENT_LENGTH,
-          snapshot_size_request.method.c_str(),
-          snapshot_size_request.url));
-      }
-
-      const auto& content_size_s = content_size_it->second;
-      const auto [p, ec] = std::from_chars(
-        content_size_s.data(),
-        content_size_s.data() + content_size_s.size(),
-        content_size);
-      if (ec != std::errc())
-      {
-        throw std::runtime_error(fmt::format(
-          "Invalid {} header in redirect response from {} {}: {}",
-          ccf::http::headers::CONTENT_LENGTH,
-          snapshot_size_request.method.c_str(),
-          snapshot_size_request.url,
-          ec));
-      }
-    }
-
-    // Fetch 4MB chunks at a time
-    constexpr size_t range_size = 4 * 1024 * 1024;
-    LOG_TRACE_FMT(
-      "Preparing to fetch {}-byte snapshot from peer, {} bytes per-request",
-      content_size,
-      range_size);
-
-    std::vector<uint8_t> snapshot(content_size);
-
-    {
-      auto range_start = 0;
-      auto range_end = std::min(content_size, range_size);
-
-      while (true)
-      {
-        SimpleHTTPRequest snapshot_range_request;
-        snapshot_range_request.method = HTTP_GET;
-        snapshot_range_request.url = snapshot_url;
-        snapshot_range_request.headers["range"] =
-          fmt::format("bytes={}-{}", range_start, range_end);
-        snapshot_range_request.ca_path = path_to_peer_cert;
-
-        snapshot_range_request.body_handler = [&](const auto& data) {
-          LOG_TRACE_FMT(
-            "Copying {} bytes into snapshot, starting at {}",
-            range_size,
-            range_start);
-          memcpy(snapshot.data() + range_start, data.data(), data.size());
-          range_start += data.size();
-        };
-
-        const auto range_response = make_curl_request(snapshot_range_request);
-
-        EXPECT_HTTP_RESPONSE_STATUS(
-          snapshot_range_request, range_response, HTTP_STATUS_PARTIAL_CONTENT);
-
-        if (range_end == content_size)
+        const auto initial_response = make_curl_request(initial_request);
+        if (initial_response.status_code == HTTP_STATUS_NOT_FOUND)
         {
-          break;
+          LOG_INFO_FMT(
+            "Peer has no snapshot newer than {}", latest_local_snapshot);
+          return std::nullopt;
+        }
+        else if (initial_response.status_code != HTTP_STATUS_PERMANENT_REDIRECT)
+        {
+          EXPECT_HTTP_RESPONSE_STATUS(
+            initial_request, initial_response, HTTP_STATUS_PERMANENT_REDIRECT);
         }
 
-        range_start = range_end;
-        range_end = std::min(content_size, range_start + range_size);
+        auto location_it =
+          initial_response.headers.find(ccf::http::headers::LOCATION);
+        if (location_it == initial_response.headers.end())
+        {
+          throw std::runtime_error(fmt::format(
+            "Expected {} header in redirect response from {} {}, none found",
+            ccf::http::headers::LOCATION,
+            initial_request.method.c_str(),
+            initial_request.url));
+        }
+
+        LOG_TRACE_FMT("Snapshot fetch redirected to {}", location_it->second);
+
+        snapshot_url =
+          fmt::format("https://{}{}", peer_address, location_it->second);
       }
+
+      // Make follow-up request to redirected URL, to fetch total content size
+      size_t content_size;
+      {
+        SimpleHTTPRequest snapshot_size_request;
+        snapshot_size_request.method = HTTP_HEAD;
+        snapshot_size_request.url = snapshot_url;
+        snapshot_size_request.ca_path = path_to_peer_cert;
+
+        const auto snapshot_size_response =
+          make_curl_request(snapshot_size_request);
+
+        EXPECT_HTTP_RESPONSE_STATUS(
+          snapshot_size_request, snapshot_size_response, HTTP_STATUS_OK);
+
+        auto content_size_it = snapshot_size_response.headers.find(
+          ccf::http::headers::CONTENT_LENGTH);
+        if (content_size_it == snapshot_size_response.headers.end())
+        {
+          throw std::runtime_error(fmt::format(
+            "Expected {} header in redirect response from {} {}, none found",
+            ccf::http::headers::CONTENT_LENGTH,
+            snapshot_size_request.method.c_str(),
+            snapshot_size_request.url));
+        }
+
+        const auto& content_size_s = content_size_it->second;
+        const auto [p, ec] = std::from_chars(
+          content_size_s.data(),
+          content_size_s.data() + content_size_s.size(),
+          content_size);
+        if (ec != std::errc())
+        {
+          throw std::runtime_error(fmt::format(
+            "Invalid {} header in redirect response from {} {}: {}",
+            ccf::http::headers::CONTENT_LENGTH,
+            snapshot_size_request.method.c_str(),
+            snapshot_size_request.url,
+            ec));
+        }
+      }
+
+      // Fetch 4MB chunks at a time
+      constexpr size_t range_size = 4 * 1024 * 1024;
+      LOG_TRACE_FMT(
+        "Preparing to fetch {}-byte snapshot from peer, {} bytes per-request",
+        content_size,
+        range_size);
+
+      std::vector<uint8_t> snapshot(content_size);
+
+      {
+        auto range_start = 0;
+        auto range_end = std::min(content_size, range_size);
+
+        while (true)
+        {
+          SimpleHTTPRequest snapshot_range_request;
+          snapshot_range_request.method = HTTP_GET;
+          snapshot_range_request.url = snapshot_url;
+          snapshot_range_request.headers["range"] =
+            fmt::format("bytes={}-{}", range_start, range_end);
+          snapshot_range_request.ca_path = path_to_peer_cert;
+
+          snapshot_range_request.body_handler = [&](const auto& data) {
+            LOG_TRACE_FMT(
+              "Copying {} bytes into snapshot, starting at {}",
+              range_size,
+              range_start);
+            memcpy(snapshot.data() + range_start, data.data(), data.size());
+            range_start += data.size();
+          };
+
+          const auto range_response = make_curl_request(snapshot_range_request);
+
+          EXPECT_HTTP_RESPONSE_STATUS(
+            snapshot_range_request,
+            range_response,
+            HTTP_STATUS_PARTIAL_CONTENT);
+
+          if (range_end == content_size)
+          {
+            break;
+          }
+
+          range_start = range_end;
+          range_end = std::min(content_size, range_start + range_size);
+        }
+      }
+
+      const auto url_components = ccf::nonstd::split(snapshot_url, "/");
+      const std::string snapshot_name(url_components.back());
+
+      return SnapshotResponse{snapshot_name, std::move(snapshot)};
     }
-
-    const auto url_components = ccf::nonstd::split(snapshot_url, "/");
-    const std::string snapshot_name(url_components.back());
-
-    return SnapshotResponse{snapshot_name, std::move(snapshot)};
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Error during snapshot fetch: {}", e.what());
+      return std::nullopt;
+    }
   }
 }

@@ -691,7 +691,9 @@ int main(int argc, char** argv)
     {
       auto latest_local_snapshot = snapshots.find_latest_committed_snapshot();
 
-      if (config.command.type == StartType::Join)
+      if (
+        config.command.type == StartType::Join &&
+        config.command.join.fetch_recent_snapshot)
       {
         // Try to fetch a recent snapshot from peer
         const size_t latest_local_idx = latest_local_snapshot.has_value() ?
