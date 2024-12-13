@@ -6,8 +6,15 @@ import sys
 import json
 import re
 import argparse
+from enum import Enum, auto
 
 from loguru import logger as LOG
+
+
+class PrintMode(Enum):
+    Quiet = auto()
+    Digests = auto()
+    Contents = auto()
 
 
 def indent(n):
@@ -129,15 +136,16 @@ def dump_entry(entry, table_filter, tables_format_rules):
 
 def run(
     paths,
+    print_mode: PrintMode,
     is_snapshot=False,
-    tables=None,
-    uncommitted=False,
+    tables_regex=None,
     insecure_skip_verification=False,
+    uncommitted=False,
     tables_format_rules=None,
-    digests_only=None,
 ):
+    table_filter = re.compile(tables_regex) if tables_regex is not None else None
+
     # Extend and compile rules
-    table_filter = re.compile(tables) if tables is not None else None
     tables_format_rules = tables_format_rules or []
     tables_format_rules.extend(default_tables_format_rules)
     tables_format_rules = [
@@ -170,11 +178,13 @@ def run(
                     f"chunk {chunk.filename()} ({'' if chunk.is_committed() else 'un'}committed)"
                 )
                 for transaction in chunk:
-                    if digests_only:
+                    if print_mode == PrintMode.Quiet:
+                        pass
+                    elif print_mode == PrintMode.Digests:
                         print(
                             f"{transaction.gcm_header.view}.{transaction.gcm_header.seqno} {transaction.get_write_set_digest().hex()}"
                         )
-                    else:
+                    elif print_mode == PrintMode.Contents:
                         dump_entry(transaction, table_filter, tables_format_rules)
         except Exception as e:
             LOG.exception(f"Error parsing ledger: {e}")
@@ -216,37 +226,52 @@ def main():
         action="store_true",
     )
     parser.add_argument(
+        "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
+    )
+
+    display_options = parser.add_mutually_exclusive_group()
+    display_options.add_argument(
+        "-q",
+        "--quiet",
+        help="Don't print transaction digests or contents",
+        action="store_true",
+    )
+    display_options.add_argument(
         "-d",
         "--digests-only",
         help="Only print transaction digests",
         action="store_true",
     )
-    parser.add_argument(
+    display_options.add_argument(
         "-t",
         "--tables",
         help="Regex filter for tables to display",
         type=str,
         default=None,
     )
-    parser.add_argument(
-        "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
-    )
+
     parser.add_argument(
         "--insecure-skip-verification",
         help="INSECURE: skip ledger Merkle tree integrity verification",
         action="store_true",
         default=False,
     )
+
     args = parser.parse_args()
+
+    print_mode = PrintMode.Contents
+    if args.quiet:
+        print_mode = PrintMode.Quiet
+    elif args.digests_only:
+        print_mode = PrintMode.Digests
 
     if not run(
         args.paths,
-        args.snapshot,
-        args.tables,
-        args.uncommitted,
-        args.insecure_skip_verification,
-        None,
-        args.digests_only,
+        print_mode,
+        is_snapshot=args.snapshot,
+        tables_regex=args.tables,
+        insecure_skip_verification=args.insecure_skip_verification,
+        uncommitted=args.uncommitted,
     ):
         sys.exit(1)
 
