@@ -145,7 +145,6 @@ namespace ccf
     static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_owners(
       ccf::kv::ReadOnlyTx& tx)
     {
-      LOG_INFO_FMT("Entering get_active_recovery_owners");
       auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto member_encryption_public_keys =
         tx.ro<ccf::MemberPublicEncryptionKeys>(

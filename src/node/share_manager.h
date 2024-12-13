@@ -245,8 +245,8 @@ namespace ccf
       auto recovery_shares = tx.rw<ccf::RecoveryShares>(Tables::SHARES);
       recovery_shares->put(
         {wrapped_latest_ls,
-        compute_encrypted_shares(tx, ls_wrapping_key),
-        latest_ledger_secret->previous_secret_stored_version});
+         compute_encrypted_shares(tx, ls_wrapping_key),
+         latest_ledger_secret->previous_secret_stored_version});
     }
 
     void set_recovery_shares_info(

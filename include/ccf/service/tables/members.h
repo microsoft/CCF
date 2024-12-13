@@ -47,11 +47,11 @@ namespace ccf
       const std::optional<ccf::crypto::Pem>& encryption_pub_key_ = std::nullopt,
       const nlohmann::json& member_data_ = nullptr,
       bool recovery_owner_ = false,
-      const std::optional<bool>& recovery_owner_s_ = std::nullopt) :
+      const std::optional<bool>& recovery_owner_ = std::nullopt) :
       cert(cert_),
       encryption_pub_key(encryption_pub_key_),
       member_data(member_data_),
-      recovery_owner(recovery_owner_s_)
+      recovery_owner(recovery_owner_)
     {}
 
     bool operator==(const NewMember& rhs) const
