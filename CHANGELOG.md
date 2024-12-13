@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Expose `ccf:http::parse_accept_header()` and `ccf::http::AcceptHeaderField` (#6706).
+- Added `ccf::cose::AbstractCOSESignaturesConfig` subsystem to expose COSE signature configuration to application handlers (#6707).
 
 ## [6.0.0-dev9]
 
