@@ -211,9 +211,12 @@ def verify_receipt(
     # Extract the expected KID from the public key used for verification,
     # and check it against the value set in the COSE header before using
     # it to verify the proofs.
-    expected_kid = sha256(
-        key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
-    ).digest()
+    expected_kid = (
+        sha256(key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo))
+        .digest()
+        .hex()
+        .encode()
+    )
     receipt = Sign1Message.decode(receipt_bytes)
     cose_key = from_cryptography_eckey_obj(key)
     assert receipt.phdr[pycose.headers.KID] == expected_kid

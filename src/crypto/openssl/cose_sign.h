@@ -129,10 +129,10 @@ namespace ccf::crypto
     const std::string& key, const std::string& value);
 
   std::shared_ptr<COSEParametersFactory> cose_params_int_bytes(
-    int64_t key, const std::vector<uint8_t>& value);
+    int64_t key, std::span<const uint8_t> value);
 
   std::shared_ptr<COSEParametersFactory> cose_params_string_bytes(
-    const std::string& key, const std::vector<uint8_t>& value);
+    const std::string& key, std::span<const uint8_t> value);
 
   class COSEParametersPair : public COSEParametersFactory
   {

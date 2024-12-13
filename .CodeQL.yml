@@ -1,0 +1,11 @@
+# https://eng.ms/docs/cloud-ai-platform/devdiv/one-engineering-system-1es/1es-docs/codeql/troubleshooting/bugs/generated-library-code
+path_classifiers:
+  # Everything under tests is test code
+  test:
+    - tests
+  # Everything under build is generated
+  generated:
+    - build
+  # Everything under 3rdparty is external libraries
+  library:
+    - 3rdparty

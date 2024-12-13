@@ -71,6 +71,7 @@ def generate_aes_key(key_bits: int) -> bytes:
 
 def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
     assert key_size >= 2048
+    # CodeQL [SM04455] False positive: The key size is asserted to be at least 2048 bytes
     priv = rsa.generate_private_key(
         public_exponent=RECOMMENDED_RSA_PUBLIC_EXPONENT,
         key_size=key_size,

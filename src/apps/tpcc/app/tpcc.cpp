@@ -4,6 +4,7 @@
 #include "../tpcc_serializer.h"
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
+#include "ccf/ds/logger.h"
 #include "tpcc_setup.h"
 #include "tpcc_tables.h"
 #include "tpcc_transactions.h"

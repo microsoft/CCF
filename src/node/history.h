@@ -379,8 +379,8 @@ namespace ccf
       constexpr int64_t vds_merkle_tree = 2;
 
       const auto& service_key_der = service_kp.public_key_der();
-      std::vector<uint8_t> kid(SHA256_DIGEST_LENGTH);
-      SHA256(service_key_der.data(), service_key_der.size(), kid.data());
+      auto kid = ccf::crypto::Sha256Hash(service_key_der).hex_str();
+      std::span<const uint8_t> kid_span{(uint8_t*)kid.data(), kid.size()};
 
       const auto time_since_epoch =
         std::chrono::duration_cast<std::chrono::seconds>(
@@ -415,7 +415,7 @@ namespace ccf
       const auto pheaders = {
         // Key digest
         ccf::crypto::cose_params_int_bytes(
-          ccf::crypto::COSE_PHEADER_KEY_ID, kid),
+          ccf::crypto::COSE_PHEADER_KEY_ID, kid_span),
         // VDS
         ccf::crypto::cose_params_int_int(
           ccf::crypto::COSE_PHEADER_KEY_VDS, vds_merkle_tree),
