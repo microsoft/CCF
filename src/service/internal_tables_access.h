@@ -132,8 +132,10 @@ namespace ccf
               fmt::format("Recovery member {} has no member info", mid));
           }
 
-          if (info->status == MemberStatus::ACTIVE && 
-            (!info->recovery_owner.has_value() || !info->recovery_owner.value()))
+          if (
+            info->status == MemberStatus::ACTIVE &&
+            (!info->recovery_owner.has_value() ||
+             !info->recovery_owner.value()))
           {
             active_recovery_members[mid] = pem;
           }
@@ -162,9 +164,9 @@ namespace ccf
               fmt::format("Recovery member {} has no member info", mid));
           }
 
-          if (info->status == MemberStatus::ACTIVE &&
-            info->recovery_owner.has_value() &&
-            info->recovery_owner.value())
+          if (
+            info->status == MemberStatus::ACTIVE &&
+            info->recovery_owner.has_value() && info->recovery_owner.value())
           {
             active_recovery_owners[mid] = pem;
           }
@@ -192,17 +194,22 @@ namespace ccf
         return id;
       }
 
-      if (!member_pub_info.encryption_pub_key.has_value() &&
+      if (
+        !member_pub_info.encryption_pub_key.has_value() &&
         member_pub_info.recovery_owner.has_value())
       {
         throw std::logic_error(fmt::format(
-          "Member {} cannot be added as recovery_owner has a value set but no encryption public key is specified",
+          "Member {} cannot be added as recovery_owner has a value set but no "
+          "encryption public key is specified",
           id));
       }
 
       member_certs->put(id, member_pub_info.cert);
       member_info->put(
-        id, {MemberStatus::ACCEPTED, member_pub_info.member_data, member_pub_info.recovery_owner});
+        id,
+        {MemberStatus::ACCEPTED,
+         member_pub_info.member_data,
+         member_pub_info.recovery_owner});
 
       if (member_pub_info.encryption_pub_key.has_value())
       {

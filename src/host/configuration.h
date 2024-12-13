@@ -56,7 +56,10 @@ namespace host
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ParsedMemberInfo);
   DECLARE_JSON_REQUIRED_FIELDS(ParsedMemberInfo, certificate_file);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    ParsedMemberInfo, encryption_public_key_file, data_json_file, recovery_owner);
+    ParsedMemberInfo,
+    encryption_public_key_file,
+    data_json_file,
+    recovery_owner);
 
   struct CCHostConfig : public ccf::CCFConfig
   {

@@ -218,8 +218,9 @@ int main(int argc, char** argv)
 
       for (auto const& m : config.command.start.members)
       {
-        if (!m.encryption_public_key_file.has_value() &&
-         m.recovery_owner.has_value()) 
+        if (
+          !m.encryption_public_key_file.has_value() &&
+          m.recovery_owner.has_value())
         {
           throw std::logic_error(fmt::format(
             "No public encryption key has been specified but recovery owner "
@@ -227,17 +228,19 @@ int main(int argc, char** argv)
         }
       }
 
-      // Count members with public encryption key who are not recovery owners
-      // as only these members will be handed a recovery share that accrues towards
-      // the recovery threshold.
-      // Note that it is acceptable to start a network without any member having
-      // a recovery share. The service will check that at least one recovery
-      // member (who is not a recovery owner) is added before the service can be opened.
+      // Count members with public encryption key who are not recovery
+      // owners as only these members will be handed a recovery share
+      // that accrues towards the recovery threshold.
+      // Note that it is acceptable to start a network without any member
+      // having a recovery share. The service will check that at least one
+      // recovery member (who is not a recovery owner) is added before the
+      // service can be opened.
       size_t members_with_pubk_count = 0;
       for (auto const& m : config.command.start.members)
       {
-        if (m.encryption_public_key_file.has_value() &&
-          (!m.recovery_owner.has_value() || !m.recovery_owner.value())) 
+        if (
+          m.encryption_public_key_file.has_value() &&
+          (!m.recovery_owner.has_value() || !m.recovery_owner.value()))
         {
           members_with_pubk_count++;
         }

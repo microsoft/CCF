@@ -36,8 +36,9 @@ namespace ccf
     std::optional<ccf::crypto::Pem> encryption_pub_key = std::nullopt;
     nlohmann::json member_data = nullptr;
 
-    /** If set then the member is to receive a full share ("super-share") allowing it to single-handedly
-        recover the network without requiring any other recovery member to submit their shares. */
+    /** If set then the member is to receive a full share ("super-share")
+        allowing it to single-handedly recover the network without
+        requiring any other recovery member to submit their shares. */
     std::optional<bool> recovery_owner = std::nullopt;
 
     NewMember() {}
@@ -61,7 +62,8 @@ namespace ccf
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewMember)
   DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert)
-  DECLARE_JSON_OPTIONAL_FIELDS(NewMember, encryption_pub_key, member_data, recovery_owner)
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    NewMember, encryption_pub_key, member_data, recovery_owner)
 
   struct MemberDetails
   {
@@ -71,14 +73,15 @@ namespace ccf
         members for example. */
     nlohmann::json member_data = nullptr;
 
-    /** If set then the member is to receive a full share ("super-share") allowing it to single-handedly
-        recover the network without requiring any other recovery member to submit their shares. */
+    /** If set then the member is to receive a full share ("super-share")
+       allowing it to single-handedly recover the network without
+       requiring any other recovery member to submit their shares. */
     std::optional<bool> recovery_owner = std::nullopt;
 
     bool operator==(const MemberDetails& rhs) const
     {
-      return status == rhs.status && member_data == rhs.member_data
-       && recovery_owner == rhs.recovery_owner;
+      return status == rhs.status && member_data == rhs.member_data &&
+        recovery_owner == rhs.recovery_owner;
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberDetails)

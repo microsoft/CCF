@@ -65,17 +65,19 @@ namespace ccf
       std::vector<SecretSharing::Share>&& shares_, size_t recovery_threshold_) :
       recovery_threshold(recovery_threshold_)
     {
-      // TBD (gsinha): How to set ccf::crypto::sharing::Share secret member variable here?
+      // TBD (gsinha): How to set ccf::crypto::sharing::Share secret member
+      // variable here?
       auto combined_secret = SecretSharing::combine(shares_, shares_.size());
       data.resize(combined_secret.size());
-      std::copy_n(combined_secret.begin(), combined_secret.size(), data.begin());
+      std::copy_n(
+        combined_secret.begin(), combined_secret.size(), data.begin());
       OPENSSL_cleanse(combined_secret.data(), combined_secret.size());
     }
 
     ~LedgerSecretWrappingKey()
     {
-      // TBD (gsinha): Need to cleanse ccf::crypto::sharing::Share secret member variable here?
-      // If so, how?
+      // TBD (gsinha): Need to cleanse ccf::crypto::sharing::Share secret member
+      // variable here? If so, how?
       OPENSSL_cleanse(data.data(), data.size());
     }
 
@@ -200,7 +202,8 @@ namespace ccf
       {
         auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
         auto raw_secret = ls_wrapping_key.get_full_share();
-        encrypted_shares[member_id] = member_enc_pubk->rsa_oaep_wrap(raw_secret);
+        encrypted_shares[member_id] =
+          member_enc_pubk->rsa_oaep_wrap(raw_secret);
       }
 
       return encrypted_shares;
@@ -362,8 +365,9 @@ namespace ccf
             {
               // For a new share, we can check the index and decide if it's
               // a full share or just a partial share (compare to zero).
-              // If it is a full share, we can short-circuit and return a LedgerSecretWrappingKey
-              // directly, otherwise we follow the existing flow.
+              // If it is a full share, we can short-circuit and return a
+              // LedgerSecretWrappingKey directly, otherwise we follow the
+              // existing flow.
               auto share = ccf::crypto::sharing::Share(decrypted_share);
               if (share.x == 0)
               {
@@ -371,7 +375,8 @@ namespace ccf
               }
               else
               {
-                // TBD (gsinha): Is share cleanse needed or ~Share() destructor will do it?
+                // TBD (gsinha): Is share cleanse needed or ~Share() destructor
+                // will do it?
                 new_shares.emplace_back(decrypted_share);
               }
               break;
@@ -409,7 +414,8 @@ namespace ccf
 
       if (full_share.has_value())
       {
-        // TBD (gsinha): In this variation of the LedgerSecretWrappingKey constructor do we set
+        // TBD (gsinha): In this variation of the LedgerSecretWrappingKey
+        // constructor do we set
         //  shares and threshold member variables to any value?
         return LedgerSecretWrappingKey(full_share.value());
       }
@@ -581,9 +587,12 @@ namespace ccf
 
     bool is_full_share(const std::vector<uint8_t>& submitted_recovery_share)
     {
-      if (submitted_recovery_share.size() == ccf::crypto::sharing::Share::serialised_size)
+      if (
+        submitted_recovery_share.size() ==
+        ccf::crypto::sharing::Share::serialised_size)
       {
-        // TBD (gsinha): Does share need cleanse() or ~Share() will do it automatically?
+        // TBD (gsinha): Does share need cleanse() or ~Share() will do it
+        // automatically?
         auto share = ccf::crypto::sharing::Share(submitted_recovery_share);
         if (share.x == 0)
         {
@@ -591,7 +600,7 @@ namespace ccf
           return true;
         }
       }
-      
+
       return false;
     }
 
