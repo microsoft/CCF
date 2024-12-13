@@ -22,6 +22,7 @@
 #include "node/node_state.h"
 #include "node/node_types.h"
 #include "node/rpc/acme_subsystem.h"
+#include "node/rpc/cosesigconfig_subsystem.h"
 #include "node/rpc/custom_protocol_subsystem.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/gov_effects.h"
@@ -171,6 +172,9 @@ namespace ccf
       auto interpreter_cache =
         std::make_shared<ccf::js::InterpreterCache>(max_interpreter_cache_size);
       context->install_subsystem(interpreter_cache);
+
+      context->install_subsystem(
+        std::make_shared<ccf::AbstractCOSESignaturesConfigSubsystem>(*node));
 
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
