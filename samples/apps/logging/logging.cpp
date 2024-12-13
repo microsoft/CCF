@@ -471,7 +471,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.7.0";
+      openapi_info.document_version = "2.8.0";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -2104,9 +2104,17 @@ namespace loggingapp
 
       auto get_cose_signatures_config =
         [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
-          auto config =
-            context.get_subsystem<ccf::cose::AbstractCOSESignaturesConfig>()
-              ->get_cose_signatures_config();
+          auto subsystem =
+            context.get_subsystem<ccf::cose::AbstractCOSESignaturesConfig>();
+          if (!subsystem)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "COSE signatures subsystem not available");
+            return;
+          }
+          auto config = subsystem->get_cose_signatures_config();
 
           ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
           ctx.rpc_ctx->set_response_body(nlohmann::json(config).dump());
