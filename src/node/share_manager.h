@@ -409,8 +409,8 @@ namespace ccf
 
       if (full_share.has_value())
       {
-        // TODO (gsinha): In this variation of the constructor do we set shares and threshold
-        // member variables to any value?
+        // TODO (gsinha): In this variation of the LedgerSecretWrappingKey constructor do we set
+        //  shares and threshold member variables to any value?
         return LedgerSecretWrappingKey(full_share.value());
       }
 
@@ -589,7 +589,7 @@ namespace ccf
         {
           // Index value of 0 indicates a full share.
           return true;
-        }     
+        }
       }
       
       return false;

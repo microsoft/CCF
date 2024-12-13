@@ -167,13 +167,13 @@ namespace ccf::gov::endpoints
             submitted_shares_count,
             threshold);
 
-          if (full_share_submitted)
+         if (submitted_shares_count >= threshold || full_share_submitted)
           {
-            message += "\nFull recovery share successfully submitted";
-          }
+            if (full_share_submitted)
+            {
+              message += "\nFull recovery share successfully submitted";
+            }
 
-          if (submitted_shares_count >= threshold || full_share_submitted)
-          {
             message += "\nEnd of recovery procedure initiated";
             GOV_INFO_FMT("{} - initiating recovery", message);
 
