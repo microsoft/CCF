@@ -166,8 +166,9 @@ function invalidateOtherOpenProposals(proposalIdToRetain) {
 }
 
 function setServiceCertificateValidityPeriod(validFrom, validityPeriodDays) {
-  const rawConfig =
-    ccf.kv["public:ccf.gov.service.config"].get(getSingletonKvKey());
+  const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+    getSingletonKvKey(),
+  );
   if (rawConfig === undefined) {
     throw new Error("Service configuration could not be found");
   }
@@ -216,8 +217,9 @@ function setNodeCertificateValidityPeriod(
     throw new Error(`Node ${nodeId} has no certificate signing request`);
   }
 
-  const rawConfig =
-    ccf.kv["public:ccf.gov.service.config"].get(getSingletonKvKey());
+  const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+    getSingletonKvKey(),
+  );
   if (rawConfig === undefined) {
     throw new Error("Service configuration could not be found");
   }
@@ -359,16 +361,16 @@ const actions = new Map([
       function (args) {
         checkX509CertBundle(args.cert, "cert");
         checkType(args.member_data, "object?", "member_data");
-        checkType(args.recovery_owner, "boolean?", "recovery_owner");
+        checkType(args.recovery_role, "string?", "recovery_role");
 
         if (
           args.encryption_pub_key == null &&
           args.encryption_pub_key == undefined &&
-          args.recovery_owner !== null &&
-          args.recovery_owner !== undefined
+          args.recovery_role !== null &&
+          args.recovery_role !== undefined
         ) {
           throw new Error(
-            "Cannot specify a recovery_owner value when encryption_pub_key is not specified",
+            "Cannot specify a recovery_role value when encryption_pub_key is not specified",
           );
         }
         // Also check that public encryption key is well formed, if it exists
@@ -400,15 +402,16 @@ const actions = new Map([
 
         let member_info = {};
         member_info.member_data = args.member_data;
-        member_info.recovery_owner = args.recovery_owner;
+        member_info.recovery_role = args.recovery_role;
         member_info.status = "Accepted";
         ccf.kv["public:ccf.gov.members.info"].set(
           rawMemberId,
           ccf.jsonCompatibleToBuf(member_info),
         );
 
-        const rawSignature =
-          ccf.kv["public:ccf.internal.signatures"].get(getSingletonKvKey());
+        const rawSignature = ccf.kv["public:ccf.internal.signatures"].get(
+          getSingletonKvKey(),
+        );
         if (rawSignature === undefined) {
           ccf.kv["public:ccf.gov.members.acks"].set(rawMemberId);
         } else {
@@ -450,8 +453,9 @@ const actions = new Map([
         // would still be a sufficient number of recovery members left
         // to recover the service
         if (isActiveMember && isRecoveryMember) {
-          const rawConfig =
-            ccf.kv["public:ccf.gov.service.config"].get(getSingletonKvKey());
+          const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+            getSingletonKvKey(),
+          );
           if (rawConfig === undefined) {
             throw new Error("Service configuration could not be found");
           }
@@ -1189,8 +1193,9 @@ const actions = new Map([
         }
       },
       function (args) {
-        const rawConfig =
-          ccf.kv["public:ccf.gov.service.config"].get(getSingletonKvKey());
+        const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+          getSingletonKvKey(),
+        );
         if (rawConfig === undefined) {
           throw new Error("Service configuration could not be found");
         }
@@ -1273,8 +1278,9 @@ const actions = new Map([
         checkEntityId(args.node_id, "node_id");
       },
       function (args) {
-        const rawConfig =
-          ccf.kv["public:ccf.gov.service.config"].get(getSingletonKvKey());
+        const rawConfig = ccf.kv["public:ccf.gov.service.config"].get(
+          getSingletonKvKey(),
+        );
         if (rawConfig === undefined) {
           throw new Error("Service configuration could not be found");
         }

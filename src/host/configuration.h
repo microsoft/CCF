@@ -48,7 +48,7 @@ namespace host
     std::string certificate_file;
     std::optional<std::string> encryption_public_key_file = std::nullopt;
     std::optional<std::string> data_json_file = std::nullopt;
-    std::optional<bool> recovery_owner = std::nullopt;
+    std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
 
     bool operator==(const ParsedMemberInfo& other) const = default;
   };
@@ -59,7 +59,7 @@ namespace host
     ParsedMemberInfo,
     encryption_public_key_file,
     data_json_file,
-    recovery_owner);
+    recovery_role);
 
   struct CCHostConfig : public ccf::CCFConfig
   {

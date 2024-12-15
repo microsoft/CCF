@@ -326,10 +326,10 @@
                           "type": ["string", "null"],
                           "description": "Path to member data file (JSON)"
                         },
-                        "recovery_owner": {
-                          "type": "boolean",
-                          "default": false,
-                          "description": "Whether the member acts as a recovery owner and gets assigned the full recovery share"
+                        "recovery_role": {
+                          "type": "string",
+                          "enum": ["NonParticipant", "Participant", "Owner"],
+                          "description": "Whether the member acts as a recovery participant and gets assigned a single share or as an owner and gets assigned the full recovery share"
                         }
                       },
                       "required": ["certificate_file"],

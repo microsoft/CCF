@@ -344,8 +344,8 @@
           "member_data": {
             "$ref": "#/components/schemas/json"
           },
-          "recovery_owner": {
-            "$ref": "#/components/schemas/boolean"
+          "recovery_role": {
+            "$ref": "#/components/schemas/MemberRecoveryRole"
           },
           "status": {
             "$ref": "#/components/schemas/MemberStatus"
@@ -414,6 +414,14 @@
           "$ref": "#/components/schemas/string"
         },
         "type": "object"
+      },
+      "MemberRecoveryRole": {
+        "enum": [
+          "NonParticipant",
+          "Participant",
+          "Owner"
+        ],
+        "type": "string"
       },
       "MemberStatus": {
         "enum": [

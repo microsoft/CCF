@@ -21,6 +21,22 @@ namespace ccf
   DECLARE_JSON_ENUM(
     MemberStatus,
     {{MemberStatus::ACCEPTED, "Accepted"}, {MemberStatus::ACTIVE, "Active"}});
+
+  enum class MemberRecoveryRole
+  {
+    NonParticipant,
+    Participant,
+
+    /** If set then the member is to receive a full share ("super-share")
+       allowing it to single-handedly recover the network without
+       requiring any other recovery member to submit their shares. */
+    Owner
+  };
+  DECLARE_JSON_ENUM(
+    MemberRecoveryRole,
+    {{MemberRecoveryRole::NonParticipant, "NonParticipant"},
+     {MemberRecoveryRole::Participant, "Participant"},
+     {MemberRecoveryRole::Owner, "Owner"}});
 }
 
 namespace ccf
@@ -36,10 +52,7 @@ namespace ccf
     std::optional<ccf::crypto::Pem> encryption_pub_key = std::nullopt;
     nlohmann::json member_data = nullptr;
 
-    /** If set then the member is to receive a full share ("super-share")
-        allowing it to single-handedly recover the network without
-        requiring any other recovery member to submit their shares. */
-    std::optional<bool> recovery_owner = std::nullopt;
+    std::optional<MemberRecoveryRole> recovery_role = std::nullopt;
 
     NewMember() {}
 
@@ -47,23 +60,23 @@ namespace ccf
       const ccf::crypto::Pem& cert_,
       const std::optional<ccf::crypto::Pem>& encryption_pub_key_ = std::nullopt,
       const nlohmann::json& member_data_ = nullptr,
-      const std::optional<bool>& recovery_owner_ = std::nullopt) :
+      const std::optional<MemberRecoveryRole>& recovery_role_ = std::nullopt) :
       cert(cert_),
       encryption_pub_key(encryption_pub_key_),
       member_data(member_data_),
-      recovery_owner(recovery_owner_)
+      recovery_role(recovery_role_)
     {}
 
     bool operator==(const NewMember& rhs) const
     {
       return cert == rhs.cert && encryption_pub_key == rhs.encryption_pub_key &&
-        member_data == rhs.member_data && recovery_owner == rhs.recovery_owner;
+        member_data == rhs.member_data && recovery_role == rhs.recovery_role;
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NewMember)
   DECLARE_JSON_REQUIRED_FIELDS(NewMember, cert)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    NewMember, encryption_pub_key, member_data, recovery_owner)
+    NewMember, encryption_pub_key, member_data, recovery_role)
 
   struct MemberDetails
   {
@@ -73,20 +86,17 @@ namespace ccf
         members for example. */
     nlohmann::json member_data = nullptr;
 
-    /** If set then the member is to receive a full share ("super-share")
-       allowing it to single-handedly recover the network without
-       requiring any other recovery member to submit their shares. */
-    std::optional<bool> recovery_owner = std::nullopt;
+    std::optional<MemberRecoveryRole> recovery_role = std::nullopt;
 
     bool operator==(const MemberDetails& rhs) const
     {
       return status == rhs.status && member_data == rhs.member_data &&
-        recovery_owner == rhs.recovery_owner;
+        recovery_role == rhs.recovery_role;
     }
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(MemberDetails)
   DECLARE_JSON_REQUIRED_FIELDS(MemberDetails, status)
-  DECLARE_JSON_OPTIONAL_FIELDS(MemberDetails, member_data, recovery_owner)
+  DECLARE_JSON_OPTIONAL_FIELDS(MemberDetails, member_data, recovery_role)
 
   using MemberInfo = ServiceMap<MemberId, MemberDetails>;
 

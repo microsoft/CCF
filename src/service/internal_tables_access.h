@@ -96,7 +96,8 @@ namespace ccf
         return false;
       }
 
-      return mi->recovery_owner.value_or(false);
+      return mi->recovery_role.has_value() &&
+        mi->recovery_role.value() == MemberRecoveryRole::Owner;
     }
 
     static bool is_active_member(
@@ -134,7 +135,8 @@ namespace ccf
 
           if (
             info->status == MemberStatus::ACTIVE &&
-            !info->recovery_owner.value_or(false))
+            info->recovery_role.value_or(MemberRecoveryRole::Participant) !=
+              MemberRecoveryRole::Owner)
           {
             active_recovery_members[mid] = pem;
           }
@@ -165,7 +167,8 @@ namespace ccf
 
           if (
             info->status == MemberStatus::ACTIVE &&
-            info->recovery_owner.value_or(false))
+            info->recovery_role.value_or(MemberRecoveryRole::Participant) ==
+              MemberRecoveryRole::Owner)
           {
             active_recovery_owners[mid] = pem;
           }
@@ -193,14 +196,34 @@ namespace ccf
         return id;
       }
 
-      if (
-        !member_pub_info.encryption_pub_key.has_value() &&
-        member_pub_info.recovery_owner.has_value())
+      if (member_pub_info.recovery_role.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Member {} cannot be added as recovery_owner has a value set but no "
-          "encryption public key is specified",
-          id));
+        auto member_recovery_role = member_pub_info.recovery_role.value();
+        if (!member_pub_info.encryption_pub_key.has_value())
+        {
+          if (member_recovery_role != ccf::MemberRecoveryRole::NonParticipant)
+          {
+            throw std::logic_error(fmt::format(
+              "Member {} cannot be added as recovery_role has a value set but "
+              "no "
+              "encryption public key is specified",
+              id));
+          }
+        }
+        else
+        {
+          if (
+            member_recovery_role != ccf::MemberRecoveryRole::Participant &&
+            member_recovery_role != ccf::MemberRecoveryRole::Owner)
+          {
+            throw std::logic_error(fmt::format(
+              "Recovery member {} cannot be added as with recovery role value "
+              "of "
+              "{}",
+              id,
+              member_recovery_role));
+          }
+        }
       }
 
       member_certs->put(id, member_pub_info.cert);
@@ -208,7 +231,7 @@ namespace ccf
         id,
         {MemberStatus::ACCEPTED,
          member_pub_info.member_data,
-         member_pub_info.recovery_owner});
+         member_pub_info.recovery_role});
 
       if (member_pub_info.encryption_pub_key.has_value())
       {
@@ -288,8 +311,8 @@ namespace ccf
         member_to_remove->status == MemberStatus::ACTIVE &&
         is_recovery_member(tx, member_id))
       {
-        // Because the member to remove is active, there is at least one active
-        // member (i.e. get_active_recovery_members_count_after >= 0)
+        // Because the member to remove is active, there is at least one
+        // active member (i.e. get_active_recovery_members_count_after >= 0)
         size_t get_active_recovery_members_count_after =
           get_active_recovery_members(tx).size() - 1;
         auto recovery_threshold = get_recovery_threshold(tx);
@@ -384,8 +407,8 @@ namespace ccf
         }
         else if (ni.status == ccf::NodeStatus::RETIRED)
         {
-          // If a node is retired, but knowledge of their retirement has not yet
-          // been globally committed, they are still considered active.
+          // If a node is retired, but knowledge of their retirement has not
+          // yet been globally committed, they are still considered active.
           auto cni = nodes->get_globally_committed(nid);
           if (cni.has_value() && !cni->retired_committed)
           {
@@ -760,8 +783,8 @@ namespace ccf
       if (service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
       {
         // While waiting for recovery shares, the recovery threshold cannot be
-        // modified. Otherwise, the threshold could be passed without triggering
-        // the end of recovery procedure
+        // modified. Otherwise, the threshold could be passed without
+        // triggering the end of recovery procedure
         LOG_FAIL_FMT(
           "Cannot set recovery threshold: service is currently waiting for "
           "recovery shares");

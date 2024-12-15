@@ -216,18 +216,6 @@ int main(int argc, char** argv)
           config.ledger.directory));
       }
 
-      for (auto const& m : config.command.start.members)
-      {
-        if (
-          !m.encryption_public_key_file.has_value() &&
-          m.recovery_owner.has_value())
-        {
-          throw std::logic_error(fmt::format(
-            "No public encryption key has been specified but recovery owner "
-            "value has been set for a member"));
-        }
-      }
-
       // Count members with public encryption key who are not recovery
       // owners as only these members will be handed a recovery share
       // that accrues towards the recovery threshold.
@@ -240,7 +228,8 @@ int main(int argc, char** argv)
       {
         if (
           m.encryption_public_key_file.has_value() &&
-          (!m.recovery_owner.has_value() || !m.recovery_owner.value()))
+          m.recovery_role.value_or(ccf::MemberRecoveryRole::Participant) !=
+            ccf::MemberRecoveryRole::Owner)
         {
           members_with_pubk_count++;
         }
@@ -620,14 +609,17 @@ int main(int argc, char** argv)
       for (auto const& m : config.command.start.members)
       {
         std::optional<ccf::crypto::Pem> public_encryption_key = std::nullopt;
-        std::optional<bool> recovery_owner = std::nullopt;
+        std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
         if (
           m.encryption_public_key_file.has_value() &&
           !m.encryption_public_key_file.value().empty())
         {
           public_encryption_key = ccf::crypto::Pem(
             files::slurp(m.encryption_public_key_file.value()));
-          recovery_owner = m.recovery_owner;
+          if (m.recovery_role.has_value())
+          {
+            recovery_role = m.recovery_role.value();
+          }
         }
 
         nlohmann::json md = nullptr;
@@ -640,7 +632,7 @@ int main(int argc, char** argv)
           ccf::crypto::Pem(files::slurp(m.certificate_file)),
           public_encryption_key,
           md,
-          recovery_owner);
+          recovery_role);
       }
       startup_config.start.constitution = "";
       for (const auto& constitution_path :
