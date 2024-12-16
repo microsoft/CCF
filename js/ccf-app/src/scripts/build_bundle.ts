@@ -1,25 +1,31 @@
 #!/usr/bin/env node
 
-import { readdirSync, statSync, readFileSync, writeFileSync } from "fs";
+import {
+  readdirSync,
+  statSync,
+  readFileSync,
+  writeFileSync,
+  existsSync,
+} from "fs";
 import { join, posix, resolve, sep } from "path";
 
-function getAllFiles(dirPath : string) : string[] {
+function getAllFiles(dirPath: string): string[] {
   const toSearch = [dirPath];
   const agg = [];
 
   for (const filePath of toSearch) {
     if (statSync(filePath).isDirectory()) {
-      for (const subfile of readdirSync(filePath)){
-          toSearch.push(join(filePath, subfile));
+      for (const subfile of readdirSync(filePath)) {
+        toSearch.push(join(filePath, subfile));
       }
     } else {
       agg.push(filePath);
     }
   }
-  return agg
+  return agg;
 }
 
-function removePrefix(s : string, prefix : string) : string {
+function removePrefix(s: string, prefix: string): string {
   if (s.startsWith(prefix)) {
     return s.slice(prefix.length).split(sep).join(posix.sep);
   }
@@ -34,17 +40,27 @@ if (args.length < 1) {
   process.exit(1);
 }
 
-const rootDirPath = resolve(args[0]);
+function assertFileExists(path: string) {
+  if (!existsSync(path)) {
+    console.log("File not found: %s", path);
+    process.exit(1);
+  }
+}
+
+const argRootDirPath = args[0];
+assertFileExists(argRootDirPath);
+const rootDirPath = resolve(argRootDirPath);
 const metadataPath = join(rootDirPath, "app.json");
+assertFileExists(metadataPath);
+const srcDirPath = join(rootDirPath, "src");
+assertFileExists(srcDirPath);
 
 const metadata = JSON.parse(readFileSync(metadataPath, "utf-8"));
-
-const srcDir = join(rootDirPath, "src");
-const allFiles = getAllFiles(srcDir);
+const allFiles = getAllFiles(srcDirPath);
 
 // The trailing / is included so that it is trimmed in removePrefix.
 // This produces "foo/bar.js" rather than "/foo/bar.js"
-const toTrim = srcDir + "/";
+const toTrim = srcDirPath + "/";
 
 const modules = allFiles.map(function (filePath) {
   return {
@@ -60,6 +76,6 @@ const bundle = {
 };
 
 console.log(
-  `Writing bundle containing ${modules.length} modules to ${bundlePath}`,
+  `Writing bundle containing ${modules.length} modules to ${bundlePath}`
 );
 writeFileSync(bundlePath, JSON.stringify(bundle));
