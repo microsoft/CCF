@@ -54,6 +54,9 @@ namespace ccf
 
     LedgerSecretWrappingKey(ccf::crypto::sharing::Share& secret_)
     {
+      // Note: In this variation of the LedgerSecretWrappingKey
+      // constructor we have not set shares and threshold member variables to
+      // any appropriate value.
       secret = secret_;
       num_shares = 1;
       shares.resize(num_shares);
@@ -410,9 +413,6 @@ namespace ccf
 
       if (full_share.has_value())
       {
-        // TBD (gsinha): In this variation of the LedgerSecretWrappingKey
-        // constructor do we set
-        //  shares and threshold member variables to any value?
         return LedgerSecretWrappingKey(full_share.value());
       }
 
@@ -581,7 +581,8 @@ namespace ccf
       return restored_ledger_secrets;
     }
 
-    bool is_full_share(const std::vector<uint8_t>& submitted_recovery_share)
+    static bool is_full_share(
+      const std::vector<uint8_t>& submitted_recovery_share)
     {
       if (
         submitted_recovery_share.size() ==

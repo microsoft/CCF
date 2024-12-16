@@ -325,6 +325,14 @@ def test_all_members(network, args):
             else:
                 assert response_pub_enc_key is None
 
+            response_recovery_role = response_member.get("recoveryRole")
+            if member.is_recovery_owner:
+                assert response_recovery_role == "Owner"
+            elif member.is_recovery_member:
+                assert response_recovery_role == "Participant"
+            else:
+                assert response_recovery_role == "NonParticipant"
+
     # Test on current network
     run_test_all_members(network)
 

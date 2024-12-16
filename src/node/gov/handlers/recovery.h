@@ -137,7 +137,7 @@ namespace ccf::gov::endpoints
               ctx.tx, member_id, raw_recovery_share);
 
             full_share_submitted =
-              share_manager.is_full_share(raw_recovery_share);
+              ShareManager::is_full_share(raw_recovery_share);
 
             OPENSSL_cleanse(
               raw_recovery_share.data(), raw_recovery_share.size());
