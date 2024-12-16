@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Expose `ccf:http::parse_accept_header()` and `ccf::http::AcceptHeaderField` (#6706).
+- Package `build_bundle.ts` under `npm exec build_bundle` to allow javascript users to build a ccf schema bundle (#6704).
 
 ## [6.0.0-dev9]
 

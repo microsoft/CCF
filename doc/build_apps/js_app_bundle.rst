@@ -338,8 +338,7 @@ The key fields are:
 Once :ref:`submitted and accepted <governance/proposals:Submitting a New Proposal>`, a ``set_js_app`` proposal atomically (re-)deploys the complete JavaScript application.
 Any existing application endpoints and JavaScript modules are removed.
 
-If you are using ``npm`` or similar to build your app it may make sense to convert your app into a proposal-ready JSON bundle during packaging.
-For an example of how this could be done, see :ccf_repo:`tests/npm-app/build_bundle.js` from one of CCF's test applications, called by ``npm build`` from the corresponding :ccf_repo:`tests/npm-app/package.json`.
+If you are using ``npm`` to build your app, we package a `build_bundle` script alongside `ccf-app`. This can be run using `npm exec --package @microsoft/ccf-app build_bundle path/to/root/of/app` to package the `app.json` and all javascript modules under `src` into a proposal-ready JSON bundle.
 
 Bytecode cache
 ~~~~~~~~~~~~~~
