@@ -44,6 +44,8 @@ IGNORED_FILE_SUFFIX = ".ignored"
 # Key used by CCF to record single-key tables
 WELL_KNOWN_SINGLETON_TABLE_KEY = bytes(bytearray(8))
 
+SHA256_DIGEST_SIZE = sha256().digest_size
+
 
 class NodeStatus(Enum):
     PENDING = "Pending"
@@ -86,10 +88,8 @@ def is_ledger_chunk_committed(file_name):
     return file_name.endswith(COMMITTED_FILE_SUFFIX)
 
 
-def digest(algo, data):
-    h = hashes.Hash(algo)
-    h.update(data)
-    return h.finalize()
+def digest(data):
+    return sha256(data).digest()
 
 
 def unpack(stream, fmt):
@@ -189,10 +189,10 @@ class PublicDomain:
         return EntryType(val)
 
     def _read_claims_digest(self):
-        return self._buffer.read(hashes.SHA256.digest_size)
+        return self._buffer.read(SHA256_DIGEST_SIZE)
 
     def _read_commit_evidence_digest(self):
-        return self._buffer.read(hashes.SHA256.digest_size)
+        return self._buffer.read(SHA256_DIGEST_SIZE)
 
     def _read_version(self):
         return unpack(self._buffer, "<q")
@@ -384,7 +384,7 @@ class LedgerValidator:
         # Start with empty bytes array. CCF MerkleTree uses an empty array as the first leaf of its merkle tree.
         # Don't hash empty bytes array.
         self.merkle = MerkleTree()
-        empty_bytes_array = bytearray(hashes.SHA256.digest_size)
+        empty_bytes_array = bytearray(SHA256_DIGEST_SIZE)
         self.merkle.add_leaf(empty_bytes_array, do_hash=False)
 
         self.last_verified_seqno = 0
@@ -609,7 +609,7 @@ class TransactionHeader:
     size: int
 
     def __init__(self, buffer):
-        if len(buffer) < TransactionHeader.get_size():
+        if len(buffer) != TransactionHeader.get_size():
             raise ValueError("Incomplete transaction header")
 
         self.version = int.from_bytes(
@@ -714,7 +714,6 @@ class Transaction(Entry):
     _next_offset: int = LEDGER_HEADER_SIZE
     _tx_offset: int = 0
     _ledger_validator: Optional[LedgerValidator] = None
-    _dgst = functools.partial(digest, hashes.SHA256())
 
     def __init__(
         self, filename: str, ledger_validator: Optional[LedgerValidator] = None
@@ -758,8 +757,7 @@ class Transaction(Entry):
         return (self._tx_offset, self._next_offset)
 
     def get_write_set_digest(self) -> bytes:
-        self._dgst = functools.partial(digest, hashes.SHA256())
-        return self._dgst(self.get_raw_tx())
+        return digest(self.get_raw_tx())
 
     def get_tx_digest(self) -> bytes:
         claims_digest = self.get_public_domain().get_claims_digest()
@@ -769,12 +767,12 @@ class Transaction(Entry):
             if commit_evidence_digest is None:
                 return write_set_digest
             else:
-                return self._dgst(write_set_digest + commit_evidence_digest)
+                return digest(write_set_digest + commit_evidence_digest)
         else:
             assert (
                 commit_evidence_digest
             ), "Invalid transaction: commit_evidence_digest not set"
-            return self._dgst(write_set_digest + commit_evidence_digest + claims_digest)
+            return digest(write_set_digest + commit_evidence_digest + claims_digest)
 
     def _complete_read(self):
         self._file.seek(self._next_offset, 0)
