@@ -160,10 +160,10 @@ class PublicDomain:
     _tables: dict
 
     def __init__(self, buffer: bytes):
-        self._cursor = 0
-        self._buffer = buffer
+        self._entry_type = EntryType(buffer[0])
 
-        self._entry_type = EntryType(struct.unpack("<B", self._read_buffer(1))[0])
+        self._cursor = 1
+        self._buffer = buffer
 
         self._version = self._read_int64()
 
