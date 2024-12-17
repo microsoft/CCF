@@ -23,7 +23,6 @@ from ccf.tx_id import TxID
 from ccf.cose import validate_cose_sign1
 import ccf.receipt
 from hashlib import sha256
-import functools
 
 GCM_SIZE_TAG = 16
 GCM_SIZE_IV = 12
@@ -162,6 +161,7 @@ class PublicDomain:
     def __init__(self, buffer: bytes):
         self._entry_type = EntryType(buffer[0])
 
+        # Already read a 1-byte entry-type, so start from 1 not 0
         self._cursor = 1
         self._buffer = buffer
 
@@ -632,7 +632,7 @@ class TransactionHeader:
 
 
 class Entry:
-    _file: Optional[BinaryIO] = None
+    _file: BinaryIO
     _header: TransactionHeader
     _public_domain_size: int = 0
     _public_domain: Optional[PublicDomain] = None
