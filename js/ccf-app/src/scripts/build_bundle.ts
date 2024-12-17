@@ -7,7 +7,7 @@ import {
   writeFileSync,
   existsSync,
 } from "fs";
-import { join, posix, resolve, sep } from "path";
+import { join, resolve, sep } from "path";
 
 function getAllFiles(dirPath: string): string[] {
   const toSearch = [dirPath];
@@ -27,7 +27,7 @@ function getAllFiles(dirPath: string): string[] {
 
 function removePrefix(s: string, prefix: string): string {
   if (s.startsWith(prefix)) {
-    return s.slice(prefix.length).split(sep).join(posix.sep);
+    return s.slice(prefix.length).split(sep).join(sep);
   }
   console.log("Warn: tried to remove invalid prefix", s, prefix);
   return s;

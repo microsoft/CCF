@@ -33,6 +33,6 @@
     "typescript": "^5.7.2"
   },
   "bin": {
-    "build_bundle": "scripts/build_bundle.js"
+    "ccf-build-bundle": "scripts/build_bundle.js"
   }
 }
