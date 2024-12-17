@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Expose `ccf:http::parse_accept_header()` and `ccf::http::AcceptHeaderField` (#6706).
-- Package `build_bundle.ts` under `npm exec build_bundle` to allow javascript users to build a ccf schema bundle (#6704).
+- Added `ccf::cose::AbstractCOSESignaturesConfig` subsystem to expose COSE signature configuration to application handlers (#6707).
+- Package `build_bundle.ts` under `npx ccf-build-bundle` to allow javascript users to build a ccf schema bundle (#6704).
 
 ## [6.0.0-dev9]
 
