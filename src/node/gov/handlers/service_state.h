@@ -35,6 +35,19 @@ namespace ccf::gov::endpoints
       member["publicEncryptionKey"] = enc_key.value().str();
     }
 
+    ccf::MemberRecoveryRole recovery_role =
+      ccf::MemberRecoveryRole::NonParticipant;
+    if (member_details.recovery_role.has_value())
+    {
+      recovery_role = member_details.recovery_role.value();
+    }
+    else if (enc_key.has_value())
+    {
+      recovery_role = ccf::MemberRecoveryRole::Participant;
+    }
+
+    member["recoveryRole"] = recovery_role;
+
     return member;
   }
 

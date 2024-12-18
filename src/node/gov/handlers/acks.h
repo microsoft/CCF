@@ -266,11 +266,12 @@ namespace ccf::gov::endpoints
               return;
             }
 
-            // If this is a newly-active recovery member in an open service,
-            // allocate them a recovery share immediately
+            // If this is a newly-active recovery member/owner in an open
+            // service, allocate them a recovery share immediately
             if (
               newly_active &&
-              InternalTablesAccess::is_recovery_member(ctx.tx, member_id))
+              InternalTablesAccess::is_recovery_member_or_owner(
+                ctx.tx, member_id))
             {
               auto service_status =
                 InternalTablesAccess::get_service_status(ctx.tx);
