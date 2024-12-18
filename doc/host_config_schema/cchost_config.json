@@ -427,6 +427,19 @@
                   "previous_service_identity_file": {
                     "type": "string",
                     "description": "Path to the previous service certificate (PEM) file"
+                  },
+                  "cose_signatures": {
+                    "type": "object",
+                    "properties": {
+                      "issuer": {
+                        "type": "string",
+                        "description": "Issuer, set in CWT_Claims of COSE ledger signatures. Can only be set once on service start."
+                      },
+                      "subject": {
+                        "type": "string",
+                        "description": "Subject, set in CWT_Claims of COSE ledger signatures. Can only be set once on service start."
+                      }
+                    }
                   }
                 },
                 "required": ["previous_service_identity_file"],
