@@ -581,7 +581,7 @@ namespace ccf
       return restored_ledger_secrets;
     }
 
-    static bool is_full_share(
+    static bool is_full_key(
       const std::vector<uint8_t>& submitted_recovery_share)
     {
       if (
@@ -591,7 +591,7 @@ namespace ccf
         auto share = ccf::crypto::sharing::Share(submitted_recovery_share);
         if (share.x == 0)
         {
-          // Index value of 0 indicates a full share.
+          // Index value of 0 indicates a full key.
           return true;
         }
       }

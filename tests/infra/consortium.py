@@ -763,7 +763,7 @@ class Consortium:
             assert (
                 f"{submitted_shares_count}/{self.recovery_threshold}" in r.body.text()
             )
-            assert "Full recovery share successfully submitted" in r.body.text()
+            assert "Full recovery key successfully submitted" in r.body.text()
             assert "End of recovery procedure initiated" in r.body.text()
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):

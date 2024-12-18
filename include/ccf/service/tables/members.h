@@ -24,10 +24,10 @@ namespace ccf
 
   enum class MemberRecoveryRole
   {
-    NonParticipant,
+    NonParticipant = 0,
     Participant,
 
-    /** If set then the member is to receive a full share ("super-share")
+    /** If set then the member is to receive the full wrapper key
        allowing it to single-handedly recover the network without
        requiring any other recovery member to submit their shares. */
     Owner
