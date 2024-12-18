@@ -15,6 +15,7 @@
 #include "ccf/version.h"
 #include "crypto/certs.h"
 #include "crypto/csr.h"
+#include "ds/files.h"
 #include "ds/std_formatters.h"
 #include "frontend.h"
 #include "node/network_state.h"
@@ -25,6 +26,7 @@
 #include "node_interface.h"
 #include "service/internal_tables_access.h"
 #include "service/tables/previous_service_identity.h"
+#include "snapshots/filenames.h"
 
 namespace ccf
 {
@@ -1184,13 +1186,14 @@ namespace ccf
               ccf::errors::InternalError,
               "NodeConfigurationSubsystem is not available");
           }
+          const auto& node_startup_config =
+            node_configuration_subsystem->get().node_config;
           return make_success(GetNode::Out{
             node_id,
             ccf::NodeStatus::PENDING,
             is_primary,
-            node_configuration_subsystem->get()
-              .node_config.network.rpc_interfaces,
-            node_configuration_subsystem->get().node_config.node_data,
+            node_startup_config.network.rpc_interfaces,
+            node_startup_config.node_data,
             0});
         }
       };
@@ -1785,6 +1788,340 @@ namespace ccf
         "/ready/gov", HTTP_GET, get_ready_gov, no_auth_required)
         .set_auto_schema<void, void>()
         .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .install();
+
+      static constexpr auto snapshot_since_param_key = "since";
+      // Redirects to endpoint for a single specific snapshot
+      auto find_snapshot = [this](ccf::endpoints::CommandEndpointContext& ctx) {
+        auto node_configuration_subsystem =
+          this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!node_configuration_subsystem)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
+          return;
+        }
+
+        const auto& snapshots_config =
+          node_configuration_subsystem->get().node_config.snapshots;
+
+        size_t latest_idx = 0;
+        {
+          // Get latest_idx from query param, if present
+          const auto parsed_query =
+            http::parse_query(ctx.rpc_ctx->get_request_query());
+
+          std::string error_reason;
+          auto snapshot_since = http::get_query_value_opt<ccf::SeqNo>(
+            parsed_query, snapshot_since_param_key, error_reason);
+
+          if (snapshot_since.has_value())
+          {
+            if (error_reason != "")
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidQueryParameterValue,
+                std::move(error_reason));
+              return;
+            }
+            latest_idx = snapshot_since.value();
+          }
+        }
+
+        const auto orig_latest = latest_idx;
+        auto latest_committed_snapshot =
+          snapshots::find_latest_committed_snapshot_in_directory(
+            snapshots_config.directory, latest_idx);
+
+        if (!latest_committed_snapshot.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            fmt::format(
+              "This node has no committed snapshots since {}", orig_latest));
+          return;
+        }
+
+        const auto& snapshot_path = latest_committed_snapshot.value();
+
+        LOG_DEBUG_FMT("Redirecting to snapshot: {}", snapshot_path);
+
+        auto redirect_url = fmt::format("/node/snapshot/{}", snapshot_path);
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::LOCATION, redirect_url);
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_PERMANENT_REDIRECT);
+      };
+      make_command_endpoint(
+        "/snapshot", HTTP_HEAD, find_snapshot, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .add_query_parameter<ccf::SeqNo>(
+          snapshot_since_param_key, ccf::endpoints::OptionalParameter)
+        .set_openapi_hidden(true)
+        .install();
+      make_command_endpoint(
+        "/snapshot", HTTP_GET, find_snapshot, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .add_query_parameter<ccf::SeqNo>(
+          snapshot_since_param_key, ccf::endpoints::OptionalParameter)
+        .set_openapi_hidden(true)
+        .install();
+
+      auto get_snapshot = [this](ccf::endpoints::CommandEndpointContext& ctx) {
+        auto node_configuration_subsystem =
+          this->context.get_subsystem<NodeConfigurationSubsystem>();
+        if (!node_configuration_subsystem)
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_INTERNAL_SERVER_ERROR,
+            ccf::errors::InternalError,
+            "NodeConfigurationSubsystem is not available");
+          return;
+        }
+
+        const auto& snapshots_config =
+          node_configuration_subsystem->get().node_config.snapshots;
+
+        std::string snapshot_name;
+        std::string error;
+        if (!get_path_param(
+              ctx.rpc_ctx->get_request_path_params(),
+              "snapshot_name",
+              snapshot_name,
+              error))
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_BAD_REQUEST,
+            ccf::errors::InvalidResourceName,
+            std::move(error));
+          return;
+        }
+
+        fs::path snapshot_path =
+          fs::path(snapshots_config.directory) / snapshot_name;
+
+        std::ifstream f(snapshot_path, std::ios::binary);
+        if (!f.good())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            fmt::format(
+              "This node does not have a snapshot named {}", snapshot_name));
+          return;
+        }
+
+        LOG_DEBUG_FMT("Found snapshot: {}", snapshot_path.string());
+
+        f.seekg(0, f.end);
+        const auto total_size = (size_t)f.tellg();
+
+        ctx.rpc_ctx->set_response_header("accept-ranges", "bytes");
+
+        if (ctx.rpc_ctx->get_request_verb() == HTTP_HEAD)
+        {
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_header(
+            ccf::http::headers::CONTENT_LENGTH, total_size);
+          return;
+        }
+
+        size_t range_start = 0;
+        size_t range_end = total_size;
+        {
+          const auto range_header = ctx.rpc_ctx->get_request_header("range");
+          if (range_header.has_value())
+          {
+            LOG_TRACE_FMT("Parsing range header {}", range_header.value());
+
+            auto [unit, ranges] =
+              ccf::nonstd::split_1(range_header.value(), "=");
+            if (unit != "bytes")
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                "Only 'bytes' is supported as a Range header unit");
+              return;
+            }
+
+            if (ranges.find(",") != std::string::npos)
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                "Multiple ranges are not supported");
+              return;
+            }
+
+            const auto segments = ccf::nonstd::split(ranges, "-");
+            if (segments.size() != 2)
+            {
+              ctx.rpc_ctx->set_error(
+                HTTP_STATUS_BAD_REQUEST,
+                ccf::errors::InvalidHeaderValue,
+                fmt::format(
+                  "Invalid format, cannot parse range in {}",
+                  range_header.value()));
+              return;
+            }
+
+            const auto s_range_start = segments[0];
+            const auto s_range_end = segments[1];
+
+            if (!s_range_start.empty())
+            {
+              {
+                const auto [p, ec] = std::from_chars(
+                  s_range_start.begin(), s_range_start.end(), range_start);
+                if (ec != std::errc())
+                {
+                  ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_BAD_REQUEST,
+                    ccf::errors::InvalidHeaderValue,
+                    fmt::format(
+                      "Unable to parse start of range value {} in {}",
+                      s_range_start,
+                      range_header.value()));
+                  return;
+                }
+              }
+
+              if (range_start > total_size)
+              {
+                ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  fmt::format(
+                    "Start of range {} is larger than total file size {}",
+                    range_start,
+                    total_size));
+                return;
+              }
+
+              if (!s_range_end.empty())
+              {
+                // Fully-specified range, like "X-Y"
+                {
+                  const auto [p, ec] = std::from_chars(
+                    s_range_end.begin(), s_range_end.end(), range_end);
+                  if (ec != std::errc())
+                  {
+                    ctx.rpc_ctx->set_error(
+                      HTTP_STATUS_BAD_REQUEST,
+                      ccf::errors::InvalidHeaderValue,
+                      fmt::format(
+                        "Unable to parse end of range value {} in {}",
+                        s_range_end,
+                        range_header.value()));
+                    return;
+                  }
+                }
+
+                if (range_end > total_size)
+                {
+                  ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_BAD_REQUEST,
+                    ccf::errors::InvalidHeaderValue,
+                    fmt::format(
+                      "End of range {} is larger than total file size {}",
+                      range_end,
+                      total_size));
+                  return;
+                }
+
+                if (range_end < range_start)
+                {
+                  ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_BAD_REQUEST,
+                    ccf::errors::InvalidHeaderValue,
+                    fmt::format(
+                      "Invalid range: Start ({}) and end ({}) out of order",
+                      range_start,
+                      range_end));
+                  return;
+                }
+              }
+              else
+              {
+                // Else this is an open-ended range like "X-"
+                range_end = total_size;
+              }
+            }
+            else
+            {
+              if (!s_range_end.empty())
+              {
+                // Negative range, like "-Y"
+                size_t offset;
+                const auto [p, ec] = std::from_chars(
+                  s_range_end.begin(), s_range_end.end(), offset);
+                if (ec != std::errc())
+                {
+                  ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_BAD_REQUEST,
+                    ccf::errors::InvalidHeaderValue,
+                    fmt::format(
+                      "Unable to parse end of range offset value {} in {}",
+                      s_range_end,
+                      range_header.value()));
+                  return;
+                }
+
+                range_end = total_size;
+                range_start = range_end - offset;
+              }
+              else
+              {
+                ctx.rpc_ctx->set_error(
+                  HTTP_STATUS_BAD_REQUEST,
+                  ccf::errors::InvalidHeaderValue,
+                  "Invalid range: Must contain range-start or range-end");
+                return;
+              }
+            }
+          }
+        }
+
+        const auto range_size = range_end - range_start;
+
+        LOG_TRACE_FMT(
+          "Reading {}-byte range from {} to {}",
+          range_size,
+          range_start,
+          range_end);
+
+        // Read requested range into buffer
+        std::vector<uint8_t> contents(range_size);
+        f.seekg(range_start);
+        f.read((char*)contents.data(), contents.size());
+        f.close();
+
+        // Build successful response
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_PARTIAL_CONTENT);
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::OCTET_STREAM);
+        ctx.rpc_ctx->set_response_body(std::move(contents));
+
+        // Partial Content responses describe the current response in
+        // Content-Range
+        ctx.rpc_ctx->set_response_header(
+          "content-range",
+          fmt::format("bytes {}-{}/{}", range_start, range_end, total_size));
+      };
+      make_command_endpoint(
+        "/snapshot/{snapshot_name}", HTTP_HEAD, get_snapshot, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
+        .install();
+      make_command_endpoint(
+        "/snapshot/{snapshot_name}", HTTP_GET, get_snapshot, no_auth_required)
+        .set_forwarding_required(endpoints::ForwardingRequired::Never)
+        .set_openapi_hidden(true)
         .install();
     }
   };

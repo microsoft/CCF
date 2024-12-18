@@ -215,19 +215,36 @@ namespace http
       return responder;
     }
 
+    template <typename T>
+    void _set_response_body(T&& body)
+    {
+      // HEAD responses must not contain a body - clients will ignore it
+      if (verb != HTTP_HEAD)
+      {
+        if constexpr (std::is_same_v<T, std::string>)
+        {
+          response_body = std::vector<uint8_t>(body.begin(), body.end());
+        }
+        else
+        {
+          response_body = std::forward<T>(body);
+        }
+      }
+    }
+
     virtual void set_response_body(const std::vector<uint8_t>& body) override
     {
-      response_body = body;
+      _set_response_body(body);
     }
 
     virtual void set_response_body(std::vector<uint8_t>&& body) override
     {
-      response_body = std::move(body);
+      _set_response_body(std::move(body));
     }
 
     virtual void set_response_body(std::string&& body) override
     {
-      response_body = std::vector<uint8_t>(body.begin(), body.end());
+      _set_response_body(std::move(body));
     }
 
     virtual const std::vector<uint8_t>& get_response_body() const override
