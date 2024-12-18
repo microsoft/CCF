@@ -8,13 +8,13 @@
 
 namespace ccf
 {
-  class JSHandlers : public ccf::js::DynamicJSEndpointRegistry
+  class JSHandlers : public ccf::js::BaseDynamicJSEndpointRegistry
   {
   public:
     JSHandlers(AbstractNodeContext& context) :
       // Note: We do not pass a kv_prefix here, instead we explicitly, manually
       // construct each map name to match previously used values
-      ccf::js::DynamicJSEndpointRegistry(context)
+      ccf::js::BaseDynamicJSEndpointRegistry(context)
     {
       modules_map = ccf::Tables::MODULES;
       metadata_map = ccf::endpoints::Tables::ENDPOINTS;
@@ -22,11 +22,6 @@ namespace ccf
       modules_quickjs_version_map = ccf::Tables::MODULES_QUICKJS_VERSION;
       modules_quickjs_bytecode_map = ccf::Tables::MODULES_QUICKJS_BYTECODE;
       runtime_options_map = ccf::Tables::JSENGINE;
-
-      // TODO: Refactor hierarchy to remove these from my visibility?
-      recent_actions_map;
-      audit_input_map;
-      audit_info_map;
     }
   };
 

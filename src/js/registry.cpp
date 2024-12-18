@@ -52,7 +52,7 @@ namespace ccf::js
     return std::string(sv);
   }
 
-  void DynamicJSEndpointRegistry::do_execute_request(
+  void BaseDynamicJSEndpointRegistry::do_execute_request(
     const CustomJSEndpoint* endpoint,
     ccf::endpoints::EndpointContext& endpoint_ctx,
     const std::optional<PreExecutionHook>& pre_exec_hook)
@@ -428,7 +428,7 @@ namespace ccf::js
     }
   }
 
-  void DynamicJSEndpointRegistry::execute_request(
+  void BaseDynamicJSEndpointRegistry::execute_request(
     const CustomJSEndpoint* endpoint,
     ccf::endpoints::EndpointContext& endpoint_ctx)
   {
@@ -471,7 +471,7 @@ namespace ccf::js
     }
   }
 
-  void DynamicJSEndpointRegistry::execute_request_locally_committed(
+  void BaseDynamicJSEndpointRegistry::execute_request_locally_committed(
     const CustomJSEndpoint* endpoint,
     ccf::endpoints::CommandEndpointContext& endpoint_ctx,
     const ccf::TxID& tx_id)
@@ -479,41 +479,7 @@ namespace ccf::js
     ccf::endpoints::default_locally_committed_func(endpoint_ctx, tx_id);
   }
 
-  std::set<RESTVerb> DynamicJSEndpointRegistry::get_allowed_verbs(
-    ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx)
-  {
-    const auto method = rpc_ctx.get_method();
-
-    std::set<RESTVerb> verbs =
-      ccf::endpoints::EndpointRegistry::get_allowed_verbs(tx, rpc_ctx);
-
-    auto endpoints = tx.template ro<ccf::endpoints::EndpointsMap>(metadata_map);
-
-    endpoints->foreach_key([this, &verbs, &method](const auto& key) {
-      const auto opt_spec =
-        ccf::endpoints::PathTemplateSpec::parse(key.uri_path);
-      if (opt_spec.has_value())
-      {
-        const auto& template_spec = opt_spec.value();
-        // This endpoint has templates in its path - now check if template
-        // matches the current request's path
-        std::smatch match;
-        if (std::regex_match(method, match, template_spec.template_regex))
-        {
-          verbs.insert(key.verb);
-        }
-      }
-      else if (key.uri_path == method)
-      {
-        verbs.insert(key.verb);
-      }
-      return true;
-    });
-
-    return verbs;
-  }
-
-  DynamicJSEndpointRegistry::DynamicJSEndpointRegistry(
+  BaseDynamicJSEndpointRegistry::BaseDynamicJSEndpointRegistry(
     ccf::AbstractNodeContext& context, const std::string& kv_prefix) :
     ccf::UserEndpointRegistry(context),
     modules_map(fmt::format("{}.modules", kv_prefix)),
@@ -523,10 +489,7 @@ namespace ccf::js
       fmt::format("{}.modules_quickjs_version", kv_prefix)),
     modules_quickjs_bytecode_map(
       fmt::format("{}.modules_quickjs_bytecode", kv_prefix)),
-    runtime_options_map(fmt::format("{}.runtime_options", kv_prefix)),
-    recent_actions_map(fmt::format("{}.recent_actions", kv_prefix)),
-    audit_input_map(fmt::format("{}.audit.input", kv_prefix)),
-    audit_info_map(fmt::format("{}.audit.info", kv_prefix))
+    runtime_options_map(fmt::format("{}.runtime_options", kv_prefix))
   {
     interpreter_cache =
       context.get_subsystem<ccf::js::AbstractInterpreterCache>();
@@ -566,7 +529,7 @@ namespace ccf::js
       });
   }
 
-  ccf::ApiResult DynamicJSEndpointRegistry::install_custom_endpoints_v1(
+  ccf::ApiResult BaseDynamicJSEndpointRegistry::install_custom_endpoints_v1(
     ccf::kv::Tx& tx, const ccf::js::Bundle& bundle)
   {
     try
@@ -646,7 +609,7 @@ namespace ccf::js
     }
   }
 
-  ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoints_v1(
+  ccf::ApiResult BaseDynamicJSEndpointRegistry::get_custom_endpoints_v1(
     ccf::js::Bundle& bundle, ccf::kv::ReadOnlyTx& tx)
   {
     try
@@ -691,11 +654,12 @@ namespace ccf::js
     }
   }
 
-  ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoint_properties_v1(
-    ccf::endpoints::EndpointProperties& properties,
-    ccf::kv::ReadOnlyTx& tx,
-    const ccf::RESTVerb& verb,
-    const ccf::endpoints::URI& uri)
+  ccf::ApiResult BaseDynamicJSEndpointRegistry::
+    get_custom_endpoint_properties_v1(
+      ccf::endpoints::EndpointProperties& properties,
+      ccf::kv::ReadOnlyTx& tx,
+      const ccf::RESTVerb& verb,
+      const ccf::endpoints::URI& uri)
   {
     try
     {
@@ -720,7 +684,7 @@ namespace ccf::js
     }
   }
 
-  ccf::ApiResult DynamicJSEndpointRegistry::get_custom_endpoint_module_v1(
+  ccf::ApiResult BaseDynamicJSEndpointRegistry::get_custom_endpoint_module_v1(
     std::string& code, ccf::kv::ReadOnlyTx& tx, const std::string& module_name)
   {
     try
@@ -745,13 +709,13 @@ namespace ccf::js
     }
   }
 
-  void DynamicJSEndpointRegistry::set_js_kv_namespace_restriction(
+  void BaseDynamicJSEndpointRegistry::set_js_kv_namespace_restriction(
     const ccf::js::NamespaceRestriction& nr)
   {
     namespace_restriction = nr;
   }
 
-  ccf::ApiResult DynamicJSEndpointRegistry::set_js_runtime_options_v1(
+  ccf::ApiResult BaseDynamicJSEndpointRegistry::set_js_runtime_options_v1(
     ccf::kv::Tx& tx, const ccf::JSRuntimeOptions& options)
   {
     try
@@ -765,7 +729,7 @@ namespace ccf::js
     }
   }
 
-  ccf::ApiResult DynamicJSEndpointRegistry::get_js_runtime_options_v1(
+  ccf::ApiResult BaseDynamicJSEndpointRegistry::get_js_runtime_options_v1(
     ccf::JSRuntimeOptions& options, ccf::kv::ReadOnlyTx& tx)
   {
     try
@@ -782,7 +746,7 @@ namespace ccf::js
     }
   }
 
-  ccf::endpoints::EndpointDefinitionPtr DynamicJSEndpointRegistry::
+  ccf::endpoints::EndpointDefinitionPtr BaseDynamicJSEndpointRegistry::
     find_endpoint(ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx)
   {
     // Look up the endpoint definition
@@ -875,7 +839,7 @@ namespace ccf::js
     return ccf::endpoints::EndpointRegistry::find_endpoint(tx, rpc_ctx);
   }
 
-  void DynamicJSEndpointRegistry::execute_endpoint(
+  void BaseDynamicJSEndpointRegistry::execute_endpoint(
     ccf::endpoints::EndpointDefinitionPtr e,
     ccf::endpoints::EndpointContext& endpoint_ctx)
   {
@@ -890,7 +854,7 @@ namespace ccf::js
     ccf::endpoints::EndpointRegistry::execute_endpoint(e, endpoint_ctx);
   }
 
-  void DynamicJSEndpointRegistry::execute_endpoint_locally_committed(
+  void BaseDynamicJSEndpointRegistry::execute_endpoint_locally_committed(
     ccf::endpoints::EndpointDefinitionPtr e,
     ccf::endpoints::CommandEndpointContext& endpoint_ctx,
     const ccf::TxID& tx_id)
@@ -908,7 +872,7 @@ namespace ccf::js
 
   // Since we do our own dispatch (overriding find_endpoint), make sure we
   // describe those operations in the auto-generated OpenAPI
-  void DynamicJSEndpointRegistry::build_api(
+  void BaseDynamicJSEndpointRegistry::build_api(
     nlohmann::json& document, ccf::kv::ReadOnlyTx& tx)
   {
     ccf::UserEndpointRegistry::build_api(document, tx);
@@ -942,6 +906,40 @@ namespace ccf::js
 
       return true;
     });
+  }
+
+  std::set<RESTVerb> BaseDynamicJSEndpointRegistry::get_allowed_verbs(
+    ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx)
+  {
+    const auto method = rpc_ctx.get_method();
+
+    std::set<RESTVerb> verbs =
+      ccf::endpoints::EndpointRegistry::get_allowed_verbs(tx, rpc_ctx);
+
+    auto endpoints = tx.template ro<ccf::endpoints::EndpointsMap>(metadata_map);
+
+    endpoints->foreach_key([this, &verbs, &method](const auto& key) {
+      const auto opt_spec =
+        ccf::endpoints::PathTemplateSpec::parse(key.uri_path);
+      if (opt_spec.has_value())
+      {
+        const auto& template_spec = opt_spec.value();
+        // This endpoint has templates in its path - now check if template
+        // matches the current request's path
+        std::smatch match;
+        if (std::regex_match(method, match, template_spec.template_regex))
+        {
+          verbs.insert(key.verb);
+        }
+      }
+      else if (key.uri_path == method)
+      {
+        verbs.insert(key.verb);
+      }
+      return true;
+    });
+
+    return verbs;
   }
 
   ccf::ApiResult DynamicJSEndpointRegistry::check_action_not_replayed_v1(
