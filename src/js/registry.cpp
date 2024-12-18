@@ -68,6 +68,14 @@ namespace ccf::js
     const auto flush_marker =
       interpreter_flush->get_version_of_previous_write().value_or(0);
 
+    auto options_opt =
+      endpoint_ctx.tx.ro<ccf::JSEngine>(runtime_options_map)->get();
+    if (options_opt.has_value())
+    {
+      interpreter_cache->set_max_cached_interpreters(
+        options_opt->max_cached_interpreters);
+    }
+
     const auto rw_access =
       endpoint->properties.mode == ccf::endpoints::Mode::ReadWrite ?
       ccf::js::TxAccess::APP_RW :
@@ -160,9 +168,7 @@ namespace ccf::js
     auto request = request_extension->create_request_obj(
       ctx, endpoint->full_uri_path, endpoint_ctx, this);
 
-    auto options = endpoint_ctx.tx.ro<ccf::JSEngine>(runtime_options_map)
-                     ->get()
-                     .value_or(ccf::JSRuntimeOptions());
+    const auto options = options_opt.value_or(ccf::JSRuntimeOptions());
 
     auto val = ctx.call_with_rt_options(
       export_func,
