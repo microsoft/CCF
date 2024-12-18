@@ -31,16 +31,8 @@ namespace ccf::js
   // proposal in governance, and the payload format is currently identical,
   // except the controlling logic resides in the application space.
   //
-  // Known limitations:
-  //
-  // No auditability yet, COSE Sign1 auth is recommended, but the signature is
-  // not stored.
-  // No support for historical endpoints yet.
-  // No support for import from external modules.
-  //
   // Additional functionality compared to set_js_app:
-  //
-  // The KV namespace can be private, to keep the application confidential if
+  // - The KV namespace can be private, to keep the application confidential if
   // desired.
   class DynamicJSEndpointRegistry : public ccf::UserEndpointRegistry
   {
