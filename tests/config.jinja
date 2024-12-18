@@ -54,7 +54,12 @@
     },
     "recover": {
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
-      "previous_service_identity_file": "{{ previous_service_identity_file }}"
+      "previous_service_identity_file": "{{ previous_service_identity_file }}",
+      "cose_signatures":
+      {
+        "issuer": {{ cose_signatures_issuer|tojson }},
+        "subject": {{ cose_signatures_subject|tojson }}
+      }
     }
   },
   "ledger":
