@@ -39,15 +39,6 @@ namespace ccf::js
   private:
     std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache =
       nullptr;
-    std::string modules_map;
-    std::string metadata_map;
-    std::string interpreter_flush_map;
-    std::string modules_quickjs_version_map;
-    std::string modules_quickjs_bytecode_map;
-    std::string runtime_options_map;
-    std::string recent_actions_map;
-    std::string audit_input_map;
-    std::string audit_info_map;
 
     ccf::js::NamespaceRestriction namespace_restriction;
 
@@ -66,6 +57,17 @@ namespace ccf::js
       const CustomJSEndpoint* endpoint,
       ccf::endpoints::CommandEndpointContext& endpoint_ctx,
       const ccf::TxID& tx_id);
+
+  protected:
+    std::string modules_map;
+    std::string metadata_map;
+    std::string interpreter_flush_map;
+    std::string modules_quickjs_version_map;
+    std::string modules_quickjs_bytecode_map;
+    std::string runtime_options_map;
+    std::string recent_actions_map;
+    std::string audit_input_map;
+    std::string audit_info_map;
 
   public:
     DynamicJSEndpointRegistry(
