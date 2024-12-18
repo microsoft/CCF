@@ -291,27 +291,6 @@
         },
         "type": "object"
       },
-      "KeyIdInfo": {
-        "properties": {
-          "cert": {
-            "$ref": "#/components/schemas/Pem"
-          },
-          "issuer": {
-            "$ref": "#/components/schemas/string"
-          }
-        },
-        "required": [
-          "issuer",
-          "cert"
-        ],
-        "type": "object"
-      },
-      "KeyIdInfo_array": {
-        "items": {
-          "$ref": "#/components/schemas/KeyIdInfo"
-        },
-        "type": "array"
-      },
       "MDType": {
         "enum": [
           "NONE",
@@ -800,6 +779,24 @@
       },
       "OpenIDJWKMetadata": {
         "properties": {
+          "constraint": {
+            "$ref": "#/components/schemas/string"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/string"
+          },
+          "public_key": {
+            "$ref": "#/components/schemas/base64string"
+          }
+        },
+        "required": [
+          "issuer",
+          "public_key"
+        ],
+        "type": "object"
+      },
+      "OpenIDJWKMetadataLegacy": {
+        "properties": {
           "cert": {
             "$ref": "#/components/schemas/base64string"
           },
@@ -811,10 +808,16 @@
           }
         },
         "required": [
-          "cert",
-          "issuer"
+          "issuer",
+          "cert"
         ],
         "type": "object"
+      },
+      "OpenIDJWKMetadataLegacy_array": {
+        "items": {
+          "$ref": "#/components/schemas/OpenIDJWKMetadataLegacy"
+        },
+        "type": "array"
       },
       "OpenIDJWKMetadata_array": {
         "items": {
@@ -1222,9 +1225,9 @@
         },
         "type": "object"
       },
-      "string_to_KeyIdInfo_array": {
+      "string_to_OpenIDJWKMetadataLegacy_array": {
         "additionalProperties": {
-          "$ref": "#/components/schemas/KeyIdInfo_array"
+          "$ref": "#/components/schemas/OpenIDJWKMetadataLegacy_array"
         },
         "type": "object"
       },
@@ -1472,31 +1475,6 @@
           }
         }
       ]
-    },
-    "/gov/jwt_keys/all": {
-      "get": {
-        "deprecated": true,
-        "description": "This endpoint is deprecated from 5.0.0. It is replaced by POST /gov/service/jwk",
-        "operationId": "GetGovJwtKeysAll",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/string_to_KeyIdInfo_array"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/always"
-        }
-      }
     },
     "/gov/kv/constitution": {
       "get": {
@@ -1752,6 +1730,31 @@
       "get": {
         "deprecated": true,
         "operationId": "GetGovKvJwtPublicSigningKeysMetadata",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_OpenIDJWKMetadataLegacy_array"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/jwt/public_signing_keys_metadata_v2": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvJwtPublicSigningKeysMetadataV2",
         "responses": {
           "200": {
             "content": {
