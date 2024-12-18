@@ -473,6 +473,40 @@ namespace ccf::js
     ccf::endpoints::default_locally_committed_func(endpoint_ctx, tx_id);
   }
 
+  std::set<RESTVerb> DynamicJSEndpointRegistry::get_allowed_verbs(
+    ccf::kv::Tx& tx, const ccf::RpcContext& rpc_ctx)
+  {
+    const auto method = rpc_ctx.get_method();
+
+    std::set<RESTVerb> verbs =
+      ccf::endpoints::EndpointRegistry::get_allowed_verbs(tx, rpc_ctx);
+
+    auto endpoints = tx.template ro<ccf::endpoints::EndpointsMap>(metadata_map);
+
+    endpoints->foreach_key([this, &verbs, &method](const auto& key) {
+      const auto opt_spec =
+        ccf::endpoints::PathTemplateSpec::parse(key.uri_path);
+      if (opt_spec.has_value())
+      {
+        const auto& template_spec = opt_spec.value();
+        // This endpoint has templates in its path - now check if template
+        // matches the current request's path
+        std::smatch match;
+        if (std::regex_match(method, match, template_spec.template_regex))
+        {
+          verbs.insert(key.verb);
+        }
+      }
+      else if (key.uri_path == method)
+      {
+        verbs.insert(key.verb);
+      }
+      return true;
+    });
+
+    return verbs;
+  }
+
   DynamicJSEndpointRegistry::DynamicJSEndpointRegistry(
     ccf::AbstractNodeContext& context, const std::string& kv_prefix) :
     ccf::UserEndpointRegistry(context),

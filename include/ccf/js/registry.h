@@ -58,6 +58,9 @@ namespace ccf::js
       ccf::endpoints::CommandEndpointContext& endpoint_ctx,
       const ccf::TxID& tx_id);
 
+    std::set<RESTVerb> get_allowed_verbs(
+      ccf::kv::Tx&, const ccf::RpcContext& rpc_ctx) override;
+
   protected:
     std::string modules_map;
     std::string metadata_map;
