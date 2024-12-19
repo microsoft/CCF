@@ -39,6 +39,36 @@ def test_module_import(network, args):
     return network
 
 
+def compare_app_metadata(expected, actual, api_key_renames, route=[]):
+    path = ".".join(route)
+    assert type(expected) == type(
+        actual
+    ), f"Expected same type of values at {path}, found {type(expected)} vs {type(actual)}"
+
+    if isinstance(expected, dict):
+        for orig_k, v_expected in expected.items():
+            k = orig_k
+            if k in api_key_renames:
+                k = api_key_renames[k]
+
+            assert (
+                k in actual
+            ), f"Expected key {k} (normalised from {orig_k}) at {path}, found: {actual}"
+            v_actual = actual[k]
+
+            compare_app_metadata(v_expected, v_actual, api_key_renames, route + [k])
+    else:
+        if not isinstance(expected, list) and expected in api_key_renames:
+            k = api_key_renames[expected]
+            assert (
+                k == actual
+            ), f"Mismatch at {path}, expected {k} (normalised from {expected}) and found {actual}"
+        else:
+            assert (
+                expected == actual
+            ), f"Mismatch at {path}, expected {expected} and found {actual}"
+
+
 @reqs.description("Test module access")
 def test_module_access(network, args):
     primary, _ = network.find_nodes()
@@ -48,8 +78,49 @@ def test_module_access(network, args):
     network.consortium.set_js_app_from_bundle(primary, bundle)
 
     expected_modules = bundle["modules"]
+    expected_metadata = bundle["metadata"]
+
+    http_methods_renamed = {
+        method: method.upper() for method in ("post", "get", "put", "delete")
+    }
+    module_names_prefixed = {
+        module["name"]: f"/{module['name']}"
+        for module in expected_modules
+        if not module["name"].startswith("/")
+    }
+    endpoint_def_camelcased = {
+        "js_module": "jsModule",
+        "js_function": "jsFunction",
+        "forwarding_required": "forwardingRequired",
+        "redirection_strategy": "redirectionStrategy",
+        "authn_policies": "authnPolicies",
+        "openapi": "openApi",
+    }
 
     with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        r = c.get("/gov/service/javascript-app?case=original")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        compare_app_metadata(
+            expected_metadata,
+            r.body.json(),
+            {
+                **http_methods_renamed,
+                **module_names_prefixed,
+            },
+        )
+
+        r = c.get("/gov/service/javascript-app")
+        assert r.status_code == http.HTTPStatus.OK, r.status_code
+        compare_app_metadata(
+            expected_metadata,
+            r.body.json(),
+            {
+                **http_methods_renamed,
+                **module_names_prefixed,
+                **endpoint_def_camelcased,
+            },
+        )
+
         r = c.get("/gov/service/javascript-modules")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
 
