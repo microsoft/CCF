@@ -9,6 +9,10 @@ and this project adheres Fto [Semantic Versioning](http://semver.org/spec/v2.0.0
 
 [6.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev11
 
+### Added
+
+- `GET /gov/service/javascript-app` now takes an optional `?case=original` query argument. When passed, the response will contain the raw original `snake_case` field names, for direct comparison, rather than the API-standard `camelCase` projections.
+
 ### Deprecated
 
 - The function `ccf::get_js_plugins()` and associated FFI plugin system for JS is deprecated. Similar functionality should now be implemented through a `js::Extension` returned from `DynamicJSEndpointRegistry::get_extensions()`.
