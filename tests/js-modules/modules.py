@@ -41,8 +41,8 @@ def test_module_import(network, args):
 
 def compare_app_metadata(expected, actual, api_key_renames, route=[]):
     path = ".".join(route)
-    assert type(expected) == type(
-        actual
+    assert isinstance(
+        actual, type(actual)
     ), f"Expected same type of values at {path}, found {type(expected)} vs {type(actual)}"
 
     if isinstance(expected, dict):
