@@ -19,10 +19,13 @@
 
 namespace ccf::js
 {
+  static constexpr auto default_js_registry_kv_prefix =
+    "public:custom_endpoints";
+
   struct CustomJSEndpoint : public ccf::endpoints::Endpoint
   {};
 
-  // By subclassing DynamicJSEndpointRegistry, an application gains the
+  // By subclassing BaseDynamicJSEndpointRegistry, an application gains the
   // ability to execute custom JavaScript endpoints, and exposes the ability to
   // install them via install_custom_endpoints(). The JavaScript code for these
   // endpoints is stored in the internal KV store under a namespace configured
@@ -31,31 +34,14 @@ namespace ccf::js
   // proposal in governance, and the payload format is currently identical,
   // except the controlling logic resides in the application space.
   //
-  // Known limitations:
-  //
-  // No auditability yet, COSE Sign1 auth is recommended, but the signature is
-  // not stored.
-  // No support for historical endpoints yet.
-  // No support for import from external modules.
-  //
   // Additional functionality compared to set_js_app:
-  //
-  // The KV namespace can be private, to keep the application confidential if
+  // - The KV namespace can be private, to keep the application confidential if
   // desired.
-  class DynamicJSEndpointRegistry : public ccf::UserEndpointRegistry
+  class BaseDynamicJSEndpointRegistry : public ccf::UserEndpointRegistry
   {
   private:
     std::shared_ptr<ccf::js::AbstractInterpreterCache> interpreter_cache =
       nullptr;
-    std::string modules_map;
-    std::string metadata_map;
-    std::string interpreter_flush_map;
-    std::string modules_quickjs_version_map;
-    std::string modules_quickjs_bytecode_map;
-    std::string runtime_options_map;
-    std::string recent_actions_map;
-    std::string audit_input_map;
-    std::string audit_info_map;
 
     ccf::js::NamespaceRestriction namespace_restriction;
 
@@ -75,10 +61,18 @@ namespace ccf::js
       ccf::endpoints::CommandEndpointContext& endpoint_ctx,
       const ccf::TxID& tx_id);
 
+  protected:
+    std::string modules_map;
+    std::string metadata_map;
+    std::string interpreter_flush_map;
+    std::string modules_quickjs_version_map;
+    std::string modules_quickjs_bytecode_map;
+    std::string runtime_options_map;
+
   public:
-    DynamicJSEndpointRegistry(
+    BaseDynamicJSEndpointRegistry(
       ccf::AbstractNodeContext& context,
-      const std::string& kv_prefix = "public:custom_endpoints");
+      const std::string& kv_prefix = default_js_registry_kv_prefix);
 
     /**
      * Call this to populate the KV with JS endpoint definitions, so they can
@@ -133,6 +127,54 @@ namespace ccf::js
      */
     ccf::ApiResult get_js_runtime_options_v1(
       ccf::JSRuntimeOptions& options, ccf::kv::ReadOnlyTx& tx);
+    /// \defgroup Overrides for base EndpointRegistry functions, looking up JS
+    /// endpoints before delegating to base implementation.
+    ///@{
+    ccf::endpoints::EndpointDefinitionPtr find_endpoint(
+      ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx) override;
+
+    void execute_endpoint(
+      ccf::endpoints::EndpointDefinitionPtr e,
+      ccf::endpoints::EndpointContext& endpoint_ctx) override;
+
+    void execute_endpoint_locally_committed(
+      ccf::endpoints::EndpointDefinitionPtr e,
+      ccf::endpoints::CommandEndpointContext& endpoint_ctx,
+      const ccf::TxID& tx_id) override;
+
+    void build_api(nlohmann::json& document, ccf::kv::ReadOnlyTx& tx) override;
+
+    std::set<RESTVerb> get_allowed_verbs(
+      ccf::kv::Tx&, const ccf::RpcContext& rpc_ctx) override;
+    ///@}
+
+    virtual ccf::js::extensions::Extensions get_extensions(
+      const ccf::endpoints::EndpointContext& endpoint_ctx)
+    {
+      return {};
+    };
+  };
+
+  // Extends BaseDynamicJSEndpointRegistry with methods for making actions
+  // auditable and preventing replay. These should be used if apps are not
+  // deployed through governance, to ensure that app-modification is safely and
+  // clearly tracked in the ledger history
+  class DynamicJSEndpointRegistry : public BaseDynamicJSEndpointRegistry
+  {
+  protected:
+    std::string recent_actions_map;
+    std::string audit_input_map;
+    std::string audit_info_map;
+
+  public:
+    DynamicJSEndpointRegistry(
+      ccf::AbstractNodeContext& context,
+      const std::string& kv_prefix = default_js_registry_kv_prefix) :
+      BaseDynamicJSEndpointRegistry(context, kv_prefix),
+      recent_actions_map(fmt::format("{}.recent_actions", kv_prefix)),
+      audit_input_map(fmt::format("{}.audit.input", kv_prefix)),
+      audit_info_map(fmt::format("{}.audit.info", kv_prefix))
+    {}
 
     /**
      * Record action details by storing them in KV maps using a common format,
@@ -155,29 +197,5 @@ namespace ccf::js
       uint64_t created_at,
       const std::span<const uint8_t> action,
       ccf::InvalidArgsReason& reason);
-
-    /// \defgroup Overrides for base EndpointRegistry functions, looking up JS
-    /// endpoints before delegating to base implementation.
-    ///@{
-    ccf::endpoints::EndpointDefinitionPtr find_endpoint(
-      ccf::kv::Tx& tx, ccf::RpcContext& rpc_ctx) override;
-
-    void execute_endpoint(
-      ccf::endpoints::EndpointDefinitionPtr e,
-      ccf::endpoints::EndpointContext& endpoint_ctx) override;
-
-    void execute_endpoint_locally_committed(
-      ccf::endpoints::EndpointDefinitionPtr e,
-      ccf::endpoints::CommandEndpointContext& endpoint_ctx,
-      const ccf::TxID& tx_id) override;
-
-    void build_api(nlohmann::json& document, ccf::kv::ReadOnlyTx& tx) override;
-    ///@}
-
-    virtual ccf::js::extensions::Extensions get_extensions(
-      const ccf::endpoints::EndpointContext& endpoint_ctx)
-    {
-      return {};
-    };
   };
 }
