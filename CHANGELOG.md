@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.0-dev11]
+
+[6.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev11
+
+### Added
+
+- Applications can now extend `js_generic` (ie - a JS app where JS endpoints are edited by governance transactions), from the public header `ccf/js/samples/governance_driven_registry.h`. The API for existing JS-programmability apps using `DynamicJSEndpointRegistry` should be unaffected.
+
 ## [6.0.0-dev10]
 
 [6.0.0-dev10]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev10
