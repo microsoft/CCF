@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include <crypto/openssl/cose_sign.h>
 #include <qcbor/qcbor.h>
+#include <qcbor/qcbor_spiffy_decode.h>
 #include <stdexcept>
 #include <string>
 #include <t_cose/t_cose_common.h>
@@ -58,4 +60,127 @@ namespace ccf::cose
     {}
   };
 
+  static std::string tstring_to_string(QCBORItem& item)
+  {
+    return {
+      static_cast<const char*>(item.val.string.ptr),
+      static_cast<const char*>(item.val.string.ptr) + item.val.string.len};
+  }
+
+  static std::pair<std::string /* issuer */, std::string /* subject */>
+  extract_iss_sub_from_sig(const std::vector<uint8_t>& cose_sign1)
+  {
+    QCBORError qcbor_result;
+    QCBORDecodeContext ctx;
+    UsefulBufC buf{cose_sign1.data(), cose_sign1.size()};
+    QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
+
+    QCBORDecode_EnterArray(&ctx, nullptr);
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      throw COSEDecodeError("Failed to parse COSE_Sign1 outer array");
+    }
+
+    uint64_t tag = QCBORDecode_GetNthTagOfLast(&ctx, 0);
+    if (tag != CBOR_TAG_COSE_SIGN1)
+    {
+      throw COSEDecodeError("COSE_Sign1 is not tagged");
+    }
+
+    QCBORDecode_EnterBstrWrapped(&ctx, QCBOR_TAG_REQUIREMENT_NOT_A_TAG, NULL);
+    QCBORDecode_EnterMap(&ctx, NULL);
+
+    enum
+    {
+      ALG_INDEX,
+      KID_INDEX,
+      CWT_CLAIMS_INDEX,
+      END_INDEX,
+    };
+    QCBORItem header_items[END_INDEX + 1];
+
+    header_items[ALG_INDEX].label.int64 = headers::PARAM_ALG;
+    header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
+    header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
+
+    header_items[KID_INDEX].label.int64 = headers::PARAM_KID;
+    header_items[KID_INDEX].uLabelType = QCBOR_TYPE_INT64;
+    header_items[KID_INDEX].uDataType = QCBOR_TYPE_BYTE_STRING;
+
+    header_items[CWT_CLAIMS_INDEX].label.int64 = crypto::COSE_PHEADER_KEY_CWT;
+    header_items[CWT_CLAIMS_INDEX].uLabelType = QCBOR_TYPE_INT64;
+    header_items[CWT_CLAIMS_INDEX].uDataType = QCBOR_TYPE_MAP;
+
+    enum
+    {
+      CWT_ISS_INDEX,
+      CWT_SUB_INDEX,
+      CWT_IAT_INDEX,
+      CWT_END_INDEX,
+    };
+    QCBORItem cwt_items[CWT_END_INDEX + 1];
+
+    cwt_items[CWT_ISS_INDEX].label.int64 = crypto::COSE_PHEADER_KEY_ISS;
+    cwt_items[CWT_ISS_INDEX].uLabelType = QCBOR_TYPE_INT64;
+    cwt_items[CWT_ISS_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+    cwt_items[CWT_SUB_INDEX].label.int64 = crypto::COSE_PHEADER_KEY_SUB;
+    cwt_items[CWT_SUB_INDEX].uLabelType = QCBOR_TYPE_INT64;
+    cwt_items[CWT_SUB_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
+
+    cwt_items[CWT_IAT_INDEX].label.int64 = crypto::COSE_PHEADER_KEY_IAT;
+    cwt_items[CWT_IAT_INDEX].uLabelType = QCBOR_TYPE_INT64;
+    cwt_items[CWT_IAT_INDEX].uDataType = QCBOR_TYPE_DATE_EPOCH;
+
+    cwt_items[CWT_END_INDEX].uLabelType = QCBOR_TYPE_NONE;
+
+    header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
+
+    QCBORDecode_GetItemsInMap(&ctx, header_items);
+
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      throw COSEDecodeError(
+        fmt::format("Failed to decode protected header: {}", qcbor_result));
+    }
+
+    if (header_items[CWT_CLAIMS_INDEX].uDataType != QCBOR_TYPE_NONE)
+    {
+      QCBORDecode_EnterMapFromMapN(&ctx, crypto::COSE_PHEADER_KEY_CWT);
+      auto decode_error = QCBORDecode_GetError(&ctx);
+      if (decode_error != QCBOR_SUCCESS)
+      {
+        throw COSEDecodeError(
+          fmt::format("Failed to decode CWT claims: {}", decode_error));
+      }
+
+      QCBORDecode_GetItemsInMap(&ctx, cwt_items);
+      decode_error = QCBORDecode_GetError(&ctx);
+      if (decode_error != QCBOR_SUCCESS)
+      {
+        throw COSEDecodeError(
+          fmt::format("Failed to decode CWT claim contents: {}", decode_error));
+      }
+
+      if (
+        cwt_items[CWT_ISS_INDEX].uDataType != QCBOR_TYPE_NONE &&
+        cwt_items[CWT_SUB_INDEX].uDataType != QCBOR_TYPE_NONE)
+      {
+        auto issuer = tstring_to_string(cwt_items[CWT_ISS_INDEX]);
+        auto subject = tstring_to_string(cwt_items[CWT_SUB_INDEX]);
+        return {issuer, subject};
+      }
+      else
+      {
+        throw COSEDecodeError(
+          "Missing issuer and subject values in CWT Claims in COSE_Sign1");
+      }
+    }
+    else
+    {
+      throw COSEDecodeError("Missing CWT claims in COSE_Sign1");
+    }
+  }
 }
