@@ -144,6 +144,9 @@ function checkJwks(value, field) {
     } else if (jwk.n && jwk.e) {
       checkType(jwk.n, "string", `${field}.keys[${i}].n`);
       checkType(jwk.e, "string", `${field}.keys[${i}].e`);
+    } else if (jwk.x && jwk.y) {
+      checkType(jwk.x, "string", `${field}.keys[${i}].x`);
+      checkType(jwk.y, "string", `${field}.keys[${i}].y`);
     } else {
       throw new Error("JWK must contain either x5c or n and e");
     }

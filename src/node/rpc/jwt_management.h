@@ -15,59 +15,123 @@
 
 namespace
 {
+  std::vector<uint8_t> try_get_raw_rsa_key(
+    const ccf::crypto::JsonWebKeyExtended& jwk)
+  {
+    if (!jwk.e || jwk.e->empty() || !jwk.n || jwk.n->empty())
+    {
+      return {};
+    }
+
+    std::vector<uint8_t> der;
+    ccf::crypto::JsonWebKeyRSAPublic data;
+    data.kty = ccf::crypto::JsonWebKeyType::RSA;
+    data.kid = jwk.kid.value();
+    data.n = jwk.n.value();
+    data.e = jwk.e.value();
+    try
+    {
+      const auto pubkey = ccf::crypto::make_rsa_public_key(data);
+      return pubkey->public_key_der();
+    }
+    catch (const std::invalid_argument& exc)
+    {
+      throw std::logic_error(
+        fmt::format("Failed to construct RSA public key: {}", exc.what()));
+    }
+  }
+
+  std::vector<uint8_t> try_parse_raw_ec(
+    const ccf::crypto::JsonWebKeyExtended& jwk)
+  {
+    LOG_INFO_FMT(
+      "Parsing EC key {} x: {} y: {} crv: {}",
+      jwk.kid.value_or("FUCK"),
+      jwk.x.value_or("FUCK"),
+      jwk.y.value_or("FUCK"),
+      jwk.crv.value_or("FUCK"));
+    if (
+      !jwk.x || jwk.x->empty() || !jwk.y || jwk.y->empty() || !jwk.crv ||
+      jwk.crv->empty())
+    {
+      return {};
+    }
+
+    LOG_INFO_FMT("Parsing EC key further {}", jwk.kid.value());
+    std::vector<uint8_t> der;
+    ccf::crypto::JsonWebKeyECPublic data;
+    data.kty = ccf::crypto::JsonWebKeyType::EC;
+    data.kid = jwk.kid.value();
+    data.crv = ccf::crypto::JsonWebKeyECCurve::P256; // TO DO
+    data.x = jwk.x.value();
+    data.y = jwk.y.value();
+    try
+    {
+      LOG_INFO_FMT("Parsing EC key try {}", jwk.kid.value());
+      const auto pubkey = ccf::crypto::make_public_key(data);
+      LOG_INFO_FMT("Parsing EC key success {}", jwk.kid.value());
+      return pubkey->public_key_der();
+    }
+    catch (const std::invalid_argument& exc)
+    {
+      LOG_INFO_FMT("Parsing EC key bad {} err {}", jwk.kid.value(), exc.what());
+      throw std::logic_error(
+        fmt::format("Failed to construct EC public key: {}", exc.what()));
+    }
+  }
+
+  std::vector<uint8_t> try_parse_x5c(const ccf::crypto::JsonWebKeyExtended& jwk)
+  {
+    if (!jwk.x5c || jwk.x5c->empty())
+    {
+      return {};
+    }
+
+    const auto& kid = jwk.kid.value();
+    auto& der_base64 = jwk.x5c.value()[0];
+    ccf::Cert der;
+    try
+    {
+      der = ccf::crypto::raw_from_b64(der_base64);
+    }
+    catch (const std::invalid_argument& e)
+    {
+      throw std::logic_error(
+        fmt::format("Could not parse x5c of key id {}: {}", kid, e.what()));
+    }
+    try
+    {
+      auto verifier = ccf::crypto::make_unique_verifier(der);
+      return verifier->public_key_der();
+    }
+    catch (std::invalid_argument& exc)
+    {
+      throw std::logic_error(fmt::format(
+        "JWKS kid {} has an invalid X.509 certificate: {}", kid, exc.what()));
+    }
+  }
+
   std::vector<uint8_t> try_parse_jwk(const ccf::crypto::JsonWebKeyExtended& jwk)
   {
     const auto& kid = jwk.kid.value();
-    if (
-      jwk.e.has_value() && !jwk.e->empty() && jwk.n.has_value() &&
-      !jwk.n->empty())
+    auto key = try_get_raw_rsa_key(jwk);
+    if (!key.empty())
     {
-      std::vector<uint8_t> der;
-      ccf::crypto::JsonWebKeyRSAPublic data;
-      data.kty = ccf::crypto::JsonWebKeyType::RSA;
-      data.kid = jwk.kid;
-      data.n = jwk.n.value();
-      data.e = jwk.e.value();
-      try
-      {
-        const auto pubkey = ccf::crypto::make_rsa_public_key(data);
-        return pubkey->public_key_der();
-      }
-      catch (const std::invalid_argument& exc)
-      {
-        throw std::logic_error(
-          fmt::format("Failed to construct RSA public key: {}", exc.what()));
-      }
+      return key;
     }
-    else if (jwk.x5c.has_value() && !jwk.x5c->empty())
+    key = try_parse_raw_ec(jwk);
+    if (!key.empty())
     {
-      auto& der_base64 = jwk.x5c.value()[0];
-      ccf::Cert der;
-      try
-      {
-        der = ccf::crypto::raw_from_b64(der_base64);
-      }
-      catch (const std::invalid_argument& e)
-      {
-        throw std::logic_error(
-          fmt::format("Could not parse x5c of key id {}: {}", kid, e.what()));
-      }
-      try
-      {
-        auto verifier = ccf::crypto::make_unique_verifier(der);
-        return verifier->public_key_der();
-      }
-      catch (std::invalid_argument& exc)
-      {
-        throw std::logic_error(fmt::format(
-          "JWKS kid {} has an invalid X.509 certificate: {}", kid, exc.what()));
-      }
+      return key;
     }
-    else
+    key = try_parse_x5c(jwk);
+    if (!key.empty())
     {
-      throw std::logic_error(
-        fmt::format("JWKS kid {} has neither x5c or RSA public key", kid));
+      return key;
     }
+
+    throw std::logic_error(
+      fmt::format("JWKS kid {} has neither RSA/EC public key or x5c", kid));
   }
 }
 

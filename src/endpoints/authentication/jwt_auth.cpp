@@ -3,6 +3,7 @@
 
 #include "ccf/endpoints/authentication/jwt_auth.h"
 
+#include "ccf/crypto/public_key.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/pal/locking.h"
@@ -89,21 +90,78 @@ namespace ccf
 
     using DER = std::vector<uint8_t>;
     ccf::pal::Mutex keys_lock;
-    LRU<DER, ccf::crypto::RSAPublicKeyPtr> keys;
+    LRU<
+      DER,
+      std::variant<ccf::crypto::RSAPublicKeyPtr, ccf::crypto::PublicKeyPtr>>
+      keys;
 
     PublicKeysCache(size_t max_keys = DEFAULT_MAX_KEYS) : keys(max_keys) {}
 
-    ccf::crypto::RSAPublicKeyPtr get_key(const DER& der)
+    bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* signature,
+      size_t signature_size,
+      const DER& der)
     {
       std::lock_guard<ccf::pal::Mutex> guard(keys_lock);
 
+      LOG_INFO_FMT("PATTERN key lookup");
       auto it = keys.find(der);
       if (it == keys.end())
       {
-        it = keys.insert(der, ccf::crypto::make_rsa_public_key(der));
+        try
+        {
+          LOG_INFO_FMT("PATTERN key try insert RSA");
+          it = keys.insert(der, ccf::crypto::make_rsa_public_key(der));
+          LOG_INFO_FMT("PATTERN key try insert RSA: GOOD");
+        }
+        catch (const std::exception&)
+        {
+          LOG_INFO_FMT("PATTERN key try insert EC");
+          it = keys.insert(der, ccf::crypto::make_public_key(der));
+          LOG_INFO_FMT("PATTERN key try insert GOOD");
+        }
       }
 
-      return it->second;
+      if (std::holds_alternative<ccf::crypto::RSAPublicKeyPtr>(it->second))
+      {
+        LOG_INFO_FMT("PATTERN key try verify RSA");
+        // Obsolote PKCS1 padding is chosen for JWT, as explained in details in
+        // https://github.com/microsoft/CCF/issues/6601#issuecomment-2512059875.
+        return std::get<ccf::crypto::RSAPublicKeyPtr>(it->second)
+          ->verify_pkcs1(
+            contents,
+            contents_size,
+            signature,
+            signature_size,
+            ccf::crypto::MDType::SHA256);
+      }
+      else if (std::holds_alternative<ccf::crypto::PublicKeyPtr>(it->second))
+      {
+        LOG_INFO_FMT(
+          "PATTERN key try verify EC PEM: {}",
+          std::get<ccf::crypto::PublicKeyPtr>(it->second)
+            ->public_key_pem()
+            .str());
+        LOG_INFO_FMT(
+          "contents: {}", ccf::crypto::b64_from_raw(contents, contents_size));
+        LOG_INFO_FMT(
+          "signature: {}",
+          ccf::crypto::b64_from_raw(signature, signature_size));
+        return std::get<ccf::crypto::PublicKeyPtr>(it->second)
+          ->verify(
+            contents,
+            contents_size,
+            signature,
+            signature_size,
+            ccf::crypto::MDType::SHA256);
+      }
+      else
+      {
+        LOG_INFO_FMT("PATTERN key try verify NOTHING");
+        return false;
+      }
     }
   };
 
@@ -191,15 +249,12 @@ namespace ccf
 
     for (const auto& metadata : *token_keys)
     {
-      const auto pubkey = keys_cache->get_key(metadata.public_key);
-      // Obsolote PKCS1 padding is chosen for JWT, as explained in details here:
-      // https://github.com/microsoft/CCF/issues/6601#issuecomment-2512059875.
-      if (!pubkey->verify_pkcs1(
+      if (!keys_cache->verify(
             (uint8_t*)token.signed_content.data(),
             token.signed_content.size(),
             token.signature.data(),
             token.signature.size(),
-            ccf::crypto::MDType::SHA256))
+            metadata.public_key))
       {
         error_reason = "Signature verification failed";
         continue;

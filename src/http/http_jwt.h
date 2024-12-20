@@ -16,9 +16,13 @@ namespace http
 {
   enum class JwtCryptoAlgorithm
   {
-    RS256
+    RS256,
+    ES256,
   };
-  DECLARE_JSON_ENUM(JwtCryptoAlgorithm, {{JwtCryptoAlgorithm::RS256, "RS256"}});
+  DECLARE_JSON_ENUM(
+    JwtCryptoAlgorithm,
+    {{JwtCryptoAlgorithm::RS256, "RS256"},
+     {JwtCryptoAlgorithm::ES256, "ES256"}});
 
   struct JwtHeader
   {

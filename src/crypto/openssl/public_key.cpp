@@ -212,19 +212,24 @@ namespace ccf::crypto
     size_t sig_size,
     MDType md_type)
   {
+    LOG_INFO_FMT("PATTERN VERIFY HASH CHECK");
     if (md_type == MDType::NONE)
     {
+      LOG_INFO_FMT("PATTERN VERIFY HASH CHECK set md");
       md_type = get_md_for_ec(get_curve_id());
     }
 
     Unique_EVP_PKEY_CTX pctx(key);
     OpenSSL::CHECK1(EVP_PKEY_verify_init(pctx));
+    LOG_INFO_FMT("PATTERN VERIFY HASH CHECK init");
     if (md_type != MDType::NONE)
     {
       OpenSSL::CHECK1(
         EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
+      LOG_INFO_FMT("PATTERN VERIFY HASH CHECK md set");
     }
     int rc = EVP_PKEY_verify(pctx, sig, sig_size, hash, hash_size);
+    LOG_INFO_FMT("PATTERN VERIFY HASH CHECK rc: {}", rc);
 
     bool ok = rc == 1;
     if (!ok)
@@ -233,6 +238,7 @@ namespace ccf::crypto
       LOG_DEBUG_FMT(
         "OpenSSL signature verification failure: {}",
         OpenSSL::error_string(ec));
+      std::cout << "ERR: " << OpenSSL::error_string(ec) << std::endl;
     }
 
     return ok;

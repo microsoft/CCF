@@ -136,7 +136,11 @@ class JwtIssuer:
     TEST_CA_BUNDLE_NAME = "test_ca_bundle_name"
 
     def _generate_cert(self, cn=None):
-        key_priv, key_pub = infra.crypto.generate_rsa_keypair(2048)
+        key_priv, key_pub = (
+            infra.crypto.generate_rsa_keypair(2048)
+            if not self._use_ec_keys
+            else infra.crypto.generate_ec_keypair()
+        )
         cert = infra.crypto.generate_cert(key_priv, cn=cn)
         return (key_priv, key_pub), cert
 
@@ -147,6 +151,7 @@ class JwtIssuer:
         refresh_interval=3,
         cn=None,
         use_raw_keys=True,
+        use_ec_keys=False,
     ):
         self.name = name
         self.default_kid = f"{uuid.uuid4()}"
@@ -155,10 +160,12 @@ class JwtIssuer:
         # Auto-refresh ON if issuer name starts with "https://"
         self.auto_refresh = self.name.startswith("https://")
         stripped_host = self.name[len("https://") :] if self.auto_refresh else None
+
+        self._use_raw_keys = use_raw_keys
+        self._use_ec_keys = use_ec_keys
         (self.tls_priv, _), self.tls_cert = self._generate_cert(
             cn or stripped_host or name
         )
-        self._use_raw_keys = use_raw_keys
         if not cert:
             self.refresh_keys()
         else:
@@ -167,7 +174,10 @@ class JwtIssuer:
     def public_key_numbers(self):
         cert = load_pem_x509_certificate(self.cert_pem.encode(), default_backend())
         pubkey = cert.public_key()
-        return to_b64(pubkey.public_numbers().n), to_b64(pubkey.public_numbers().e)
+        if self._use_ec_keys:
+            return to_b64(pubkey.public_numbers().x), to_b64(pubkey.public_numbers().y)
+        else:
+            return to_b64(pubkey.public_numbers().n), to_b64(pubkey.public_numbers().e)
 
     @property
     def issuer_url(self):
@@ -259,7 +269,8 @@ class JwtIssuer:
             claims["exp"] = now + 3600
         if "iss" not in claims:
             claims["iss"] = self.name
-        return infra.crypto.create_jwt(claims, self.key_priv_pem, kid_)
+        alg = "RS256" if not self._use_ec_keys else "ES256"
+        return infra.crypto.create_jwt(claims, self.key_priv_pem, kid_, alg)
 
     def wait_for_refresh(self, network, args, kid=None):
         timeout = self.refresh_interval * 3

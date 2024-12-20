@@ -54,6 +54,16 @@ namespace ccf::crypto
       auto msg = OpenSSL::error_string(ec);
       throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
     }
+
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    if (!key || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+#else
+    if (!key || !EVP_PKEY_get0_RSA(key))
+#endif
+    {
+      throw std::logic_error("invalid RSA key");
+    }
+    LOG_INFO_FMT("Constructing RSA public key success");
   }
 
   std::pair<Unique_BIGNUM, Unique_BIGNUM> get_modulus_and_exponent(
