@@ -53,6 +53,18 @@ and this project adheres Fto [Semantic Versioning](http://semver.org/spec/v2.0.0
 - All definitions in CCF's public headers are now under the `ccf::` namespace. Any application code which references any of these types directly (notably `StartupConfig`, `http_status`, `LoggerLevel`), they will now need to be prefixed with the `ccf::` namespace.
 - `cchost` now requires `--config`.
 
+### Removed
+
+- Previously deprecated `/gov/jwt_keys/all` has been removed. The `/gov/service/jwk` endpoint to be used instead.
+
+### Changed
+
+- JWT authentication now supports raw public keys along with certificates (#6601).
+  - Public key information ('n' and 'e' claims) now have a priority if defined in JWK set, 'x5c' remains as a backup option.
+  - Has same side-effects as #5809 does please see the changelog entry for that change for more details. In short:
+    - stale JWKs may be used for JWT validation on older nodes during the upgrade.
+    - old tables are not cleaned up, #6222 is tracking those.
+
 ## [6.0.0-dev7]
 
 [6.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev7

@@ -84,6 +84,13 @@ namespace ccf::crypto
       MDType md_type = MDType::NONE,
       size_t salt_legth = 0) = 0;
 
+    virtual bool verify_pkcs1(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* signature,
+      size_t signature_size,
+      MDType md_type = MDType::NONE) = 0;
+
     struct Components
     {
       std::vector<uint8_t> n;

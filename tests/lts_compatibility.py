@@ -221,7 +221,9 @@ def run_code_upgrade_from(
     service_subject_name = "CN=LTS custom service name"
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
-        "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
+        "https://localhost",
+        refresh_interval=args.jwt_key_refresh_interval_s,
+        use_raw_keys=False,
     )
     with jwt_issuer.start_openid_server():
         txs = app.LoggingTxs(jwt_issuer=jwt_issuer)
@@ -481,7 +483,9 @@ def run_ledger_compatibility_since_first(args, local_branch, use_snapshot):
     snapshots_dir = None
 
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
-        "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
+        "https://localhost",
+        refresh_interval=args.jwt_key_refresh_interval_s,
+        use_raw_keys=False,
     )
     previous_version = None
     with jwt_issuer.start_openid_server():

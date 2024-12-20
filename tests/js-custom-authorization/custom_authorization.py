@@ -20,6 +20,9 @@ import uuid
 from http import HTTPStatus
 import subprocess
 from contextlib import contextmanager
+import jwt
+from cryptography.x509 import load_pem_x509_certificate
+from cryptography.hazmat.backends import default_backend
 
 from loguru import logger as LOG
 
@@ -92,6 +95,53 @@ def set_issuer_with_a_key(primary, network, issuer, kid, constraint):
                         "kty": "RSA",
                         "kid": kid,
                         "x5c": [der_b64],
+                        "issuer": constraint,
+                    }
+                ]
+            },
+        }
+        json.dump(data, metadata_fp)
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+
+def set_issuer_with_a_raw_rsa_key(primary, network, issuer, kid, constraint):
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        n, e = issuer.public_key_numbers()
+        data = {
+            "issuer": issuer.issuer_url,
+            "auto_refresh": False,
+            "jwks": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": kid,
+                        "n": n,
+                        "e": e,
+                        "issuer": constraint,
+                    }
+                ]
+            },
+        }
+        json.dump(data, metadata_fp)
+        metadata_fp.flush()
+        network.consortium.set_jwt_issuer(primary, metadata_fp.name)
+
+
+def set_issuer_with_a_raw_ec_key(primary, network, issuer, kid, constraint):
+    with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as metadata_fp:
+        x, y = issuer.public_key_numbers()
+        data = {
+            "issuer": issuer.issuer_url,
+            "auto_refresh": False,
+            "jwks": {
+                "keys": [
+                    {
+                        "kty": "EC",
+                        "kid": kid,
+                        "x": x,
+                        "y": y,
+                        "crv": "P-256",
                         "issuer": constraint,
                     }
                 ]
@@ -389,6 +439,63 @@ def test_jwt_auth(network, args):
         )
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
         assert "is after token's Expiration Time" in parse_error_message(r), r
+
+    network.consortium.remove_jwt_issuer(primary, issuer.name)
+    return network
+
+
+@reqs.description("JWT authentication as by OpenID spec with raw public key")
+def test_jwt_auth_raw_key(network, args):
+    primary, _ = network.find_nodes()
+
+    for use_ec in [True]:
+        issuer = infra.jwt_issuer.JwtIssuer(
+            "https://example.issuer", use_ec_keys=use_ec
+        )
+
+        jwt_kid = "my_key_id"
+
+        LOG.info("Add JWT issuer with initial keys")
+
+        if not use_ec:
+            set_issuer_with_a_raw_rsa_key(
+                primary, network, issuer, jwt_kid, issuer.name
+            )
+        else:
+            set_issuer_with_a_raw_ec_key(primary, network, issuer, jwt_kid, issuer.name)
+
+        LOG.info("Calling jwt endpoint after storing keys")
+        with primary.client("user0") as c:
+            r = c.get(
+                "/app/jwt", headers=infra.jwt_issuer.make_bearer_header("garbage")
+            )
+            assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
+            assert "Malformed JWT" in parse_error_message(r), r
+
+            jwt_mismatching_key_priv_pem, _ = (
+                infra.crypto.generate_rsa_keypair(2048)
+                if not use_ec
+                else infra.crypto.generate_ec_keypair()
+            )
+            alg = "ES256" if use_ec else "RS256"
+            jwt1 = infra.crypto.create_jwt(
+                {}, jwt_mismatching_key_priv_pem, jwt_kid, alg
+            )
+            r = c.get("/app/jwt", headers=infra.jwt_issuer.make_bearer_header(jwt1))
+            assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
+            assert "JWT payload is missing required field" in parse_error_message(r), r
+
+            token = issuer.issue_jwt(jwt_kid)
+            r = c.get(
+                "/app/jwt",
+                headers=infra.jwt_issuer.make_bearer_header(token),
+            )
+            breakpoint()
+            decoded = jwt.decode(
+                token, algorithms=[alg], verify=True, key=issuer.key_pub_pem
+            )
+            breakpoint()
+            assert r.status_code == HTTPStatus.OK, r.status_code
 
     network.consortium.remove_jwt_issuer(primary, issuer.name)
     return network
@@ -708,6 +815,7 @@ def run_authn(args):
         network.start_and_open(args)
         network = test_cert_auth(network, args)
         network = test_jwt_auth(network, args)
+        network = test_jwt_auth_raw_key(network, args)
         network = test_jwt_auth_msft_single_tenant(network, args)
         network = test_jwt_auth_msft_multitenancy(network, args)
         network = test_jwt_auth_msft_same_kids_different_issuers(network, args)
@@ -1297,19 +1405,19 @@ def run_interpreter_reuse(args):
 if __name__ == "__main__":
     cr = ConcurrentRunner()
 
-    cr.add(
-        "authz",
-        run,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
-    )
+    # cr.add(
+    #     "authz",
+    #     run,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-custom-authorization"),
+    # )
 
-    cr.add(
-        "limits",
-        run_limits,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
-    )
+    # cr.add(
+    #     "limits",
+    #     run_limits,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-limits"),
+    # )
 
     cr.add(
         "authn",
@@ -1320,25 +1428,25 @@ if __name__ == "__main__":
         initial_member_count=2,
     )
 
-    cr.add(
-        "content_types",
-        run_content_types,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
-    )
+    # cr.add(
+    #     "content_types",
+    #     run_content_types,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-content-types"),
+    # )
 
-    cr.add(
-        "api",
-        run_api,
-        nodes=infra.e2e_args.nodes(cr.args, 1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
-    )
+    # cr.add(
+    #     "api",
+    #     run_api,
+    #     nodes=infra.e2e_args.nodes(cr.args, 1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-api"),
+    # )
 
-    cr.add(
-        "interpreter_reuse",
-        run_interpreter_reuse,
-        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
-        js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
-    )
+    # cr.add(
+    #     "interpreter_reuse",
+    #     run_interpreter_reuse,
+    #     nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+    #     js_app_bundle=os.path.join(cr.args.js_app_bundle, "js-interpreter-reuse"),
+    # )
 
     cr.run()

@@ -3,6 +3,8 @@
 
 #include "ccf/endpoints/authentication/jwt_auth.h"
 
+#include "ccf/crypto/public_key.h"
+#include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
@@ -82,34 +84,89 @@ namespace ccf
     return tenant_id && tid && *tid == *tenant_id;
   }
 
-  struct VerifiersCache
+  struct PublicKeysCache
   {
-    static constexpr size_t DEFAULT_MAX_VERIFIERS = 10;
+    static constexpr size_t DEFAULT_MAX_KEYS = 10;
 
     using DER = std::vector<uint8_t>;
-    ccf::pal::Mutex verifiers_lock;
-    LRU<DER, ccf::crypto::VerifierPtr> verifiers;
+    ccf::pal::Mutex keys_lock;
+    LRU<
+      DER,
+      std::variant<ccf::crypto::RSAPublicKeyPtr, ccf::crypto::PublicKeyPtr>>
+      keys;
 
-    VerifiersCache(size_t max_verifiers = DEFAULT_MAX_VERIFIERS) :
-      verifiers(max_verifiers)
-    {}
+    PublicKeysCache(size_t max_keys = DEFAULT_MAX_KEYS) : keys(max_keys) {}
 
-    ccf::crypto::VerifierPtr get_verifier(const DER& der)
+    bool verify(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* signature,
+      size_t signature_size,
+      const DER& der)
     {
-      std::lock_guard<ccf::pal::Mutex> guard(verifiers_lock);
+      std::lock_guard<ccf::pal::Mutex> guard(keys_lock);
 
-      auto it = verifiers.find(der);
-      if (it == verifiers.end())
+      LOG_INFO_FMT("PATTERN key lookup");
+      auto it = keys.find(der);
+      if (it == keys.end())
       {
-        it = verifiers.insert(der, ccf::crypto::make_unique_verifier(der));
+        try
+        {
+          LOG_INFO_FMT("PATTERN key try insert RSA");
+          it = keys.insert(der, ccf::crypto::make_rsa_public_key(der));
+          LOG_INFO_FMT("PATTERN key try insert RSA: GOOD");
+        }
+        catch (const std::exception&)
+        {
+          LOG_INFO_FMT("PATTERN key try insert EC");
+          it = keys.insert(der, ccf::crypto::make_public_key(der));
+          LOG_INFO_FMT("PATTERN key try insert GOOD");
+        }
       }
 
-      return it->second;
+      if (std::holds_alternative<ccf::crypto::RSAPublicKeyPtr>(it->second))
+      {
+        LOG_INFO_FMT("PATTERN key try verify RSA");
+        // Obsolote PKCS1 padding is chosen for JWT, as explained in details in
+        // https://github.com/microsoft/CCF/issues/6601#issuecomment-2512059875.
+        return std::get<ccf::crypto::RSAPublicKeyPtr>(it->second)
+          ->verify_pkcs1(
+            contents,
+            contents_size,
+            signature,
+            signature_size,
+            ccf::crypto::MDType::SHA256);
+      }
+      else if (std::holds_alternative<ccf::crypto::PublicKeyPtr>(it->second))
+      {
+        LOG_INFO_FMT(
+          "PATTERN key try verify EC PEM: {}",
+          std::get<ccf::crypto::PublicKeyPtr>(it->second)
+            ->public_key_pem()
+            .str());
+        LOG_INFO_FMT(
+          "contents: {}", ccf::crypto::b64_from_raw(contents, contents_size));
+        LOG_INFO_FMT(
+          "signature: {}",
+          ccf::crypto::b64_from_raw(signature, signature_size));
+        return std::get<ccf::crypto::PublicKeyPtr>(it->second)
+          ->verify(
+            contents,
+            contents_size,
+            signature,
+            signature_size,
+            ccf::crypto::MDType::SHA256);
+      }
+      else
+      {
+        LOG_INFO_FMT("PATTERN key try verify NOTHING");
+        return false;
+      }
     }
   };
 
   JwtAuthnPolicy::JwtAuthnPolicy() :
-    verifiers(std::make_unique<VerifiersCache>())
+    keys_cache(std::make_unique<PublicKeysCache>())
   {}
 
   JwtAuthnPolicy::~JwtAuthnPolicy() = default;
@@ -129,11 +186,42 @@ namespace ccf
     }
 
     auto& token = token_opt.value();
-    auto keys = tx.ro<JwtPublicSigningKeys>(
+    auto keys = tx.ro<JwtPublicSigningKeysMetadata>(
       ccf::Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
     const auto key_id = token.header_typed.kid;
     auto token_keys = keys->get(key_id);
 
+    // For metadata KID->(cert,issuer,constraint).
+    //
+    // Note, that Legacy keys are stored as certs, new approach is raw keys, so
+    // conversion from cert to raw key is needed.
+    if (!token_keys)
+    {
+      auto fallback_certs = tx.ro<JwtPublicSigningKeysMetadataLegacy>(
+        ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS_METADATA);
+      auto fallback_data = fallback_certs->get(key_id);
+      if (fallback_data)
+      {
+        auto new_keys = std::vector<OpenIDJWKMetadata>();
+        for (const auto& metadata : *fallback_data)
+        {
+          auto verifier = ccf::crypto::make_unique_verifier(metadata.cert);
+          new_keys.push_back(OpenIDJWKMetadata{
+            .public_key = verifier->public_key_der(),
+            .issuer = metadata.issuer,
+            .constraint = metadata.constraint});
+        }
+        if (!new_keys.empty())
+        {
+          token_keys = new_keys;
+        }
+      }
+    }
+
+    // For metadata as two separate tables, KID->JwtIssuer and KID->Cert.
+    //
+    // Note, that Legacy keys are stored as certs, new approach is raw keys, so
+    // conversion from certs to keys is needed.
     if (!token_keys)
     {
       auto fallback_keys = tx.ro<Tables::Legacy::JwtPublicSigningKeys>(
@@ -141,11 +229,12 @@ namespace ccf
       auto fallback_issuers = tx.ro<Tables::Legacy::JwtPublicSigningKeyIssuer>(
         ccf::Tables::Legacy::JWT_PUBLIC_SIGNING_KEY_ISSUER);
 
-      auto fallback_key = fallback_keys->get(key_id);
-      if (fallback_key)
+      auto fallback_cert = fallback_keys->get(key_id);
+      if (fallback_cert)
       {
+        auto verifier = ccf::crypto::make_unique_verifier(*fallback_cert);
         token_keys = std::vector<OpenIDJWKMetadata>{OpenIDJWKMetadata{
-          .cert = *fallback_key,
+          .public_key = verifier->public_key_der(),
           .issuer = *fallback_issuers->get(key_id),
           .constraint = std::nullopt}};
       }
@@ -160,8 +249,12 @@ namespace ccf
 
     for (const auto& metadata : *token_keys)
     {
-      auto verifier = verifiers->get_verifier(metadata.cert);
-      if (!::http::JwtVerifier::validate_token_signature(token, verifier))
+      if (!keys_cache->verify(
+            (uint8_t*)token.signed_content.data(),
+            token.signed_content.size(),
+            token.signature.data(),
+            token.signature.size(),
+            metadata.public_key))
       {
         error_reason = "Signature verification failed";
         continue;
@@ -171,7 +264,7 @@ namespace ccf
       const size_t time_now = std::chrono::duration_cast<std::chrono::seconds>(
                                 ccf::get_enclave_time())
                                 .count();
-      if (time_now < token.payload_typed.nbf)
+      if (token.payload_typed.nbf && time_now < *token.payload_typed.nbf)
       {
         error_reason = fmt::format(
           "Current time {} is before token's Not Before (nbf) claim {}",
