@@ -215,15 +215,21 @@ int main(int argc, char** argv)
           "On start, ledger directory should not exist ({})",
           config.ledger.directory));
       }
-      // Count members with public encryption key as only these members will be
-      // handed a recovery share.
-      // Note that it is acceptable to start a network without any member having
-      // a recovery share. The service will check that at least one recovery
-      // member is added before the service can be opened.
+
+      // Count members with public encryption key who are not recovery
+      // owners as only these members will be handed a recovery share
+      // that accrues towards the recovery threshold.
+      // Note that it is acceptable to start a network without any member
+      // having a recovery share. The service will check that at least one
+      // recovery member (who is not a recovery owner) is added before the
+      // service can be opened.
       size_t members_with_pubk_count = 0;
       for (auto const& m : config.command.start.members)
       {
-        if (m.encryption_public_key_file.has_value())
+        if (
+          m.encryption_public_key_file.has_value() &&
+          m.recovery_role.value_or(ccf::MemberRecoveryRole::Participant) !=
+            ccf::MemberRecoveryRole::Owner)
         {
           members_with_pubk_count++;
         }
@@ -603,12 +609,17 @@ int main(int argc, char** argv)
       for (auto const& m : config.command.start.members)
       {
         std::optional<ccf::crypto::Pem> public_encryption_key = std::nullopt;
+        std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
         if (
           m.encryption_public_key_file.has_value() &&
           !m.encryption_public_key_file.value().empty())
         {
           public_encryption_key = ccf::crypto::Pem(
             files::slurp(m.encryption_public_key_file.value()));
+          if (m.recovery_role.has_value())
+          {
+            recovery_role = m.recovery_role.value();
+          }
         }
 
         nlohmann::json md = nullptr;
@@ -620,7 +631,8 @@ int main(int argc, char** argv)
         startup_config.start.members.emplace_back(
           ccf::crypto::Pem(files::slurp(m.certificate_file)),
           public_encryption_key,
-          md);
+          md,
+          recovery_role);
       }
       startup_config.start.constitution = "";
       for (const auto& constitution_path :

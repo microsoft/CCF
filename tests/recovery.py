@@ -108,7 +108,9 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
 
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
-def test_recover_service(network, args, from_snapshot=True, no_ledger=False):
+def test_recover_service(
+    network, args, from_snapshot=True, no_ledger=False, via_recovery_owner=False
+):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
@@ -199,7 +201,7 @@ def test_recover_service(network, args, from_snapshot=True, no_ledger=False):
             r = c.get("/node/ready/app")
             assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value, r
 
-    recovered_network.recover(args)
+    recovered_network.recover(args, via_recovery_owner=via_recovery_owner)
 
     LOG.info("Check that new service view is as expected")
     new_primary, _ = recovered_network.find_primary()
@@ -993,6 +995,57 @@ def run_recover_snapshot_alone(args):
         return network
 
 
+def run_recover_via_initial_recovery_owner(args):
+    """
+    Recover a service using the recovery owner added as part of service creation, without requiring any other recovery members to participate.
+    """
+    txs = app.LoggingTxs("user0")
+    args.initial_recovery_owner_count = 1
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        test_recover_service(network, args, from_snapshot=True, via_recovery_owner=True)
+        return network
+
+
+def run_recover_via_added_recovery_owner(args):
+    """
+    Recover a service using the recovery owner added after opening the service, without requiring any other recovery members to participate.
+    """
+    txs = app.LoggingTxs("user0")
+    args.initial_recovery_owner_count = 0
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
+
+        # Add a recovery owner after opening the network
+        recovery_owner = network.consortium.generate_and_add_new_member(
+            primary,
+            curve=args.participants_curve,
+            recovery_member=True,
+            recovery_owner=True,
+        )
+        r = recovery_owner.ack(primary)
+        with primary.client() as nc:
+            nc.wait_for_commit(r)
+
+        test_recover_service(network, args, from_snapshot=True, via_recovery_owner=True)
+        return network
+
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -1045,6 +1098,20 @@ checked. Note that the key for each logging message is unique (per table).
     cr.add(
         "recovery_snapshot_alone",
         run_recover_snapshot_alone,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_via_initial_recovery_owner",
+        run_recover_via_initial_recovery_owner,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_via_added_recovery_owner",
+        run_recover_via_added_recovery_owner,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
     )

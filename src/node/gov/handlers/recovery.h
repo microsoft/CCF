@@ -130,10 +130,13 @@ namespace ccf::gov::endpoints
             params["share"].template get<std::string>());
 
           size_t submitted_shares_count = 0;
+          bool full_key_submitted = false;
           try
           {
             submitted_shares_count = share_manager.submit_recovery_share(
               ctx.tx, member_id, raw_recovery_share);
+
+            full_key_submitted = ShareManager::is_full_key(raw_recovery_share);
 
             OPENSSL_cleanse(
               raw_recovery_share.data(), raw_recovery_share.size());
@@ -164,8 +167,13 @@ namespace ccf::gov::endpoints
             submitted_shares_count,
             threshold);
 
-          if (submitted_shares_count >= threshold)
+          if (submitted_shares_count >= threshold || full_key_submitted)
           {
+            if (full_key_submitted)
+            {
+              message += "\nFull recovery key successfully submitted";
+            }
+
             message += "\nEnd of recovery procedure initiated";
             GOV_INFO_FMT("{} - initiating recovery", message);
 
@@ -196,6 +204,7 @@ namespace ccf::gov::endpoints
           response_body["message"] = message;
           response_body["submittedCount"] = submitted_shares_count;
           response_body["recoveryThreshold"] = threshold;
+          response_body["fullKeySubmitted"] = full_key_submitted;
 
           ctx.rpc_ctx->set_response_json(response_body, HTTP_STATUS_OK);
           return;
