@@ -143,3 +143,13 @@ jobs:
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
         shell: bash
+
+  build_caci:
+    name: "Experimental C-ACI CI"
+    runs-on: [self-hosted, 1ES.Pool=gha-caci-ne]
+
+    steps:
+      - name: "Steps that run in a C-ACI container, hopefully"
+        run: |
+          ls
+          ls -la /dev/sev
