@@ -96,7 +96,7 @@ def generate_and_verify_jwk(client):
         body = r.body.json()
         converted_pem = body["pem"]
 
-        # PEMs may very because of discrepancies of RSA key private components
+        # PEMs may vary because of discrepancies of RSA key private components
         # computation, in particular, using Euler VS Carmichael totient
         # functions. For more details check the thread:
         # https://github.com/microsoft/CCF/issues/6588#issuecomment-2568037993.
