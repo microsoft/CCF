@@ -153,12 +153,6 @@ Indexing
    :project: CCF
    :members:
 
-JavaScript FFI Plugins
-----------------------
-
-.. doxygenfunction:: ccf::get_js_plugins
-   :project: CCF
-
 HTTP Entity Tags Matching
 -------------------------
 

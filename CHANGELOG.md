@@ -3,7 +3,27 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
-and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
+and this project adheres Fto [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
+
+## [6.0.0-dev11]
+
+[6.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev11
+
+### Added
+
+- `GET /gov/service/javascript-app` now takes an optional `?case=original` query argument. When passed, the response will contain the raw original `snake_case` field names, for direct comparison, rather than the API-standard `camelCase` projections.
+
+### Deprecated
+
+- The function `ccf::get_js_plugins()` and associated FFI plugin system for JS is deprecated. Similar functionality should now be implemented through a `js::Extension` returned from `DynamicJSEndpointRegistry::get_extensions()`.
+
+## [6.0.0-dev11]
+
+[6.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev11
+
+### Added
+
+- Applications can now extend `js_generic` (ie - a JS app where JS endpoints are edited by governance transactions), from the public header `ccf/js/samples/governance_driven_registry.h`. The API for existing JS-programmability apps using `DynamicJSEndpointRegistry` should be unaffected.
 
 ## [6.0.0-dev10]
 
