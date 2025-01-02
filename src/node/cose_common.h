@@ -116,7 +116,6 @@ namespace ccf::cose
     {
       CWT_ISS_INDEX,
       CWT_SUB_INDEX,
-      CWT_IAT_INDEX,
       CWT_END_INDEX,
     };
     QCBORItem cwt_items[CWT_END_INDEX + 1];
@@ -128,10 +127,6 @@ namespace ccf::cose
     cwt_items[CWT_SUB_INDEX].label.int64 = crypto::COSE_PHEADER_KEY_SUB;
     cwt_items[CWT_SUB_INDEX].uLabelType = QCBOR_TYPE_INT64;
     cwt_items[CWT_SUB_INDEX].uDataType = QCBOR_TYPE_TEXT_STRING;
-
-    cwt_items[CWT_IAT_INDEX].label.int64 = crypto::COSE_PHEADER_KEY_IAT;
-    cwt_items[CWT_IAT_INDEX].uLabelType = QCBOR_TYPE_INT64;
-    cwt_items[CWT_IAT_INDEX].uDataType = QCBOR_TYPE_DATE_EPOCH;
 
     cwt_items[CWT_END_INDEX].uLabelType = QCBOR_TYPE_NONE;
 
