@@ -94,8 +94,16 @@ def generate_and_verify_jwk(client):
 
         r = client.post("/app/rsaJwkToPem", body={"jwk": body})
         body = r.body.json()
-        assert r.status_code == http.HTTPStatus.OK
-        assert body["pem"] == priv_pem
+        converted_pem = body["pem"]
+
+        # PEMs may very because of discrepancies of RSA key private components
+        # computation, in particular, using Euler VS Carmichael totient
+        # functions. For more details check the thread:
+        # https://github.com/microsoft/CCF/issues/6588#issuecomment-2568037993.
+        algorithm = {"name": "RSA-PSS", "hash": "SHA-256"}
+        data = rand_bytes(random.randint(2, 50))
+        signature = infra.crypto.sign(algorithm, converted_pem, data)
+        infra.crypto.verify_signature(algorithm, signature, data, pub_pem)
 
         # Public
         ref_pub_jwk = jwk.JWK.from_pem(pub_pem.encode()).export(as_dict=True)
