@@ -966,10 +966,10 @@ def run(args):
     test_recover_service_from_files(
         args, "expired_service", expected_recovery_count=1, test_receipt=True
     )
-    # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> main.
+    # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
     # This is used to test recovery from SGX to SNP.
     test_recover_service_from_files(
-        args, "sgx_service", expected_recovery_count=3, test_receipt=False
+        args, "sgx_service", expected_recovery_count=4, test_receipt=False
     )
 
 
