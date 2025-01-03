@@ -71,19 +71,20 @@ class Consortium:
         # and the state of the service
         if members_info is not None:
             self.recovery_threshold = 0
-            for m_local_id, has_share, m_data in members_info:
+            for m_local_id, has_share, is_recovery_owner, m_data in members_info:
                 new_member = infra.member.Member(
                     f"member{m_local_id}",
                     curve,
                     common_dir,
                     share_script,
                     has_share,
+                    is_recovery_owner,
                     key_generator,
                     m_data,
                     authenticate_session=authenticate_session,
                     gov_api_impl=self.gov_api_impl,
                 )
-                if has_share:
+                if has_share and not is_recovery_owner:
                     self.recovery_threshold += 1
                 self.members.append(new_member)
         else:
@@ -198,7 +199,12 @@ class Consortium:
             m.ack(remote_node)
 
     def generate_and_propose_new_member(
-        self, remote_node, curve, recovery_member=True, member_data=None
+        self,
+        remote_node,
+        curve,
+        recovery_member=True,
+        member_data=None,
+        recovery_owner=None,
     ):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
@@ -209,6 +215,7 @@ class Consortium:
             self.common_dir,
             self.share_script,
             is_recovery_member=recovery_member,
+            is_recovery_owner=recovery_owner,
             key_generator=self.key_generator,
             authenticate_session=self.authenticate_session,
             gov_api_impl=self.gov_api_impl,
@@ -227,6 +234,7 @@ class Consortium:
                 else None
             ),
             member_data=member_data,
+            recovery_role="Owner" if recovery_owner and recovery_member else None,
         )
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
@@ -235,10 +243,15 @@ class Consortium:
         return (proposal, new_member, careful_vote)
 
     def generate_and_add_new_member(
-        self, remote_node, curve, recovery_member=True, member_data=None
+        self,
+        remote_node,
+        curve,
+        recovery_member=True,
+        member_data=None,
+        recovery_owner=None,
     ):
         proposal, new_member, careful_vote = self.generate_and_propose_new_member(
-            remote_node, curve, recovery_member, member_data
+            remote_node, curve, recovery_member, member_data, recovery_owner
         )
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
@@ -260,7 +273,22 @@ class Consortium:
         return [
             member
             for member in self.members
-            if (member.is_active() and member.is_recovery_member)
+            if (
+                member.is_active()
+                and member.is_recovery_member
+                and not member.is_recovery_owner
+            )
+        ]
+
+    def get_active_recovery_owners(self):
+        return [
+            member
+            for member in self.members
+            if (
+                member.is_active()
+                and member.is_recovery_member
+                and member.is_recovery_owner
+            )
         ]
 
     def get_active_non_recovery_members(self):
@@ -270,9 +298,11 @@ class Consortium:
             if (member.is_active() and not member.is_recovery_member)
         ]
 
-    def get_any_active_member(self, recovery_member=None):
+    def get_any_active_member(self, recovery_member=None, recovery_owner=None):
         if recovery_member is not None:
             if recovery_member is True:
+                if recovery_owner is True:
+                    return random.choice(self.get_active_recovery_owners())
                 return random.choice(self.get_active_recovery_members())
             elif recovery_member is False:
                 return random.choice(self.get_active_non_recovery_members())
@@ -720,6 +750,21 @@ class Consortium:
                     break
                 else:
                     assert "End of recovery procedure initiated" not in r.body.text()
+
+    def recover_with_owner_share(self, remote_node):
+        submitted_shares_count = 0
+        with remote_node.client() as nc:
+            check_commit = infra.checker.Checker(nc)
+
+            m = self.get_any_active_member(recovery_member=True, recovery_owner=True)
+            r = m.get_and_submit_recovery_share(remote_node)
+            submitted_shares_count += 1
+            check_commit(r)
+            assert (
+                f"{submitted_shares_count}/{self.recovery_threshold}" in r.body.text()
+            )
+            assert "Full recovery key successfully submitted" in r.body.text()
+            assert "End of recovery procedure initiated" in r.body.text()
 
     def set_recovery_threshold(self, remote_node, recovery_threshold):
         proposal_body, careful_vote = self.make_proposal(
