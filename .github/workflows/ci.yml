@@ -114,7 +114,7 @@ jobs:
           # Build tools
           tdnf -y install build-essential clang cmake ninja-build which
           # Dependencies
-          tdnf -y install openssl-devel libuv-devel
+          tdnf -y install openssl-devel libuv-devel curl-devel
           # Test dependencies
           tdnf -y install libarrow-devel parquet-libs-devel lldb npm jq expect
         shell: bash
