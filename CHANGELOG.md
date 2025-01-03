@@ -13,6 +13,10 @@ and this project adheres Fto [Semantic Versioning](http://semver.org/spec/v2.0.0
 
 - `GET /gov/service/javascript-app` now takes an optional `?case=original` query argument. When passed, the response will contain the raw original `snake_case` field names, for direct comparison, rather than the API-standard `camelCase` projections.
 
+### Fixed
+
+- `cose_signatures` configuration (`issuer`/`subject`) is now correctly preserved across disaster recovery (#6709).
+
 ### Deprecated
 
 - The function `ccf::get_js_plugins()` and associated FFI plugin system for JS is deprecated. Similar functionality should now be implemented through a `js::Extension` returned from `DynamicJSEndpointRegistry::get_extensions()`.
@@ -52,6 +56,15 @@ and this project adheres Fto [Semantic Versioning](http://semver.org/spec/v2.0.0
 
 - All definitions in CCF's public headers are now under the `ccf::` namespace. Any application code which references any of these types directly (notably `StartupConfig`, `http_status`, `LoggerLevel`), they will now need to be prefixed with the `ccf::` namespace.
 - `cchost` now requires `--config`.
+
+### Changed
+
+- JWT authentication now supports raw public keys along with certificates (#6601).
+  - Public key information ('n' and 'e', or 'x', 'y' and 'crv' fields) now have a priority if defined in JWK set, 'x5c' remains as a backup option.
+  - Has same side-effects as #5809 does please see the changelog entry for that change for more details. In short:
+    - stale JWKs may be used for JWT validation on older nodes during the upgrade.
+    - old tables are not cleaned up, #6222 is tracking those.
+- A deprecated `GET /gov/jwt_keys/all` has been altered because of #6601, as soon as JWT certificates are no longer stored in CCF. A new "public_key" field has been added, "cert" is now left empty.
 
 ## [6.0.0-dev7]
 
