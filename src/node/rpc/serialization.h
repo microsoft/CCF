@@ -3,8 +3,8 @@
 #pragma once
 
 #include "ccf/ds/json.h"
+#include "ccf/service/consensus_type.h"
 #include "ccf/service/tables/code_id.h"
-#include "enclave/consensus_type.h"
 #include "enclave/interface.h"
 #include "node/rpc/call_types.h"
 
@@ -33,19 +33,10 @@ namespace ccf
     public_encryption_key,
     startup_seqno)
   DECLARE_JSON_OPTIONAL_FIELDS(
-    JoinNetworkNodeToNode::In,
-    certificate_signing_request,
-    node_data,
-    consensus_type)
+    JoinNetworkNodeToNode::In, certificate_signing_request, node_data)
 
-  DECLARE_JSON_ENUM(
-    ccf::IdentityType,
-    {{ccf::IdentityType::REPLICATED, "Replicated"},
-     {ccf::IdentityType::SPLIT, "Split"}})
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NetworkIdentity)
+  DECLARE_JSON_TYPE(NetworkIdentity)
   DECLARE_JSON_REQUIRED_FIELDS(NetworkIdentity, cert, priv_key)
-  DECLARE_JSON_OPTIONAL_FIELDS(NetworkIdentity, type, subject_name)
-  DECLARE_JSON_TYPE_WITH_BASE(ReplicatedNetworkIdentity, NetworkIdentity)
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
     JoinNetworkNodeToNode::Out::NetworkInfo)
@@ -59,8 +50,8 @@ namespace ccf
     JoinNetworkNodeToNode::Out::NetworkInfo,
     service_status,
     endorsed_certificate,
-    reconfiguration_type,
-    consensus_type)
+    cose_signatures_config)
+
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JoinNetworkNodeToNode::Out)
   DECLARE_JSON_REQUIRED_FIELDS(JoinNetworkNodeToNode::Out, node_status)
   DECLARE_JSON_OPTIONAL_FIELDS(

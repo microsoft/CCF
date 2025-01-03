@@ -3,13 +3,13 @@
 
 #include "ccf/endpoints/authentication/cert_auth.h"
 
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/pal/locking.h"
 #include "ccf/rpc_context.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/users.h"
 #include "ds/lru.h"
-#include "ds/x509_time_fmt.h"
 #include "enclave/enclave_time.h"
 
 namespace ccf
@@ -49,12 +49,12 @@ namespace ccf
 
         const auto valid_from_unix_time =
           duration_cast<seconds>(
-            ::ds::time_point_from_string(valid_from_timestring)
+            ccf::ds::time_point_from_string(valid_from_timestring)
               .time_since_epoch())
             .count();
         const auto valid_to_unix_time =
           duration_cast<seconds>(
-            ::ds::time_point_from_string(valid_to_timestring)
+            ccf::ds::time_point_from_string(valid_to_timestring)
               .time_since_epoch())
             .count();
 
@@ -117,6 +117,7 @@ namespace ccf
 
     if (!validity_periods->is_cert_valid_now(caller_cert, error_reason))
     {
+      // Error is set by the call when necessary
       return nullptr;
     }
 
@@ -202,5 +203,34 @@ namespace ccf
 
     error_reason = "Could not find matching node certificate";
     return nullptr;
+  }
+
+  AnyCertAuthnPolicy::AnyCertAuthnPolicy() :
+    validity_periods(std::make_unique<ValidityPeriodsCache>())
+  {}
+
+  AnyCertAuthnPolicy::~AnyCertAuthnPolicy() = default;
+
+  std::unique_ptr<AuthnIdentity> AnyCertAuthnPolicy::authenticate(
+    ccf::kv::ReadOnlyTx& tx,
+    const std::shared_ptr<ccf::RpcContext>& ctx,
+    std::string& error_reason)
+  {
+    const auto& caller_cert = ctx->get_session_context()->caller_cert;
+    if (caller_cert.empty())
+    {
+      error_reason = "No caller certificate";
+      return nullptr;
+    }
+
+    if (!validity_periods->is_cert_valid_now(caller_cert, error_reason))
+    {
+      // Error is set by the call when necessary
+      return nullptr;
+    }
+
+    auto identity = std::make_unique<AnyCertAuthnIdentity>();
+    identity->cert = caller_cert;
+    return identity;
   }
 }

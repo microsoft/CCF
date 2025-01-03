@@ -19,7 +19,7 @@ namespace ccf
         get_actor_prefix(ActorsType::acme_challenge), context)
     {
       auto handler = [this](auto& ctx) {
-        http_status response_status = HTTP_STATUS_INTERNAL_SERVER_ERROR;
+        ccf::http_status response_status = HTTP_STATUS_INTERNAL_SERVER_ERROR;
         std::string response_body;
 
         const auto& path_params = ctx.rpc_ctx->get_request_path_params();

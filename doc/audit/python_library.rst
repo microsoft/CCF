@@ -118,23 +118,23 @@ The ``ledger_code.py`` command line utility can be used to display the history o
 .. code-block:: bash
 
     $ ledger_code.py -s /path/to/ledger/dir
-    2.1 Introduced : [('OE_SGX_v1', '3258fb')]
-    2.103 Introduced : [('OE_SGX_v1', '048b8c')]
-    3.175 Removed : [('OE_SGX_v1', '3258fb')]
+    2.1 Introduced : [('AMD_SEV_SNP_v1', '3258fb')]
+    2.103 Introduced : [('AMD_SEV_SNP_v1', '048b8c')]
+    3.175 Removed : [('AMD_SEV_SNP_v1', '3258fb')]
 
     $ ledger_code.py -vs /path/to/ledger/dir
-    2.1: {('OE_SGX_v1', '3258fb'): ['9b013f']}
-    2.3: {('OE_SGX_v1', '3258fb'): ['9b013f', 'beb114']}
-    2.5: {('OE_SGX_v1', '3258fb'): ['9b013f', 'beb114', '6ff2f4']}
-    2.103: {('OE_SGX_v1', '3258fb'): ['9b013f', 'beb114', '6ff2f4'], ('OE_SGX_v1', '048b8c'): ['3ebd58']}
-    2.119: {('OE_SGX_v1', '3258fb'): ['9b013f', 'beb114', '6ff2f4'], ('OE_SGX_v1', '048b8c'): ['3ebd58', '53cb2a']}
-    2.146: {('OE_SGX_v1', '3258fb'): ['9b013f', 'beb114', '6ff2f4'], ('OE_SGX_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
-    2.152: {('OE_SGX_v1', '3258fb'): ['beb114', '6ff2f4'], ('OE_SGX_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
-    3.156: {('OE_SGX_v1', '3258fb'): ['beb114', '6ff2f4'], ('OE_SGX_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
-    3.165: {('OE_SGX_v1', '3258fb'): ['6ff2f4'], ('OE_SGX_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
-    3.168: {('OE_SGX_v1', '3258fb'): ['6ff2f4'], ('OE_SGX_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
-    3.175: {('OE_SGX_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
-    4.179: {('OE_SGX_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
+    2.1: {('AMD_SEV_SNP_v1', '3258fb'): ['9b013f']}
+    2.3: {('AMD_SEV_SNP_v1', '3258fb'): ['9b013f', 'beb114']}
+    2.5: {('AMD_SEV_SNP_v1', '3258fb'): ['9b013f', 'beb114', '6ff2f4']}
+    2.103: {('AMD_SEV_SNP_v1', '3258fb'): ['9b013f', 'beb114', '6ff2f4'], ('AMD_SEV_SNP_v1', '048b8c'): ['3ebd58']}
+    2.119: {('AMD_SEV_SNP_v1', '3258fb'): ['9b013f', 'beb114', '6ff2f4'], ('AMD_SEV_SNP_v1', '048b8c'): ['3ebd58', '53cb2a']}
+    2.146: {('AMD_SEV_SNP_v1', '3258fb'): ['9b013f', 'beb114', '6ff2f4'], ('AMD_SEV_SNP_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
+    2.152: {('AMD_SEV_SNP_v1', '3258fb'): ['beb114', '6ff2f4'], ('AMD_SEV_SNP_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
+    3.156: {('AMD_SEV_SNP_v1', '3258fb'): ['beb114', '6ff2f4'], ('AMD_SEV_SNP_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
+    3.165: {('AMD_SEV_SNP_v1', '3258fb'): ['6ff2f4'], ('AMD_SEV_SNP_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
+    3.168: {('AMD_SEV_SNP_v1', '3258fb'): ['6ff2f4'], ('AMD_SEV_SNP_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
+    3.175: {('AMD_SEV_SNP_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
+    4.179: {('AMD_SEV_SNP_v1', '048b8c'): ['3ebd58', '53cb2a', '1d1396']}
 
 As with ``read_ledger.py``, non-committed ledger files are ignored, unless the ``--uncommitted`` command line argument is specified.
 

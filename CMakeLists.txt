@@ -59,7 +59,12 @@ function(message)
 endfunction()
 
 option(PROFILE_TESTS "Profile tests" OFF)
-set(PYTHON python3)
+
+if("$ENV{CI}" STREQUAL "")
+  set(PYTHON unbuffer python3)
+else()
+  set(PYTHON python3)
+endif()
 
 set(DISTRIBUTE_PERF_TESTS
     ""
@@ -214,9 +219,6 @@ include(${CCF_DIR}/cmake/quickjs.cmake)
 include(${CCF_DIR}/cmake/nghttp2.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
-set(MESSAGE_QUIET ON)
-include(${CCF_DIR}/cmake/protobuf.cmake)
-unset(MESSAGE_QUIET)
 
 # Host Executable
 if(SAN
@@ -252,8 +254,15 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
 endif()
 
 target_link_libraries(
-  cchost PRIVATE uv ${TLS_LIBRARY} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
-                 ${LINK_LIBCXX} ccfcrypto.host
+  cchost
+  PRIVATE uv
+          ${TLS_LIBRARY}
+          ${CMAKE_DL_LIBS}
+          ${CMAKE_THREAD_LIBS_INIT}
+          ${LINK_LIBCXX}
+          ccfcrypto.host
+          curl
+          http_parser.host
 )
 
 install(TARGETS cchost DESTINATION bin)
@@ -413,45 +422,9 @@ set(CCF_NETWORK_TEST_ARGS
     ${TEST_LOGGING_LEVEL} --worker-threads ${WORKER_THREADS}
 )
 
-set(JS_GENERIC_SOURCES ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp)
-if(COMPILE_TARGET STREQUAL "snp")
-  add_library(js_generic_base.snp STATIC ${JS_GENERIC_SOURCES})
-  add_san(js_generic_base.snp)
-  add_warning_checks(js_generic_base.snp)
-  target_link_libraries(js_generic_base.snp PUBLIC ccf.snp)
-  target_compile_options(js_generic_base.snp PRIVATE ${COMPILE_LIBCXX})
-  target_compile_definitions(
-    js_generic_base.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                               _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
-  )
-  set_property(TARGET js_generic_base.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
-  install(
-    TARGETS js_generic_base.snp
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "virtual")
-  add_library(js_generic_base.virtual STATIC ${JS_GENERIC_SOURCES})
-  add_san(js_generic_base.virtual)
-  add_warning_checks(js_generic_base.virtual)
-  target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
-  target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
-  set_property(
-    TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-  )
-  install(
-    TARGETS js_generic_base.virtual
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
 # SNIPPET_START: JS generic application
 add_ccf_app(
-  js_generic
-  SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
-  LINK_LIBS_ENCLAVE js_generic_base.enclave
-  LINK_LIBS_VIRTUAL js_generic_base.virtual
-  LINK_LIBS_SNP js_generic_base.snp INSTALL_LIBS ON
+  js_generic SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp INSTALL_LIBS ON
 )
 # SNIPPET_END: JS generic application
 
@@ -742,6 +715,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/dl_list.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -857,6 +831,13 @@ if(BUILD_TESTS)
       base64_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/base64.cpp
     )
     target_link_libraries(base64_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+
+    add_unit_test(
+      cose_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/cose.cpp
+    )
+    target_link_libraries(
+      cose_test PRIVATE ${CMAKE_THREAD_LIBS_INIT} ccfcrypto.host qcbor.host
+    )
 
     add_unit_test(pem_test ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/test/pem.cpp)
     target_link_libraries(pem_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})

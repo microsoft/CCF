@@ -44,7 +44,7 @@ int main(int argc, char** argv)
 #else
   ccf::logger::config::add_text_console_logger();
 #endif
-  ccf::logger::config::level() = LoggerLevel::DEBUG;
+  ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
 
   threading::ThreadMessaging::init(1);
 

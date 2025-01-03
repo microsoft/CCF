@@ -384,7 +384,6 @@ namespace ccf
           ccf::Tables::PREVIOUS_SERVICE_IDENTITY_ENDORSEMENT);
 
       ccf::CoseEndorsement endorsement{};
-      std::vector<ccf::crypto::COSEParametersFactory> pheaders{};
       std::vector<uint8_t> key_to_endorse{};
       std::vector<uint8_t> previous_root{};
 
@@ -431,28 +430,44 @@ namespace ccf
         key_to_endorse = endorsement.endorsing_key;
       }
 
-      pheaders.push_back(ccf::crypto::cose_params_string_string(
+      std::vector<std::shared_ptr<ccf::crypto::COSEParametersFactory>>
+        ccf_headers_arr{};
+      ccf_headers_arr.push_back(ccf::crypto::cose_params_string_string(
         ccf::crypto::COSE_PHEADER_KEY_RANGE_BEGIN,
         endorsement.endorsement_epoch_begin.to_str()));
       if (endorsement.endorsement_epoch_end)
       {
-        pheaders.push_back(ccf::crypto::cose_params_string_string(
+        ccf_headers_arr.push_back(ccf::crypto::cose_params_string_string(
           ccf::crypto::COSE_PHEADER_KEY_RANGE_END,
           endorsement.endorsement_epoch_end->to_str()));
       }
       if (!previous_root.empty())
       {
-        pheaders.push_back(ccf::crypto::cose_params_string_bytes(
-          ccf::crypto::COSE_PHEADER_KEY_MERKLE_ROOT, previous_root));
+        ccf_headers_arr.push_back(ccf::crypto::cose_params_string_bytes(
+          ccf::crypto::COSE_PHEADER_KEY_EPOCH_LAST_MERKLE_ROOT, previous_root));
       }
 
       const auto time_since_epoch =
         std::chrono::duration_cast<std::chrono::seconds>(
           ccf::get_enclave_time())
           .count();
-      pheaders.push_back(
-        ccf::crypto::cose_params_cwt_map_int_int(ccf::crypto::CWTMap{
-          {ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch}}));
+
+      auto cwt_headers =
+        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
+          std::make_shared<ccf::crypto::COSEParametersMap>(
+            std::make_shared<ccf::crypto::COSEMapIntKey>(
+              ccf::crypto::COSE_PHEADER_KEY_CWT),
+            ccf::crypto::COSEHeadersArray{ccf::crypto::cose_params_int_int(
+              ccf::crypto::COSE_PHEADER_KEY_IAT, time_since_epoch)}));
+
+      auto ccf_headers =
+        std::static_pointer_cast<ccf::crypto::COSEParametersFactory>(
+          std::make_shared<ccf::crypto::COSEParametersMap>(
+            std::make_shared<ccf::crypto::COSEMapStringKey>(
+              ccf::crypto::COSE_PHEADER_KEY_CCF),
+            ccf_headers_arr));
+
+      ccf::crypto::COSEHeadersArray pheaders{cwt_headers, ccf_headers};
 
       try
       {

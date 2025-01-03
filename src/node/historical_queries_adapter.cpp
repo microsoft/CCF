@@ -202,9 +202,10 @@ namespace ccf
   std::optional<std::vector<uint8_t>> describe_merkle_proof_v1(
     const TxReceiptImpl& receipt)
   {
-    constexpr size_t buf_size = 2048;
+    constexpr size_t buf_size = 2048; // TBD: calculate why this is enough
     std::vector<uint8_t> underlying_buffer(buf_size);
-    q_useful_buf buffer{underlying_buffer.data(), buf_size};
+    UsefulBuf buffer{underlying_buffer.data(), underlying_buffer.size()};
+    assert(buffer.len == buf_size);
 
     QCBOREncodeContext ctx;
     QCBOREncode_Init(&ctx, buffer);
@@ -232,7 +233,7 @@ namespace ccf
 
     QCBOREncode_CloseMap(&ctx);
 
-    struct q_useful_buf_c result;
+    UsefulBufC result;
     auto qerr = QCBOREncode_Finish(&ctx, &result);
     if (qerr)
     {
@@ -253,6 +254,12 @@ namespace ccf
     const TxReceiptImpl& receipt)
   {
     return receipt.cose_endorsements;
+  }
+
+  std::optional<SerialisedCoseSignature> describe_cose_signature_v1(
+    const TxReceiptImpl& receipt)
+  {
+    return receipt.cose_signature;
   }
 }
 

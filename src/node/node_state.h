@@ -8,10 +8,12 @@
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/logger.h"
 #include "ccf/js/core/context.h"
+#include "ccf/node/cose_signatures_config.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/locking.h"
 #include "ccf/pal/platform.h"
 #include "ccf/service/node_info_network.h"
+#include "ccf/service/reconfiguration_type.h"
 #include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/service.h"
 #include "ccf_acme_client.h"
@@ -19,7 +21,6 @@
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
 #include "ds/state_machine.h"
-#include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
@@ -90,7 +91,7 @@ namespace ccf
     std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     pal::PlatformAttestationMeasurement node_measurement;
-    StartupConfig config;
+    ccf::StartupConfig config;
     std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
@@ -461,7 +462,7 @@ namespace ccf
 
     NodeCreateInfo create(
       StartType start_type_,
-      StartupConfig&& config_,
+      ccf::StartupConfig&& config_,
       std::vector<uint8_t>&& startup_snapshot_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
@@ -497,7 +498,7 @@ namespace ccf
       {
         case StartType::Start:
         {
-          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+          network.identity = std::make_unique<ccf::NetworkIdentity>(
             config.service_subject_name,
             curve_id,
             config.startup_host_time,
@@ -505,11 +506,12 @@ namespace ccf
 
           network.ledger_secrets->init();
 
-          history->set_service_kp(network.identity->get_key_pair());
+          history->set_service_signing_identity(
+            network.identity->get_key_pair(), config.cose_signatures);
 
           setup_consensus(
             ServiceStatus::OPENING,
-            ReconfigurationType::ONE_TRANSACTION,
+            ccf::ReconfigurationType::ONE_TRANSACTION,
             false,
             endorsed_node_cert);
 
@@ -536,13 +538,14 @@ namespace ccf
           ccf::crypto::Pem previous_service_identity_cert(
             config.recover.previous_service_identity.value());
 
-          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+          network.identity = std::make_unique<ccf::NetworkIdentity>(
             ccf::crypto::get_subject_name(previous_service_identity_cert),
             curve_id,
             config.startup_host_time,
             config.initial_service_certificate_validity_days);
 
-          history->set_service_kp(network.identity->get_key_pair());
+          history->set_service_signing_identity(
+            network.identity->get_key_pair(), config.cose_signatures);
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -586,7 +589,7 @@ namespace ccf
         target_host,
         target_port,
         [this](
-          http_status status,
+          ccf::http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           std::lock_guard<pal::Mutex> guard(lock);
@@ -626,7 +629,7 @@ namespace ccf
               LOG_FAIL_FMT(
                 "An error occurred while joining the network: {} {}{}",
                 status,
-                http_status_str(status),
+                ccf::http_status_str(status),
                 data.empty() ?
                   "" :
                   fmt::format("  '{}'", std::string(data.begin(), data.end())));
@@ -654,12 +657,20 @@ namespace ccf
           // Set network secrets, node id and become part of network.
           if (resp.node_status == NodeStatus::TRUSTED)
           {
-            network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+            if (!resp.network_info.has_value())
+            {
+              throw std::logic_error("Expected network info in join response");
+            }
+
+            network.identity = std::make_unique<ccf::NetworkIdentity>(
               resp.network_info->identity);
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
 
-            history->set_service_kp(network.identity->get_key_pair());
+            history->set_service_signing_identity(
+              network.identity->get_key_pair(),
+              resp.network_info->cose_signatures_config.value_or(
+                ccf::COSESignaturesConfig{}));
 
             ccf::crypto::Pem n2n_channels_cert;
             if (!resp.network_info->endorsed_certificate.has_value())
@@ -673,7 +684,7 @@ namespace ccf
             setup_consensus(
               resp.network_info->service_status.value_or(
                 ServiceStatus::OPENING),
-              ReconfigurationType::ONE_TRANSACTION,
+              ccf::ReconfigurationType::ONE_TRANSACTION,
               resp.network_info->public_only,
               n2n_channels_cert);
             auto_refresh_jwt_keys();
@@ -785,7 +796,6 @@ namespace ccf
       join_params.certificate_signing_request = node_sign_kp->create_csr(
         config.node_certificate.subject_name, subject_alt_names);
       join_params.node_data = config.node_data;
-      join_params.consensus_type = ConsensusType::CFT;
 
       LOG_DEBUG_FMT(
         "Sending join request to {}", config.join.target_rpc_address);
@@ -902,7 +912,10 @@ namespace ccf
       {
         auto entry = ::consensus::LedgerEnclave::get_entry(data, size);
 
-        LOG_INFO_FMT("Deserialising public ledger entry [{}]", entry.size());
+        LOG_INFO_FMT(
+          "Deserialising public ledger entry #{} [{} bytes]",
+          last_recovered_idx,
+          entry.size());
 
         // When reading the private ledger, deserialise in the recovery store
 
@@ -1046,7 +1059,9 @@ namespace ccf
       auto service_config = tx.ro(network.config)->get();
 
       setup_consensus(
-        ServiceStatus::OPENING, ReconfigurationType::ONE_TRANSACTION, true);
+        ServiceStatus::OPENING,
+        ccf::ReconfigurationType::ONE_TRANSACTION,
+        true);
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
@@ -1749,6 +1764,18 @@ namespace ccf
       return self_signed_node_cert;
     }
 
+    const ccf::COSESignaturesConfig& get_cose_signatures_config() override
+    {
+      if (history == nullptr)
+      {
+        throw std::logic_error(
+          "Attempting to access COSE signatures config before history has been "
+          "constructed");
+      }
+
+      return history->get_cose_signatures_config();
+    }
+
   private:
     bool is_ip(const std::string_view& hostname)
     {
@@ -1948,16 +1975,18 @@ namespace ccf
       }
 
       const auto status = ctx->get_response_status();
+      const auto& raw_body = ctx->get_response_body();
       if (status != HTTP_STATUS_OK)
       {
         LOG_FAIL_FMT(
-          "Create response is error: {} {}",
+          "Create response is error: {} {}\n{}",
           status,
-          http_status_str((http_status)status));
+          ccf::http_status_str((ccf::http_status)status),
+          std::string(raw_body.begin(), raw_body.end()));
         return false;
       }
 
-      const auto body = nlohmann::json::parse(ctx->get_response_body());
+      const auto body = nlohmann::json::parse(raw_body);
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT("Expected boolean body in create response");
@@ -2210,22 +2239,42 @@ namespace ccf
             ccf::kv::Version hook_version,
             const NodeEndorsedCertificates::Write& w)
             -> ccf::kv::ConsensusHookPtr {
+            LOG_INFO_FMT(
+              "[local] node_endorsed_certificates local hook at version {}, "
+              "with {} writes",
+              hook_version,
+              w.size());
             for (auto const& [node_id, endorsed_certificate] : w)
             {
               if (node_id != self)
               {
+                LOG_INFO_FMT(
+                  "[local] Ignoring endorsed certificate for other node {}",
+                  node_id);
                 continue;
               }
 
               if (!endorsed_certificate.has_value())
               {
+                LOG_FAIL_FMT(
+                  "[local] Endorsed cert for self ({}) has been deleted", self);
                 throw std::logic_error(fmt::format(
                   "Could not find endorsed node certificate for {}", self));
               }
 
               std::lock_guard<pal::Mutex> guard(lock);
 
+              if (endorsed_node_cert.has_value())
+              {
+                LOG_INFO_FMT(
+                  "[local] Previous endorsed node cert was:\n{}",
+                  endorsed_node_cert->str());
+              }
+
               endorsed_node_cert = endorsed_certificate.value();
+              LOG_INFO_FMT(
+                "[local] Under lock, setting endorsed node cert to:\n{}",
+                endorsed_node_cert->str());
               history->set_endorsed_certificate(endorsed_node_cert.value());
               n2n_channels->set_endorsed_node_cert(endorsed_node_cert.value());
             }
@@ -2239,21 +2288,33 @@ namespace ccf
           [this](
             ccf::kv::Version hook_version,
             const NodeEndorsedCertificates::Write& w) {
+            LOG_INFO_FMT(
+              "[global] node_endorsed_certificates global hook at version {}, "
+              "with {} writes",
+              hook_version,
+              w.size());
             for (auto const& [node_id, endorsed_certificate] : w)
             {
               if (node_id != self)
               {
+                LOG_INFO_FMT(
+                  "[global] Ignoring endorsed certificate for other node {}",
+                  node_id);
                 continue;
               }
 
               if (!endorsed_certificate.has_value())
               {
+                LOG_FAIL_FMT(
+                  "[global] Endorsed cert for self ({}) has been deleted",
+                  self);
                 throw std::logic_error(fmt::format(
                   "Could not find endorsed node certificate for {}", self));
               }
 
               std::lock_guard<pal::Mutex> guard(lock);
 
+              LOG_INFO_FMT("[global] Accepting network connections");
               accept_network_tls_connections();
 
               if (is_member_frontend_open_unsafe())
@@ -2267,15 +2328,31 @@ namespace ccf
                 auto [valid_from, valid_to] =
                   ccf::crypto::make_verifier(endorsed_node_cert.value())
                     ->validity_period();
+                LOG_INFO_FMT(
+                  "[global] Member frontend is open, so refreshing self-signed "
+                  "node cert");
+                LOG_INFO_FMT(
+                  "[global] Previously:\n{}", self_signed_node_cert.str());
                 self_signed_node_cert = create_self_signed_cert(
                   node_sign_kp,
                   config.node_certificate.subject_name,
                   subject_alt_names,
                   valid_from,
                   valid_to);
+                LOG_INFO_FMT("[global] Now:\n{}", self_signed_node_cert.str());
+
+                LOG_INFO_FMT("[global] Accepting node connections");
                 accept_node_tls_connections();
               }
+              else
+              {
+                LOG_INFO_FMT("[global] Member frontend is NOT open");
+                LOG_INFO_FMT(
+                  "[global] Self-signed node cert remains:\n{}",
+                  self_signed_node_cert.str());
+              }
 
+              LOG_INFO_FMT("[global] Opening members frontend");
               open_frontend(ActorsType::members);
             }
           }));
@@ -2303,6 +2380,13 @@ namespace ccf
                 w->cert.str());
               return;
             }
+
+            LOG_INFO_FMT(
+              "Executing global hook for service table at {}, to service "
+              "status {}. Cert is:\n{}",
+              hook_version,
+              w->status,
+              w->cert.str());
 
             network.identity->set_certificate(w->cert);
             if (w->status == ServiceStatus::OPEN)
@@ -2446,7 +2530,7 @@ namespace ccf
 
     void setup_consensus(
       ServiceStatus service_status,
-      ReconfigurationType reconfiguration_type,
+      ccf::ReconfigurationType reconfiguration_type,
       bool public_only = false,
       const std::optional<ccf::crypto::Pem>& endorsed_node_certificate_ =
         std::nullopt)
@@ -2535,7 +2619,7 @@ namespace ccf
         throw std::logic_error("Snapshotter already initialised");
       }
       snapshotter = std::make_shared<Snapshotter>(
-        writer_factory, network.tables, config.snapshot_tx_interval);
+        writer_factory, network.tables, config.snapshots.tx_count);
     }
 
     void read_ledger_entries(::consensus::Index from, ::consensus::Index to)
@@ -2622,7 +2706,7 @@ namespace ccf
       n2n_channels->set_idle_timeout(idle_timeout);
     }
 
-    virtual const StartupConfig& get_node_config() const override
+    virtual const ccf::StartupConfig& get_node_config() const override
     {
       return config;
     }
@@ -2643,8 +2727,8 @@ namespace ccf
     virtual void make_http_request(
       const ::http::URL& url,
       ::http::Request&& req,
-      std::function<
-        bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
+      std::function<bool(
+        ccf::http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
       const std::vector<std::string>& ca_certs = {},
       const std::string& app_protocol = "HTTP1",
@@ -2667,7 +2751,7 @@ namespace ccf
         url.host,
         url.port,
         [callback](
-          http_status status,
+          ccf::http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           return callback(status, std::move(headers), std::move(data));

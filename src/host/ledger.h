@@ -219,15 +219,19 @@ namespace asynchost
       from_existing_file(from_existing_file_)
     {
       auto file_path = (fs::path(dir) / fs::path(file_name));
-      file = fopen(file_path.c_str(), "r+b");
+
+      committed = is_ledger_file_name_committed(file_name);
+      start_idx = get_start_idx_from_file_name(file_name);
+
+      const auto mode = committed ? "rb" : "r+b";
+
+      file = fopen(file_path.c_str(), mode);
+
       if (!file)
       {
         throw std::logic_error(fmt::format(
           "Unable to open ledger file {}: {}", file_path, strerror(errno)));
       }
-
-      committed = is_ledger_file_name_committed(file_name);
-      start_idx = get_start_idx_from_file_name(file_name);
 
       // First, get full size of file
       fseeko(file, 0, SEEK_END);
@@ -1606,14 +1610,16 @@ namespace asynchost
               job->from_idx = from_idx;
               job->to_idx = to_idx;
               job->max_size = max_entries_size;
-              job->result_cb =
-                [this, from_idx = from_idx, to_idx = to_idx, purpose = purpose](
-                  auto&& read_result, int status) {
-                  // NB: Even if status is cancelled (and entry is empty), we
-                  // want to write this result back to the enclave
-                  write_ledger_get_range_response(
-                    from_idx, to_idx, std::move(read_result), purpose);
-                };
+              job->result_cb = [this,
+                                from_idx_ = from_idx,
+                                to_idx_ = to_idx,
+                                purpose_ =
+                                  purpose](auto&& read_result, int status) {
+                // NB: Even if status is cancelled (and entry is empty), we
+                // want to write this result back to the enclave
+                write_ledger_get_range_response(
+                  from_idx_, to_idx_, std::move(read_result), purpose_);
+              };
 
               work_handle->data = job;
             }

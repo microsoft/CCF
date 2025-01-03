@@ -63,6 +63,9 @@ Policies
 .. doxygenvariable:: ccf::member_cert_auth_policy
    :project: CCF
 
+.. doxygenvariable:: ccf::any_cert_auth_policy
+   :project: CCF
+
 .. doxygenvariable:: ccf::member_cose_sign1_auth_policy
    :project: CCF
 
@@ -83,6 +86,10 @@ Identities
    :members:
 
 .. doxygenstruct:: ccf::MemberCertAuthnIdentity
+   :project: CCF
+   :members:
+
+.. doxygenstruct:: ccf::AnyCertAuthnIdentity
    :project: CCF
    :members:
 
@@ -146,15 +153,35 @@ Indexing
    :project: CCF
    :members:
 
-JavaScript FFI Plugins
-----------------------
-
-.. doxygenfunction:: ccf::get_js_plugins
-   :project: CCF
-
 HTTP Entity Tags Matching
 -------------------------
 
 .. doxygenclass:: ccf::http::Matcher
    :project: CCF
    :members:
+
+HTTP Accept Header Matching
+---------------------------
+
+.. doxygenstruct:: ccf::http::AcceptHeaderField
+   :project: CCF
+   :members:
+
+.. doxygenfunction:: ccf::http::parse_accept_header
+   :project: CCF
+
+COSE
+----
+
+.. doxygenstruct:: ccf::cose::edit::pos::InArray
+   :project: CCF
+
+.. doxygenstruct:: ccf::cose::edit::pos::AtKey
+   :project: CCF
+   :members:
+
+.. doxygentypedef:: ccf::cose::edit::pos::Type
+   :project: CCF
+
+.. doxygenfunction:: ccf::cose::edit::set_unprotected_header
+   :project: CCF

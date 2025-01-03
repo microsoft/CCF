@@ -70,6 +70,7 @@ Each endpoint object contains the following information:
 
   - ``"user_cert"``
   - ``"member_cert"``
+  - ``"any_cert"``
   - ``"jwt"``
   - ``"user_cose_sign1"``
   - ``"no_auth"``
@@ -337,8 +338,7 @@ The key fields are:
 Once :ref:`submitted and accepted <governance/proposals:Submitting a New Proposal>`, a ``set_js_app`` proposal atomically (re-)deploys the complete JavaScript application.
 Any existing application endpoints and JavaScript modules are removed.
 
-If you are using ``npm`` or similar to build your app it may make sense to convert your app into a proposal-ready JSON bundle during packaging.
-For an example of how this could be done, see :ccf_repo:`tests/npm-app/build_bundle.js` from one of CCF's test applications, called by ``npm build`` from the corresponding :ccf_repo:`tests/npm-app/package.json`.
+If you are using ``npm`` to build your app, we package a `ccf-build-bundle` script alongside `ccf-app`. This can be run using `npx --package @microsoft/ccf-app ccf-build-bundle path/to/root/of/app` to package the `app.json` and all javascript modules under `src` into a proposal-ready JSON bundle.
 
 Bytecode cache
 ~~~~~~~~~~~~~~
@@ -372,7 +372,7 @@ Note that this removes the sandboxing protections described above. If the conten
 
 This behaviour is controlled in ``app.json``, with the ``"interpreter_reuse"`` property on each endpoint. The default behaviour, taken when the field is omitted, is to avoid any interpreter reuse, providing strict sandboxing safety. To reuse an interpreter, set ``"interpreter_reuse"`` to an object of the form ``{"key": "foo"}``, where ``foo`` is an arbitrary, app-defined string. Interpreters will be shared between endpoints where this string matches. For instance:
 
-.. code-block:: json
+.. code-block:: yaml
 
     {
       "endpoints": {

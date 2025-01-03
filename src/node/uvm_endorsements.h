@@ -63,7 +63,7 @@ namespace ccf
     {"did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
      "1.4.1.311.76.59.1.5",
      "ConfAKS-AMD-UVM",
-     "0"}};
+     "1"}};
 
   bool inline matches_uvm_roots_of_trust(
     const UVMEndorsements& endorsements,
@@ -287,7 +287,8 @@ namespace ccf
 
     const auto& did = phdr.iss;
 
-    auto did_document_str = didx509::resolve(pem_chain, did);
+    auto did_document_str =
+      didx509::resolve(pem_chain, did, true /* ignore time */);
     did::DIDDocument did_document = nlohmann::json::parse(did_document_str);
 
     if (did_document.verification_method.empty())

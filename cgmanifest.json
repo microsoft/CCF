@@ -122,15 +122,6 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/protocolbuffers/protobuf",
-          "commitHash": "90b73ac3f0b10320315c2ca0d03a5a9b095d2f66"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
           "repositoryUrl": "https://github.com/laurencelundblade/QCBOR",
           "commitHash": "92d3f89030baff4af7be8396c563e6c8ef263622"
         }

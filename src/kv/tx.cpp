@@ -3,7 +3,7 @@
 
 #include "ccf/tx.h"
 
-#include "ccf/ccf_assert.h"
+#include "ds/ccf_assert.h"
 #include "kv/compacted_version_conflict.h"
 #include "kv/kv_types.h"
 #include "kv/tx_pimpl.h"

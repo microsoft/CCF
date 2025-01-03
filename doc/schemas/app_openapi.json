@@ -31,44 +31,6 @@
         },
         "type": "object"
       },
-      "CodeStatus": {
-        "enum": [
-          "AllowedToJoin"
-        ],
-        "type": "string"
-      },
-      "GetCode__Out": {
-        "properties": {
-          "versions": {
-            "$ref": "#/components/schemas/GetCode__Version_array"
-          }
-        },
-        "required": [
-          "versions"
-        ],
-        "type": "object"
-      },
-      "GetCode__Version": {
-        "properties": {
-          "digest": {
-            "$ref": "#/components/schemas/string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/CodeStatus"
-          }
-        },
-        "required": [
-          "digest",
-          "status"
-        ],
-        "type": "object"
-      },
-      "GetCode__Version_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetCode__Version"
-        },
-        "type": "array"
-      },
       "GetCommit__Out": {
         "properties": {
           "transaction_id": {
@@ -106,6 +68,17 @@
         },
         "required": [
           "endorsements"
+        ],
+        "type": "object"
+      },
+      "LoggingGetCoseSignature__Out": {
+        "properties": {
+          "cose_signature": {
+            "$ref": "#/components/schemas/base64string"
+          }
+        },
+        "required": [
+          "cose_signature"
         ],
         "type": "object"
       },
@@ -284,7 +257,7 @@
   "info": {
     "description": "This CCF sample app implements a simple logging application, securely recording messages at client-specified IDs. It demonstrates most of the features available to CCF apps.",
     "title": "CCF Sample Logging App",
-    "version": "2.4.3"
+    "version": "2.8.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -307,32 +280,6 @@
           }
         },
         "summary": "OpenAPI schema",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
-        }
-      }
-    },
-    "/app/code": {
-      "get": {
-        "deprecated": true,
-        "description": "This endpoint is deprecated from 5.0.0. It is replaced by GET /gov/service/join-policy",
-        "operationId": "GetAppCode",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetCode__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "summary": "Permitted SGX code identities",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
@@ -378,6 +325,30 @@
         "summary": "Current commit level",
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/app/cose_signatures_config": {
+      "get": {
+        "operationId": "GetAppCoseSignaturesConfig",
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          },
+          {
+            "user_cose_sign1": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
         }
       }
     },
@@ -1240,6 +1211,61 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LoggingGetCoseEndorsements__Out"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          },
+          {
+            "user_cose_sign1": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
+    "/app/log/public/cose_receipt": {
+      "get": {
+        "operationId": "GetAppLogPublicCoseReceipt",
+        "responses": {
+          "204": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "security": [
+          {
+            "jwt": []
+          },
+          {
+            "user_cose_sign1": []
+          }
+        ],
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/never"
+        }
+      }
+    },
+    "/app/log/public/cose_signature": {
+      "get": {
+        "operationId": "GetAppLogPublicCoseSignature",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggingGetCoseSignature__Out"
                 }
               }
             },

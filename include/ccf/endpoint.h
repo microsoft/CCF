@@ -226,6 +226,7 @@ namespace ccf::endpoints
      *
      * @see ccf::empty_auth_policy
      * @see ccf::user_cert_auth_policy
+     * @see ccf::any_cert_auth_policy
      */
     AuthnPolicies authn_policies;
   };

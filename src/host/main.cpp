@@ -3,6 +3,7 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/ds/unit_strings.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/platform.h"
 #include "ccf/version.h"
@@ -13,7 +14,6 @@
 #include "ds/non_blocking.h"
 #include "ds/nonstd.h"
 #include "ds/oversized.h"
-#include "ds/x509_time_fmt.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
@@ -24,7 +24,8 @@
 #include "process_launcher.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
-#include "snapshots.h"
+#include "snapshots/fetch.h"
+#include "snapshots/snapshot_manager.h"
 #include "ticker.h"
 #include "time_updater.h"
 
@@ -80,9 +81,11 @@ int main(int argc, char** argv)
     "platforms) their value is captured in an attestation even if the "
     "configuration file itself is unattested.\n"};
 
-  std::string config_file_path = "config.json";
-  app.add_option(
-    "-c,--config", config_file_path, "Path to JSON configuration file");
+  std::string config_file_path;
+  app
+    .add_option(
+      "-c,--config", config_file_path, "Path to JSON configuration file")
+    ->required();
 
   ccf::ds::TimeString config_timeout = {"0s"};
   app.add_option(
@@ -97,12 +100,13 @@ int main(int argc, char** argv)
   app.add_flag(
     "-v, --version", print_version, "Display CCF host version and exit");
 
-  LoggerLevel enclave_log_level = LoggerLevel::INFO;
-  std::map<std::string, LoggerLevel> log_level_options;
-  for (size_t i = ccf::logger::MOST_VERBOSE; i < LoggerLevel::MAX_LOG_LEVEL;
+  ccf::LoggerLevel enclave_log_level = ccf::LoggerLevel::INFO;
+  std::map<std::string, ccf::LoggerLevel> log_level_options;
+  for (size_t i = ccf::logger::MOST_VERBOSE;
+       i < ccf::LoggerLevel::MAX_LOG_LEVEL;
        ++i)
   {
-    const auto l = (LoggerLevel)i;
+    const auto l = (ccf::LoggerLevel)i;
     log_level_options[ccf::logger::to_string(l)] = l;
   }
 
@@ -373,7 +377,7 @@ int main(int argc, char** argv)
       config.ledger.read_only_directories);
     ledger.register_message_handlers(bp.get_dispatcher());
 
-    asynchost::SnapshotManager snapshots(
+    snapshots::SnapshotManager snapshots(
       config.snapshots.directory,
       writer_factory,
       config.snapshots.read_only_directory);
@@ -502,9 +506,7 @@ int main(int argc, char** argv)
 
     enclave_config.writer_config = writer_config;
 
-    StartupConfig startup_config(config);
-
-    startup_config.snapshot_tx_interval = config.snapshots.tx_count;
+    ccf::StartupConfig startup_config(config);
 
     if (startup_config.attestation.snp_security_policy_file.has_value())
     {
@@ -593,7 +595,7 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
     startup_config.startup_host_time =
-      ::ds::to_x509_time_string(startup_host_time);
+      ccf::ds::to_x509_time_string(startup_host_time);
 
     if (config.command.type == StartType::Start)
     {
@@ -640,6 +642,7 @@ int main(int argc, char** argv)
         config.command.start.initial_service_certificate_validity_days;
       startup_config.service_subject_name =
         config.command.start.service_subject_name;
+      startup_config.cose_signatures = config.command.start.cose_signatures;
       LOG_INFO_FMT(
         "Creating new node: new network (with {} initial member(s) and {} "
         "member(s) required for recovery)",
@@ -686,22 +689,62 @@ int main(int argc, char** argv)
       config.command.type == StartType::Join ||
       config.command.type == StartType::Recover)
     {
-      auto latest_committed_snapshot =
-        snapshots.find_latest_committed_snapshot();
-      if (latest_committed_snapshot.has_value())
-      {
-        auto& [snapshot_dir, snapshot_file] = latest_committed_snapshot.value();
-        startup_snapshot = files::slurp(snapshot_dir / snapshot_file);
+      auto latest_local_snapshot = snapshots.find_latest_committed_snapshot();
 
-        LOG_INFO_FMT(
-          "Found latest snapshot file: {} (size: {})",
-          snapshot_dir / snapshot_file,
-          startup_snapshot.size());
-      }
-      else
+      if (
+        config.command.type == StartType::Join &&
+        config.command.join.fetch_recent_snapshot)
       {
-        LOG_INFO_FMT(
-          "No snapshot found: Node will replay all historical transactions");
+        // Try to fetch a recent snapshot from peer
+        const size_t latest_local_idx = latest_local_snapshot.has_value() ?
+          snapshots::get_snapshot_idx_from_file_name(
+            latest_local_snapshot->second) :
+          0;
+        auto latest_peer_snapshot = snapshots::fetch_from_peer(
+          config.command.join.target_rpc_address,
+          config.command.service_certificate_file,
+          latest_local_idx);
+
+        if (latest_peer_snapshot.has_value())
+        {
+          LOG_INFO_FMT(
+            "Received snapshot {} from peer (size: {}) - writing this to disk "
+            "and using for join startup",
+            latest_peer_snapshot->snapshot_name,
+            latest_peer_snapshot->snapshot_data.size());
+
+          const auto dst_path = fs::path(config.snapshots.directory) /
+            fs::path(latest_peer_snapshot->snapshot_name);
+          if (files::exists(dst_path))
+          {
+            LOG_FATAL_FMT(
+              "Unable to write peer snapshot - already have a file at {}. "
+              "Exiting.",
+              dst_path);
+            return static_cast<int>(CLI::ExitCodes::FileError);
+          }
+          files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+          startup_snapshot = latest_peer_snapshot->snapshot_data;
+        }
+      }
+
+      if (startup_snapshot.empty())
+      {
+        if (latest_local_snapshot.has_value())
+        {
+          auto& [snapshot_dir, snapshot_file] = latest_local_snapshot.value();
+          startup_snapshot = files::slurp(snapshot_dir / snapshot_file);
+
+          LOG_INFO_FMT(
+            "Found latest local snapshot file: {} (size: {})",
+            snapshot_dir / snapshot_file,
+            startup_snapshot.size());
+        }
+        else
+        {
+          LOG_INFO_FMT(
+            "No snapshot found: Node will replay all historical transactions");
+        }
       }
     }
 

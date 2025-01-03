@@ -38,6 +38,7 @@ import copy
 import programmability
 import e2e_common_endpoints
 import subprocess
+import base64
 
 from loguru import logger as LOG
 
@@ -664,6 +665,13 @@ def test_multi_auth(network, args):
             assert r.body.text().startswith("Member TLS cert"), r.body.text()
             require_new_response(r)
 
+        # Create a keypair that is not a user
+        network.create_user("not_a_user", args.participants_curve, record=False)
+        with primary.client("not_a_user") as c:
+            r = c.post("/app/multi_auth")
+            assert r.body.text().startswith("Any TLS cert"), r.body.text()
+            require_new_response(r)
+
         LOG.info("Authenticate via JWT token")
         jwt_issuer = infra.jwt_issuer.JwtIssuer()
         jwt_issuer.register(network)
@@ -958,6 +966,113 @@ def test_cbor_merkle_proof(network, args):
                 break
         else:
             assert False, "Failed to find a non-signature in the last 10 transactions"
+
+    return network
+
+
+@reqs.description("Check COSE signature CDDL model")
+def test_cose_signature_schema(network, args):
+    primary, _ = network.find_nodes()
+
+    with primary.client("user0") as client:
+        r = client.get("/commit")
+        assert r.status_code == http.HTTPStatus.OK
+        txid = TxID.from_str(r.body.json()["transaction_id"])
+        max_retries = 10
+        for _ in range(max_retries):
+            response = client.get(
+                "/log/public/cose_signature",
+                headers={infra.clients.CCF_TX_ID_HEADER: f"{txid.view}.{txid.seqno}"},
+            )
+
+            if response.status_code == http.HTTPStatus.OK:
+                signature = response.body.json()["cose_signature"]
+                signature = base64.b64decode(signature)
+                signature_filename = os.path.join(
+                    network.common_dir, f"cose_signature_{txid}.cose"
+                )
+                with open(signature_filename, "wb") as f:
+                    f.write(signature)
+                subprocess.run(
+                    [
+                        "cddl",
+                        "../cddl/ccf-merkle-tree-cose-signature.cddl",
+                        "v",
+                        signature_filename,
+                    ],
+                    check=True,
+                )
+                LOG.debug(f"Checked COSE signature schema for txid {txid}")
+                break
+            elif response.status_code == http.HTTPStatus.ACCEPTED:
+                LOG.debug(f"Transaction {txid} accepted, retrying")
+                time.sleep(0.1)
+            else:
+                LOG.error(f"Failed to get COSE signature for txid {txid}")
+                break
+        else:
+            assert (
+                False
+            ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
+
+    return network
+
+
+@reqs.description("Check COSE receipt CDDL schema")
+def test_cose_receipt_schema(network, args):
+    primary, _ = network.find_nodes()
+
+    # Make sure the last transaction does not contain application claims
+    member = network.consortium.get_any_active_member()
+    r = member.update_ack_state_digest(primary)
+    with primary.client() as client:
+        client.wait_for_commit(r)
+
+    txid = r.headers[infra.clients.CCF_TX_ID_HEADER]
+
+    service_cert_path = os.path.join(network.common_dir, "service_cert.pem")
+    service_cert = load_pem_x509_certificate(
+        open(service_cert_path, "rb").read(), default_backend()
+    )
+    service_key = service_cert.public_key()
+
+    with primary.client("user0") as client:
+        LOG.debug(f"Trying to get COSE receipt for txid {txid}")
+        max_retries = 10
+        for _ in range(max_retries):
+            r = client.get(
+                "/log/public/cose_receipt",
+                headers={infra.clients.CCF_TX_ID_HEADER: txid},
+                log_capture=[],  # Do not emit raw binary to stdout
+            )
+
+            if r.status_code == http.HTTPStatus.OK:
+                cbor_proof = r.body.data()
+                receipt_phdr = ccf.cose.verify_receipt(
+                    cbor_proof, service_key, b"\0" * 32
+                )
+                assert receipt_phdr[15][1] == "service.example.com"
+                assert receipt_phdr[15][2] == "ledger.signature"
+                cbor_proof_filename = os.path.join(
+                    network.common_dir, f"receipt_{txid}.cose"
+                )
+                with open(cbor_proof_filename, "wb") as f:
+                    f.write(cbor_proof)
+                subprocess.run(
+                    ["cddl", "../cddl/ccf-receipt.cddl", "v", cbor_proof_filename],
+                    check=True,
+                )
+                LOG.debug(f"Checked COSE receipt for txid {txid}")
+                break
+            elif r.status_code == http.HTTPStatus.ACCEPTED:
+                LOG.debug(f"Transaction {txid} accepted, retrying")
+                time.sleep(0.1)
+            else:
+                assert False, r
+        else:
+            assert (
+                False
+            ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
 
     return network
 
@@ -1852,7 +1967,7 @@ def test_basic_constraints(network, args):
     )
     assert basic_constraints.critical is True
     assert basic_constraints.value.ca is True
-    assert basic_constraints.value.path_length == 0
+    assert basic_constraints.value.path_length == 1
 
     node_pem = primary.get_tls_certificate_pem()
     node_cert = load_pem_x509_certificate(node_pem.encode(), default_backend())
@@ -2136,6 +2251,23 @@ def run_app_space_js(args):
         run_main_tests(network, args)
 
 
+def test_cose_config(network, args):
+
+    configs = set()
+
+    for node in network.get_joined_nodes():
+        with node.client("user0") as c:
+            r = c.get("/cose_signatures_config")
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+            configs.add(r.body.text())
+
+    assert len(configs) == 1, configs
+    assert (
+        configs.pop() == '{"issuer":"service.example.com","subject":"ledger.signature"}'
+    ), configs
+    return network
+
+
 def run_main_tests(network, args):
     test_basic_constraints(network, args)
     test(network, args)
@@ -2144,6 +2276,8 @@ def run_main_tests(network, args):
     test_record_count(network, args)
     if args.package == "samples/apps/logging/liblogging":
         test_cbor_merkle_proof(network, args)
+        test_cose_signature_schema(network, args)
+        test_cose_receipt_schema(network, args)
 
     # HTTP2 doesn't support forwarding
     if not args.http2:
@@ -2178,6 +2312,7 @@ def run_main_tests(network, args):
     test_genesis_receipt(network, args)
     if args.package == "samples/apps/logging/liblogging":
         test_etags(network, args)
+        test_cose_config(network, args)
 
 
 def run_parsing_errors(args):

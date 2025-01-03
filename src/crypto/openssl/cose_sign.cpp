@@ -13,7 +13,7 @@ namespace
   static constexpr size_t extra_size_for_seq_tag = 1 + 8; // type + size
 
   size_t estimate_buffer_size(
-    const std::vector<ccf::crypto::COSEParametersFactory>& protected_headers,
+    const ccf::crypto::COSEHeadersArray& protected_headers,
     std::span<const uint8_t> payload)
   {
     size_t result =
@@ -28,7 +28,7 @@ namespace
       protected_headers.end(),
       result,
       [](auto result, const auto& factory) {
-        return result + factory.estimated_size();
+        return result + factory->estimated_size();
       });
 
     return result + payload.size();
@@ -37,7 +37,7 @@ namespace
   void encode_protected_headers(
     t_cose_sign1_sign_ctx* ctx,
     QCBOREncodeContext* encode_ctx,
-    const std::vector<ccf::crypto::COSEParametersFactory>& protected_headers)
+    const ccf::crypto::COSEHeadersArray& protected_headers)
   {
     QCBOREncode_BstrWrap(encode_ctx);
     QCBOREncode_OpenMap(encode_ctx);
@@ -50,7 +50,7 @@ namespace
     // Caller-provided headers follow
     for (const auto& factory : protected_headers)
     {
-      factory.apply(encode_ctx);
+      factory->apply(encode_ctx);
     }
 
     QCBOREncode_CloseMap(encode_ctx);
@@ -67,7 +67,7 @@ namespace
   void encode_parameters_custom(
     struct t_cose_sign1_sign_ctx* me,
     QCBOREncodeContext* cbor_encode,
-    const std::vector<ccf::crypto::COSEParametersFactory>& protected_headers)
+    const ccf::crypto::COSEHeadersArray& protected_headers)
   {
     encode_protected_headers(me, cbor_encode, protected_headers);
 
@@ -94,57 +94,91 @@ namespace ccf::crypto
     }
   }
 
-  COSEParametersFactory cose_params_cwt_map_int_int(const CWTMap& m)
-  {
-    size_t args_size = extra_size_for_seq_tag;
-    for (const auto& [key, value] : m)
-    {
-      args_size += sizeof(key) + sizeof(value) + extra_size_for_int_tag +
-        extra_size_for_int_tag;
-    }
+  COSEMapIntKey::COSEMapIntKey(int64_t key_) : key(key_) {}
 
-    return COSEParametersFactory(
-      [=](QCBOREncodeContext* ctx) {
-        QCBOREncode_OpenMapInMapN(ctx, COSE_PHEADER_KEY_CWT);
-        for (const auto& [key, value] : m)
-        {
-          QCBOREncode_AddInt64(ctx, key);
-          QCBOREncode_AddInt64(ctx, value);
-        }
-        QCBOREncode_CloseMap(ctx);
-      },
-      args_size);
+  void COSEMapIntKey::apply(QCBOREncodeContext* ctx) const
+  {
+    QCBOREncode_AddInt64(ctx, key);
   }
 
-  COSEParametersFactory cose_params_int_int(int64_t key, int64_t value)
+  size_t COSEMapIntKey::estimated_size() const
+  {
+    return sizeof(key) + extra_size_for_int_tag;
+  }
+
+  COSEMapStringKey::COSEMapStringKey(const std::string& key_) : key(key_) {}
+
+  void COSEMapStringKey::apply(QCBOREncodeContext* ctx) const
+  {
+    QCBOREncode_AddSZString(ctx, key.c_str());
+  }
+
+  size_t COSEMapStringKey::estimated_size() const
+  {
+    return key.size() + extra_size_for_seq_tag;
+  }
+
+  COSEParametersMap::COSEParametersMap(
+    std::shared_ptr<COSEMapKey> key_,
+    const std::vector<std::shared_ptr<COSEParametersFactory>>& factories_) :
+    key(std::move(key_)),
+    factories(factories_)
+  {}
+
+  void COSEParametersMap::apply(QCBOREncodeContext* ctx) const
+  {
+    key->apply(ctx);
+    QCBOREncode_OpenMap(ctx);
+    for (const auto& f : factories)
+    {
+      f->apply(ctx);
+    }
+    QCBOREncode_CloseMap(ctx);
+  }
+
+  size_t COSEParametersMap::estimated_size() const
+  {
+    size_t value = key->estimated_size() + extra_size_for_seq_tag;
+    std::accumulate(
+      factories.begin(),
+      factories.end(),
+      value,
+      [](auto value, const auto& factory) {
+        return value + factory->estimated_size();
+      });
+    return value;
+  }
+
+  std::shared_ptr<COSEParametersFactory> cose_params_int_int(
+    int64_t key, int64_t value)
   {
     const size_t args_size = sizeof(key) + sizeof(value) +
       extra_size_for_int_tag + extra_size_for_int_tag;
-    return COSEParametersFactory(
+    return std::make_shared<COSEParametersPair>(
       [=](QCBOREncodeContext* ctx) {
         QCBOREncode_AddInt64ToMapN(ctx, key, value);
       },
       args_size);
   }
 
-  COSEParametersFactory cose_params_int_string(
+  std::shared_ptr<COSEParametersFactory> cose_params_int_string(
     int64_t key, const std::string& value)
   {
     const size_t args_size = sizeof(key) + value.size() +
       extra_size_for_int_tag + extra_size_for_seq_tag;
-    return COSEParametersFactory(
+    return std::make_shared<COSEParametersPair>(
       [=](QCBOREncodeContext* ctx) {
         QCBOREncode_AddSZStringToMapN(ctx, key, value.data());
       },
       args_size);
   }
 
-  COSEParametersFactory cose_params_string_int(
+  std::shared_ptr<COSEParametersFactory> cose_params_string_int(
     const std::string& key, int64_t value)
   {
     const size_t args_size = key.size() + sizeof(value) +
       extra_size_for_seq_tag + extra_size_for_int_tag;
-    return COSEParametersFactory(
+    return std::make_shared<COSEParametersPair>(
       [=](QCBOREncodeContext* ctx) {
         QCBOREncode_AddSZString(ctx, key.data());
         QCBOREncode_AddInt64(ctx, value);
@@ -152,12 +186,12 @@ namespace ccf::crypto
       args_size);
   }
 
-  COSEParametersFactory cose_params_string_string(
+  std::shared_ptr<COSEParametersFactory> cose_params_string_string(
     const std::string& key, const std::string& value)
   {
     const size_t args_size = key.size() + value.size() +
       extra_size_for_seq_tag + extra_size_for_seq_tag;
-    return COSEParametersFactory(
+    return std::make_shared<COSEParametersPair>(
       [=](QCBOREncodeContext* ctx) {
         QCBOREncode_AddSZString(ctx, key.data());
         QCBOREncode_AddSZString(ctx, value.data());
@@ -165,26 +199,26 @@ namespace ccf::crypto
       args_size);
   }
 
-  COSEParametersFactory cose_params_int_bytes(
-    int64_t key, const std::vector<uint8_t>& value)
+  std::shared_ptr<COSEParametersFactory> cose_params_int_bytes(
+    int64_t key, std::span<const uint8_t> value)
   {
     const size_t args_size = sizeof(key) + value.size() +
       +extra_size_for_int_tag + extra_size_for_seq_tag;
     q_useful_buf_c buf{value.data(), value.size()};
-    return COSEParametersFactory(
+    return std::make_shared<COSEParametersPair>(
       [=](QCBOREncodeContext* ctx) {
         QCBOREncode_AddBytesToMapN(ctx, key, buf);
       },
       args_size);
   }
 
-  COSEParametersFactory cose_params_string_bytes(
-    const std::string& key, const std::vector<uint8_t>& value)
+  std::shared_ptr<COSEParametersFactory> cose_params_string_bytes(
+    const std::string& key, std::span<const uint8_t> value)
   {
     const size_t args_size = key.size() + value.size() +
       extra_size_for_seq_tag + extra_size_for_seq_tag;
     q_useful_buf_c buf{value.data(), value.size()};
-    return COSEParametersFactory(
+    return std::make_shared<COSEParametersPair>(
       [=](QCBOREncodeContext* ctx) {
         QCBOREncode_AddSZString(ctx, key.data());
         QCBOREncode_AddBytes(ctx, buf);
@@ -194,7 +228,8 @@ namespace ccf::crypto
 
   std::vector<uint8_t> cose_sign1(
     const KeyPair_OpenSSL& key,
-    const std::vector<COSEParametersFactory>& protected_headers,
+    const std::vector<std::shared_ptr<COSEParametersFactory>>&
+      protected_headers,
     std::span<const uint8_t> payload,
     bool detached_payload)
   {

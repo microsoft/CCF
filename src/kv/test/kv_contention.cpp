@@ -36,7 +36,7 @@ public:
 
 DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 {
-  ccf::logger::config::level() = LoggerLevel::INFO;
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
 
   // Multiple threads write random entries into random tables, and attempt to
   // commit them. A single thread continually compacts the kv to the latest
@@ -252,6 +252,8 @@ DOCTEST_TEST_CASE("Concurrent kv access" * doctest::test_suite("concurrency"))
 DOCTEST_TEST_CASE(
   "get_version_of_previous_write ordering" * doctest::test_suite("concurrency"))
 {
+  ccf::logger::config::level() = ccf::LoggerLevel::INFO;
+
   // Many threads attempt to produce a chain of transactions pointing at the
   // previous write to a single key, at that key.
   ccf::kv::Store kv_store;
@@ -315,7 +317,7 @@ DOCTEST_TEST_CASE(
 
   std::vector<std::thread> threads;
   constexpr auto num_threads = 64;
-  constexpr auto writes_per_thread = 10;
+  constexpr auto writes_per_thread = 100;
   for (size_t i = 0; i < num_threads; ++i)
   {
     threads.emplace_back([&]() {
@@ -331,6 +333,7 @@ DOCTEST_TEST_CASE(
     thread.join();
   }
 
+  LOG_INFO_FMT("Found {} conflicts", conflict_count);
   DOCTEST_CHECK(conflict_count > 0);
   constexpr auto last_write_version = num_threads * writes_per_thread;
 

@@ -122,7 +122,7 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 ``nodes.code_ids``
 ~~~~~~~~~~~~~~~~~~
 
-Versions of the code allowed to join the current network on :doc:`SGX <../operations/platforms/sgx>`.
+DEPRECATED. Previously contained versions of the code allowed to join the current network on SGX hardware.
 
 **Key** MRENCLAVE, represented as a base64 hex-encoded string (length: 64).
 
@@ -359,10 +359,6 @@ JWT issuers.
 .. doxygenenum:: ccf::JwtIssuerKeyFilter
    :project: CCF
 
-.. doxygenstruct:: ccf::JwtIssuerKeyPolicy
-   :project: CCF
-   :members:
-
 ``jwt.public_signing_keys``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -472,13 +468,13 @@ Signatures emitted by the primary node at regular interval, over the root of the
    :members:
 
 ``cose_signatures``
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 COSE signatures emitted by the primary node over the root of the Merkle Tree at that sequence number.
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
-**Value** Raw COSE Sign1 message as byte string with Merkle tree root as a detached payload.
+**Value** Raw COSE Sign1 message as byte string (DER-encoded). Implements the following :ccf_repo:`CDDL schema </cddl/ccf-merkle-tree-cose-signature.cddl>`.
 
 ``recovery_shares``
 ~~~~~~~~~~~~~~~~~~~
@@ -513,7 +509,7 @@ While the contents themselves are encrypted, the table is public so as to be acc
 
 **Key** Sentinel value 0, represented as a little-endian 64-bit unsigned integer.
 
-**Value** Endorsed COSE sign1 for the interface, represented as a DER-encoded string.
+**Value** Raw COSE Sign1 message as byte string (DER-encoded). Implements the following :ccf_repo:`CDDL schema </cddl/ccf-cose-endorsement-service-identity.cddl>`.
 
 
 ``previous_service_last_signed_root``

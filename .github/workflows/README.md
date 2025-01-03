@@ -107,11 +107,3 @@ Builds and publishes documentation to GitHub Pages. Triggered on pushes to main,
 
 File: `doc.yml`
 3rd party dependencies: None
-
-# Deprecated
-
-The following pipelines are still here to support 4.x, but will be removed when it reaches EOL.
-
-## Release containers ACR/MCR
-
-File: `containers.yml`

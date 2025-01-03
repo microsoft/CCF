@@ -14,7 +14,7 @@ fi
 echo "Setting up Python environment..."
 if [ ! -f "env/bin/activate" ]
     then
-        python3.8 -m venv env
+        python3 -m venv env
 fi
 
 source env/bin/activate

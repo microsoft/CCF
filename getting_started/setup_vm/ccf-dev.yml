@@ -1,28 +1,12 @@
 - hosts: localhost
   vars:
-    platform: "sgx"
-    clang_version: "11"
+    platform: "snp"
+    clang_version: "15"
   tasks:
     - import_role:
         name: llvm_repo
         tasks_from: install.yml
       when: clang_version == "15"
-    - import_role:
-        name: intel
-        tasks_from: sgx-psw.yml
-      when: platform == "sgx"
-    - import_role:
-        name: intel
-        tasks_from: sgx-group.yml
-      when: platform == "sgx"
-    - import_role:
-        name: az_dcap
-        tasks_from: install.yml
-      when: platform == "sgx"
-    - import_role:
-        name: openenclave
-        tasks_from: binary_install.yml
-      when: platform == "sgx"
     - import_role:
         name: nodejs
         tasks_from: install.yml
@@ -34,9 +18,6 @@
         tasks_from: install.yml
     - import_role:
         name: ccf_build
-        tasks_from: install.yml
-    - import_role:
-        name: protoc
         tasks_from: install.yml
     - import_role:
         name: perf-tool

@@ -50,15 +50,15 @@ jobs:
         env:
           ACR_REGISTRY_RESOURCE_NAME: ccfmsrc
           ACR_REGISTRY: ccfmsrc.azurecr.io
-          BASE_IMAGE: ghcr.io/microsoft/ccf/ci/default:build-08-10-2024
+          BASE_IMAGE: ghcr.io/microsoft/ccf/ci/default:build-05-12-2024
 
       - script: |
           set -ex
           az acr login --name $ACR_REGISTRY_RESOURCE_NAME
-          python3.8 -m venv ./scripts/azure_deployment/.env
+          python3 -m venv ./scripts/azure_deployment/.env
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
-          python3.8 scripts/azure_deployment/arm_template.py deploy aci \
+          python3 scripts/azure_deployment/arm_template.py deploy aci \
             --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
             --resource-group ccf-aci \
             --region northeurope \
@@ -153,10 +153,10 @@ jobs:
 
       - script: |
           set -ex
-          python3.8 -m venv ./scripts/azure_deployment/.env
+          python3 -m venv ./scripts/azure_deployment/.env
           source ./scripts/azure_deployment/.env/bin/activate
           pip install -r ./scripts/azure_deployment/requirements.txt
-          python3.8 scripts/azure_deployment/arm_template.py remove aci \
+          python3 scripts/azure_deployment/arm_template.py remove aci \
           --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
           --resource-group ccf-aci \
           --aci-type dynamic-agent \
