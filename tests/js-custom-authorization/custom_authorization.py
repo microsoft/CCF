@@ -13,7 +13,7 @@ import tempfile
 import base64
 import json
 import time
-import infra.jwt_issuer
+from infra.jwt_issuer import JwtAlg, JwtAuthType, JwtIssuer, make_bearer_header
 import datetime
 import re
 import uuid
@@ -111,7 +111,7 @@ def try_auth(primary, issuer, kid, iss, tid):
         LOG.info(f"Creating JWT with kid={kid} iss={iss} tenant={tid}")
         return c.get(
             "/app/jwt",
-            headers=infra.jwt_issuer.make_bearer_header(
+            headers=make_bearer_header(
                 issuer.issue_jwt(kid, claims={"iss": iss, "tid": tid})
             ),
         )
@@ -344,7 +344,7 @@ def test_cert_auth(network, args):
 def test_jwt_auth(network, args):
     primary, _ = network.find_nodes()
 
-    issuer = infra.jwt_issuer.JwtIssuer("https://example.issuer")
+    issuer = JwtIssuer("https://example.issuer")
 
     jwt_kid = "my_key_id"
 
@@ -354,26 +354,26 @@ def test_jwt_auth(network, args):
 
     LOG.info("Calling jwt endpoint after storing keys")
     with primary.client("user0") as c:
-        r = c.get("/app/jwt", headers=infra.jwt_issuer.make_bearer_header("garbage"))
+        r = c.get("/app/jwt", headers=make_bearer_header("garbage"))
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
         assert "Malformed JWT" in parse_error_message(r), r
 
         jwt_mismatching_key_priv_pem, _ = infra.crypto.generate_rsa_keypair(2048)
         jwt = infra.crypto.create_jwt({}, jwt_mismatching_key_priv_pem, jwt_kid)
-        r = c.get("/app/jwt", headers=infra.jwt_issuer.make_bearer_header(jwt))
+        r = c.get("/app/jwt", headers=make_bearer_header(jwt))
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
         assert "JWT payload is missing required field" in parse_error_message(r), r
 
         r = c.get(
             "/app/jwt",
-            headers=infra.jwt_issuer.make_bearer_header(issuer.issue_jwt(jwt_kid)),
+            headers=make_bearer_header(issuer.issue_jwt(jwt_kid)),
         )
         assert r.status_code == HTTPStatus.OK, r.status_code
 
         LOG.info("Calling JWT with too-late nbf")
         r = c.get(
             "/app/jwt",
-            headers=infra.jwt_issuer.make_bearer_header(
+            headers=make_bearer_header(
                 issuer.issue_jwt(jwt_kid, claims={"nbf": time.time() + 60})
             ),
         )
@@ -383,12 +383,43 @@ def test_jwt_auth(network, args):
         LOG.info("Calling JWT with too-early exp")
         r = c.get(
             "/app/jwt",
-            headers=infra.jwt_issuer.make_bearer_header(
+            headers=make_bearer_header(
                 issuer.issue_jwt(jwt_kid, claims={"exp": time.time() - 60})
             ),
         )
         assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
         assert "is after token's Expiration Time" in parse_error_message(r), r
+
+    network.consortium.remove_jwt_issuer(primary, issuer.name)
+    return network
+
+
+@reqs.description("JWT authentication as by OpenID spec with raw public key")
+def test_jwt_auth_raw_key(network, args):
+    primary, _ = network.find_nodes()
+
+    for alg in [JwtAlg.RS256, JwtAlg.ES256]:
+        issuer = JwtIssuer("noautorefresh://issuer", alg=alg, auth_type=JwtAuthType.KEY)
+        jwt_kid = "my_key_id"
+        issuer.register(network, kid=jwt_kid)
+
+        LOG.info("Calling jwt endpoint after storing keys")
+        with primary.client("user0") as c:
+            token = issuer.issue_jwt(jwt_kid)
+            r = c.get(
+                "/app/jwt",
+                headers=make_bearer_header(token),
+            )
+            assert r.status_code == HTTPStatus.OK, r.status_code
+
+            # Change client's key only, new token shouldn't pass validation.
+            issuer.refresh_keys(kid=jwt_kid, send_update=False)
+            token = issuer.issue_jwt(jwt_kid)
+            r = c.get(
+                "/app/jwt",
+                headers=make_bearer_header(token),
+            )
+            assert r.status_code == HTTPStatus.UNAUTHORIZED, r.status_code
 
     network.consortium.remove_jwt_issuer(primary, issuer.name)
     return network
@@ -405,7 +436,7 @@ def test_jwt_auth_msft_single_tenant(network, args):
         "https://login.microsoftonline.com/9188050d-6c67-4c5b-b112-36a304b66da/v2.0"
     )
 
-    issuer = infra.jwt_issuer.JwtIssuer(name="https://login.microsoftonline.com")
+    issuer = JwtIssuer(name="https://login.microsoftonline.com")
     jwt_kid = "my_key_id"
 
     set_issuer_with_a_key(primary, network, issuer, jwt_kid, ISSUER_TENANT)
@@ -443,7 +474,7 @@ def test_jwt_auth_msft_multitenancy(network, args):
     ANOTHER_TENANT_ID = "deadbeef-6c67-4c5b-b112-36a304b66da"
     ISSUER_ANOTHER = f"https://login.microsoftonline.com/{ANOTHER_TENANT_ID}/v2.0"
 
-    issuer = infra.jwt_issuer.JwtIssuer(name="https://login.microsoftonline.com")
+    issuer = JwtIssuer(name="https://login.microsoftonline.com")
 
     jwt_kid_1 = "my_key_id_1"
     jwt_kid_2 = "my_key_id_2"
@@ -520,8 +551,8 @@ def test_jwt_auth_msft_same_kids_different_issuers(network, args):
     ANOTHER_TENANT_ID = "deadbeef-6c67-4c5b-b112-36a304b66da"
     ISSUER_ANOTHER = f"https://login.microsoftonline.com/{ANOTHER_TENANT_ID}/v2.0"
 
-    issuer = infra.jwt_issuer.JwtIssuer(name=ISSUER_TENANT)
-    another = infra.jwt_issuer.JwtIssuer(name=ISSUER_ANOTHER)
+    issuer = JwtIssuer(name=ISSUER_TENANT)
+    another = JwtIssuer(name=ISSUER_ANOTHER)
 
     # Immitate same key sharing
     another.cert_pem, another.key_priv_pem = issuer.cert_pem, issuer.key_priv_pem
@@ -582,7 +613,7 @@ def test_jwt_auth_msft_same_kids_overwrite_constraint(network, args):
     ANOTHER_TENANT_ID = "deadbeef-6c67-4c5b-b112-36a304b66da"
     ISSUER_ANOTHER = f"https://login.microsoftonline.com/{ANOTHER_TENANT_ID}/v2.0"
 
-    issuer = infra.jwt_issuer.JwtIssuer(name=ISSUER_TENANT)
+    issuer = JwtIssuer(name=ISSUER_TENANT)
     jwt_kid = "my_key_id"
 
     set_issuer_with_a_key(primary, network, issuer, jwt_kid, COMMNON_ISSUER)
@@ -708,6 +739,7 @@ def run_authn(args):
         network.start_and_open(args)
         network = test_cert_auth(network, args)
         network = test_jwt_auth(network, args)
+        network = test_jwt_auth_raw_key(network, args)
         network = test_jwt_auth_msft_single_tenant(network, args)
         network = test_jwt_auth_msft_multitenancy(network, args)
         network = test_jwt_auth_msft_same_kids_different_issuers(network, args)
