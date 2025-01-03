@@ -221,6 +221,7 @@ namespace ccf
     // the same time so that the root of the tree in the signatures table
     // matches the serialised Merkle tree.
     const Signatures signatures = {Tables::SIGNATURES};
+    const CoseSignatures cose_signatures = {Tables::COSE_SIGNATURES};
     const SerialisedMerkleTree serialise_tree = {
       Tables::SERIALISED_MERKLE_TREE};
 
