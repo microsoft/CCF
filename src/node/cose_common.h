@@ -93,24 +93,38 @@ namespace ccf::cose
 
     enum
     {
-      ALG_INDEX,
-      KID_INDEX,
       CWT_CLAIMS_INDEX,
       END_INDEX,
     };
     QCBORItem header_items[END_INDEX + 1];
 
-    header_items[ALG_INDEX].label.int64 = headers::PARAM_ALG;
-    header_items[ALG_INDEX].uLabelType = QCBOR_TYPE_INT64;
-    header_items[ALG_INDEX].uDataType = QCBOR_TYPE_INT64;
-
-    header_items[KID_INDEX].label.int64 = headers::PARAM_KID;
-    header_items[KID_INDEX].uLabelType = QCBOR_TYPE_INT64;
-    header_items[KID_INDEX].uDataType = QCBOR_TYPE_BYTE_STRING;
-
     header_items[CWT_CLAIMS_INDEX].label.int64 = crypto::COSE_PHEADER_KEY_CWT;
     header_items[CWT_CLAIMS_INDEX].uLabelType = QCBOR_TYPE_INT64;
     header_items[CWT_CLAIMS_INDEX].uDataType = QCBOR_TYPE_MAP;
+
+    header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
+
+    QCBORDecode_GetItemsInMap(&ctx, header_items);
+
+    qcbor_result = QCBORDecode_GetError(&ctx);
+    if (qcbor_result != QCBOR_SUCCESS)
+    {
+      throw COSEDecodeError(
+        fmt::format("Failed to decode protected header: {}", qcbor_result));
+    }
+
+    if (header_items[CWT_CLAIMS_INDEX].uDataType == QCBOR_TYPE_NONE)
+    {
+      throw COSEDecodeError("Missing CWT claims in COSE_Sign1");
+    }
+
+    QCBORDecode_EnterMapFromMapN(&ctx, crypto::COSE_PHEADER_KEY_CWT);
+    auto decode_error = QCBORDecode_GetError(&ctx);
+    if (decode_error != QCBOR_SUCCESS)
+    {
+      throw COSEDecodeError(
+        fmt::format("Failed to decode CWT claims: {}", decode_error));
+    }
 
     enum
     {
@@ -130,52 +144,26 @@ namespace ccf::cose
 
     cwt_items[CWT_END_INDEX].uLabelType = QCBOR_TYPE_NONE;
 
-    header_items[END_INDEX].uLabelType = QCBOR_TYPE_NONE;
-
-    QCBORDecode_GetItemsInMap(&ctx, header_items);
-
-    qcbor_result = QCBORDecode_GetError(&ctx);
-    if (qcbor_result != QCBOR_SUCCESS)
+    QCBORDecode_GetItemsInMap(&ctx, cwt_items);
+    decode_error = QCBORDecode_GetError(&ctx);
+    if (decode_error != QCBOR_SUCCESS)
     {
       throw COSEDecodeError(
-        fmt::format("Failed to decode protected header: {}", qcbor_result));
+        fmt::format("Failed to decode CWT claim contents: {}", decode_error));
     }
 
-    if (header_items[CWT_CLAIMS_INDEX].uDataType != QCBOR_TYPE_NONE)
+    if (
+      cwt_items[CWT_ISS_INDEX].uDataType != QCBOR_TYPE_NONE &&
+      cwt_items[CWT_SUB_INDEX].uDataType != QCBOR_TYPE_NONE)
     {
-      QCBORDecode_EnterMapFromMapN(&ctx, crypto::COSE_PHEADER_KEY_CWT);
-      auto decode_error = QCBORDecode_GetError(&ctx);
-      if (decode_error != QCBOR_SUCCESS)
-      {
-        throw COSEDecodeError(
-          fmt::format("Failed to decode CWT claims: {}", decode_error));
-      }
-
-      QCBORDecode_GetItemsInMap(&ctx, cwt_items);
-      decode_error = QCBORDecode_GetError(&ctx);
-      if (decode_error != QCBOR_SUCCESS)
-      {
-        throw COSEDecodeError(
-          fmt::format("Failed to decode CWT claim contents: {}", decode_error));
-      }
-
-      if (
-        cwt_items[CWT_ISS_INDEX].uDataType != QCBOR_TYPE_NONE &&
-        cwt_items[CWT_SUB_INDEX].uDataType != QCBOR_TYPE_NONE)
-      {
-        auto issuer = tstring_to_string(cwt_items[CWT_ISS_INDEX]);
-        auto subject = tstring_to_string(cwt_items[CWT_SUB_INDEX]);
-        return {issuer, subject};
-      }
-      else
-      {
-        throw COSEDecodeError(
-          "Missing issuer and subject values in CWT Claims in COSE_Sign1");
-      }
+      auto issuer = tstring_to_string(cwt_items[CWT_ISS_INDEX]);
+      auto subject = tstring_to_string(cwt_items[CWT_SUB_INDEX]);
+      return {issuer, subject};
     }
     else
     {
-      throw COSEDecodeError("Missing CWT claims in COSE_Sign1");
+      throw COSEDecodeError(
+        "Missing issuer and subject values in CWT Claims in COSE_Sign1");
     }
   }
 }
