@@ -31,5 +31,8 @@
     "ts-node": "^10.4.0",
     "typedoc": "^0.27.0",
     "typescript": "^5.7.2"
+  },
+  "bin": {
+    "ccf-build-bundle": "scripts/build_bundle.js"
   }
 }

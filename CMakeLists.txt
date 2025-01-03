@@ -423,45 +423,9 @@ set(CCF_NETWORK_TEST_ARGS
     ${TEST_LOGGING_LEVEL} --worker-threads ${WORKER_THREADS}
 )
 
-set(JS_GENERIC_SOURCES ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp)
-if(COMPILE_TARGET STREQUAL "snp")
-  add_library(js_generic_base.snp STATIC ${JS_GENERIC_SOURCES})
-  add_san(js_generic_base.snp)
-  add_warning_checks(js_generic_base.snp)
-  target_link_libraries(js_generic_base.snp PUBLIC ccf.snp)
-  target_compile_options(js_generic_base.snp PRIVATE ${COMPILE_LIBCXX})
-  target_compile_definitions(
-    js_generic_base.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                               _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
-  )
-  set_property(TARGET js_generic_base.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
-  install(
-    TARGETS js_generic_base.snp
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "virtual")
-  add_library(js_generic_base.virtual STATIC ${JS_GENERIC_SOURCES})
-  add_san(js_generic_base.virtual)
-  add_warning_checks(js_generic_base.virtual)
-  target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
-  target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
-  set_property(
-    TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-  )
-  install(
-    TARGETS js_generic_base.virtual
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
 # SNIPPET_START: JS generic application
 add_ccf_app(
-  js_generic
-  SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
-  LINK_LIBS_ENCLAVE js_generic_base.enclave
-  LINK_LIBS_VIRTUAL js_generic_base.virtual
-  LINK_LIBS_SNP js_generic_base.snp INSTALL_LIBS ON
+  js_generic SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp INSTALL_LIBS ON
 )
 # SNIPPET_END: JS generic application
 
