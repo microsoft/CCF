@@ -103,16 +103,6 @@ namespace host
     };
     Ledger ledger = {};
 
-    struct Snapshots
-    {
-      std::string directory = "snapshots";
-      size_t tx_count = 10'000;
-      std::optional<std::string> read_only_directory = std::nullopt;
-
-      bool operator==(const Snapshots&) const = default;
-    };
-    Snapshots snapshots = {};
-
     struct Logging
     {
       ccf::LoggerLevel host_level = ccf::LoggerLevel::INFO;
@@ -155,6 +145,7 @@ namespace host
         ccf::NodeInfoNetwork::NetAddress target_rpc_address;
         ccf::ds::TimeString retry_timeout = {"1000ms"};
         bool follow_redirect = true;
+        bool fetch_recent_snapshot = true;
 
         bool operator==(const Join&) const = default;
       };
@@ -189,11 +180,6 @@ namespace host
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig::Ledger, directory, read_only_directories, chunk_size);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Snapshots);
-  DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Snapshots);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Snapshots, directory, tx_count, read_only_directory);
-
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Logging);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Logging);
   DECLARE_JSON_OPTIONAL_FIELDS(CCHostConfig::Logging, host_level, format);
@@ -216,7 +202,10 @@ namespace host
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Join);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Join, target_rpc_address);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command::Join, retry_timeout, follow_redirect);
+    CCHostConfig::Command::Join,
+    retry_timeout,
+    follow_redirect,
+    fetch_recent_snapshot);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command::Recover);
