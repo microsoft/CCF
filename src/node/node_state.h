@@ -544,9 +544,6 @@ namespace ccf
             config.startup_host_time,
             config.initial_service_certificate_validity_days);
 
-          history->set_service_signing_identity(
-            network.identity->get_key_pair(), config.cose_signatures);
-
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
         }
@@ -1049,6 +1046,37 @@ namespace ccf
         index = s.seqno;
         view = s.view;
       }
+      else
+      {
+        throw std::logic_error("No signature found after recovery");
+      }
+
+      ccf::COSESignaturesConfig cs_cfg{};
+      auto lcs = tx.ro(network.cose_signatures)->get();
+      if (lcs.has_value())
+      {
+        CoseSignature cs = lcs.value();
+        LOG_INFO_FMT("COSE signature found after recovery");
+        try
+        {
+          auto [issuer, subject] = cose::extract_iss_sub_from_sig(cs);
+          LOG_INFO_FMT(
+            "COSE signature issuer: {}, subject: {}", issuer, subject);
+          cs_cfg = ccf::COSESignaturesConfig{issuer, subject};
+        }
+        catch (const cose::COSEDecodeError& e)
+        {
+          LOG_FAIL_FMT("COSE signature decode error: {}", e.what());
+          throw;
+        }
+      }
+      else
+      {
+        LOG_INFO_FMT("No COSE signature found after recovery");
+      }
+
+      history->set_service_signing_identity(
+        network.identity->get_key_pair(), cs_cfg);
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       if (h)

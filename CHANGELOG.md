@@ -13,6 +13,10 @@ and this project adheres Fto [Semantic Versioning](http://semver.org/spec/v2.0.0
 
 - `GET /gov/service/javascript-app` now takes an optional `?case=original` query argument. When passed, the response will contain the raw original `snake_case` field names, for direct comparison, rather than the API-standard `camelCase` projections.
 
+### Fixed
+
+- `cose_signatures` configuration (`issuer`/`subject`) is now correctly preserved across disaster recovery (#6709).
+
 ### Deprecated
 
 - The function `ccf::get_js_plugins()` and associated FFI plugin system for JS is deprecated. Similar functionality should now be implemented through a `js::Extension` returned from `DynamicJSEndpointRegistry::get_extensions()`.
