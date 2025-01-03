@@ -137,8 +137,8 @@ namespace ccf
       {
         LOG_DEBUG_FMT("Verify der: {} as EC key", der);
 
-        const auto sig_der = ccf::crypto::ecdsa_sig_p1363_to_der(
-          std::vector<uint8_t>(signature, signature + signature_size));
+        const auto sig_der =
+          ccf::crypto::ecdsa_sig_p1363_to_der({signature, signature_size});
         return std::get<ccf::crypto::PublicKeyPtr>(key)->verify(
           contents,
           contents_size,
