@@ -128,14 +128,6 @@ function(add_e2e_test)
       )
     endif()
 
-    if(CDDL_CHECK)
-      set_property(
-        TEST ${PARSED_ARGS_NAME}
-        APPEND
-        PROPERTY ENVIRONMENT "CDDL_CHECK=1"
-      )
-    endif()
-
     if("${PARSED_ARGS_LABEL}" STREQUAL "partitions")
       set_property(
         TEST ${PARSED_ARGS_NAME}

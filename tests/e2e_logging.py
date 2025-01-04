@@ -2274,7 +2274,7 @@ def run_main_tests(network, args):
     test_remove(network, args)
     test_clear(network, args)
     test_record_count(network, args)
-    if args.package == "samples/apps/logging/liblogging" and os.getenv("CDDL_CHECK"):
+    if args.package == "samples/apps/logging/liblogging":
         test_cbor_merkle_proof(network, args)
         test_cose_signature_schema(network, args)
         test_cose_receipt_schema(network, args)

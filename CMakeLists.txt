@@ -100,9 +100,6 @@ option(SAN "Enable Address and Undefined Behavior Sanitizers" OFF)
 option(BUILD_END_TO_END_TESTS "Build end to end tests" ON)
 option(COVERAGE "Enable coverage mapping" OFF)
 option(SHUFFLE_SUITE "Shuffle end to end test suite" OFF)
-option(CDDL_CHECK
-       "Run cddl schema check against certain CBOR envelopes in e2e tests" ON
-)
 option(LONG_TESTS "Enable long end-to-end tests" OFF)
 option(KV_STATE_RB "Enable RBMap as underlying KV state implementation" OFF)
 if(KV_STATE_RB)

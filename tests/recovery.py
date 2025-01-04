@@ -89,19 +89,18 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
             time.time() - cose_msg.phdr[CWT_KEY][IAT_CWT_LABEL] < last_five_minutes
         ), cose_msg.phdr
 
-        if os.getenv("CDDL_CHECK"):
-            endorsement_filename = "prev_service_identoty_endorsement.cose"
-            with open(endorsement_filename, "wb") as f:
-                f.write(endorsement)
-            subprocess.run(
-                [
-                    "cddl",
-                    "../cddl/ccf-cose-endorsement-service-identity.cddl",
-                    "v",
-                    endorsement_filename,
-                ],
-                check=True,
-            )
+        endorsement_filename = "prev_service_identoty_endorsement.cose"
+        with open(endorsement_filename, "wb") as f:
+            f.write(endorsement)
+        subprocess.run(
+            [
+                "cddl",
+                "../cddl/ccf-cose-endorsement-service-identity.cddl",
+                "v",
+                endorsement_filename,
+            ],
+            check=True,
+        )
 
         next_key_bytes = cose_msg.payload
         pubkey = serialization.load_der_public_key(next_key_bytes, default_backend())
