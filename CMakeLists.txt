@@ -1305,6 +1305,10 @@ if(BUILD_TESTS)
         TEST lts_compatibility
         APPEND
         PROPERTY ENVIRONMENT "LTS_COMPAT_GOV_CLIENT=1"
+      )
+      set_property(
+        TEST lts_compatibility
+        APPEND
         PROPERTY LABELS lts_compatibility
       )
     endif()
