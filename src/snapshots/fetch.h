@@ -124,7 +124,7 @@ namespace snapshots
   public:
     UniqueCURL() : p(curl_easy_init(), [](auto x) { curl_easy_cleanup(x); })
     {
-      if (p.get())
+      if (!p.get())
       {
         throw std::runtime_error("Error initialising curl easy request");
       }
@@ -149,7 +149,7 @@ namespace snapshots
       p.reset(curl_slist_append(p.release(), str));
     }
 
-    operator curl_slist*() const
+    curl_slist* get() const
     {
       return p.get();
     }
@@ -187,7 +187,7 @@ namespace snapshots
       list.append(fmt::format("{}: {}", k, v).c_str());
     }
 
-    CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HTTPHEADER, (curl_slist*)list);
+    CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HTTPHEADER, list.get());
 
     if (request.body_handler != nullptr)
     {
