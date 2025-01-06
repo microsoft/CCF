@@ -116,16 +116,49 @@ namespace snapshots
     HeaderMap headers;
   };
 
+  class UniqueCURL
+  {
+  protected:
+    std::unique_ptr<CURL, void (*)(CURL*)> p;
+
+  public:
+    UniqueCURL() : p(curl_easy_init(), [](auto x) { curl_easy_cleanup(x); })
+    {
+      if (!p.get())
+      {
+        throw std::runtime_error("Error initialising curl easy request");
+      }
+    }
+
+    operator CURL*() const
+    {
+      return p.get();
+    }
+  };
+
+  class UniqueSlist
+  {
+  protected:
+    std::unique_ptr<curl_slist, void (*)(curl_slist*)> p;
+
+  public:
+    UniqueSlist() : p(nullptr, [](auto x) { curl_slist_free_all(x); }) {}
+
+    void append(const char* str)
+    {
+      p.reset(curl_slist_append(p.release(), str));
+    }
+
+    curl_slist* get() const
+    {
+      return p.get();
+    }
+  };
+
   static inline SimpleHTTPResponse make_curl_request(
     const SimpleHTTPRequest& request)
   {
-    CURL* curl;
-
-    curl = curl_easy_init();
-    if (!curl)
-    {
-      throw std::runtime_error("Error initialising curl easy request");
-    }
+    UniqueCURL curl;
 
     CHECK_CURL_EASY_SETOPT(curl, CURLOPT_URL, request.url.c_str());
     if (request.method == HTTP_HEAD)
@@ -148,13 +181,13 @@ namespace snapshots
 
     curl_easy_setopt(curl, CURLOPT_CAINFO, request.ca_path.c_str());
 
-    curl_slist* list = nullptr;
+    UniqueSlist list;
     for (const auto& [k, v] : request.headers)
     {
-      list = curl_slist_append(list, fmt::format("{}: {}", k, v).c_str());
+      list.append(fmt::format("{}: {}", k, v).c_str());
     }
 
-    CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HTTPHEADER, list);
+    CHECK_CURL_EASY_SETOPT(curl, CURLOPT_HTTPHEADER, list.get());
 
     if (request.body_handler != nullptr)
     {
@@ -175,9 +208,6 @@ namespace snapshots
       request.method.c_str(),
       request.url,
       response.status_code);
-
-    curl_slist_free_all(list);
-    curl_easy_cleanup(curl);
 
     return response;
   }
