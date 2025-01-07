@@ -914,6 +914,17 @@ def run_join_old_snapshot(args):
                     f"Node {new_node.local_node_id} started without snapshot unexpectedly joined the service successfully"
                 )
 
+            # Start new node with no snapshot dir, but fetching recent snapshot on startup - this should only pass if snapshot fetch works correctly
+            new_node = network.create_node("local://localhost")
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                from_snapshot=False,
+                fetch_recent_snapshot=True,
+                timeout=3,
+            )
+
 
 if __name__ == "__main__":
     cr = ConcurrentRunner()
