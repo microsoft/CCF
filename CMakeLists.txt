@@ -505,10 +505,18 @@ endif()
 add_custom_target(ccf ALL)
 
 set(CCF_IMPL_SOURCE
-    ${CCF_DIR}/src/host/snmalloc.cpp ${CCF_DIR}/src/enclave/main.cpp
-    ${CCF_DIR}/src/enclave/enclave_time.cpp
+    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
 )
+
+if(SAN
+   OR TSAN
+   OR NOT USE_SNMALLOC
+)
+  # Do nothing, SNMALLOC_COMPILE_OPTIONS is empty already
+else()
+  list(APPEND CCF_IMPL_SOURCE ${CCF_DIR}/src/host/snmalloc.cpp)
+endif()
 
 # Same as virtual for the time being but will diverge soon
 if(COMPILE_TARGET STREQUAL "snp")
