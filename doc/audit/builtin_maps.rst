@@ -389,7 +389,7 @@ JWT signing keys, used until 6.0.
 ``jwt.public_signing_keys_metadata_v2``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-JWT signing keys.
+JWT signing keys, from 6.0.0 onwards.
 
 **Key** JWT Key ID, represented as a string.
 
