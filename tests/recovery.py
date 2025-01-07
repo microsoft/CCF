@@ -966,7 +966,7 @@ def run(args):
                     ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
     test_recover_service_from_files(
-        args, "expired_service", expected_recovery_count=1, test_receipt=True
+        args, "expired_service", expected_recovery_count=2, test_receipt=True
     )
     # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
     # This is used to test recovery from SGX to SNP.
