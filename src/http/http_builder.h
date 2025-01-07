@@ -71,46 +71,34 @@ namespace http
       return body;
     }
 
-    void set_body(
-      const std::vector<uint8_t>* b, bool overwrite_content_length = true)
+    void set_body(const std::vector<uint8_t>* b)
     {
       if (b != nullptr)
       {
-        set_body(b->data(), b->size(), overwrite_content_length);
+        set_body(b->data(), b->size());
       }
       else
       {
-        set_body(nullptr, 0, overwrite_content_length);
+        set_body(nullptr, 0);
       }
     }
 
-    void set_body(
-      const uint8_t* b, size_t s, bool overwrite_content_length = true)
+    void set_body(const uint8_t* b, size_t s)
     {
       body = b;
       body_size = s;
 
-      if (
-        overwrite_content_length ||
-        headers.find(ccf::http::headers::CONTENT_LENGTH) == headers.end())
-      {
-        headers[ccf::http::headers::CONTENT_LENGTH] =
-          fmt::format("{}", get_content_length());
-      }
+      headers[ccf::http::headers::CONTENT_LENGTH] =
+        fmt::format("{}", get_content_length());
     }
 
-    void set_body(const std::string& s, bool overwrite_content_length = true)
+    void set_body(const std::string& s)
     {
       body = (uint8_t*)s.data();
       body_size = s.size();
 
-      if (
-        overwrite_content_length ||
-        headers.find(ccf::http::headers::CONTENT_LENGTH) == headers.end())
-      {
-        headers[ccf::http::headers::CONTENT_LENGTH] =
-          fmt::format("{}", get_content_length());
-      }
+      headers[ccf::http::headers::CONTENT_LENGTH] =
+        fmt::format("{}", get_content_length());
     }
   };
 

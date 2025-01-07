@@ -283,12 +283,7 @@ namespace http
       {
         response.set_header(k, v);
       }
-
-      response.set_body(
-        body.data(),
-        body.size(),
-        false /* Don't overwrite any existing content-length header */
-      );
+      response.set_body(body.data(), body.size());
 
       auto data = response.build_response();
       tls_io->send_raw(data.data(), data.size());

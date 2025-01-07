@@ -76,16 +76,6 @@ namespace ccf
       bool operator==(const Attestation&) const = default;
     };
     Attestation attestation = {};
-
-    struct Snapshots
-    {
-      std::string directory = "snapshots";
-      size_t tx_count = 10'000;
-      std::optional<std::string> read_only_directory = std::nullopt;
-
-      bool operator==(const Snapshots&) const = default;
-    };
-    Snapshots snapshots = {};
   };
 
   struct StartupConfig : CCFConfig
