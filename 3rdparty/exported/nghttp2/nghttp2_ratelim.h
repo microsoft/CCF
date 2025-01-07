@@ -1,7 +1,7 @@
 /*
  * nghttp2 - HTTP/2 C Library
  *
- * Copyright (c) 2016 Tatsuhiro Tsujikawa
+ * Copyright (c) 2023 nghttp2 contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -22,39 +22,36 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "nghttp2_debug.h"
+#ifndef NGHTTP2_RATELIM_H
+#define NGHTTP2_RATELIM_H
 
-#include <stdio.h>
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif /* HAVE_CONFIG_H */
 
-#ifdef DEBUGBUILD
+#include <nghttp2/nghttp2.h>
 
-static void nghttp2_default_debug_vfprintf_callback(const char *fmt,
-                                                    va_list args) {
-  vfprintf(stderr, fmt, args);
-}
+typedef struct nghttp2_ratelim {
+  /* burst is the maximum value of val. */
+  uint64_t burst;
+  /* rate is the amount of value that is regenerated per 1 tstamp. */
+  uint64_t rate;
+  /* val is the amount of value available to drain. */
+  uint64_t val;
+  /* tstamp is the last timestamp in second resolution that is known
+     to this object. */
+  uint64_t tstamp;
+} nghttp2_ratelim;
 
-static nghttp2_debug_vprintf_callback static_debug_vprintf_callback =
-  nghttp2_default_debug_vfprintf_callback;
+/* nghttp2_ratelim_init initializes |rl| with the given parameters. */
+void nghttp2_ratelim_init(nghttp2_ratelim *rl, uint64_t burst, uint64_t rate);
 
-void nghttp2_debug_vprintf(const char *format, ...) {
-  if (static_debug_vprintf_callback) {
-    va_list args;
-    va_start(args, format);
-    static_debug_vprintf_callback(format, args);
-    va_end(args);
-  }
-}
+/* nghttp2_ratelim_update updates rl->val with the current |tstamp|
+   given in second resolution. */
+void nghttp2_ratelim_update(nghttp2_ratelim *rl, uint64_t tstamp);
 
-void nghttp2_set_debug_vprintf_callback(
-  nghttp2_debug_vprintf_callback debug_vprintf_callback) {
-  static_debug_vprintf_callback = debug_vprintf_callback;
-}
+/* nghttp2_ratelim_drain drains |n| from rl->val.  It returns 0 if it
+   succeeds, or -1. */
+int nghttp2_ratelim_drain(nghttp2_ratelim *rl, uint64_t n);
 
-#else /* !DEBUGBUILD */
-
-void nghttp2_set_debug_vprintf_callback(
-  nghttp2_debug_vprintf_callback debug_vprintf_callback) {
-  (void)debug_vprintf_callback;
-}
-
-#endif /* !DEBUGBUILD */
+#endif /* NGHTTP2_RATELIM_H */

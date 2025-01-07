@@ -1,7 +1,7 @@
 /*
  * nghttp2 - HTTP/2 C Library
  *
- * Copyright (c) 2016 Tatsuhiro Tsujikawa
+ * Copyright (c) 2023 nghttp2 contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -22,39 +22,54 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "nghttp2_debug.h"
+#include "nghttp2_ratelim.h"
+#include "nghttp2_helper.h"
 
-#include <stdio.h>
-
-#ifdef DEBUGBUILD
-
-static void nghttp2_default_debug_vfprintf_callback(const char *fmt,
-                                                    va_list args) {
-  vfprintf(stderr, fmt, args);
+void nghttp2_ratelim_init(nghttp2_ratelim *rl, uint64_t burst, uint64_t rate) {
+  rl->val = rl->burst = burst;
+  rl->rate = rate;
+  rl->tstamp = 0;
 }
 
-static nghttp2_debug_vprintf_callback static_debug_vprintf_callback =
-  nghttp2_default_debug_vfprintf_callback;
+void nghttp2_ratelim_update(nghttp2_ratelim *rl, uint64_t tstamp) {
+  uint64_t d, gain;
 
-void nghttp2_debug_vprintf(const char *format, ...) {
-  if (static_debug_vprintf_callback) {
-    va_list args;
-    va_start(args, format);
-    static_debug_vprintf_callback(format, args);
-    va_end(args);
+  if (tstamp == rl->tstamp) {
+    return;
   }
+
+  if (tstamp > rl->tstamp) {
+    d = tstamp - rl->tstamp;
+  } else {
+    d = 1;
+  }
+
+  rl->tstamp = tstamp;
+
+  if (UINT64_MAX / d < rl->rate) {
+    rl->val = rl->burst;
+
+    return;
+  }
+
+  gain = rl->rate * d;
+
+  if (UINT64_MAX - gain < rl->val) {
+    rl->val = rl->burst;
+
+    return;
+  }
+
+  rl->val += gain;
+  rl->val = nghttp2_min_uint64(rl->val, rl->burst);
 }
 
-void nghttp2_set_debug_vprintf_callback(
-  nghttp2_debug_vprintf_callback debug_vprintf_callback) {
-  static_debug_vprintf_callback = debug_vprintf_callback;
+int nghttp2_ratelim_drain(nghttp2_ratelim *rl, uint64_t n) {
+  if (rl->val < n) {
+    return -1;
+  }
+
+  rl->val -= n;
+
+  return 0;
 }
-
-#else /* !DEBUGBUILD */
-
-void nghttp2_set_debug_vprintf_callback(
-  nghttp2_debug_vprintf_callback debug_vprintf_callback) {
-  (void)debug_vprintf_callback;
-}
-
-#endif /* !DEBUGBUILD */

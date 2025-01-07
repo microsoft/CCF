@@ -1,7 +1,7 @@
 /*
  * nghttp2 - HTTP/2 C Library
  *
- * Copyright (c) 2012 Tatsuhiro Tsujikawa
+ * Copyright (c) 2023 nghttp2 contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -22,8 +22,8 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#ifndef NGHTTP2_NPN_H
-#define NGHTTP2_NPN_H
+#ifndef NGHTTP2_TIME_H
+#define NGHTTP2_TIME_H
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
@@ -31,4 +31,8 @@
 
 #include <nghttp2/nghttp2.h>
 
-#endif /* NGHTTP2_NPN_H */
+/* nghttp2_time_now_sec returns seconds from implementation-specific
+   timepoint.  If it is unable to get seconds, it returns 0. */
+uint64_t nghttp2_time_now_sec(void);
+
+#endif /* NGHTTP2_TIME_H */

@@ -18,7 +18,7 @@ set(NGHTTP2_SRCS
     ${NGHTTP2_PREFIX}/nghttp2_http.c
     ${NGHTTP2_PREFIX}/nghttp2_map.c
     ${NGHTTP2_PREFIX}/nghttp2_mem.c
-    ${NGHTTP2_PREFIX}/nghttp2_npn.c
+    ${NGHTTP2_PREFIX}/nghttp2_alpn.c
     ${NGHTTP2_PREFIX}/nghttp2_option.c
     ${NGHTTP2_PREFIX}/nghttp2_outbound_item.c
     ${NGHTTP2_PREFIX}/nghttp2_pq.c
@@ -30,6 +30,8 @@ set(NGHTTP2_SRCS
     ${NGHTTP2_PREFIX}/nghttp2_stream.c
     ${NGHTTP2_PREFIX}/nghttp2_submit.c
     ${NGHTTP2_PREFIX}/nghttp2_version.c
+    ${NGHTTP2_PREFIX}/nghttp2_ratelim.c
+    ${NGHTTP2_PREFIX}/nghttp2_time.c
     ${NGHTTP2_PREFIX}/sfparse.c
 )
 

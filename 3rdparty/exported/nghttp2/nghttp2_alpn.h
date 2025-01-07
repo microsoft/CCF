@@ -22,36 +22,13 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "nghttp2_npn.h"
+#ifndef NGHTTP2_ALPN_H
+#define NGHTTP2_ALPN_H
 
-#include <string.h>
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif /* HAVE_CONFIG_H */
 
-static int select_next_protocol(unsigned char **out, unsigned char *outlen,
-                                const unsigned char *in, unsigned int inlen,
-                                const char *key, unsigned int keylen) {
-  unsigned int i;
-  for (i = 0; i + keylen <= inlen; i += (unsigned int)(in[i] + 1)) {
-    if (memcmp(&in[i], key, keylen) == 0) {
-      *out = (unsigned char *)&in[i + 1];
-      *outlen = in[i];
-      return 0;
-    }
-  }
-  return -1;
-}
+#include <nghttp2/nghttp2.h>
 
-#define NGHTTP2_HTTP_1_1_ALPN "\x8http/1.1"
-#define NGHTTP2_HTTP_1_1_ALPN_LEN (sizeof(NGHTTP2_HTTP_1_1_ALPN) - 1)
-
-int nghttp2_select_next_protocol(unsigned char **out, unsigned char *outlen,
-                                 const unsigned char *in, unsigned int inlen) {
-  if (select_next_protocol(out, outlen, in, inlen, NGHTTP2_PROTO_ALPN,
-                           NGHTTP2_PROTO_ALPN_LEN) == 0) {
-    return 1;
-  }
-  if (select_next_protocol(out, outlen, in, inlen, NGHTTP2_HTTP_1_1_ALPN,
-                           NGHTTP2_HTTP_1_1_ALPN_LEN) == 0) {
-    return 0;
-  }
-  return -1;
-}
+#endif /* NGHTTP2_ALPN_H */
