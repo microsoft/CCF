@@ -25,9 +25,6 @@ namespace ccf
 
 namespace ccf
 {
-  // Current limitations of secret sharing library (sss).
-  static constexpr size_t max_active_recovery_members = 255;
-
   struct NewMember
   {
     ccf::crypto::Pem cert;
