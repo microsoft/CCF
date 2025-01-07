@@ -505,7 +505,8 @@ endif()
 add_custom_target(ccf ALL)
 
 set(CCF_IMPL_SOURCE
-    ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
+    ${CCF_DIR}/src/host/snmalloc.cpp ${CCF_DIR}/src/enclave/main.cpp
+    ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
 )
 
@@ -520,7 +521,9 @@ if(COMPILE_TARGET STREQUAL "snp")
                    _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
   )
 
-  target_compile_options(ccf.snp PUBLIC ${COMPILE_LIBCXX})
+  target_compile_options(
+    ccf.snp PUBLIC ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
+  )
   add_warning_checks(ccf.snp)
 
   target_include_directories(
@@ -569,7 +572,9 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
                        _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_VIRTUAL
   )
 
-  target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
+  target_compile_options(
+    ccf.virtual PUBLIC ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
+  )
   add_warning_checks(ccf.virtual)
 
   target_include_directories(

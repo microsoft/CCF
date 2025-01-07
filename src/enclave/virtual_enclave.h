@@ -71,7 +71,8 @@ extern "C"
   {
     auto virtual_enclave_handle = dlopen(
       path,
-      RTLD_NOW
+      RTLD_NOW |
+        RTLD_DEEPBIND
 #if defined(__has_feature)
 #  if __has_feature(address_sanitizer)
         // Avoid unloading on delete under ASAN, so that leak checking can still
