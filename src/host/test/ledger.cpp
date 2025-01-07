@@ -7,8 +7,8 @@
 #include "crypto/openssl/hash.h"
 #include "ds/files.h"
 #include "ds/serialized.h"
+#include "host/snapshots.h"
 #include "kv/serialised_entry_format.h"
-#include "snapshots/snapshot_manager.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -1259,8 +1259,6 @@ TEST_CASE("Snapshot file name" * doctest::test_suite("snapshot"))
   std::vector<size_t> snapshot_idx_interval_ranges = {
     10, 1000, 10000, std::numeric_limits<size_t>::max() - 2};
 
-  using namespace snapshots;
-
   for (auto const& snapshot_idx_interval_range : snapshot_idx_interval_ranges)
   {
     std::uniform_int_distribution<size_t> dist(1, snapshot_idx_interval_range);
@@ -1306,7 +1304,6 @@ TEST_CASE("Generate and commit snapshots" * doctest::test_suite("snapshot"))
   auto snap_ro_dir = AutoDeleteFolder(snapshot_dir_read_only);
   fs::create_directory(snapshot_dir_read_only);
 
-  using namespace snapshots;
   SnapshotManager snapshots(snapshot_dir, wf, snapshot_dir_read_only);
 
   size_t snapshot_interval = 5;
