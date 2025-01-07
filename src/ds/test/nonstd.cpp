@@ -265,19 +265,3 @@ TEST_CASE("rsplit" * doctest::test_suite("nonstd"))
     }
   }
 }
-
-TEST_CASE("trim" * doctest::test_suite("nonstd"))
-{
-  REQUIRE(ccf::nonstd::trim("  hello world  ") == "hello world");
-  REQUIRE(
-    ccf::nonstd::trim(" \r\n\t\nhello world\n\n\r\t\t\n\t \n\t") ==
-    "hello world");
-  REQUIRE(ccf::nonstd::trim("..hello..") == "..hello..");
-  REQUIRE(ccf::nonstd::trim("..hello..", ".") == "hello");
-
-  REQUIRE(ccf::nonstd::trim("hello") == "hello");
-  REQUIRE(ccf::nonstd::trim(" h") == "h");
-  REQUIRE(ccf::nonstd::trim("h ") == "h");
-  REQUIRE(ccf::nonstd::trim(" ") == "");
-  REQUIRE(ccf::nonstd::trim("") == "");
-}

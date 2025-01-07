@@ -84,11 +84,6 @@ namespace ccf
     snp_security_policy_file,
     snp_uvm_endorsements_file);
 
-  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Snapshots);
-  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Snapshots);
-  DECLARE_JSON_OPTIONAL_FIELDS(
-    CCFConfig::Snapshots, directory, tx_count, read_only_directory);
-
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
   DECLARE_JSON_OPTIONAL_FIELDS(
@@ -99,7 +94,6 @@ namespace ccf
     ledger_signatures,
     jwt,
     attestation,
-    snapshots,
     node_to_node_message_limit,
     historical_cache_soft_limit);
 

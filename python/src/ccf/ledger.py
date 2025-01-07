@@ -126,19 +126,6 @@ def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
         raise ValueError(f"Could not read seqno range from ledger file {filename}")
 
 
-def snapshot_index_from_filename(filename: str) -> Tuple[int, int]:
-    elements = (
-        os.path.basename(filename)
-        .replace(COMMITTED_FILE_SUFFIX, "")
-        .replace("snapshot_", "")
-        .split("_")
-    )
-    if len(elements) == 2:
-        return (int(elements[0]), int(elements[1]))
-    else:
-        raise ValueError(f"Could not read snapshot index from file name {filename}")
-
-
 class GcmHeader:
     view: int
     seqno: int
@@ -862,17 +849,6 @@ class Snapshot(Entry):
 
     def get_len(self) -> int:
         return self._file_size
-
-
-def latest_snapshot(snapshots_dir):
-    best_name, best_seqno = None, None
-    for s in os.listdir(snapshots_dir):
-        with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
-            snapshot_seqno = snapshot.get_public_domain().get_seqno()
-            if best_seqno is None or snapshot_seqno > best_seqno:
-                best_name = s
-                best_seqno = snapshot_seqno
-    return best_name
 
 
 class LedgerChunk:
