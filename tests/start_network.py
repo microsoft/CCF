@@ -30,18 +30,22 @@ def run(args):
         for host_desc in host_descs:
             interface = infra.interfaces.RPCInterface.from_args(args)
             interface.parse_from_str(host_desc)
-            
+
             if args.redirection_kind == "node-by-role":
                 LOG.warning("Redirection with node-by-role is enabled")
                 interface.redirections = infra.interfaces.RedirectionConfig(
-                    to_primary = infra.interfaces.NodeByRoleResolver(),
-                    to_backup = infra.interfaces.NodeByRoleResolver(),
+                    to_primary=infra.interfaces.NodeByRoleResolver(),
+                    to_backup=infra.interfaces.NodeByRoleResolver(),
                 )
             elif args.redirection_kind == "static-address":
                 LOG.warning("Redirection with static-address is enabled")
                 interface.redirections = infra.interfaces.RedirectionConfig(
-                    to_primary = infra.interfaces.StaticAddressResolver(args.primary_hostname),
-                    to_backup = infra.interfaces.StaticAddressResolver(args.backup_hostname),
+                    to_primary=infra.interfaces.StaticAddressResolver(
+                        args.primary_hostname
+                    ),
+                    to_backup=infra.interfaces.StaticAddressResolver(
+                        args.backup_hostname
+                    ),
                 )
 
             hosts.append(
@@ -225,8 +229,8 @@ if __name__ == "__main__":
         )
         parser.add_argument(
             "--redirection-kind",
-            default='node-by-role',
-            choices=['node-by-role','static-address'],
+            default="node-by-role",
+            choices=["node-by-role", "static-address"],
             help="The redirection kind to use in lieu of forwarding. Either node-by-role or static-address",
         )
         parser.add_argument(
@@ -242,9 +246,13 @@ if __name__ == "__main__":
     if args.recover and not all([args.ledger_dir, args.common_dir]):
         print("Error: --recover requires --ledger-dir and --common-dir arguments.")
         sys.exit(1)
-        
-    if args.redirection_kind == "static-address" and not all([args.primary_hostname, args.backup_hostname]):
-        print("Error: --redirection-kind static-address requires --primary-hostname and --backup-hostname arguments.")
+
+    if args.redirection_kind == "static-address" and not all(
+        [args.primary_hostname, args.backup_hostname]
+    ):
+        print(
+            "Error: --redirection-kind static-address requires --primary-hostname and --backup-hostname arguments."
+        )
         sys.exit(1)
 
     if args.common_dir is not None:
