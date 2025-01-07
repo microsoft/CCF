@@ -20,17 +20,17 @@ inline bool loadDocument(const std::string &path, boost::json::value &document)
     }
 
     // Parse schema
-#if VALIJSON_USE_EXCEPTION
+#if VALIJSON_USE_EXCEPTIONS
     try {
 #endif
-      boost::json::error_code errorCode;
+      boost::system::error_code errorCode;
       boost::json::string_view stringView{file};
       document = boost::json::parse(stringView, errorCode);
         if (errorCode) {
             std::cerr << "Boost.JSON parsing error: " << errorCode.message();
             return false;
         }
-#if VALIJSON_USE_EXCEPTION
+#if VALIJSON_USE_EXCEPTIONS
     } catch (std::exception const & exception) {
         std::cerr << "Boost.JSON parsing exception: " << exception.what();
         return false;

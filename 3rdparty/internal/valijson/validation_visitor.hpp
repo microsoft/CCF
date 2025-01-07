@@ -28,7 +28,7 @@ class ValidationResults;
  *
  * @tparam  AdapterType  Adapter type for the target document.
  */
-template<typename AdapterType>
+template<typename AdapterType, typename RegexEngine>
 class ValidationVisitor: public constraints::ConstraintVisitor
 {
 public:
@@ -44,14 +44,14 @@ public:
      *                      recording error descriptions. If this pointer is set
      *                      to nullptr, validation errors will caused validation to
      *                      stop immediately.
-     * @param  regexesCache Cache of already created std::regex objects for pattern
+     * @param  regexesCache Cache of already created RegexEngine objects for pattern
      *                      constraints.
      */
     ValidationVisitor(const AdapterType &target,
                       std::vector<std::string> context,
                       const bool strictTypes,
                       ValidationResults *results,
-                      std::unordered_map<std::string, std::regex>& regexesCache)
+                      std::unordered_map<std::string, RegexEngine>& regexesCache)
       : m_target(target),
         m_context(std::move(context)),
         m_results(results),
@@ -155,7 +155,7 @@ public:
         ValidationResults newResults;
         ValidationResults *childResults = (m_results) ? &newResults : nullptr;
 
-        ValidationVisitor<AdapterType> v(m_target, m_context, m_strictTypes, childResults, m_regexesCache);
+        ValidationVisitor<AdapterType, RegexEngine> v(m_target, m_context, m_strictTypes, childResults, m_regexesCache);
         constraint.applyToSubschemas(
                 ValidateSubschemas(m_target, m_context, false, true, v, childResults, &numValidated, nullptr));
 
@@ -348,6 +348,83 @@ public:
     }
 
     /**
+     * @brief    Validate current node against a FormatConstraint
+     *
+     * @param    constraint  Constraint that the target must validate against
+     *
+     * @return   \c true if validation succeeds; \c false otherwise
+     */
+    bool visit(const FormatConstraint &constraint) override
+    {
+        //
+        // Don't attempt to cast validate the format constraint unless the
+        // target value is known to be a string. Drafts 4-7 of the spec
+        // suggest that 'format' should be treated as an annotation rather
+        // than an assertion, however this is not guaranteed. Given that we
+        // have been treating it as an assertion here, failing quietly on
+        // non-string values seems like the right thing to do, to avoid
+        // this throwing an exception.
+        //
+        // Schemas that need tighter validation around 'format' constaints
+        // should generally pair it with a 'type' constraint.
+        //
+        // Reference:
+        // https://json-schema.org/understanding-json-schema/reference/string.html#format
+        //
+        if (!m_target.maybeString()) {
+            return true;
+        }
+
+        const std::string s = m_target.asString();
+        const std::string format = constraint.getFormat();
+        if (format == "date") {
+            // Matches dates like: 2022-07-18
+            std::regex date_regex("^([0-9]+)-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])$");
+            std::smatch matches;
+            if (std::regex_match(s, matches, date_regex)) {
+                const auto month = std::stoi(matches[2].str());
+                const auto day = std::stoi(matches[3].str());
+                return validate_date_range(month, day);
+            } else {
+                if (m_results) {
+                    m_results->pushError(m_context,
+                                         "String should be a valid date");
+                }
+                return false;
+            }
+        } else if (format == "time") {
+            // Matches times like: 16:52:45Z, 16:52:45+02:00
+            std::regex time_regex("^([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])|([\\+|\\-]([01][0-9]|2[0-3]):[0-5][0-9]))$");
+            if (std::regex_match(s, time_regex)) {
+                return true;
+            } else {
+                if (m_results) {
+                    m_results->pushError(m_context,
+                                         "String should be a valid time");
+                }
+                return false;
+            }
+        } else if (format == "date-time") {
+            // Matches data times like: 2022-07-18T16:52:45Z, 2022-07-18T16:52:45+02:00
+            std::regex datetime_regex("^([0-9]+)-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])[Tt]([01][0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9]|60)(\\.[0-9]+)?(([Zz])|([\\+|\\-]([01][0-9]|2[0-3]):[0-5][0-9]))$");
+            std::smatch matches;
+            if (std::regex_match(s, matches, datetime_regex)) {
+                const auto month = std::stoi(matches[2].str());
+                const auto day = std::stoi(matches[3].str());
+                return validate_date_range(month, day);
+            } else {
+                if (m_results) {
+                    m_results->pushError(m_context,
+                                         "String should be a valid date-time");
+                }
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @brief   Validate a value against a LinearItemsConstraint
      *
      * A LinearItemsConstraint represents an 'items' constraint that specifies,
@@ -421,7 +498,7 @@ public:
                     std::vector<std::string> newContext = m_context;
                     newContext.push_back("[" + std::to_string(index) + "]");
 
-                    ValidationVisitor<AdapterType> validator(*itr, newContext, m_strictTypes, m_results, m_regexesCache);
+                    ValidationVisitor<AdapterType, RegexEngine> validator(*itr, newContext, m_strictTypes, m_results, m_regexesCache);
 
                     if (!validator.validateSchema(*additionalItemsSubschema)) {
                         if (m_results) {
@@ -797,7 +874,7 @@ public:
             return false;
         }
 
-        ValidationVisitor<AdapterType> v(m_target, m_context, m_strictTypes, nullptr, m_regexesCache);
+        ValidationVisitor<AdapterType, RegexEngine> v(m_target, m_context, m_strictTypes, nullptr, m_regexesCache);
         if (v.validateSchema(*subschema)) {
             if (m_results) {
                 m_results->pushError(m_context,
@@ -824,7 +901,7 @@ public:
         ValidationResults newResults;
         ValidationResults *childResults = (m_results) ? &newResults : nullptr;
 
-        ValidationVisitor<AdapterType> v(m_target, m_context, m_strictTypes, childResults, m_regexesCache);
+        ValidationVisitor<AdapterType, RegexEngine> v(m_target, m_context, m_strictTypes, childResults, m_regexesCache);
         constraint.applyToSubschemas(
                 ValidateSubschemas(m_target, m_context, true, true, v, childResults, &numValidated, nullptr));
 
@@ -866,10 +943,10 @@ public:
         std::string pattern(constraint.getPattern<std::string::allocator_type>());
         auto it = m_regexesCache.find(pattern);
         if (it == m_regexesCache.end()) {
-            it = m_regexesCache.emplace(pattern, std::regex(pattern)).first;
+            it = m_regexesCache.emplace(pattern, RegexEngine(pattern)).first;
         }
 
-        if (!std::regex_search(m_target.asString(), it->second)) {
+        if (!RegexEngine::search(m_target.asString(), it->second)) {
             if (m_results) {
                 m_results->pushError(m_context, "Failed to match regex specified by 'pattern' constraint.");
             }
@@ -1009,7 +1086,7 @@ public:
 
         for (const typename AdapterType::ObjectMember m : m_target.asObject()) {
             adapters::StdStringAdapter stringAdapter(m.first);
-            ValidationVisitor<adapters::StdStringAdapter> validator(stringAdapter, m_context, m_strictTypes, nullptr, m_regexesCache);
+            ValidationVisitor<adapters::StdStringAdapter, RegexEngine> validator(stringAdapter, m_context, m_strictTypes, nullptr, m_regexesCache);
             if (!validator.validateSchema(*constraint.getSubschema())) {
                 return false;
             }
@@ -1078,7 +1155,7 @@ public:
             newContext.push_back("[" + std::to_string(index) + "]");
 
             // Create a validator for the current array item
-            ValidationVisitor<AdapterType> validationVisitor(item, newContext, m_strictTypes, m_results, m_regexesCache);
+            ValidationVisitor<AdapterType, RegexEngine> validationVisitor(item, newContext, m_strictTypes, m_results, m_regexesCache);
 
             // Perform validation
             if (!validationVisitor.validateSchema(*itemsSubschema)) {
@@ -1150,8 +1227,10 @@ public:
             return true;
         }
 
+        size_t array_size = m_target.getArraySize();
+
         // Empty arrays are always valid
-        if (m_target.getArraySize() == 0) {
+        if (array_size == 0) {
             return true;
         }
 
@@ -1159,10 +1238,9 @@ public:
 
         const typename AdapterType::Array targetArray = m_target.asArray();
         const typename AdapterType::Array::const_iterator end = targetArray.end();
-        const typename AdapterType::Array::const_iterator secondLast = --targetArray.end();
-        unsigned int outerIndex = 0;
+
         typename AdapterType::Array::const_iterator outerItr = targetArray.begin();
-        for (; outerItr != secondLast; ++outerItr) {
+        for (unsigned int outerIndex = 0; outerIndex < array_size - 1 /*outerItr != secondLast*/; ++outerItr) {
             unsigned int innerIndex = outerIndex + 1;
             typename AdapterType::Array::const_iterator innerItr(outerItr);
             for (++innerItr; innerItr != end; ++innerItr) {
@@ -1342,7 +1420,7 @@ private:
                 ValidationResults *results,
                 unsigned int *numValidated,
                 bool *validated,
-                std::unordered_map<std::string, std::regex>& regexesCache)
+                std::unordered_map<std::string, RegexEngine>& regexesCache)
           : m_arr(arr),
             m_context(context),
             m_continueOnSuccess(continueOnSuccess),
@@ -1399,7 +1477,7 @@ private:
         ValidationResults * const m_results;
         unsigned int * const m_numValidated;
         bool * const m_validated;
-        std::unordered_map<std::string, std::regex>& m_regexesCache;
+        std::unordered_map<std::string, RegexEngine>& m_regexesCache;
     };
 
     /**
@@ -1485,7 +1563,7 @@ private:
                 ValidationResults *results,
                 std::set<std::string> *propertiesMatched,
                 bool *validated,
-                std::unordered_map<std::string, std::regex>& regexesCache)
+                std::unordered_map<std::string, RegexEngine>& regexesCache)
           : m_object(object),
             m_context(context),
             m_continueOnSuccess(continueOnSuccess),
@@ -1562,7 +1640,7 @@ private:
         ValidationResults * const m_results;
         std::set<std::string> * const m_propertiesMatched;
         bool * const m_validated;
-        std::unordered_map<std::string, std::regex>& m_regexesCache;
+        std::unordered_map<std::string, RegexEngine>& m_regexesCache;
     };
 
     /**
@@ -1581,7 +1659,7 @@ private:
                 ValidationResults *results,
                 std::set<std::string> *propertiesMatched,
                 bool *validated,
-                std::unordered_map<std::string, std::regex>& regexesCache)
+                std::unordered_map<std::string, RegexEngine>& regexesCache)
           : m_object(object),
             m_context(context),
             m_continueOnSuccess(continueOnSuccess),
@@ -1638,7 +1716,7 @@ private:
         ValidationResults * const m_results;
         std::set<std::string> * const m_propertiesMatched;
         bool * const m_validated;
-        std::unordered_map<std::string, std::regex>& m_regexesCache;
+        std::unordered_map<std::string, RegexEngine>& m_regexesCache;
     };
 
     /**
@@ -1764,25 +1842,66 @@ private:
      *
      * @return  true if the visitor returns successfully, false otherwise.
      */
-    static bool validationCallback(const constraints::Constraint &constraint, ValidationVisitor<AdapterType> &visitor)
+    static bool validationCallback(const constraints::Constraint &constraint, ValidationVisitor<AdapterType, RegexEngine> &visitor)
     {
         return constraint.accept(visitor);
     }
 
+    /**
+     * @brief    Helper function to validate if day is valid for given month
+     *
+     * @param    month   Month, 1-12
+     * @param    day     Day, 1-31
+     *
+     * @return   \c true if day is valid for given month, \c false otherwise.
+     */
+    bool validate_date_range(int month, int day)
+    {
+        if (month == 2) {
+            if (day < 0 || day > 29) {
+                if (m_results) {
+                    m_results->pushError(m_context,
+                                         "String should be a valid date-time");
+                }
+                return false;
+            }
+        } else {
+            int limit = 31;
+            if (month <= 7) {
+                if (month % 2 == 0) {
+                    limit = 30;
+                }
+            } else {
+                if (month % 2 != 0) {
+                    limit = 30;
+                }
+            }
+            if (day < 0 || day > limit) {
+                if (m_results) {
+                    m_results->pushError(m_context,
+                                         "String should be a valid date-time");
+                }
+                return false;
+            }
+
+        }
+        return true;
+    }
+
     /// The JSON value being validated
-    const AdapterType m_target;
+    AdapterType m_target;
 
     /// Vector of strings describing the current object context
-    const std::vector<std::string> m_context;
+    std::vector<std::string> m_context;
 
     /// Optional pointer to a ValidationResults object to be populated
     ValidationResults *m_results;
 
     /// Option to use strict type comparison
-    const bool m_strictTypes;
+    bool m_strictTypes;
 
     /// Cached regex objects for pattern constraint
-    std::unordered_map<std::string, std::regex>& m_regexesCache;
+    std::unordered_map<std::string, RegexEngine>& m_regexesCache;
 };
 
 }  // namespace valijson
