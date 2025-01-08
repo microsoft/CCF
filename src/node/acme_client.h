@@ -173,14 +173,15 @@ namespace ACME
       const http::URL& url,
       http::Request&& req,
       std::function<bool(
-        http_status status, ccf::http::HeaderMap&&, std::vector<uint8_t>&&)>
-        callback) = 0;
+        ccf::http_status status,
+        ccf::http::HeaderMap&&,
+        std::vector<uint8_t>&&)> callback) = 0;
 
     void make_request(
       llhttp_method method,
       const http::URL& url,
       const std::vector<uint8_t>& body,
-      http_status expected_status,
+      ccf::http_status expected_status,
       std::function<bool(
         const ccf::http::HeaderMap&, const std::vector<uint8_t>&)> ok_callback)
     {
@@ -210,7 +211,7 @@ namespace ACME
           url,
           std::move(r),
           [this, expected_status, ok_callback](
-            http_status status,
+            ccf::http_status status,
             ccf::http::HeaderMap&& headers,
             std::vector<uint8_t>&& data) {
             for (auto& [k, v] : headers)
@@ -260,7 +261,7 @@ namespace ACME
       llhttp_method method,
       const http::URL& url,
       const std::vector<uint8_t>& body,
-      http_status expected_status,
+      ccf::http_status expected_status,
       std::function<
         void(const ccf::http::HeaderMap& headers, const nlohmann::json&)>
         ok_callback)

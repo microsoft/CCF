@@ -154,8 +154,11 @@ namespace ccf
     //
     const CACertBundlePEMs ca_cert_bundles = {Tables::CA_CERT_BUNDLE_PEMS};
     const JwtIssuers jwt_issuers = {Tables::JWT_ISSUERS};
-    const JwtPublicSigningKeys jwt_public_signing_keys_metadata = {
+    const JwtPublicSigningKeysMetadata jwt_public_signing_keys_metadata = {
       Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA};
+    const JwtPublicSigningKeysMetadataLegacy
+      legacy_jwt_public_signing_keys_metadata = {
+        Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS_METADATA};
     const Tables::Legacy::JwtPublicSigningKeys legacy_jwt_public_signing_keys =
       {Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS};
     const Tables::Legacy::JwtPublicSigningKeyIssuer
@@ -168,6 +171,7 @@ namespace ccf
         ca_cert_bundles,
         jwt_issuers,
         jwt_public_signing_keys_metadata,
+        legacy_jwt_public_signing_keys_metadata,
         legacy_jwt_public_signing_keys,
         legacy_jwt_public_signing_key_issuer);
     }
@@ -221,6 +225,7 @@ namespace ccf
     // the same time so that the root of the tree in the signatures table
     // matches the serialised Merkle tree.
     const Signatures signatures = {Tables::SIGNATURES};
+    const CoseSignatures cose_signatures = {Tables::COSE_SIGNATURES};
     const SerialisedMerkleTree serialise_tree = {
       Tables::SERIALISED_MERKLE_TREE};
 

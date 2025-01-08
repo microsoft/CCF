@@ -382,7 +382,9 @@ namespace ccf::crypto
     std::string constraints = "critical,CA:FALSE";
     if (ca)
     {
-      constraints = "critical,CA:TRUE,pathlen:0";
+      // 1 to allow for intermediate CAs with a different subject name,
+      // which can occur in service endorsements of some services.
+      constraints = "critical,CA:TRUE,pathlen:1";
     }
 
     // Add basic constraints

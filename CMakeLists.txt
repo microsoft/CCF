@@ -59,7 +59,12 @@ function(message)
 endfunction()
 
 option(PROFILE_TESTS "Profile tests" OFF)
-set(PYTHON python3)
+
+if("$ENV{CI}" STREQUAL "")
+  set(PYTHON unbuffer python3)
+else()
+  set(PYTHON python3)
+endif()
 
 set(DISTRIBUTE_PERF_TESTS
     ""
@@ -211,7 +216,6 @@ set(CCF_ENDPOINTS_SOURCES
 
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
-include(${CCF_DIR}/cmake/sss.cmake)
 include(${CCF_DIR}/cmake/nghttp2.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
@@ -411,45 +415,9 @@ set(CCF_NETWORK_TEST_ARGS
     ${TEST_LOGGING_LEVEL} --worker-threads ${WORKER_THREADS}
 )
 
-set(JS_GENERIC_SOURCES ${CCF_DIR}/src/apps/js_generic/js_generic_base.cpp)
-if(COMPILE_TARGET STREQUAL "snp")
-  add_library(js_generic_base.snp STATIC ${JS_GENERIC_SOURCES})
-  add_san(js_generic_base.snp)
-  add_warning_checks(js_generic_base.snp)
-  target_link_libraries(js_generic_base.snp PUBLIC ccf.snp)
-  target_compile_options(js_generic_base.snp PRIVATE ${COMPILE_LIBCXX})
-  target_compile_definitions(
-    js_generic_base.snp PUBLIC INSIDE_ENCLAVE VIRTUAL_ENCLAVE
-                               _LIBCPP_HAS_THREAD_API_PTHREAD PLATFORM_SNP
-  )
-  set_property(TARGET js_generic_base.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
-  install(
-    TARGETS js_generic_base.snp
-    EXPORT ccf
-    DESTINATION lib
-  )
-elseif(COMPILE_TARGET STREQUAL "virtual")
-  add_library(js_generic_base.virtual STATIC ${JS_GENERIC_SOURCES})
-  add_san(js_generic_base.virtual)
-  add_warning_checks(js_generic_base.virtual)
-  target_link_libraries(js_generic_base.virtual PUBLIC ccf.virtual)
-  target_compile_options(js_generic_base.virtual PRIVATE ${COMPILE_LIBCXX})
-  set_property(
-    TARGET js_generic_base.virtual PROPERTY POSITION_INDEPENDENT_CODE ON
-  )
-  install(
-    TARGETS js_generic_base.virtual
-    EXPORT ccf
-    DESTINATION lib
-  )
-endif()
 # SNIPPET_START: JS generic application
 add_ccf_app(
-  js_generic
-  SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp
-  LINK_LIBS_ENCLAVE js_generic_base.enclave
-  LINK_LIBS_VIRTUAL js_generic_base.virtual
-  LINK_LIBS_SNP js_generic_base.snp INSTALL_LIBS ON
+  js_generic SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp INSTALL_LIBS ON
 )
 # SNIPPET_END: JS generic application
 
@@ -564,7 +532,6 @@ if(COMPILE_TARGET STREQUAL "snp")
     PUBLIC ${LINK_LIBCXX}
            -lgcc
            http_parser.snp
-           sss.snp
            ccf_js.snp
            ccf_endpoints.snp
            ccfcrypto.snp
@@ -614,7 +581,6 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
     PUBLIC ${LINK_LIBCXX}
            -lgcc
            http_parser.host
-           sss.host
            ccf_js.host
            ccf_endpoints.host
            ccfcrypto.host
@@ -791,12 +757,6 @@ if(BUILD_TESTS)
     )
 
     add_unit_test(
-      secret_sharing_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/secret_share.cpp
-    )
-    target_link_libraries(secret_sharing_test PRIVATE sss.host)
-
-    add_unit_test(
       encryptor_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/encryptor.cpp
     )
     target_link_libraries(encryptor_test PRIVATE ccfcrypto.host ccf_kv.host)
@@ -826,7 +786,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/receipt.cpp
     )
     target_link_libraries(
-      historical_queries_test PRIVATE http_parser.host sss.host ccf_kv.host
+      historical_queries_test PRIVATE http_parser.host ccf_kv.host
                                       ccf_endpoints.host
     )
     # Temporarily disabled flaky test
@@ -835,7 +795,7 @@ if(BUILD_TESTS)
     # ${CMAKE_CURRENT_SOURCE_DIR}/src/indexing/test/lfs.cpp )
     # target_link_libraries( indexing_test PRIVATE ccf_endpoints.host sss.host
     # ccf_kv.host ) target_link_libraries( indexing_test PRIVATE
-    # ccf_endpoints.host sss.host ccf_kv.host )
+    # ccf_endpoints.host ccf_kv.host )
 
     add_unit_test(
       snapshot_test ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snapshot.cpp
@@ -902,13 +862,8 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
-              http_parser.host
-              sss.host
-              ccf_js.host
-              ccf_endpoints.host
-              ccfcrypto.host
-              ccf_kv.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
+              ccf_endpoints.host ccfcrypto.host ccf_kv.host
     )
 
     add_unit_test(
@@ -938,13 +893,8 @@ if(BUILD_TESTS)
     )
     target_link_libraries(
       node_frontend_test
-      PRIVATE ${CMAKE_THREAD_LIBS_INIT}
-              http_parser.host
-              sss.host
-              ccf_js.host
-              ccf_endpoints.host
-              ccfcrypto.host
-              ccf_kv.host
+      PRIVATE ${CMAKE_THREAD_LIBS_INIT} http_parser.host ccf_js.host
+              ccf_endpoints.host ccfcrypto.host ccf_kv.host
     )
 
     add_unit_test(

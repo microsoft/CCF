@@ -68,15 +68,6 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/dsprenkels/sss",
-          "commitHash": "dc8c3a9a1089e962b32ecdcc940ae11bd2b69e4b"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
           "repositoryUrl": "https://github.com/thelink2012/SmallVector",
           "commitHash": "febc8cb7b1a83d902b86dd1612feb7c86c690186"
         }
@@ -123,7 +114,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
-          "commitHash": "2dfc7499a31b84edef71189f4247919268ebc74e"
+          "commitHash": "fc9ddf14db683c9443c48ae3a6bf83e0ce3ad37c"
         }
       }
     },

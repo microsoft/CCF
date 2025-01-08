@@ -31,7 +31,7 @@ using NumToString = ccf::kv::Map<size_t, std::string>;
 constexpr size_t certificate_validity_period_days = 365;
 using namespace std::literals;
 auto valid_from =
-  ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+  ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 
 auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
@@ -62,7 +62,7 @@ TestState create_and_init_state(bool initialise_ledger_rekey = true)
   auto h =
     std::make_shared<ccf::MerkleTxHistory>(*ts.kv_store, node_id, *ts.node_kp);
   h->set_endorsed_certificate({});
-  h->set_service_kp(ts.service_kp);
+  h->set_service_signing_identity(ts.service_kp, ccf::COSESignaturesConfig{});
   ts.kv_store->set_history(h);
   ts.kv_store->initialise_term(2);
 

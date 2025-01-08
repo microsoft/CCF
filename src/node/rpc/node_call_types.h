@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json_schema.h"
+#include "ccf/node/cose_signatures_config.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/pal/mem.h"
 #include "ccf/service/node_info_network.h"
@@ -72,7 +73,7 @@ namespace ccf
       ccf::TxID create_txid;
 
       // Only set on genesis transaction, but not on recovery
-      std::optional<StartupConfig::Start> genesis_info = std::nullopt;
+      std::optional<ccf::StartupConfig::Start> genesis_info = std::nullopt;
     };
   };
 
@@ -105,6 +106,8 @@ namespace ccf
         std::optional<ServiceStatus> service_status = std::nullopt;
 
         std::optional<ccf::crypto::Pem> endorsed_certificate = std::nullopt;
+        std::optional<ccf::COSESignaturesConfig> cose_signatures_config =
+          std::nullopt;
 
         NetworkInfo() {}
 
@@ -114,13 +117,16 @@ namespace ccf
           const LedgerSecretsMap& ledger_secrets,
           const NetworkIdentity& identity,
           ServiceStatus service_status,
-          const std::optional<ccf::crypto::Pem>& endorsed_certificate) :
+          const std::optional<ccf::crypto::Pem>& endorsed_certificate,
+          const std::optional<ccf::COSESignaturesConfig>&
+            cose_signatures_config_) :
           public_only(public_only),
           last_recovered_signed_idx(last_recovered_signed_idx),
           ledger_secrets(ledger_secrets),
           identity(identity),
           service_status(service_status),
-          endorsed_certificate(endorsed_certificate)
+          endorsed_certificate(endorsed_certificate),
+          cose_signatures_config(cose_signatures_config_)
         {}
 
         bool operator==(const NetworkInfo& other) const
@@ -130,7 +136,8 @@ namespace ccf
             ledger_secrets == other.ledger_secrets &&
             identity == other.identity &&
             service_status == other.service_status &&
-            endorsed_certificate == other.endorsed_certificate;
+            endorsed_certificate == other.endorsed_certificate &&
+            cose_signatures_config == other.cose_signatures_config;
         }
 
         bool operator!=(const NetworkInfo& other) const

@@ -3,7 +3,78 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
-and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
+and this project adheres Fto [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
+
+## [6.0.0-dev11]
+
+[6.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev11
+
+### Added
+
+- `GET /gov/service/javascript-app` now takes an optional `?case=original` query argument. When passed, the response will contain the raw original `snake_case` field names, for direct comparison, rather than the API-standard `camelCase` projections.
+- Applications can now extend `js_generic` (ie - a JS app where JS endpoints are edited by governance transactions), from the public header `ccf/js/samples/governance_driven_registry.h`. The API for existing JS-programmability apps using `DynamicJSEndpointRegistry` should be unaffected.
+
+### Fixed
+
+- `cose_signatures` configuration (`issuer`/`subject`) is now correctly preserved across disaster recovery (#6709).
+
+### Deprecated
+
+- The function `ccf::get_js_plugins()` and associated FFI plugin system for JS is deprecated. Similar functionality should now be implemented through a `js::Extension` returned from `DynamicJSEndpointRegistry::get_extensions()`.
+
+### Dependencies
+
+- nghttp2 updated from 1.55.1 to 1.64.0
+
+## [6.0.0-dev10]
+
+[6.0.0-dev10]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev10
+
+### Added
+
+- Expose `ccf:http::parse_accept_header()` and `ccf::http::AcceptHeaderField` (#6706).
+- Added `ccf::cose::AbstractCOSESignaturesConfig` subsystem to expose COSE signature configuration to application handlers (#6707).
+- Package `build_bundle.ts` under `npx ccf-build-bundle` to allow javascript users to build a ccf schema bundle (#6704).
+
+## [6.0.0-dev9]
+
+[6.0.0-dev9]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev9
+
+### Changed
+
+- The `read_ledger.py` tool now has a `--quiet` option which avoids printing anything per-transaction, as well as other performance improvements, which should make it more useful in verifying the integrity of large ledgers.
+- COSE signatures now set a kid that is a hex-encoded SHA-256 of the DER representation of the key used to produce them (#6703).
+
+## [6.0.0-dev8]
+
+[6.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev8
+
+### Changed
+
+- All definitions in CCF's public headers are now under the `ccf::` namespace. Any application code which references any of these types directly (notably `StartupConfig`, `http_status`, `LoggerLevel`), they will now need to be prefixed with the `ccf::` namespace.
+- `cchost` now requires `--config`.
+
+### Changed
+
+- JWT authentication now supports raw public keys along with certificates (#6601).
+  - Public key information ('n' and 'e', or 'x', 'y' and 'crv' fields) now have a priority if defined in JWK set, 'x5c' remains as a backup option.
+  - Has same side-effects as #5809 does please see the changelog entry for that change for more details. In short:
+    - stale JWKs may be used for JWT validation on older nodes during the upgrade.
+    - old tables are not cleaned up, #6222 is tracking those.
+- A deprecated `GET /gov/jwt_keys/all` has been altered because of #6601, as soon as JWT certificates are no longer stored in CCF. A new "public_key" field has been added, "cert" is now left empty.
+
+## [6.0.0-dev7]
+
+[6.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev7
+
+### Changed
+
+- `ccf::http::get_query_value()` now supports bool types with `"true"` and `"false"` as values.
+- Service certificates and endorsements used for historical receipts now have a pathlen constraint of 1 instead of 0, reflecting the fact that there can be a single intermediate in endorsement chains. Historically the value had been 0, which happened to work because of a quirk in OpenSSL when Issuer and Subject match on an element in the chain.
+
+### Fixed
+
+- Services upgrading from 4.x to 5.x may accidentally change their service's subject name, resulting in cryptographic errors when verifying anything endorsed by the old subject name. The subject name field is now correctly populated and retained across joins, renewals, and disaster recoveries.
 
 ## [6.0.0-dev6]
 
@@ -12,6 +83,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 
 - Added a `ccf::any_cert_auth_policy` (C++), or `any_cert` (JS/TS), implementing TLS client certificate authentication, but without checking for the presence of the certificate in the governance user or member tables. This enables applications wanting to do so to perform user management in application space, using application tables (#6608).
+- Added OpenAPI support for `std::unordered_set` (#6634).
+- Added ["cose_signatures"](https://microsoft.github.io/CCF/main/operations/configuration.html#command-start-cose-signatures) entry in the configuration, which allows setting "issuer" and "subject" at network start or recovery time (#6637).
 
 ## [6.0.0-dev5]
 

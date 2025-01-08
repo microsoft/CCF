@@ -71,6 +71,7 @@ namespace ccf
   {
     JwtIssuer issuer;
     ccf::crypto::Pem cert;
+    std::string public_key;
   };
   DECLARE_JSON_TYPE(KeyIdInfo)
   DECLARE_JSON_REQUIRED_FIELDS(KeyIdInfo, issuer, cert)
@@ -98,7 +99,7 @@ namespace ccf
     // and sets the HTTP response
     static void set_gov_error(
       const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-      http_status status,
+      ccf::http_status status,
       const std::string& code,
       std::string&& msg)
     {
@@ -599,7 +600,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "4.4.0";
+      openapi_info.document_version = "4.5.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -1108,7 +1109,9 @@ namespace ccf
           for (const auto& metadata : v)
           {
             info.push_back(KeyIdInfo{
-              metadata.issuer, ccf::crypto::cert_der_to_pem(metadata.cert)});
+              .issuer = metadata.issuer,
+              .cert = ccf::crypto::Pem(),
+              .public_key = ccf::crypto::b64_from_raw(metadata.public_key)});
           }
           kmap.emplace(k, std::move(info));
           return true;

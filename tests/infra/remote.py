@@ -19,7 +19,7 @@ from packaging.version import (  # type: ignore
 
 from loguru import logger as LOG
 
-DBG = os.getenv("DBG", "cgdb")
+DBG = os.getenv("DBG", "lldb")
 
 # Duration after which unresponsive node is declared as crashed on startup
 REMOTE_STARTUP_TIMEOUT_S = 5
@@ -269,7 +269,7 @@ class LocalRemote(CmdMixin):
 
     def debug_node_cmd(self):
         cmd = " ".join(self.cmd)
-        return f"cd {self.root} && {DBG} --args {cmd}"
+        return f"cd {self.root} && {DBG} -- {cmd}"
 
     def check_done(self):
         return self.proc is not None and self.proc.poll() is not None
@@ -341,6 +341,8 @@ class CCFRemote(object):
         snp_uvm_endorsements_file=None,
         service_subject_name="CN=CCF Test Service",
         historical_cache_soft_limit=None,
+        cose_signatures_issuer="service.example.com",
+        cose_signatures_subject="ledger.signature",
         **kwargs,
     ):
         """
@@ -536,6 +538,8 @@ class CCFRemote(object):
                 snp_uvm_endorsements_file=snp_uvm_endorsements_file,
                 service_subject_name=service_subject_name,
                 historical_cache_soft_limit=historical_cache_soft_limit,
+                cose_signatures_issuer=cose_signatures_issuer,
+                cose_signatures_subject=cose_signatures_subject,
                 **kwargs,
             )
 

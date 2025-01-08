@@ -10,10 +10,11 @@
 #include "ccf/kv/get_name.h"
 #include "ccf/kv/hooks.h"
 #include "ccf/kv/version.h"
+#include "ccf/node/cose_signatures_config.h"
+#include "ccf/service/consensus_type.h"
+#include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "crypto/openssl/key_pair.h"
-#include "enclave/consensus_type.h"
-#include "enclave/reconfiguration_type.h"
 #include "serialiser_declare.h"
 
 #include <array>
@@ -193,7 +194,7 @@ namespace ccf::kv
     std::optional<RetirementPhase> retirement_phase = std::nullopt;
     std::optional<std::unordered_map<ccf::NodeId, ccf::SeqNo>> learners =
       std::nullopt;
-    std::optional<ReconfigurationType> reconfiguration_type = std::nullopt;
+    std::optional<ccf::ReconfigurationType> reconfiguration_type = std::nullopt;
     std::optional<ccf::NodeId> primary_id = std::nullopt;
     ccf::View current_view = 0;
     bool ticking = false;
@@ -220,7 +221,7 @@ namespace ccf::kv
 
   struct ConsensusParameters
   {
-    ReconfigurationType reconfiguration_type;
+    ccf::ReconfigurationType reconfiguration_type;
   };
 
   class ConfigurableConsensus
@@ -424,8 +425,10 @@ namespace ccf::kv
     virtual std::vector<uint8_t> serialise_tree(size_t to) = 0;
     virtual void set_endorsed_certificate(const ccf::crypto::Pem& cert) = 0;
     virtual void start_signature_emit_timer() = 0;
-    virtual void set_service_kp(
-      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL>) = 0;
+    virtual void set_service_signing_identity(
+      std::shared_ptr<ccf::crypto::KeyPair_OpenSSL> keypair,
+      const COSESignaturesConfig& cose_signatures) = 0;
+    virtual const ccf::COSESignaturesConfig& get_cose_signatures_config() = 0;
   };
 
   class Consensus : public ConfigurableConsensus

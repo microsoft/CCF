@@ -27,13 +27,12 @@ namespace ccf::crypto
     JsonWebKeyType kty;
     std::optional<std::string> kid = std::nullopt;
     std::optional<std::vector<std::string>> x5c = std::nullopt;
-    std::optional<std::string> issuer = std::nullopt;
 
     bool operator==(const JsonWebKey&) const = default;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, kty);
-  DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c, issuer);
+  DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c);
 
   enum class JsonWebKeyECCurve
   {
@@ -46,6 +45,25 @@ namespace ccf::crypto
     {{JsonWebKeyECCurve::P256, "P-256"},
      {JsonWebKeyECCurve::P384, "P-384"},
      {JsonWebKeyECCurve::P521, "P-521"}});
+
+  struct JsonWebKeyData
+  {
+    JsonWebKeyType kty;
+    std::optional<std::string> kid = std::nullopt;
+    std::optional<std::vector<std::string>> x5c = std::nullopt;
+    std::optional<std::string> n = std::nullopt;
+    std::optional<std::string> e = std::nullopt;
+    std::optional<std::string> x = std::nullopt;
+    std::optional<std::string> y = std::nullopt;
+    std::optional<JsonWebKeyECCurve> crv = std::nullopt;
+    std::optional<std::string> issuer = std::nullopt;
+
+    bool operator==(const JsonWebKeyData&) const = default;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKeyData);
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyData, kty);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    JsonWebKeyData, kid, x5c, n, e, x, y, crv, issuer);
 
   static JsonWebKeyECCurve curve_id_to_jwk_curve(CurveID curve_id)
   {

@@ -1028,6 +1028,8 @@ def test_cose_receipt_schema(network, args):
     with primary.client() as client:
         client.wait_for_commit(r)
 
+    txid = r.headers[infra.clients.CCF_TX_ID_HEADER]
+
     service_cert_path = os.path.join(network.common_dir, "service_cert.pem")
     service_cert = load_pem_x509_certificate(
         open(service_cert_path, "rb").read(), default_backend()
@@ -1035,51 +1037,42 @@ def test_cose_receipt_schema(network, args):
     service_key = service_cert.public_key()
 
     with primary.client("user0") as client:
-        r = client.get("/commit")
-        assert r.status_code == http.HTTPStatus.OK
-        last_txid = TxID.from_str(r.body.json()["transaction_id"])
+        LOG.debug(f"Trying to get COSE receipt for txid {txid}")
+        max_retries = 10
+        for _ in range(max_retries):
+            r = client.get(
+                "/log/public/cose_receipt",
+                headers={infra.clients.CCF_TX_ID_HEADER: txid},
+                log_capture=[],  # Do not emit raw binary to stdout
+            )
 
-        for seqno in range(last_txid.seqno, last_txid.seqno - 10, -1):
-            txid = f"{last_txid.view}.{seqno}"
-            LOG.debug(f"Trying to get COSE receipt for txid {txid}")
-            max_retries = 10
-            found_proof = False
-            for _ in range(max_retries):
-                r = client.get(
-                    "/log/public/cose_receipt",
-                    headers={infra.clients.CCF_TX_ID_HEADER: txid},
-                    log_capture=[],  # Do not emit raw binary to stdout
+            if r.status_code == http.HTTPStatus.OK:
+                cbor_proof = r.body.data()
+                receipt_phdr = ccf.cose.verify_receipt(
+                    cbor_proof, service_key, b"\0" * 32
                 )
-
-                if r.status_code == http.HTTPStatus.OK:
-                    cbor_proof = r.body.data()
-                    ccf.cose.verify_receipt(cbor_proof, service_key, b"\0" * 32)
-                    cbor_proof_filename = os.path.join(
-                        network.common_dir, f"receipt_{txid}.cose"
-                    )
-                    with open(cbor_proof_filename, "wb") as f:
-                        f.write(cbor_proof)
-                    subprocess.run(
-                        ["cddl", "../cddl/ccf-receipt.cddl", "v", cbor_proof_filename],
-                        check=True,
-                    )
-                    found_proof = True
-                    LOG.debug(f"Checked COSE receipt for txid {txid}")
-                    break
-                elif r.status_code == http.HTTPStatus.ACCEPTED:
-                    LOG.debug(f"Transaction {txid} accepted, retrying")
-                    time.sleep(0.1)
-                elif r.status_code == http.HTTPStatus.NOT_FOUND:
-                    LOG.debug(f"Transaction {txid} is a signature")
-                    break
-            else:
-                assert (
-                    False
-                ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
-            if found_proof:
+                assert receipt_phdr[15][1] == "service.example.com"
+                assert receipt_phdr[15][2] == "ledger.signature"
+                cbor_proof_filename = os.path.join(
+                    network.common_dir, f"receipt_{txid}.cose"
+                )
+                with open(cbor_proof_filename, "wb") as f:
+                    f.write(cbor_proof)
+                subprocess.run(
+                    ["cddl", "../cddl/ccf-receipt.cddl", "v", cbor_proof_filename],
+                    check=True,
+                )
+                LOG.debug(f"Checked COSE receipt for txid {txid}")
                 break
+            elif r.status_code == http.HTTPStatus.ACCEPTED:
+                LOG.debug(f"Transaction {txid} accepted, retrying")
+                time.sleep(0.1)
+            else:
+                assert False, r
         else:
-            assert False, "Failed to find a non-signature in the last 10 transactions"
+            assert (
+                False
+            ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
 
     return network
 
@@ -1974,7 +1967,7 @@ def test_basic_constraints(network, args):
     )
     assert basic_constraints.critical is True
     assert basic_constraints.value.ca is True
-    assert basic_constraints.value.path_length == 0
+    assert basic_constraints.value.path_length == 1
 
     node_pem = primary.get_tls_certificate_pem()
     node_cert = load_pem_x509_certificate(node_pem.encode(), default_backend())
@@ -2258,6 +2251,23 @@ def run_app_space_js(args):
         run_main_tests(network, args)
 
 
+def test_cose_config(network, args):
+
+    configs = set()
+
+    for node in network.get_joined_nodes():
+        with node.client("user0") as c:
+            r = c.get("/cose_signatures_config")
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+            configs.add(r.body.text())
+
+    assert len(configs) == 1, configs
+    assert (
+        configs.pop() == '{"issuer":"service.example.com","subject":"ledger.signature"}'
+    ), configs
+    return network
+
+
 def run_main_tests(network, args):
     test_basic_constraints(network, args)
     test(network, args)
@@ -2302,6 +2312,7 @@ def run_main_tests(network, args):
     test_genesis_receipt(network, args)
     if args.package == "samples/apps/logging/liblogging":
         test_etags(network, args)
+        test_cose_config(network, args)
 
 
 def run_parsing_errors(args):

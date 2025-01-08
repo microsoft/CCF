@@ -31,7 +31,7 @@ using TResponse = ::http::SimpleResponseProcessor::Response;
 constexpr size_t certificate_validity_period_days = 365;
 using namespace std::literals;
 auto valid_from =
-  ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+  ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
 auto valid_to = ccf::crypto::compute_cert_valid_to_string(
   valid_from, certificate_validity_period_days);
 
@@ -65,7 +65,7 @@ std::string parse_response_body(const TResponse& r)
   return std::string(r.body.begin(), r.body.end());
 }
 
-void check_error(const TResponse& r, http_status expected)
+void check_error(const TResponse& r, ccf::http_status expected)
 {
   DOCTEST_CHECK(r.status == expected);
 }
@@ -118,8 +118,8 @@ std::unique_ptr<ccf::NetworkIdentity> make_test_network_ident()
 {
   using namespace std::literals;
   const auto valid_from =
-    ::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
-  return std::make_unique<ReplicatedNetworkIdentity>(
+    ccf::ds::to_x509_time_string(std::chrono::system_clock::now() - 24h);
+  return std::make_unique<ccf::NetworkIdentity>(
     "CN=CCF test network",
     ccf::crypto::service_identity_curve_choice,
     valid_from,
