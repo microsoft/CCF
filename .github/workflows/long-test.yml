@@ -191,7 +191,6 @@ jobs:
   long-azure-linux:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: "Azure Linux Long Test"
-    needs: checks
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
