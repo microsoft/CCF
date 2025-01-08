@@ -7,7 +7,6 @@ docutils
 python-iptables
 py-spy
 GitPython
-docker
 better_exceptions
 pyasn1
 Jinja2

@@ -394,12 +394,8 @@ def run_code_upgrade_from(
 
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
-            if not os.getenv("CONTAINER_NODES"):
-                jwt_issuer.refresh_keys()
-                jwt_issuer.wait_for_refresh(network, args)
-            else:
-                # https://github.com/microsoft/CCF/issues/2608#issuecomment-924785744
-                LOG.warning("Skipping JWT refresh as running nodes in container")
+            jwt_issuer.refresh_keys()
+            jwt_issuer.wait_for_refresh(network, args)
 
             test_new_service(
                 network,
@@ -661,12 +657,6 @@ if __name__ == "__main__":
             "--release-install-path",
             type=str,
             help='Absolute path to existing CCF release, e.g. "/opt/ccf"',
-            default=None,
-        )
-        parser.add_argument(
-            "--release-install-image",
-            type=str,
-            help="If --release-install-path is set, specify a docker image to run release in (only if CONTAINER_NODES envvar is set) ",
             default=None,
         )
         parser.add_argument("--dry-run", action="store_true")
