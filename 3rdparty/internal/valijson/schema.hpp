@@ -43,6 +43,38 @@ public:
     Schema & operator=(const Schema &) = delete;
 
     /**
+     * @brief Move construct a new Schema
+     *
+     * @param other Schema that is moved into the new Schema
+     */
+    Schema(Schema &&other)
+      : Subschema(std::move(other)),
+        subschemaSet(std::move(other.subschemaSet)),
+        sharedEmptySubschema(other.sharedEmptySubschema)
+    {
+        // Makes other invalid by setting sharedEmptySubschema to nullptr
+        other.sharedEmptySubschema = nullptr;
+    }
+
+    /**
+     * @brief Move assign a Schema
+     *
+     * @param other Schema that is move assigned to this Schema
+     * @return Schema&
+     */
+    Schema & operator=(Schema &&other)
+    {
+        // Calls the base class move assignment operator
+        Subschema::operator=(std::move(other));
+
+        // Swaps all Schema members
+        std::swap(subschemaSet, other.subschemaSet);
+        std::swap(sharedEmptySubschema, other.sharedEmptySubschema);
+
+        return *this;
+    }
+
+    /**
      * @brief  Clean up and free all memory managed by the Schema
      *
      * Note that any Subschema pointers created and returned by this Schema
@@ -50,9 +82,12 @@ public:
      */
     ~Schema() override
     {
-        sharedEmptySubschema->~Subschema();
-        m_freeFn(const_cast<Subschema *>(sharedEmptySubschema));
-        sharedEmptySubschema = nullptr;
+        if(sharedEmptySubschema != nullptr)
+        {
+            sharedEmptySubschema->~Subschema();
+            m_freeFn(const_cast<Subschema *>(sharedEmptySubschema));
+            sharedEmptySubschema = nullptr;
+        }
 
 #if VALIJSON_USE_EXCEPTIONS
         try {
