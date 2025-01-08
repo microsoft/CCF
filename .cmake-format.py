@@ -28,7 +28,6 @@ with section("parse"):
                 "CURL_CLIENT": "*",
                 "CONFIGURATIONS": "*",
                 "ADDITIONAL_ARGS": "*",
-                "CONTAINER_NODES": "*",
             },
         },
         "add_perf_test": {
