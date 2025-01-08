@@ -104,15 +104,6 @@
       "component": {
         "type": "git",
         "git": {
-          "repositoryUrl": "https://github.com/nghttp2/nghttp2",
-          "commitHash": "781057e15626bf403c8739c25166ad123aa17ff3"
-        }
-      }
-    },
-    {
-      "component": {
-        "type": "git",
-        "git": {
           "repositoryUrl": "https://github.com/tristanpenman/valijson",
           "commitHash": "2dfc7499a31b84edef71189f4247919268ebc74e"
         }
