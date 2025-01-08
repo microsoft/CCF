@@ -180,7 +180,7 @@ jobs:
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-lts
+          name: logs-e2e
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
