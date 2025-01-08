@@ -167,7 +167,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DWORKER_THREADS=2 ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TEST=ON -DLVI_MITIGATIONS=OFF -DWORKER_THREADS=2 ..
           ninja
 
       - name: "Test"
