@@ -1426,8 +1426,10 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   using ReceivedMessages = std::vector<std::optional<std::vector<uint8_t>>>;
 
   static constexpr auto message_limit = 40;
+  static constexpr auto messages_each = 5 * message_limit;
 
-  std::atomic<bool> finished = false;
+  std::atomic<size_t> finished_reading = 0;
+
   auto run_channel = [&](
                        ccf::NodeId my_node_id,
                        ccf::NodeId peer_node_id,
@@ -1444,7 +1446,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     channels.set_message_limit(message_limit);
 
     size_t sent = 0;
-    while (!finished)
+    while (finished_reading.load() < 2)
     {
       {
         // Randomly maybe send some messages from start of your work queue
@@ -1498,6 +1500,11 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
             {
               received_results.emplace_back(std::nullopt);
             }
+
+            if (received_results.size() == messages_each)
+            {
+              ++finished_reading;
+            }
             break;
           }
 
@@ -1521,32 +1528,23 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   ReceivedMessages expected_received_by_2;
 
   // Submit a randomly generated workload
-  // TODO: Don't need to submit with sleep like this, just build it all
-  // in-advance, before starting threads
-  for (auto i = 0; i < 5 * message_limit; ++i)
+  for (auto i = 0; i < 2 * messages_each; ++i)
   {
-    SendQueue* send_queue;
-    ReceivedMessages* expected_results;
-    if (i % 2 == 0)
+    std::vector<uint8_t> msg_body(rand() % 20);
+    for (auto& n : msg_body)
     {
-      send_queue = &to_send_from_1;
-      expected_results = &expected_received_by_2;
+      n = rand();
+    }
+
+    if (i < messages_each)
+    {
+      to_send_from_1.emplace(msg_body);
+      expected_received_by_2.emplace_back(msg_body);
     }
     else
     {
-      send_queue = &to_send_from_2;
-      expected_results = &expected_received_by_1;
-    }
-
-    {
-      std::vector<uint8_t> msg_body(rand() % 20);
-      for (auto& n : msg_body)
-      {
-        n = rand();
-      }
-
-      send_queue->emplace(msg_body);
-      expected_results->emplace_back(msg_body);
+      to_send_from_2.emplace(msg_body);
+      expected_received_by_1.emplace_back(msg_body);
     }
   }
 
@@ -1569,42 +1567,22 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     std::ref(received_by_2));
 
   // Wait for channel threads to fully catch up.
-  std::this_thread::sleep_for(std::chrono::milliseconds(500));
-  // constexpr int wait_finish_attempts = 20;
-  // for (int attempt = 0; attempt < wait_finish_attempts; attempt++)
-  // {
-  //   bool skip_waiting{true};
-  //   {
-  //     std::lock_guard<std::mutex> guard(sent_by_1.lock);
-  //     skip_waiting &= sent_by_1.to_send.empty();
-  //   }
-  //   {
-  //     std::lock_guard<std::mutex> guard(sent_by_2.lock);
-  //     skip_waiting &= sent_by_2.to_send.empty();
-  //   }
-  //   if (skip_waiting)
-  //   {
-  //     break;
-  //   }
-  //   std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  // }
-
-  finished.store(true);
+  while (finished_reading.load() < 2)
+  {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
 
   channels1.join();
   channels2.join();
 
-  {
-    REQUIRE(to_send_from_1.empty());
-  }
-  {
-    REQUIRE(to_send_from_2.empty());
-  }
+  REQUIRE(to_send_from_1.empty());
+  REQUIRE(to_send_from_2.empty());
 
   // Validate results
   auto equal_modulo_holes =
     [](const ReceivedMessages& actual, const ReceivedMessages& expected) {
       REQUIRE(actual.size() == expected.size());
+      REQUIRE(actual.size() == messages_each);
       size_t i = 0;
       for (const auto& msg_opt : actual)
       {
