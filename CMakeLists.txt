@@ -216,7 +216,6 @@ set(CCF_ENDPOINTS_SOURCES
 
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
-include(${CCF_DIR}/cmake/nghttp2.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
 
@@ -536,7 +535,7 @@ if(COMPILE_TARGET STREQUAL "snp")
            ccf_endpoints.snp
            ccfcrypto.snp
            ccf_kv.snp
-           nghttp2.snp
+           nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -585,7 +584,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
-           nghttp2.host
+           nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
   )
 

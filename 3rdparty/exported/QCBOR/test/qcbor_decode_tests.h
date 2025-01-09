@@ -126,7 +126,7 @@ int32_t ParseMapAsArrayTest(void);
 /*
  Test parsing of some simple values like true, false, null...
  */
-int32_t ParseSimpleTest(void);
+int32_t SimpleValueDecodeTests(void);
 
 
 /*
@@ -317,5 +317,18 @@ int32_t BoolTest(void);
 Test GitHub issue #134: decode an indefinite-length string with a zero-length first chunk.
 */
 int32_t CBORTestIssue134(void);
+
+
+
+int32_t ErrorHandlingTests(void);
+
+
+/*
+ * Test QCBORDecode_GetArray and QCBORDecode_GetMap
+ */
+int32_t GetMapAndArrayTest(void);
+
+int32_t TellTests(void);
+
 
 #endif /* defined(__QCBOR__qcbort_decode_tests__) */

@@ -7,7 +7,7 @@
 
  SPDX-License-Identifier: BSD-3-Clause
 
- See BSD-3-Clause license in README.md
+ See BSD-3-Clause license in file named "LICENSE"
 
  Created on 7/27/19
  ==============================================================================*/
@@ -159,9 +159,10 @@ static const struct someBinaryBytes paNotWellFormedCBOR[] = {
     {(uint8_t[]){0xa1, 0xff, 0x00}, 3},
     // Array of length 1 with 2nd member value replaced by a break
     {(uint8_t[]){0xa1, 0x00, 0xff}, 3},
-    // Map of length 2 with 2nd member replaced by a break
-    {(uint8_t[]){0xa2, 0x00, 0x00, 0xff}, 4},
-
+    // Map of length 2 with 2nd entry label replaced by a break
+    {(uint8_t[]){0xa2, 0x00, 0x00, 0xff, 0x00}, 5},
+    // Map of length 2 with 2nd entry value replaced by a break
+    {(uint8_t[]){0xa2, 0x00, 0x00, 0x00, 0xff}, 5},
 
     // Breaks must not occur on their own out of an indefinite length
     // data item
