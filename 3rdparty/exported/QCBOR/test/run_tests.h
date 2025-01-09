@@ -5,7 +5,7 @@
 
  SPDX-License-Identifier: BSD-3-Clause
 
- See BSD-3-Clause license in README.md
+ See BSD-3-Clause license in file named "LICENSE"
 
  Created 9/30/18
  =============================================================================*/
@@ -60,7 +60,7 @@ int RunTestsQCBOR(const char *szTestNames[],
 
 
 /**
- @brief Print sizes of encoder / decoder contexts.
+ @brief Print sizes of encoder-decoder contexts.
 
  @param[in] pfOutput     Function that is called to output text strings.
  @param[in] pOutCtx      Context pointer passed to output function.

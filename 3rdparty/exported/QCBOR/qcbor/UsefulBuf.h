@@ -1,34 +1,35 @@
-/*============================================================================
- Copyright (c) 2016-2018, The Linux Foundation.
- Copyright (c) 2018-2022, Laurence Lundblade.
- Copyright (c) 2021, Arm Limited. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above
-      copyright notice, this list of conditions and the following
-      disclaimer in the documentation and/or other materials provided
-      with the distribution.
-    * Neither the name of The Linux Foundation nor the names of its
-      contributors, nor the name "Laurence Lundblade" may be used to
-      endorse or promote products derived from this software without
-      specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
-WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
-ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
-BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
-BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
-OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
-IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- =============================================================================*/
+/* =========================================================================
+ * Copyright (c) 2016-2018, The Linux Foundation.
+ * Copyright (c) 2018-2024, Laurence Lundblade.
+ * Copyright (c) 2021, Arm Limited. All rights reserved.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *     * Neither the name of The Linux Foundation nor the names of its
+ *       contributors, nor the name "Laurence Lundblade" may be used to
+ *       endorse or promote products derived from this software without
+ *       specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * ========================================================================= */
 
 /*============================================================================
  FILE:  UsefulBuf.h
@@ -42,6 +43,10 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
  when         who             what, where, why
  --------     ----            --------------------------------------------------
+ 08/14/2024   llundblade      Add UsefulOutBuf_RetrieveOutputStorage().
+ 08/13/2024   llundblade      Add UsefulInputBuf_RetrieveUndecodedInput().
+ 08/08/2024   llundblade      Add UsefulOutBuf_SubString().
+ 10/05/2024   llundblade      Add Xxx_OffsetToPointer.
  19/12/2022   llundblade      Document that adding empty data is allowed.
  4/11/2022    llundblade      Add GetOutPlace and Advance to UsefulOutBuf.
  9/21/2021    llundbla        Clarify UsefulOutBuf size calculation mode
@@ -646,14 +651,25 @@ size_t UsefulBuf_FindBytes(UsefulBufC BytesToSearch, UsefulBufC BytesToFind);
 
 
 /**
- @brief Convert a pointer to an offset with bounds checking.
-
- @param[in] UB  Pointer to the UsefulInputBuf.
- @param[in] p   Pointer to convert to offset.
-
- @return SIZE_MAX if @c p is out of range, the byte offset if not.
+ * @brief Convert a pointer to an offset with bounds checking.
+ *
+ * @param[in] UB  A UsefulBuf.
+ * @param[in] p   Pointer to convert to offset.
+ *
+ * @return SIZE_MAX if @c p is out of range, the byte offset if not.
 */
 static inline size_t UsefulBuf_PointerToOffset(UsefulBufC UB, const void *p);
+
+
+/**
+ * @brief Convert an offset to a pointer with bounds checking.
+ *
+ * @param[in] UB       A UsefulBuf.
+ * @param[in] uOffset  Offset in @c pUInBuf.
+ *
+ * @return @c NULL if @c uOffset is out of range, a pointer into the buffer if not.
+ */
+static inline const void *UsefulBuf_OffsetToPointer(UsefulBufC UB, size_t uOffset);
 
 
 #ifndef USEFULBUF_DISABLE_DEPRECATED
@@ -674,7 +690,7 @@ static inline UsefulBuf UsefulBufC_Unconst(const UsefulBufC UBC)
 {
    UsefulBuf UB;
 
-   // See UsefulBuf_Unconst() implementation for comment
+   /* See UsefulBuf_Unconst() implementation for comment */
    UB.ptr = (void *)(uintptr_t)UBC.ptr;
 
    UB.len = UBC.len;
@@ -1323,8 +1339,8 @@ UsefulOutBuf_GetOutPlace(UsefulOutBuf *pUOutBuf);
  * @param[in] uAmount  The amount to advance.
  *
  * This advances the position in the output buffer
- * by \c uAmount. This assumes that the
- * caller has written \c uAmount to the pointer obtained
+ * by @c uAmount. This assumes that the
+ * caller has written @c uAmount to the pointer obtained
  * with UsefulOutBuf_GetOutPlace().
  *
  * Warning: this bypasses the buffer safety provided by
@@ -1367,6 +1383,35 @@ UsefulBufC UsefulOutBuf_OutUBuf(UsefulOutBuf *pUOutBuf);
  */
 UsefulBufC UsefulOutBuf_CopyOut(UsefulOutBuf *pUOutBuf, UsefulBuf Dest);
 
+
+/**
+ * @beief Return a substring of the output data.
+ *
+ * @param[in] pUOutBuf  Pointer to the @ref UsefulOutBuf.
+ * @param[in] uStart    Offset of start of substring.
+ * @param[in] uLen      Length of substring.
+ *
+ * This is the same as UsefulOutBuf_OutUBuf(), but returns a
+ * substring. @c NULLUsefulBufC is returned if the requested substring
+ * is off the end of the output bytes or if in error state.
+ */
+UsefulBufC UsefulOutBuf_SubString(UsefulOutBuf *pUOutBuf,
+                                  const size_t  uStart,
+                                  const size_t  uLen);
+
+
+/**
+ * @brief Retrieve the storage buffer passed in to UsefulOutBuf_Init().
+ *
+ * @param[in] pUOutBuf  The encoding context.
+ *
+ * @return The output storage buffer passed to UsefulOutBuf_Init().
+ *
+ * This doesn't give any information about how much has been encoded
+ * or the error state. It just returns the exact @ref UsefulOutBuf given
+ * to UsefulOutBuf_Init().
+ */
+static UsefulBuf UsefulOutBuf_RetrieveOutputStorage(UsefulOutBuf *pUOutBuf);
 
 
 
@@ -1490,7 +1535,18 @@ static int UsefulInputBuf_BytesAvailable(UsefulInputBuf *pUInBuf, size_t uLen);
  *
  * @return SIZE_MAX if @c p is out of range, the byte offset if not.
  */
-static inline size_t UsefulInputBuf_PointerToOffset(UsefulInputBuf *pUInBuf, const void *p);
+static size_t UsefulInputBuf_PointerToOffset(UsefulInputBuf *pUInBuf, const void *p);
+
+
+/**
+ * @brief Convert an offset to a pointer with bounds checking.
+ *
+ * @param[in] pUInBuf  Pointer to the @ref UsefulInputBuf.
+ * @param[in] uOffset  Offset in @c pUInBuf.
+ *
+ * @return @c NULL if @c uOffset is out of range, a pointer into the buffer if not.
+ */
+static const void *UsefulInputBuf_OffsetToPointer(UsefulInputBuf *pUInBuf, size_t uOffset);
 
 
 /**
@@ -1700,6 +1756,16 @@ static inline size_t UsefulInputBuf_GetBufferLength(UsefulInputBuf *pUInBuf);
 static void UsefulInputBuf_SetBufferLength(UsefulInputBuf *pUInBuf, size_t uNewLen);
 
 
+/**
+ * @brief  Retrieve the undecoded input buffer.
+ *
+ * @param[in] pUInBuf  Pointer to the @ref UsefulInputBuf.
+ *
+ * @return The input that was given to UsefulInputBuf_Init().
+ *
+ * A simple convenience method, should it be useful to get the original input back.
+ */
+static UsefulBufC UsefulInputBuf_RetrieveUndecodedInput(UsefulInputBuf *pUInBuf);
 
 
 /*----------------------------------------------------------
@@ -1844,7 +1910,7 @@ static inline size_t UsefulBuf_PointerToOffset(UsefulBufC UB, const void *p)
       return SIZE_MAX;
    }
 
-   // Cast to size_t (from ptrdiff_t) is OK because of check above
+   /* Cast to size_t (from ptrdiff_t) is OK because of check above */
    const size_t uOffset = (size_t)((const uint8_t *)p - (const uint8_t *)UB.ptr);
 
     if(uOffset >= UB.len) {
@@ -1854,6 +1920,18 @@ static inline size_t UsefulBuf_PointerToOffset(UsefulBufC UB, const void *p)
 
    return uOffset;
 }
+
+
+static inline const void *UsefulBuf_OffsetToPointer(UsefulBufC UB, size_t uOffset)
+{
+   if(UsefulBuf_IsNULLC(UB) || uOffset >= UB.len) {
+      return NULL;
+   }
+
+   return (const uint8_t *)UB.ptr + uOffset;
+}
+
+
 
 
 #ifndef USEFULBUF_DISABLE_ALL_FLOAT
@@ -2192,6 +2270,12 @@ static inline UsefulBuf UsefulOutBuf_GetOutPlace(UsefulOutBuf *pUOutBuf)
 }
 
 
+static inline UsefulBuf UsefulOutBuf_RetrieveOutputStorage(UsefulOutBuf *pMe)
+{
+   return pMe->UB;
+}
+
+
 
 
 static inline void UsefulInputBuf_Init(UsefulInputBuf *pMe, UsefulBufC UB)
@@ -2237,9 +2321,9 @@ static inline size_t UsefulInputBuf_BytesUnconsumed(UsefulInputBuf *pMe)
 
    /* The cursor is off the end of the input buffer given.
     * Presuming there are no bugs in this code, this should never happen.
-    * If it so, the struct was corrupted. The check is retained as
+    * If it is so, the struct was corrupted. The check is retained as
     * as a defense in case there is a bug in this code or the struct is
-    * corrupted.
+    * corrupted by an attacker or accidentally.
     */
    if(pMe->cursor > pMe->UB.len) {
       return 0;
@@ -2260,6 +2344,12 @@ static inline size_t UsefulInputBuf_PointerToOffset(UsefulInputBuf *pUInBuf, con
 {
    return UsefulBuf_PointerToOffset(pUInBuf->UB, p);
 }
+
+
+static inline const void *UsefulInputBuf_OffsetToPointer(UsefulInputBuf *pUInBuf, size_t uOffset)
+ {
+    return UsefulBuf_OffsetToPointer(pUInBuf->UB, uOffset);
+ }
 
 
 static inline UsefulBufC UsefulInputBuf_GetUsefulBuf(UsefulInputBuf *pMe, size_t uNum)
@@ -2452,6 +2542,11 @@ static inline int UsefulInputBuf_GetError(UsefulInputBuf *pMe)
 static inline void UsefulInputBuf_SetBufferLength(UsefulInputBuf *pMe, size_t uNewLen)
 {
     pMe->UB.len = uNewLen;
+}
+
+static inline UsefulBufC UsefulInputBuf_RetrieveUndecodedInput(UsefulInputBuf *pMe)
+{
+   return pMe->UB;
 }
 
 

@@ -45,7 +45,7 @@ libqcbor.a: $(QCBOR_OBJ)
 # run "make warn" as a handy way to compile with the warning flags
 # used in the QCBOR release process. See CFLAGS above.
 warn:
-	make CMD_LINE="-Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wcast-qual"
+	make CMD_LINE="$(CMD_LINE) -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wcast-qual"
 
 
 # The shared library is not made by default because of platform

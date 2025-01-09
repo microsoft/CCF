@@ -114,7 +114,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/laurencelundblade/QCBOR",
-          "commitHash": "92d3f89030baff4af7be8396c563e6c8ef263622"
+          "commitHash": "24cd62a415161c2851327e96a023b47bb0897e64"
         }
       }
     },
@@ -123,7 +123,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/laurencelundblade/t_cose",
-          "commitHash": "7d1b6686990e5bf6b84df422f93fb7f547669012"
+          "commitHash": "64fbc64dd5982a7f75834d2b9a2a8c9ba8207776"
         }
       }
     },
