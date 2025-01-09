@@ -226,6 +226,45 @@ jobs:
             build/workspace/*.ledger/*
           if-no-files-found: ignore
 
+  e2e-suite-shuffled:
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    name: Long E2E
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: ghcr.io/microsoft/ccf/ci/default:build-08-01-2025-2
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Build"
+        run: |
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSHUFFLE_SUITE=ON ..
+          ninja
+
+      - name: "Test"
+        run: |
+          set +x
+          cd build
+          ./tests.sh --output-on-failure --timeout 1600 -R "suite"
+
+      - name: "Upload logs"
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-e2e-shuffled
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*.ledger/*
+          if-no-files-found: ignore
+
+
   long-azure-linux:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: "Azure Linux Long Test"
