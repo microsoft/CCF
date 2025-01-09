@@ -1,35 +1,35 @@
-/*==============================================================================
- Copyright (c) 2016-2018, The Linux Foundation.
- Copyright (c) 2018-2022, Laurence Lundblade.
- Copyright (c) 2021, Arm Limited.
- All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-    * Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above
-      copyright notice, this list of conditions and the following
-      disclaimer in the documentation and/or other materials provided
-      with the distribution.
-    * Neither the name of The Linux Foundation nor the names of its
-      contributors, nor the name "Laurence Lundblade" may be used to
-      endorse or promote products derived from this software without
-      specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
-WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
-ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
-BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
-BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
-OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
-IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- =============================================================================*/
+/* ==========================================================================
+ * Copyright (c) 2016-2018, The Linux Foundation.
+ * Copyright (c) 2018-2024, Laurence Lundblade.
+ * Copyright (c) 2021, Arm Limited.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above
+ *       copyright notice, this list of conditions and the following
+ *       disclaimer in the documentation and/or other materials provided
+ *       with the distribution.
+ *     * Neither the name of The Linux Foundation nor the names of its
+ *       contributors, nor the name "Laurence Lundblade" may be used to
+ *       endorse or promote products derived from this software without
+ *       specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+ * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+ * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * ========================================================================= */
 
 #include "UsefulBuf.h"
 
@@ -127,6 +127,30 @@ const char * UOBTest_NonAdversarial(void)
       goto Done;
    }
 
+   Out = UsefulOutBuf_SubString(&UOB, 10, 8);
+   if(UsefulBuf_IsNULLC(Out) ||
+      UsefulBuf_Compare(UsefulBuf_FROM_SZ_LITERAL("unbounce"), Out) ||
+      UsefulOutBuf_GetError(&UOB)) {
+      szReturn = "SubString substring";
+      goto Done;
+   }
+
+   Out = UsefulOutBuf_SubString(&UOB, 0, Expected.len);
+   if(UsefulBuf_IsNULLC(Out) ||
+      UsefulBuf_Compare(Expected, Out) ||
+      UsefulOutBuf_GetError(&UOB)) {
+      szReturn = "SubString all";
+      goto Done;
+   }
+
+   Out = UsefulOutBuf_SubString(&UOB, Expected.len, 0);
+   if(UsefulBuf_IsNULLC(Out) ||
+      UsefulBuf_Compare(UsefulBuf_FROM_SZ_LITERAL(""), Out) ||
+      UsefulOutBuf_GetError(&UOB)) {
+      szReturn = "SubString empty";
+      goto Done;
+   }
+
    /* Now test the size calculation mode */
    UsefulOutBuf_Init(&UOB, SizeCalculateUsefulBuf);
 
@@ -146,13 +170,12 @@ Done:
 
 
 /*
-  Append test utility.
-    pUOB is the buffer to append too
-    num is the amount to append
-    expected is the expected return code, 0 or 1
-
- returns 0 if test passed
-
+ * Append test utility.
+ *   pUOB is the buffer to append too
+ *   num is the amount to append
+ *   expected is the expected return code, 0 or 1
+ *
+ * returns 0 if test passed
  */
 static int AppendTest(UsefulOutBuf *pUOB, size_t num, int expected)
 {
@@ -175,7 +198,7 @@ static int AppendTest(UsefulOutBuf *pUOB, size_t num, int expected)
 
 
 /*
- Same as append, but takes a position param too
+ * Same as append, but takes a position param too
  */
 static int InsertTest(UsefulOutBuf *pUOB,  size_t num, size_t pos, int expected)
 {
@@ -196,15 +219,14 @@ static int InsertTest(UsefulOutBuf *pUOB,  size_t num, size_t pos, int expected)
 
 
 /*
- Boundary conditions to test
-   - around 0
-   - around the buffer size
-   - around MAX size_t
-
-
- Test these for the buffer size and the cursor, the insert amount, the
- append amount and the insert position
-
+ * Boundary conditions to test
+ *  - around 0
+ *  - around the buffer size
+ *  - around MAX size_t
+ *
+ *
+ * Test these for the buffer size and the cursor, the insert amount, the
+ * append amount and the insert position
  */
 
 const char *UOBTest_BoundaryConditionsTest(void)
@@ -248,7 +270,7 @@ const char *UOBTest_BoundaryConditionsTest(void)
       return "Bad insertion point not caught";
 
 
-   UsefulBuf_MAKE_STACK_UB(outBuf2,10);
+   UsefulBuf_MAKE_STACK_UB(outBuf2, 10);
 
    UsefulOutBuf_Init(&UOB, outBuf2);
 
@@ -262,6 +284,29 @@ const char *UOBTest_BoundaryConditionsTest(void)
       return "insert with data should have failed";
    }
 
+   UsefulOutBuf_Init(&UOB, outBuf2);
+   UsefulOutBuf_AppendString(&UOB, "abc123");
+
+   UsefulBufC Out = UsefulOutBuf_SubString(&UOB, 7, 1);
+   if(!UsefulBuf_IsNULLC(Out)) {
+      return "SubString start should fail off end 1";
+   }
+   Out = UsefulOutBuf_SubString(&UOB, 5, 3);
+   if(!UsefulBuf_IsNULLC(Out)) {
+      return "SubString len should fail off end 2";
+   }
+   Out = UsefulOutBuf_SubString(&UOB, 0, 7);
+   if(!UsefulBuf_IsNULLC(Out)) {
+      return "SubString len should fail off end 3";
+   }
+   Out = UsefulOutBuf_SubString(&UOB, 7, 0);
+   if(!UsefulBuf_IsNULLC(Out)) {
+      return "SubString len should fail off end 4";
+   }
+   Out = UsefulOutBuf_SubString(&UOB, 6, 1);
+   if(!UsefulBuf_IsNULLC(Out)) {
+      return "SubString len should fail off end 5";
+   }
 
    UsefulOutBuf_Init(&UOB, (UsefulBuf){NULL, SIZE_MAX - 5});
    UsefulOutBuf_AppendData(&UOB, "123456789", SIZE_MAX -6);
@@ -280,16 +325,31 @@ const char *UOBTest_BoundaryConditionsTest(void)
    if(!UsefulOutBuf_GetError(&UOB)) {
       return "lengths near max size";
    }
+   UsefulBufC O = UsefulOutBuf_OutUBuf(&UOB);
+   if(!UsefulBuf_IsNULLC(O)) {
+      return "OutUBuf in error should have returned NULL";
+   }
 
    UsefulOutBuf_Init(&UOB, (UsefulBuf){NULL, 100});
    if(!UsefulOutBuf_IsBufferNULL(&UOB)) {
       return "NULL check failed";
    }
 
+   UsefulOutBuf_Init(&UOB, outbuf);
+   UOB.magic = 99; // corrupt the UOB
+   O = UsefulOutBuf_OutUBuf(&UOB);
+   if(!UsefulBuf_IsNULLC(O)) {
+      return "OutUBuf on corrupted should have returned NULL";
+   }
+
+   MakeUsefulBufOnStack(Tmp, 20);
+   O = UsefulOutBuf_CopyOut(&UOB, Tmp);
+   if(!UsefulBuf_IsNULLC(O)) {
+      return "CopyOut on corrupted should have returned NULL";
+   }
+
    return NULL;
 }
-
-
 
 
 
@@ -640,6 +700,10 @@ const char *UBUtilTests(void)
       return "Failed to find 3";
    }
 
+   if(SIZE_MAX != UsefulBuf_FindBytes(Expected, ExpectedLonger)) {
+      return "Failed to find 4";
+   }
+
 
    const uint8_t pB[] = {0x01, 0x02, 0x03};
    UsefulBufC Boo = UsefulBuf_FROM_BYTE_ARRAY_LITERAL(pB);
@@ -673,6 +737,22 @@ const char *UBUtilTests(void)
       return "Incorrect pointer offset for start";
    }
 
+   if(UsefulBuf_OffsetToPointer(Boo, 0) != &pB[0]) {
+      return "Wrong OffsetToPointer";
+   }
+
+   if(UsefulBuf_OffsetToPointer(Boo, 3) != NULL) {
+      return "Didn't validate offset correctly";
+   }
+
+   if(UsefulBuf_OffsetToPointer(Boo, 2) != &pB[2]) {
+      return "Wrong OffsetToPointer 2";
+   }
+
+   if(UsefulBuf_OffsetToPointer(NULLUsefulBufC, 2) != NULL) {
+      return "Failed OffsetToPtr on NULLUsefulBufC";
+   }
+
    return NULL;
 }
 
@@ -688,7 +768,7 @@ const char *  UIBTest_IntegerFormat(void)
 #ifndef USEFULBUF_DISABLE_ALL_FLOAT
    const float    f  = (float)314.15;
    const double   d  = 2.1e10;
-#endif /* USEFULBUF_DISABLE_ALL_FLOAT */
+#endif /* ! USEFULBUF_DISABLE_ALL_FLOAT */
 
 
    UsefulOutBuf_AppendUint32(&UOB, u32); // Also tests UsefulOutBuf_InsertUint64 and UsefulOutBuf_GetEndPosition
@@ -698,7 +778,7 @@ const char *  UIBTest_IntegerFormat(void)
 #ifndef USEFULBUF_DISABLE_ALL_FLOAT
    UsefulOutBuf_AppendFloat(&UOB, f); // Also tests UsefulOutBuf_InsertFloat
    UsefulOutBuf_AppendDouble(&UOB, d); // Also tests UsefulOutBuf_InsertDouble
-#endif /* USEFULBUF_DISABLE_ALL_FLOAT */
+#endif /* ! USEFULBUF_DISABLE_ALL_FLOAT */
 
    const UsefulBufC O = UsefulOutBuf_OutUBuf(&UOB);
    if(UsefulBuf_IsNULLC(O))
@@ -739,6 +819,16 @@ const char *  UIBTest_IntegerFormat(void)
    }
 #endif /* USEFULBUF_DISABLE_ALL_FLOAT */
 
+   if(UsefulInputBuf_GetUint16(&UIB) != 0) {
+      return "Didn't catch off end with GetUint16";
+   }
+   if(UsefulInputBuf_GetUint32(&UIB) !=0 ) {
+      return "Didn't catch off end with GetUint32";
+   }
+   if(UsefulInputBuf_GetUint64(&UIB) !=0 ) {
+      return "Didn't catch off end with GetUint64";
+   }
+
    // Reset and go again for a few more tests
    UsefulInputBuf_Init(&UIB, O);
 
@@ -773,7 +863,7 @@ const char *  UIBTest_IntegerFormat(void)
    if(UsefulInputBuf_BytesAvailable(&UIB, 12)){
       return "Wrong number of bytes available II";
    }
-#endif /* USEFULBUF_DISABLE_ALL_FLOAT */
+#endif /* ! USEFULBUF_DISABLE_ALL_FLOAT */
 
    UsefulInputBuf_Seek(&UIB, 0);
 
@@ -798,6 +888,51 @@ const char *  UIBTest_IntegerFormat(void)
 
    if(UsefulInputBuf_PointerToOffset(&UIB, O.ptr) != 0) {
       return "PointerToOffset not working";
+   }
+
+
+   const uint8_t pB[] = {0x01, 0x02, 0x03};
+   UsefulBufC Boo = UsefulBuf_FROM_BYTE_ARRAY_LITERAL(pB);
+
+   UsefulInputBuf_Init(&UIB, Boo);
+
+   if(UsefulInputBuf_OffsetToPointer(&UIB, 0) != &pB[0]) {
+      return "OffsetToPointer fail";
+   }
+
+   if(UsefulInputBuf_OffsetToPointer(&UIB, SIZE_MAX) != NULL) {
+      return "OffsetToPointer SIZE_MAX fail";
+   }
+
+   UsefulInputBuf_Init(&UIB, Boo);
+   UIB.magic = 88;
+   size_t uUnc = UsefulInputBuf_BytesUnconsumed(&UIB);
+   if(uUnc != 0) {
+      return "Didn't detect corrupted UsefulInputBuf";
+   }
+
+   UsefulInputBuf_Init(&UIB, Boo);
+   UIB.cursor = 500;
+   uUnc = UsefulInputBuf_BytesUnconsumed(&UIB);
+   if(uUnc != 0) {
+      return "Didn't detect bad UsefulInputBuf cursor";
+   }
+
+   if(!UsefulBuf_IsNULLC(UsefulInputBuf_GetUsefulBuf(&UIB, 5000))) {
+      return "Didn't detect off-end request of UsefulInputBuf";
+   }
+
+   if(!UsefulInputBuf_GetError(&UIB)) {
+      return "UIB Error state not reported";
+   }
+
+   UsefulInputBuf_Init(&UIB, Boo);
+   if(UsefulInputBuf_GetBufferLength(&UIB) != Boo.len) {
+      return "UIB length wrong";
+   }
+   UsefulInputBuf_SetBufferLength(&UIB, 1);
+   if(UsefulInputBuf_GetBufferLength(&UIB) != 1) {
+      return "UIB SetBufferLength failed";
    }
 
    return NULL;
@@ -825,7 +960,7 @@ const char *UBUTest_CopyUtil(void)
 
    return NULL;
 }
-#endif /* USEFULBUF_DISABLE_ALL_FLOAT */
+#endif /* ! USEFULBUF_DISABLE_ALL_FLOAT */
 
 
 const char *UBAdvanceTest(void)
@@ -870,6 +1005,34 @@ const char *UBAdvanceTest(void)
    if(!UsefulOutBuf_GetError(&UOB)) {
       return "Advance off end didn't set error";
    }
+
+   // Try to advance in error state
+   UsefulOutBuf_Reset(&UOB);
+   UsefulOutBuf_Advance(&UOB, 1);
+   Place = UsefulOutBuf_GetOutPlace(&UOB);
+   UsefulOutBuf_Advance(&UOB, 1000);
+   UsefulOutBuf_Advance(&UOB, 1);
+   UsefulBuf Place2;
+   Place2 = UsefulOutBuf_GetOutPlace(&UOB);
+   if(memcmp(&Place, &Place2, sizeof(Place))) {
+      return "Advance didn't noop in error state";
+   }
+
+   UsefulOutBuf_Reset(&UOB);
+   UOB.data_len = UOB.UB.len + 1; // React in and corrupt
+   UsefulOutBuf_Advance(&UOB, 1);
+   if(!UsefulOutBuf_GetError(&UOB)) {
+      return "didn't detect corrupted UOB";
+   }
+
+   UsefulOutBuf BadUOB;
+   memset(&BadUOB, 'x', sizeof(BadUOB));
+   BadUOB.err = 0;
+   UsefulOutBuf_Advance(&BadUOB, 1);
+   if(!UsefulOutBuf_GetError(&BadUOB)) {
+      return "didn't detect bad UOB";
+   }
+
 
    return NULL;
 }

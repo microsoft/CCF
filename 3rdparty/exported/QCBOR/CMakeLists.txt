@@ -11,7 +11,7 @@ cmake_minimum_required(VERSION 3.15)
 project(qcbor
     DESCRIPTION "QCBOR"
     LANGUAGES C
-    VERSION 1.1.0
+    VERSION 1.5.0
 )
 
 set(BUILD_QCBOR_TEST  "OFF"  CACHE STRING "Build QCBOR test suite [OFF, LIB, APP]")
@@ -71,6 +71,27 @@ if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
             $<$<NOT:$<BOOL:${QCBOR_OPT_DISABLE_FLOAT_HW_USE}>>:m>
     )
 endif()
+
+set(HEADERS
+    inc/qcbor/qcbor.h
+    inc/qcbor/qcbor_common.h
+    inc/qcbor/qcbor_private.h
+    inc/qcbor/qcbor_encode.h
+    inc/qcbor/qcbor_decode.h
+    inc/qcbor/qcbor_spiffy_decode.h
+    inc/qcbor/UsefulBuf.h
+)
+set_target_properties(
+    qcbor PROPERTIES
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR}
+        PUBLIC_HEADER "${HEADERS}"
+)
+include(GNUInstallDirs)
+install(
+    TARGETS qcbor
+    PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/qcbor"
+)
 
 if (NOT BUILD_QCBOR_TEST STREQUAL "OFF")
     add_subdirectory(test)

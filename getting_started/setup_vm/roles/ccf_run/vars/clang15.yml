@@ -3,3 +3,4 @@ debs:
   - libc++abi1-15
   - libc++1-15
   - libuv1
+  - libnghttp2-14
