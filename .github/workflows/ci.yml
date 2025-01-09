@@ -113,6 +113,8 @@ jobs:
           tdnf -y install ca-certificates git
           # Build tools
           tdnf -y install build-essential clang cmake ninja-build which
+          # libc++
+          tdnf -y install libcxx-devel llvm-libunwind-devel
           # Dependencies
           tdnf -y install openssl-devel libuv-devel nghttp2-devel
           # Test dependencies
@@ -132,7 +134,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DUSE_LIBCXX=OFF ..
+          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF ..
           ninja
         shell: bash
 
