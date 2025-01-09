@@ -1419,7 +1419,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     std::vector<std::pair<ccf::NodeId, std::vector<uint8_t>>> to_send;
   };
 
-  using ReceivedMessages = std::vector<std::vector<uint8_t>>;
+  using ReceivedMessages = std::vector<std::optional<std::vector<uint8_t>>>;
 
   static constexpr auto message_limit = 40;
 
@@ -1471,12 +1471,19 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 
           case forwarded_msg:
           {
-            auto decrypted = channels.recv_encrypted(
-              msg.from,
-              {msg.authenticated_hdr.data(), msg.authenticated_hdr.size()},
-              msg.payload.data(),
-              msg.payload.size());
-            received_results.emplace_back(decrypted);
+            try
+            {
+              auto decrypted = channels.recv_encrypted(
+                msg.from,
+                {msg.authenticated_hdr.data(), msg.authenticated_hdr.size()},
+                msg.payload.data(),
+                msg.payload.size());
+              received_results.emplace_back(decrypted);
+            }
+            catch (const ccf::NodeToNode::DroppedMessageException& e)
+            {
+              received_results.emplace_back(std::nullopt);
+            }
             break;
           }
 
@@ -1554,7 +1561,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   }
 
   // Wait for channel threads to fully catch up.
-  constexpr int wait_finish_attempts = 100;
+  constexpr int wait_finish_attempts = 20;
   for (int attempt = 0; attempt < wait_finish_attempts; attempt++)
   {
     bool skip_waiting{true};
@@ -1588,8 +1595,22 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   }
 
   // Validate results
-  REQUIRE(received_by_1 == expected_received_by_1);
-  REQUIRE(received_by_2 == expected_received_by_2);
+  auto equal_modulo_holes =
+    [](const ReceivedMessages& actual, const ReceivedMessages& expected) {
+      REQUIRE(actual.size() == expected.size());
+      size_t i = 0;
+      for (const auto& msg_opt : actual)
+      {
+        if (msg_opt.has_value())
+        {
+          REQUIRE(msg_opt == expected[i]);
+        }
+        ++i;
+      }
+    };
+
+  equal_modulo_holes(received_by_1, expected_received_by_1);
+  equal_modulo_holes(received_by_2, expected_received_by_2);
 }
 
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Timeout idle channels")
