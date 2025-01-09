@@ -22,7 +22,7 @@ jobs:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-08-01-2025-1
+      image: ghcr.io/microsoft/ccf/ci/default:build-08-01-2025-2
     defaults:
       run:
         working-directory: tla
@@ -50,7 +50,7 @@ jobs:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-08-01-2025-1
+      image: ghcr.io/microsoft/ccf/ci/default:build-08-01-2025-2
     defaults:
       run:
         working-directory: tla
