@@ -1403,10 +1403,12 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 }
 
 // Run separate threads simulating each node, sending many messages in both
-// direction. Goal is that the message stream is uninterrupted, despite multiple
-// key rotation exchanges happening during the sequence
+// direction. Goal is that the message stream is largely uninterrupted, despite
+// multiple key rotation exchanges happening during the sequence
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 {
+  ccf::logger::config::default_init();
+
   auto network_kp = ccf::crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
 
@@ -1419,6 +1421,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     std::vector<std::pair<ccf::NodeId, std::vector<uint8_t>>> to_send;
   };
 
+  using SendQueue = std::queue<std::vector<uint8_t>>;
+
   using ReceivedMessages = std::vector<std::optional<std::vector<uint8_t>>>;
 
   static constexpr auto message_limit = 40;
@@ -1426,9 +1430,10 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   std::atomic<bool> finished = false;
   auto run_channel = [&](
                        ccf::NodeId my_node_id,
+                       ccf::NodeId peer_node_id,
                        ringbuffer::Circuit& source_buffer,
                        ringbuffer::AbstractWriterFactory& writer_factory,
-                       QueueWithLock& send_queue,
+                       SendQueue& send_queue,
                        ReceivedMessages& received_results) {
     auto kp = ccf::crypto::make_key_pair(default_curve);
     auto cert = generate_endorsed_cert(
@@ -1438,22 +1443,31 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     channels.initialize(my_node_id, service_cert, kp, cert);
     channels.set_message_limit(message_limit);
 
+    size_t sent = 0;
     while (!finished)
     {
       {
-        // Send any new messages added to your work queue
-        std::lock_guard<std::mutex> guard(send_queue.lock);
-        for (auto& queued_msg : send_queue.to_send)
+        // Randomly maybe send some messages from start of your work queue
+        while (!send_queue.empty())
         {
-          auto peer_id = queued_msg.first;
-          auto& msg_body = queued_msg.second;
-          REQUIRE(channels.send_encrypted(
-            peer_id,
-            NodeMsgType::forwarded_msg,
-            {aad.begin(), aad.size()},
-            msg_body));
+          // TODO: Also maybe send if slightly behind?
+          if (sent <= received_results.size())
+          {
+            const auto& msg_body = send_queue.front();
+            REQUIRE(channels.send_encrypted(
+              peer_node_id,
+              NodeMsgType::forwarded_msg,
+              {aad.begin(), aad.size()},
+              msg_body));
+
+            send_queue.pop();
+            ++sent;
+          }
+          else
+          {
+            break;
+          }
         }
-        send_queue.to_send.clear();
       }
 
       // Read and process all messages from peer
@@ -1493,92 +1507,87 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
           }
         }
       }
-
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   };
 
-  QueueWithLock sent_by_1;
+  SendQueue to_send_from_1;
   ringbuffer::NonBlockingWriterFactory nbwf1(wf1);
   ReceivedMessages received_by_1;
   ReceivedMessages expected_received_by_1;
-  std::thread channels1(
-    run_channel,
-    std::ref(nid1),
-    std::ref(eio2),
-    std::ref(nbwf1),
-    std::ref(sent_by_1),
-    std::ref(received_by_1));
 
-  QueueWithLock sent_by_2;
+  SendQueue to_send_from_2;
   ringbuffer::NonBlockingWriterFactory nbwf2(wf2);
   ReceivedMessages received_by_2;
   ReceivedMessages expected_received_by_2;
-  std::thread channels2(
-    run_channel,
-    std::ref(nid2),
-    std::ref(eio1),
-    std::ref(nbwf2),
-    std::ref(sent_by_2),
-    std::ref(received_by_2));
 
   // Submit a randomly generated workload
+  // TODO: Don't need to submit with sleep like this, just build it all
+  // in-advance, before starting threads
   for (auto i = 0; i < 5 * message_limit; ++i)
   {
-    ccf::NodeId peer_nid;
-    QueueWithLock* send_queue;
+    SendQueue* send_queue;
     ReceivedMessages* expected_results;
-    if (rand() % 2 == 0)
+    if (i % 2 == 0)
     {
-      peer_nid = nid2;
-      send_queue = &sent_by_1;
+      send_queue = &to_send_from_1;
       expected_results = &expected_received_by_2;
     }
     else
     {
-      peer_nid = nid1;
-      send_queue = &sent_by_2;
+      send_queue = &to_send_from_2;
       expected_results = &expected_received_by_1;
     }
 
     {
-      std::lock_guard<std::mutex> guard(send_queue->lock);
       std::vector<uint8_t> msg_body(rand() % 20);
       for (auto& n : msg_body)
       {
         n = rand();
       }
-      send_queue->to_send.emplace_back(std::make_pair(peer_nid, msg_body));
+
+      send_queue->emplace(msg_body);
       expected_results->emplace_back(msg_body);
     }
-
-    // If we do not sleep here, we submit many messages at once, resulting in a
-    // node's pending send queue filling up and a failure result when it calls
-    // `send_encrypted`. A real application should handle this error code, and
-    // set parameters so it is extremely rare. Here we simply sleep so that the
-    // sends happen one-at-a-time.
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
   }
+
+  std::thread channels1(
+    run_channel,
+    std::ref(nid1),
+    std::ref(nid2),
+    std::ref(eio2),
+    std::ref(nbwf1),
+    std::ref(to_send_from_1),
+    std::ref(received_by_1));
+
+  std::thread channels2(
+    run_channel,
+    std::ref(nid2),
+    std::ref(nid1),
+    std::ref(eio1),
+    std::ref(nbwf2),
+    std::ref(to_send_from_2),
+    std::ref(received_by_2));
 
   // Wait for channel threads to fully catch up.
-  constexpr int wait_finish_attempts = 20;
-  for (int attempt = 0; attempt < wait_finish_attempts; attempt++)
-  {
-    bool skip_waiting{true};
-    {
-      std::lock_guard<std::mutex> guard(sent_by_1.lock);
-      skip_waiting &= sent_by_1.to_send.empty();
-    }
-    {
-      std::lock_guard<std::mutex> guard(sent_by_2.lock);
-      skip_waiting &= sent_by_2.to_send.empty();
-    }
-    if (skip_waiting)
-    {
-      break;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  // constexpr int wait_finish_attempts = 20;
+  // for (int attempt = 0; attempt < wait_finish_attempts; attempt++)
+  // {
+  //   bool skip_waiting{true};
+  //   {
+  //     std::lock_guard<std::mutex> guard(sent_by_1.lock);
+  //     skip_waiting &= sent_by_1.to_send.empty();
+  //   }
+  //   {
+  //     std::lock_guard<std::mutex> guard(sent_by_2.lock);
+  //     skip_waiting &= sent_by_2.to_send.empty();
+  //   }
+  //   if (skip_waiting)
+  //   {
+  //     break;
+  //   }
+  //   std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  // }
 
   finished.store(true);
 
@@ -1586,12 +1595,10 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   channels2.join();
 
   {
-    std::lock_guard<std::mutex> guard(sent_by_1.lock);
-    REQUIRE(sent_by_1.to_send.empty());
+    REQUIRE(to_send_from_1.empty());
   }
   {
-    std::lock_guard<std::mutex> guard(sent_by_2.lock);
-    REQUIRE(sent_by_2.to_send.empty());
+    REQUIRE(to_send_from_2.empty());
   }
 
   // Validate results
