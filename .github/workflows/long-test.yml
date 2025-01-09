@@ -152,7 +152,7 @@ jobs:
 
   long-e2e-debug:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
-    name: Long E2E
+    name: Long E2E - all (Debug)
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-08-01-2025-2
@@ -190,7 +190,7 @@ jobs:
 
   long-e2e-release:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
-    name: Long E2E
+    name: Long E2E - all (Release)
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-08-01-2025-2
@@ -228,7 +228,7 @@ jobs:
 
   e2e-suite-shuffled:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
-    name: Long E2E
+    name: Long E2E suite (Shuffled)
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ghcr.io/microsoft/ccf/ci/default:build-08-01-2025-2
