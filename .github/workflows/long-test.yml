@@ -155,7 +155,7 @@ jobs:
     name: Long E2E
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-05-12-2024
+      image: ghcr.io/microsoft/ccf/ci/default:build-08-01-2025-2
 
     steps:
       - uses: actions/checkout@v4
