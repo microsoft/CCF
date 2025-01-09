@@ -148,3 +148,13 @@ jobs:
           # All other acceptably fast tests, which are now supported on Mariner.
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|protocolstest|suite|unit|lts_compatibility|raft_scenario"
         shell: bash
+
+  build_caci:
+    name: "Experimental C-ACI CI"
+    runs-on: [self-hosted, 1ES.Pool=gha-caci-ne]
+
+    steps:
+      - name: "Steps that run in a C-ACI container, hopefully"
+        run: |
+          ls
+          ls -la /dev/sev
