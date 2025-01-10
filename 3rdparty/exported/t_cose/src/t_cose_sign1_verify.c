@@ -389,9 +389,14 @@ t_cose_sign1_verify_internal(struct t_cose_sign1_verify_ctx *me,
     clear_label_list(&critical_parameter_labels);
     clear_cose_parameters(&parameters);
 
+#if QCBOR_VERSION_MAJOR >= 2
+    const int decode_config = QCBOR_DECODE_ALLOW_UNPROCESSED_TAG_NUMBERS;
+#else
+    const int decode_config = QCBOR_DECODE_MODE_NORMAL;
+#endif
 
     /* === Decoding of the array of four starts here === */
-    QCBORDecode_Init(&decode_context, cose_sign1, QCBOR_DECODE_MODE_NORMAL);
+    QCBORDecode_Init(&decode_context, cose_sign1, decode_config);
 
     /* --- The array of 4 and tags --- */
     QCBORDecode_EnterArray(&decode_context, NULL);

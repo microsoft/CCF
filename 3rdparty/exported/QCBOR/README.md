@@ -1,9 +1,9 @@
 ![QCBOR Logo](https://github.com/laurencelundblade/qdv/blob/master/logo.png?raw=true)
 
-**QCBOR** is a powerful, commercial-quality CBOR encoder/decoder that
+**QCBOR** is a powerful, commercial-quality CBOR encoder-decoder that
 implements these RFCs:
 
-* [RFC8949](https://tools.ietf.org/html/rfc8949) The CBOR Standard. (Everything
+* [RFC8949](https://tools.ietf.org/html/rfc8949) The CBOR Standard. (Nearly everything
 except sorting of encoded maps)
 * [RFC7049](https://tools.ietf.org/html/rfc7049) The previous CBOR standard.
 Replaced by RFC 8949.
@@ -88,9 +88,9 @@ implementations as seen in the following example.
      /* Encode */
      QCBOREncode_Init(&EncodeCtx, Buffer);
      QCBOREncode_OpenMap(&EncodeCtx);
-     QCBOREncode_AddTextToMap(&EncodeCtx, "Manufacturer", pE->Manufacturer);
-     QCBOREncode_AddInt64ToMap(&EncodeCtx, "Displacement", pE->uDisplacement);
-     QCBOREncode_AddInt64ToMap(&EncodeCtx, "Horsepower", pE->uHorsePower);
+     QCBOREncode_AddTextToMapSZ(&EncodeCtx, "Manufacturer", pE->Manufacturer);
+     QCBOREncode_AddInt64ToMapSZ(&EncodeCtx, "Displacement", pE->uDisplacement);
+     QCBOREncode_AddInt64ToMapSZ(&EncodeCtx, "Horsepower", pE->uHorsePower);
      QCBOREncode_CloseMap(&EncodeCtx);
      uErr = QCBOREncode_Finish(&EncodeCtx, &EncodedEngine);
 
@@ -168,11 +168,14 @@ QCBOR.
 
 ## Code Status
 
-The current version is v1.1, a small feature addition and bug fix
-release over QCBOR 1.0.
+The official current release is version 1.5 Changes over the last few
+years have been only minor bug fixes, minor feature additions and
+documentation improvements. QCBOR 1.x is highly stable.
 
-Code has been stable for over a year. The last major change was in
-fall of 2020.
+Work on some larger feature additions is ongoing in "dev" branch.
+This includes more explicit support for preferred serialization and
+CDE (CBOR Deterministic Encoding).  It will eventually be release as
+QCBOR 2.x.
 
 QCBOR was originally developed by Qualcomm. It was [open sourced
 through CAF](https://source.codeaurora.org/quic/QCBOR/QCBOR/) with a
@@ -375,17 +378,21 @@ available options and the associated #defines.
 ## Code Size
 
 These are approximate sizes on a 64-bit x86 CPU with the -Os optimization.
+All QCBOR_DISABLE_XXX are set and compiler stack frame checking is disabled
+for smallest but not for largest. Smallest is the library functions for a
+protocol with strings, integers, arrays, maps and Booleans, but not floats
+and standard tag types.
 
     |               | smallest | largest |
     |---------------|----------|---------|
-    | encode only   |      900 |    2100 |
+    | encode only   |      850 |    2200 |
     | decode only   |     1550 |   13300 |
-    | combined      |     2450 |   15500 |
+    | combined      |     2500 |   15500 |
 
  From the table above, one can see that the amount of code pulled in
  from the QCBOR library varies a lot, ranging from 1KB to 15KB.  The
- main factor is in this is the number of QCBOR functions called and
- which ones they are. QCBOR is constructed with less internal
+ main factor is the number of QCBOR functions called and
+ which ones they are. QCBOR minimizes internal
  interdependency so only code necessary for the called functions is
  brought in.
 
@@ -436,6 +443,7 @@ code. The amount saved is an approximation.
     | QCBOR_DISABLE_PREFERRED_FLOAT           |   900 |
     | QCBOR_DISABLE_FLOAT_HW_USE              |    50 |
     | QCBOR_DISABLE_TAGS                      |   400 |
+    | QCBOR_DISABLE_NON_INTEGER_LABELS        |   140 |
     | USEFULBUF_DISABLE_ALL_FLOAT             |   950 |
 
 QCBOR_DISABLE_ENCODE_USAGE_GUARDS affects encoding only.  It doesn't
@@ -474,6 +482,12 @@ QCBOR_DISABLE_TAGS disables all decoding of CBOR tags. If the input has
 a single tag, the error is unrecoverable so it is suitable only for protocols that
 have no tags. "Borrowed" tag content formats (e.g. an epoch-based date
 without the tag number), can still be processed.
+
+QCBOR_DISABLE_NON_INTEGER_LABELS causes any label that doesn't
+fit in an int64_t to result in a QCBOR_ERR_MAP_LABEL_TYPE error.
+This also disables QCBOR_DECODE_MODE_MAP_AS_ARRAY and 
+QCBOR_DECODE_MODE_MAP_STRINGS_ONLY. It is fairly common for CBOR-based
+protocols to use only small integers as labels.
 
 See the discussion above on floating-point.
 
@@ -524,44 +538,8 @@ EAT and CWT.
 * Máté Tóth-Pál for float-point disabling and other
 * Dave Thaler for portability to Windows
 
-## Copyright and License
-
-QCBOR is available under what is essentially the 3-Clause BSD License.
-
-Files created inside Qualcomm and open-sourced through CAF (The Code
-Aurora Forum) have a slightly modified 3-Clause BSD License. The
-modification additionally disclaims NON-INFRINGEMENT.
-
-Files created after release to CAF use the standard 3-Clause BSD
-License with no modification. These files have the SPDX license
-identifier, "SPDX-License-Identifier: BSD-3-Clause" in them.
-
-### BSD-3-Clause license
-
-* Redistributions of source code must retain the above copyright
-notice, this list of conditions and the following disclaimer.
-
-* Redistributions in binary form must reproduce the above copyright
-notice, this list of conditions and the following disclaimer in the
-documentation and/or other materials provided with the distribution.
-
-* Neither the name of the copyright holder nor the names of its
-contributors may be used to endorse or promote products derived from
-this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### Copyright for this README
 
-Copyright (c) 2018-2021, Laurence Lundblade. All rights reserved.
+Copyright (c) 2018-2024, Laurence Lundblade. All rights reserved.
 Copyright (c) 2021-2023, Arm Limited. All rights reserved.
