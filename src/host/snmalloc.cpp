@@ -8,4 +8,5 @@
 #  define NDEBUG
 #endif
 
+#include "snmalloc/src/snmalloc/override/malloc.cc"
 #include "snmalloc/src/snmalloc/override/new.cc"
