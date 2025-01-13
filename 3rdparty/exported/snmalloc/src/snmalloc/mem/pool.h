@@ -22,7 +22,7 @@ namespace snmalloc
   {
     template<
       typename TT,
-      SNMALLOC_CONCEPT(IsConfig) Config,
+      SNMALLOC_CONCEPT(Constructable<TT>) Construct,
       PoolState<TT>& get_state()>
     friend class Pool;
 
@@ -45,50 +45,10 @@ namespace snmalloc
    * SingletonPoolState::pool is the default provider for the PoolState within
    * the Pool class.
    */
-  template<typename T, SNMALLOC_CONCEPT(IsConfig) Config>
+  template<typename T>
   class SingletonPoolState
   {
-    /**
-     * SFINAE helper.  Matched only if `T` implements `ensure_init`.  Calls it
-     * if it exists.
-     */
-    template<typename SharedStateHandle_>
-    SNMALLOC_FAST_PATH static auto call_ensure_init(SharedStateHandle_*, int)
-      -> decltype(SharedStateHandle_::ensure_init())
-    {
-      static_assert(
-        std::is_same<Config, SharedStateHandle_>::value,
-        "SFINAE parameter, should only be used with Config");
-      SharedStateHandle_::ensure_init();
-    }
-
-    /**
-     * SFINAE helper.  Matched only if `T` does not implement `ensure_init`.
-     * Does nothing if called.
-     */
-    template<typename SharedStateHandle_>
-    SNMALLOC_FAST_PATH static auto call_ensure_init(SharedStateHandle_*, long)
-    {
-      static_assert(
-        std::is_same<Config, SharedStateHandle_>::value,
-        "SFINAE parameter, should only be used with Config");
-    }
-
-    /**
-     * Call `Config::ensure_init()` if it is implemented, do nothing
-     * otherwise.
-     */
-    SNMALLOC_FAST_PATH static void ensure_init()
-    {
-      call_ensure_init<Config>(nullptr, 0);
-    }
-
-    static void make_pool(PoolState<T>*) noexcept
-    {
-      ensure_init();
-      // Default initializer already called on PoolState, no need to use
-      // placement new.
-    }
+    static void make_pool(PoolState<T>*) noexcept {}
 
   public:
     /**
@@ -98,6 +58,22 @@ namespace snmalloc
     SNMALLOC_FAST_PATH static PoolState<T>& pool()
     {
       return Singleton<PoolState<T>, &make_pool>::get();
+    }
+  };
+
+  /**
+   * @brief Default construct helper for the pool. Just uses `new`.  This can't
+   * be used by the allocator pool as it has not created memory yet.
+   *
+   * @tparam T
+   */
+  template<typename T>
+  class DefaultConstruct
+  {
+  public:
+    static capptr::Alloc<T> make()
+    {
+      return capptr::Alloc<T>::unsafe_from(new T());
     }
   };
 
@@ -116,17 +92,17 @@ namespace snmalloc
    */
   template<
     typename T,
-    SNMALLOC_CONCEPT(IsConfig) Config,
-    PoolState<T>& get_state() = SingletonPoolState<T, Config>::pool>
+    SNMALLOC_CONCEPT(Constructable<T>) ConstructT = DefaultConstruct<T>,
+    PoolState<T>& get_state() = SingletonPoolState<T>::pool>
   class Pool
   {
   public:
-    template<typename... Args>
-    static T* acquire(Args&&... args)
+    static T* acquire()
     {
       PoolState<T>& pool = get_state();
-      {
-        FlagLock f(pool.lock);
+
+      T* result{nullptr};
+      with(pool.lock, [&]() {
         if (pool.front != nullptr)
         {
           auto p = pool.front;
@@ -137,26 +113,21 @@ namespace snmalloc
           }
           pool.front = next;
           p->set_in_use();
-          return p.unsafe_ptr();
+          result = p.unsafe_ptr();
         }
-      }
+      });
 
-      auto raw =
-        Config::Backend::template alloc_meta_data<T>(nullptr, sizeof(T));
+      if (result != nullptr)
+        return result;
 
-      if (raw == nullptr)
-      {
-        Config::Pal::error("Failed to initialise thread local allocator.");
-      }
+      auto p = ConstructT::make();
 
-      auto p = capptr::Alloc<T>::unsafe_from(new (raw.unsafe_ptr())
-                                               T(std::forward<Args>(args)...));
+      with(pool.lock, [&]() {
+        p->list_next = pool.list;
+        pool.list = p;
 
-      FlagLock f(pool.lock);
-      p->list_next = pool.list;
-      pool.list = p;
-
-      p->set_in_use();
+        p->set_in_use();
+      });
       return p.unsafe_ptr();
     }
 
@@ -180,11 +151,13 @@ namespace snmalloc
       // Returns a linked list of all objects in the stack, emptying the stack.
       if (p == nullptr)
       {
-        FlagLock f(pool.lock);
-        auto result = pool.front;
-        pool.front = nullptr;
-        pool.back = nullptr;
-        return result.unsafe_ptr();
+        T* result;
+        with(pool.lock, [&]() {
+          result = pool.front.unsafe_ptr();
+          pool.front = nullptr;
+          pool.back = nullptr;
+        });
+        return result;
       }
 
       return p->next.unsafe_ptr();
@@ -199,18 +172,18 @@ namespace snmalloc
     {
       PoolState<T>& pool = get_state();
       last->next = nullptr;
-      FlagLock f(pool.lock);
+      with(pool.lock, [&]() {
+        if (pool.front == nullptr)
+        {
+          pool.front = capptr::Alloc<T>::unsafe_from(first);
+        }
+        else
+        {
+          pool.back->next = capptr::Alloc<T>::unsafe_from(first);
+        }
 
-      if (pool.front == nullptr)
-      {
-        pool.front = capptr::Alloc<T>::unsafe_from(first);
-      }
-      else
-      {
-        pool.back->next = capptr::Alloc<T>::unsafe_from(first);
-      }
-
-      pool.back = capptr::Alloc<T>::unsafe_from(last);
+        pool.back = capptr::Alloc<T>::unsafe_from(last);
+      });
     }
 
     /**
@@ -222,18 +195,19 @@ namespace snmalloc
     {
       PoolState<T>& pool = get_state();
       last->next = nullptr;
-      FlagLock f(pool.lock);
 
-      if (pool.front == nullptr)
-      {
-        pool.back = capptr::Alloc<T>::unsafe_from(last);
-      }
-      else
-      {
-        last->next = pool.front;
-        pool.back->next = capptr::Alloc<T>::unsafe_from(first);
-      }
-      pool.front = capptr::Alloc<T>::unsafe_from(first);
+      with(pool.lock, [&]() {
+        if (pool.front == nullptr)
+        {
+          pool.back = capptr::Alloc<T>::unsafe_from(last);
+        }
+        else
+        {
+          last->next = pool.front;
+          pool.back->next = capptr::Alloc<T>::unsafe_from(first);
+        }
+        pool.front = capptr::Alloc<T>::unsafe_from(first);
+      });
     }
 
     static T* iterate(T* p = nullptr)
