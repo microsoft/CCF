@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../ds_core/ds_core.h"
+
 namespace snmalloc
 {
   /**
@@ -66,6 +68,10 @@ namespace snmalloc
       auto page_end = pointer_align_up<OS_PAGE_SIZE, char>(last);
       size_t using_size = pointer_diff(page_start, page_end);
       PAL::template notify_using<NoZero>(page_start, using_size);
+      if constexpr (pal_supports<CoreDump, PAL>)
+      {
+        PAL::notify_do_dump(page_start, using_size);
+      }
     }
 
     constexpr FlatPagemap() = default;
@@ -179,10 +185,22 @@ namespace snmalloc
       // Allocate a power of two extra to allow the placement of the
       // pagemap be difficult to guess if randomize_position set.
       size_t additional_size =
+#ifdef SNMALLOC_THREAD_SANITIZER_ENABLED
+        // When running with TSAN we failed to allocate the very large range
+        // randomly
+        randomize_position ? bits::next_pow2(REQUIRED_SIZE) : 0;
+#else
         randomize_position ? bits::next_pow2(REQUIRED_SIZE) * 4 : 0;
+#endif
       size_t request_size = REQUIRED_SIZE + additional_size;
 
       auto new_body_untyped = PAL::reserve(request_size);
+
+      if constexpr (pal_supports<CoreDump, PAL>)
+      {
+        // Pagemap should not be in core dump except where it is non-zero.
+        PAL::notify_do_not_dump(new_body_untyped, request_size);
+      }
 
       if (new_body_untyped == nullptr)
       {

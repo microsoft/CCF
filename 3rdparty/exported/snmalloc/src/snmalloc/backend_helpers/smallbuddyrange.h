@@ -31,6 +31,7 @@ namespace snmalloc
     static constexpr Contents root = nullptr;
 
     static constexpr address_t MASK = 1;
+
     static void set(Handle ptr, Contents r)
     {
       SNMALLOC_ASSERT((address_cast(r) & MASK) == 0);
@@ -244,7 +245,6 @@ namespace snmalloc
 
       void dealloc_range(CapPtr<void, ChunkBounds> base, size_t size)
       {
-        SNMALLOC_ASSERT(bits::is_pow2(size));
         add_range(base, size);
       }
     };
