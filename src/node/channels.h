@@ -542,6 +542,8 @@ namespace ccf
       // shares back to the initiator
       send_key_exchange_response();
 
+      flush_pending_outgoing();
+
       return true;
     }
 
@@ -632,6 +634,8 @@ namespace ccf
       update_send_key();
 
       send_key_exchange_final();
+
+      flush_pending_outgoing();
 
       update_recv_key();
 
@@ -804,7 +808,10 @@ namespace ccf
         "Node certificate serial numbers: node={} peer={}",
         node_cv->serial_number(),
         peer_cv->serial_number());
+    }
 
+    void flush_pending_outgoing()
+    {
       if (outgoing_consensus_msg.has_value())
       {
         send_unsafe(
