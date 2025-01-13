@@ -27,10 +27,10 @@ parameters:
       cmake_args: "-DCOMPILE_TARGET=sgx"
       cmake_env: ""
     SNPCC:
-      cmake_args: "-DCOMPILE_TARGET=snp -DLVI_MITIGATIONS=OFF -DLONG_TESTS=OFF"
+      cmake_args: "-DCOMPILE_TARGET=snp -DLONG_TESTS=OFF"
       cmake_env: "CC=`which clang-15` CXX=`which clang++-15`"
     debug:
-      cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF"
+      cmake_args: "-DCMAKE_BUILD_TYPE=Debug"
       cmake_env: ""
     ASAN:
       cmake_args: "-DSAN=ON -DUSE_LIBCXX=OFF"
@@ -39,7 +39,7 @@ parameters:
       cmake_args: "-DTSAN=ON -DWORKER_THREADS=2"
       cmake_env: ""
     unsafe:
-      cmake_args: "-DLVI_MITIGATIONS=OFF -DVERBOSE_LOGGING=ON -DUNSAFE_VERSION=ON"
+      cmake_args: "-DVERBOSE_LOGGING=ON -DUNSAFE_VERSION=ON"
       cmake_env: ""
 
 jobs:

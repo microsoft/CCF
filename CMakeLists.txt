@@ -132,20 +132,6 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 
-if(SAN AND LVI_MITIGATIONS)
-  message(
-    FATAL_ERROR
-      "Building with both SAN and LVI mitigations is unsafe and deadlocks - choose one"
-  )
-endif()
-
-if(TSAN AND LVI_MITIGATIONS)
-  message(
-    FATAL_ERROR
-      "Building with both TSAN and LVI mitigations is unsafe and deadlocks - choose one"
-  )
-endif()
-
 # Copy and install CCF utilities
 set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh verify_quote.sh)
 foreach(UTILITY ${CCF_UTILITIES})
