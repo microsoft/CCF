@@ -22,6 +22,7 @@
 #include "node/node_state.h"
 #include "node/node_types.h"
 #include "node/rpc/acme_subsystem.h"
+#include "node/rpc/cosesigconfig_subsystem.h"
 #include "node/rpc/custom_protocol_subsystem.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/gov_effects.h"
@@ -172,6 +173,9 @@ namespace ccf
         std::make_shared<ccf::js::InterpreterCache>(max_interpreter_cache_size);
       context->install_subsystem(interpreter_cache);
 
+      context->install_subsystem(
+        std::make_shared<ccf::AbstractCOSESignaturesConfigSubsystem>(*node));
+
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(network, *context));
@@ -189,7 +193,12 @@ namespace ccf
       rpc_map->register_frontend<ccf::ActorsType::acme_challenge>(
         std::make_unique<ccf::ACMERpcFrontend>(network, *context));
 
+// Suppress error about use of deprecated get_js_plugins(). This call, and all
+// references to FFIPlugins, should be removed after 6.0.0
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
       ccf::js::register_ffi_plugins(ccf::get_js_plugins());
+#pragma clang diagnostic pop
 
       LOG_TRACE_FMT("Initialize node");
       node->initialize(

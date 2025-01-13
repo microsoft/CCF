@@ -6,7 +6,7 @@
 
    SPDX-License-Identifier: BSD-3-Clause
 
-   See BSD-3-Clause license in README.md
+   See BSD-3-Clause license in file named "LICENSE"
 
    Created on 6/30/2020
   ========================================================================== */
@@ -130,7 +130,7 @@ static bool EngineCompare(const CarEngine *pE1, const CarEngine *pE2)
  * @return  The pointer and length of the encoded CBOR or
  *          @ref NULLUsefulBufC on error.
  *
- * This encodes the input structure \c pEngine as a CBOR map of
+ * This encodes the input structure @c pEngine as a CBOR map of
  * label-value pairs. An array of float is one of the items in the
  * map.
  *
@@ -162,14 +162,14 @@ UsefulBufC EncodeEngine(const CarEngine *pEngine, UsefulBuf Buffer)
     /* Proceed to output all the items, letting the internal error
      * tracking do its work */
     QCBOREncode_OpenMap(&EncodeCtx);
-    QCBOREncode_AddTextToMap(&EncodeCtx, "Manufacturer", pEngine->Manufacturer);
-    QCBOREncode_AddInt64ToMap(&EncodeCtx, "NumCylinders", pEngine->uNumCylinders);
-    QCBOREncode_AddInt64ToMap(&EncodeCtx, "Displacement", pEngine->uDisplacement);
-    QCBOREncode_AddInt64ToMap(&EncodeCtx, "Horsepower", pEngine->uHorsePower);
+    QCBOREncode_AddTextToMapSZ(&EncodeCtx, "Manufacturer", pEngine->Manufacturer);
+    QCBOREncode_AddInt64ToMapSZ(&EncodeCtx, "NumCylinders", pEngine->uNumCylinders);
+    QCBOREncode_AddInt64ToMapSZ(&EncodeCtx, "Displacement", pEngine->uDisplacement);
+    QCBOREncode_AddInt64ToMapSZ(&EncodeCtx, "Horsepower", pEngine->uHorsePower);
 #ifndef USEFULBUF_DISABLE_ALL_FLOAT
-    QCBOREncode_AddDoubleToMap(&EncodeCtx, "DesignedCompression", pEngine->dDesignedCompresion);
+    QCBOREncode_AddDoubleToMapSZ(&EncodeCtx, "DesignedCompression", pEngine->dDesignedCompresion);
 #endif /* USEFULBUF_DISABLE_ALL_FLOAT */
-    QCBOREncode_OpenArrayInMap(&EncodeCtx, "Cylinders");
+   QCBOREncode_OpenArrayInMapSZ(&EncodeCtx, "Cylinders");
 #ifndef USEFULBUF_DISABLE_ALL_FLOAT
     for(int64_t i = 0 ; i < pEngine->uNumCylinders; i++) {
         QCBOREncode_AddDouble(&EncodeCtx,
@@ -177,7 +177,7 @@ UsefulBufC EncodeEngine(const CarEngine *pEngine, UsefulBuf Buffer)
     }
 #endif /* USEFULBUF_DISABLE_ALL_FLOAT */
     QCBOREncode_CloseArray(&EncodeCtx);
-    QCBOREncode_AddBoolToMap(&EncodeCtx, "Turbo", pEngine->bTurboCharged);
+    QCBOREncode_AddBoolToMapSZ(&EncodeCtx, "Turbo", pEngine->bTurboCharged);
     QCBOREncode_CloseMap(&EncodeCtx);
 
     /* Get the pointer and length of the encoded output. If there was

@@ -23,9 +23,6 @@ namespace snmalloc
     using Pal = PAL;
     using SlabMetadata = typename PagemapEntry::SlabMetadata;
 
-    static constexpr size_t SizeofMetadata =
-      bits::next_pow2_const(sizeof(SlabMetadata));
-
   public:
     /**
      * Provide a block of meta-data with size and align.
@@ -71,6 +68,17 @@ namespace snmalloc
     }
 
     /**
+     * Returns unused meta-data to the system.  This must have come from a call
+     * to alloc_meta_data, but can be a sub-range of the original allocation.
+     */
+    static void dealloc_meta_data(
+      LocalState& local_state, capptr::Alloc<void> p, size_t size)
+    {
+      auto arena = Authmap::amplify(p);
+      local_state.get_meta_range().dealloc_range(arena, size);
+    }
+
+    /**
      * Returns a chunk of memory with alignment and size of `size`, and a
      * block containing metadata about the slab.
      *
@@ -79,13 +87,26 @@ namespace snmalloc
      *   (remote, sizeclass, slab_metadata)
      * where slab_metadata, is the second element of the pair return.
      */
-    static std::pair<capptr::Chunk<void>, SlabMetadata*>
-    alloc_chunk(LocalState& local_state, size_t size, uintptr_t ras)
+    static std::pair<capptr::Chunk<void>, SlabMetadata*> alloc_chunk(
+      LocalState& local_state,
+      size_t size,
+      uintptr_t ras,
+      sizeclass_t sizeclass)
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
 
-      auto meta_cap = local_state.get_meta_range().alloc_range(SizeofMetadata);
+      // Calculate the extra bytes required to store the client meta-data.
+      size_t extra_bytes = SlabMetadata::get_extra_bytes(sizeclass);
+
+      auto meta_size = bits::next_pow2(sizeof(SlabMetadata) + extra_bytes);
+
+#ifdef SNMALLOC_TRACING
+      message<1024>(
+        "Allocating metadata of size: {} ({})", meta_size, extra_bytes);
+#endif
+
+      auto meta_cap = local_state.get_meta_range().alloc_range(meta_size);
 
       auto meta = meta_cap.template as_reinterpret<SlabMetadata>().unsafe_ptr();
 
@@ -102,7 +123,7 @@ namespace snmalloc
 #endif
       if (p == nullptr)
       {
-        local_state.get_meta_range().dealloc_range(meta_cap, SizeofMetadata);
+        local_state.get_meta_range().dealloc_range(meta_cap, meta_size);
         errno = ENOMEM;
 #ifdef SNMALLOC_TRACING
         message<1024>("Out of memory");
@@ -129,7 +150,8 @@ namespace snmalloc
       LocalState& local_state,
       SlabMetadata& slab_metadata,
       capptr::Alloc<void> alloc,
-      size_t size)
+      size_t size,
+      sizeclass_t sizeclass)
     {
       /*
        * The backend takes possession of these chunks now, by disassociating
@@ -156,10 +178,22 @@ namespace snmalloc
        */
       capptr::Arena<void> arena = Authmap::amplify(alloc);
 
+      // Calculate the extra bytes required to store the client meta-data.
+      size_t extra_bytes = SlabMetadata::get_extra_bytes(sizeclass);
+
+      auto meta_size = bits::next_pow2(sizeof(SlabMetadata) + extra_bytes);
       local_state.get_meta_range().dealloc_range(
-        capptr::Arena<void>::unsafe_from(&slab_metadata), SizeofMetadata);
+        capptr::Arena<void>::unsafe_from(&slab_metadata), meta_size);
 
       local_state.get_object_range()->dealloc_range(arena, size);
+    }
+
+    SNMALLOC_FAST_PATH static capptr::Alloc<void>
+    capptr_rederive_alloc(capptr::Alloc<void> a, size_t objsize)
+    {
+      return capptr_to_user_address_control(
+        Aal::capptr_bound<void, capptr::bounds::AllocFull>(
+          Authmap::amplify(a), objsize));
     }
 
     template<bool potentially_out_of_range = false>

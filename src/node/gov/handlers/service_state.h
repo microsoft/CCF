@@ -296,11 +296,35 @@ namespace ccf::gov::endpoints
           {
             auto endpoints = nlohmann::json::object();
 
+            bool original_case = false;
+            {
+              const auto parsed_query =
+                ccf::http::parse_query(ctx.rpc_ctx->get_request_query());
+              std::string error_reason;
+              const auto case_opt = ccf::http::get_query_value_opt<std::string>(
+                parsed_query, "case", error_reason);
+
+              if (case_opt.has_value())
+              {
+                if (case_opt.value() != "original")
+                {
+                  ctx.rpc_ctx->set_error(
+                    HTTP_STATUS_BAD_REQUEST,
+                    ccf::errors::InvalidQueryParameterValue,
+                    "Accepted values for the 'case' query parameter are: "
+                    "original");
+                  return;
+                }
+
+                original_case = true;
+              }
+            }
+
             auto js_endpoints_handle =
               ctx.tx.template ro<ccf::endpoints::EndpointsMap>(
                 ccf::endpoints::Tables::ENDPOINTS);
             js_endpoints_handle->foreach(
-              [&endpoints](
+              [&endpoints, original_case](
                 const ccf::endpoints::EndpointKey& key,
                 const ccf::endpoints::EndpointProperties& properties) {
                 auto ib =
@@ -309,20 +333,29 @@ namespace ccf::gov::endpoints
 
                 auto operation = nlohmann::json::object();
 
-                operation["jsModule"] = properties.js_module;
-                operation["jsFunction"] = properties.js_function;
-                operation["forwardingRequired"] =
-                  properties.forwarding_required;
-
-                auto policies = nlohmann::json::array();
-                for (const auto& policy : properties.authn_policies)
+                if (original_case)
                 {
-                  policies.push_back(policy);
+                  operation = properties;
                 }
-                operation["authnPolicies"] = policies;
+                else
+                {
+                  operation["jsModule"] = properties.js_module;
+                  operation["jsFunction"] = properties.js_function;
+                  operation["forwardingRequired"] =
+                    properties.forwarding_required;
+                  operation["redirectionStrategy"] =
+                    properties.redirection_strategy;
 
-                operation["mode"] = properties.mode;
-                operation["openApi"] = properties.openapi;
+                  auto policies = nlohmann::json::array();
+                  for (const auto& policy : properties.authn_policies)
+                  {
+                    policies.push_back(policy);
+                  }
+                  operation["authnPolicies"] = policies;
+
+                  operation["mode"] = properties.mode;
+                  operation["openApi"] = properties.openapi;
+                }
 
                 operations[key.verb.c_str()] = operation;
 
@@ -343,6 +376,7 @@ namespace ccf::gov::endpoints
         HTTP_GET,
         api_version_adapter(get_javascript_app, ApiVersion::v1),
         no_auth_required)
+      .add_query_parameter<std::string>("case")
       .set_openapi_hidden(true)
       .install();
 
@@ -579,7 +613,7 @@ namespace ccf::gov::endpoints
             auto keys = nlohmann::json::object();
 
             auto jwt_keys_handle =
-              ctx.tx.template ro<ccf::JwtPublicSigningKeys>(
+              ctx.tx.template ro<ccf::JwtPublicSigningKeysMetadata>(
                 ccf::Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA);
 
             jwt_keys_handle->foreach(
@@ -591,11 +625,10 @@ namespace ccf::gov::endpoints
                 {
                   auto info = nlohmann::json::object();
 
-                  // cert is stored as DER - convert to PEM for API
-                  const auto cert_pem =
-                    ccf::crypto::cert_der_to_pem(metadata.cert);
-                  info["certificate"] = cert_pem.str();
-
+                  info["publicKey"] =
+                    ccf::crypto::make_rsa_public_key(metadata.public_key)
+                      ->public_key_pem()
+                      .str();
                   info["issuer"] = metadata.issuer;
                   info["constraint"] = metadata.constraint;
 

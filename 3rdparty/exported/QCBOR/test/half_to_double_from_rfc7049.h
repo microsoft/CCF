@@ -6,7 +6,7 @@
 
  SPDX-License-Identifier: BSD-3-Clause
 
- See BSD-3-Clause license in README.md
+ See BSD-3-Clause license in file named "LICENSE"
 
  Created on 9/23/18
   ============================================================================*/
@@ -15,7 +15,7 @@
 #define half_to_double_from_rfc7049_h
 
 #ifndef USEFULBUF_DISABLE_ALL_FLOAT
-double decode_half(unsigned char *halfp);
+double decode_half(const unsigned char *halfp);
 #endif /* USEFULBUF_DISABLE_ALL_FLOAT */
 
 #endif /* half_to_double_from_rfc7049_h */

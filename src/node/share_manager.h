@@ -11,7 +11,6 @@
 #include "kv/encryptor.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
-#include "secret_share.h"
 #include "service/internal_tables_access.h"
 
 #include <openssl/crypto.h>
@@ -349,14 +348,8 @@ namespace ccf
 
       std::optional<ccf::crypto::sharing::Share> full_share;
       std::vector<ccf::crypto::sharing::Share> new_shares = {};
-      std::vector<SecretSharing::Share> old_shares = {};
-      // Defensively allow shares in both formats for the time being, even if we
-      // get a mix, and so long as we have enough of one or the other, attempt
-      // to reassemble the secret. We only try with the most numerous kind of
-      // share, we won't try with the minority even if it meets the threshold
-      // too.
       encrypted_submitted_shares->foreach(
-        [&new_shares, &old_shares, &full_share, &tx, this](
+        [&new_shares, &full_share, &tx, this](
           const MemberId, const EncryptedSubmittedShare& encrypted_share) {
           auto decrypted_share = decrypt_submitted_share(
             encrypted_share, ledger_secrets->get_latest(tx).second);
@@ -380,26 +373,14 @@ namespace ccf
               }
               break;
             }
-            case SecretSharing::SHARE_LENGTH:
-            {
-              SecretSharing::Share share;
-              std::copy_n(
-                decrypted_share.begin(),
-                SecretSharing::SHARE_LENGTH,
-                share.begin());
-              old_shares.emplace_back(std::move(share));
-              break;
-            }
             default:
             {
               OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
               throw std::logic_error(fmt::format(
                 "Error combining recovery shares: decrypted share of {} bytes "
-                "is neither a new-style share of {} bytes nor an old-style "
-                "share of {} bytes",
+                "is not an {}-byte long new-style share.",
                 decrypted_share.size(),
-                ccf::crypto::sharing::Share::serialised_size,
-                SecretSharing::SHARE_LENGTH));
+                ccf::crypto::sharing::Share::serialised_size));
             }
           }
           OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
@@ -416,7 +397,7 @@ namespace ccf
         return LedgerSecretWrappingKey(full_share.value());
       }
 
-      auto num_shares = std::max(old_shares.size(), new_shares.size());
+      auto num_shares = new_shares.size();
 
       auto recovery_threshold = config->get()->recovery_threshold;
       if (recovery_threshold > num_shares)
@@ -428,16 +409,7 @@ namespace ccf
           recovery_threshold));
       }
 
-      if (new_shares.size() > old_shares.size())
-      {
-        return LedgerSecretWrappingKey(
-          std::move(new_shares), recovery_threshold);
-      }
-      else
-      {
-        return LedgerSecretWrappingKey(
-          std::move(old_shares), recovery_threshold);
-      }
+      return LedgerSecretWrappingKey(std::move(new_shares), recovery_threshold);
     }
 
   public:

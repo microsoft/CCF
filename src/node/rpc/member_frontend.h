@@ -71,6 +71,7 @@ namespace ccf
   {
     JwtIssuer issuer;
     ccf::crypto::Pem cert;
+    std::string public_key;
   };
   DECLARE_JSON_TYPE(KeyIdInfo)
   DECLARE_JSON_REQUIRED_FIELDS(KeyIdInfo, issuer, cert)
@@ -1110,7 +1111,9 @@ namespace ccf
           for (const auto& metadata : v)
           {
             info.push_back(KeyIdInfo{
-              metadata.issuer, ccf::crypto::cert_der_to_pem(metadata.cert)});
+              .issuer = metadata.issuer,
+              .cert = ccf::crypto::Pem(),
+              .public_key = ccf::crypto::b64_from_raw(metadata.public_key)});
           }
           kmap.emplace(k, std::move(info));
           return true;

@@ -16,7 +16,7 @@ from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
 import infra.health_watcher
 import time
-from e2e_logging import verify_receipt
+from e2e_logging import verify_receipt, test_cose_receipt_schema
 import infra.service_load
 import ccf.tx_id
 import tempfile
@@ -936,6 +936,8 @@ def run(args):
             ref_msg = get_and_verify_historical_receipt(network, ref_msg)
 
             LOG.success("Recovery complete on all nodes")
+            # Verify COSE receipt schema and issuer/subject have remained the same
+            test_cose_receipt_schema(network, args)
 
         primary, _ = network.find_primary()
         network.stop_all_nodes()
@@ -966,12 +968,12 @@ def run(args):
                     ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
     test_recover_service_from_files(
-        args, "expired_service", expected_recovery_count=1, test_receipt=True
+        args, "expired_service", expected_recovery_count=2, test_receipt=True
     )
-    # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> main.
+    # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
     # This is used to test recovery from SGX to SNP.
     test_recover_service_from_files(
-        args, "sgx_service", expected_recovery_count=3, test_receipt=False
+        args, "sgx_service", expected_recovery_count=4, test_receipt=False
     )
 
 

@@ -1023,10 +1023,10 @@ namespace ccf::js::extensions
         }
 
         std::vector<uint8_t> sig(signature, signature + signature_size);
-
         if (algo_name == "ECDSA")
         {
-          sig = ccf::crypto::ecdsa_sig_p1363_to_der(sig);
+          sig =
+            ccf::crypto::ecdsa_sig_p1363_to_der({signature, signature_size});
         }
 
         auto is_cert = key.starts_with("-----BEGIN CERTIFICATE");

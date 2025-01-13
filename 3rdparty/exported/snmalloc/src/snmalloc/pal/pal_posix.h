@@ -6,10 +6,11 @@
 #if defined(SNMALLOC_BACKTRACE_HEADER)
 #  include SNMALLOC_BACKTRACE_HEADER
 #endif
+#include <cstdlib>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/mman.h>
@@ -130,8 +131,16 @@ namespace snmalloc
       | Entropy
 #endif
       ;
-
+#ifdef SNMALLOC_PAGESIZE
+    static_assert(
+      bits::is_pow2(SNMALLOC_PAGESIZE), "Page size must be a power of 2");
+    static constexpr size_t page_size = SNMALLOC_PAGESIZE;
+#elif defined(PAGESIZE)
+    static constexpr size_t page_size =
+      bits::max(Aal::smallest_page_size, static_cast<size_t>(PAGESIZE));
+#else
     static constexpr size_t page_size = Aal::smallest_page_size;
+#endif
 
     /**
      * Address bits are potentially mediated by some POSIX OSes, but generally
@@ -399,6 +408,7 @@ namespace snmalloc
         uint64_t result;
         char buffer[sizeof(uint64_t)];
       };
+
       ssize_t ret;
       int flags = O_RDONLY;
 #if defined(O_CLOEXEC)

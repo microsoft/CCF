@@ -307,10 +307,8 @@ def pub_key_pem_to_der(pem: str) -> bytes:
     return cert.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
 
 
-def create_jwt(body_claims: dict, key_priv_pem: str, key_id: str) -> str:
-    return jwt.encode(
-        body_claims, key_priv_pem, algorithm="RS256", headers={"kid": key_id}
-    )
+def create_jwt(body_claims: dict, key_priv_pem: str, key_id: str, alg="RS256") -> str:
+    return jwt.encode(body_claims, key_priv_pem, algorithm=alg, headers={"kid": key_id})
 
 
 def cert_pem_to_der(pem: str) -> bytes:
