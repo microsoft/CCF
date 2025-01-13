@@ -251,6 +251,8 @@ namespace ccf
 
         send_key = nullptr;
         recv_key = nullptr;
+        reset_key_exchange();
+        initiate();
       }
     }
 
