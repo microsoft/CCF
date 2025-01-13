@@ -30,7 +30,14 @@ namespace ccf::enclavetime
 
 namespace ccf
 {
-  std::chrono::microseconds Channel::min_gap_between_initiation_attempts(0);
+  std::chrono::microseconds Channel::min_gap_between_initiation_attempts(5'000);
+}
+
+void sleep_to_reinitiate()
+{
+  ccf::enclavetime::last_value.store(
+    ccf::enclavetime::last_value.load() +
+    2 * ccf::Channel::min_gap_between_initiation_attempts);
 }
 
 std::unique_ptr<threading::ThreadMessaging>
@@ -267,6 +274,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Client/Server key exchange")
     // Queue 2 messages on channel1
     REQUIRE(channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
+    sleep_to_reinitiate();
     REQUIRE(channels1.send_authenticated(
       nid2, NodeMsgType::consensus_msg, msg.begin(), msg.size()));
   }
@@ -1069,6 +1077,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Stuttering handshake")
     nid2, NodeMsgType::forwarded_msg, {aad.begin(), aad.size()}, msg_body));
 
   INFO("Send a second request, triggering a second handshake");
+  sleep_to_reinitiate();
   REQUIRE(channels1.send_encrypted(
     nid2, NodeMsgType::forwarded_msg, {aad.begin(), aad.size()}, msg_body));
 
@@ -1208,8 +1217,10 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 
     channels1.send_encrypted(
       nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+    sleep_to_reinitiate();
     channels1.send_encrypted(
       nid3, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+    sleep_to_reinitiate();
     channels1.send_encrypted(
       nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
 
@@ -1225,8 +1236,10 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
     channels1.close_channel(nid3);
     channels1.send_encrypted(
       nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+    sleep_to_reinitiate();
     channels1.send_encrypted(
       nid3, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+    sleep_to_reinitiate();
     channels1.send_encrypted(
       nid2, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
 
@@ -1242,8 +1255,10 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 
     channels2.send_encrypted(
       nid1, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+    sleep_to_reinitiate();
     channels2.send_encrypted(
       nid1, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
+    sleep_to_reinitiate();
     channels2.send_encrypted(
       nid3, NodeMsgType::consensus_msg, {aad.data(), aad.size()}, payload);
 
