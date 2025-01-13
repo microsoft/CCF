@@ -162,7 +162,6 @@ namespace ccf::endpoints
       templated_endpoints;
 
     ccf::kv::Consensus* consensus = nullptr;
-    ccf::kv::TxHistory* history = nullptr;
 
   public:
     EndpointRegistry(const std::string& method_prefix_) :
@@ -279,8 +278,6 @@ namespace ccf::endpoints
     virtual void tick(std::chrono::milliseconds);
 
     void set_consensus(ccf::kv::Consensus* c);
-
-    void set_history(ccf::kv::TxHistory* h);
 
     // Override these methods to log or report request metrics.
     virtual void handle_event_request_completed(

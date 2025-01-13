@@ -582,9 +582,4 @@ namespace ccf::endpoints
   {
     consensus = c;
   }
-
-  void EndpointRegistry::set_history(ccf::kv::TxHistory* h)
-  {
-    history = h;
-  }
 }
