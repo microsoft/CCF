@@ -132,20 +132,6 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 
-if(SAN AND LVI_MITIGATIONS)
-  message(
-    FATAL_ERROR
-      "Building with both SAN and LVI mitigations is unsafe and deadlocks - choose one"
-  )
-endif()
-
-if(TSAN AND LVI_MITIGATIONS)
-  message(
-    FATAL_ERROR
-      "Building with both TSAN and LVI mitigations is unsafe and deadlocks - choose one"
-  )
-endif()
-
 # Copy and install CCF utilities
 set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh verify_quote.sh)
 foreach(UTILITY ${CCF_UTILITIES})
@@ -216,7 +202,6 @@ set(CCF_ENDPOINTS_SOURCES
 
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
-include(${CCF_DIR}/cmake/nghttp2.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
 
@@ -230,6 +215,7 @@ else()
   set(SNMALLOC_HEADER_ONLY_LIBRARY ON)
   add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
   set(SNMALLOC_COMPILE_OPTIONS "-mcx16")
+  set(SNMALLOC_INCLUDE_DIRS 3rdparty/exported/snmalloc/src)
   list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
 endif()
 
@@ -245,7 +231,9 @@ add_san(cchost)
 target_compile_options(
   cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
 )
-target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
+target_include_directories(
+  cchost PRIVATE ${CCF_GENERATED_DIR} ${SNMALLOC_INCLUDE_DIRS}
+)
 
 if(COMPILE_TARGET STREQUAL "snp")
   target_compile_definitions(cchost PUBLIC PLATFORM_SNP)
@@ -536,7 +524,7 @@ if(COMPILE_TARGET STREQUAL "snp")
            ccf_endpoints.snp
            ccfcrypto.snp
            ccf_kv.snp
-           nghttp2.snp
+           nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -585,7 +573,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
-           nghttp2.host
+           nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
   )
 

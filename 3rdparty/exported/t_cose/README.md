@@ -30,7 +30,7 @@ useful for embedded implementations that have to run in small fixed memory.
 
 ## Documentation
 
-[API documentation is here](https://laurencelundblade.github.io/t_cose/)
+[API documentation is here](https://www.securitytheory.com/t_cose-docs)
 
 
 ## Code Status
@@ -45,17 +45,16 @@ fully supported.
 t_cose 1.0 only supports COSE Sign1, signing with one recipeint.
 
 
-## Future Work
+## t_cose 2.0
 
-As of March 2022, work is underway to support encryption, MAC and
-other COSE features. When a good set of these are complete to
-commercial quality, a 2.0 version of t_cose will be released.
+As of August 2022, there are alpha releases of t_cose 2.0. It supports:
+* COSE_Sign
+* Multiple signatures
+* COSE_MAC0
+* COSE_Encrypt and COSE_Encrypt0
+* Encryption with ECDH per RFC 9053
 
-Note that there is no committed time line to complete t_cose
-2.0. t_cose is mostly implemented on a volunteer basis. You can
-volunteer! Work like adding support for more algorithms is not too
-difficult and is nicely framed up.
-
+See the dev branch and the releases.
 
 ## Building and Dependencies
 
@@ -70,6 +69,9 @@ crypto library set up.
 If QCBOR is installed in /usr/local, then the makefiles should find
 it. If not then QCBOR may need to be downloaded. The makefiles can be
 modified to reference it other than in /usr/local.
+
+This works with both QCBOR v1 and v2. When running with v2 it
+uses the QCBOR v1 compatibility mode for tag decoding.
 
 ### Supported Cryptographic Libraries
 

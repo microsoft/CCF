@@ -189,6 +189,7 @@ namespace snmalloc
     {
       return meta &= ~META_BOUNDARY_BIT;
     }
+
     ///@}
 
     /**
@@ -368,21 +369,26 @@ namespace snmalloc
   class FrontendSlabMetadata_Trait
   {
   private:
-    template<typename BackendType>
+    template<typename BackendType, typename ClientMeta_>
     friend class FrontendSlabMetadata;
 
     // Can only be constructed by FrontendSlabMetadata
-    FrontendSlabMetadata_Trait() = default;
+    constexpr FrontendSlabMetadata_Trait() = default;
   };
 
   /**
    * The FrontendSlabMetadata represent the metadata associated with a single
    * slab.
    */
-  template<typename BackendType>
+  template<typename BackendType, typename ClientMeta_>
   class FrontendSlabMetadata : public FrontendSlabMetadata_Trait
   {
   public:
+    /**
+     * Type that encapsulates logic for accessing client meta-data.
+     */
+    using ClientMeta = ClientMeta_;
+
     /**
      * Used to link slab metadata together in various other data-structures.
      * This is used with `SeqSet` and so may actually hold a subclass of this
@@ -424,6 +430,13 @@ namespace snmalloc
      */
     bool large_ = false;
 
+    /**
+     * Stores client meta-data for this slab. This must be last element in the
+     * slab. The meta data will actually allocate multiple elements after this
+     * type, so that client_meta_[1] will work for the required meta-data size.
+     */
+    SNMALLOC_NO_UNIQUE_ADDRESS typename ClientMeta::StorageType client_meta_{};
+
     uint16_t& needed()
     {
       return needed_;
@@ -443,7 +456,7 @@ namespace snmalloc
       static_assert(
         std::is_base_of<FrontendSlabMetadata_Trait, BackendType>::value,
         "Template should be a subclass of FrontendSlabMetadata");
-      free_queue.init(slab, key);
+      free_queue.init(slab, key, this->as_key_tweak());
       // Set up meta data as if the entire slab has been turned into a free
       // list. This means we don't have to check for special cases where we have
       // returned all the elements, but this is a slab that is still being bump
@@ -452,6 +465,9 @@ namespace snmalloc
       set_sleeping(sizeclass, 0);
 
       large_ = false;
+
+      new (&client_meta_)
+        typename ClientMeta::StorageType[get_client_storage_count(sizeclass)];
     }
 
     /**
@@ -462,13 +478,15 @@ namespace snmalloc
     void initialise_large(address_t slab, const FreeListKey& key)
     {
       // We will push to this just to make the fast path clean.
-      free_queue.init(slab, key);
+      free_queue.init(slab, key, this->as_key_tweak());
 
       // Flag to detect that it is a large alloc on the slow path
       large_ = true;
 
       // Jump to slow path on first deallocation.
       needed() = 1;
+
+      new (&client_meta_) typename ClientMeta::StorageType();
     }
 
     /**
@@ -481,6 +499,59 @@ namespace snmalloc
     bool return_object()
     {
       return (--needed()) == 0;
+    }
+
+    class ReturnObjectsIterator
+    {
+      uint16_t _batch;
+      FrontendSlabMetadata* _meta;
+
+      static_assert(sizeof(_batch) * 8 > MAX_CAPACITY_BITS);
+
+    public:
+      ReturnObjectsIterator(uint16_t n, FrontendSlabMetadata* m)
+      : _batch(n), _meta(m)
+      {}
+
+      template<bool first>
+      SNMALLOC_FAST_PATH bool step()
+      {
+        // The first update must always return some positive number of objects.
+        SNMALLOC_ASSERT(!first || (_batch != 0));
+
+        /*
+         * Stop iteration when there are no more objects to return.  Perform
+         * this test only on non-first steps to avoid a branch on the hot path.
+         */
+        if (!first && _batch == 0)
+          return false;
+
+        if (SNMALLOC_LIKELY(_batch < _meta->needed()))
+        {
+          // Will not hit threshold for state transition
+          _meta->needed() -= _batch;
+          return false;
+        }
+
+        // Hit threshold for state transition, may yet hit another
+        _batch -= _meta->needed();
+        _meta->needed() = 0;
+        return true;
+      }
+    };
+
+    /**
+     * A batch version of return_object.
+     *
+     * Returns an iterator that should have `.step<>()` called on it repeatedly
+     * until it returns `false`.  The first step should invoke `.step<true>()`
+     * while the rest should invoke `.step<false>()`.  After each
+     * true-returning `.step()`, the caller should run the slow-path code to
+     * update the rest of the metadata for this slab.
+     */
+    ReturnObjectsIterator return_objects(uint16_t n)
+    {
+      return ReturnObjectsIterator(n, this);
     }
 
     bool is_unused()
@@ -556,10 +627,12 @@ namespace snmalloc
       LocalEntropy& entropy,
       smallsizeclass_t sizeclass)
     {
-      auto& key = entropy.get_free_list_key();
+      auto& key = freelist::Object::key_root;
 
       std::remove_reference_t<decltype(fast_free_list)> tmp_fl;
-      auto remaining = meta->free_queue.close(tmp_fl, key);
+
+      auto remaining =
+        meta->free_queue.close(tmp_fl, key, meta->as_key_tweak());
       auto p = tmp_fl.take(key, domesticate);
       fast_free_list = tmp_fl;
 
@@ -581,7 +654,45 @@ namespace snmalloc
     // start of the slab.
     [[nodiscard]] address_t get_slab_interior(const FreeListKey& key) const
     {
-      return address_cast(free_queue.read_head(0, key));
+      return address_cast(free_queue.read_head(0, key, this->as_key_tweak()));
+    }
+
+    [[nodiscard]] SNMALLOC_FAST_PATH address_t as_key_tweak() const noexcept
+    {
+      return as_key_tweak(address_cast(this));
+    }
+
+    [[nodiscard]] SNMALLOC_FAST_PATH static address_t
+    as_key_tweak(address_t self)
+    {
+      return self / alignof(FrontendSlabMetadata);
+    }
+
+    typename ClientMeta::DataRef get_meta_for_object(size_t index)
+    {
+      return ClientMeta::get(&client_meta_, index);
+    }
+
+    static size_t get_client_storage_count(smallsizeclass_t sizeclass)
+    {
+      auto count = sizeclass_to_slab_object_count(sizeclass);
+      auto result = ClientMeta::required_count(count);
+      if (result == 0)
+        return 1;
+      return result;
+    }
+
+    static size_t get_extra_bytes(sizeclass_t sizeclass)
+    {
+      if (sizeclass.is_small())
+        // We remove one from the extra-bytes as there is one in the metadata to
+        // start with.
+        return (get_client_storage_count(sizeclass.as_small()) - 1) *
+          sizeof(typename ClientMeta::StorageType);
+
+      // For large classes there is only a single entry, so this is covered by
+      // the existing entry in the metaslab, and further bytes are not required.
+      return 0;
     }
   };
 
@@ -589,19 +700,19 @@ namespace snmalloc
    * Entry stored in the pagemap.  See docs/AddressSpace.md for the full
    * FrontendMetaEntry lifecycle.
    */
-  template<typename BackendSlabMetadata>
+  template<typename SlabMetadataType>
   class FrontendMetaEntry : public MetaEntryBase
   {
     /**
      * Ensure that the template parameter is valid.
      */
     static_assert(
-      std::is_convertible_v<BackendSlabMetadata, FrontendSlabMetadata_Trait>,
+      std::is_convertible_v<SlabMetadataType, FrontendSlabMetadata_Trait>,
       "The front end requires that the back end provides slab metadata that is "
       "compatible with the front-end's structure");
 
   public:
-    using SlabMetadata = BackendSlabMetadata;
+    using SlabMetadata = SlabMetadataType;
 
     constexpr FrontendMetaEntry() = default;
 
@@ -612,9 +723,8 @@ namespace snmalloc
      * `get_remote_and_sizeclass`.
      */
     SNMALLOC_FAST_PATH
-    FrontendMetaEntry(BackendSlabMetadata* meta, uintptr_t remote_and_sizeclass)
-    : MetaEntryBase(
-        unsafe_to_uintptr<BackendSlabMetadata>(meta), remote_and_sizeclass)
+    FrontendMetaEntry(SlabMetadata* meta, uintptr_t remote_and_sizeclass)
+    : MetaEntryBase(unsafe_to_uintptr<SlabMetadata>(meta), remote_and_sizeclass)
     {
       SNMALLOC_ASSERT_MSG(
         (REMOTE_BACKEND_MARKER & remote_and_sizeclass) == 0,
@@ -645,12 +755,10 @@ namespace snmalloc
      * guarded by an assert that this chunk is being used as a slab (i.e., has
      * an associated owning allocator).
      */
-    [[nodiscard]] SNMALLOC_FAST_PATH BackendSlabMetadata*
-    get_slab_metadata() const
+    [[nodiscard]] SNMALLOC_FAST_PATH SlabMetadata* get_slab_metadata() const
     {
-      SNMALLOC_ASSERT(get_remote() != nullptr);
-      return unsafe_from_uintptr<BackendSlabMetadata>(
-        meta & ~META_BOUNDARY_BIT);
+      SNMALLOC_ASSERT(!is_backend_owned());
+      return unsafe_from_uintptr<SlabMetadata>(meta & ~META_BOUNDARY_BIT);
     }
   };
 

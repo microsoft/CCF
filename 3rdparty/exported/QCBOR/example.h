@@ -5,7 +5,7 @@
 
  SPDX-License-Identifier: BSD-3-Clause
 
- See BSD-3-Clause license in README.md
+ See BSD-3-Clause license in file named "LICENSE"
 
  Created on 6/30/20
  =============================================================================*/
