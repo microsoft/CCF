@@ -162,12 +162,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: "Install deps"
+        run: |
+          sudo apt-get -y update
+          sudo apt install ansible -y
+          cd getting_started/setup_vm
+          ansible-playbook ccf-extended-testing.yml
+
       - name: "Build"
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DLVI_MITIGATIONS=OFF ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON ..
           ninja
 
       - name: "Test"
@@ -301,7 +308,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DUSE_LIBCXX=OFF -DLONG_TEST=ON ..
+          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TEST=ON ..
           ninja
         shell: bash
 
@@ -311,7 +318,6 @@ jobs:
           cd build
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
-          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # All e2e tests, which are now supported on Mariner.
