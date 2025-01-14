@@ -145,9 +145,6 @@ namespace ccf
     }
   }
 
-  class KeyExchangeProtocol
-  {};
-
   // Key exchange states are:
   // - Have nothing
   // - Initiated (have my own share)
