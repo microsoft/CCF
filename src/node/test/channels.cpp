@@ -1422,19 +1422,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Robust key exchange")
 // multiple key rotation exchanges happening during the sequence
 TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 {
-  ccf::logger::config::default_init();
-
   auto network_kp = ccf::crypto::make_key_pair(default_curve);
   auto service_cert = generate_self_signed_cert(network_kp, "CN=Network");
-
-  MsgType aad;
-  aad.fill(0x42);
-
-  struct QueueWithLock
-  {
-    std::mutex lock;
-    std::vector<std::pair<ccf::NodeId, std::vector<uint8_t>>> to_send;
-  };
 
   using SendQueue = std::queue<std::vector<uint8_t>>;
 
