@@ -35,7 +35,11 @@ def run(args):
                 LOG.warning("Redirection with node-by-role is enabled")
                 interface.redirections = infra.interfaces.RedirectionConfig(
                     to_primary=infra.interfaces.NodeByRoleResolver(),
-                    to_backup=infra.interfaces.NodeByRoleResolver(),
+                    to_backup=infra.interfaces.NodeByRoleResolver(
+                        target=infra.interfaces.TargetRole(
+                            infra.interfaces.NodeRole.backup
+                        )
+                    ),
                 )
             elif args.redirection_kind == "static-address":
                 LOG.warning("Redirection with static-address is enabled")
