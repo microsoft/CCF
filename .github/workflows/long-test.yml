@@ -296,6 +296,8 @@ jobs:
           tdnf -y install ca-certificates git
           # Build tools
           tdnf -y install build-essential clang cmake ninja-build which
+          # libc++
+          tdnf -y install libcxx-devel llvm-libunwind-devel llvm-libunwind-static
           # Dependencies
           tdnf -y install openssl-devel libuv-devel nghttp2-devel
           # Test dependencies
