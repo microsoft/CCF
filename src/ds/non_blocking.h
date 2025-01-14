@@ -102,10 +102,7 @@ namespace ringbuffer
       {
         for (auto& it : pending)
         {
-          const auto buffer_end = it.buffer.data() + it.buffer.size();
-          if (
-            it.marker == marker.value() &&
-            marker.value() != reinterpret_cast<uint64_t>(buffer_end))
+          if (it.marker == marker.value())
           {
             // This is a pending write - dump data directly to write marker,
             // which should be within the appropriate buffer
@@ -118,6 +115,7 @@ namespace ringbuffer
                 (size_t)it.buffer.data()));
             }
 
+            const auto buffer_end = it.buffer.data() + it.buffer.size();
             if (dest + size > buffer_end)
             {
               throw std::runtime_error(fmt::format(
@@ -128,7 +126,11 @@ namespace ringbuffer
                 (size_t)buffer_end));
             }
 
-            std::memcpy(dest, bytes, size);
+            if (size != 0)
+            {
+              std::memcpy(dest, bytes, size);
+            }
+
             dest += size;
             it.marker = (size_t)dest;
             return {it.marker};
