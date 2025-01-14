@@ -42,7 +42,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/fmtlib/fmt",
-          "commitHash": "f5e54359df4c26b6230fc61d38aa294581393084"
+          "commitHash": "8303d140a1a11f19b982a9f664bbe59a1ccda3f4"
         }
       }
     },
@@ -60,7 +60,7 @@
         "type": "git",
         "git": {
           "repositoryUrl": "https://github.com/microsoft/snmalloc",
-          "commitHash": "dc1268886a5d49d38a54e5d1402b5924a71fee0b"
+          "commitHash": "564c88b07c53728ec90a88d7d34d0f74d3b0bfff"
         }
       }
     },

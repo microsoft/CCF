@@ -1,4 +1,4 @@
-#include "malloc.cc"
+#include "snmalloc/snmalloc.h"
 
 #ifdef _WIN32
 #  ifdef __clang__
@@ -16,106 +16,98 @@
 #  endif
 #endif
 
-using namespace snmalloc;
-
 void* operator new(size_t size)
 {
-  return ThreadAlloc::get().alloc(size);
+  return snmalloc::libc::malloc(size);
 }
 
 void* operator new[](size_t size)
 {
-  return ThreadAlloc::get().alloc(size);
+  return snmalloc::libc::malloc(size);
 }
 
 void* operator new(size_t size, std::nothrow_t&)
 {
-  return ThreadAlloc::get().alloc(size);
+  return snmalloc::libc::malloc(size);
 }
 
 void* operator new[](size_t size, std::nothrow_t&)
 {
-  return ThreadAlloc::get().alloc(size);
+  return snmalloc::libc::malloc(size);
 }
 
-void operator delete(void* p)EXCEPTSPEC
+void operator delete(void* p) EXCEPTSPEC
 {
-  ThreadAlloc::get().dealloc(p);
+  snmalloc::libc::free(p);
 }
 
-void operator delete(void* p, size_t size)EXCEPTSPEC
+void operator delete(void* p, size_t size) EXCEPTSPEC
 {
-  if (p == nullptr)
-    return;
-  ThreadAlloc::get().dealloc(p, size);
+  snmalloc::libc::free_sized(p, size);
 }
 
 void operator delete(void* p, std::nothrow_t&)
 {
-  ThreadAlloc::get().dealloc(p);
+  snmalloc::libc::free(p);
 }
 
 void operator delete[](void* p) EXCEPTSPEC
 {
-  ThreadAlloc::get().dealloc(p);
+  snmalloc::libc::free(p);
 }
 
 void operator delete[](void* p, size_t size) EXCEPTSPEC
 {
-  if (p == nullptr)
-    return;
-  ThreadAlloc::get().dealloc(p, size);
+  snmalloc::libc::free_sized(p, size);
 }
 
 void operator delete[](void* p, std::nothrow_t&)
 {
-  ThreadAlloc::get().dealloc(p);
+  snmalloc::libc::free(p);
 }
 
 void* operator new(size_t size, std::align_val_t val)
 {
-  size = aligned_size(size_t(val), size);
-  return ThreadAlloc::get().alloc(size);
+  size = snmalloc::aligned_size(size_t(val), size);
+  return snmalloc::libc::malloc(size);
 }
 
 void* operator new[](size_t size, std::align_val_t val)
 {
-  size = aligned_size(size_t(val), size);
-  return ThreadAlloc::get().alloc(size);
+  size = snmalloc::aligned_size(size_t(val), size);
+  return snmalloc::libc::malloc(size);
 }
 
 void* operator new(size_t size, std::align_val_t val, std::nothrow_t&)
 {
-  size = aligned_size(size_t(val), size);
-  return ThreadAlloc::get().alloc(size);
+  size = snmalloc::aligned_size(size_t(val), size);
+  return snmalloc::libc::malloc(size);
 }
 
 void* operator new[](size_t size, std::align_val_t val, std::nothrow_t&)
 {
-  size = aligned_size(size_t(val), size);
-  return ThreadAlloc::get().alloc(size);
+  size = snmalloc::aligned_size(size_t(val), size);
+  return snmalloc::libc::malloc(size);
 }
 
-void operator delete(void* p, std::align_val_t)EXCEPTSPEC
+void operator delete(void* p, std::align_val_t) EXCEPTSPEC
 {
-  ThreadAlloc::get().dealloc(p);
+  snmalloc::libc::free(p);
 }
 
 void operator delete[](void* p, std::align_val_t) EXCEPTSPEC
 {
-  ThreadAlloc::get().dealloc(p);
+  snmalloc::libc::free(p);
 }
 
-void operator delete(void* p, size_t size, std::align_val_t val)EXCEPTSPEC
+void operator delete(void* p, size_t size, std::align_val_t val) EXCEPTSPEC
 {
-  size = aligned_size(size_t(val), size);
-  ThreadAlloc::get().dealloc(p, size);
+  size = snmalloc::aligned_size(size_t(val), size);
+  snmalloc::libc::free_sized(p, size);
 }
 
 void operator delete[](void* p, size_t size, std::align_val_t val) EXCEPTSPEC
 {
-  if (p == nullptr)
-    return;
-  size = aligned_size(size_t(val), size);
-  ThreadAlloc::get().dealloc(p, size);
+  size = snmalloc::aligned_size(size_t(val), size);
+  snmalloc::libc::free_sized(p, size);
 }
