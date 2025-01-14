@@ -800,7 +800,7 @@ struct formatter<ccf::kv::Configuration::Nodes>
     {
       node_ids.insert(nid);
     }
-    return format_to(ctx.out(), "{{{}}}", fmt::join(node_ids, " "));
+    return fmt::format_to(ctx.out(), "{{{}}}", fmt::join(node_ids, " "));
   }
 };
 
