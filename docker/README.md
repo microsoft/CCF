@@ -9,5 +9,5 @@ To build a given image, run:
 
 ```bash
 $ cd CCF/
-$ docker build -t <tag> -f docker/<app_run|app_dev|ccf_ci> --build-arg="platform=<sgx|snp|virtual>" --build-arg="clang_version=<11|15>" .
+$ docker build -t <tag> -f docker/<app_run|app_dev|ccf_ci> --build-arg="platform=<snp|virtual>" --build-arg="clang_version=<15>" .
 ```

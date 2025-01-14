@@ -1,27 +1,11 @@
 # Application Development image
 # Contains a CCF release for platform and toolchain for target platform
 
-ARG platform=sgx
+FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04
 
-# SGX
-FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 AS base-sgx
-
-WORKDIR /
-COPY ./docker/sgx_deps_pin.sh /
-RUN ./sgx_deps_pin.sh && rm /sgx_deps_pin.sh
-
-# SNP
-FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 AS base-snp
-
-# Virtual
-FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 AS base-virtual
-
-# Final dev image
-FROM base-${platform} AS final
-
-ARG platform=sgx
+ARG platform=snp
 ARG ansible_vars
-ARG clang_version=11
+ARG clang_version=15
 
 RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
 
