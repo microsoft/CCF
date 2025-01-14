@@ -372,6 +372,18 @@ const actions = new Map([
       function (args) {
         checkX509CertBundle(args.cert, "cert");
         checkType(args.member_data, "object?", "member_data");
+        checkType(args.recovery_role, "string?", "recovery_role");
+
+        if (
+          args.encryption_pub_key == null &&
+          args.encryption_pub_key == undefined &&
+          args.recovery_role !== null &&
+          args.recovery_role !== undefined
+        ) {
+          throw new Error(
+            "Cannot specify a recovery_role value when encryption_pub_key is not specified",
+          );
+        }
         // Also check that public encryption key is well formed, if it exists
 
         // Check if member exists
@@ -401,6 +413,7 @@ const actions = new Map([
 
         let member_info = {};
         member_info.member_data = args.member_data;
+        member_info.recovery_role = args.recovery_role;
         member_info.status = "Accepted";
         ccf.kv["public:ccf.gov.members.info"].set(
           rawMemberId,

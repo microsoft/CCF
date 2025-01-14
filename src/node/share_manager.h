@@ -26,6 +26,7 @@ namespace ccf
     size_t num_shares;
     size_t recovery_threshold;
     std::vector<uint8_t> data; // Referred to as "kz" in TR
+    ccf::crypto::sharing::Share secret;
     std::vector<ccf::crypto::sharing::Share> shares;
 
   public:
@@ -34,7 +35,6 @@ namespace ccf
       recovery_threshold(recovery_threshold_)
     {
       shares.resize(num_shares);
-      ccf::crypto::sharing::Share secret;
       ccf::crypto::sharing::sample_secret_and_shares(
         secret, shares, recovery_threshold);
       data = secret.key(KZ_KEY_SIZE);
@@ -46,10 +46,21 @@ namespace ccf
       recovery_threshold(recovery_threshold_)
     {
       shares = shares_;
-      ccf::crypto::sharing::Share secret;
       ccf::crypto::sharing::recover_unauthenticated_secret(
         secret, shares, recovery_threshold);
       data = secret.key(KZ_KEY_SIZE);
+    }
+
+    LedgerSecretWrappingKey(ccf::crypto::sharing::Share& secret_)
+    {
+      // Note: In this variation of the LedgerSecretWrappingKey
+      // constructor we have not set shares and threshold member variables to
+      // any appropriate value.
+      secret = secret_;
+      num_shares = 1;
+      shares.resize(num_shares);
+      shares.emplace_back(secret_);
+      data = secret_.key(KZ_KEY_SIZE);
     }
 
     ~LedgerSecretWrappingKey()
@@ -83,6 +94,11 @@ namespace ccf
       T ret;
       std::copy_n(data.begin(), data.size(), ret.begin());
       return ret;
+    }
+
+    std::vector<uint8_t> get_full_share_serialised() const
+    {
+      return secret.serialise();
     }
 
     std::vector<uint8_t> wrap(const LedgerSecretPtr& ledger_secret)
@@ -164,6 +180,17 @@ namespace ccf
         OPENSSL_cleanse(raw_share.data(), raw_share.size());
         OPENSSL_cleanse(shares[share_index].data(), shares[share_index].size());
         share_index++;
+      }
+
+      auto active_recovery_owners_info =
+        InternalTablesAccess::get_active_recovery_owners(tx);
+
+      for (auto const& [member_id, enc_pub_key] : active_recovery_owners_info)
+      {
+        auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
+        auto raw_secret = ls_wrapping_key.get_full_share_serialised();
+        encrypted_shares[member_id] =
+          member_enc_pubk->rsa_oaep_wrap(raw_secret);
       }
 
       return encrypted_shares;
@@ -306,9 +333,10 @@ namespace ccf
         Tables::ENCRYPTED_SUBMITTED_SHARES);
       auto config = tx.rw<ccf::Configuration>(Tables::CONFIGURATION);
 
+      std::optional<ccf::crypto::sharing::Share> full_share;
       std::vector<ccf::crypto::sharing::Share> new_shares = {};
       encrypted_submitted_shares->foreach(
-        [&new_shares, &tx, this](
+        [&new_shares, &full_share, &tx, this](
           const MemberId, const EncryptedSubmittedShare& encrypted_share) {
           auto decrypted_share = decrypt_submitted_share(
             encrypted_share, ledger_secrets->get_latest(tx).second);
@@ -316,7 +344,20 @@ namespace ccf
           {
             case ccf::crypto::sharing::Share::serialised_size:
             {
-              new_shares.emplace_back(decrypted_share);
+              // For a new share, we can check the index and decide if it's
+              // a full share or just a partial share (compare to zero).
+              // If it is a full share, we can short-circuit and return a
+              // LedgerSecretWrappingKey directly, otherwise we follow the
+              // existing flow.
+              auto share = ccf::crypto::sharing::Share(decrypted_share);
+              if (share.x == 0)
+              {
+                full_share = share;
+              }
+              else
+              {
+                new_shares.emplace_back(decrypted_share);
+              }
               break;
             }
             default:
@@ -330,8 +371,18 @@ namespace ccf
             }
           }
           OPENSSL_cleanse(decrypted_share.data(), decrypted_share.size());
+          if (full_share.has_value())
+          {
+            return false;
+          }
+
           return true;
         });
+
+      if (full_share.has_value())
+      {
+        return LedgerSecretWrappingKey(full_share.value());
+      }
 
       auto num_shares = new_shares.size();
 
@@ -487,6 +538,24 @@ namespace ccf
       }
 
       return restored_ledger_secrets;
+    }
+
+    static bool is_full_key(
+      const std::vector<uint8_t>& submitted_recovery_share)
+    {
+      if (
+        submitted_recovery_share.size() ==
+        ccf::crypto::sharing::Share::serialised_size)
+      {
+        auto share = ccf::crypto::sharing::Share(submitted_recovery_share);
+        if (share.x == 0)
+        {
+          // Index value of 0 indicates a full key.
+          return true;
+        }
+      }
+
+      return false;
     }
 
     size_t submit_recovery_share(

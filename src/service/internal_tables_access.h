@@ -69,7 +69,7 @@ namespace ccf
       }
     }
 
-    static bool is_recovery_member(
+    static bool is_recovery_member_or_owner(
       ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
     {
       auto member_encryption_public_keys =
@@ -77,6 +77,27 @@ namespace ccf
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
       return member_encryption_public_keys->get(member_id).has_value();
+    }
+
+    static bool is_recovery_member(
+      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
+    {
+      return is_recovery_member_or_owner(tx, member_id) &&
+        !is_recovery_owner(tx, member_id);
+    }
+
+    static bool is_recovery_owner(
+      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
+    {
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto mi = member_info->get(member_id);
+      if (!mi.has_value())
+      {
+        return false;
+      }
+
+      return mi->recovery_role.has_value() &&
+        mi->recovery_role.value() == MemberRecoveryRole::Owner;
     }
 
     static bool is_active_member(
@@ -112,13 +133,48 @@ namespace ccf
               fmt::format("Recovery member {} has no member info", mid));
           }
 
-          if (info->status == MemberStatus::ACTIVE)
+          if (
+            info->status == MemberStatus::ACTIVE &&
+            info->recovery_role.value_or(MemberRecoveryRole::Participant) !=
+              MemberRecoveryRole::Owner)
           {
             active_recovery_members[mid] = pem;
           }
           return true;
         });
       return active_recovery_members;
+    }
+
+    static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_owners(
+      ccf::kv::ReadOnlyTx& tx)
+    {
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_encryption_public_keys =
+        tx.ro<ccf::MemberPublicEncryptionKeys>(
+          Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
+
+      std::map<MemberId, ccf::crypto::Pem> active_recovery_owners;
+
+      member_encryption_public_keys->foreach(
+        [&active_recovery_owners,
+         &member_info](const auto& mid, const auto& pem) {
+          auto info = member_info->get(mid);
+          if (!info.has_value())
+          {
+            throw std::logic_error(
+              fmt::format("Recovery member {} has no member info", mid));
+          }
+
+          if (
+            info->status == MemberStatus::ACTIVE &&
+            info->recovery_role.value_or(MemberRecoveryRole::Participant) ==
+              MemberRecoveryRole::Owner)
+          {
+            active_recovery_owners[mid] = pem;
+          }
+          return true;
+        });
+      return active_recovery_owners;
     }
 
     static MemberId add_member(
@@ -140,9 +196,42 @@ namespace ccf
         return id;
       }
 
+      if (member_pub_info.recovery_role.has_value())
+      {
+        auto member_recovery_role = member_pub_info.recovery_role.value();
+        if (!member_pub_info.encryption_pub_key.has_value())
+        {
+          if (member_recovery_role != ccf::MemberRecoveryRole::NonParticipant)
+          {
+            throw std::logic_error(fmt::format(
+              "Member {} cannot be added as recovery_role has a value set but "
+              "no "
+              "encryption public key is specified",
+              id));
+          }
+        }
+        else
+        {
+          if (
+            member_recovery_role != ccf::MemberRecoveryRole::Participant &&
+            member_recovery_role != ccf::MemberRecoveryRole::Owner)
+          {
+            throw std::logic_error(fmt::format(
+              "Recovery member {} cannot be added as with recovery role value "
+              "of "
+              "{}",
+              id,
+              member_recovery_role));
+          }
+        }
+      }
+
       member_certs->put(id, member_pub_info.cert);
       member_info->put(
-        id, {MemberStatus::ACCEPTED, member_pub_info.member_data});
+        id,
+        {MemberStatus::ACCEPTED,
+         member_pub_info.member_data,
+         member_pub_info.recovery_role});
 
       if (member_pub_info.encryption_pub_key.has_value())
       {
@@ -212,8 +301,8 @@ namespace ccf
         member_to_remove->status == MemberStatus::ACTIVE &&
         is_recovery_member(tx, member_id))
       {
-        // Because the member to remove is active, there is at least one active
-        // member (i.e. get_active_recovery_members_count_after >= 0)
+        // Because the member to remove is active, there is at least one
+        // active member (i.e. get_active_recovery_members_count_after >= 0)
         size_t get_active_recovery_members_count_after =
           get_active_recovery_members(tx).size() - 1;
         auto recovery_threshold = get_recovery_threshold(tx);
@@ -308,8 +397,8 @@ namespace ccf
         }
         else if (ni.status == ccf::NodeStatus::RETIRED)
         {
-          // If a node is retired, but knowledge of their retirement has not yet
-          // been globally committed, they are still considered active.
+          // If a node is retired, but knowledge of their retirement has not
+          // yet been globally committed, they are still considered active.
           auto cni = nodes->get_globally_committed(nid);
           if (cni.has_value() && !cni->retired_committed)
           {
@@ -684,8 +773,8 @@ namespace ccf
       if (service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
       {
         // While waiting for recovery shares, the recovery threshold cannot be
-        // modified. Otherwise, the threshold could be passed without triggering
-        // the end of recovery procedure
+        // modified. Otherwise, the threshold could be passed without
+        // triggering the end of recovery procedure
         LOG_FAIL_FMT(
           "Cannot set recovery threshold: service is currently waiting for "
           "recovery shares");
