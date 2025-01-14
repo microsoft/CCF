@@ -63,19 +63,6 @@ namespace ccf
       data = secret_.key(KZ_KEY_SIZE);
     }
 
-    LedgerSecretWrappingKey(
-      std::vector<SecretSharing::Share>&& shares_, size_t recovery_threshold_) :
-      recovery_threshold(recovery_threshold_)
-    {
-      // TBD (gsinha): How to set ccf::crypto::sharing::Share secret member
-      // variable here?
-      auto combined_secret = SecretSharing::combine(shares_, shares_.size());
-      data.resize(combined_secret.size());
-      std::copy_n(
-        combined_secret.begin(), combined_secret.size(), data.begin());
-      OPENSSL_cleanse(combined_secret.data(), combined_secret.size());
-    }
-
     ~LedgerSecretWrappingKey()
     {
       OPENSSL_cleanse(data.data(), data.size());
