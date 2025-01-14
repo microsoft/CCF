@@ -150,6 +150,9 @@ jobs:
             build/workspace/*.ledger/*
           if-no-files-found: ignore
 
+  # All e2e tests without sanitizers in debug mode; needed because:
+  # - Sanitizer builds may slightly differ.
+  # - Test durations may also differ, which is important for -L "suite" because they have fixed timeouts.
   long-e2e-debug:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: Long E2E - all (Debug)
@@ -195,6 +198,7 @@ jobs:
             build/workspace/*.ledger/*
           if-no-files-found: ignore
 
+  # All e2e tests in release mode (same as release build).
   long-e2e-release:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: Long E2E - all (Release)
@@ -233,6 +237,7 @@ jobs:
             build/workspace/*.ledger/*
           if-no-files-found: ignore
 
+  # End-to-end test suites with shuffling enabled.
   e2e-suite-shuffled:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: Long E2E suite (Shuffled)
@@ -271,6 +276,8 @@ jobs:
             build/workspace/*.ledger/*
           if-no-files-found: ignore
 
+  # All end-to-end tests in debug mode on Azure Linux (except benchmarks and tests which are not supported yet).
+  # The main purpose of these is to keep the Azure Linux build/run up-to-date to facilitate an easy migration in the future.
   long-azure-linux:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: "Azure Linux Long Test"
