@@ -16,7 +16,7 @@ and this project adheres Fto [Semantic Versioning](http://semver.org/spec/v2.0.0
 
 ### Added
 
-- Joining nodes can now request a snapshot from their peers at startup, rather than relying on file access. The joinee's snapshot will be fetched and used if it is more recent than the joiner has access to.
+- Joining nodes can now request a snapshot from their peers at startup, rather than relying on file access. The joinee's snapshot will be fetched and used if it is more recent than the joiner has access to (#6758).
 
 ## [6.0.0-dev11]
 
