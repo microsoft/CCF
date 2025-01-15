@@ -111,6 +111,16 @@ def sufficient_recovery_member_count():
     return ensure_reqs(check)
 
 
+def sufficient_network_recovery_count(required_count):
+    def check(network, args,  *nargs, **kwargs):
+        if network.recovery_count < required_count:
+            raise TestRequirementsNotMet(
+                f"Test requires {required_count} network recoveries, but only {network.recovery_count} have been performed"
+            )
+
+    return ensure_reqs(check)
+
+
 def can_kill_n_nodes(nodes_to_kill_count):
     def check(network, args, *nargs, **kwargs):
         running_nodes_count = len(network.get_joined_nodes())
