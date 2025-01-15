@@ -17,7 +17,6 @@ debs:
   - expect
   - git
   - ccache
-  - kmod # modinfo for sgxinfo.sh
   - cmake
   - libssl-dev
   - libnghttp2-dev # experimental http2 support
