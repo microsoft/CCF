@@ -1,26 +1,10 @@
 # CCF Continuous Integration image
 # Contains CCF build dependencies and toolchain for target platform
 
-ARG platform=sgx
+FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04
 
-# SGX
-FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 AS base-sgx
-
-WORKDIR /
-COPY ./docker/sgx_deps_pin.sh /
-RUN ./sgx_deps_pin.sh && rm ./sgx_deps_pin.sh
-
-# SNP
-FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 AS base-snp
-
-# Virtual
-FROM mcr.microsoft.com/mirror/docker/library/ubuntu:20.04 AS base-virtual
-
-# Final CCF CI image
-FROM base-${platform} AS final
-
-ARG platform=sgx
-ARG clang_version=11
+ARG platform
+ARG clang_version=15
 ARG ansible_vars
 
 RUN echo "APT::Acquire::Retries \"5\";" | tee /etc/apt/apt.conf.d/80-retries
