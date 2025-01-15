@@ -33,14 +33,6 @@
   become: true
   when: run_js|bool
 
-- name: Copy JS generic (SGX)
-  copy:
-    src: "/opt/ccf_{{ platform }}/lib/{{ ccf_js_app_name }}.enclave.so.signed"
-    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.enclave.so.signed"
-    remote_src: true
-  become: true
-  when: (run_js|bool) and (platform == "sgx")
-
 - name: Copy JS generic (Virtual)
   copy:
     src: "/opt/ccf_{{ platform }}/lib/{{ ccf_js_app_name }}.virtual.so"
