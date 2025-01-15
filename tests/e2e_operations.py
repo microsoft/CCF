@@ -395,7 +395,6 @@ def run_config_timeout_check(args):
     env = {}
     if args.enclave_platform == "snp":
         env = snp.get_aci_env()
-    env["ASAN_OPTIONS"] = "alloc_dealloc_mismatch=0"
 
     proc = subprocess.Popen(
         [
@@ -466,7 +465,7 @@ def run_configuration_file_checks(args):
     for config in config_files_to_check:
         cmd = [bin_path, f"--config={config}", "--check"]
         rc = infra.proc.ccall(
-            *cmd, env={"ASAN_OPTIONS": "alloc_dealloc_mismatch=0"}
+            *cmd,
         ).returncode
         assert rc == 0, f"Failed to check configuration: {rc}"
         LOG.success(f"Successfully check sample configuration file {config}")
