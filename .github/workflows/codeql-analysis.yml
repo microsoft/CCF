@@ -56,7 +56,7 @@ jobs:
           set -ex
           mkdir build
           cd build
-          cmake -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DLVI_MITIGATIONS=OFF ..
+          cmake -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF ..
         name: Run CMake
 
       - run: |
