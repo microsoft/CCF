@@ -112,7 +112,7 @@ def sufficient_recovery_member_count():
 
 
 def sufficient_network_recovery_count(required_count):
-    def check(network, args,  *nargs, **kwargs):
+    def check(network, args, *nargs, **kwargs):
         if network.recovery_count < required_count:
             raise TestRequirementsNotMet(
                 f"Test requires {required_count} network recoveries, but only {network.recovery_count} have been performed"
