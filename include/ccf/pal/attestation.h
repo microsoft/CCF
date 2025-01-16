@@ -11,6 +11,9 @@
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/snp_ioctl.h"
 
+// TODO: Public->private
+#include "ds/files.h"
+
 #include <fcntl.h>
 #include <functional>
 
@@ -28,6 +31,19 @@ namespace ccf::pal
   using RetrieveEndorsementCallback = std::function<void(
     const QuoteInfo& quote_info,
     const snp::EndorsementEndpointsConfiguration& config)>;
+
+  static void verify_virtual_attestation_report(
+    const QuoteInfo& quote_info,
+    PlatformAttestationMeasurement& measurement,
+    PlatformAttestationReportData& report_data)
+  {
+    auto j = nlohmann::json::parse(quote_info.quote);
+
+    measurement =
+      VirtualAttestationMeasurement(j["measurement"].get<std::string>());
+    report_data = VirtualAttestationReportData(
+      j["report_data"].get<std::vector<uint8_t>>());
+  }
 
   // Verifying SNP attestation report is available on all platforms as unlike
   // SGX, this does not require external dependencies (Open Enclave for SGX).
@@ -207,6 +223,19 @@ namespace ccf::pal
     }
   }
 
+  static void emit_virtual_measurement(const std::string& package_path)
+  {
+    auto package = files::slurp(package_path);
+
+    auto package_hash = ccf::crypto::Sha256Hash(package);
+
+    auto j = nlohmann::json::object();
+    j["measurement"] = package_hash.hex_str();
+    j["host_data"] = "TODO";
+
+    files::dump(j.dump(), "MY_VIRTUAL_ATTESTATION.measurement");
+  }
+
 #if defined(PLATFORM_VIRTUAL)
 
   static void generate_quote(
@@ -214,9 +243,17 @@ namespace ccf::pal
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
+    auto quote = files::slurp_json("MY_VIRTUAL_ATTESTATION.measurement");
+    quote["report_data"] = ccf::crypto::b64_from_raw(report_data.data);
+
+    files::dump(quote.dump(), "MY_VIRTUAL_ATTESTATION.attestation");
+
+    auto dumped_quote = quote.dump();
+    std::vector<uint8_t> quote_vec(dumped_quote.begin(), dumped_quote.end());
+
     endorsement_cb(
       {.format = QuoteFormat::insecure_virtual,
-       .quote = {},
+       .quote = quote_vec,
        .endorsements = {},
        .uvm_endorsements = {},
        .endorsed_tcb = {}},
@@ -253,44 +290,20 @@ namespace ccf::pal
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
-    auto is_sev_snp = snp::is_sev_snp();
-
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {
-      if (is_sev_snp)
-      {
-        throw std::logic_error(
-          "Cannot verify virtual attestation report if node is SEV-SNP");
-      }
-      // For now, virtual resembles SGX (mostly for historical reasons)
-      measurement = SgxAttestationMeasurement();
-      report_data = SgxAttestationReportData();
+      verify_virtual_attestation_report(quote_info, measurement, report_data);
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
     {
-      if (!is_sev_snp)
-      {
-        throw std::logic_error(
-          "Cannot verify SEV-SNP attestation report if node is virtual");
-      }
-
       verify_snp_attestation_report(quote_info, measurement, report_data);
     }
     else
     {
-      if (is_sev_snp)
-      {
-        throw std::logic_error(
-          "Cannot verify SGX attestation report if node is SEV-SNP");
-      }
-      else
-      {
-        throw std::logic_error(
-          "Cannot verify SGX attestation report if node is virtual");
-      }
+      throw std::logic_error(
+        "Cannot verify SGX attestation report in this build");
     }
   }
-
 #endif
 
   class AttestationCollateralFetchingTimeout : public std::exception

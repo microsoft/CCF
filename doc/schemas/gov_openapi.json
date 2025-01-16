@@ -1223,6 +1223,29 @@
         },
         "type": "object"
       },
+      "VirtualAttestationMeasurement": {
+        "format": "hex",
+        "pattern": "^[a-f0-9]64$",
+        "type": "string"
+      },
+      "VirtualAttestationMeasurement_to_CodeStatus": {
+        "items": {
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VirtualAttestationMeasurement"
+              },
+              {
+                "$ref": "#/components/schemas/CodeStatus"
+              }
+            ]
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "type": "array"
+      },
       "base64string": {
         "format": "base64",
         "type": "string"
@@ -1331,7 +1354,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.5.0"
+    "version": "4.5.1"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -2138,6 +2161,56 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/string_to_string_to_UVMEndorsementsData"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/virtual/host_data": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvNodesVirtualHostData",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sha256Digest_to_string"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/virtual/measurements": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvNodesVirtualMeasurements",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VirtualAttestationMeasurement_to_CodeStatus"
                 }
               }
             },

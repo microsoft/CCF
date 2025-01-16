@@ -93,7 +93,12 @@ namespace ccf::gov::endpoints
       }
       case ccf::QuoteFormat::insecure_virtual:
       {
+        // TODO
         quote_info["format"] = "Insecure_Virtual";
+        quote_info["quote"] =
+          ccf::crypto::b64_from_raw(node_info.quote_info.quote);
+        quote_info["endorsements"] =
+          ccf::crypto::b64_from_raw(node_info.quote_info.endorsements);
         break;
       }
       case ccf::QuoteFormat::amd_sev_snp_v1:
@@ -497,6 +502,11 @@ namespace ccf::gov::endpoints
             sgx_policy["measurements"] = sgx_measurements;
 
             response_body["sgx"] = sgx_policy;
+          }
+
+          // Describe Virtual join policy
+          {
+            // TODO
           }
 
           // Describe SNP join policy

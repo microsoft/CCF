@@ -9,6 +9,7 @@
 #include "ccf/version.h"
 #include "config_schema.h"
 #include "configuration.h"
+#include "crypto/openssl/hash.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/non_blocking.h"
@@ -72,6 +73,9 @@ int main(int argc, char** argv)
 {
   // ignore SIGPIPE
   signal(SIGPIPE, SIG_IGN);
+
+  ccf::crypto::openssl_sha256_init();
+
   CLI::App app{
     "CCF Host launcher. Runs a single CCF node, based on the given "
     "configuration file.\n"
@@ -290,6 +294,11 @@ int main(int argc, char** argv)
   {
     LOG_FATAL_FMT("No enclave file path specified");
     return static_cast<int>(CLI::ExitCodes::ValidationError);
+  }
+
+  if (config.enclave.platform == host::EnclavePlatform::VIRTUAL)
+  {
+    ccf::pal::emit_virtual_measurement(enclave_file_path);
   }
 
   host::Enclave enclave(
@@ -824,6 +833,8 @@ int main(int argc, char** argv)
   auto rc = uv_loop_close(uv_default_loop());
   if (rc)
     LOG_FAIL_FMT("Failed to close uv loop cleanly: {}", uv_err_name(rc));
+
+  ccf::crypto::openssl_sha256_shutdown();
 
   return rc;
 }
