@@ -1,11 +1,12 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-from base64 import b64encode
+from base64 import b64encode, b64decode
 import infra.e2e_args
 import infra.network
 import infra.path
 import infra.proc
 import infra.utils
+import infra.crypto
 import suite.test_requirements as reqs
 import os
 from infra.checker import check_can_progress
@@ -13,41 +14,47 @@ import infra.snp as snp
 import tempfile
 import shutil
 import http
+import hashlib
+import json
+
 
 from loguru import logger as LOG
-
-# Dummy code id used by virtual nodes
-VIRTUAL_CODE_ID = "0" * 64
 
 
 @reqs.description("Verify node evidence")
 def test_verify_quotes(network, args):
-    if args.enclave_platform == "virtual":
-        LOG.warning("Skipping quote test with virtual enclave")
-        return network
-    elif snp.IS_SNP:
-        LOG.warning(
-            "Skipping quote test until there is a separate utility to verify SNP quotes"
-        )
-        return network
-
     LOG.info("Check the network is stable")
     primary, _ = network.find_primary()
     check_can_progress(primary)
 
     for node in network.get_joined_nodes():
         LOG.info(f"Verifying quote for node {node.node_id}")
-        cafile = os.path.join(network.common_dir, "service_cert.pem")
-        assert (
-            infra.proc.ccall(
-                "verify_quote.sh",
-                f"https://{node.get_public_rpc_host()}:{node.get_public_rpc_port()}",
-                "--cacert",
-                f"{cafile}",
-                log_output=True,
-            ).returncode
-            == 0
-        ), f"Quote verification for node {node.node_id} failed"
+        with node.client() as c:
+            r = c.get("/node/quotes/self")
+            assert r.status_code == http.HTTPStatus.OK, r
+
+            j = r.body.json()
+            if j["format"] == "Insecure_Virtual":
+                # A virtual attestation makes 2 claims:
+                # - The measurement (equal to any equivalent node) is the sha256 of the package (library) it loaded
+                package_path = infra.path.build_lib_path(
+                    args.package, args.enclave_type, args.enclave_platform
+                )
+                digest = hashlib.sha256(open(package_path, "rb").read())
+                assert j["measurement"] == digest.hexdigest()
+
+                raw = json.loads(b64decode(j["raw"]))
+                assert raw["measurement"] == j["measurement"]
+
+                # - The report_data (unique to this node) is the sha256 of the node's public key, in DER encoding
+                # That is the same value we use as the node's ID, though that is usually represented as a hex string
+                report_data = b64decode(raw["report_data"])
+                assert report_data.hex() == node.node_id
+
+            elif j["format"] == "AMD_SEV_SNP_v1":
+                LOG.warning(
+                    "Skipping client-side verification of SNP node's quote until there is a separate utility to verify SNP quotes"
+                )
 
     return network
 
