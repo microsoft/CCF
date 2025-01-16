@@ -35,7 +35,7 @@ namespace ccf
     std::vector<uint8_t> endorsements;
     QuoteFormat format;
 
-    std::string mrenclave = {}; // < Hex-encoded
+    std::string measurement = {}; // < Hex-encoded
 
     std::optional<std::vector<uint8_t>> uvm_endorsements =
       std::nullopt; // SNP only
@@ -43,7 +43,7 @@ namespace ccf
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Quote);
   DECLARE_JSON_REQUIRED_FIELDS(Quote, node_id, raw, endorsements, format);
-  DECLARE_JSON_OPTIONAL_FIELDS(Quote, mrenclave, uvm_endorsements);
+  DECLARE_JSON_OPTIONAL_FIELDS(Quote, measurement, uvm_endorsements);
 
   struct GetQuotes
   {
@@ -725,7 +725,7 @@ namespace ccf
           auto node_info = nodes->get(context.get_node_id());
           if (node_info.has_value() && node_info->code_digest.has_value())
           {
-            q.mrenclave = node_info->code_digest.value();
+            q.measurement = node_info->code_digest.value();
           }
           else
           {
@@ -733,7 +733,7 @@ namespace ccf
               AttestationProvider::get_measurement(node_quote_info);
             if (measurement.has_value())
             {
-              q.mrenclave = measurement.value().hex_str();
+              q.measurement = measurement.value().hex_str();
             }
             else
             {
@@ -792,7 +792,7 @@ namespace ccf
             // unreliable get_measurement otherwise.
             if (node_info.code_digest.has_value())
             {
-              q.mrenclave = node_info.code_digest.value();
+              q.measurement = node_info.code_digest.value();
             }
             else
             {
@@ -800,7 +800,7 @@ namespace ccf
                 AttestationProvider::get_measurement(node_info.quote_info);
               if (measurement.has_value())
               {
-                q.mrenclave = measurement.value().hex_str();
+                q.measurement = measurement.value().hex_str();
               }
             }
             quotes.emplace_back(q);
