@@ -564,7 +564,7 @@ namespace aft
         become_retired(idx, ccf::kv::RetirementPhase::Ordered);
       }
 
-      if (conf != configurations.back().nodes)
+      if (configurations.empty() || conf != configurations.back().nodes)
       {
         Configuration new_config = {idx, std::move(conf), idx};
         configurations.push_back(new_config);
