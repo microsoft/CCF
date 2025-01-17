@@ -30,7 +30,8 @@ namespace ccf
     std::vector<ccf::crypto::sharing::Share> shares;
 
   public:
-    SharedLedgerSecretWrappingKey(size_t num_shares_, size_t recovery_threshold_) :
+    SharedLedgerSecretWrappingKey(
+      size_t num_shares_, size_t recovery_threshold_) :
       num_shares(num_shares_),
       recovery_threshold(recovery_threshold_)
     {
@@ -324,8 +325,8 @@ namespace ccf
       return decrypted_share;
     }
 
-    ReconstructedLedgerSecretWrappingKey combine_from_encrypted_submitted_shares(
-      ccf::kv::Tx& tx)
+    ReconstructedLedgerSecretWrappingKey
+    combine_from_encrypted_submitted_shares(ccf::kv::Tx& tx)
     {
       auto encrypted_submitted_shares = tx.rw<ccf::EncryptedSubmittedShares>(
         Tables::ENCRYPTED_SUBMITTED_SHARES);
@@ -345,8 +346,8 @@ namespace ccf
               // For a new share, we can check the index and decide if it's
               // a full share or just a partial share (compare to zero).
               // If it is a full share, we can short-circuit and return a
-              // ReconstructedLedgerSecretWrappingKey directly, otherwise we follow the
-              // existing flow.
+              // ReconstructedLedgerSecretWrappingKey directly, otherwise we
+              // follow the existing flow.
               auto share = ccf::crypto::sharing::Share(decrypted_share);
               if (share.x == 0)
               {
@@ -394,7 +395,8 @@ namespace ccf
           recovery_threshold));
       }
 
-      return ReconstructedLedgerSecretWrappingKey(std::move(new_shares), recovery_threshold);
+      return ReconstructedLedgerSecretWrappingKey(
+        std::move(new_shares), recovery_threshold);
     }
 
   public:
