@@ -1082,6 +1082,24 @@ const actions = new Map([
     ),
   ],
   [
+    "add_virtual_host_data",
+    new Action(
+      function (args) {
+        checkType(args.host_data, "string", "host_data");
+        checkType(args.metadata, "string", "metadata");
+      },
+      function (args, proposalId) {
+        ccf.kv["public:ccf.gov.nodes.virtual.host_data"].set(
+          ccf.strToBuf(args.host_data),
+          ccf.jsonCompatibleToBuf(args.metadata),
+        );
+
+        // Adding a new allowed host data changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
+        invalidateOtherOpenProposals(proposalId);
+      },
+    ),
+  ],
+  [
     "add_snp_host_data",
     new Action(
       function (args) {
@@ -1110,6 +1128,18 @@ const actions = new Map([
 
         // Adding a new allowed host data changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
         invalidateOtherOpenProposals(proposalId);
+      },
+    ),
+  ],
+  [
+    "remove_virtual_host_data",
+    new Action(
+      function (args) {
+        checkType(args.host_data, "string", "host_data");
+      },
+      function (args) {
+        const hostData = ccf.strToBuf(args.host_data);
+        ccf.kv["public:ccf.gov.nodes.virtual.host_data"].delete(hostData);
       },
     ),
   ],

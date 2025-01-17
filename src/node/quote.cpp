@@ -145,14 +145,19 @@ namespace ccf
       case QuoteFormat::insecure_virtual:
       {
         auto j = nlohmann::json::parse(quote_info.quote);
-        auto it = j.find("host_data");
+
+        // To simulate SNP attestation metadata, associate this "security
+        // policy" with a host_data value containing its digest
+        auto it = j.find("security_policy");
         if (it != j.end())
         {
-          const auto raw_host_data = it->get<std::string>();
-          return ccf::crypto::Sha256Hash(raw_host_data);
+          const auto security_policy = it->get<std::string>();
+          return ccf::crypto::Sha256Hash(security_policy);
         }
 
-        LOG_FAIL_FMT("No host data in virtual attestation");
+        LOG_FAIL_FMT(
+          "No security policy in virtual attestation from which to derive host "
+          "data");
         return std::nullopt;
       }
 

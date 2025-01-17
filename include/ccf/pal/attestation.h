@@ -223,7 +223,13 @@ namespace ccf::pal
     }
   }
 
-  static void emit_virtual_measurement(const std::string& package_path)
+  static std::string virtual_attestation_path(const std::string& suffix)
+  {
+    return fmt::format("ccf_virtual_attestation.{}.{}", ::getpid(), suffix);
+  };
+
+  static void emit_virtual_measurement(
+    const std::string& package_path, const std::string& security_policy)
   {
     auto package = files::slurp(package_path);
 
@@ -231,9 +237,9 @@ namespace ccf::pal
 
     auto j = nlohmann::json::object();
     j["measurement"] = package_hash.hex_str();
-    j["host_data"] = "TODO";
+    j["security_policy"] = security_policy;
 
-    files::dump(j.dump(), "MY_VIRTUAL_ATTESTATION.measurement");
+    files::dump(j.dump(2), virtual_attestation_path("measurement"));
   }
 
 #if defined(PLATFORM_VIRTUAL)
@@ -243,10 +249,10 @@ namespace ccf::pal
     RetrieveEndorsementCallback endorsement_cb,
     const snp::EndorsementsServers& endorsements_servers = {})
   {
-    auto quote = files::slurp_json("MY_VIRTUAL_ATTESTATION.measurement");
+    auto quote = files::slurp_json(virtual_attestation_path("measurement"));
     quote["report_data"] = ccf::crypto::b64_from_raw(report_data.data);
 
-    files::dump(quote.dump(), "MY_VIRTUAL_ATTESTATION.attestation");
+    files::dump(quote.dump(2), virtual_attestation_path("attestation"));
 
     auto dumped_quote = quote.dump();
     std::vector<uint8_t> quote_vec(dumped_quote.begin(), dumped_quote.end());

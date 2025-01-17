@@ -15,9 +15,21 @@ import tempfile
 import shutil
 import http
 import json
+from hashlib import sha256
 
 
 from loguru import logger as LOG
+
+DEFAULT_VIRTUAL_SECURITY_POLICY = "Default CCF virtual security policy"
+
+
+def get_host_data_and_security_policy():
+    if snp.IS_SNP:
+        security_policy = snp.get_container_group_security_policy()
+    else:
+        security_policy = DEFAULT_VIRTUAL_SECURITY_POLICY
+    host_data = sha256(security_policy.encode()).hexdigest()
+    return host_data, security_policy
 
 
 @reqs.description("Verify node evidence")
@@ -79,39 +91,51 @@ def get_trusted_uvm_endorsements(node):
         return r.body.json()["snp"]["uvmEndorsements"]
 
 
-@reqs.description("Test the SNP measurements table")
-@reqs.snp_only()
-def test_snp_measurements_tables(network, args):
+@reqs.description("Test the measurements tables")
+def test_measurements_tables(network, args):
     primary, _ = network.find_nodes()
-
-    LOG.info("SNP measurements table")
 
     def get_trusted_measurements(node):
         with node.api_versioned_client(api_version=args.gov_api_version) as client:
             r = client.get("/gov/service/join-policy")
             assert r.status_code == http.HTTPStatus.OK, r
-            return r.body.json()["snp"]["measurements"]
+            return sorted(r.body.json()[args.enclave_platform]["measurements"])
 
-    measurements = get_trusted_measurements(primary)
-    assert (
-        len(measurements) == 0
-    ), "Expected no measurement as UVM endorsements are used by default"
+    original_measurements = get_trusted_measurements(primary)
+
+    if snp.IS_SNP:
+        assert (
+            len(original_measurements) == 0
+        ), "Expected no measurement as UVM endorsements are used by default"
 
     LOG.debug("Add dummy measurement")
-    dummy_snp_measurement = "a" * 96
-    network.consortium.add_snp_measurement(primary, dummy_snp_measurement)
+    measurement_length = 96 if snp.IS_SNP else 64
+    dummy_measurement = "a" * measurement_length
+    network.consortium.add_measurement(
+        primary, args.enclave_platform, dummy_measurement
+    )
     measurements = get_trusted_measurements(primary)
-    expected_measurements = [dummy_snp_measurement]
+    expected_measurements = sorted(original_measurements + [dummy_measurement])
     assert (
         measurements == expected_measurements
     ), f"One of the measurements should match the dummy that was populated, expected={expected_measurements}, actual={measurements}"
 
     LOG.debug("Remove dummy measurement")
-    network.consortium.remove_snp_measurement(primary, dummy_snp_measurement)
+    network.consortium.remove_measurement(
+        primary, args.enclave_platform, dummy_measurement
+    )
     measurements = get_trusted_measurements(primary)
     assert (
-        len(measurements) == 0
-    ), "Expected no measurement as UVM endorsements are used by default"
+        measurements == original_measurements
+    ), f"Did not restore original measurements after removing dummy, expected={original_measurements}, actual={measurements}"
+
+    return network
+
+
+@reqs.description("Test the endorsements tables")
+@reqs.snp_only()
+def test_endorsements_tables(network, args):
+    primary, _ = network.find_nodes()
 
     LOG.info("SNP UVM endorsement table")
 
@@ -172,20 +196,46 @@ def test_snp_measurements_tables(network, args):
     return network
 
 
-@reqs.description("Test that the security policies table is correctly populated")
-@reqs.snp_only()
-def test_host_data_table(network, args):
+@reqs.description("Test that the host data tables are correctly populated")
+def test_host_data_tables(network, args):
     primary, _ = network.find_nodes()
-    with primary.api_versioned_client(api_version=args.gov_api_version) as client:
-        r = client.get("/gov/service/join-policy")
-        assert r.status_code == http.HTTPStatus.OK, r
-        host_data = r.body.json()["snp"]["hostData"]
 
-    expected = {
-        snp.get_container_group_security_policy_digest(): snp.get_container_group_security_policy(),
+    def get_trusted_host_data(node):
+        with node.api_versioned_client(api_version=args.gov_api_version) as client:
+            r = client.get("/gov/service/join-policy")
+            assert r.status_code == http.HTTPStatus.OK, r
+            return r.body.json()[args.enclave_platform]["hostData"]
+
+    original_host_data = get_trusted_host_data(primary)
+
+    host_data, security_policy = get_host_data_and_security_policy()
+    expected = {host_data: security_policy}
+
+    assert original_host_data == expected, f"{original_host_data} != {expected}"
+
+    LOG.debug("Add dummy host data")
+    dummy_host_data_value = "Open Season"
+    # For SNP compatibility, the host_data key must be the digest of the content/metadata
+    dummy_host_data_key = sha256(dummy_host_data_value.encode()).hexdigest()
+    network.consortium.add_host_data(
+        primary, args.enclave_platform, dummy_host_data_key, dummy_host_data_value
+    )
+    host_data = get_trusted_host_data(primary)
+    expected_host_data = {
+        **original_host_data,
+        dummy_host_data_key: dummy_host_data_value,
     }
+    assert host_data == expected_host_data, f"{host_data} != {expected_host_data}"
 
-    assert host_data == expected, f"{host_data} != {expected}"
+    LOG.debug("Remove dummy host data")
+    network.consortium.remove_host_data(
+        primary, args.enclave_platform, dummy_host_data_key
+    )
+    host_data = get_trusted_host_data(primary)
+    assert (
+        host_data == original_host_data
+    ), f"Did not restore original host data after removing dummy, expected={original_host_data}, actual={host_data}"
+
     return network
 
 
@@ -211,17 +261,18 @@ def test_add_node_without_security_policy(network, args):
 
 
 @reqs.description("Remove raw security policy from trusted host data and join new node")
-@reqs.snp_only()
-def test_add_node_remove_trusted_security_policy(network, args):
+def test_add_node_with_stubbed_security_policy(network, args):
     LOG.info("Remove raw security policy from trusted host data")
     primary, _ = network.find_nodes()
-    network.consortium.retire_host_data(
-        primary, snp.get_container_group_security_policy_digest()
-    )
-    network.consortium.add_new_host_data(
+
+    host_data, security_policy = get_host_data_and_security_policy()
+
+    network.consortium.remove_host_data(primary, args.enclave_platform, host_data)
+    network.consortium.add_host_data(
         primary,
-        snp.EMPTY_SNP_SECURITY_POLICY,
-        snp.get_container_group_security_policy_digest(),
+        args.enclave_platform,
+        host_data,
+        "",  # Remove the raw security policy metadata, while retaining the host_data key
     )
 
     # If we don't throw an exception, joining was successful
@@ -230,21 +281,16 @@ def test_add_node_remove_trusted_security_policy(network, args):
     network.trust_node(new_node, args)
 
     # Revert to original state
-    network.consortium.retire_host_data(
-        primary,
-        snp.get_container_group_security_policy_digest(),
-    )
-    network.consortium.add_new_host_data(
-        primary,
-        snp.get_container_group_security_policy(),
-        snp.get_container_group_security_policy_digest(),
+    network.consortium.remove_host_data(primary, args.enclave_platform, host_data)
+    network.consortium.add_host_data(
+        primary, args.enclave_platform, host_data, security_policy
     )
     return network
 
 
 @reqs.description("Start node with mismatching security policy")
 @reqs.snp_only()
-def test_start_node_with_mismatched_host_data(network, args):
+def test_add_node_with_bad_security_policy(network, args):
     try:
         security_context_dir = snp.get_security_context_dir()
         with tempfile.TemporaryDirectory() as snp_dir:
@@ -274,16 +320,15 @@ def test_start_node_with_mismatched_host_data(network, args):
 
 
 @reqs.description("Node with bad host data fails to join")
-@reqs.snp_only()
 def test_add_node_with_bad_host_data(network, args):
     primary, _ = network.find_nodes()
+
+    host_data, security_policy = get_host_data_and_security_policy()
 
     LOG.info(
         "Removing trusted security policy so that a new joiner is seen as an unmatching policy"
     )
-    network.consortium.retire_host_data(
-        primary, snp.get_container_group_security_policy_digest()
-    )
+    network.consortium.remove_host_data(primary, args.enclave_platform, host_data)
 
     new_node = network.create_node("local://localhost")
     try:
@@ -293,10 +338,11 @@ def test_add_node_with_bad_host_data(network, args):
     else:
         raise AssertionError("Node join unexpectedly succeeded")
 
-    network.consortium.add_new_host_data(
+    network.consortium.add_host_data(
         primary,
-        snp.get_container_group_security_policy(),
-        snp.get_container_group_security_policy_digest(),
+        args.enclave_platform,
+        host_data,
+        security_policy,
     )
     return network
 
@@ -527,15 +573,25 @@ def run(args):
         network.start_and_open(args)
 
         test_verify_quotes(network, args)
-        if snp.IS_SNP:
-            test_snp_measurements_tables(network, args)
-            test_add_node_with_no_uvm_endorsements(network, args)
-            test_host_data_table(network, args)
-            test_add_node_without_security_policy(network, args)
-            test_add_node_remove_trusted_security_policy(network, args)
-            test_start_node_with_mismatched_host_data(network, args)
-            test_add_node_with_bad_host_data(network, args)
+
+        # Measurements
+        test_measurements_tables(network, args)
         test_add_node_with_bad_code(network, args)
+
+        # Host data/security policy
+        test_host_data_tables(network, args)
+        test_add_node_with_bad_host_data(network, args)
+        test_add_node_with_stubbed_security_policy(network, args)
+
+        if snp.IS_SNP:
+            test_add_node_without_security_policy(network, args)
+            test_add_node_with_bad_security_policy(network, args)
+
+        # Endorsements
+        if snp.IS_SNP:
+            test_endorsements_tables(network, args)
+            test_add_node_with_no_uvm_endorsements(network, args)
+
         # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
         test_proposal_invalidation(network, args)
 

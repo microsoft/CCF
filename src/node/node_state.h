@@ -298,41 +298,43 @@ namespace ccf
       }
 
       // Verify that the security policy matches the quoted digest of the policy
+      if (!config.attestation.environment.security_policy.has_value())
+      {
+        LOG_INFO_FMT(
+          "Security policy not set, skipping check against attestation host "
+          "data");
+      }
+      else
+      {
+        auto quoted_digest = AttestationProvider::get_host_data(quote_info);
+        if (!quoted_digest.has_value())
+        {
+          throw std::logic_error("Unable to find host data in attestation");
+        }
+
+        auto const& security_policy =
+          config.attestation.environment.security_policy.value();
+
+        auto security_policy_digest =
+          quote_info.format == QuoteFormat::amd_sev_snp_v1 ?
+          ccf::crypto::Sha256Hash(ccf::crypto::raw_from_b64(security_policy)) :
+          ccf::crypto::Sha256Hash(security_policy);
+        if (security_policy_digest != quoted_digest.value())
+        {
+          throw std::logic_error(fmt::format(
+            "Digest of decoded security policy \"{}\" {} does not match "
+            "attestation host data {}",
+            security_policy,
+            security_policy_digest.hex_str(),
+            quoted_digest.value().hex_str()));
+        }
+        LOG_INFO_FMT(
+          "Successfully verified attested security policy {}",
+          security_policy_digest);
+      }
+
       if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
       {
-        if (!config.attestation.environment.security_policy.has_value())
-        {
-          LOG_INFO_FMT(
-            "Security policy not set, skipping check against attestation host "
-            "data");
-        }
-        else
-        {
-          auto quoted_digest = AttestationProvider::get_host_data(quote_info);
-          if (!quoted_digest.has_value())
-          {
-            throw std::logic_error("Unable to find host data in attestation");
-          }
-
-          auto const& security_policy =
-            config.attestation.environment.security_policy.value();
-
-          auto security_policy_digest =
-            ccf::crypto::Sha256Hash(ccf::crypto::raw_from_b64(security_policy));
-          if (security_policy_digest != quoted_digest.value())
-          {
-            throw std::logic_error(fmt::format(
-              "Digest of decoded security policy \"{}\" {} does not match "
-              "attestation host data {}",
-              security_policy,
-              security_policy_digest.hex_str(),
-              quoted_digest.value().hex_str()));
-          }
-          LOG_INFO_FMT(
-            "Successfully verified attested security policy {}",
-            security_policy_digest);
-        }
-
         if (!config.attestation.environment.uvm_endorsements.has_value())
         {
           LOG_INFO_FMT(
@@ -1975,6 +1977,10 @@ namespace ccf
       create_params.snp_uvm_endorsements = snp_uvm_endorsements;
       create_params.snp_security_policy =
         config.attestation.environment.security_policy;
+
+      LOG_INFO_FMT(
+        "!!!! create_params.snp_security_policy = {}",
+        create_params.snp_security_policy.value_or("\"\""));
 
       create_params.node_info_network = config.network;
       create_params.node_data = config.node_data;

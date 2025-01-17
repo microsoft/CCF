@@ -1577,7 +1577,7 @@ namespace ccf
             if (host_data.has_value())
             {
               InternalTablesAccess::trust_node_virtual_host_data(
-                ctx.tx, host_data.value());
+                ctx.tx, host_data.value(), in.snp_security_policy);
             }
             else
             {

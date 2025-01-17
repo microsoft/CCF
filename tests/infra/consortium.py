@@ -808,21 +808,61 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def add_new_host_data(
+    def add_host_data(self, remote_node, platform, host_data_key, host_data_value):
+        if platform == "virtual":
+            return self.add_virtual_host_data(
+                remote_node, host_data_key, host_data_value
+            )
+        elif platform == "snp":
+            return self.add_snp_host_data(remote_node, host_data_key, host_data_value)
+        else:
+            raise ValueError(f"Unsupported platform {platform}")
+
+    def add_virtual_host_data(
         self,
         remote_node,
-        new_security_policy,
-        new_host_data,
+        host_data_key,
+        metadata,
     ):
         proposal_body, careful_vote = self.make_proposal(
-            "add_snp_host_data",
-            security_policy=new_security_policy,
-            host_data=new_host_data,
+            "add_virtual_host_data",
+            host_data=host_data_key,
+            metadata=metadata,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def retire_host_data(self, remote_node, host_data):
+    def add_snp_host_data(
+        self,
+        remote_node,
+        new_host_data,
+        new_security_policy,
+    ):
+        proposal_body, careful_vote = self.make_proposal(
+            "add_snp_host_data",
+            host_data=new_host_data,
+            security_policy=new_security_policy,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def remove_host_data(self, remote_node, platform, host_data_key):
+        if platform == "virtual":
+            return self.remove_virtual_host_data(remote_node, host_data_key)
+        elif platform == "snp":
+            return self.remove_snp_host_data(remote_node, host_data_key)
+        else:
+            raise ValueError(f"Unsupported platform {platform}")
+
+    def remove_virtual_host_data(self, remote_node, host_data):
+        proposal_body, careful_vote = self.make_proposal(
+            "remove_virtual_host_data",
+            host_data=host_data,
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def remove_snp_host_data(self, remote_node, host_data):
         proposal_body, careful_vote = self.make_proposal(
             "remove_snp_host_data",
             host_data=host_data,

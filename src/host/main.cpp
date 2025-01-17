@@ -60,6 +60,9 @@ size_t asynchost::UDPImpl::remaining_read_quota =
 
 std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
 
+static constexpr char const* default_virtual_security_policy =
+  "Default CCF virtual security policy";
+
 void print_version(size_t)
 {
   std::cout << "CCF host: " << ccf::ccf_version << std::endl;
@@ -296,11 +299,6 @@ int main(int argc, char** argv)
     return static_cast<int>(CLI::ExitCodes::ValidationError);
   }
 
-  if (config.enclave.platform == host::EnclavePlatform::VIRTUAL)
-  {
-    ccf::pal::emit_virtual_measurement(enclave_file_path);
-  }
-
   host::Enclave enclave(
     enclave_file_path, config.enclave.type, config.enclave.platform);
 
@@ -531,6 +529,25 @@ int main(int argc, char** argv)
 
       startup_config.attestation.environment.security_policy =
         files::try_slurp_string(security_policy_file);
+    }
+
+    if (config.enclave.platform == host::EnclavePlatform::VIRTUAL)
+    {
+      // Hard-coded here and repeated in the relevant tests. Can be made dynamic
+      // (eg - from an env var or file) when the tests are able to run SNP nodes
+      // with distinct policies
+      startup_config.attestation.environment.security_policy =
+        default_virtual_security_policy;
+    }
+    LOG_INFO_FMT(
+      "!!!! startup_config.attestation.environment.security_policy = {}",
+      startup_config.attestation.environment.security_policy.value_or("\"\""));
+
+    if (config.enclave.platform == host::EnclavePlatform::VIRTUAL)
+    {
+      ccf::pal::emit_virtual_measurement(
+        enclave_file_path,
+        startup_config.attestation.environment.security_policy.value_or(""));
     }
 
     if (startup_config.attestation.snp_uvm_endorsements_file.has_value())
