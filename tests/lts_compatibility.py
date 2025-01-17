@@ -251,10 +251,9 @@ def run_code_upgrade_from(
             LOG.info("Apply transactions to old service")
             issue_activity_on_live_service(network, args)
 
-            new_code_id = infra.utils.get_code_id(
+            new_code_id = infra.utils.get_measurement(
                 args.enclave_type,
                 args.enclave_platform,
-                args.oe_binary,
                 args.package,
                 library_dir=to_library_dir,
             )
@@ -327,10 +326,9 @@ def run_code_upgrade_from(
             LOG.info("Apply transactions to hybrid network, with primary as old node")
             issue_activity_on_live_service(network, args)
 
-            old_code_id = infra.utils.get_code_id(
+            old_code_id = infra.utils.get_measurement(
                 args.enclave_type,
                 args.enclave_platform,
-                args.oe_binary,
                 args.package,
                 library_dir=from_library_dir,
             )

@@ -43,7 +43,7 @@ def test_verify_quotes(network, args):
                 # - The measurement (equal to any equivalent node) is the sha256 of the package (library) it loaded
                 claimed_measurement = j["measurement"]
                 expected_measurement = infra.utils.get_measurement(
-                    args.enclave_type, args.enclave_platform, "", args.package
+                    args.enclave_type, args.enclave_platform, args.package
                 )
                 assert (
                     claimed_measurement == expected_measurement
@@ -391,10 +391,10 @@ def test_update_all_nodes(network, args):
     primary, _ = network.find_nodes()
 
     first_measurement = infra.utils.get_measurement(
-        args.enclave_type, args.enclave_platform, args.oe_binary, args.package
+        args.enclave_type, args.enclave_platform, args.package
     )
     new_measurement = infra.utils.get_measurement(
-        args.enclave_type, args.enclave_platform, args.oe_binary, replacement_package
+        args.enclave_type, args.enclave_platform, replacement_package
     )
 
     LOG.info("Add new measurement")
@@ -469,7 +469,6 @@ def test_proposal_invalidation(network, args):
     temporary_measurement = infra.utils.get_measurement(
         args.enclave_type,
         args.enclave_platform,
-        args.oe_binary,
         get_replacement_package(args),
     )
     network.consortium.add_measurement(
