@@ -93,7 +93,7 @@ endif()
 
 set(CMAKE_CXX_STANDARD 20)
 
-if (USE_LIBCXX)
+if(USE_LIBCXX)
   if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     add_compile_options(-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG)
   elseif("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
