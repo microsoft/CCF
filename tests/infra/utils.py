@@ -6,7 +6,8 @@ import os
 import subprocess
 
 
-def get_code_id(
+# TODO: Remove oe_binary_dir
+def get_measurement(
     enclave_type, enclave_platform, oe_binary_dir, package, library_dir="."
 ):
     lib_path = infra.path.build_lib_path(
@@ -26,6 +27,10 @@ def get_code_id(
         ]
 
         return lines[0].split("=")[1]
+
+    elif enclave_platform == "virtual":
+        hash = hashlib.sha256(open(lib_path, "rb").read())
+        return hash.hexdigest()
+
     else:
-        # Virtual and SNP
-        return hashlib.sha256(lib_path.encode()).hexdigest()
+        raise ValueError(f"Cannot get code ID on {enclave_platform}")

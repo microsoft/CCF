@@ -506,7 +506,36 @@ namespace ccf::gov::endpoints
 
           // Describe Virtual join policy
           {
-            // TODO
+            auto virtual_policy = nlohmann::json::object();
+
+            auto virtual_measurements = nlohmann::json::array();
+            auto measurements_handle =
+              ctx.tx.template ro<ccf::VirtualMeasurements>(
+                ccf::Tables::NODE_VIRTUAL_MEASUREMENTS);
+            measurements_handle->foreach(
+              [&virtual_measurements](
+                const pal::VirtualAttestationMeasurement& measurement,
+                const ccf::CodeStatus& status) {
+                if (status == ccf::CodeStatus::ALLOWED_TO_JOIN)
+                {
+                  virtual_measurements.push_back(measurement.hex_str());
+                }
+                return true;
+              });
+            virtual_policy["measurements"] = virtual_measurements;
+
+            auto virtual_host_data = nlohmann::json::object();
+            auto host_data_handle = ctx.tx.template ro<ccf::VirtualHostDataMap>(
+              ccf::Tables::VIRTUAL_HOST_DATA);
+            host_data_handle->foreach(
+              [&virtual_host_data](
+                const HostData& host_data, const HostDataMetadata& metadata) {
+                virtual_host_data[host_data.hex_str()] = metadata;
+                return true;
+              });
+            virtual_policy["hostData"] = virtual_host_data;
+
+            response_body["virtual"] = virtual_policy;
           }
 
           // Describe SNP join policy

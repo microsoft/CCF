@@ -732,9 +732,26 @@ class Consortium:
             self.recovery_threshold = recovery_threshold
         return r
 
+    def add_measurement(self, remote_node, platform, measurement):
+        if platform == "sgx":
+            return self.add_new_code(remote_node, measurement)
+        elif platform == "virtual":
+            return self.add_virtual_measurement(remote_node, measurement)
+        elif platform == "snp":
+            return self.add_snp_measurement(remote_node, measurement)
+        else:
+            raise ValueError(f"Unsupported platform {platform}")
+
     def add_new_code(self, remote_node, new_code_id):
         proposal_body, careful_vote = self.make_proposal(
             "add_node_code", code_id=new_code_id
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def add_virtual_measurement(self, remote_node, measurement):
+        proposal_body, careful_vote = self.make_proposal(
+            "add_virtual_measurement", measurement=measurement
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
@@ -753,9 +770,26 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
+    def remove_measurement(self, remote_node, platform, measurement):
+        if platform == "sgx":
+            return self.retire_code(remote_node, measurement)
+        elif platform == "virtual":
+            return self.remove_virtual_measurement(remote_node, measurement)
+        elif platform == "snp":
+            return self.remove_snp_measurement(remote_node, measurement)
+        else:
+            raise ValueError(f"Unsupported platform {platform}")
+
     def retire_code(self, remote_node, code_id):
         proposal_body, careful_vote = self.make_proposal(
             "remove_node_code", code_id=code_id
+        )
+        proposal = self.get_any_active_member().propose(remote_node, proposal_body)
+        return self.vote_using_majority(remote_node, proposal, careful_vote)
+
+    def remove_virtual_measurement(self, remote_node, measurement):
+        proposal_body, careful_vote = self.make_proposal(
+            "remove_virtual_measurement", measurement=measurement
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)

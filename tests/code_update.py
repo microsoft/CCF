@@ -14,7 +14,6 @@ import infra.snp as snp
 import tempfile
 import shutil
 import http
-import hashlib
 import json
 
 
@@ -27,6 +26,11 @@ def test_verify_quotes(network, args):
     primary, _ = network.find_primary()
     check_can_progress(primary)
 
+    with primary.api_versioned_client(api_version=args.gov_api_version) as uc:
+        r = uc.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        trusted_measurements = r.body.json()[args.enclave_platform]["measurements"]
+
     for node in network.get_joined_nodes():
         LOG.info(f"Verifying quote for node {node.node_id}")
         with node.client() as c:
@@ -37,19 +41,28 @@ def test_verify_quotes(network, args):
             if j["format"] == "Insecure_Virtual":
                 # A virtual attestation makes 2 claims:
                 # - The measurement (equal to any equivalent node) is the sha256 of the package (library) it loaded
-                package_path = infra.path.build_lib_path(
-                    args.package, args.enclave_type, args.enclave_platform
+                claimed_measurement = j["measurement"]
+                expected_measurement = infra.utils.get_measurement(
+                    args.enclave_type, args.enclave_platform, "", args.package
                 )
-                digest = hashlib.sha256(open(package_path, "rb").read())
-                assert j["measurement"] == digest.hexdigest()
+                assert (
+                    claimed_measurement == expected_measurement
+                ), f"{claimed_measurement} != {expected_measurement}"
 
                 raw = json.loads(b64decode(j["raw"]))
-                assert raw["measurement"] == j["measurement"]
+                assert raw["measurement"] == claimed_measurement
 
                 # - The report_data (unique to this node) is the sha256 of the node's public key, in DER encoding
                 # That is the same value we use as the node's ID, though that is usually represented as a hex string
                 report_data = b64decode(raw["report_data"])
                 assert report_data.hex() == node.node_id
+
+                # Additionally, we check that the measurement is one of the service's currently trusted measurements.
+                # Note this might not always be true - a node may be added while its measurement is trusted, and persist past the point that its measurement is retired!
+                # But it _is_ true in this test, and a sensible thing to check most of the time
+                assert (
+                    claimed_measurement in trusted_measurements
+                ), f"This node's measurement ({claimed_measurement}) is not one of the currently trusted measurements ({trusted_measurements})"
 
             elif j["format"] == "AMD_SEV_SNP_v1":
                 LOG.warning(
@@ -317,7 +330,7 @@ def test_add_node_with_no_uvm_endorsements(network, args):
         primary, _ = network.find_nodes()
         with primary.client() as client:
             r = client.get("/node/quotes/self")
-            measurement = r.body.json()["mrenclave"]
+            measurement = r.body.json()["measurement"]
         network.consortium.add_snp_measurement(primary, measurement)
 
         LOG.info("Add new node without UVM endorsements (expect success)")
@@ -339,21 +352,13 @@ def test_add_node_with_no_uvm_endorsements(network, args):
 
 @reqs.description("Node with bad code fails to join")
 def test_add_node_with_bad_code(network, args):
-    if args.enclave_platform != "sgx":
-        LOG.warning("Skipping test_add_node_with_bad_code with non-sgx enclave")
+    if args.enclave_platform == "snp":
+        LOG.warning("Skipping test_add_node_with_bad_code with SNP enclave")
         return network
 
-    replacement_package = (
-        "samples/apps/logging/liblogging"
-        if args.package == "libjs_generic"
-        else "libjs_generic"
-    )
+    replacement_package = get_replacement_package(args)
 
-    new_code_id = infra.utils.get_code_id(
-        args.enclave_type, args.enclave_platform, args.oe_binary, replacement_package
-    )
-
-    LOG.info(f"Adding a node with unsupported code id {new_code_id}")
+    LOG.info(f"Adding unsupported node running {replacement_package}")
     code_not_found_exception = None
     try:
         new_node = network.create_node("local://localhost")
@@ -363,7 +368,7 @@ def test_add_node_with_bad_code(network, args):
 
     assert (
         code_not_found_exception is not None
-    ), f"Adding a node with unsupported code id {new_code_id} should fail"
+    ), f"Adding a node with {replacement_package} should fail"
 
     return network
 
@@ -385,41 +390,37 @@ def test_update_all_nodes(network, args):
 
     primary, _ = network.find_nodes()
 
-    first_code_id = infra.utils.get_code_id(
+    first_measurement = infra.utils.get_measurement(
         args.enclave_type, args.enclave_platform, args.oe_binary, args.package
     )
-    new_code_id = infra.utils.get_code_id(
+    new_measurement = infra.utils.get_measurement(
         args.enclave_type, args.enclave_platform, args.oe_binary, replacement_package
     )
 
-    if args.enclave_platform == "virtual":
-        # Pretend this was already present
-        network.consortium.add_new_code(primary, first_code_id)
-
-    LOG.info("Add new code id")
-    network.consortium.add_new_code(primary, new_code_id)
+    LOG.info("Add new measurement")
+    network.consortium.add_measurement(primary, args.enclave_platform, new_measurement)
 
     with primary.api_versioned_client(api_version=args.gov_api_version) as uc:
         LOG.info("Check reported trusted measurements")
         r = uc.get("/gov/service/join-policy")
         assert r.status_code == http.HTTPStatus.OK, r
-        versions: list = r.body.json()["sgx"]["measurements"]
+        versions: list = r.body.json()[args.enclave_platform]["measurements"]
 
-        expected = [first_code_id, new_code_id]
-        if args.enclave_platform == "virtual":
-            expected.append(VIRTUAL_CODE_ID)
+        expected = [first_measurement, new_measurement]
 
         versions.sort()
         expected.sort()
         assert versions == expected, f"{versions} != {expected}"
 
-        LOG.info("Remove old code id")
-        network.consortium.retire_code(primary, first_code_id)
+        LOG.info("Remove old measurement")
+        network.consortium.remove_measurement(
+            primary, args.enclave_platform, first_measurement
+        )
         r = uc.get("/gov/service/join-policy")
         assert r.status_code == http.HTTPStatus.OK, r
-        versions = r.body.json()["sgx"]["measurements"]
+        versions = r.body.json()[args.enclave_platform]["measurements"]
 
-        expected.remove(first_code_id)
+        expected.remove(first_measurement)
 
         versions.sort()
         assert versions == expected, f"{versions} != {expected}"
@@ -445,12 +446,14 @@ def test_update_all_nodes(network, args):
             check_can_progress(new_primary)
         node.stop()
 
+    args.package = replacement_package
+
     LOG.info("Check the network is still functional")
     check_can_progress(new_node)
     return network
 
 
-@reqs.description("Adding a new code ID invalidates open proposals")
+@reqs.description("Adding a new measurement invalidates open proposals")
 def test_proposal_invalidation(network, args):
     primary, _ = network.find_nodes()
 
@@ -462,14 +465,16 @@ def test_proposal_invalidation(network, args):
         )
         pending_proposals.append(new_member_proposal.proposal_id)
 
-    LOG.info("Add temporary code ID")
-    temp_code_id = infra.utils.get_code_id(
+    LOG.info("Add temporary measurement")
+    temporary_measurement = infra.utils.get_measurement(
         args.enclave_type,
         args.enclave_platform,
         args.oe_binary,
         get_replacement_package(args),
     )
-    network.consortium.add_new_code(primary, temp_code_id)
+    network.consortium.add_measurement(
+        primary, args.enclave_platform, temporary_measurement
+    )
 
     LOG.info("Confirm open proposals are dropped")
     with primary.api_versioned_client(
@@ -480,8 +485,10 @@ def test_proposal_invalidation(network, args):
             assert r.status_code == 200, r.body.text()
             assert r.body.json()["proposalState"] == "Dropped", r.body.json()
 
-    LOG.info("Remove temporary code ID")
-    network.consortium.retire_code(primary, temp_code_id)
+    LOG.info("Remove temporary measurement")
+    network.consortium.remove_measurement(
+        primary, args.enclave_platform, temporary_measurement
+    )
 
     return network
 
@@ -530,7 +537,7 @@ def run(args):
             test_start_node_with_mismatched_host_data(network, args)
             test_add_node_with_bad_host_data(network, args)
         test_add_node_with_bad_code(network, args)
-        # NB: Assumes the current nodes are still using args.package, so must run before test_proposal_invalidation
+        # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
         test_proposal_invalidation(network, args)
 
         if not snp.IS_SNP:
