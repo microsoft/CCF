@@ -625,10 +625,6 @@ namespace ccf
       const HostData& host_data,
       const std::optional<HostDataMetadata>& metadata)
     {
-      LOG_INFO_FMT(
-        "!!!! trust_node_virtual_host_data({}, {})",
-        host_data.hex_str(),
-        metadata.value_or("\"\""));
       auto host_data_table =
         tx.wo<ccf::VirtualHostDataMap>(Tables::VIRTUAL_HOST_DATA);
       host_data_table->put(host_data, metadata.value_or(""));

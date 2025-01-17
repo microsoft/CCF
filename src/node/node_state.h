@@ -1978,10 +1978,6 @@ namespace ccf
       create_params.snp_security_policy =
         config.attestation.environment.security_policy;
 
-      LOG_INFO_FMT(
-        "!!!! create_params.snp_security_policy = {}",
-        create_params.snp_security_policy.value_or("\"\""));
-
       create_params.node_info_network = config.network;
       create_params.node_data = config.node_data;
       create_params.service_data = config.service_data;
