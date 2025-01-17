@@ -43,6 +43,10 @@ def test_verify_quotes(network, args):
         assert r.status_code == http.HTTPStatus.OK, r
         trusted_measurements = r.body.json()[args.enclave_platform]["measurements"]
 
+        r = uc.get("/node/quotes")
+        all_quotes = r.body.json()["quotes"]
+        assert len(all_quotes) == len(network.get_joined_nodes())
+
     for node in network.get_joined_nodes():
         LOG.info(f"Verifying quote for node {node.node_id}")
         with node.client() as c:
@@ -80,6 +84,9 @@ def test_verify_quotes(network, args):
                 LOG.warning(
                     "Skipping client-side verification of SNP node's quote until there is a separate utility to verify SNP quotes"
                 )
+
+            # Quick API validation - confirm that all of these /quotes/self entries match the collection returned from /quotes
+            assert j in all_quotes
 
     return network
 
