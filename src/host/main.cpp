@@ -22,6 +22,7 @@
 #include "lfs_file_handler.h"
 #include "load_monitor.h"
 #include "node_connections.h"
+#include "pal/quote_generation.h"
 #include "process_launcher.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
