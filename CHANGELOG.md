@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres Fto [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.0-dev12]
+
+[6.0.0-dev12]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev12
+
+### Dependencies
+
+- nghttp2 is now picked up from the OS rather than vendored to enable libcurl usage
+- Misc dependency updates (#6725)
+
+### Added
+
+- Joining nodes can now request a snapshot from their peers at startup, rather than relying on file access. The joinee's snapshot will be fetched and used if it is more recent than the joiner has access to (#6758).
+
 ## [6.0.0-dev11]
 
 [6.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev11

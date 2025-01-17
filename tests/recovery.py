@@ -222,6 +222,7 @@ def test_recover_service(
 
 @reqs.description("Recover a service with wrong service identity")
 @reqs.recover(number_txs=2)
+@reqs.sufficient_network_recovery_count(required_count=1)
 def test_recover_service_with_wrong_identity(network, args):
     old_primary, _ = network.find_primary()
 

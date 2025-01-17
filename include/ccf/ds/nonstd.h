@@ -185,6 +185,14 @@ namespace ccf::nonstd
     });
   }
 
+  static inline std::string_view trim(
+    std::string_view s, std::string_view trim_chars = " \t\r\n")
+  {
+    const auto start = std::min(s.find_first_not_of(trim_chars), s.size());
+    const auto end = std::min(s.find_last_not_of(trim_chars) + 1, s.size());
+    return s.substr(start, end - start);
+  }
+
   /// Iterate through tuple, calling functor on each element
   template <size_t I = 0, typename F, typename... Ts>
   static void tuple_for_each(const std::tuple<Ts...>& t, const F& f)

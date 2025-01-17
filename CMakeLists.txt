@@ -242,8 +242,15 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
 endif()
 
 target_link_libraries(
-  cchost PRIVATE uv ${TLS_LIBRARY} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
-                 ${LINK_LIBCXX} ccfcrypto.host
+  cchost
+  PRIVATE uv
+          ${TLS_LIBRARY}
+          ${CMAKE_DL_LIBS}
+          ${CMAKE_THREAD_LIBS_INIT}
+          ${LINK_LIBCXX}
+          ccfcrypto.host
+          curl
+          http_parser.host
 )
 
 install(TARGETS cchost DESTINATION bin)
@@ -696,6 +703,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/dl_list.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -987,7 +995,7 @@ if(BUILD_TESTS)
       LABEL suite
       ADDITIONAL_ARGS
         --test-duration
-        150
+        300
         --test-suite
         rekey_recovery
         --test-suite
@@ -1001,7 +1009,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
       LABEL suite
       ADDITIONAL_ARGS
-        --test-duration 200 --test-suite reconfiguration --jinja-templates-path
+        --test-duration 300 --test-suite reconfiguration --jinja-templates-path
         ${CMAKE_SOURCE_DIR}/samples/templates
     )
 
@@ -1010,7 +1018,7 @@ if(BUILD_TESTS)
         NAME regression_test_suite
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
         LABEL suite
-        ADDITIONAL_ARGS --test-duration 200 --test-suite regression_5236
+        ADDITIONAL_ARGS --test-duration 300 --test-suite regression_5236
       )
     endif()
 
@@ -1024,7 +1032,7 @@ if(BUILD_TESTS)
         --ledger-recovery-timeout
         20
         --test-duration
-        200
+        300
         --test-suite
         all
         --jinja-templates-path
