@@ -20,17 +20,6 @@ from hashlib import sha256
 
 from loguru import logger as LOG
 
-DEFAULT_VIRTUAL_SECURITY_POLICY = "Default CCF virtual security policy"
-
-
-def get_host_data_and_security_policy():
-    if snp.IS_SNP:
-        security_policy = snp.get_container_group_security_policy()
-    else:
-        security_policy = DEFAULT_VIRTUAL_SECURITY_POLICY
-    host_data = sha256(security_policy.encode()).hexdigest()
-    return host_data, security_policy
-
 
 @reqs.description("Verify node evidence")
 def test_verify_quotes(network, args):
@@ -215,7 +204,9 @@ def test_host_data_tables(network, args):
 
     original_host_data = get_trusted_host_data(primary)
 
-    host_data, security_policy = get_host_data_and_security_policy()
+    host_data, security_policy = infra.utils.get_host_data_and_security_policy(
+        args.enclave_platform
+    )
     expected = {host_data: security_policy}
 
     assert original_host_data == expected, f"{original_host_data} != {expected}"
@@ -272,7 +263,9 @@ def test_add_node_with_stubbed_security_policy(network, args):
     LOG.info("Remove raw security policy from trusted host data")
     primary, _ = network.find_nodes()
 
-    host_data, security_policy = get_host_data_and_security_policy()
+    host_data, security_policy = infra.utils.get_host_data_and_security_policy(
+        args.enclave_platform
+    )
 
     network.consortium.remove_host_data(primary, args.enclave_platform, host_data)
     network.consortium.add_host_data(
@@ -330,7 +323,9 @@ def test_add_node_with_bad_security_policy(network, args):
 def test_add_node_with_bad_host_data(network, args):
     primary, _ = network.find_nodes()
 
-    host_data, security_policy = get_host_data_and_security_policy()
+    host_data, security_policy = infra.utils.get_host_data_and_security_policy(
+        args.enclave_platform
+    )
 
     LOG.info(
         "Removing trusted security policy so that a new joiner is seen as an unmatching policy"

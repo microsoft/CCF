@@ -251,17 +251,30 @@ def run_code_upgrade_from(
             LOG.info("Apply transactions to old service")
             issue_activity_on_live_service(network, args)
 
-            new_code_id = infra.utils.get_measurement(
+            LOG.info("Update constitution")
+            new_constitution = get_new_constitution_for_install(args, to_install_path)
+            network.consortium.set_constitution(primary, new_constitution)
+
+            new_measurement = infra.utils.get_measurement(
                 args.enclave_type,
                 args.enclave_platform,
                 args.package,
                 library_dir=to_library_dir,
             )
-            network.consortium.add_new_code(primary, new_code_id)
+            network.consortium.add_measurement(
+                primary, args.enclave_platform, new_measurement
+            )
 
-            LOG.info("Update constitution")
-            new_constitution = get_new_constitution_for_install(args, to_install_path)
-            network.consortium.set_constitution(primary, new_constitution)
+            new_host_data = None
+            try:
+                new_host_data, new_security_policy = (
+                    infra.utils.get_host_data_and_security_policy(args.enclave_platform)
+                )
+                network.consortium.add_host_data(
+                    primary, args.enclave_platform, new_host_data, new_security_policy
+                )
+            except ValueError as e:
+                LOG.warning(f"Not setting host data/security policy for new nodes: {e}")
 
             # Note: alternate between joining from snapshot and replaying entire ledger
             new_nodes = []
@@ -326,14 +339,29 @@ def run_code_upgrade_from(
             LOG.info("Apply transactions to hybrid network, with primary as old node")
             issue_activity_on_live_service(network, args)
 
-            old_code_id = infra.utils.get_measurement(
+            primary, _ = network.find_primary()
+
+            old_measurement = infra.utils.get_measurement(
                 args.enclave_type,
                 args.enclave_platform,
                 args.package,
                 library_dir=from_library_dir,
             )
-            primary, _ = network.find_primary()
-            network.consortium.retire_code(primary, old_code_id)
+            if old_measurement != new_measurement:
+                network.consortium.remove_measurement(
+                    primary, args.enclave_platform, old_measurement
+                )
+
+            # If host_data was found for original nodes, check if it's different on new nodes, in which case old should be removed
+            if new_host_data is not None:
+                old_host_data, old_security_policy = (
+                    infra.utils.get_host_data_and_security_policy(args.enclave_platform)
+                )
+
+                if old_host_data != new_host_data:
+                    network.consortium.remove_host_data(
+                        primary, args.enclave_platform, old_host_data
+                    )
 
             for index, node in enumerate(old_nodes):
                 network.retire_node(primary, node)
