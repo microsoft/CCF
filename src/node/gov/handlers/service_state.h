@@ -93,12 +93,23 @@ namespace ccf::gov::endpoints
       }
       case ccf::QuoteFormat::insecure_virtual:
       {
-        // TODO
         quote_info["format"] = "Insecure_Virtual";
-        quote_info["quote"] =
-          ccf::crypto::b64_from_raw(node_info.quote_info.quote);
-        quote_info["endorsements"] =
-          ccf::crypto::b64_from_raw(node_info.quote_info.endorsements);
+        quote_info["rawQuote"] = node_info.quote_info.quote;
+
+        {
+          const auto details =
+            nlohmann::json::parse(node_info.quote_info.quote);
+          auto j_details = nlohmann::json::object();
+          j_details["measurement"] = details["measurement"];
+          j_details["reportData"] = details["report_data"];
+          const auto security_policy =
+            details["security_policy"].get<std::string>();
+          j_details["securityPolicy"] = security_policy;
+          j_details["hostData"] =
+            ccf::crypto::Sha256Hash(security_policy).hex_str();
+          quote_info["details"] = j_details;
+        }
+
         break;
       }
       case ccf::QuoteFormat::amd_sev_snp_v1:
