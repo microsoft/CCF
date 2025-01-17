@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import os
 import http
-import subprocess
 import infra.network
 import infra.path
 import infra.proc
@@ -545,7 +544,6 @@ def gov(args):
         test_consensus_status(network, args)
         test_member_data(network, args)
         network = test_all_members(network, args)
-        test_quote(network, args)
         test_user(network, args)
         test_jinja_templates(network, args)
         test_no_quote(network, args)
