@@ -69,7 +69,7 @@ namespace ccf
       }
     }
 
-    static bool is_recovery_member_or_owner(
+    static bool is_recovery_participant_or_owner(
       ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
     {
       auto member_encryption_public_keys =
@@ -79,10 +79,10 @@ namespace ccf
       return member_encryption_public_keys->get(member_id).has_value();
     }
 
-    static bool is_recovery_member(
+    static bool is_recovery_participant(
       ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
     {
-      return is_recovery_member_or_owner(tx, member_id) &&
+      return is_recovery_participant_or_owner(tx, member_id) &&
         !is_recovery_owner(tx, member_id);
     }
 
@@ -113,8 +113,8 @@ namespace ccf
       return mi->status == MemberStatus::ACTIVE;
     }
 
-    static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_members(
-      ccf::kv::ReadOnlyTx& tx)
+    static std::map<MemberId, ccf::crypto::Pem>
+    get_active_recovery_participants(ccf::kv::ReadOnlyTx& tx)
     {
       auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto member_encryption_public_keys =
@@ -135,8 +135,8 @@ namespace ccf
 
           if (
             info->status == MemberStatus::ACTIVE &&
-            info->recovery_role.value_or(MemberRecoveryRole::Participant) !=
-              MemberRecoveryRole::Owner)
+            info->recovery_role.value_or(MemberRecoveryRole::Participant) ==
+              MemberRecoveryRole::Participant)
           {
             active_recovery_members[mid] = pem;
           }
@@ -299,20 +299,21 @@ namespace ccf
       // recovery
       if (
         member_to_remove->status == MemberStatus::ACTIVE &&
-        is_recovery_member(tx, member_id))
+        is_recovery_participant(tx, member_id))
       {
         // Because the member to remove is active, there is at least one
-        // active member (i.e. get_active_recovery_members_count_after >= 0)
-        size_t get_active_recovery_members_count_after =
-          get_active_recovery_members(tx).size() - 1;
+        // active member (i.e. get_active_recovery_participants_count_after >=
+        // 0)
+        size_t get_active_recovery_participants_count_after =
+          get_active_recovery_participants(tx).size() - 1;
         auto recovery_threshold = get_recovery_threshold(tx);
-        if (get_active_recovery_members_count_after < recovery_threshold)
+        if (get_active_recovery_participants_count_after < recovery_threshold)
         {
           LOG_FAIL_FMT(
             "Failed to remove recovery member {}: number of active recovery "
             "members ({}) would be less than recovery threshold ({})",
             member_id,
-            get_active_recovery_members_count_after,
+            get_active_recovery_participants_count_after,
             recovery_threshold);
           return false;
         }
@@ -582,7 +583,7 @@ namespace ccf
       auto service = tx.rw<ccf::Service>(Tables::SERVICE);
 
       auto active_recovery_members_count =
-        get_active_recovery_members(tx).size();
+        get_active_recovery_participants(tx).size();
       if (active_recovery_members_count < get_recovery_threshold(tx))
       {
         LOG_FAIL_FMT(
@@ -782,15 +783,15 @@ namespace ccf
       }
       else if (service_status.value() == ServiceStatus::OPEN)
       {
-        auto get_active_recovery_members_count =
-          get_active_recovery_members(tx).size();
-        if (threshold > get_active_recovery_members_count)
+        auto get_active_recovery_participants_count =
+          get_active_recovery_participants(tx).size();
+        if (threshold > get_active_recovery_participants_count)
         {
           LOG_FAIL_FMT(
             "Cannot set recovery threshold to {} as it is greater than the "
             "number of active recovery members ({})",
             threshold,
-            get_active_recovery_members_count);
+            get_active_recovery_participants_count);
           return false;
         }
       }

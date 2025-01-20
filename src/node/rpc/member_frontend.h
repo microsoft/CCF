@@ -760,7 +760,7 @@ namespace ccf
         auto member_info = members->get(member_id.value());
         if (
           service_status.value() == ServiceStatus::OPEN &&
-          InternalTablesAccess::is_recovery_member_or_owner(
+          InternalTablesAccess::is_recovery_participant_or_owner(
             ctx.tx, member_id.value()))
         {
           // When the service is OPEN and the new active member is a recovery

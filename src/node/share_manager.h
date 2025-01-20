@@ -167,7 +167,7 @@ namespace ccf
       auto shares = ls_wrapping_key.get_shares();
 
       auto active_recovery_members_info =
-        InternalTablesAccess::get_active_recovery_members(tx);
+        InternalTablesAccess::get_active_recovery_participants(tx);
 
       size_t share_index = 0;
       for (auto const& [member_id, enc_pub_key] : active_recovery_members_info)
@@ -199,7 +199,7 @@ namespace ccf
       ccf::kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
     {
       auto active_recovery_members_info =
-        InternalTablesAccess::get_active_recovery_members(tx);
+        InternalTablesAccess::get_active_recovery_participants(tx);
       size_t recovery_threshold =
         InternalTablesAccess::get_recovery_threshold(tx);
 
