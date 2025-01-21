@@ -536,12 +536,13 @@ int main(int argc, char** argv)
       // Hard-coded here and repeated in the relevant tests. Can be made dynamic
       // (eg - from an env var or file) when the tests are able to run SNP nodes
       // with distinct policies
-      startup_config.attestation.environment.security_policy =
-        default_virtual_security_policy;
+      char const* policy = std::getenv("CCF_VIRTUAL_SECURITY_POLICY");
+      if (policy == nullptr)
+      {
+        policy = default_virtual_security_policy;
+      }
+      startup_config.attestation.environment.security_policy = policy;
     }
-    LOG_INFO_FMT(
-      "!!!! startup_config.attestation.environment.security_policy = {}",
-      startup_config.attestation.environment.security_policy.value_or("\"\""));
 
     if (config.enclave.platform == host::EnclavePlatform::VIRTUAL)
     {

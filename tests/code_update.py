@@ -289,19 +289,20 @@ def test_add_node_with_stubbed_security_policy(network, args):
 
 
 @reqs.description("Start node with mismatching security policy")
-@reqs.snp_only()
 def test_add_node_with_bad_security_policy(network, args):
     try:
-        security_context_dir = snp.get_security_context_dir()
         with tempfile.TemporaryDirectory() as snp_dir:
-            if security_context_dir is not None:
-                shutil.copytree(security_context_dir, snp_dir, dirs_exist_ok=True)
-                with open(
-                    os.path.join(snp_dir, snp.ACI_SEV_SNP_FILENAME_SECURITY_POLICY),
-                    "w",
-                    encoding="utf-8",
-                ) as f:
-                    f.write(b64encode(b"invalid_security_policy").decode())
+            security_context_dir = None
+            if snp.IS_SNP:
+                security_context_dir = snp.get_security_context_dir()
+                if security_context_dir is not None:
+                    shutil.copytree(security_context_dir, snp_dir, dirs_exist_ok=True)
+                    with open(
+                        os.path.join(snp_dir, snp.ACI_SEV_SNP_FILENAME_SECURITY_POLICY),
+                        "w",
+                        encoding="utf-8",
+                    ) as f:
+                        f.write(b64encode(b"invalid_security_policy").decode())
 
             new_node = network.create_node("local://localhost")
             network.join_node(
@@ -310,6 +311,7 @@ def test_add_node_with_bad_security_policy(network, args):
                 args,
                 timeout=3,
                 snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
+                env={"CCF_VIRTUAL_SECURITY_POLICY": "invalid_security_policy"},
             )
     except (TimeoutError, RuntimeError):
         LOG.info("As expected, node with invalid security policy failed to startup")
@@ -410,7 +412,12 @@ def test_add_node_with_bad_code(network, args):
     code_not_found_exception = None
     try:
         new_node = network.create_node("local://localhost")
-        network.join_node(new_node, replacement_package, args, timeout=3)
+        network.join_node(
+            new_node,
+            replacement_package,
+            args,
+            timeout=3,
+        )
     except infra.network.CodeIdNotFound as err:
         code_not_found_exception = err
 
@@ -584,10 +591,10 @@ def run(args):
         test_host_data_tables(network, args)
         test_add_node_with_bad_host_data(network, args)
         test_add_node_with_stubbed_security_policy(network, args)
+        test_add_node_with_bad_security_policy(network, args)
 
         if snp.IS_SNP:
             test_add_node_without_security_policy(network, args)
-            test_add_node_with_bad_security_policy(network, args)
 
         # Endorsements
         if snp.IS_SNP:
