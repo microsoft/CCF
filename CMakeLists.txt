@@ -132,20 +132,6 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 
-if(SAN AND LVI_MITIGATIONS)
-  message(
-    FATAL_ERROR
-      "Building with both SAN and LVI mitigations is unsafe and deadlocks - choose one"
-  )
-endif()
-
-if(TSAN AND LVI_MITIGATIONS)
-  message(
-    FATAL_ERROR
-      "Building with both TSAN and LVI mitigations is unsafe and deadlocks - choose one"
-  )
-endif()
-
 # Copy and install CCF utilities
 set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh verify_quote.sh)
 foreach(UTILITY ${CCF_UTILITIES})
@@ -216,7 +202,6 @@ set(CCF_ENDPOINTS_SOURCES
 
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
-include(${CCF_DIR}/cmake/nghttp2.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
 
@@ -230,6 +215,7 @@ else()
   set(SNMALLOC_HEADER_ONLY_LIBRARY ON)
   add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
   set(SNMALLOC_COMPILE_OPTIONS "-mcx16")
+  set(SNMALLOC_INCLUDE_DIRS 3rdparty/exported/snmalloc/src)
   list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
 endif()
 
@@ -245,7 +231,9 @@ add_san(cchost)
 target_compile_options(
   cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
 )
-target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
+target_include_directories(
+  cchost PRIVATE ${CCF_GENERATED_DIR} ${SNMALLOC_INCLUDE_DIRS}
+)
 
 if(COMPILE_TARGET STREQUAL "snp")
   target_compile_definitions(cchost PUBLIC PLATFORM_SNP)
@@ -254,8 +242,15 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
 endif()
 
 target_link_libraries(
-  cchost PRIVATE uv ${TLS_LIBRARY} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
-                 ${LINK_LIBCXX} ccfcrypto.host
+  cchost
+  PRIVATE uv
+          ${TLS_LIBRARY}
+          ${CMAKE_DL_LIBS}
+          ${CMAKE_THREAD_LIBS_INIT}
+          ${LINK_LIBCXX}
+          ccfcrypto.host
+          curl
+          http_parser.host
 )
 
 install(TARGETS cchost DESTINATION bin)
@@ -536,7 +531,7 @@ if(COMPILE_TARGET STREQUAL "snp")
            ccf_endpoints.snp
            ccfcrypto.snp
            ccf_kv.snp
-           nghttp2.snp
+           nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -585,7 +580,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
-           nghttp2.host
+           nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -708,6 +703,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/dl_list.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -999,7 +995,7 @@ if(BUILD_TESTS)
       LABEL suite
       ADDITIONAL_ARGS
         --test-duration
-        150
+        300
         --test-suite
         rekey_recovery
         --test-suite
@@ -1013,7 +1009,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
       LABEL suite
       ADDITIONAL_ARGS
-        --test-duration 200 --test-suite reconfiguration --jinja-templates-path
+        --test-duration 300 --test-suite reconfiguration --jinja-templates-path
         ${CMAKE_SOURCE_DIR}/samples/templates
     )
 
@@ -1022,7 +1018,7 @@ if(BUILD_TESTS)
         NAME regression_test_suite
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
         LABEL suite
-        ADDITIONAL_ARGS --test-duration 200 --test-suite regression_5236
+        ADDITIONAL_ARGS --test-duration 300 --test-suite regression_5236
       )
     endif()
 
@@ -1036,7 +1032,7 @@ if(BUILD_TESTS)
         --ledger-recovery-timeout
         20
         --test-duration
-        200
+        300
         --test-suite
         all
         --jinja-templates-path

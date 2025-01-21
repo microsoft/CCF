@@ -3,9 +3,7 @@
 #include "../ds_core/ds_core.h"
 #include "flaglock.h"
 
-#include <array>
 #include <atomic>
-#include <string_view>
 #include <type_traits>
 
 namespace snmalloc
@@ -35,14 +33,15 @@ namespace snmalloc
 
       if (SNMALLOC_UNLIKELY(!initialised.load(std::memory_order_acquire)))
       {
-        FlagLock lock(flag);
-        if (!initialised)
-        {
-          init(&obj);
-          initialised.store(true, std::memory_order_release);
-          if (first != nullptr)
-            *first = true;
-        }
+        with(flag, [&]() {
+          if (!initialised)
+          {
+            init(&obj);
+            initialised.store(true, std::memory_order_release);
+            if (first != nullptr)
+              *first = true;
+          }
+        });
       }
       return obj;
     }

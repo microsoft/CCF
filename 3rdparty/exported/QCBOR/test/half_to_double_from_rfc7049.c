@@ -36,7 +36,7 @@
 #include <math.h>
 
 #ifndef USEFULBUF_DISABLE_ALL_FLOAT
-double decode_half(unsigned char *halfp) {
+double decode_half(const unsigned char *halfp) {
     int half = (halfp[0] << 8) + halfp[1];
     int exp = (half >> 10) & 0x1f;
     int mant = half & 0x3ff;

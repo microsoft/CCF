@@ -22,6 +22,7 @@
 
 #include <string.h>
 #include <utility>
+
 namespace snmalloc
 {
   enum Boundary
@@ -78,7 +79,7 @@ namespace snmalloc
     // allocation on the fast path. This part of the code is inspired by
     // mimalloc.
     // Also contains remote deallocation cache.
-    LocalCache local_cache{&Config::unused_remote};
+    LocalCache<Config> local_cache{&Config::unused_remote};
 
     // Underlying allocator for most non-fast path operations.
     CoreAlloc* core_alloc{nullptr};
@@ -184,13 +185,21 @@ namespace snmalloc
       }
 
       return check_init([&](CoreAlloc* core_alloc) {
+        if (size > bits::one_at_bit(bits::BITS - 1))
+        {
+          // Cannot allocate something that is more that half the size of the
+          // address space
+          errno = ENOMEM;
+          return capptr::Alloc<void>{nullptr};
+        }
         // Grab slab of correct size
         // Set remote as large allocator remote.
         auto [chunk, meta] = Config::Backend::alloc_chunk(
           core_alloc->get_backend_local_state(),
           large_size_to_chunk_size(size),
           PagemapEntry::encode(
-            core_alloc->public_state(), size_to_sizeclass_full(size)));
+            core_alloc->public_state(), size_to_sizeclass_full(size)),
+          size_to_sizeclass_full(size));
         // set up meta data so sizeclass is correct, and hence alloc size, and
         // external pointer.
 #ifdef SNMALLOC_TRACING
@@ -201,7 +210,7 @@ namespace snmalloc
         if (meta != nullptr)
         {
           meta->initialise_large(
-            address_cast(chunk), local_cache.entropy.get_free_list_key());
+            address_cast(chunk), freelist::Object::key_root);
           core_alloc->laden.insert(meta);
         }
 
@@ -245,8 +254,7 @@ namespace snmalloc
           sizeclass);
       };
 
-      return local_cache.template alloc<zero_mem, Config>(
-        domesticate, size, slowpath);
+      return local_cache.template alloc<zero_mem>(domesticate, size, slowpath);
     }
 
     /**
@@ -266,20 +274,20 @@ namespace snmalloc
      * In the second case we need to recheck if this is a remote deallocation,
      * as we might acquire the originating allocator.
      */
-    SNMALLOC_SLOW_PATH void dealloc_remote_slow(capptr::Alloc<void> p)
+    SNMALLOC_SLOW_PATH void
+    dealloc_remote_slow(const PagemapEntry& entry, capptr::Alloc<void> p)
     {
       if (core_alloc != nullptr)
       {
 #ifdef SNMALLOC_TRACING
         message<1024>(
-          "Remote dealloc post {} ({})",
+          "Remote dealloc post {} ({}, {})",
           p.unsafe_ptr(),
-          alloc_size(p.unsafe_ptr()));
+          alloc_size(p.unsafe_ptr()),
+          address_cast(entry.get_slab_metadata()));
 #endif
-        const PagemapEntry& entry =
-          Config::Backend::template get_metaentry(address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-          entry.get_remote()->trunc_id(), p);
+          entry.get_slab_metadata(), p, &local_cache.entropy);
         post_remote_cache();
         return;
       }
@@ -386,7 +394,7 @@ namespace snmalloc
       // Initialise the global allocator structures
       ensure_init();
       // Grab an allocator for this thread.
-      init(AllocPool<Config>::acquire(&(this->local_cache)));
+      init(AllocPool<Config>::acquire());
     }
 
     // Return all state in the fast allocator and release the underlying
@@ -647,14 +655,16 @@ namespace snmalloc
       if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
       {
         dealloc_cheri_checks(p_tame.unsafe_ptr());
-
-        if (SNMALLOC_LIKELY(CoreAlloc::dealloc_local_object_fast(
-              entry, p_tame, local_cache.entropy)))
-          return;
-        core_alloc->dealloc_local_object_slow(p_tame, entry);
+        core_alloc->dealloc_local_object(p_tame, entry);
         return;
       }
 
+      dealloc_remote(entry, p_tame);
+    }
+
+    SNMALLOC_SLOW_PATH void
+    dealloc_remote(const PagemapEntry& entry, capptr::Alloc<void> p_tame)
+    {
       RemoteAllocator* remote = entry.get_remote();
       if (SNMALLOC_LIKELY(remote != nullptr))
       {
@@ -670,15 +680,18 @@ namespace snmalloc
         if (local_cache.remote_dealloc_cache.reserve_space(entry))
         {
           local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-            remote->trunc_id(), p_tame);
+            entry.get_slab_metadata(), p_tame, &local_cache.entropy);
 #  ifdef SNMALLOC_TRACING
           message<1024>(
-            "Remote dealloc fast {} ({})", p_raw, alloc_size(p_raw));
+            "Remote dealloc fast {} ({}, {})",
+            address_cast(p_tame),
+            alloc_size(p_tame.unsafe_ptr()),
+            address_cast(entry.get_slab_metadata()));
 #  endif
           return;
         }
 
-        dealloc_remote_slow(p_tame);
+        dealloc_remote_slow(entry, p_tame);
         return;
       }
 
@@ -712,7 +725,7 @@ namespace snmalloc
         auto pm_size = sizeclass_full_to_size(pm_sc);
         snmalloc_check_client(
           mitigations(sanity_checks),
-          sc == pm_sc,
+          (sc == pm_sc) || (p == nullptr),
           "Dealloc rounded size mismatch: {} != {}",
           rsize,
           pm_size);
@@ -765,7 +778,7 @@ namespace snmalloc
       // entry for the first chunk of memory, that states it represents a
       // large object, so we can pull the check for null off the fast path.
       const PagemapEntry& entry =
-        Config::Backend::template get_metaentry(address_cast(p_raw));
+        Config::Backend::get_metaentry(address_cast(p_raw));
 
       return sizeclass_full_to_size(entry.get_sizeclass());
 #endif
@@ -807,6 +820,57 @@ namespace snmalloc
       {
         return pointer_offset(p, remaining_bytes(address_cast(p)));
       }
+    }
+
+    /**
+     * @brief Get the client meta data for the snmalloc allocation covering this
+     * pointer.
+     */
+    typename Config::ClientMeta::DataRef get_client_meta_data(void* p)
+    {
+      const PagemapEntry& entry =
+        Config::Backend::get_metaentry(address_cast(p));
+
+      size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
+
+      auto* meta_slab = entry.get_slab_metadata();
+
+      if (SNMALLOC_UNLIKELY(entry.is_backend_owned()))
+      {
+        error("Cannot access meta-data for write for freed memory!");
+      }
+
+      if (SNMALLOC_UNLIKELY(meta_slab == nullptr))
+      {
+        error(
+          "Cannot access meta-data for non-snmalloc object in writable form!");
+      }
+
+      return meta_slab->get_meta_for_object(index);
+    }
+
+    /**
+     * @brief Get the client meta data for the snmalloc allocation covering this
+     * pointer.
+     */
+    std::add_const_t<typename Config::ClientMeta::DataRef>
+    get_client_meta_data_const(void* p)
+    {
+      const PagemapEntry& entry =
+        Config::Backend::template get_metaentry<true>(address_cast(p));
+
+      size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
+
+      auto* meta_slab = entry.get_slab_metadata();
+
+      if (SNMALLOC_UNLIKELY(
+            (meta_slab == nullptr) || (entry.is_backend_owned())))
+      {
+        static typename Config::ClientMeta::StorageType null_meta_store{};
+        return Config::ClientMeta::get(&null_meta_store, 0);
+      }
+
+      return meta_slab->get_meta_for_object(index);
     }
 
     /**
@@ -862,7 +926,7 @@ namespace snmalloc
      * core allocator for use by this local allocator then it needs to access
      * this field.
      */
-    LocalCache& get_local_cache()
+    LocalCache<Config>& get_local_cache()
     {
       return local_cache;
     }
