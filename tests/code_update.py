@@ -594,6 +594,12 @@ def run(args):
         test_add_node_with_bad_security_policy(network, args)
 
         if snp.IS_SNP:
+            # Not tested on virtual, as this relies on the fact that the local security
+            # policy can be ignored on SNP. It has been applied already, and its digest
+            # is available as a host_data claim, so the raw policy is merely an audit
+            # nicety and nodes will launch without it. This is not true on virtual, where
+            # an actual "security policy" value is always digested at launch time to
+            # produce a host_data value.
             test_add_node_without_security_policy(network, args)
 
         # Endorsements
