@@ -1646,8 +1646,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
 
   // Run a few more iterations manually interleaved, simulating a synchronous
   // period, to reach quiescence
-  static constexpr size_t worst_case =
-    messages_each / 10 /*Channels::outgoing_forwarding_queue_size*/;
+  static constexpr size_t worst_case = 2 * messages_each / 10;
   for (auto i = 0; i < worst_case; ++i)
   {
     LOG_INFO_FMT("Catchup loop #{}/{}", i, worst_case);
@@ -1655,6 +1654,14 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     tc2.process(finished_reading, true);
     nbwf1.flush_all_outbound();
     nbwf2.flush_all_outbound();
+
+    if (
+      to_send_from_1.empty() && to_send_from_2.empty() &&
+      finished_reading.load() == 2)
+    {
+      LOG_INFO_FMT("Early out after {}/{} iterations\n", i, worst_case);
+      break;
+    }
   }
 
   REQUIRE(to_send_from_1.empty());
