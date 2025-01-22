@@ -78,7 +78,7 @@ def get_new_constitution_for_install(args, install_path):
         args.constitution[:] = [
             (
                 os.path.join(constitution_directory, fragment_name)
-                if fragment_name in f
+                if os.path.basename(f) == fragment_name
                 else f
             )
             for f in args.constitution
