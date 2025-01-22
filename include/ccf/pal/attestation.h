@@ -238,7 +238,7 @@ namespace ccf::pal
     else
     {
       throw std::logic_error(
-        "Cannot verify SGX attestation report in this build");
+        "SGX attestation reports are no longer supported from 6.0.0 onwards");
     }
   }
 #endif
