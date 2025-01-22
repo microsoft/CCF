@@ -1120,8 +1120,13 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
-                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      ADDITIONAL_ARGS
+        --oe-binary
+        ${OE_BINDIR}
+        --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+        --constitution
+        ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
     )
 
     if(BUILD_TPCC)
@@ -1268,7 +1273,10 @@ if(BUILD_TESTS)
         NAME lts_compatibility
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
         LABEL e2e
-        ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+        ADDITIONAL_ARGS
+          ${LTS_TEST_ARGS}
+          --constitution
+          ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
       )
       set_property(
         TEST lts_compatibility
