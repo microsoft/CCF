@@ -1058,19 +1058,6 @@ const actions = new Map([
     ),
   ],
   [
-    "add_executor_node_code",
-    new Action(
-      function (args) {
-        checkType(args.executor_code_id, "string", "executor_code_id");
-      },
-      function (args) {
-        const codeId = ccf.strToBuf(args.executor_code_id);
-        const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToExecute");
-        ccf.kv["public:ccf.gov.nodes.executor_code_ids"].set(codeId, ALLOWED);
-      },
-    ),
-  ],
-  [
     "add_snp_host_data",
     new Action(
       function (args) {
@@ -1259,18 +1246,6 @@ const actions = new Map([
       function (args) {
         const codeId = ccf.strToBuf(args.code_id);
         ccf.kv["public:ccf.gov.nodes.code_ids"].delete(codeId);
-      },
-    ),
-  ],
-  [
-    "remove_executor_node_code",
-    new Action(
-      function (args) {
-        checkType(args.executor_code_id, "string", "executor_code_id");
-      },
-      function (args) {
-        const codeId = ccf.strToBuf(args.executor_code_id);
-        ccf.kv["public:ccf.gov.nodes.executor_code_ids"].delete(codeId);
       },
     ),
   ],
