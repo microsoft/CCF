@@ -9,13 +9,13 @@ actions.set(
       const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToJoin");
       ccf.kv["public:ccf.gov.nodes.virtual.measurements"].set(
         measurement,
-        ALLOWED
+        ALLOWED,
       );
 
       // Adding a new allowed measurement changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
       invalidateOtherOpenProposals(proposalId);
-    }
-  )
+    },
+  ),
 );
 
 actions.set(
@@ -28,13 +28,13 @@ actions.set(
     function (args, proposalId) {
       ccf.kv["public:ccf.gov.nodes.virtual.host_data"].set(
         ccf.strToBuf(args.host_data),
-        ccf.jsonCompatibleToBuf(args.metadata)
+        ccf.jsonCompatibleToBuf(args.metadata),
       );
 
       // Adding a new allowed host data changes the semantics of any other open proposals, so invalidate them to avoid confusion or malicious vote modification
       invalidateOtherOpenProposals(proposalId);
-    }
-  )
+    },
+  ),
 );
 
 actions.set(
@@ -46,8 +46,8 @@ actions.set(
     function (args) {
       const hostData = ccf.strToBuf(args.host_data);
       ccf.kv["public:ccf.gov.nodes.virtual.host_data"].delete(hostData);
-    }
-  )
+    },
+  ),
 );
 
 actions.set(
@@ -59,6 +59,6 @@ actions.set(
     function (args) {
       const measurement = ccf.strToBuf(args.measurement);
       ccf.kv["public:ccf.gov.nodes.virtual.measurements"].delete(measurement);
-    }
-  )
+    },
+  ),
 );
