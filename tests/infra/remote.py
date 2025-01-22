@@ -437,6 +437,9 @@ class CCFRemote(object):
 
         # Constitution
         constitution = [os.path.basename(f) for f in constitution]
+        assert len(set(constitution)) == len(
+            constitution
+        ), f"Constitution contains files with duplicate names, which is not going to do what you want. Recommend renaming one of them, or improving this infra to copy them to unique names."
 
         # ACME
         if "acme" in kwargs and host.acme_challenge_server_interface:
