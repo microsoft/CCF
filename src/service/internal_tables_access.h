@@ -121,10 +121,10 @@ namespace ccf
         tx.ro<ccf::MemberPublicEncryptionKeys>(
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-      std::map<MemberId, ccf::crypto::Pem> active_recovery_members;
+      std::map<MemberId, ccf::crypto::Pem> active_recovery_participants;
 
       member_encryption_public_keys->foreach(
-        [&active_recovery_members,
+        [&active_recovery_participants,
          &member_info](const auto& mid, const auto& pem) {
           auto info = member_info->get(mid);
           if (!info.has_value())
@@ -138,11 +138,11 @@ namespace ccf
             info->recovery_role.value_or(MemberRecoveryRole::Participant) ==
               MemberRecoveryRole::Participant)
           {
-            active_recovery_members[mid] = pem;
+            active_recovery_participants[mid] = pem;
           }
           return true;
         });
-      return active_recovery_members;
+      return active_recovery_participants;
     }
 
     static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_owners(
@@ -582,14 +582,14 @@ namespace ccf
     {
       auto service = tx.rw<ccf::Service>(Tables::SERVICE);
 
-      auto active_recovery_members_count =
+      auto active_recovery_participants_count =
         get_active_recovery_participants(tx).size();
-      if (active_recovery_members_count < get_recovery_threshold(tx))
+      if (active_recovery_participants_count < get_recovery_threshold(tx))
       {
         LOG_FAIL_FMT(
           "Cannot open network as number of active recovery members ({}) is "
           "less than recovery threshold ({})",
-          active_recovery_members_count,
+          active_recovery_participants_count,
           get_recovery_threshold(tx));
         return false;
       }

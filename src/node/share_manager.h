@@ -25,7 +25,6 @@ namespace ccf
     bool has_wrapped = false;
     size_t num_shares;
     size_t recovery_threshold;
-    std::vector<uint8_t> data; // Referred to as "kz" in TR
     ccf::crypto::sharing::Share secret;
     std::vector<ccf::crypto::sharing::Share> shares;
 
@@ -38,12 +37,6 @@ namespace ccf
       shares.resize(num_shares);
       ccf::crypto::sharing::sample_secret_and_shares(
         secret, shares, recovery_threshold);
-      data = secret.key(KZ_KEY_SIZE);
-    }
-
-    ~SharedLedgerSecretWrappingKey()
-    {
-      OPENSSL_cleanse(data.data(), data.size());
     }
 
     size_t get_num_shares() const
@@ -66,9 +59,9 @@ namespace ccf
       return shares_;
     }
 
-    std::vector<uint8_t> get_full_share_serialised() const
+    void get_full_share_serialised(std::vector<uint8_t>& serialised) const
     {
-      return secret.serialise();
+      secret.serialise(serialised);
     }
 
     std::vector<uint8_t> wrap(const LedgerSecretPtr& ledger_secret)
@@ -81,13 +74,23 @@ namespace ccf
 
       ccf::crypto::GcmCipher encrypted_ls(ledger_secret->raw_key.size());
 
-      ccf::crypto::make_key_aes_gcm(data)->encrypt(
-        encrypted_ls.hdr.get_iv(), // iv is always 0 here as the share wrapping
-                                   // key is never re-used for encryption
-        ledger_secret->raw_key,
-        {},
-        encrypted_ls.cipher,
-        encrypted_ls.hdr.tag);
+      std::vector<uint8_t> data = secret.key(KZ_KEY_SIZE);
+      try
+      {
+        ccf::crypto::make_key_aes_gcm(data)->encrypt(
+          encrypted_ls.hdr
+            .get_iv(), // iv is always 0 here as the share wrapping
+                       // key is never re-used for encryption
+          ledger_secret->raw_key,
+          {},
+          encrypted_ls.cipher,
+          encrypted_ls.hdr.tag);
+      }
+      catch (...)
+      {
+        OPENSSL_cleanse(data.data(), data.size());
+        throw;
+      }
 
       has_wrapped = true;
 
@@ -99,7 +102,6 @@ namespace ccf
   {
   private:
     static constexpr auto KZ_KEY_SIZE = ccf::crypto::GCM_DEFAULT_KEY_SIZE;
-    std::vector<uint8_t> data; // Referred to as "kz" in TR
     ccf::crypto::sharing::Share secret;
 
   public:
@@ -109,18 +111,11 @@ namespace ccf
     {
       ccf::crypto::sharing::recover_unauthenticated_secret(
         secret, shares_, recovery_threshold_);
-      data = secret.key(KZ_KEY_SIZE);
     }
 
     ReconstructedLedgerSecretWrappingKey(ccf::crypto::sharing::Share& secret_)
     {
       secret = secret_;
-      data = secret_.key(KZ_KEY_SIZE);
-    }
-
-    ~ReconstructedLedgerSecretWrappingKey()
-    {
-      OPENSSL_cleanse(data.data(), data.size());
     }
 
     LedgerSecretPtr unwrap(
@@ -130,14 +125,23 @@ namespace ccf
       encrypted_ls.deserialise(wrapped_latest_ledger_secret);
       std::vector<uint8_t> decrypted_ls;
 
-      if (!ccf::crypto::make_key_aes_gcm(data)->decrypt(
-            encrypted_ls.hdr.get_iv(),
-            encrypted_ls.hdr.tag,
-            encrypted_ls.cipher,
-            {},
-            decrypted_ls))
+      std::vector<uint8_t> data = secret.key(KZ_KEY_SIZE);
+      try
       {
-        throw std::logic_error("Unwrapping latest ledger secret failed");
+        if (!ccf::crypto::make_key_aes_gcm(data)->decrypt(
+              encrypted_ls.hdr.get_iv(),
+              encrypted_ls.hdr.tag,
+              encrypted_ls.cipher,
+              {},
+              decrypted_ls))
+        {
+          throw std::logic_error("Unwrapping latest ledger secret failed");
+        }
+      }
+      catch (...)
+      {
+        OPENSSL_cleanse(data.data(), data.size());
+        throw;
       }
 
       return std::make_shared<LedgerSecret>(std::move(decrypted_ls));
@@ -166,11 +170,12 @@ namespace ccf
       EncryptedSharesMap encrypted_shares;
       auto shares = ls_wrapping_key.get_shares();
 
-      auto active_recovery_members_info =
+      auto active_recovery_participants_info =
         InternalTablesAccess::get_active_recovery_participants(tx);
 
       size_t share_index = 0;
-      for (auto const& [member_id, enc_pub_key] : active_recovery_members_info)
+      for (auto const& [member_id, enc_pub_key] :
+           active_recovery_participants_info)
       {
         auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
         auto raw_share = std::vector<uint8_t>(
@@ -183,13 +188,21 @@ namespace ccf
 
       auto active_recovery_owners_info =
         InternalTablesAccess::get_active_recovery_owners(tx);
-
-      for (auto const& [member_id, enc_pub_key] : active_recovery_owners_info)
+      if (active_recovery_owners_info.size() > 0)
       {
-        auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
-        auto raw_secret = ls_wrapping_key.get_full_share_serialised();
-        encrypted_shares[member_id] =
-          member_enc_pubk->rsa_oaep_wrap(raw_secret);
+        std::vector<uint8_t> full_share_serialised(
+          ccf::crypto::sharing::Share::serialised_size);
+        ls_wrapping_key.get_full_share_serialised(full_share_serialised);
+
+        for (auto const& [member_id, enc_pub_key] : active_recovery_owners_info)
+        {
+          auto member_enc_pubk = ccf::crypto::make_rsa_public_key(enc_pub_key);
+          encrypted_shares[member_id] =
+            member_enc_pubk->rsa_oaep_wrap(full_share_serialised);
+        }
+
+        OPENSSL_cleanse(
+          full_share_serialised.data(), full_share_serialised.size());
       }
 
       return encrypted_shares;
@@ -198,12 +211,12 @@ namespace ccf
     void shuffle_recovery_shares(
       ccf::kv::Tx& tx, const LedgerSecretPtr& latest_ledger_secret)
     {
-      auto active_recovery_members_info =
+      auto active_recovery_participants_info =
         InternalTablesAccess::get_active_recovery_participants(tx);
       size_t recovery_threshold =
         InternalTablesAccess::get_recovery_threshold(tx);
 
-      if (active_recovery_members_info.empty())
+      if (active_recovery_participants_info.empty())
       {
         throw std::logic_error(
           "There should be at least one active recovery member to issue "
@@ -217,16 +230,16 @@ namespace ccf
           "shares are computed");
       }
 
-      if (recovery_threshold > active_recovery_members_info.size())
+      if (recovery_threshold > active_recovery_participants_info.size())
       {
         throw std::logic_error(fmt::format(
           "Recovery threshold {} should be equal to or less than the number of "
           "active recovery members {}",
           recovery_threshold,
-          active_recovery_members_info.size()));
+          active_recovery_participants_info.size()));
       }
 
-      const auto num_shares = active_recovery_members_info.size();
+      const auto num_shares = active_recovery_participants_info.size();
       auto ls_wrapping_key =
         SharedLedgerSecretWrappingKey(num_shares, recovery_threshold);
 

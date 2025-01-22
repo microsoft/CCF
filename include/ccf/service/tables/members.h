@@ -27,9 +27,9 @@ namespace ccf
     NonParticipant = 0,
     Participant,
 
-    /** If set then the member is to receive the full wrapper key
-       allowing it to single-handedly recover the network without
-       requiring any other recovery member to submit their shares. */
+    /** If set then the member is to receive a key allowing it
+       to single-handedly recover the network without requiring
+       any other recovery member to submit their shares. */
     Owner
   };
   DECLARE_JSON_ENUM(
