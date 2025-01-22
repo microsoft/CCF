@@ -141,7 +141,7 @@ DEPRECATED. Previously contained versions of the code allowed to join the curren
 ``nodes.virtual.host_data``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Virtual table mimicking SNP host_data, restricting which host_data values may be presented by new nodes joining the network.
+Map mimicking SNP host_data for virtual nodes, restricting which host_data values may be presented by new nodes joining the network.
 
 **Key** Host data: The host data.
 
