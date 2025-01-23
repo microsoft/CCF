@@ -366,7 +366,7 @@ def recovery_shares_scenario(args):
 
 
 def recovery_shares_with_owners_scenario(args):
-    # Members 0 is recovery owner, and 1 are 2 are recovery participants and member 3 is non-recovery member
+    # Members 0 is recovery owner, 1 are 2 are recovery participants and member 3 is non-recovery member
     args.initial_member_count = 4
     args.initial_recovery_member_count = 3
     args.initial_recovery_owner_count = 1
