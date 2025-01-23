@@ -290,7 +290,7 @@ def cli_args(
         "--initial-recovery-owner-count",
         help="Number of initial members that are handed full recovery shares",
         type=int,
-        default=int(os.getenv("INITIAL_OWNER_COUNT", "0")),
+        default=int(os.getenv("INITIAL_RECOVERY_OWNER_COUNT", "0")),
     )
     parser.add_argument(
         "--ledger-recovery-timeout",

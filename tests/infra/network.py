@@ -562,11 +562,13 @@ class Network:
         assert (
             mc >= args.initial_operator_provisioner_count + args.initial_operator_count
         ), f"Not enough members ({mc}) for the set amount of operator provisioners and operators"
-        assert (
-            mc
-            >= args.initial_recovery_participant_count
-            + args.initial_recovery_owner_count
-        ), f"Not enough members ({mc}) for the set amount of recovery participants and owners"
+
+        if args.initial_recovery_owner_count > 0:
+            assert (
+                mc
+                >= args.initial_recovery_participant_count
+                + args.initial_recovery_owner_count
+            ), f"Not enough members ({mc}) for the set amount of recovery participants and owners ({args.initial_recovery_participant_count + args.initial_recovery_owner_count})"
 
         initial_members_info = []
         for i in range(mc):
