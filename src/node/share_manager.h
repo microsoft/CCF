@@ -213,10 +213,14 @@ namespace ccf
     {
       auto active_recovery_participants_info =
         InternalTablesAccess::get_active_recovery_participants(tx);
+      auto active_recovery_owners_info =
+        InternalTablesAccess::get_active_recovery_owners(tx);
       size_t recovery_threshold =
         InternalTablesAccess::get_recovery_threshold(tx);
 
-      if (active_recovery_participants_info.empty())
+      if (
+        active_recovery_participants_info.empty() &&
+        active_recovery_owners_info.empty())
       {
         throw std::logic_error(
           "There should be at least one active recovery member to issue "
@@ -230,16 +234,34 @@ namespace ccf
           "shares are computed");
       }
 
-      if (recovery_threshold > active_recovery_participants_info.size())
+      size_t num_shares;
+      if (!active_recovery_participants_info.empty())
       {
-        throw std::logic_error(fmt::format(
-          "Recovery threshold {} should be equal to or less than the number of "
-          "active recovery members {}",
-          recovery_threshold,
-          active_recovery_participants_info.size()));
+        if (recovery_threshold > active_recovery_participants_info.size())
+        {
+          throw std::logic_error(fmt::format(
+            "Recovery threshold {} should be equal to or less than the number "
+            "of active recovery members {}",
+            recovery_threshold,
+            active_recovery_participants_info.size()));
+        }
+
+        num_shares = active_recovery_participants_info.size();
+      }
+      else
+      {
+        if (recovery_threshold > 1)
+        {
+          throw std::logic_error(fmt::format(
+            "Recovery threshold {} cannot be greater than 1 when the "
+            "consortium consists of only active recovery owner members ({})",
+            recovery_threshold,
+            active_recovery_owners_info.size()));
+        }
+
+        num_shares = 1;
       }
 
-      const auto num_shares = active_recovery_participants_info.size();
       auto ls_wrapping_key =
         SharedLedgerSecretWrappingKey(num_shares, recovery_threshold);
 
