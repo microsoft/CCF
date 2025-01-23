@@ -21,7 +21,9 @@ message(STATUS "Debian package version: ${CPACK_DEBIAN_PACKAGE_VERSION}")
 # Note: On Ubuntu, the most up-to-date version of the OpenSSL deb package is
 # 1.1.1f, which corresponds to the OpenSSL 1.1.1t release (latest security
 # patches).
-set(CCF_DEB_BASE_DEPENDENCIES "libuv1 (>= 1.34.2);openssl (>=1.1.1f)")
+set(CCF_DEB_BASE_DEPENDENCIES
+    "libuv1 (>= 1.34.2);openssl (>=1.1.1f);libnghttp2-14 (>=1.40.0);curl (>=7.68.0)"
+)
 set(CCF_DEB_DEPENDENCIES ${CCF_DEB_BASE_DEPENDENCIES})
 
 list(APPEND CCF_DEB_DEPENDENCIES "libc++1-15;libc++abi1-15")

@@ -26,6 +26,9 @@ option(SNMALLOC_NO_REALLOCARR "Build without reallocarr exported" ON)
 option(SNMALLOC_LINK_ICF "Link with Identical Code Folding" ON)
 option(SNMALLOC_IPO "Link with IPO/LTO support" OFF)
 option(SNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS "Build tests and ld_preload for individual mitigations" OFF)
+option(SNMALLOC_ENABLE_DYNAMIC_LOADING "Build such that snmalloc can be dynamically loaded. This is not required for LD_PRELOAD, and will harm performance if enabled." OFF)
+option(SNMALLOC_ENABLE_WAIT_ON_ADDRESS "Use wait on address backoff strategy if it is available" ON)
+option(SNMALLOC_ENABLE_FUZZING "Enable fuzzing instrumentation tests" OFF)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
@@ -59,6 +62,18 @@ endif()
 set(SNMALLOC_SANITIZER "" CACHE STRING "Use sanitizer type (undefined|thread|...)")
 if (SNMALLOC_SANITIZER)
   message(STATUS "Using sanitizer=${SNMALLOC_SANITIZER}")
+endif()
+
+set(SNMALLOC_MIN_ALLOC_SIZE "" CACHE STRING "Minimum allocation bytes (power of 2)")
+set(SNMALLOC_MIN_ALLOC_STEP_SIZE "" CACHE STRING "Minimum allocation step (power of 2)")
+
+set(SNMALLOC_PAGESIZE "" CACHE STRING "Page size in bytes")
+
+set(SNMALLOC_DEALLOC_BATCH_RING_ASSOC "" CACHE STRING "Associativity of deallocation batch cache; 0 to disable")
+set(SNMALLOC_DEALLOC_BATCH_RING_SET_BITS "" CACHE STRING "Logarithm of number of deallocation batch cache associativity sets")
+
+if(MSVC AND SNMALLOC_STATIC_LIBRARY AND (SNMALLOC_STATIC_LIBRARY_PREFIX STREQUAL ""))
+  message(FATAL_ERROR "Empty static library prefix not supported on MSVC")
 endif()
 
 # If CheckLinkerFlag doesn't exist then provide a dummy implementation that
@@ -121,6 +136,9 @@ int main() {
 # this is why we check its existence here
 CHECK_INCLUDE_FILE_CXX(linux/random.h SNMALLOC_HAS_LINUX_RANDOM_H)
 
+# check if futex.h is available
+CHECK_INCLUDE_FILE_CXX(linux/futex.h SNMALLOC_HAS_LINUX_FUTEX_H)
+
 # Provide as function so other projects can reuse
 # FIXME: This modifies some variables that may or may not be the ones that
 # provide flags and so is broken by design.  It should be removed once Verona
@@ -150,7 +168,7 @@ function(clangformat_targets)
   # tool.  It does not work with older versions as AfterCaseLabel is not supported
   # in earlier versions.
   find_program(CLANG_FORMAT NAMES
-    clang-format90 clang-format-9)
+    clang-format150 clang-format-15)
 
   # If we've found a clang-format tool, generate a target for it, otherwise emit
   # a warning.
@@ -176,10 +194,25 @@ endfunction()
 add_library(snmalloc INTERFACE)
 
 if(SNMALLOC_USE_CXX17)
-  target_compile_definitions(snmalloc INTERFACE -DSNMALLOC_USE_CXX17)
   target_compile_features(snmalloc INTERFACE cxx_std_17)
 else()
   target_compile_features(snmalloc INTERFACE cxx_std_20)
+endif()
+
+if(SNMALLOC_ENABLE_WAIT_ON_ADDRESS)
+  target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_WAIT_ON_ADDRESS=1)
+else()
+  target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_WAIT_ON_ADDRESS=0)
+endif()
+
+# https://learn.microsoft.com/en-us/cpp/build/reference/zc-cplusplus
+if(MSVC)
+  target_compile_options(snmalloc INTERFACE "/Zc:__cplusplus")
+endif()
+
+if (CMAKE_SYSTEM_NAME STREQUAL NetBSD)
+	target_include_directories(snmalloc INTERFACE /usr/pkg/include)
+	target_link_directories(snmalloc INTERFACE /usr/pkg/lib)
 endif()
 
 # Add header paths.
@@ -221,18 +254,30 @@ endif()
 function(add_as_define FLAG)
   target_compile_definitions(snmalloc INTERFACE $<$<BOOL:${${FLAG}}>:${FLAG}>)
 endfunction()
+function(add_as_define_value KEY)
+  if (NOT ${${KEY}} STREQUAL "")
+    target_compile_definitions(snmalloc INTERFACE ${KEY}=${${KEY}})
+  endif ()
+endfunction()
 
 add_as_define(SNMALLOC_QEMU_WORKAROUND)
 add_as_define(SNMALLOC_TRACING)
 add_as_define(SNMALLOC_CI_BUILD)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)
 add_as_define(SNMALLOC_HAS_LINUX_RANDOM_H)
+add_as_define(SNMALLOC_HAS_LINUX_FUTEX_H)
 if (SNMALLOC_NO_REALLOCARRAY)
   add_as_define(SNMALLOC_NO_REALLOCARRAY)
 endif()
 if (SNMALLOC_NO_REALLOCARR)
   add_as_define(SNMALLOC_NO_REALLOCARR)
 endif()
+add_as_define_value(SNMALLOC_MIN_ALLOC_SIZE)
+add_as_define_value(SNMALLOC_MIN_ALLOC_STEP_SIZE)
+add_as_define_value(SNMALLOC_DEALLOC_BATCH_RING_ASSOC)
+add_as_define_value(SNMALLOC_DEALLOC_BATCH_RING_SET_BITS)
+
+add_as_define_value(SNMALLOC_PAGESIZE)
 
 target_compile_definitions(snmalloc INTERFACE $<$<BOOL:CONST_QUALIFIED_MALLOC_USABLE_SIZE>:MALLOC_USABLE_SIZE_QUALIFIER=const>)
 
@@ -316,6 +361,9 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         if(SNMALLOC_SANITIZER)
           target_compile_options(${TESTNAME} PRIVATE -g -fsanitize=${SNMALLOC_SANITIZER} -fno-omit-frame-pointer)
           target_link_libraries(${TESTNAME} -fsanitize=${SNMALLOC_SANITIZER})
+          if (${SNMALLOC_SANITIZER} MATCHES "thread")
+            target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_THREAD_SANITIZER_ENABLED)
+          endif()
         endif()
 
         add_warning_flags(${TESTNAME})
@@ -386,8 +434,14 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
       target_compile_options(${name} PRIVATE
         -fomit-frame-pointer -ffunction-sections)
+
+      check_cxx_compiler_flag("-Werror -Wextra -Wall -mprfchw" SUPPORT_PREFETCH_WRITE)
+      if (SUPPORT_PREFETCH_WRITE)
+        target_compile_options(${name} PRIVATE -mprfchw)
+      endif()
       # Static TLS model is unsupported on Haiku.
-      if (NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+      if ((NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku") AND (NOT SNMALLOC_ENABLE_DYNAMIC_LOADING))
+        message(STATUS "snmalloc: Using static TLS model")
         target_compile_options(${name} PRIVATE -ftls-model=initial-exec)
         target_compile_options(${name} PRIVATE $<$<BOOL:${SNMALLOC_CI_BUILD}>:-g>)
       endif()
@@ -426,8 +480,10 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
   endfunction()
 
-  set(SHIM_FILES src/snmalloc/override/new.cc)
+  set(SHIM_FILES src/snmalloc/override/malloc.cc src/snmalloc/override/new.cc)
   set(SHIM_FILES_MEMCPY src/snmalloc/override/memcpy.cc)
+
+  add_shim(snmalloc-new-override STATIC src/snmalloc/override/new.cc)
 
   if (SNMALLOC_STATIC_LIBRARY)
     add_shim(snmallocshim-static STATIC ${SHIM_FILES})
@@ -549,3 +605,6 @@ install(EXPORT snmallocConfig
   DESTINATION "share/snmalloc"
 )
 
+if (SNMALLOC_ENABLE_FUZZING)
+  add_subdirectory(fuzzing)
+endif()

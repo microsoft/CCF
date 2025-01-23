@@ -222,11 +222,16 @@ def test_read_ledger_utility(network, args):
     primary, backups = network.find_nodes()
     for node in (primary, *backups):
         ledger_dirs = node.remote.ledger_paths()
-        assert ccf.read_ledger.run(paths=ledger_dirs, tables_format_rules=format_rule)
+        assert ccf.read_ledger.run(
+            paths=ledger_dirs,
+            print_mode=ccf.read_ledger.PrintMode.Contents,
+            tables_format_rules=format_rule,
+        )
 
     snapshot_dir = network.get_committed_snapshots(primary)
     assert ccf.read_ledger.run(
         paths=[os.path.join(snapshot_dir, os.listdir(snapshot_dir)[-1])],
+        print_mode=ccf.read_ledger.PrintMode.Contents,
         is_snapshot=True,
         tables_format_rules=format_rule,
     )

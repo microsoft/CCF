@@ -8,7 +8,7 @@ The Confidential Consortium Framework (CCF) is an open-source framework for buil
 
 ## Get Started with CCF
 
-- Read the [CCF overview](https://microsoft.github.io/CCF/main/overview/index.html) and becime familiar with the [core concepts](https://microsoft.github.io/CCF/main/overview/what_is_ccf.html)
+- Read the [CCF overview](https://microsoft.github.io/CCF/main/overview/index.html) and become familiar with the [core concepts](https://microsoft.github.io/CCF/main/overview/what_is_ccf.html)
 - [Install](https://microsoft.github.io/CCF/main/build_apps/install_bin.html) CCF on Linux
 - Become familiar with the CCF core developer API with the [template CCF app](https://github.com/microsoft/ccf-app-template)
 - Quickly build and run [sample CCF apps](https://github.com/microsoft/ccf-app-samples)

@@ -4,6 +4,7 @@
 #include <string.h>
 
 using namespace snmalloc;
+
 namespace
 {
   /**
@@ -88,7 +89,9 @@ extern "C"
   // statistics on fork if built with statistics.
 
   SNMALLOC_EXPORT SNMALLOC_USED_FUNCTION inline void _malloc_prefork(void) {}
+
   SNMALLOC_EXPORT SNMALLOC_USED_FUNCTION inline void _malloc_postfork(void) {}
+
   SNMALLOC_EXPORT SNMALLOC_USED_FUNCTION inline void _malloc_first_thread(void)
   {}
 
@@ -116,7 +119,7 @@ extern "C"
    * now, this is always implemented to return an error.
    */
   SNMALLOC_EXPORT int
-    SNMALLOC_NAME_MANGLE(mallctl)(const char*, void*, size_t*, void*, size_t)
+  SNMALLOC_NAME_MANGLE(mallctl)(const char*, void*, size_t*, void*, size_t)
   {
     return ENOENT;
   }
@@ -265,7 +268,7 @@ extern "C"
    * controlling the thread cache and arena are ignored.
    */
   SNMALLOC_EXPORT void*
-    SNMALLOC_NAME_MANGLE(rallocx)(void* ptr, size_t size, int flags)
+  SNMALLOC_NAME_MANGLE(rallocx)(void* ptr, size_t size, int flags)
   {
     auto f = JEMallocFlags(flags);
     size = f.aligned_size(size);

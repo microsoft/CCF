@@ -153,18 +153,22 @@ Indexing
    :project: CCF
    :members:
 
-JavaScript FFI Plugins
-----------------------
-
-.. doxygenfunction:: ccf::get_js_plugins
-   :project: CCF
-
 HTTP Entity Tags Matching
 -------------------------
 
 .. doxygenclass:: ccf::http::Matcher
    :project: CCF
    :members:
+
+HTTP Accept Header Matching
+---------------------------
+
+.. doxygenstruct:: ccf::http::AcceptHeaderField
+   :project: CCF
+   :members:
+
+.. doxygenfunction:: ccf::http::parse_accept_header
+   :project: CCF
 
 COSE
 ----

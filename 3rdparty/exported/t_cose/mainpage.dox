@@ -1,0 +1,18 @@
+/*! @mainpage t_cose Documentation
+
+t_cose 1.x is available for download [here on github](http://github.com/laurencelundblade/t_cose) 
+(alpha release of t_cose 2.x which supports encryption, multiple signature and mac is also available).
+
+This documentation is for t_cose 1.x.
+
+@par Table of Contents
+
+API Reference:
+- Common
+   - Error codes and common constants: @ref inc/t_cose/t_cose_common.h "t_cose_common.h"
+- Signing
+   - Main/Basic signing functions: @ref inc/t_cose/t_cose_sign1_sign.h "t_cose_sign1_sign.h"
+- Verification
+   - Main/Basic verification functions: @ref inc/t_cose/t_cose_sign1_verify.h "t_cose_sign1_verify.h"
+
+*/

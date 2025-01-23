@@ -80,9 +80,8 @@ int32_t ArrayNestingTest3(void);
 
 
 /*
- This tests the QCBOREncode_AddRaw() function by adding two chunks or
- RAWCBOR to an array and comparing with expected values. This is an
- encoding test.
+ This tests the QCBOREncode_AddRaw() function by adding two chunks of
+ raw CBOR to an array and comparing with expected values.
  */
 int32_t EncodeRawTest(void);
 
@@ -109,7 +108,7 @@ int32_t SimpleValuesTest1(void);
 /*
  Encodes basic maps and arrays with indefinite length
  */
-int32_t SimpleValuesIndefiniteLengthTest1(void);
+int32_t IndefiniteLengthTest(void);
 
 
 /*
@@ -191,6 +190,8 @@ int32_t QCBORHeadTest(void);
  */
 int32_t OpenCloseBytesTest(void);
 
+
+int32_t SubStringTest(void);
 
 
 #endif /* defined(__QCBOR__qcbor_encode_tests__) */

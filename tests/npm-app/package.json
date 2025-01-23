@@ -1,8 +1,8 @@
 {
   "private": true,
   "scripts": {
-    "build": "del-cli -f dist/ && rollup --config && cp app.json dist/ && node build_bundle.js dist/",
-    "bundle": "node build_bundle.js dist",
+    "build": "del-cli -f dist/ && rollup --config && cp app.json dist/ && npx ccf-build-bundle dist",
+    "bundle": "npx ccf-build-bundle dist",
     "test": "node --version"
   },
   "type": "module",

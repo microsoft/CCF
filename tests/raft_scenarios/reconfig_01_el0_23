@@ -91,5 +91,7 @@ replicate,5,some_tx
 emit_signature,5
 periodic_all,10
 dispatch_all
+periodic_all,10
 dispatch_all
 assert_commit_idx,2,13
+assert_commit_idx,3,13

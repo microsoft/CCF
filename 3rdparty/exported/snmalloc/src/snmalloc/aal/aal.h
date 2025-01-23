@@ -10,13 +10,24 @@
 #include "aal_concept.h"
 #include "aal_consts.h"
 
-#include <chrono>
+#if __has_include(<time.h>)
+#  include <time.h>
+#  ifdef CLOCK_MONOTONIC
+#    define SNMALLOC_TICK_USE_CLOCK_GETTIME
+#  endif
+#endif
 #include <cstdint>
 #include <utility>
 
-#if defined(__i386__) || defined(_M_IX86) || defined(_X86_) || \
+#ifndef SNMALLOC_TICK_USE_CLOCK_GETTIME
+#  include <chrono>
+#endif
+
+#if ( \
+  defined(__i386__) || defined(_M_IX86) || defined(_X86_) || \
   defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
-  defined(_M_AMD64)
+  defined(_M_AMD64)) && \
+  !defined(_M_ARM64EC)
 #  if defined(SNMALLOC_SGX)
 #    define PLATFORM_IS_X86_SGX
 #    define SNMALLOC_NO_AAL_BUILTINS
@@ -25,7 +36,8 @@
 #  endif
 #endif
 
-#if defined(__arm__) || defined(__aarch64__)
+#if defined(__arm__) || defined(__aarch64__) || defined(_M_ARM64) || \
+  defined(_M_ARM64EC)
 #  define PLATFORM_IS_ARM
 #endif
 
@@ -53,7 +65,7 @@ namespace snmalloc
   {
     /*
      * Provide a default specification of address_t as uintptr_t for Arch-es
-     * that support IntegerPointers.  Those Arch-es without IntegerPoihnters
+     * that support IntegerPointers.  Those Arch-es without IntegerPointers
      * must explicitly give their address_t.
      *
      * This somewhat obtuse way of spelling the defaulting is necessary so
@@ -147,7 +159,7 @@ namespace snmalloc
     static inline void prefetch(void* ptr) noexcept
     {
 #if __has_builtin(__builtin_prefetch) && !defined(SNMALLOC_NO_AAL_BUILTINS)
-      __builtin_prefetch(ptr);
+      __builtin_prefetch(ptr, 1, 3);
 #else
       Arch::prefetch(ptr);
 #endif
@@ -166,11 +178,27 @@ namespace snmalloc
       if constexpr (
         (Arch::aal_features & NoCpuCycleCounters) == NoCpuCycleCounters)
       {
+#ifdef SNMALLOC_TICK_USE_CLOCK_GETTIME
+        // the buf is populated by clock_gettime
+        SNMALLOC_UNINITIALISED timespec buf;
+        // we can skip the error checking here:
+        // * EFAULT: for out-of-bound pointers (buf is always valid stack
+        // memory)
+        // * EINVAL: for invalid clock_id (we only use CLOCK_MONOTONIC enforced
+        // by POSIX.1)
+        // Notice that clock_gettime is a usually a vDSO call, so the overhead
+        // is minimal.
+        ::clock_gettime(CLOCK_MONOTONIC, &buf);
+        return static_cast<uint64_t>(buf.tv_sec) * 1000'000'000 +
+          static_cast<uint64_t>(buf.tv_nsec);
+#  undef SNMALLOC_TICK_USE_CLOCK_GETTIME
+#else
         auto tick = std::chrono::high_resolution_clock::now();
         return static_cast<uint64_t>(
           std::chrono::duration_cast<std::chrono::nanoseconds>(
             tick.time_since_epoch())
             .count());
+#endif
       }
       else
       {
@@ -204,9 +232,6 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH CapPtr<T, BOut>
     capptr_bound(CapPtr<U, BIn> a, size_t size) noexcept
     {
-      static_assert(
-        BIn::spatial > capptr::dimension::Spatial::Alloc,
-        "Refusing to re-bound Spatial::Alloc CapPtr");
       static_assert(
         capptr::is_spatial_refinement<BIn, BOut>(),
         "capptr_bound must preserve non-spatial CapPtr dimensions");
