@@ -371,7 +371,7 @@ def test_add_node_with_no_uvm_endorsements(network, args):
                 timeout=3,
                 snp_uvm_security_context_dir=snp_dir if security_context_dir else None,
             )
-        except infra.network.CodeIdNotFound:
+        except infra.network.MeasurementNotFound:
             LOG.info("As expected, node with no UVM endorsements failed to join")
         else:
             raise AssertionError("Node join unexpectedly succeeded")
@@ -400,16 +400,18 @@ def test_add_node_with_no_uvm_endorsements(network, args):
     return network
 
 
-@reqs.description("Node with bad code fails to join")
-def test_add_node_with_bad_code(network, args):
+@reqs.description("Node with bad measurement fails to join")
+def test_add_node_with_bad_measurement(network, args):
     if args.enclave_platform == "snp":
-        LOG.warning("Skipping test_add_node_with_bad_code with SNP enclave")
+        LOG.warning(
+            "Skipping test_add_node_with_bad_measurement with SNP - cannot affect measurement on SNP"
+        )
         return network
 
     replacement_package = get_replacement_package(args)
 
     LOG.info(f"Adding unsupported node running {replacement_package}")
-    code_not_found_exception = None
+    measurement_not_found_exception = None
     try:
         new_node = network.create_node("local://localhost")
         network.join_node(
@@ -418,11 +420,11 @@ def test_add_node_with_bad_code(network, args):
             args,
             timeout=3,
         )
-    except infra.network.CodeIdNotFound as err:
-        code_not_found_exception = err
+    except infra.network.MeasurementNotFound as err:
+        measurement_not_found_exception = err
 
     assert (
-        code_not_found_exception is not None
+        measurement_not_found_exception is not None
     ), f"Adding a node with {replacement_package} should fail"
 
     return network
@@ -585,7 +587,7 @@ def run(args):
 
         # Measurements
         test_measurements_tables(network, args)
-        test_add_node_with_bad_code(network, args)
+        test_add_node_with_bad_measurement(network, args)
 
         # Host data/security policy
         test_host_data_tables(network, args)
