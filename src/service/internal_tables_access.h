@@ -294,8 +294,9 @@ namespace ccf
         return true;
       }
 
-      // If the member was active and had a recovery share, check
-      // that the new number of active members is still sufficient for recovery
+      // If the member was active and had a recovery share, check that
+      // the new number of active members is still sufficient for
+      // recovery
       if (member_to_remove->status == MemberStatus::ACTIVE)
       {
         if (is_recovery_participant(tx, member_id))
@@ -448,8 +449,8 @@ namespace ccf
         }
         else if (ni.status == ccf::NodeStatus::RETIRED)
         {
-          // If a node is retired, but knowledge of their retirement has not
-          // yet been globally committed, they are still considered active.
+          // If a node is retired, but knowledge of their retirement has not yet
+          // been globally committed, they are still considered active.
           auto cni = nodes->get_globally_committed(nid);
           if (cni.has_value() && !cni->retired_committed)
           {
@@ -840,8 +841,8 @@ namespace ccf
       if (service_status.value() == ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
       {
         // While waiting for recovery shares, the recovery threshold cannot be
-        // modified. Otherwise, the threshold could be passed without
-        // triggering the end of recovery procedure
+        // modified. Otherwise, the threshold could be passed without triggering
+        // the end of recovery procedure
         LOG_FAIL_FMT(
           "Cannot set recovery threshold: service is currently waiting for "
           "recovery shares");

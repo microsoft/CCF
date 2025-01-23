@@ -764,7 +764,7 @@ namespace ccf
             ctx.tx, member_id.value()))
         {
           // When the service is OPEN and the new active member is a recovery
-          // member/owner, all recovery members are allocated new recovery
+          // participant/owner, all recovery members are allocated new recovery
           // shares
           try
           {

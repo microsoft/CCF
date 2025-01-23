@@ -469,6 +469,20 @@ def recovery_shares_with_owners_scenario(args):
             True, test_remove_member, network, args, recovery_member=True
         )
 
+        # Removing the only recovery owner when no other owner/participants exist should be impossible
+        LOG.info(
+            "Removing the only recovery owner when no other owner/participants exist should not be possible"
+        )
+        try:
+            test_remove_member_no_reqs(
+                network, args, recovery_member=True, recovery_owner=True
+            )
+            assert False, "Removing the recovery owner should not be possible"
+        except infra.proposal.ProposalNotAccepted as e:
+            # This is an apply() time failure, so the proposal remains Open
+            # since the last vote is effectively discarded
+            assert e.proposal.state == infra.proposal.ProposalState.OPEN
+
         assert (
             len(network.consortium.get_active_recovery_members()) == 0
         ), f"Unexpected recovery members count: {len(network.consortium.get_active_recovery_members())}"
