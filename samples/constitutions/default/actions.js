@@ -374,7 +374,11 @@ const actions = new Map([
         checkType(args.member_data, "object?", "member_data");
         checkType(args.recovery_role, "string?", "recovery_role");
 
-        if (args.encryption_pub_key == null && args.recovery_role !== null) {
+        if (
+          args.encryption_pub_key == null &&
+          args.recovery_role !== null &&
+          args.recovery_role !== undefined
+        ) {
           throw new Error(
             "Cannot specify a recovery_role value when encryption_pub_key is not specified",
           );
