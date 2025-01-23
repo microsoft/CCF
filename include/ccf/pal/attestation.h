@@ -36,8 +36,9 @@ namespace ccf::pal
   {
     auto j = nlohmann::json::parse(quote_info.quote);
 
-    measurement =
-      VirtualAttestationMeasurement(j["measurement"].get<std::string>());
+    const auto s_measurement = j["measurement"].get<std::string>();
+    measurement.data =
+      std::vector<uint8_t>(s_measurement.begin(), s_measurement.end());
     report_data = VirtualAttestationReportData(
       j["report_data"].get<std::vector<uint8_t>>());
   }

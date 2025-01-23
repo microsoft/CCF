@@ -14,16 +14,15 @@ namespace ccf::pal
     return fmt::format("ccf_virtual_attestation.{}.{}", ::getpid(), suffix);
   };
 
-  static void emit_virtual_measurement(
-    const std::string& package_path, const std::string& security_policy)
+  static void emit_virtual_measurement(const std::string& package_path)
   {
     auto package = files::slurp(package_path);
 
     auto package_hash = ccf::crypto::Sha256Hash(package);
 
     auto j = nlohmann::json::object();
-    j["measurement"] = package_hash.hex_str();
-    j["security_policy"] = security_policy;
+    j["measurement"] = "TODO: Call uname";
+    j["host_data"] = package_hash.hex_str();
 
     files::dump(j.dump(2), virtual_attestation_path("measurement"));
   }

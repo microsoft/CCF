@@ -68,7 +68,8 @@ namespace ccf
       case QuoteFormat::insecure_virtual:
       {
         if (!tx.ro<VirtualMeasurements>(Tables::NODE_VIRTUAL_MEASUREMENTS)
-               ->has(pal::VirtualAttestationMeasurement(quote_measurement)))
+               ->has(pal::VirtualAttestationMeasurement(
+                 quote_measurement.data.begin(), quote_measurement.data.end())))
         {
           return QuoteVerificationResult::FailedMeasurementNotFound;
         }
@@ -146,13 +147,11 @@ namespace ccf
       {
         auto j = nlohmann::json::parse(quote_info.quote);
 
-        // To simulate SNP attestation metadata, associate this "security
-        // policy" with a host_data value containing its digest
-        auto it = j.find("security_policy");
+        auto it = j.find("host_data");
         if (it != j.end())
         {
-          const auto security_policy = it->get<std::string>();
-          return ccf::crypto::Sha256Hash(security_policy);
+          const auto host_data = it->get<std::string>();
+          return ccf::crypto::Sha256Hash::from_hex_string(host_data);
         }
 
         LOG_FAIL_FMT(
@@ -216,7 +215,7 @@ namespace ccf
     {
       auto accepted_policies_table =
         tx.ro<VirtualHostDataMap>(Tables::VIRTUAL_HOST_DATA);
-      accepted_policy = accepted_policies_table->has(host_data.value());
+      accepted_policy = accepted_policies_table->contains(host_data.value());
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
     {

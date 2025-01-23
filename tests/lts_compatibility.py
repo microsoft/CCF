@@ -268,7 +268,12 @@ def run_code_upgrade_from(
             new_host_data = None
             try:
                 new_host_data, new_security_policy = (
-                    infra.utils.get_host_data_and_security_policy(args.enclave_platform)
+                    infra.utils.get_host_data_and_security_policy(
+                        args.enclave_type,
+                        args.enclave_platform,
+                        args.package,
+                        library_dir=to_library_dir,
+                    )
                 )
                 network.consortium.add_host_data(
                     primary, args.enclave_platform, new_host_data, new_security_policy
@@ -355,7 +360,12 @@ def run_code_upgrade_from(
             # If host_data was found for original nodes, check if it's different on new nodes, in which case old should be removed
             if new_host_data is not None:
                 old_host_data, old_security_policy = (
-                    infra.utils.get_host_data_and_security_policy(args.enclave_platform)
+                    infra.utils.get_host_data_and_security_policy(
+                        args.enclave_type,
+                        args.enclave_platform,
+                        args.package,
+                        library_dir=from_library_dir,
+                    )
                 )
 
                 if old_host_data != new_host_data:

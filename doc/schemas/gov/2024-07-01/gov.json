@@ -2250,11 +2250,11 @@
           }
         },
         "hostData": {
-          "type": "object",
-          "description": "Collection of acceptable host data values.",
+          "type": "array",
+          "items": "Collection of acceptable host data values.",
           "additionalProperties": {
-            "format": "byte",
-            "type": "string"
+            "type": "string",
+            "format": "byte"
           }
         }
       },

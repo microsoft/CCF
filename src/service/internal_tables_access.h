@@ -592,7 +592,8 @@ namespace ccf
         {
           tx.wo<VirtualMeasurements>(Tables::NODE_VIRTUAL_MEASUREMENTS)
             ->put(
-              pal::VirtualAttestationMeasurement(node_measurement),
+              pal::VirtualAttestationMeasurement(
+                node_measurement.data.begin(), node_measurement.data.end()),
               CodeStatus::ALLOWED_TO_JOIN);
           break;
         }
@@ -621,16 +622,14 @@ namespace ccf
     }
 
     static void trust_node_virtual_host_data(
-      ccf::kv::Tx& tx,
-      const HostData& host_data,
-      const std::optional<HostDataMetadata>& metadata)
+      ccf::kv::Tx& tx, const HostData& host_data)
     {
       auto host_data_table =
         tx.wo<ccf::VirtualHostDataMap>(Tables::VIRTUAL_HOST_DATA);
-      host_data_table->put(host_data, metadata.value_or(""));
+      host_data_table->insert(host_data);
     }
 
-    static void trust_node_host_data(
+    static void trust_node_snp_host_data(
       ccf::kv::Tx& tx,
       const HostData& host_data,
       const std::optional<HostDataMetadata>& security_policy = std::nullopt)

@@ -93,16 +93,8 @@ namespace ccf::pal
   }
 
   // Virtual
-  static constexpr size_t virtual_attestation_measurement_size = 32;
-  struct VirtualTag
-  {};
-  using VirtualAttestationMeasurement =
-    AttestationMeasurement<virtual_attestation_measurement_size, VirtualTag>;
-
-  inline std::string schema_name(const VirtualAttestationMeasurement*)
-  {
-    return "VirtualAttestationMeasurement";
-  }
+  // TODO: Struct _wrapping_ a string, for schema generation?
+  using VirtualAttestationMeasurement = std::string;
 
   // SGX
   static constexpr size_t sgx_attestation_measurement_size = 32;

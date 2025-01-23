@@ -1580,7 +1580,7 @@ namespace ccf
             if (host_data.has_value())
             {
               InternalTablesAccess::trust_node_virtual_host_data(
-                ctx.tx, host_data.value(), in.snp_security_policy);
+                ctx.tx, host_data.value());
             }
             else
             {
@@ -1593,7 +1593,7 @@ namespace ccf
           {
             auto host_data =
               AttestationProvider::get_host_data(in.quote_info).value();
-            InternalTablesAccess::trust_node_host_data(
+            InternalTablesAccess::trust_node_snp_host_data(
               ctx.tx, host_data, in.snp_security_policy);
 
             InternalTablesAccess::trust_node_uvm_endorsements(

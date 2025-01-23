@@ -488,8 +488,10 @@ namespace ccf
         ccf::nonstd::is_specialization<T, ccf::kv::TypedMap>::value;
       constexpr bool is_value =
         ccf::nonstd::is_specialization<T, ccf::kv::TypedValue>::value;
+      constexpr bool is_set =
+        ccf::nonstd::is_specialization<T, ccf::kv::TypedSet>::value;
 
-      if constexpr (!(is_map || is_value))
+      if constexpr (!(is_map || is_value || is_set))
       {
         static_assert(
           ccf::nonstd::dependent_false_v<T>, "Unsupported table type");
@@ -526,6 +528,14 @@ namespace ccf
           else if constexpr (is_value)
           {
             response_body = handle->get();
+          }
+          else if constexpr (is_set)
+          {
+            response_body = nlohmann::json::array();
+            handle->foreach([&response_body](const auto& k) {
+              response_body.push_back(k);
+              return true;
+            });
           }
 
           return ccf::make_success(response_body);

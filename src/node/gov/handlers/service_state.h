@@ -102,11 +102,7 @@ namespace ccf::gov::endpoints
           auto j_details = nlohmann::json::object();
           j_details["measurement"] = details["measurement"];
           j_details["reportData"] = details["report_data"];
-          const auto security_policy =
-            details["security_policy"].get<std::string>();
-          j_details["securityPolicy"] = security_policy;
-          j_details["hostData"] =
-            ccf::crypto::Sha256Hash(security_policy).hex_str();
+          j_details["hostData"] = details["host_data"];
           quote_info["details"] = j_details;
         }
 
@@ -529,19 +525,18 @@ namespace ccf::gov::endpoints
                 const ccf::CodeStatus& status) {
                 if (status == ccf::CodeStatus::ALLOWED_TO_JOIN)
                 {
-                  virtual_measurements.push_back(measurement.hex_str());
+                  virtual_measurements.push_back(measurement);
                 }
                 return true;
               });
             virtual_policy["measurements"] = virtual_measurements;
 
-            auto virtual_host_data = nlohmann::json::object();
+            auto virtual_host_data = nlohmann::json::array();
             auto host_data_handle = ctx.tx.template ro<ccf::VirtualHostDataMap>(
               ccf::Tables::VIRTUAL_HOST_DATA);
             host_data_handle->foreach(
-              [&virtual_host_data](
-                const HostData& host_data, const HostDataMetadata& metadata) {
-                virtual_host_data[host_data.hex_str()] = metadata;
+              [&virtual_host_data](const HostData& host_data) {
+                virtual_host_data.push_back(host_data.hex_str());
                 return true;
               });
             virtual_policy["hostData"] = virtual_host_data;

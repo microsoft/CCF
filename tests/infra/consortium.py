@@ -808,11 +808,9 @@ class Consortium:
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
 
-    def add_host_data(self, remote_node, platform, host_data_key, host_data_value):
+    def add_host_data(self, remote_node, platform, host_data_key, host_data_value=""):
         if platform == "virtual":
-            return self.add_virtual_host_data(
-                remote_node, host_data_key, host_data_value
-            )
+            return self.add_virtual_host_data(remote_node, host_data_key)
         elif platform == "snp":
             return self.add_snp_host_data(remote_node, host_data_key, host_data_value)
         else:
@@ -822,12 +820,10 @@ class Consortium:
         self,
         remote_node,
         host_data_key,
-        metadata,
     ):
         proposal_body, careful_vote = self.make_proposal(
             "add_virtual_host_data",
             host_data=host_data_key,
-            metadata=metadata,
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
