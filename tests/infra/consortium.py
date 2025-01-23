@@ -71,34 +71,38 @@ class Consortium:
         # and the state of the service
         if members_info is not None:
             self.recovery_threshold = 0
-            for m_local_id, has_share, is_recovery_owner, m_data in members_info:
+            for m_local_id, recovery_role, m_data in members_info:
                 new_member = infra.member.Member(
                     f"member{m_local_id}",
                     curve,
                     common_dir,
                     share_script,
-                    has_share,
-                    is_recovery_owner,
+                    recovery_role,
                     key_generator,
                     m_data,
                     authenticate_session=authenticate_session,
                     gov_api_impl=self.gov_api_impl,
                 )
-                if has_share and not is_recovery_owner:
+                if recovery_role == infra.member.RecoveryRole.Participant:
                     self.recovery_threshold += 1
                 self.members.append(new_member)
         else:
             for f in os.listdir(self.common_dir):
                 if re.search("member(.*)_cert.pem", f) is not None:
                     local_id = f.split("_")[0]
+                    recovery_role = (
+                        infra.member.RecoveryRole.Participant
+                        if os.path.isfile(
+                            os.path.join(self.common_dir, f"{local_id}_enc_privk.pem")
+                        )
+                        else infra.member.RecoveryRole.NonParticipant
+                    )
                     new_member = infra.member.Member(
                         local_id,
                         curve,
                         self.common_dir,
                         share_script,
-                        is_recovery_member=os.path.isfile(
-                            os.path.join(self.common_dir, f"{local_id}_enc_privk.pem")
-                        ),
+                        recovery_role,
                         authenticate_session=authenticate_session,
                         gov_api_impl=self.gov_api_impl,
                     )
@@ -202,9 +206,8 @@ class Consortium:
         self,
         remote_node,
         curve,
-        recovery_member=True,
+        recovery_role=infra.member.RecoveryRole.Participant,
         member_data=None,
-        recovery_owner=None,
     ):
         # The Member returned by this function is in state ACCEPTED. The new Member
         # should ACK to become active.
@@ -214,8 +217,7 @@ class Consortium:
             curve,
             self.common_dir,
             self.share_script,
-            is_recovery_member=recovery_member,
-            is_recovery_owner=recovery_owner,
+            recovery_role=recovery_role,
             key_generator=self.key_generator,
             authenticate_session=self.authenticate_session,
             gov_api_impl=self.gov_api_impl,
@@ -230,11 +232,13 @@ class Consortium:
                 slurp_file(
                     os.path.join(self.common_dir, f"{new_member_local_id}_enc_pubk.pem")
                 )
-                if recovery_member
+                if recovery_role != infra.member.RecoveryRole.NonParticipant
                 else None
             ),
             member_data=member_data,
-            recovery_role="Owner" if recovery_owner and recovery_member else None,
+            recovery_role=(
+                "Owner" if recovery_role == infra.member.RecoveryRole.Owner else None
+            ),
         )
 
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
@@ -246,12 +250,11 @@ class Consortium:
         self,
         remote_node,
         curve,
-        recovery_member=True,
+        recovery_role=infra.member.RecoveryRole.Participant,
         member_data=None,
-        recovery_owner=None,
     ):
         proposal, new_member, careful_vote = self.generate_and_propose_new_member(
-            remote_node, curve, recovery_member, member_data, recovery_owner
+            remote_node, curve, recovery_role, member_data
         )
         self.vote_using_majority(remote_node, proposal, careful_vote)
 
@@ -269,14 +272,13 @@ class Consortium:
     def get_active_members(self):
         return [member for member in self.members if member.is_active()]
 
-    def get_active_recovery_members(self):
+    def get_active_recovery_participants(self):
         return [
             member
             for member in self.members
             if (
                 member.is_active()
-                and member.is_recovery_member
-                and not member.is_recovery_owner
+                and member.recovery_role == infra.member.RecoveryRole.Participant
             )
         ]
 
@@ -286,8 +288,7 @@ class Consortium:
             for member in self.members
             if (
                 member.is_active()
-                and member.is_recovery_member
-                and member.is_recovery_owner
+                and member.recovery_role == infra.member.RecoveryRole.Owner
             )
         ]
 
@@ -295,16 +296,19 @@ class Consortium:
         return [
             member
             for member in self.members
-            if (member.is_active() and not member.is_recovery_member)
+            if (
+                member.is_active()
+                and member.recovery_role == infra.member.RecoveryRole.NonParticipant
+            )
         ]
 
-    def get_any_active_member(self, recovery_member=None, recovery_owner=None):
-        if recovery_member is not None:
-            if recovery_member is True:
-                if recovery_owner is True:
-                    return random.choice(self.get_active_recovery_owners())
-                return random.choice(self.get_active_recovery_members())
-            elif recovery_member is False:
+    def get_any_active_member(self, recovery_role=None):
+        if recovery_role is not None:
+            if recovery_role is infra.member.RecoveryRole.Owner:
+                return random.choice(self.get_active_recovery_owners())
+            elif recovery_role is infra.member.RecoveryRole.Participant:
+                return random.choice(self.get_active_recovery_participants())
+            else:
                 return random.choice(self.get_active_non_recovery_members())
         else:
             return random.choice(self.get_active_members())
@@ -736,7 +740,7 @@ class Consortium:
         with remote_node.client() as nc:
             check_commit = infra.checker.Checker(nc)
 
-            for m in self.get_active_recovery_members():
+            for m in self.get_active_recovery_participants():
                 r = m.get_and_submit_recovery_share(remote_node)
                 submitted_shares_count += 1
                 check_commit(r)
@@ -756,7 +760,9 @@ class Consortium:
         with remote_node.client() as nc:
             check_commit = infra.checker.Checker(nc)
 
-            m = self.get_any_active_member(recovery_member=True, recovery_owner=True)
+            m = self.get_any_active_member(
+                recovery_role=infra.member.RecoveryRole.Owner
+            )
             r = m.get_and_submit_recovery_share(remote_node)
             submitted_shares_count += 1
             check_commit(r)

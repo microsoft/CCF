@@ -3,6 +3,7 @@
 import os
 import http
 import subprocess
+import infra.member
 import infra.network
 import infra.path
 import infra.proc
@@ -316,7 +317,7 @@ def test_all_members(network, args):
             assert response_data == member.member_data
 
             response_pub_enc_key = response_member.get("publicEncryptionKey")
-            if member.is_recovery_member:
+            if member.recovery_role != infra.member.RecoveryRole.NonParticipant:
                 enc_pub_key_file = os.path.join(
                     primary.common_dir, member.member_info["encryption_public_key_file"]
                 )
@@ -326,9 +327,9 @@ def test_all_members(network, args):
                 assert response_pub_enc_key is None
 
             response_recovery_role = response_member.get("recoveryRole")
-            if member.is_recovery_owner:
+            if member.recovery_role == infra.member.RecoveryRole.Owner:
                 assert response_recovery_role == "Owner"
-            elif member.is_recovery_member:
+            elif member.recovery_role == infra.member.RecoveryRole.Participant:
                 assert response_recovery_role == "Participant"
             else:
                 assert response_recovery_role == "NonParticipant"

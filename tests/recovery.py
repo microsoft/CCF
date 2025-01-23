@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
+import infra.member
 import infra.network
 import infra.node
 import infra.logging_app as app
@@ -1003,7 +1004,8 @@ def run_recover_via_initial_recovery_owner(args):
     Recover a service using the recovery owner added as part of service creation, without requiring any other recovery members to participate.
     """
     txs = app.LoggingTxs("user0")
-    args.initial_recovery_member_count = 3
+    args.initial_member_count = 4
+    args.initial_recovery_participant_count = 3
     args.initial_recovery_owner_count = 1
     with infra.network.network(
         args.nodes,
@@ -1027,7 +1029,7 @@ def run_recover_via_added_recovery_owner(args):
     Recover a service using the recovery owner added after opening the service, without requiring any other recovery members to participate.
     """
     txs = app.LoggingTxs("user0")
-    args.initial_recovery_member_count = 2
+    args.initial_recovery_participant_count = 2
     args.initial_recovery_owner_count = 0
     with infra.network.network(
         args.nodes,
@@ -1044,8 +1046,7 @@ def run_recover_via_added_recovery_owner(args):
         recovery_owner = network.consortium.generate_and_add_new_member(
             primary,
             curve=args.participants_curve,
-            recovery_member=True,
-            recovery_owner=True,
+            recovery_role=infra.member.RecoveryRole.Owner,
         )
         r = recovery_owner.ack(primary)
         with primary.client() as nc:

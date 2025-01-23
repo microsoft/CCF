@@ -5,6 +5,7 @@ import functools
 
 from infra.snp import IS_SNP
 from loguru import logger as LOG
+from infra.member import RecoveryRole
 
 
 class TestRequirementsNotMet(Exception):
@@ -98,19 +99,19 @@ def exactly_n_nodes(n):
 
 def sufficient_recovery_member_count():
     def check(
-        network, args, recovery_member=True, recovery_owner=False, *nargs, **kwargs
+        network,
+        args,
+        recovery_role=RecoveryRole.Participant,
+        *nargs,
+        **kwargs,
     ):
-        if (
-            recovery_member
-            and not recovery_owner
-            and (
-                len(network.consortium.get_active_recovery_members())
-                <= network.consortium.recovery_threshold
-            )
+        if recovery_role == RecoveryRole.Participant and (
+            len(network.consortium.get_active_recovery_participants())
+            <= network.consortium.recovery_threshold
         ):
             raise TestRequirementsNotMet(
                 "Cannot remove recovery member since number of active recovery members"
-                f" ({len(network.consortium.get_active_recovery_members()) - 1}) would be less than"
+                f" ({len(network.consortium.get_active_recovery_participants()) - 1}) would be less than"
                 f" the recovery threshold ({network.consortium.recovery_threshold})"
             )
 

@@ -6,6 +6,7 @@ import time
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
 from infra.clients import flush_info
+import infra.member
 import infra.path
 import infra.proc
 import infra.service_load
@@ -561,6 +562,11 @@ class Network:
         assert (
             mc >= args.initial_operator_provisioner_count + args.initial_operator_count
         ), f"Not enough members ({mc}) for the set amount of operator provisioners and operators"
+        assert (
+            mc
+            >= args.initial_recovery_participant_count
+            + args.initial_recovery_owner_count
+        ), f"Not enough members ({mc}) for the set amount of recovery participants and owners"
 
         initial_members_info = []
         for i in range(mc):
@@ -572,11 +578,20 @@ class Network:
                 < args.initial_operator_provisioner_count + args.initial_operator_count
             ):
                 member_data = {"is_operator": True}
+            recovery_role = infra.member.RecoveryRole.NonParticipant
+            if i < args.initial_recovery_participant_count:
+                recovery_role = infra.member.RecoveryRole.Participant
+            elif (
+                i
+                < args.initial_recovery_participant_count
+                + args.initial_recovery_owner_count
+            ):
+                recovery_role = infra.member.RecoveryRole.Owner
+
             initial_members_info += [
                 (
                     i,
-                    (i < args.initial_recovery_member_count),
-                    True if (i < args.initial_recovery_owner_count) else None,
+                    recovery_role,
                     member_data,
                 )
             ]

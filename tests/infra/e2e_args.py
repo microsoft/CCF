@@ -281,8 +281,8 @@ def cli_args(
         default=1,
     )
     parser.add_argument(
-        "--initial-recovery-member-count",
-        help="Number of initial members that are handed recovery shares",
+        "--initial-recovery-participant-count",
+        help="Number of initial members that are handed partial recovery shares",
         type=int,
         default=int(os.getenv("INITIAL_MEMBER_COUNT", "3")),
     )
