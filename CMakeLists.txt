@@ -113,7 +113,7 @@ endif()
 option(USE_SNMALLOC "Link virtual build against snmalloc" ON)
 
 # Default inherited from Open Enclave usage
-option(USE_LIBCXX "Use libc++ instead of libstdc++" ON)
+option(USE_LIBCXX "Use libc++ instead of libstdc++" OFF)
 
 enable_language(ASM)
 
