@@ -742,7 +742,7 @@ def run(args):
         test_proposal_invalidation(network, args)
 
         if not snp.IS_SNP:
-            # This is in practice equivalent to either "bad measurement" or "bad host data", but is explicitly
+            # This is in practice equivalent to either "unknown measurement" or "unknown host data", but is explicitly
             # testing that (without artifically removing/corrupting those values) a replacement package differs
             # in one of these values
             test_add_node_with_different_package(network, args)
