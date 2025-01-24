@@ -307,10 +307,6 @@ def test_add_node_with_stubbed_security_policy(network, args):
 
 @reqs.description("Start node with mismatching security policy")
 def test_add_node_with_bad_security_policy(network, args):
-    if args.enclave_platform == "virtual":
-        LOG.warning(f"TODO: Skipping this test for now")
-        return network
-
     try:
         with tempfile.TemporaryDirectory() as snp_dir:
             security_context_dir = None
@@ -341,24 +337,49 @@ def test_add_node_with_bad_security_policy(network, args):
     return network
 
 
-@reqs.description("Node with bad host data fails to join")
-def test_add_node_with_bad_host_data(network, args):
+@reqs.description("Node with untrusted measurement fails to join")
+def test_add_node_with_untrusted_measurement(network, args):
+    primary, _ = network.find_nodes()
+
+    measurement = infra.utils.get_measurement(
+        args.enclave_type, args.enclave_platform, args.package
+    )
+
+    LOG.info("Removing this measurement so that a new joiner is refused")
+    network.consortium.remove_measurement(primary, args.enclave_platform, measurement)
+
+    new_node = network.create_node("local://localhost")
+    try:
+        network.join_node(new_node, args.package, args, timeout=3)
+    except infra.network.MeasurementNotFound:
+        LOG.info("As expected, node with untrusted measurement failed to join")
+    else:
+        raise AssertionError("Node join unexpectedly succeeded")
+
+    network.consortium.add_measurement(
+        primary,
+        args.enclave_platform,
+        measurement,
+    )
+    return network
+
+
+@reqs.description("Node with untrusted host data fails to join")
+def test_add_node_with_untrusted_host_data(network, args):
     primary, _ = network.find_nodes()
 
     host_data, security_policy = infra.utils.get_host_data_and_security_policy(
         args.enclave_type, args.enclave_platform, args.package
     )
 
-    LOG.info(
-        "Removing trusted security policy so that a new joiner is seen as an unmatching policy"
-    )
+    LOG.info("Removing this host data value so that a new joiner is refused")
     network.consortium.remove_host_data(primary, args.enclave_platform, host_data)
 
     new_node = network.create_node("local://localhost")
     try:
         network.join_node(new_node, args.package, args, timeout=3)
-    except TimeoutError:
-        LOG.info("As expected, node with untrusted security policy failed to join")
+    except infra.network.HostDataNotFound:
+        LOG.info("As expected, node with untrusted host data failed to join")
     else:
         raise AssertionError("Node join unexpectedly succeeded")
 
@@ -420,22 +441,18 @@ def test_add_node_with_no_uvm_endorsements(network, args):
     return network
 
 
-@reqs.description("Node with bad measurement fails to join")
-def test_add_node_with_bad_measurement(network, args):
+@reqs.description("Node running other package (binary) fails to join")
+def test_add_node_with_different_package(network, args):
     if args.enclave_platform == "snp":
         LOG.warning(
-            "Skipping test_add_node_with_bad_measurement with SNP - cannot affect measurement on SNP"
+            "Skipping test_add_node_with_different_package with SNP - policy does not currently restrict packages"
         )
-        return network
-
-    if args.enclave_platform == "virtual":
-        LOG.warning(f"TODO: Restore this on virtual")
         return network
 
     replacement_package = get_replacement_package(args)
 
     LOG.info(f"Adding unsupported node running {replacement_package}")
-    measurement_not_found_exception = None
+    exception_thrown = None
     try:
         new_node = network.create_node("local://localhost")
         network.join_node(
@@ -445,12 +462,18 @@ def test_add_node_with_bad_measurement(network, args):
             timeout=3,
         )
 
-    except infra.network.MeasurementNotFound as err:
-        measurement_not_found_exception = err
+    except (infra.network.MeasurementNotFound, infra.network.HostDataNotFound) as err:
+        exception_thrown = err
 
     assert (
-        measurement_not_found_exception is not None
+        exception_thrown is not None
     ), f"Adding a node with {replacement_package} should fail"
+    if args.enclave_platform == "virtual":
+        assert isinstance(
+            exception_thrown, infra.network.HostDataNotFound
+        ), f"Virtual node package should affect host data"
+    else:
+        raise ValueError(f"Unchecked platform")
 
     return network
 
@@ -681,31 +704,30 @@ def run(args):
         test_verify_quotes(network, args)
 
         # Measurements
-        # test_measurements_tables(network, args)
-        # test_add_node_with_bad_measurement(network, args)
+        test_measurements_tables(network, args)
+        test_add_node_with_untrusted_measurement(network, args)
 
-        # # Host data/security policy
-        # test_host_data_tables(network, args)
-        # test_add_node_with_bad_host_data(network, args)
-        # test_add_node_with_stubbed_security_policy(network, args)
-        # test_add_node_with_bad_security_policy(network, args)
+        # Host data/security policy
+        test_host_data_tables(network, args)
+        test_add_node_with_untrusted_host_data(network, args)
 
-        # if snp.IS_SNP:
-        #     # Not tested on virtual, as this relies on the fact that the local security
-        #     # policy can be ignored on SNP. It has been applied already, and its digest
-        #     # is available as a host_data claim, so the raw policy is merely an audit
-        #     # nicety and nodes will launch without it. This is not true on virtual, where
-        #     # an actual "security policy" value is always digested at launch time to
-        #     # produce a host_data value.
-        #     test_add_node_without_security_policy(network, args)
+        if snp.IS_SNP:
+            # Virtual has no security policy, _only_ host data (unassociated with anything)
+            test_add_node_with_stubbed_security_policy(network, args)
+            test_add_node_with_bad_security_policy(network, args)
+            test_add_node_without_security_policy(network, args)
 
-        # # Endorsements
-        # if snp.IS_SNP:
-        #     test_endorsements_tables(network, args)
-        #     test_add_node_with_no_uvm_endorsements(network, args)
+            # Endorsements
+            test_endorsements_tables(network, args)
+            test_add_node_with_no_uvm_endorsements(network, args)
 
-        # # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
-        # test_proposal_invalidation(network, args)
+        # This is in practice equivalent to either "bad measurement" or "bad host data", but is explicitly
+        # testing that (without artifically removing/corrupting those values) a replacement package differs
+        # in one of these values
+        test_add_node_with_different_package(network, args)
+
+        # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
+        test_proposal_invalidation(network, args)
 
         if not snp.IS_SNP:
             test_update_all_nodes(network, args)

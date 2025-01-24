@@ -71,6 +71,10 @@ class MeasurementNotFound(Exception):
     pass
 
 
+class HostDataNotFound(Exception):
+    pass
+
+
 class UVMEndorsementsNotAuthorised(Exception):
     pass
 
@@ -927,6 +931,8 @@ class Network:
                     for error in errors:
                         if "Quote does not contain known enclave measurement" in error:
                             raise MeasurementNotFound from e
+                        if "Quote host data is not authorised" in error:
+                            raise HostDataNotFound from e
                         if "UVM endorsements are not authorised" in error:
                             raise UVMEndorsementsNotAuthorised from e
                         if "StartupSeqnoIsOld" in error:

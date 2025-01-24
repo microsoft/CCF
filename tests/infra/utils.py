@@ -7,10 +7,6 @@ import infra.proc
 
 
 def get_measurement(enclave_type, enclave_platform, package, library_dir="."):
-    lib_path = infra.path.build_lib_path(
-        package, enclave_type, enclave_platform, library_dir
-    )
-
     if enclave_platform == "virtual":
         result = infra.proc.ccall("uname", "-a")
         return result.stdout.decode().strip()
