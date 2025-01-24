@@ -270,7 +270,7 @@ int main(int argc, char** argv)
           if (recovery_threshold > 1)
           {
             throw std::logic_error(fmt::format(
-              "Recovery threshold ({}) cannot be greater than 1 when only "
+              "Recovery threshold ({}) cannot be greater than 1 when all "
               "initial consortium members ({}) are of type recovery owner "
               "(specified via --member-info options)",
               recovery_threshold,

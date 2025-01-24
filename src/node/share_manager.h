@@ -113,7 +113,8 @@ namespace ccf
         secret, shares_, recovery_threshold_);
     }
 
-    ReconstructedLedgerSecretWrappingKey(ccf::crypto::sharing::Share& secret_)
+    ReconstructedLedgerSecretWrappingKey(
+      const ccf::crypto::sharing::Share& secret_)
     {
       secret = secret_;
     }
