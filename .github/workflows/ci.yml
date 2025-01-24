@@ -98,6 +98,10 @@ jobs:
   build_and_test_azure_linux:
     name: "Azure Linux CI"
     needs: checks
+    strategy:
+      matrix:
+        platform: [virtual, snp]
+
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
@@ -139,6 +143,7 @@ jobs:
         shell: bash
 
       - name: "Test ${{ matrix.platform.name }}"
+        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
         run: |
           set -ex
           cd build
@@ -150,4 +155,3 @@ jobs:
           # All other acceptably fast tests, which are now supported on Mariner.
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|protocolstest|suite|unit|lts_compatibility"
         shell: bash
-        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
