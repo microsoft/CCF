@@ -30,7 +30,11 @@ def test_verify_quotes(network, args):
     with primary.api_versioned_client(api_version=args.gov_api_version) as uc:
         r = uc.get("/gov/service/join-policy")
         assert r.status_code == http.HTTPStatus.OK, r
-        trusted_measurements = r.body.json()[args.enclave_platform]["measurements"]
+
+        policy = r.body.json()
+
+        trusted_virtual_measurements = policy["virtual"]["measurements"]
+        trusted_virtual_host_data = policy["virtual"]["hostData"]
 
         r = uc.get("/node/quotes")
         all_quotes = r.body.json()["quotes"]
@@ -44,13 +48,12 @@ def test_verify_quotes(network, args):
 
             j = r.body.json()
             if j["format"] == "Insecure_Virtual":
-                # TODO: Update comments here
-                # A virtual attestation makes 2 claims:
-                # - The measurement (equal to any equivalent node) is the sha256 of the package (library) it loaded
+                # A virtual attestation makes 3 claims:
+                # - The measurement (same on many nodes) is the result of calling `uname -a`
                 claimed_measurement = j["measurement"]
-                if args.enclave_platform == "virtual":
-                    # For consistency with other platforms, this endpoint always returns a hex-string. But for virtual, it's encoding some ASCII string, not a digest, so decode it for readability
-                    claimed_measurement = bytes.fromhex(claimed_measurement).decode()
+                # For consistency with other platforms, this endpoint always returns a hex-string.
+                # But for virtual, it's encoding some ASCII string, not a digest, so decode it for readability
+                claimed_measurement = bytes.fromhex(claimed_measurement).decode()
                 expected_measurement = infra.utils.get_measurement(
                     args.enclave_type, args.enclave_platform, args.package
                 )
@@ -61,17 +64,29 @@ def test_verify_quotes(network, args):
                 raw = json.loads(b64decode(j["raw"]))
                 assert raw["measurement"] == claimed_measurement
 
+                # - The host_data (equal to any equivalent node) is the sha256 of the package (library) it loaded
+                host_data = raw["host_data"]
+                expected_host_data, _ = infra.utils.get_host_data_and_security_policy(
+                    args.enclave_type, args.enclave_platform, args.package
+                )
+                assert (
+                    host_data == expected_host_data
+                ), f"{host_data} != {expected_host_data}"
+
                 # - The report_data (unique to this node) is the sha256 of the node's public key, in DER encoding
                 # That is the same value we use as the node's ID, though that is usually represented as a hex string
                 report_data = b64decode(raw["report_data"])
                 assert report_data.hex() == node.node_id
 
-                # Additionally, we check that the measurement is one of the service's currently trusted measurements.
-                # Note this might not always be true - a node may be added while its measurement is trusted, and persist past the point that its measurement is retired!
+                # Additionally, we check that the measurement and host_data are in the service's currently trusted values.
+                # Note this might not always be true - a node may be added while it was trusted, and persist past the point its values become untrusted!
                 # But it _is_ true in this test, and a sensible thing to check most of the time
                 assert (
-                    claimed_measurement in trusted_measurements
-                ), f"This node's measurement ({claimed_measurement}) is not one of the currently trusted measurements ({trusted_measurements})"
+                    claimed_measurement in trusted_virtual_measurements
+                ), f"This node's measurement ({claimed_measurement}) is not one of the currently trusted measurements ({trusted_virtual_measurements})"
+                assert (
+                    host_data in trusted_virtual_host_data
+                ), f"This node's host data ({host_data}) is not one of the currently trusted values ({trusted_virtual_host_data})"
 
             elif j["format"] == "AMD_SEV_SNP_v1":
                 LOG.warning(
@@ -306,20 +321,19 @@ def test_add_node_with_stubbed_security_policy(network, args):
 
 
 @reqs.description("Start node with mismatching security policy")
-def test_add_node_with_bad_security_policy(network, args):
+@reqs.snp_only()
+def test_start_node_with_mismatched_host_data(network, args):
     try:
+        security_context_dir = snp.get_security_context_dir()
         with tempfile.TemporaryDirectory() as snp_dir:
-            security_context_dir = None
-            if snp.IS_SNP:
-                security_context_dir = snp.get_security_context_dir()
-                if security_context_dir is not None:
-                    shutil.copytree(security_context_dir, snp_dir, dirs_exist_ok=True)
-                    with open(
-                        os.path.join(snp_dir, snp.ACI_SEV_SNP_FILENAME_SECURITY_POLICY),
-                        "w",
-                        encoding="utf-8",
-                    ) as f:
-                        f.write(b64encode(b"invalid_security_policy").decode())
+            if security_context_dir is not None:
+                shutil.copytree(security_context_dir, snp_dir, dirs_exist_ok=True)
+                with open(
+                    os.path.join(snp_dir, snp.ACI_SEV_SNP_FILENAME_SECURITY_POLICY),
+                    "w",
+                    encoding="utf-8",
+                ) as f:
+                    f.write(b64encode(b"invalid_security_policy").decode())
 
             new_node = network.create_node("local://localhost")
             network.join_node(
@@ -442,6 +456,9 @@ def test_add_node_with_no_uvm_endorsements(network, args):
 
 
 @reqs.description("Node running other package (binary) fails to join")
+@reqs.not_snp(
+    "Not yet supported as all nodes run the same measurement AND security policy in SNP CI"
+)
 def test_add_node_with_different_package(network, args):
     if args.enclave_platform == "snp":
         LOG.warning(
@@ -714,22 +731,21 @@ def run(args):
         if snp.IS_SNP:
             # Virtual has no security policy, _only_ host data (unassociated with anything)
             test_add_node_with_stubbed_security_policy(network, args)
-            test_add_node_with_bad_security_policy(network, args)
+            test_start_node_with_mismatched_host_data(network, args)
             test_add_node_without_security_policy(network, args)
 
             # Endorsements
             test_endorsements_tables(network, args)
             test_add_node_with_no_uvm_endorsements(network, args)
 
-        # This is in practice equivalent to either "bad measurement" or "bad host data", but is explicitly
-        # testing that (without artifically removing/corrupting those values) a replacement package differs
-        # in one of these values
-        test_add_node_with_different_package(network, args)
-
         # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
         test_proposal_invalidation(network, args)
 
         if not snp.IS_SNP:
+            # This is in practice equivalent to either "bad measurement" or "bad host data", but is explicitly
+            # testing that (without artifically removing/corrupting those values) a replacement package differs
+            # in one of these values
+            test_add_node_with_different_package(network, args)
             test_update_all_nodes(network, args)
 
         # Run again at the end to confirm current nodes are acceptable
