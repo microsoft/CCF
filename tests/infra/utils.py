@@ -3,6 +3,7 @@
 import infra.path
 from hashlib import sha256
 import infra.snp as snp
+import infra.proc
 
 
 def get_measurement(enclave_type, enclave_platform, package, library_dir="."):
@@ -11,7 +12,8 @@ def get_measurement(enclave_type, enclave_platform, package, library_dir="."):
     )
 
     if enclave_platform == "virtual":
-        return "TODO: Call uname"
+        result = infra.proc.ccall("uname", "-a")
+        return result.stdout.decode().strip()
 
     else:
         raise ValueError(f"Cannot get measurement on {enclave_platform}")

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ds/files.h"
+#include "ds/system.h"
 
 #include <nlohmann/json.hpp>
 #include <string>
@@ -21,7 +22,14 @@ namespace ccf::pal
     auto package_hash = ccf::crypto::Sha256Hash(package);
 
     auto j = nlohmann::json::object();
-    j["measurement"] = "TODO: Call uname";
+
+    const auto uname = ccf::ds::system::exec("uname -a");
+    if (!uname.has_value())
+    {
+      throw std::runtime_error("Error calling uname");
+    }
+
+    j["measurement"] = uname.value();
     j["host_data"] = package_hash.hex_str();
 
     files::dump(j.dump(2), virtual_attestation_path("measurement"));
