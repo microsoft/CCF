@@ -36,7 +36,11 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   )
 endif()
 
-include(${CCF_DIR}/cmake/cpack_settings.cmake)
+if(PACKAGE_TYPE STREQUAL "DEB")
+  include(${CCF_DIR}/cmake/cpack_deb.cmake)
+elseif(PACKAGE_TYPE STREQUAL "RPM")
+  include(${CCF_DIR}/cmake/cpack_rpm.cmake)
+endif()
 
 message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
 
