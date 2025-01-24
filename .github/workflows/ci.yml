@@ -100,7 +100,9 @@ jobs:
     needs: checks
     strategy:
       matrix:
-        platform: [virtual, snp]
+        platform:
+          - name: virtual
+          - name: snp
 
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
