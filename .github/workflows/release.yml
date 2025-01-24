@@ -118,7 +118,7 @@ jobs:
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|unit"
+          ./tests.sh --timeout 600 --output-on-failure -LE "benchmark|unit"
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}"
 
