@@ -134,11 +134,11 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug ..
+          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 
-      - name: "Test virtual"
+      - name: "Test ${{ matrix.platform.name }}"
         run: |
           set -ex
           cd build
@@ -150,3 +150,4 @@ jobs:
           # All other acceptably fast tests, which are now supported on Mariner.
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|protocolstest|suite|unit|lts_compatibility"
         shell: bash
+        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
