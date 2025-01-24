@@ -362,10 +362,7 @@ class CCFRemote(object):
             if ubsan_opts:
                 env["UBSAN_OPTIONS"] += ":" + ubsan_opts
             env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
-            # https://github.com/microsoft/CCF/issues/5198
-            env["ASAN_OPTIONS"] = os.environ.get(
-                "ASAN_OPTIONS", "alloc_dealloc_mismatch=0"
-            )
+            env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "")
         elif enclave_platform == "snp":
             snp_security_context_directory_envvar = (
                 snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR

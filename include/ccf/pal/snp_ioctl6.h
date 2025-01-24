@@ -19,7 +19,7 @@ namespace ccf::pal::snp::ioctl6
 {
   constexpr auto DEVICE = "/dev/sev-guest";
 
-  // Table 20
+  // Table 22
   struct AttestationReq
   {
     uint8_t report_data[snp_attestation_report_data_size];
@@ -27,7 +27,7 @@ namespace ccf::pal::snp::ioctl6
     uint8_t reserved[28]; // needs to be zero
   }; // aka snp_report_req in (linux) include/uapi/linux/sev-guest.h
 
-  // Table 23
+  // Table 25
 #pragma pack(push, 1)
   struct AttestationResp
   {
