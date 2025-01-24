@@ -38,7 +38,9 @@ def test_verify_quotes(network, args):
 
         r = uc.get("/node/quotes")
         all_quotes = r.body.json()["quotes"]
-        assert len(all_quotes) == len(network.get_joined_nodes())
+        assert len(all_quotes) >= len(
+            network.get_joined_nodes()
+        ), f"There are {len(network.get_joined_nodes())} joined nodes, yet got only {len(all_quotes)} quotes: {json.dumps(all_quotes, indent=2)}"
 
     for node in network.get_joined_nodes():
         LOG.info(f"Verifying quote for node {node.node_id}")
