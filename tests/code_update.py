@@ -488,9 +488,9 @@ def test_add_node_with_different_package(network, args):
     if args.enclave_platform == "virtual":
         assert isinstance(
             exception_thrown, infra.network.HostDataNotFound
-        ), f"Virtual node package should affect host data"
+        ), "Virtual node package should affect host data"
     else:
-        raise ValueError(f"Unchecked platform")
+        raise ValueError("Unchecked platform")
 
     return network
 
@@ -531,7 +531,7 @@ def test_update_all_nodes(network, args):
     host_data_changed = initial_host_data != new_host_data
     assert (
         measurement_changed or host_data_changed
-    ), f"Cannot test code update, as new package produced identical measurement and host_data as original"
+    ), "Cannot test code update, as new package produced identical measurement and host_data as original"
 
     LOG.info("Add new measurement and host_data")
     network.consortium.add_measurement(primary, args.enclave_platform, new_measurement)

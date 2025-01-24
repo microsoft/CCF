@@ -93,7 +93,6 @@ namespace ccf::pal
   }
 
   // Virtual
-  // TODO: Struct _wrapping_ a string, for schema generation?
   using VirtualAttestationMeasurement = std::string;
 
   // SGX
