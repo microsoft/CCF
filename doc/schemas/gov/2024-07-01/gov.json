@@ -2251,8 +2251,8 @@
         },
         "hostData": {
           "type": "array",
-          "items": "Collection of acceptable host data values.",
-          "additionalProperties": {
+          "description": "Collection of acceptable host data values.",
+          "items": {
             "type": "string",
             "format": "byte"
           }
