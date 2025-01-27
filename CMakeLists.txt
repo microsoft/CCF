@@ -113,7 +113,7 @@ endif()
 option(USE_SNMALLOC "Link virtual build against snmalloc" ON)
 
 # Default inherited from Open Enclave usage
-option(USE_LIBCXX "Use libc++ instead of libstdc++" ON)
+option(USE_LIBCXX "Use libc++ instead of libstdc++" OFF)
 
 enable_language(ASM)
 
@@ -927,13 +927,6 @@ if(BUILD_TESTS)
       TEST csr_test
       APPEND
       PROPERTY LABELS unit_test
-    )
-
-    # https://github.com/microsoft/CCF/issues/5198
-    set_property(
-      TEST csr_test
-      APPEND
-      PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
     )
 
     add_test(NAME versionifier_test

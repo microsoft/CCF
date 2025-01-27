@@ -46,7 +46,7 @@ namespace ccf::http
     bool operator<(const AcceptHeaderField& other) const
     {
       static constexpr auto float_comp_epsilon = 0.0000001f;
-      if (abs(q_factor - other.q_factor) > float_comp_epsilon)
+      if (std::abs(q_factor - other.q_factor) > float_comp_epsilon)
       {
         return q_factor < other.q_factor;
       }
