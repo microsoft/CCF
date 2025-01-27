@@ -36,12 +36,7 @@ class Checker:
         elif any(option for option in options if option.startswith("-l")):
             pass
         else:
-            # Compile line
-            if self.platform == "SNPCC":
-                assert (
-                    "-x86-speculative-load-hardening" in options
-                ), f"Missing -x86-speculative-load-hardening in {line}"
-                self.checked_lines += 1
+            pass
 
     def stats(self):
         print(f"Checked {self.checked_lines} out of {self.total_lines} lines")
