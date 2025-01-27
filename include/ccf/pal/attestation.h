@@ -13,12 +13,7 @@
 
 #include <fcntl.h>
 #include <functional>
-
-#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-#  include <sys/ioctl.h>
-#else
-#  include "ccf/pal/attestation_sgx.h"
-#endif
+#include <sys/ioctl.h>
 
 namespace ccf::pal
 {

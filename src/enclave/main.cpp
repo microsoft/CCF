@@ -164,8 +164,6 @@ extern "C"
 
       ccf::enclavetime::host_time_us =
         static_cast<decltype(ccf::enclavetime::host_time_us)>(time_location);
-
-      ccf::pal::speculation_barrier();
     }
 
     if (!ccf::pal::is_outside_enclave(ccf_config, ccf_config_size))
@@ -180,8 +178,6 @@ extern "C"
       LOG_FAIL_FMT("Memory outside enclave: startup snapshot");
       return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
-
-    ccf::pal::speculation_barrier();
 
     ccf::StartupConfig cc =
       nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);

@@ -16,10 +16,6 @@
 #include <cstdarg>
 #include <quickjs/quickjs.h>
 
-#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
-#  include <openenclave/3rdparty/libc/sys/time.h> // For timeval
-#endif
-
 namespace ccf::js::core
 {
   namespace
