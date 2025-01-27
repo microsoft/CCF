@@ -301,8 +301,6 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/registry.cpp
 )
 
-set(OE_BINDIR "")
-
 if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
   add_san(ccf_js.snp)
@@ -1020,8 +1018,6 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
       LABEL suite
       ADDITIONAL_ARGS
-        --oe-binary
-        ${OE_BINDIR}
         --ledger-recovery-timeout
         20
         --test-duration
@@ -1099,9 +1095,8 @@ if(BUILD_TESTS)
       NAME governance_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
       CONSTITUTION ${CONSTITUTION_ARGS}
-      ADDITIONAL_ARGS
-        --oe-binary ${OE_BINDIR} --initial-operator-count 1
-        --jinja-templates-path ${CMAKE_SOURCE_DIR}/samples/templates
+      ADDITIONAL_ARGS --initial-operator-count 1 --jinja-templates-path
+                      ${CMAKE_SOURCE_DIR}/samples/templates
     )
 
     add_e2e_test(
@@ -1113,8 +1108,11 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
-                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      ADDITIONAL_ARGS
+        --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+        --constitution
+        ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
     )
 
     if(BUILD_TPCC)
@@ -1249,9 +1247,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
     )
 
-    list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
-         ${CCF_VERSION}
-    )
+    list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})
     if(LONG_TESTS)
       list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
     endif()
@@ -1261,7 +1257,10 @@ if(BUILD_TESTS)
         NAME lts_compatibility
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
         LABEL e2e
-        ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+        ADDITIONAL_ARGS
+          ${LTS_TEST_ARGS}
+          --constitution
+          ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
       )
       set_property(
         TEST lts_compatibility

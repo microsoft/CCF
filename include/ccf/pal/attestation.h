@@ -24,6 +24,20 @@ namespace ccf::pal
     const QuoteInfo& quote_info,
     const snp::EndorsementEndpointsConfiguration& config)>;
 
+  static void verify_virtual_attestation_report(
+    const QuoteInfo& quote_info,
+    PlatformAttestationMeasurement& measurement,
+    PlatformAttestationReportData& report_data)
+  {
+    auto j = nlohmann::json::parse(quote_info.quote);
+
+    const auto s_measurement = j["measurement"].get<std::string>();
+    measurement.data =
+      std::vector<uint8_t>(s_measurement.begin(), s_measurement.end());
+    report_data = VirtualAttestationReportData(
+      j["report_data"].get<std::vector<uint8_t>>());
+  }
+
   // Verifying SNP attestation report is available on all platforms as unlike
   // SGX, this does not require external dependencies (Open Enclave for SGX).
   static void verify_snp_attestation_report(
@@ -202,87 +216,28 @@ namespace ccf::pal
     }
   }
 
-#if defined(PLATFORM_VIRTUAL)
-
-  static void generate_quote(
-    PlatformAttestationReportData& report_data,
-    RetrieveEndorsementCallback endorsement_cb,
-    const snp::EndorsementsServers& endorsements_servers = {})
-  {
-    endorsement_cb(
-      {.format = QuoteFormat::insecure_virtual,
-       .quote = {},
-       .endorsements = {},
-       .uvm_endorsements = {},
-       .endorsed_tcb = {}},
-      {});
-  }
-
-#elif defined(PLATFORM_SNP)
-
-  static void generate_quote(
-    PlatformAttestationReportData& report_data,
-    RetrieveEndorsementCallback endorsement_cb,
-    const snp::EndorsementsServers& endorsements_servers = {})
-  {
-    QuoteInfo node_quote_info = {};
-    node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
-    auto attestation = snp::get_attestation(report_data);
-
-    node_quote_info.quote = attestation->get_raw();
-
-    if (endorsement_cb != nullptr)
-    {
-      endorsement_cb(
-        node_quote_info,
-        snp::make_endorsement_endpoint_configuration(
-          attestation->get(), endorsements_servers));
-    }
-  }
-#endif
+#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
   static void verify_quote(
     const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,
     PlatformAttestationReportData& report_data)
   {
-    auto is_sev_snp = snp::is_sev_snp();
-
     if (quote_info.format == QuoteFormat::insecure_virtual)
     {
-      if (is_sev_snp)
-      {
-        throw std::logic_error(
-          "Cannot verify virtual attestation report if node is SEV-SNP");
-      }
-      // For now, virtual resembles SGX (mostly for historical reasons)
-      measurement = SgxAttestationMeasurement();
-      report_data = SgxAttestationReportData();
+      verify_virtual_attestation_report(quote_info, measurement, report_data);
     }
     else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
     {
-      if (!is_sev_snp)
-      {
-        throw std::logic_error(
-          "Cannot verify SEV-SNP attestation report if node is virtual");
-      }
-
       verify_snp_attestation_report(quote_info, measurement, report_data);
     }
     else
     {
-      if (is_sev_snp)
-      {
-        throw std::logic_error(
-          "Cannot verify SGX attestation report if node is SEV-SNP");
-      }
-      else
-      {
-        throw std::logic_error(
-          "Cannot verify SGX attestation report if node is virtual");
-      }
+      throw std::logic_error(
+        "SGX attestation reports are no longer supported from 6.0.0 onwards");
     }
   }
+#endif
 
   class AttestationCollateralFetchingTimeout : public std::exception
   {
