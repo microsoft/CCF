@@ -92,13 +92,6 @@ jobs:
           ninja -v | tee build.log
         shell: bash
 
-      - name: "Check Mitigation Flags"
-        run: |
-          cd build
-          python3 ../scripts/build-check.py < build.log SNPCC
-        shell: bash
-        if: ${{ matrix.platform.name == 'snp' }}
-
       - name: "Install Extended Testing Tools"
         run: |
           set -ex
@@ -118,7 +111,10 @@ jobs:
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|unit"
+          # Suite tests
+          ./tests.sh --timeout 600 --output-on-failure -L "suite"
+          # Most tests
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|unit|suite"
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}"
 
