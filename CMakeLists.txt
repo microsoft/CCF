@@ -474,11 +474,6 @@ option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
 option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
-option(
-  FORCE_ENABLE_XAPIC_MITIGATION
-  "Always enable aligned reads from host-memory to mitigate xAPIC stale data read vulnerability. When this setting is off, the mitigation is enabled at run-time when vulnerable hardware is detected"
-  OFF
-)
 
 # Allow framework code to use LOG_*_FMT macros. These will be removed from
 # public headers in future
