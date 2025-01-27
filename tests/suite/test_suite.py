@@ -117,7 +117,7 @@ all_tests_suite = [
     election.test_kill_primary,
     # code update:
     code_update.test_verify_quotes,
-    code_update.test_add_node_with_bad_code,
+    code_update.test_add_node_with_different_package,
     # curve migration:
     reconfiguration.test_change_curve,
     recovery.test_recover_service,

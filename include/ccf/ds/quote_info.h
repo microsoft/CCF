@@ -32,7 +32,7 @@ namespace ccf
     std::vector<uint8_t> endorsements;
     /// UVM endorsements (SNP-only)
     std::optional<std::vector<uint8_t>> uvm_endorsements;
-    /// Endorsed TCB (hex-encoded)
+    /// Endorsed TCB (hex-encoded) (SNP-only)
     std::optional<std::string> endorsed_tcb = std::nullopt;
   };
 

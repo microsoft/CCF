@@ -138,10 +138,30 @@ DEPRECATED. Previously contained versions of the code allowed to join the curren
    * - ``cae46d1...bb908b64e``
      - ``ALLOWED_TO_JOIN``
 
+``nodes.virtual.host_data``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Map mimicking SNP host_data for virtual nodes, restricting which host_data values may be presented by new nodes joining the network.
+
+**Key** Host data: The host data.
+
+**Value** Metadata: The platform specific meaning of the host data.
+
+``nodes.virtual.measurements``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Trusted virtual measurements for new nodes allowed to join the network. Virtual measurements are constructed by CCF to test and debug code update flows on hardware without TEE protections.
+
+.. warning:: Since virtual nodes provide no protection, this should be empty on production instances.
+
+**Key** Measurement, represented as a base64 hex-encoded string (length: 64).
+
+**Value** Status represented as JSON.
+
 ``nodes.snp.host_data``
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Trusted attestation report host data field for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).
+Trusted attestation report host data field for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only). Only the presence of the joiner's host data key is checked, so the metadata is optional and may be empty for space-saving or privacy reasons.
 
 **Key** Host data: The host data.
 
@@ -150,7 +170,7 @@ Trusted attestation report host data field for new nodes allowed to join the net
 ``nodes.snp.measurements``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Trusted measurements for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).
+Trusted SNP measurements for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).
 
 .. note:: For improved serviceability on confidential ACI deployments, see :ref:`audit/builtin_maps:``nodes.snp.uvm_endorsements``` map.
 
@@ -387,7 +407,7 @@ JWT signing keys, used until 6.0.
 **Value** List of (DER-encoded certificate, issuer, constraint), represented as JSON.
 
 ``jwt.public_signing_keys_metadata_v2``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 JWT signing keys, from 6.0.0 onwards.
 
