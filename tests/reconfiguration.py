@@ -576,40 +576,38 @@ def test_issue_fake_join(network, args):
                 == "Quote report data does not contain node's public key hash"
             )
 
-        LOG.info("Join with AMD SEV-SNP quote")
-        req["quote_info"] = {
-            "format": "AMD_SEV_SNP_v1",
-            "quote": own_quote["raw"],
-            "endorsements": own_quote["endorsements"],
-        }
-        if args.enclave_platform == "snp":
-            req["quote_info"]["uvm_endorsements"] = own_quote["uvm_endorsements"]
-        r = c.post("/node/join", body=req)
-        if args.enclave_platform != "snp":
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
-            assert r.body.json()["error"]["code"] == "InvalidQuote"
-            assert r.body.json()["error"]["message"] == "Quote could not be verified"
-        else:
-            assert (
-                r.body.json()["error"]["message"]
-                == "Quote report data does not contain node's public key hash"
-            )
-
-        LOG.info("Join with virtual quote")
-        req["quote_info"] = {
-            "format": "Insecure_Virtual",
-            "quote": "",
-            "endorsements": "",
-        }
-        r = c.post("/node/join", body=req)
-        if args.enclave_platform == "virtual":
-            assert r.status_code == http.HTTPStatus.OK
-            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
-        else:
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
-            assert (
-                r.body.json()["error"]["code"] == "InvalidQuote"
-            ), "Virtual node must never join non-virtual network"
+        for platform, info, format in (
+            (
+                "snp",
+                "Join with AMD SEV-SNP quote",
+                "AMD_SEV_SNP_v1",
+            ),
+            (
+                "virtual",
+                "Join with virtual quote",
+                "Insecure_Virtual",
+            ),
+        ):
+            LOG.info(info)
+            req["quote_info"] = {
+                "format": format,
+                "quote": own_quote["raw"],
+                "endorsements": own_quote["endorsements"],
+            }
+            if args.enclave_platform == "snp":
+                req["quote_info"]["uvm_endorsements"] = own_quote["uvm_endorsements"]
+            r = c.post("/node/join", body=req)
+            if args.enclave_platform != platform:
+                assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+                assert r.body.json()["error"]["code"] == "InvalidQuote"
+                assert (
+                    r.body.json()["error"]["message"] == "Quote could not be verified"
+                )
+            else:
+                assert (
+                    r.body.json()["error"]["message"]
+                    == "Quote report data does not contain node's public key hash"
+                )
 
     return network
 

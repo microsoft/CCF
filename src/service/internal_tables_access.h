@@ -10,6 +10,7 @@
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/users.h"
+#include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
 #include "crypto/openssl/cose_sign.h"
@@ -587,12 +588,18 @@ namespace ccf
     {
       switch (platform)
       {
-        // For now, record null code id for virtual platform in SGX code id
-        // table
         case QuoteFormat::insecure_virtual:
+        {
+          tx.wo<VirtualMeasurements>(Tables::NODE_VIRTUAL_MEASUREMENTS)
+            ->put(
+              pal::VirtualAttestationMeasurement(
+                node_measurement.data.begin(), node_measurement.data.end()),
+              CodeStatus::ALLOWED_TO_JOIN);
+          break;
+        }
         case QuoteFormat::oe_sgx_v1:
         {
-          tx.rw<CodeIDs>(Tables::NODE_CODE_IDS)
+          tx.wo<CodeIDs>(Tables::NODE_CODE_IDS)
             ->put(
               pal::SgxAttestationMeasurement(node_measurement),
               CodeStatus::ALLOWED_TO_JOIN);
@@ -600,7 +607,7 @@ namespace ccf
         }
         case QuoteFormat::amd_sev_snp_v1:
         {
-          tx.rw<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
+          tx.wo<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
             ->put(
               pal::SnpAttestationMeasurement(node_measurement),
               CodeStatus::ALLOWED_TO_JOIN);
@@ -614,12 +621,20 @@ namespace ccf
       }
     }
 
-    static void trust_node_host_data(
+    static void trust_node_virtual_host_data(
+      ccf::kv::Tx& tx, const HostData& host_data)
+    {
+      auto host_data_table =
+        tx.wo<ccf::VirtualHostDataMap>(Tables::VIRTUAL_HOST_DATA);
+      host_data_table->insert(host_data);
+    }
+
+    static void trust_node_snp_host_data(
       ccf::kv::Tx& tx,
       const HostData& host_data,
       const std::optional<HostDataMetadata>& security_policy = std::nullopt)
     {
-      auto host_data_table = tx.rw<ccf::SnpHostDataMap>(Tables::HOST_DATA);
+      auto host_data_table = tx.wo<ccf::SnpHostDataMap>(Tables::HOST_DATA);
       if (security_policy.has_value())
       {
         auto raw_security_policy =

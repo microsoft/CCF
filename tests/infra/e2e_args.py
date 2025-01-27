@@ -81,13 +81,6 @@ def cli_args(
         default=".",
     )
     parser.add_argument(
-        "--oe-binary",
-        help="Path to Open Enclave binary folder",
-        type=str,
-        nargs="?",
-        default="/opt/openenclave/bin/",
-    )
-    parser.add_argument(
         "--library-dir",
         help="Path to CCF libraries (enclave images)",
         default=None,

@@ -1708,11 +1708,16 @@
         "snp": {
           "$ref": "#/definitions/ServiceState.SnpJoinPolicy",
           "description": "Policy applied to nodes running in AMD SEV-SNP containers."
+        },
+        "virtual": {
+          "$ref": "#/definitions/ServiceState.VirtualJoinPolicy",
+          "description": "Policy applied to virtual nodes (insecure, intended for debugging)."
         }
       },
       "required": [
         "sgx",
-        "snp"
+        "snp",
+        "virtual"
       ]
     },
     "ServiceState.JoinPolicy": {
@@ -2231,6 +2236,32 @@
         }
       ],
       "x-ms-discriminator-value": "OE_SGX_v1"
+    },
+    "ServiceState.VirtualJoinPolicy": {
+      "type": "object",
+      "description": "Join policy fields specific to nodes running on virtual nodes with no hardware protection.",
+      "properties": {
+        "measurements": {
+          "type": "array",
+          "description": "Code measurements of acceptable enclaves.",
+          "items": {
+            "type": "string",
+            "format": "byte"
+          }
+        },
+        "hostData": {
+          "type": "array",
+          "description": "Collection of acceptable host data values.",
+          "items": {
+            "type": "string",
+            "format": "byte"
+          }
+        }
+      },
+      "required": [
+        "measurements",
+        "hostData"
+      ]
     },
     "ServiceState.SnpJoinPolicy": {
       "type": "object",
