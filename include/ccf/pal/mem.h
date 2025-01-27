@@ -64,15 +64,6 @@ namespace ccf::pal
     return true;
   }
 
-  static bool require_alignment_for_untrusted_reads()
-  {
-#  ifdef FORCE_ENABLE_XAPIC_MITIGATION
-    return true;
-#  else
-    return false;
-#  endif
-  }
-
 #else
 
   static inline void* safe_memcpy(void* dest, const void* src, size_t count)
@@ -92,57 +83,6 @@ namespace ccf::pal
     info.current_allocated_heap_size = oe_info.current_allocated_heap_size;
     info.peak_allocated_heap_size = oe_info.peak_allocated_heap_size;
     return true;
-  }
-
-  static bool is_vulnerable_to_stale_xapic_read()
-  {
-    CpuidInfo info;
-
-    cpuid(&info, 1, 0);
-
-    // Ignores stepping, looks only at model and family: potentially
-    // includes safe instances which differ only by stepping from a vulnerable
-    // instance.
-    constexpr uint64_t proc_id_mask = 0x000F'0FF0;
-    const uint64_t proc_id = info.eax & proc_id_mask;
-
-    // https://www.intel.com/content/www/us/en/developer/topic-technology/software-security-guidance/processors-affected-consolidated-product-cpu-model.html
-    // 2022 tab, column "Stale Data Read from Legacy xAPIC, CVE-2022-21233,
-    // INTEL-SA-00657"
-    const std::set<uint64_t> vulnerable_proc_ids{
-      0x506C0, // Apollo Lake
-      0x506F0, // Denverton (Goldmont)
-      0x606A0, // Ice Lake Xeon-SP
-      0x606C0, // Ice Lake D
-      0x706A0, // Gemini Lake
-      0x706E0, // Ice Lake U, Y
-      0x80660, // Snow Ridge BTS (Tremont)
-      0x806A0, // Lakefield B-step (Tremont)
-      0x806C0, // Tiger Lake U
-      0x806D0, // Tiger Lake H
-      0x90660, // Elkhart Lake (Tremont)
-      0x90670, // Alder Lake S (Golden Cove, Gracemont)
-      0x906A0, // Alder Lake H (Golden Cove, Gracemont)
-      0x906C0, // Jasper Lake (Tremont)
-      0xA0670 // Rocket Lake
-    };
-
-    const auto it = vulnerable_proc_ids.find(proc_id);
-    return it != vulnerable_proc_ids.end();
-  }
-
-  static bool require_alignment_for_untrusted_reads()
-  {
-#  ifdef FORCE_ENABLE_XAPIC_MITIGATION
-    return true;
-#  else
-    static std::optional<bool> required = std::nullopt;
-    if (!required.has_value())
-    {
-      required = is_intel_cpu() && is_vulnerable_to_stale_xapic_read();
-    }
-    return required.value();
-#  endif
   }
 
 #endif
