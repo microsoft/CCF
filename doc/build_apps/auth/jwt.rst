@@ -30,9 +30,6 @@ Before adding public token signing keys to a running CCF network, the IdP has to
 
 The ``issuer`` field is an arbitrary identifier and should be used during token validation to differentiate between multiple issuers.
 
-Note that this action takes some additional optional args for more advanced scenarios.
-See :ref:`build_apps/auth/jwt:Advanced issuer configuration` for details.
-
 After this proposal is accepted, signing keys for an issuer can be updated with a ``set_jwt_public_signing_keys`` proposal:
 
 .. code-block:: bash

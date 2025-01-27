@@ -3,6 +3,7 @@
 
 #include "ccf/js/extensions/ccf/request.h"
 
+#include "ccf/crypto/verifier.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
 #include "ccf/endpoints/authentication/cert_auth.h"
 #include "ccf/endpoints/authentication/cose_auth.h"
@@ -161,6 +162,21 @@ namespace ccf::js::extensions
             create_caller_ident_obj(ctx, endpoint_ctx, sub_ident, registry));
         }
         caller.set("policy", std::move(policy));
+        return caller;
+      }
+
+      // For any cert, instead of an id-based lookup for the PEM cert and
+      // potential associated data, we directly retrieve the cert bytes as
+      // DER from the identity object, as provided by the session, and
+      // convert them to PEM.
+      if (
+        auto any_cert_ident =
+          dynamic_cast<const ccf::AnyCertAuthnIdentity*>(ident.get()))
+      {
+        auto policy_name = ccf::get_policy_name_from_ident(any_cert_ident);
+        caller.set("policy", ctx.new_string(policy_name));
+        auto pem_cert = ccf::crypto::cert_der_to_pem(any_cert_ident->cert);
+        caller.set("cert", ctx.new_string(pem_cert.str()));
         return caller;
       }
 

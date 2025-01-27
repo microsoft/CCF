@@ -2,10 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ccf_assert.h"
 #include "ccf/historical_queries_interface.h"
 #include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
+#include "ds/ccf_assert.h"
 #include "kv/store.h"
 #include "node/encryptor.h"
 #include "node/history.h"
@@ -265,14 +265,14 @@ namespace ccf::historical
           auto new_it = new_seqnos.begin();
           while (new_it != new_seqnos.end())
           {
-            if (*new_it == prev_it->first)
+            if (prev_it != my_stores.end() && *new_it == prev_it->first)
             {
               // Asking for a seqno which was also requested previously - do
               // nothing and advance to compare next entries
               ++new_it;
               ++prev_it;
             }
-            else if (*new_it > prev_it->first)
+            else if (prev_it != my_stores.end() && *new_it > prev_it->first)
             {
               // No longer looking for a seqno which was previously requested.
               // Remove it from my_stores

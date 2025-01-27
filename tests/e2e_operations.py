@@ -8,6 +8,8 @@ import infra.logging_app as app
 import infra.e2e_args
 import infra.network
 import ccf.ledger
+from ccf.tx_id import TxID
+import base64
 import suite.test_requirements as reqs
 import infra.crypto
 import ipaddress
@@ -19,9 +21,11 @@ import json
 import subprocess
 import time
 import http
+import copy
 import infra.snp as snp
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from pycose.messages import Sign1Message
 
 from loguru import logger as LOG
 
@@ -205,6 +209,105 @@ def test_large_snapshot(network, args):
     )
 
 
+def test_snapshot_access(network, args):
+    primary, _ = network.find_primary()
+
+    snapshots_dir = network.get_committed_snapshots(primary)
+    snapshot_name = ccf.ledger.latest_snapshot(snapshots_dir)
+    snapshot_index, _ = ccf.ledger.snapshot_index_from_filename(snapshot_name)
+
+    with open(os.path.join(snapshots_dir, snapshot_name), "rb") as f:
+        snapshot_data = f.read()
+
+    with primary.client() as c:
+        r = c.head("/node/snapshot", allow_redirects=False)
+        assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+        assert "location" in r.headers, r.headers
+        location = r.headers["location"]
+        assert location == f"/node/snapshot/{snapshot_name}"
+        LOG.warning(r.headers)
+
+        for since, expected in (
+            (0, location),
+            (1, location),
+            (snapshot_index // 2, location),
+            (snapshot_index - 1, location),
+            (snapshot_index, None),
+            (snapshot_index + 1, None),
+        ):
+            for method in ("GET", "HEAD"):
+                r = c.call(
+                    f"/node/snapshot?since={since}",
+                    allow_redirects=False,
+                    http_verb=method,
+                )
+                if expected is None:
+                    assert r.status_code == http.HTTPStatus.NOT_FOUND, r
+                else:
+                    assert r.status_code == http.HTTPStatus.PERMANENT_REDIRECT.value, r
+                    assert "location" in r.headers, r.headers
+                    actual = r.headers["location"]
+                    assert actual == expected
+
+        r = c.head(location)
+        assert r.status_code == http.HTTPStatus.OK.value, r
+        assert r.headers["accept-ranges"] == "bytes", r.headers
+        total_size = int(r.headers["content-length"])
+
+        a = total_size // 3
+        b = a * 2
+        for start, end in [
+            (0, None),
+            (0, total_size),
+            (0, a),
+            (a, a),
+            (a, b),
+            (b, b),
+            (b, total_size),
+            (b, None),
+        ]:
+            range_header_value = f"{start}-{'' if end is None else end}"
+            r = c.get(location, headers={"range": f"bytes={range_header_value}"})
+            assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+
+            expected = snapshot_data[start:end]
+            actual = r.body.data()
+            assert (
+                expected == actual
+            ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
+
+        for negative_offset in [
+            1,
+            a,
+            b,
+        ]:
+            range_header_value = f"-{negative_offset}"
+            r = c.get(location, headers={"range": f"bytes={range_header_value}"})
+            assert r.status_code == http.HTTPStatus.PARTIAL_CONTENT.value, r
+
+            expected = snapshot_data[-negative_offset:]
+            actual = r.body.data()
+            assert (
+                expected == actual
+            ), f"Binary mismatch, {len(expected)} vs {len(actual)}:\n{expected}\nvs\n{actual}"
+
+        # Check error handling for invalid ranges
+        for invalid_range, err_msg in [
+            (f"{a}-foo", "Unable to parse end of range value foo"),
+            ("foo-foo", "Unable to parse start of range value foo"),
+            (f"foo-{b}", "Unable to parse start of range value foo"),
+            (f"{b}-{a}", "out of order"),
+            (f"0-{total_size + 1}", "larger than total file size"),
+            ("-1-5", "Invalid format"),
+            ("-", "Invalid range"),
+            ("-foo", "Unable to parse end of range offset value foo"),
+            ("", "Invalid format"),
+        ]:
+            r = c.get(location, headers={"range": f"bytes={invalid_range}"})
+            assert r.status_code == http.HTTPStatus.BAD_REQUEST.value, r
+            assert err_msg in r.body.json()["error"]["message"], r
+
+
 def split_all_ledger_files_in_dir(input_dir, output_dir):
     # A ledger file can only be split at a seqno that contains a signature
     # (so that all files end on a signature that verifies their integrity).
@@ -292,6 +395,7 @@ def run_file_operations(args):
                 test_forced_ledger_chunk(network, args)
                 test_forced_snapshot(network, args)
                 test_large_snapshot(network, args)
+                test_snapshot_access(network, args)
 
                 primary, _ = network.find_primary()
                 # Scoped transactions are not handled by historical range queries
@@ -391,7 +495,6 @@ def run_config_timeout_check(args):
     env = {}
     if args.enclave_platform == "snp":
         env = snp.get_aci_env()
-    env["ASAN_OPTIONS"] = "alloc_dealloc_mismatch=0"
 
     proc = subprocess.Popen(
         [
@@ -462,7 +565,7 @@ def run_configuration_file_checks(args):
     for config in config_files_to_check:
         cmd = [bin_path, f"--config={config}", "--check"]
         rc = infra.proc.ccall(
-            *cmd, env={"ASAN_OPTIONS": "alloc_dealloc_mismatch=0"}
+            *cmd,
         ).returncode
         assert rc == 0, f"Failed to check configuration: {rc}"
         LOG.success(f"Successfully check sample configuration file {config}")
@@ -589,6 +692,64 @@ def run_service_subject_name_check(args):
             assert cert.subject.rfc4514_string() == "CN=This test service", cert
 
 
+def run_cose_signatures_config_check(args):
+    nargs = copy.deepcopy(args)
+    nargs.nodes = infra.e2e_args.max_nodes(nargs, f=0)
+
+    with infra.network.network(
+        nargs.nodes,
+        nargs.binary_dir,
+        nargs.debug_nodes,
+        nargs.perf_nodes,
+        pdb=nargs.pdb,
+    ) as network:
+        network.start_and_open(
+            nargs,
+            cose_signatures_issuer="test.issuer.example.com",
+            cose_signatures_subject="test.subject",
+        )
+
+        for node in network.get_joined_nodes():
+            with node.client("user0") as client:
+                r = client.get("/commit")
+                assert r.status_code == http.HTTPStatus.OK
+                txid = TxID.from_str(r.body.json()["transaction_id"])
+                max_retries = 10
+                for _ in range(max_retries):
+                    response = client.get(
+                        "/log/public/cose_signature",
+                        headers={
+                            infra.clients.CCF_TX_ID_HEADER: f"{txid.view}.{txid.seqno}"
+                        },
+                    )
+
+                    if response.status_code == http.HTTPStatus.OK:
+                        signature = response.body.json()["cose_signature"]
+                        signature = base64.b64decode(signature)
+                        signature_filename = os.path.join(
+                            network.common_dir, f"cose_signature_{txid}.cose"
+                        )
+                        with open(signature_filename, "wb") as f:
+                            f.write(signature)
+                        sig = Sign1Message.decode(signature)
+                        assert sig.phdr[15][1] == "test.issuer.example.com"
+                        assert sig.phdr[15][2] == "test.subject"
+                        LOG.debug(
+                            "Checked COSE signature schema for issuer and subject"
+                        )
+                        break
+                    elif response.status_code == http.HTTPStatus.ACCEPTED:
+                        LOG.debug(f"Transaction {txid} accepted, retrying")
+                        time.sleep(0.1)
+                    else:
+                        LOG.error(f"Failed to get COSE signature for txid {txid}")
+                        break
+                else:
+                    assert (
+                        False
+                    ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -599,3 +760,4 @@ def run(args):
     run_preopen_readiness_check(args)
     run_sighup_check(args)
     run_service_subject_name_check(args)
+    run_cose_signatures_config_check(args)

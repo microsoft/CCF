@@ -68,9 +68,9 @@ namespace ccf
     const nlohmann::json& result_payload);
 
   jsonhandler::JsonAdapterResponse make_error(
-    http_status status, const std::string& code, const std::string& msg);
+    ccf::http_status status, const std::string& code, const std::string& msg);
 
-  jsonhandler::JsonAdapterResponse make_redirect(http_status status);
+  jsonhandler::JsonAdapterResponse make_redirect(ccf::http_status status);
 
   using HandlerJsonParamsAndForward =
     std::function<jsonhandler::JsonAdapterResponse(

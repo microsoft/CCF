@@ -51,6 +51,13 @@ def max_f(args, number_nodes):
     return (number_nodes - 1) // 2
 
 
+def default_platform():
+    if os.path.exists("PLATFORM"):
+        with open("PLATFORM") as f:
+            return f.read().strip()
+    return "virtual"
+
+
 def cli_args(
     add=lambda x: None,
     parser=None,
@@ -110,7 +117,9 @@ def cli_args(
         "-t",
         "--enclave-platform",
         help="Enclave platform (Trusted Execution Environment)",
-        default=os.getenv("TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_PLATFORM", "sgx")),
+        default=os.getenv(
+            "TEST_ENCLAVE", os.getenv("DEFAULT_ENCLAVE_PLATFORM", default_platform())
+        ),
         choices=("sgx", "snp", "virtual"),
     )
     log_level_choices = ("trace", "debug", "info", "fail", "fatal")

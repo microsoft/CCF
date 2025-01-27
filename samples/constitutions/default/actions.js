@@ -130,15 +130,28 @@ function checkJwks(value, field) {
   for (const [i, jwk] of value.keys.entries()) {
     checkType(jwk.kid, "string", `${field}.keys[${i}].kid`);
     checkType(jwk.kty, "string", `${field}.keys[${i}].kty`);
-    checkType(jwk.x5c, "array", `${field}.keys[${i}].x5c`);
-    checkLength(jwk.x5c, 1, null, `${field}.keys[${i}].x5c`);
-    for (const [j, b64der] of jwk.x5c.entries()) {
-      checkType(b64der, "string", `${field}.keys[${i}].x5c[${j}]`);
-      const pem =
-        "-----BEGIN CERTIFICATE-----\n" +
-        b64der +
-        "\n-----END CERTIFICATE-----";
-      checkX509CertBundle(pem, `${field}.keys[${i}].x5c[${j}]`);
+    if (jwk.x5c) {
+      checkType(jwk.x5c, "array", `${field}.keys[${i}].x5c`);
+      checkLength(jwk.x5c, 1, null, `${field}.keys[${i}].x5c`);
+      for (const [j, b64der] of jwk.x5c.entries()) {
+        checkType(b64der, "string", `${field}.keys[${i}].x5c[${j}]`);
+        const pem =
+          "-----BEGIN CERTIFICATE-----\n" +
+          b64der +
+          "\n-----END CERTIFICATE-----";
+        checkX509CertBundle(pem, `${field}.keys[${i}].x5c[${j}]`);
+      }
+    } else if (jwk.n && jwk.e) {
+      checkType(jwk.n, "string", `${field}.keys[${i}].n`);
+      checkType(jwk.e, "string", `${field}.keys[${i}].e`);
+    } else if (jwk.x && jwk.y) {
+      checkType(jwk.x, "string", `${field}.keys[${i}].x`);
+      checkType(jwk.y, "string", `${field}.keys[${i}].y`);
+      checkType(jwk.crv, "string", `${field}.keys[${i}].crv`);
+    } else {
+      throw new Error(
+        "JWK must contain either x5c, or n/e for RSA key type, or x/y/crv for EC key type",
+      );
     }
   }
 }
@@ -1037,19 +1050,6 @@ const actions = new Map([
     ),
   ],
   [
-    "add_executor_node_code",
-    new Action(
-      function (args) {
-        checkType(args.executor_code_id, "string", "executor_code_id");
-      },
-      function (args) {
-        const codeId = ccf.strToBuf(args.executor_code_id);
-        const ALLOWED = ccf.jsonCompatibleToBuf("AllowedToExecute");
-        ccf.kv["public:ccf.gov.nodes.executor_code_ids"].set(codeId, ALLOWED);
-      },
-    ),
-  ],
-  [
     "add_snp_host_data",
     new Action(
       function (args) {
@@ -1238,18 +1238,6 @@ const actions = new Map([
       function (args) {
         const codeId = ccf.strToBuf(args.code_id);
         ccf.kv["public:ccf.gov.nodes.code_ids"].delete(codeId);
-      },
-    ),
-  ],
-  [
-    "remove_executor_node_code",
-    new Action(
-      function (args) {
-        checkType(args.executor_code_id, "string", "executor_code_id");
-      },
-      function (args) {
-        const codeId = ccf.strToBuf(args.executor_code_id);
-        ccf.kv["public:ccf.gov.nodes.executor_code_ids"].delete(codeId);
       },
     ),
   ],

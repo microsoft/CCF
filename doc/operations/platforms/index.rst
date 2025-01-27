@@ -6,7 +6,6 @@ CCF can run on several hardware platforms/trusted execution environments, which 
 .. toctree::
     :maxdepth: 1
 
-    sgx
     snp
     virtual
 

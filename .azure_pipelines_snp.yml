@@ -22,7 +22,7 @@ schedules:
 resources:
   containers:
     - container: virtual
-      image: ghcr.io/microsoft/ccf/ci/default:build-08-10-2024
+      image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
       options: --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
 
 jobs:

@@ -3,7 +3,6 @@
 import os
 import time
 
-import logging
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
 from infra.clients import flush_info
@@ -33,8 +32,6 @@ from loguru import logger as LOG
 
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.backends import default_backend
-
-logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 # JOIN_TIMEOUT should be greater than the worst case quote verification time (~ 25 secs)
 JOIN_TIMEOUT = 40
@@ -230,7 +227,6 @@ class Network:
         version=None,
         service_load=None,
         node_data_json_file=None,
-        nodes_in_container=False,
     ):
         # Map of node id to dict of node arg to override value
         # for example, to set the election timeout to 2s for node 3:
@@ -282,7 +278,6 @@ class Network:
         self.args = None
         self.service_certificate_valid_from = None
         self.service_certificate_validity_days = None
-        self.nodes_in_container = nodes_in_container
 
         # Requires admin privileges
         self.partitioner = (
@@ -327,7 +322,6 @@ class Network:
             library_dir or self.library_dir,
             debug,
             perf,
-            nodes_in_container=self.nodes_in_container,
             **kwargs,
         )
         self.nodes.append(node)
@@ -1706,7 +1700,6 @@ def network(
     version=None,
     service_load=None,
     node_data_json_file=None,
-    nodes_in_container=False,
 ):
     """
     Context manager for Network class.
@@ -1737,7 +1730,6 @@ def network(
         version=version,
         service_load=service_load,
         node_data_json_file=node_data_json_file,
-        nodes_in_container=nodes_in_container,
     )
     try:
         yield net

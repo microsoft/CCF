@@ -6,6 +6,7 @@
 #include "ccf/http_status.h"
 #include "ccf/node_context.h"
 #include "ccf/pal/locking.h"
+#include "ccf/rpc_exception.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/jwt.h"
@@ -20,7 +21,6 @@
 #include "kv/store.h"
 #include "node/endpoint_context_impl.h"
 #include "node/node_configuration_subsystem.h"
-#include "rpc_exception.h"
 #include "service/internal_tables_access.h"
 
 #define FMT_HEADER_ONLY
@@ -666,10 +666,16 @@ namespace ccf
             return;
           }
 
-          const auto listen_interface =
-            ctx->get_session_context()->interface_id.value_or(
-              PRIMARY_RPC_INTERFACE);
-          const auto redirections = get_redirections_config(listen_interface);
+          std::optional<ccf::NodeInfoNetwork_v2::NetInterface::Redirections>
+            redirections = std::nullopt;
+
+          // If there's no interface ID, this is already forwarded or otherwise
+          // special - don't try to redirect it
+          if (ctx->get_session_context()->interface_id.has_value())
+          {
+            redirections = get_redirections_config(
+              ctx->get_session_context()->interface_id.value());
+          }
 
           // If a redirections config was specified, then redirections are used
           // and no forwarding is done
@@ -938,8 +944,12 @@ namespace ccf
     void open() override
     {
       std::lock_guard<ccf::pal::Mutex> mguard(open_lock);
-      is_open_ = true;
-      endpoints.init_handlers();
+      if (!is_open_)
+      {
+        LOG_INFO_FMT("Opening frontend");
+        is_open_ = true;
+        endpoints.init_handlers();
+      }
     }
 
     bool is_open() override

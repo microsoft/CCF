@@ -26,13 +26,6 @@ function(add_unit_test name)
              "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
 
-  # https://github.com/microsoft/CCF/issues/5198
-  set_property(
-    TEST ${name}
-    APPEND
-    PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
-  )
-
 endfunction()
 
 # Test binary wrapper
@@ -68,7 +61,7 @@ function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
     "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;PERF_LABEL"
-    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS;CONTAINER_NODES"
+    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
   if(NOT PARSED_ARGS_CONSTITUTION)
@@ -159,14 +152,6 @@ function(add_e2e_test)
         TEST ${PARSED_ARGS_NAME}
         APPEND
         PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
-      )
-    endif()
-    if((${PARSED_ARGS_CONTAINER_NODES}) AND (LONG_TESTS))
-      # Containerised nodes are only enabled with long tests
-      set_property(
-        TEST ${PARSED_ARGS_NAME}
-        APPEND
-        PROPERTY ENVIRONMENT "CONTAINER_NODES=ON"
       )
     endif()
 

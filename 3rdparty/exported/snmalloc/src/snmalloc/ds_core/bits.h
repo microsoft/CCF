@@ -45,11 +45,12 @@ namespace snmalloc
     static constexpr size_t BITS = sizeof(size_t) * CHAR_BIT;
 
     /**
-     * Returns a value of type T that has a single bit set,
+     * Returns a value of type T that has a single bit set at the given index,
+     * with 0 being the least significant bit.
      *
-     * S is a template parameter because callers use either `int` or `size_t`
-     * and either is valid to represent a number in the range 0-63 (or 0-127 if
-     * we want to use `__uint128_t` as `T`).
+     * S, the type of the bit index, is a template parameter because callers
+     * use either `int` or `size_t` and either is valid to represent a number in
+     * the range 0-63 (or 0-127 if we want to use `__uint128_t` as `T`).
      */
     template<typename T = size_t, typename S>
     constexpr T one_at_bit(S shift)
@@ -57,6 +58,19 @@ namespace snmalloc
       static_assert(std::is_integral_v<T>, "Type must be integral");
       SNMALLOC_ASSERT(sizeof(T) * 8 > static_cast<size_t>(shift));
       return (static_cast<T>(1)) << shift;
+    }
+
+    /**
+     * Returns a value of type T that has its n LSBs all set.
+     *
+     * S is a template parameter because callers use either `int` or `size_t`
+     * and either is valid to represent a number in the range 0-63 (or 0-127 if
+     * we want to use `__uint128_t` as `T`).
+     */
+    template<typename T = size_t, typename S>
+    constexpr T mask_bits(S n)
+    {
+      return one_at_bit<T>(n) - 1;
     }
 
     inline SNMALLOC_FAST_PATH size_t clz(size_t x)
@@ -158,7 +172,11 @@ namespace snmalloc
       SNMALLOC_ASSERT(x != 0); // Calling with 0 is UB on some implementations
 
 #if defined(_MSC_VER) && !defined(__clang__)
-#  ifdef _WIN64
+#  if defined(_M_ARM64) || defined(_M_ARM64EC)
+      unsigned long n = 0;
+      _BitScanForward64(&n, static_cast<unsigned __int64>(x));
+      return static_cast<size_t>(n);
+#  elif defined(_WIN64)
       return _tzcnt_u64(static_cast<unsigned __int64>(x));
 #  else
       return _tzcnt_u32(static_cast<unsigned int>(x));
@@ -203,7 +221,12 @@ namespace snmalloc
       overflow = __builtin_mul_overflow(x, y, &prod);
       return prod;
 #elif defined(_MSC_VER)
-#  ifdef _WIN64
+#  if defined(_M_ARM64) || defined(_M_ARM64EC)
+      size_t high_prod = __umulh(x, y);
+      size_t prod = x * y;
+      overflow = high_prod != 0;
+      return prod;
+#  elif defined(_WIN64)
       size_t high_prod;
       size_t prod = _umul128(x, y, &high_prod);
       overflow = high_prod != 0;
@@ -314,26 +337,10 @@ namespace snmalloc
      * Does not work for value=0.
      ***********************************************/
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
-    static size_t to_exp_mant(size_t value)
-    {
-      constexpr size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;
-      constexpr size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
-
-      value = value - 1;
-
-      size_t e =
-        bits::BITS - MANTISSA_BITS - LOW_BITS - clz(value | LEADING_BIT);
-      size_t b = (e == 0) ? 0 : 1;
-      size_t m = (value >> (LOW_BITS + e - b)) & MANTISSA_MASK;
-
-      return (e << MANTISSA_BITS) + m;
-    }
-
-    template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
     constexpr size_t to_exp_mant_const(size_t value)
     {
       constexpr size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;
-      constexpr size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
+      constexpr size_t MANTISSA_MASK = mask_bits(MANTISSA_BITS);
 
       value = value - 1;
 
@@ -351,7 +358,7 @@ namespace snmalloc
       if (MANTISSA_BITS > 0)
       {
         m_e = m_e + 1;
-        constexpr size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
+        constexpr size_t MANTISSA_MASK = mask_bits(MANTISSA_BITS);
         size_t m = m_e & MANTISSA_MASK;
         size_t e = m_e >> MANTISSA_BITS;
         size_t b = e == 0 ? 0 : 1;

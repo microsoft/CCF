@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/ds/json_schema.h"
+#include "ccf/node/cose_signatures_config.h"
 #include "ccf/node_startup_state.h"
 #include "ccf/pal/mem.h"
 #include "ccf/service/node_info_network.h"
@@ -72,7 +73,7 @@ namespace ccf
       ccf::TxID create_txid;
 
       // Only set on genesis transaction, but not on recovery
-      std::optional<StartupConfig::Start> genesis_info = std::nullopt;
+      std::optional<ccf::StartupConfig::Start> genesis_info = std::nullopt;
     };
   };
 
@@ -83,9 +84,6 @@ namespace ccf
       NodeInfoNetwork node_info_network;
       QuoteInfo quote_info;
       ccf::crypto::Pem public_encryption_key;
-      // Always set by the joiner (node_state.h), but defaults to nullopt here
-      // to make sure serialisation does take place now that it is OPTIONAL.
-      std::optional<ConsensusType> consensus_type = std::nullopt;
       std::optional<ccf::kv::Version> startup_seqno = std::nullopt;
       std::optional<ccf::crypto::Pem> certificate_signing_request =
         std::nullopt;
@@ -103,45 +101,43 @@ namespace ccf
       {
         bool public_only = false;
         ccf::kv::Version last_recovered_signed_idx = ccf::kv::NoVersion;
-        ConsensusType consensus_type = ConsensusType::CFT;
-        std::optional<ReconfigurationType> reconfiguration_type =
-          std::nullopt; // Unused, but kept for backwards compatibility
-
         LedgerSecretsMap ledger_secrets;
         NetworkIdentity identity;
         std::optional<ServiceStatus> service_status = std::nullopt;
 
         std::optional<ccf::crypto::Pem> endorsed_certificate = std::nullopt;
+        std::optional<ccf::COSESignaturesConfig> cose_signatures_config =
+          std::nullopt;
 
         NetworkInfo() {}
 
         NetworkInfo(
           bool public_only,
           ccf::kv::Version last_recovered_signed_idx,
-          ReconfigurationType reconfiguration_type,
           const LedgerSecretsMap& ledger_secrets,
           const NetworkIdentity& identity,
           ServiceStatus service_status,
-          const std::optional<ccf::crypto::Pem>& endorsed_certificate) :
+          const std::optional<ccf::crypto::Pem>& endorsed_certificate,
+          const std::optional<ccf::COSESignaturesConfig>&
+            cose_signatures_config_) :
           public_only(public_only),
           last_recovered_signed_idx(last_recovered_signed_idx),
-          reconfiguration_type(reconfiguration_type),
           ledger_secrets(ledger_secrets),
           identity(identity),
           service_status(service_status),
-          endorsed_certificate(endorsed_certificate)
+          endorsed_certificate(endorsed_certificate),
+          cose_signatures_config(cose_signatures_config_)
         {}
 
         bool operator==(const NetworkInfo& other) const
         {
           return public_only == other.public_only &&
             last_recovered_signed_idx == other.last_recovered_signed_idx &&
-            consensus_type == other.consensus_type &&
-            reconfiguration_type == other.reconfiguration_type &&
             ledger_secrets == other.ledger_secrets &&
             identity == other.identity &&
             service_status == other.service_status &&
-            endorsed_certificate == other.endorsed_certificate;
+            endorsed_certificate == other.endorsed_certificate &&
+            cose_signatures_config == other.cose_signatures_config;
         }
 
         bool operator!=(const NetworkInfo& other) const

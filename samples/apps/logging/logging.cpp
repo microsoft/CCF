@@ -7,6 +7,8 @@
 // CCF
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
+#include "ccf/cose_signatures_config_interface.h"
+#include "ccf/crypto/cose.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hash.h"
 #include "ccf/endpoints/authentication/all_of_auth.h"
@@ -289,6 +291,17 @@ namespace loggingapp
         return response;
       }
       else if (
+        auto any_cert_ident =
+          dynamic_cast<const ccf::AnyCertAuthnIdentity*>(caller.get()))
+      {
+        auto response = std::string("Any TLS cert");
+        auto caller_cert = ccf::crypto::cert_der_to_pem(any_cert_ident->cert);
+
+        response +=
+          fmt::format("\nThe caller's cert is:\n{}", caller_cert.str());
+        return response;
+      }
+      else if (
         auto jwt_ident =
           dynamic_cast<const ccf::JwtAuthnIdentity*>(caller.get()))
       {
@@ -458,7 +471,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.4.3";
+      openapi_info.document_version = "2.8.0";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -1167,6 +1180,7 @@ namespace loggingapp
          user_cert_jwt_and_sig_auth_policy,
          ccf::user_cert_auth_policy,
          ccf::member_cert_auth_policy,
+         ccf::any_cert_auth_policy,
          ccf::jwt_auth_policy,
          ccf::user_cose_sign1_auth_policy,
          ccf::empty_auth_policy})
@@ -2036,6 +2050,82 @@ namespace loggingapp
           get_cose_signature, context, is_tx_committed),
         auth_policies)
         .set_auto_schema<void, LoggingGetCoseSignature::Out>()
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto get_cose_receipt = [this](
+                                ccf::endpoints::ReadOnlyEndpointContext& ctx,
+                                ccf::historical::StatePtr historical_state) {
+        auto historical_tx = historical_state->store->create_read_only_tx();
+
+        assert(historical_state->receipt);
+        auto signature = describe_cose_signature_v1(*historical_state->receipt);
+        if (!signature.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No COSE signature available for this transaction");
+          return;
+        }
+        auto proof = describe_merkle_proof_v1(*historical_state->receipt);
+        if (!proof.has_value())
+        {
+          ctx.rpc_ctx->set_error(
+            HTTP_STATUS_NOT_FOUND,
+            ccf::errors::ResourceNotFound,
+            "No merkle proof available for this transaction");
+          return;
+        }
+
+        int64_t vdp = 396;
+        auto inclusion_proof = ccf::cose::edit::pos::AtKey{-1};
+
+        ccf::cose::edit::desc::Value desc{inclusion_proof, vdp, *proof};
+
+        auto cose_receipt =
+          ccf::cose::edit::set_unprotected_header(*signature, desc);
+
+        ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        ctx.rpc_ctx->set_response_header(
+          ccf::http::headers::CONTENT_TYPE,
+          ccf::http::headervalues::contenttype::COSE);
+        ctx.rpc_ctx->set_response_body(cose_receipt);
+      };
+      make_read_only_endpoint(
+        "/log/public/cose_receipt",
+        HTTP_GET,
+        ccf::historical::read_only_adapter_v4(
+          get_cose_receipt, context, is_tx_committed),
+        auth_policies)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto get_cose_signatures_config =
+        [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+          auto subsystem =
+            context.get_subsystem<ccf::cose::AbstractCOSESignaturesConfig>();
+          if (!subsystem)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "COSE signatures subsystem not available");
+            return;
+          }
+          auto config = subsystem->get_cose_signatures_config();
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(nlohmann::json(config).dump());
+        };
+
+      make_read_only_endpoint(
+        "/cose_signatures_config",
+        HTTP_GET,
+        get_cose_signatures_config,
+        auth_policies)
+        .set_auto_schema<void, void>()
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
         .install();
     }

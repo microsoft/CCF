@@ -9,25 +9,28 @@ First, checkout the CCF repository:
 
     $ git clone git@github.com:microsoft/CCF.git
 
-To build CCF from source on a SGX-enabled machine, run the following:
+To build CCF from source, run the following:
 
-.. code-block:: bash
+.. tab:: SNP
 
-    $ cd CCF
-    $ mkdir build
-    $ cd build
-    $ cmake -GNinja ..
-    $ ninja
+    .. code-block:: bash
 
-Alternatively, on a non-SGX machine, you can build a `virtual` instance of CCF:
+        $ cd CCF
+        $ mkdir build
+        $ cd build
+        $ cmake -GNinja -DCOMPILE_TARGET=snp .. 
+        $ ninja
 
-.. code-block:: bash
 
-    $ cd CCF
-    $ mkdir build
-    $ cd build
-    $ cmake -GNinja -DCOMPILE_TARGET=virtual ..
-    $ ninja
+.. tab:: Virtual
+
+    .. code-block:: bash
+
+        $ cd CCF
+        $ mkdir build
+        $ cd build
+        $ cmake -GNinja -DCOMPILE_TARGET=virtual ..
+        $ ninja
 
 .. note:::
 
@@ -50,7 +53,7 @@ The most common build switches include:
 
 * **BUILD_TESTS**: Boolean. Build all tests for CCF. Default to ON.
 * **SAN**: Boolean. Build unit tests with Address and Undefined behaviour sanitizers enabled. Default to OFF.
-* **COMPILE_TARGET**: String. Target compilation platform. Defaults to ``sgx``. Supported values are ``sgx``, ``snp``, or ``virtual``.
+* **COMPILE_TARGET**: String. Target compilation platform. Defaults to ``snp``. Supported values are ``snp``, or ``virtual``.
 
 Run Tests
 ---------

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ds/x509_time_fmt.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "openssl_wrappers.h"
 
 #include <openssl/asn1.h>
@@ -30,6 +30,6 @@ namespace ccf::crypto::OpenSSL
   {
     std::tm t;
     CHECK1(ASN1_TIME_to_tm(time, &t));
-    return ::ds::to_x509_time_string(t);
+    return ccf::ds::to_x509_time_string(t);
   }
 }

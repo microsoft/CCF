@@ -160,8 +160,8 @@ namespace ccf
     virtual void on_http_request(
       const ::http::URL& url,
       ::http::Request&& req,
-      std::function<
-        bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
+      std::function<bool(
+        ccf::http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback) override
     {
       auto ca = std::make_shared<::tls::CA>(config.ca_certs, true);
@@ -172,7 +172,7 @@ namespace ccf
         url.host,
         url.port,
         [callback](
-          http_status status,
+          ccf::http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           return callback(status, std::move(headers), std::move(data));

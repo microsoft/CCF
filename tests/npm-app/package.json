@@ -1,8 +1,8 @@
 {
   "private": true,
   "scripts": {
-    "build": "del-cli -f dist/ && rollup --config && cp app.json dist/ && node build_bundle.js dist/",
-    "bundle": "node build_bundle.js dist",
+    "build": "del-cli -f dist/ && rollup --config && cp app.json dist/ && npx ccf-build-bundle dist",
+    "bundle": "npx ccf-build-bundle dist",
     "test": "node --version"
   },
   "type": "module",
@@ -28,6 +28,6 @@
     "http-server": "^14.1.1",
     "rollup": "^4.18.0",
     "tslib": "^2.6.3",
-    "typescript": "^5.4.5"
+    "typescript": "^5.7.2"
   }
 }

@@ -122,7 +122,7 @@ Identity, status and attestations (endorsed quotes) of the nodes hosting the net
 ``nodes.code_ids``
 ~~~~~~~~~~~~~~~~~~
 
-Versions of the code allowed to join the current network on :doc:`SGX <../operations/platforms/sgx>`.
+DEPRECATED. Previously contained versions of the code allowed to join the current network on SGX hardware.
 
 **Key** MRENCLAVE, represented as a base64 hex-encoded string (length: 64).
 
@@ -359,10 +359,6 @@ JWT issuers.
 .. doxygenenum:: ccf::JwtIssuerKeyFilter
    :project: CCF
 
-.. doxygenstruct:: ccf::JwtIssuerKeyPolicy
-   :project: CCF
-   :members:
-
 ``jwt.public_signing_keys``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -384,11 +380,20 @@ JWT signing key to Issuer mapping, used until 5.0.
 ``jwt.public_signing_keys_metadata``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-JWT signing keys.
+JWT signing keys, used until 6.0.
 
 **Key** JWT Key ID, represented as a string.
 
-**Value** List of (DER-encoded key/certificate, issuer, constraint) used to validate the Issuer during authorization, represented as JSON.
+**Value** List of (DER-encoded certificate, issuer, constraint), represented as JSON.
+
+``jwt.public_signing_keys_metadata_v2``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+JWT signing keys, from 6.0.0 onwards.
+
+**Key** JWT Key ID, represented as a string.
+
+**Value** List of (DER-encoded public key, issuer, constraint), represented as JSON.
 
 ``constitution``
 ~~~~~~~~~~~~~~~~
@@ -472,7 +477,7 @@ Signatures emitted by the primary node at regular interval, over the root of the
    :members:
 
 ``cose_signatures``
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 COSE signatures emitted by the primary node over the root of the Merkle Tree at that sequence number.
 

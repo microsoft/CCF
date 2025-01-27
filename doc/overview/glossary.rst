@@ -5,9 +5,6 @@ Glossary
   Azure Confidential Compute
     `Azure Confidential Compute <https://azure.microsoft.com/en-us/solutions/confidential-compute/>`_ protects the confidentiality and integrity of your data and code while it's processed in the public cloud.
 
-  Azure DCAP
-    Intel SGX Data Centre Attestation Primitives which allows SGX attestation to be used within Microsoft Azure.
-
   Constitution
     JavaScript module that defines possible governance actions, and how members' proposals are validated, resolved and applied to the service.
 
@@ -20,12 +17,6 @@ Glossary
 
   Enclave
     `Trusted Execution Environments <https://en.wikipedia.org/wiki/Trusted_execution_environment>`_, allowing fully encrypted and auditable execution without direct access from the host machine.
-
-  FLC
-    `Flexible Launch Control <https://github.com/intel/linux-sgx/blob/master/psw/ae/ref_le/ref_le.md#flexible-launch-control>`_ is a feature of the Intel :term:`SGX` architecture.
-
-  Intel SGX PSW
-    Intel SGX Platform SoftWare which manages SGX enclaves loading as well as communication with architectural enclaves. More details `here <https://github.com/intel/linux-sgx>`_.
 
   Members
     Constitute the consortium governing a CCF network. Their public identity should be registered in CCF.
@@ -41,9 +32,6 @@ Glossary
 
   Omission Fault
     Type of failure where consensus messages exchanged between nodes are lost due to unreliable network. This may cause one or more nodes to be isolated from the rest of the network.
-  
-  Open Enclave
-    `Open Enclave SDK <https://openenclave.io/sdk>`_ is an SDK for building enclave applications in C and C++.
 
   Operators
     Are in charge of operating a CCF network (e.g. adding or removing nodes). Their identities are not registered in CCF.
@@ -65,9 +53,6 @@ Glossary
 
   SEV-SNP
     `AMD Secure Encrypted Virtualisation - Secure Nested Paging <https://www.amd.com/en/processors/amd-secure-encrypted-virtualization>`_ is a trusted execution environment platform. It is a technology used to isolate virtual machines from the hypervisor with strong memory integrity protection.
-
-  SGX
-    `Intel Software Guard Extensions <https://www.intel.com/content/www/us/en/developer/tools/software-guard-extensions/overview.html>`_ is a trusted execution environment platform. It is a set of instructions that increases the security of application code and data, giving them more protection from disclosure or modification. Developers can partition sensitive information into enclaves, which are areas of execution in memory with more security protection.
 
   TCP
     `Transmission Control Protocol <https://en.wikipedia.org/wiki/Transmission_Control_Protocol>`_ is a network protocol over IP that provides sessions and ordered streams, which we use to connect between nodes and external clients.

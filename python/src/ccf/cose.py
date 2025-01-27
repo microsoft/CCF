@@ -9,6 +9,7 @@ from typing import Optional, Type
 import base64
 import cbor2
 import json
+from hashlib import sha256
 from datetime import datetime
 import pycose.headers  # type: ignore
 from pycose.keys.ec2 import EC2Key  # type: ignore
@@ -24,6 +25,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.x509 import load_pem_x509_certificate
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.x509.base import CertificatePublicKeyTypes
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 Pem = str
 
@@ -36,6 +39,19 @@ GOV_MSG_TYPES = [
     "recovery_share",
     "encrypted_recovery_share",
 ] + GOV_MSG_TYPES_WITH_PROPOSAL_ID
+
+# See https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/
+# should move to a pycose.header value after RFC publication
+
+COSE_PHDR_VDP_LABEL = 396
+COSE_PHDR_VDS_LABEL = 395
+COSE_PHDR_VDS_CCF_LEDGER_SHA256 = 2
+COSE_RECEIPT_INCLUSION_PROOF_LABEL = -1
+
+# See https://datatracker.ietf.org/doc/draft-birkholz-cose-receipts-ccf-profile/
+
+CCF_PROOF_LEAF_LABEL = 1
+CCF_PROOF_PATH_LABEL = 2
 
 
 def from_cryptography_eckey_obj(ext_key) -> EC2Key:
@@ -185,6 +201,61 @@ def validate_cose_sign1(pubkey, cose_sign1, payload=None):
 
     if not msg.verify_signature():
         raise ValueError("signature is invalid")
+
+
+def verify_receipt(
+    receipt_bytes: bytes, key: CertificatePublicKeyTypes, claim_digest: bytes
+):
+    """
+    Verify a COSE Sign1 receipt as defined in https://datatracker.ietf.org/doc/draft-ietf-cose-merkle-tree-proofs/,
+    using the CCF tree algorithm defined in https://datatracker.ietf.org/doc/draft-birkholz-cose-receipts-ccf-profile/
+    """
+    # Extract the expected KID from the public key used for verification,
+    # and check it against the value set in the COSE header before using
+    # it to verify the proofs.
+    expected_kid = (
+        sha256(key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo))
+        .digest()
+        .hex()
+        .encode()
+    )
+    receipt = Sign1Message.decode(receipt_bytes)
+    cose_key = from_cryptography_eckey_obj(key)
+    assert receipt.phdr[pycose.headers.KID] == expected_kid
+    receipt.key = cose_key
+
+    assert (
+        COSE_PHDR_VDS_LABEL in receipt.phdr
+    ), "Verifiable data structure type is required"
+    assert (
+        receipt.phdr[COSE_PHDR_VDS_LABEL] == COSE_PHDR_VDS_CCF_LEDGER_SHA256
+    ), "vds(395) protected header must be CCF_LEDGER_SHA256(2)"
+
+    assert COSE_PHDR_VDP_LABEL in receipt.uhdr, "Verifiable data proof is required"
+    proof = receipt.uhdr[COSE_PHDR_VDP_LABEL]
+    assert COSE_RECEIPT_INCLUSION_PROOF_LABEL in proof, "Inclusion proof is required"
+    inclusion_proofs = proof[COSE_RECEIPT_INCLUSION_PROOF_LABEL]
+    assert inclusion_proofs, "At least one inclusion proof is required"
+    for inclusion_proof in inclusion_proofs:
+        assert isinstance(inclusion_proof, bytes), "Inclusion proof must be bstr"
+        proof = cbor2.loads(inclusion_proof)
+        assert CCF_PROOF_LEAF_LABEL in proof, "Leaf must be present"
+        leaf = proof[CCF_PROOF_LEAF_LABEL]
+        accumulator = sha256(
+            leaf[0] + sha256(leaf[1].encode()).digest() + leaf[2]
+        ).digest()
+        assert CCF_PROOF_PATH_LABEL in proof, "Path must be present"
+        path = proof[CCF_PROOF_PATH_LABEL]
+        for left, digest in path:
+            if left:
+                accumulator = sha256(digest + accumulator).digest()
+            else:
+                accumulator = sha256(accumulator + digest).digest()
+        if not receipt.verify_signature(accumulator):
+            raise ValueError("Signature verification failed")
+        if claim_digest != leaf[2]:
+            raise ValueError(f"Claim digest mismatch: {leaf[2]!r} != {claim_digest!r}")
+    return receipt.phdr
 
 
 _SIGN_DESCRIPTION = """Create and sign a COSE Sign1 message for CCF governance

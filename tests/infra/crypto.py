@@ -71,6 +71,7 @@ def generate_aes_key(key_bits: int) -> bytes:
 
 def generate_rsa_keypair(key_size: int) -> Tuple[str, str]:
     assert key_size >= 2048
+    # CodeQL [SM04455] False positive: The key size is asserted to be at least 2048 bytes
     priv = rsa.generate_private_key(
         public_exponent=RECOMMENDED_RSA_PUBLIC_EXPONENT,
         key_size=key_size,
@@ -306,10 +307,8 @@ def pub_key_pem_to_der(pem: str) -> bytes:
     return cert.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
 
 
-def create_jwt(body_claims: dict, key_priv_pem: str, key_id: str) -> str:
-    return jwt.encode(
-        body_claims, key_priv_pem, algorithm="RS256", headers={"kid": key_id}
-    )
+def create_jwt(body_claims: dict, key_priv_pem: str, key_id: str, alg="RS256") -> str:
+    return jwt.encode(body_claims, key_priv_pem, algorithm=alg, headers={"kid": key_id})
 
 
 def cert_pem_to_der(pem: str) -> bytes:

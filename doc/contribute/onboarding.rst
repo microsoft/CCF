@@ -10,11 +10,6 @@ Start by reading :doc:`/overview/what_is_ccf`.
 
 If you encounter any terms or acronyms that you do not know, check the :doc:`/overview/glossary`. If the word you are looking for is not defined, create an `issue <https://github.com/microsoft/CCF/issues/new/choose>`_.
 
-Create an SGX VM if necessary
------------------------------
-
-If you intend to make changes that need to work on Intel SGX, you will want an :doc:`SGX VM </contribute/create_vm>` to check you didn't introduce instructions that are illegal in enclave, and to evaluate the performance impact of your change.
-
 Build CCF
 ---------
 

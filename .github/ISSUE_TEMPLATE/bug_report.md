@@ -1,8 +1,8 @@
 ---
 name: Bug report
-about: Create a bug report
+about: Report a bug in CCF
 title: ""
-labels: bug
+type: bug
 assignees: ""
 ---
 

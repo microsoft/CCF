@@ -20,7 +20,7 @@ jobs:
   checks:
     name: "Format and License Checks"
     runs-on: ubuntu-latest
-    container: ghcr.io/microsoft/ccf/ci/default:build-08-10-2024
+    container: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
 
     steps:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -44,7 +44,7 @@ jobs:
             options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
     runs-on: ${{ matrix.platform.nodes }}
     container:
-      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-08-10-2024
+      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-14-01-2025
       options: ${{ matrix.platform.options }}
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +57,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF ..
+          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 
@@ -91,10 +91,11 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
+            build/workspace/*.ledger/*
           if-no-files-found: ignore
         if: success() || failure()
 
-  build_azure_linux:
+  build_and_test_azure_linux:
     name: "Azure Linux CI"
     needs: checks
     runs-on: [self-hosted, 1ES.Pool=gha-c-aci-westus]
@@ -112,10 +113,15 @@ jobs:
           tdnf -y install ca-certificates git
           # Build tools
           tdnf -y install build-essential clang cmake ninja-build which
+          # libc++
+          tdnf -y install libcxx-devel llvm-libunwind-devel llvm-libunwind-static
           # Dependencies
-          tdnf -y install openssl-devel libuv-devel
+          tdnf -y install openssl-devel libuv-devel nghttp2-devel curl-devel
           # Test dependencies
-          tdnf -y install libarrow-devel parquet-libs-devel
+          tdnf -y install libarrow-devel parquet-libs-devel lldb npm jq expect
+          # Install CDDL via rubygems
+          tdnf -y install rubygems
+          gem install cddl
         shell: bash
 
       - uses: actions/checkout@v4
@@ -128,6 +134,19 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DUSE_LIBCXX=OFF ..
+          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug ..
           ninja
+        shell: bash
+
+      - name: "Test virtual"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
+          # Unit tests
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          # All other acceptably fast tests, which are now supported on Mariner.
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|protocolstest|suite|unit|lts_compatibility"
         shell: bash

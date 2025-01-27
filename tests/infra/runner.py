@@ -20,7 +20,6 @@ import infra.bencher
 from loguru import logger as LOG
 
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
-logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 
 def minimum_number_of_local_nodes(args):

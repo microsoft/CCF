@@ -75,7 +75,7 @@ jobs:
             nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     runs-on: ${{ matrix.platform.nodes }}
     container:
-      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-08-10-2024
+      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-14-01-2025
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro ${{ matrix.platform.container_options }}"
     steps:
       - uses: actions/checkout@v4
@@ -91,13 +91,6 @@ jobs:
           cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} ${{ matrix.platform.cmake_options }} -DCLIENT_PROTOCOLS_TEST=ON ..
           ninja -v | tee build.log
         shell: bash
-
-      - name: "Check Mitigation Flags"
-        run: |
-          cd build
-          python3 ../scripts/build-check.py < build.log SNPCC
-        shell: bash
-        if: ${{ matrix.platform.name == 'snp' }}
 
       - name: "Install Extended Testing Tools"
         run: |
@@ -118,7 +111,10 @@ jobs:
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|unit"
+          # Suite tests
+          ./tests.sh --timeout 600 --output-on-failure -L "suite"
+          # Most tests
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|unit|suite"
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}"
 
@@ -130,6 +126,7 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
+            build/workspace/*.ledger/*
           if-no-files-found: ignore
         if: success() || failure()
 

@@ -3,7 +3,6 @@
 #include "../ds_core/ds_core.h"
 
 #include <atomic>
-#include <functional>
 
 namespace snmalloc
 {
@@ -55,6 +54,17 @@ namespace snmalloc
      * This Pal provides a millisecond time source
      */
     Time = (1 << 5),
+
+    /**
+     * This Pal provides selective core dumps, so
+     * modify which parts get dumped.
+     */
+    CoreDump = (1 << 6),
+
+    /**
+     * This Pal provides a way for parking threads at a specific address.
+     */
+    WaitOnAddress = (1 << 7),
   };
 
   /**

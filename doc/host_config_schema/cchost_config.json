@@ -296,6 +296,19 @@
                     "default": "CN=CCF Service",
                     "description": "Subject name to include in service certificate. Can only be set once on service start."
                   },
+                  "cose_signatures": {
+                    "type": "object",
+                    "properties": {
+                      "issuer": {
+                        "type": "string",
+                        "description": "Issuer, set in CWT_Claims of COSE ledger signatures. Can only be set once on service start."
+                      },
+                      "subject": {
+                        "type": "string",
+                        "description": "Subject, set in CWT_Claims of COSE ledger signatures. Can only be set once on service start."
+                      }
+                    }
+                  },
                   "members": {
                     "type": "array",
                     "items": {
@@ -383,6 +396,11 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Whether to follow redirects to the primary node of the existing service to join"
+                  },
+                  "fetch_recent_snapshot": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether to ask the target for a newer snapshot before joining. The node will ask the target what their latest snapshot is, and if that is later than what the node has locally, will fetch it via RPC before launching. Should generally only be turned off for specific test cases"
                   }
                 },
                 "required": ["target_rpc_address"],

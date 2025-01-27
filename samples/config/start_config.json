@@ -51,7 +51,11 @@
         "maximum_node_certificate_validity_days": 365
       },
       "initial_service_certificate_validity_days": 1,
-      "service_subject_name": "CN=A Sample CCF Service"
+      "service_subject_name": "CN=A Sample CCF Service",
+      "cose_signatures": {
+        "issuer": "service.example.com",
+        "subject": "ledger.signature"
+      }
     }
   },
   "ledger": {

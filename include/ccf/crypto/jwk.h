@@ -27,29 +27,43 @@ namespace ccf::crypto
     JsonWebKeyType kty;
     std::optional<std::string> kid = std::nullopt;
     std::optional<std::vector<std::string>> x5c = std::nullopt;
-    std::optional<std::string> issuer = std::nullopt;
 
     bool operator==(const JsonWebKey&) const = default;
   };
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKey);
   DECLARE_JSON_REQUIRED_FIELDS(JsonWebKey, kty);
-  DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c, issuer);
+  DECLARE_JSON_OPTIONAL_FIELDS(JsonWebKey, kid, x5c);
 
   enum class JsonWebKeyECCurve
   {
     P256 = 0,
-    P256K1 = 1,
-    P384 = 2,
-    P521 = 3
+    P384 = 1,
+    P521 = 2
   };
   DECLARE_JSON_ENUM(
     JsonWebKeyECCurve,
     {{JsonWebKeyECCurve::P256, "P-256"},
-     {JsonWebKeyECCurve::P256K1,
-      "secp256k1"}, // As per
-                    // https://www.rfc-editor.org/rfc/rfc8812#name-jose-and-cose-secp256k1-cur
      {JsonWebKeyECCurve::P384, "P-384"},
      {JsonWebKeyECCurve::P521, "P-521"}});
+
+  struct JsonWebKeyData
+  {
+    JsonWebKeyType kty;
+    std::optional<std::string> kid = std::nullopt;
+    std::optional<std::vector<std::string>> x5c = std::nullopt;
+    std::optional<std::string> n = std::nullopt;
+    std::optional<std::string> e = std::nullopt;
+    std::optional<std::string> x = std::nullopt;
+    std::optional<std::string> y = std::nullopt;
+    std::optional<JsonWebKeyECCurve> crv = std::nullopt;
+    std::optional<std::string> issuer = std::nullopt;
+
+    bool operator==(const JsonWebKeyData&) const = default;
+  };
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JsonWebKeyData);
+  DECLARE_JSON_REQUIRED_FIELDS(JsonWebKeyData, kty);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    JsonWebKeyData, kid, x5c, n, e, x, y, crv, issuer);
 
   static JsonWebKeyECCurve curve_id_to_jwk_curve(CurveID curve_id)
   {
@@ -59,8 +73,6 @@ namespace ccf::crypto
         return JsonWebKeyECCurve::P384;
       case CurveID::SECP256R1:
         return JsonWebKeyECCurve::P256;
-      case CurveID::SECP256K1:
-        return JsonWebKeyECCurve::P256K1;
       default:
         throw std::logic_error(fmt::format("Unknown curve {}", curve_id));
     }
@@ -74,8 +86,6 @@ namespace ccf::crypto
         return CurveID::SECP384R1;
       case JsonWebKeyECCurve::P256:
         return CurveID::SECP256R1;
-      case JsonWebKeyECCurve::P256K1:
-        return CurveID::SECP256K1;
       default:
         throw std::logic_error(fmt::format("Unknown JWK curve {}", jwk_curve));
     }

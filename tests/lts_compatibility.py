@@ -18,6 +18,8 @@ from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from infra.snp import IS_SNP
 from distutils.dir_util import copy_tree
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 from loguru import logger as LOG
 
@@ -98,6 +100,7 @@ def test_new_service(
     binary_dir,
     library_dir,
     version,
+    expected_subject_name=None,
 ):
     if IS_SNP:
         LOG.info(
@@ -148,6 +151,15 @@ def test_new_service(
 
     test_all_nodes_cert_renewal(network, args, valid_from=valid_from)
     test_service_cert_renewal(network, args, valid_from=valid_from)
+
+    if expected_subject_name:
+        LOG.info(f"Confirming subject name == {expected_subject_name}")
+        with primary.client() as c:
+            r = c.get("/node/network")
+            assert r.status_code == 200, r
+            cert_pem = r.body.json()["service_certificate"]
+            cert = x509.load_pem_x509_certificate(cert_pem.encode(), default_backend())
+            assert cert.subject.rfc4514_string() == expected_subject_name, cert
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
@@ -206,6 +218,8 @@ def run_code_upgrade_from(
 
     set_js_args(args, from_install_path, to_install_path)
 
+    service_subject_name = "CN=LTS custom service name"
+
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
@@ -225,7 +239,10 @@ def run_code_upgrade_from(
                 kwargs["reconfiguration_type"] = "OneTransaction"
 
             network.start_and_open(
-                args, node_container_image=from_container_image, **kwargs
+                args,
+                node_container_image=from_container_image,
+                service_subject_name=service_subject_name,
+                **kwargs,
             )
 
             old_nodes = network.get_joined_nodes()
@@ -286,6 +303,26 @@ def run_code_upgrade_from(
                     assert (
                         version == expected_version
                     ), f"For node {node.local_node_id}, expect version {expected_version}, got {version}"
+
+            # Verify that either custom service_subject_name was applied,
+            # or that a default name is used
+            primary, _ = network.find_primary()
+            with primary.client() as c:
+                r = c.get("/node/network")
+                assert r.status_code == 200, r
+                cert_pem = r.body.json()["service_certificate"]
+                cert = x509.load_pem_x509_certificate(
+                    cert_pem.encode(), default_backend()
+                )
+                version = primary.version or args.ccf_version
+                if not infra.node.version_after(version, "ccf-5.0.0-dev14"):
+                    service_subject_name = cert.subject.rfc4514_string()
+                    LOG.info(
+                        f"Custom subject name not supported on {version}, so falling back to default {service_subject_name}"
+                    )
+                else:
+                    LOG.info(f"Custom subject name should be supported on {version}")
+                    assert cert.subject.rfc4514_string() == service_subject_name, cert
 
             LOG.info("Apply transactions to hybrid network, with primary as old node")
             issue_activity_on_live_service(network, args)
@@ -357,12 +394,8 @@ def run_code_upgrade_from(
 
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
-            if not os.getenv("CONTAINER_NODES"):
-                jwt_issuer.refresh_keys()
-                jwt_issuer.wait_for_refresh(network, args)
-            else:
-                # https://github.com/microsoft/CCF/issues/2608#issuecomment-924785744
-                LOG.warning("Skipping JWT refresh as running nodes in container")
+            jwt_issuer.refresh_keys()
+            jwt_issuer.wait_for_refresh(network, args)
 
             test_new_service(
                 network,
@@ -371,6 +404,7 @@ def run_code_upgrade_from(
                 to_binary_dir,
                 to_library_dir,
                 to_version,
+                service_subject_name,
             )
             network.get_latest_ledger_public_state()
 
@@ -623,12 +657,6 @@ if __name__ == "__main__":
             "--release-install-path",
             type=str,
             help='Absolute path to existing CCF release, e.g. "/opt/ccf"',
-            default=None,
-        )
-        parser.add_argument(
-            "--release-install-image",
-            type=str,
-            help="If --release-install-path is set, specify a docker image to run release in (only if CONTAINER_NODES envvar is set) ",
             default=None,
         )
         parser.add_argument("--dry-run", action="store_true")

@@ -25,6 +25,10 @@ namespace ccf
         ccf::member_cert_auth_policy);
 
       policies.emplace(
+        ccf::AnyCertAuthnPolicy::SECURITY_SCHEME_NAME,
+        ccf::any_cert_auth_policy);
+
+      policies.emplace(
         ccf::JwtAuthnPolicy::SECURITY_SCHEME_NAME, ccf::jwt_auth_policy);
 
       policies.emplace(
@@ -61,6 +65,10 @@ namespace ccf
     else if constexpr (std::is_same_v<T, ccf::MemberCertAuthnIdentity>)
     {
       return ccf::MemberCertAuthnPolicy::SECURITY_SCHEME_NAME;
+    }
+    else if constexpr (std::is_same_v<T, ccf::AnyCertAuthnIdentity>)
+    {
+      return ccf::AnyCertAuthnPolicy::SECURITY_SCHEME_NAME;
     }
     else if constexpr (std::is_same_v<T, ccf::JwtAuthnIdentity>)
     {
