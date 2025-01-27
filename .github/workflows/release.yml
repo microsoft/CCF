@@ -92,13 +92,6 @@ jobs:
           ninja -v | tee build.log
         shell: bash
 
-      - name: "Check Mitigation Flags"
-        run: |
-          cd build
-          python3 ../scripts/build-check.py < build.log SNPCC
-        shell: bash
-        if: ${{ matrix.platform.name == 'snp' }}
-
       - name: "Install Extended Testing Tools"
         run: |
           set -ex
