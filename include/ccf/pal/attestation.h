@@ -13,12 +13,7 @@
 
 #include <fcntl.h>
 #include <functional>
-
-#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-#  include <sys/ioctl.h>
-#else
-#  include "ccf/pal/attestation_sgx.h"
-#endif
+#include <sys/ioctl.h>
 
 namespace ccf::pal
 {
@@ -246,8 +241,6 @@ namespace ccf::pal
   }
 #endif
 
-#if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
-
   static void verify_quote(
     const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,
@@ -290,175 +283,6 @@ namespace ccf::pal
       }
     }
   }
-
-#else // SGX
-
-  static void generate_quote(
-    PlatformAttestationReportData& report_data,
-    RetrieveEndorsementCallback endorsement_cb,
-    const snp::EndorsementsServers& endorsements_servers = {})
-  {
-    QuoteInfo node_quote_info = {};
-    node_quote_info.format = QuoteFormat::oe_sgx_v1;
-
-    sgx::Evidence evidence;
-    sgx::Endorsements endorsements;
-    sgx::SerialisedClaims serialised_custom_claims;
-
-    const size_t custom_claim_length = 1;
-    oe_claim_t custom_claim;
-    custom_claim.name = const_cast<char*>(sgx::report_data_claim_name);
-    custom_claim.value = report_data.data.data();
-    custom_claim.value_size = report_data.data.size();
-
-    auto rc = oe_serialize_custom_claims(
-      &custom_claim,
-      custom_claim_length,
-      &serialised_custom_claims.buffer,
-      &serialised_custom_claims.size);
-    if (rc != OE_OK)
-    {
-      throw std::logic_error(fmt::format(
-        "Could not serialise node's public key as quote custom claim: {}",
-        oe_result_str(rc)));
-    }
-
-    rc = oe_get_evidence(
-      &sgx::oe_quote_format,
-      0,
-      serialised_custom_claims.buffer,
-      serialised_custom_claims.size,
-      nullptr,
-      0,
-      &evidence.buffer,
-      &evidence.size,
-      &endorsements.buffer,
-      &endorsements.size);
-    if (rc != OE_OK)
-    {
-      throw std::logic_error(
-        fmt::format("Failed to get evidence: {}", oe_result_str(rc)));
-    }
-
-    node_quote_info.quote.assign(
-      evidence.buffer, evidence.buffer + evidence.size);
-    node_quote_info.endorsements.assign(
-      endorsements.buffer, endorsements.buffer + endorsements.size);
-
-    if (endorsement_cb != nullptr)
-    {
-      endorsement_cb(node_quote_info, {});
-    }
-  }
-
-  static void verify_quote(
-    const QuoteInfo& quote_info,
-    PlatformAttestationMeasurement& measurement,
-    PlatformAttestationReportData& report_data)
-  {
-    if (quote_info.format == QuoteFormat::insecure_virtual)
-    {
-      throw std::logic_error(fmt::format(
-        "Cannot verify virtual insecure attestation report on SGX platform"));
-    }
-    else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
-    {
-      verify_snp_attestation_report(quote_info, measurement, report_data);
-      return;
-    }
-
-    sgx::Claims claims;
-
-    auto rc = oe_verify_evidence(
-      &sgx::oe_quote_format,
-      quote_info.quote.data(),
-      quote_info.quote.size(),
-      quote_info.endorsements.data(),
-      quote_info.endorsements.size(),
-      nullptr,
-      0,
-      &claims.data,
-      &claims.length);
-    if (rc != OE_OK)
-    {
-      throw std::logic_error(fmt::format(
-        "Failed to verify evidence in SGX attestation report: {}",
-        oe_result_str(rc)));
-    }
-
-    std::optional<SgxAttestationMeasurement> claim_measurement = std::nullopt;
-    std::optional<SgxAttestationReportData> custom_claim_report_data =
-      std::nullopt;
-    for (size_t i = 0; i < claims.length; i++)
-    {
-      auto& claim = claims.data[i];
-      auto claim_name = std::string(claim.name);
-      if (claim_name == OE_CLAIM_UNIQUE_ID)
-      {
-        if (claim.value_size != SgxAttestationMeasurement::size())
-        {
-          throw std::logic_error(
-            fmt::format("SGX measurement claim is not of expected size"));
-        }
-
-        claim_measurement =
-          SgxAttestationMeasurement({claim.value, claim.value_size});
-      }
-      else if (claim_name == OE_CLAIM_CUSTOM_CLAIMS_BUFFER)
-      {
-        // Find sgx report data in custom claims
-        sgx::CustomClaims custom_claims;
-        rc = oe_deserialize_custom_claims(
-          claim.value,
-          claim.value_size,
-          &custom_claims.data,
-          &custom_claims.length);
-        if (rc != OE_OK)
-        {
-          throw std::logic_error(fmt::format(
-            "Failed to deserialise custom claims in SGX attestation report",
-            oe_result_str(rc)));
-        }
-
-        for (size_t j = 0; j < custom_claims.length; j++)
-        {
-          auto& custom_claim = custom_claims.data[j];
-          if (std::string(custom_claim.name) == sgx::report_data_claim_name)
-          {
-            if (custom_claim.value_size != SgxAttestationReportData::size())
-            {
-              throw std::logic_error(fmt::format(
-                "Expected claim {} of size {}, had size {}",
-                sgx::report_data_claim_name,
-                SgxAttestationReportData::size(),
-                custom_claim.value_size));
-            }
-
-            custom_claim_report_data = SgxAttestationReportData(
-              {custom_claim.value, custom_claim.value_size});
-
-            break;
-          }
-        }
-      }
-    }
-
-    if (!claim_measurement.has_value())
-    {
-      throw std::logic_error(
-        "Could not find measurement in SGX attestation report");
-    }
-
-    if (!custom_claim_report_data.has_value())
-    {
-      throw std::logic_error(
-        "Could not find report data in SGX attestation report");
-    }
-
-    measurement = claim_measurement.value();
-    report_data = custom_claim_report_data.value();
-  }
-#endif
 
   class AttestationCollateralFetchingTimeout : public std::exception
   {
