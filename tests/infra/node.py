@@ -284,6 +284,7 @@ class Node:
         self.common_dir = common_dir
         members_info = members_info or []
         self.label = label
+        self.enclave_platform = enclave_platform
 
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(
