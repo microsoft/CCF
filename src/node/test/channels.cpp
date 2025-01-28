@@ -1440,6 +1440,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     ccf::NodeId my_node_id;
     ccf::NodeId peer_node_id;
     ringbuffer::Circuit& source_buffer;
+    ringbuffer::NonBlockingWriterFactory& nbwf;
     NodeToNodeChannelManager& channels;
     SendQueue& send_queue;
 
@@ -1449,11 +1450,13 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
       ccf::NodeId my_node_id_,
       ccf::NodeId peer_node_id_,
       ringbuffer::Circuit& source_buffer_,
+      ringbuffer::NonBlockingWriterFactory& nbwf_,
       NodeToNodeChannelManager& channels_,
       SendQueue& send_queue_) :
       my_node_id(my_node_id_),
       peer_node_id(peer_node_id_),
       source_buffer(source_buffer_),
+      nbwf(nbwf_),
       channels(channels_),
       send_queue(send_queue_)
     {}
@@ -1559,6 +1562,8 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
         messages_each - send_queue.size(),
         received_results.size(),
         messages_each);
+
+      nbwf.flush_all_outbound();
     }
   };
 
@@ -1609,7 +1614,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     generate_endorsed_cert(
       kp1, fmt::format("CN={}", nid1), network_kp, service_cert));
   channels1.set_message_limit(message_limit);
-  TmpChannel tc1(nid1, nid2, eio2, channels1, to_send_from_1);
+  TmpChannel tc1(nid1, nid2, eio2, nbwf1, channels1, to_send_from_1);
 
   auto kp2 = ccf::crypto::make_key_pair(default_curve);
   NodeToNodeChannelManager channels2(nbwf2);
@@ -1619,7 +1624,7 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
     kp2,
     generate_endorsed_cert(
       kp2, fmt::format("CN={}", nid2), network_kp, service_cert));
-  TmpChannel tc2(nid2, nid1, eio1, channels2, to_send_from_2);
+  TmpChannel tc2(nid2, nid1, eio1, nbwf2, channels2, to_send_from_2);
 
   std::thread thread1(run_channel, std::ref(tc1));
   std::thread thread2(run_channel, std::ref(tc2));
@@ -1632,8 +1637,6 @@ TEST_CASE_FIXTURE(IORingbuffersFixture, "Key rotation")
   {
     constexpr auto sleep_time = std::chrono::milliseconds(10);
     std::this_thread::sleep_for(sleep_time);
-    nbwf1.flush_all_outbound();
-    nbwf2.flush_all_outbound();
     elapsed += sleep_time;
   }
 
