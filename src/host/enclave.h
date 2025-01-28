@@ -231,32 +231,14 @@ namespace host
       // Pad config and startup snapshot with NULLs to a multiple of 8, in an
       // 8-byte aligned allocation
       auto config_s = nlohmann::json(ccf_config).dump();
-      auto [config, config_aligned_size] = allocate_8_aligned(config_s.size());
-      LOG_DEBUG_FMT(
-        "Padding config of size {} to {} bytes",
-        config_s.size(),
-        config_aligned_size);
-      auto copy_end = std::copy(config_s.begin(), config_s.end(), config);
-      std::fill(copy_end, config + config_aligned_size, 0);
-
-      auto [snapshot, snapshot_aligned_size] =
-        allocate_8_aligned(startup_snapshot.size());
-      LOG_DEBUG_FMT(
-        "Padding startup snapshot of size {} to {} bytes",
-        startup_snapshot.size(),
-        snapshot_aligned_size);
-
-      auto snapshot_copy_end =
-        std::copy(startup_snapshot.begin(), startup_snapshot.end(), snapshot);
-      std::fill(snapshot_copy_end, snapshot + snapshot_aligned_size, 0);
 
 #define CREATE_NODE_ARGS \
-  &status, (void*)&enclave_config, config, config_aligned_size, snapshot, \
-    snapshot_aligned_size, node_cert.data(), node_cert.size(), &node_cert_len, \
-    service_cert.data(), service_cert.size(), &service_cert_len, \
-    enclave_version_buf.data(), enclave_version_buf.size(), \
-    &enclave_version_len, start_type, enclave_log_level, num_worker_thread, \
-    time_location
+  &status, (void*)&enclave_config, (uint8_t*)config_s.data(), config_s.size(), \
+    startup_snapshot.data(), startup_snapshot.size(), node_cert.data(), \
+    node_cert.size(), &node_cert_len, service_cert.data(), \
+    service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
+    enclave_version_buf.size(), &enclave_version_len, start_type, \
+    enclave_log_level, num_worker_thread, time_location
 
       oe_result_t err = OE_FAILURE;
 
@@ -274,9 +256,6 @@ namespace host
         err = enclave_create_node(sgx_handle, CREATE_NODE_ARGS);
       }
 #endif
-
-      std::free(config);
-      std::free(snapshot);
 
       if (err != OE_OK || status != CreateNodeStatus::OK)
       {

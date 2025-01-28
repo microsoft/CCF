@@ -68,7 +68,11 @@ class PrimaryNotFound(Exception):
     pass
 
 
-class CodeIdNotFound(Exception):
+class MeasurementNotFound(Exception):
+    pass
+
+
+class HostDataNotFound(Exception):
     pass
 
 
@@ -948,7 +952,9 @@ class Network:
                     # Throw accurate exceptions if known errors found in
                     for error in errors:
                         if "Quote does not contain known enclave measurement" in error:
-                            raise CodeIdNotFound from e
+                            raise MeasurementNotFound from e
+                        if "Quote host data is not authorised" in error:
+                            raise HostDataNotFound from e
                         if "UVM endorsements are not authorised" in error:
                             raise UVMEndorsementsNotAuthorised from e
                         if "StartupSeqnoIsOld" in error:

@@ -1251,6 +1251,12 @@
       "string": {
         "type": "string"
       },
+      "string_to_CodeStatus": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/CodeStatus"
+        },
+        "type": "object"
+      },
       "string_to_JwtIssuerMetadata": {
         "additionalProperties": {
           "$ref": "#/components/schemas/JwtIssuerMetadata"
@@ -2149,6 +2155,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/string_to_string_to_UVMEndorsementsData"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/virtual/host_data": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvNodesVirtualHostData",
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/virtual/measurements": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvNodesVirtualMeasurements",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_CodeStatus"
                 }
               }
             },

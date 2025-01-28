@@ -182,8 +182,6 @@ namespace ringbuffer
 
     BufferDef bd;
 
-    std::vector<uint8_t> local_copy;
-
     virtual uint64_t read64(size_t index)
     {
       bd.check_access(index, sizeof(uint64_t));
@@ -253,25 +251,7 @@ namespace ringbuffer
         // Call the handler function for this message.
         bd.check_access(hd_index, advance);
 
-        if (ccf::pal::require_alignment_for_untrusted_reads() && size > 0)
-        {
-          // To prevent unaligned reads during message processing, copy aligned
-          // chunk into enclave memory
-          const auto copy_size = Const::align_size(size);
-          if (local_copy.size() < copy_size)
-          {
-            local_copy.resize(copy_size);
-          }
-          ccf::pal::safe_memcpy(
-            local_copy.data(),
-            bd.data + msg_index + Const::header_size(),
-            copy_size);
-          f(m, local_copy.data(), (size_t)size);
-        }
-        else
-        {
-          f(m, bd.data + msg_index + Const::header_size(), (size_t)size);
-        }
+        f(m, bd.data + msg_index + Const::header_size(), (size_t)size);
       }
 
       if (advance > 0)

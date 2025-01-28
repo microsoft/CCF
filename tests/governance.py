@@ -2,7 +2,6 @@
 # Licensed under the Apache 2.0 License.
 import os
 import http
-import subprocess
 import infra.member
 import infra.network
 import infra.path
@@ -46,66 +45,6 @@ def test_consensus_status(network, args):
         r = c.get("/node/consensus")
         assert r.status_code == http.HTTPStatus.OK.value
         assert r.body.json()["details"]["leadership_state"] == "Leader"
-    return network
-
-
-@reqs.description("Test quotes")
-@reqs.supports_methods("/node/quotes/self", "/node/quotes")
-def test_quote(network, args):
-    if args.enclave_platform != "sgx":
-        LOG.warning("Quote test can only run in real enclaves, skipping")
-        return network
-
-    primary, _ = network.find_nodes()
-    with primary.client() as c:
-        oed = subprocess.run(
-            [
-                os.path.join(args.oe_binary, "oesign"),
-                "dump",
-                "-e",
-                infra.path.build_lib_path(
-                    args.package, args.enclave_type, args.enclave_platform
-                ),
-            ],
-            capture_output=True,
-            check=True,
-        )
-        lines = [
-            line
-            for line in oed.stdout.decode().split(os.linesep)
-            if line.startswith("mrenclave=")
-        ]
-        expected_mrenclave = lines[0].strip().split("=")[1]
-
-        r = c.get("/node/quotes/self")
-        primary_quote_info = r.body.json()
-        assert primary_quote_info["node_id"] == primary.node_id
-        primary_mrenclave = primary_quote_info["mrenclave"]
-        assert primary_mrenclave == expected_mrenclave, (
-            primary_mrenclave,
-            expected_mrenclave,
-        )
-
-        r = c.get("/node/quotes")
-        quotes = r.body.json()["quotes"]
-        assert len(quotes) == len(network.get_joined_nodes())
-
-        for quote in quotes:
-            mrenclave = quote["mrenclave"]
-            assert mrenclave == expected_mrenclave, (mrenclave, expected_mrenclave)
-
-            cafile = os.path.join(network.common_dir, "service_cert.pem")
-            assert (
-                infra.proc.ccall(
-                    "verify_quote.sh",
-                    f"https://{primary.get_public_rpc_host()}:{primary.get_public_rpc_port()}",
-                    "--cacert",
-                    f"{cafile}",
-                    log_output=True,
-                ).returncode
-                == 0
-            ), f"Quote verification for node {quote['node_id']} failed"
-
     return network
 
 
@@ -614,7 +553,6 @@ def gov(args):
         test_consensus_status(network, args)
         test_member_data(network, args)
         network = test_all_members(network, args)
-        test_quote(network, args)
         test_user(network, args)
         test_jinja_templates(network, args)
         test_no_quote(network, args)

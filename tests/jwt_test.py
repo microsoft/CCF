@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import os
 import tempfile
 import json
 import time
@@ -280,34 +279,6 @@ def test_jwt_without_key_policy(network, args):
         assert stored_key == issuer.key_pub_pem, "input key is not equal to stored key"
 
     return network
-
-
-def make_attested_cert(network, args):
-    keygen = os.path.join(args.binary_dir, "keygenerator.sh")
-    oeutil = os.path.join(args.oe_binary, "oeutil")
-    infra.proc.ccall(
-        keygen, "--name", "attested", "--gen-enc-key", path=network.common_dir
-    ).check_returncode()
-    privk = os.path.join(network.common_dir, "attested_enc_privk.pem")
-    pubk = os.path.join(network.common_dir, "attested_enc_pubk.pem")
-    der = os.path.join(network.common_dir, "oe_cert.der")
-    infra.proc.ccall(
-        oeutil,
-        "generate-evidence",
-        "-f",
-        "cert",
-        privk,
-        pubk,
-        "-o",
-        der,
-        # To ensure in-process attestation is always used, clear the env to unset the SGX_AESM_ADDR variable
-        env={},
-    ).check_returncode()
-    pem = os.path.join(network.common_dir, "oe_cert.pem")
-    infra.proc.ccall(
-        "openssl", "x509", "-inform", "der", "-in", der, "-out", pem
-    ).check_returncode()
-    return pem
 
 
 def check_kv_jwt_key_matches(args, network, kid, key_pem):

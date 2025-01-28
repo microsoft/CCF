@@ -7,6 +7,7 @@
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/uvm_endorsements.h"
+#include "ccf/service/tables/virtual_measurements.h"
 #include "node/uvm_endorsements.h"
 
 namespace ccf
@@ -58,8 +59,17 @@ namespace ccf
       case QuoteFormat::oe_sgx_v1:
       {
         if (!tx.ro<CodeIDs>(Tables::NODE_CODE_IDS)
-               ->get(pal::SgxAttestationMeasurement(quote_measurement))
-               .has_value())
+               ->has(pal::SgxAttestationMeasurement(quote_measurement)))
+        {
+          return QuoteVerificationResult::FailedMeasurementNotFound;
+        }
+        break;
+      }
+      case QuoteFormat::insecure_virtual:
+      {
+        if (!tx.ro<VirtualMeasurements>(Tables::NODE_VIRTUAL_MEASUREMENTS)
+               ->has(pal::VirtualAttestationMeasurement(
+                 quote_measurement.data.begin(), quote_measurement.data.end())))
         {
           return QuoteVerificationResult::FailedMeasurementNotFound;
         }
@@ -80,8 +90,7 @@ namespace ccf
         else
         {
           if (!tx.ro<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
-                 ->get(pal::SnpAttestationMeasurement(quote_measurement))
-                 .has_value())
+                 ->has(pal::SnpAttestationMeasurement(quote_measurement)))
           {
             return QuoteVerificationResult::FailedMeasurementNotFound;
           }
@@ -132,36 +141,63 @@ namespace ccf
   std::optional<HostData> AttestationProvider::get_host_data(
     const QuoteInfo& quote_info)
   {
-    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
+    switch (quote_info.format)
     {
-      return std::nullopt;
-    }
+      case QuoteFormat::insecure_virtual:
+      {
+        auto j = nlohmann::json::parse(quote_info.quote);
 
-    HostData digest{};
-    HostData::Representation rep{};
-    pal::PlatformAttestationMeasurement d = {};
-    pal::PlatformAttestationReportData r = {};
-    try
-    {
-      pal::verify_quote(quote_info, d, r);
-      auto quote = *reinterpret_cast<const pal::snp::Attestation*>(
-        quote_info.quote.data());
-      std::copy(
-        std::begin(quote.host_data), std::end(quote.host_data), rep.begin());
-    }
-    catch (const std::exception& e)
-    {
-      LOG_FAIL_FMT("Failed to verify attestation report: {}", e.what());
-      return std::nullopt;
-    }
+        auto it = j.find("host_data");
+        if (it != j.end())
+        {
+          const auto host_data = it->get<std::string>();
+          return ccf::crypto::Sha256Hash::from_hex_string(host_data);
+        }
 
-    return digest.from_representation(rep);
+        LOG_FAIL_FMT(
+          "No security policy in virtual attestation from which to derive host "
+          "data");
+        return std::nullopt;
+      }
+
+      case QuoteFormat::amd_sev_snp_v1:
+      {
+        HostData digest{};
+        HostData::Representation rep{};
+        pal::PlatformAttestationMeasurement d = {};
+        pal::PlatformAttestationReportData r = {};
+        try
+        {
+          pal::verify_quote(quote_info, d, r);
+          auto quote = *reinterpret_cast<const pal::snp::Attestation*>(
+            quote_info.quote.data());
+          std::copy(
+            std::begin(quote.host_data),
+            std::end(quote.host_data),
+            rep.begin());
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT("Failed to verify attestation report: {}", e.what());
+          return std::nullopt;
+        }
+
+        return digest.from_representation(rep);
+      }
+
+      default:
+      {
+        return std::nullopt;
+      }
+    }
   }
 
   QuoteVerificationResult verify_host_data_against_store(
     ccf::kv::ReadOnlyTx& tx, const QuoteInfo& quote_info)
   {
-    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
+    if (
+      quote_info.format != QuoteFormat::amd_sev_snp_v1 &&
+      quote_info.format != QuoteFormat::insecure_virtual)
     {
       throw std::logic_error(
         "Attempted to verify host data for an unsupported platform");
@@ -173,9 +209,21 @@ namespace ccf
       return QuoteVerificationResult::FailedHostDataDigestNotFound;
     }
 
-    auto accepted_policies_table = tx.ro<SnpHostDataMap>(Tables::HOST_DATA);
-    auto accepted_policy = accepted_policies_table->get(host_data.value());
-    if (!accepted_policy.has_value())
+    bool accepted_policy = false;
+
+    if (quote_info.format == QuoteFormat::insecure_virtual)
+    {
+      auto accepted_policies_table =
+        tx.ro<VirtualHostDataMap>(Tables::VIRTUAL_HOST_DATA);
+      accepted_policy = accepted_policies_table->contains(host_data.value());
+    }
+    else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
+    {
+      auto accepted_policies_table = tx.ro<SnpHostDataMap>(Tables::HOST_DATA);
+      accepted_policy = accepted_policies_table->has(host_data.value());
+    }
+
+    if (!accepted_policy)
     {
       return QuoteVerificationResult::FailedInvalidHostData;
     }
@@ -202,21 +250,13 @@ namespace ccf
       return QuoteVerificationResult::Failed;
     }
 
-    if (quote_info.format == QuoteFormat::insecure_virtual)
+    auto rc = verify_host_data_against_store(tx, quote_info);
+    if (rc != QuoteVerificationResult::Verified)
     {
-      LOG_INFO_FMT("Skipped attestation report verification");
-      return QuoteVerificationResult::Verified;
-    }
-    else if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
-    {
-      auto rc = verify_host_data_against_store(tx, quote_info);
-      if (rc != QuoteVerificationResult::Verified)
-      {
-        return rc;
-      }
+      return rc;
     }
 
-    auto rc = verify_enclave_measurement_against_store(
+    rc = verify_enclave_measurement_against_store(
       tx, measurement, quote_info.format, quote_info.uvm_endorsements);
     if (rc != QuoteVerificationResult::Verified)
     {
