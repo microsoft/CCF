@@ -102,6 +102,11 @@ namespace ringbuffer
       {
         for (auto& it : pending)
         {
+          if (it.finished)
+          {
+            continue;
+          }
+
           if (it.marker == marker.value())
           {
             // This is a pending write - dump data directly to write marker,
