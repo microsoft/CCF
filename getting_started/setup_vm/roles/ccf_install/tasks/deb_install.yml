@@ -1,6 +1,13 @@
 - name: Include vars
   include_vars: common.yml
 
+- name: Add stdcxx APT repository
+  apt_repository:
+    repo: "ppa:ubuntu-toolchain-r/test"
+    state: present
+    update_cache: yes
+  become: true
+
 - name: Get package url
   shell:
     cmd: |
