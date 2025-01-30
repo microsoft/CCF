@@ -70,21 +70,17 @@ jobs:
           - name: virtual
             os: ubuntu
             image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
-            package_format: DEB
             test_filter: "benchmark|unit"
           - name: snp
             os: ubuntu
             image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
-            package_format: DEB
           - name: virtual
             os: azure-linux
             image: mcr.microsoft.com/azurelinux/base/core:3.0
-            package_format: RPM
             test_filter: "benchmark|unit|protocolstest|lts"
           - name: snp
             os: azure-linux
             image: mcr.microsoft.com/azurelinux/base/core:3.0
-            package_format: RPM
 
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
@@ -118,7 +114,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCLIENT_PROTOCOLS_TEST=ON -DPACKAGE_TYPE=${{ matrix.platform.package_format }} -DCMAKE_BUILD_TYPE=Release ..
+          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
           ninja -v | tee build.log
 
       - name: "Install Extended Testing Tools"
