@@ -106,6 +106,8 @@ jobs:
         run: |
           set -ex
           ./scripts/install-azure-linux-deps.sh
+          # For packaging and release tests
+          tdnf -y install rpm-build
 
       - name: "Build Release ${{ matrix.platform.name }}"
         shell: bash
