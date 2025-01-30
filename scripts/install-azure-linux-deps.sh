@@ -4,9 +4,6 @@
 
 set -ex
 
-gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-tdnf -y update
-
 # Source control
 tdnf -y install ca-certificates git
 
