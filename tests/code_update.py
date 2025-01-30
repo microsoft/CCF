@@ -650,6 +650,7 @@ def test_update_all_nodes(network, args):
 
 
 @reqs.description("Adding a new measurement invalidates open proposals")
+@reqs.not_snp("Cannot produce alternative measurement on SNP")
 def test_proposal_invalidation(network, args):
     primary, _ = network.find_nodes()
 
@@ -726,7 +727,8 @@ def run(args):
 
         # Measurements
         test_measurements_tables(network, args)
-        test_add_node_with_untrusted_measurement(network, args)
+        if not snp.IS_SNP:
+            test_add_node_with_untrusted_measurement(network, args)
 
         # Host data/security policy
         test_host_data_tables(network, args)
@@ -742,10 +744,10 @@ def run(args):
             test_endorsements_tables(network, args)
             test_add_node_with_no_uvm_endorsements(network, args)
 
-        # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
-        test_proposal_invalidation(network, args)
-
         if not snp.IS_SNP:
+            # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
+            test_proposal_invalidation(network, args)
+
             # This is in practice equivalent to either "unknown measurement" or "unknown host data", but is explicitly
             # testing that (without artifically removing/corrupting those values) a replacement package differs
             # in one of these values
