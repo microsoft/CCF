@@ -96,7 +96,9 @@ def test_verify_quotes(network, args):
                 )
 
             # Quick API validation - confirm that all of these /quotes/self entries match the collection returned from /quotes
-            assert j in all_quotes
+            assert (
+                j in all_quotes
+            ), f"Didn't find {node.node_id}'s quote in collection\n{j}\n{json.dumps(all_quotes)}"
 
     return network
 
