@@ -785,6 +785,7 @@ namespace ccf
             q.raw = node_info.quote_info.quote;
             q.endorsements = node_info.quote_info.endorsements;
             q.format = node_info.quote_info.format;
+            q.uvm_endorsements = node_quote_info.uvm_endorsements;
 
             // get_measurement attempts to re-validate the quote to extract
             // mrenclave and the Open Enclave is insufficiently flexible to
