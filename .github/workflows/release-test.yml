@@ -96,6 +96,10 @@ jobs:
       options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
 
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: "Install dependencies"
         if: ${{ matrix.platform.os == 'azure-linux' }}
         shell: bash
@@ -104,9 +108,6 @@ jobs:
           ./scripts/install-azure-linux-deps.sh
           # For packaging and release tests
           tdnf -y install rpm-build
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: "Build Release ${{ matrix.platform.name }}"
         shell: bash
