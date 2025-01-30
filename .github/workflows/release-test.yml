@@ -74,26 +74,26 @@ jobs:
           - name: virtual
             os: ubuntu
             image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
-            package_version: DEB
+            package_format: DEB
             test_filter: "benchmark|unit"
           - name: snp
             os: ubuntu
             image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
-            package_version: DEB
+            package_format: DEB
           - name: virtual
             os: azure-linux
             image: mcr.microsoft.com/azurelinux/base/core:3.0
-            package_version: RPM
+            package_format: RPM
             test_filter: "benchmark|unit|protocolstest|lts"
           - name: snp
             os: azure-linux
             image: mcr.microsoft.com/azurelinux/base/core:3.0
-            package_version: RPM
+            package_format: RPM
 
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: ${{ matrix.platform.image }}
-      options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro"
+      options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
 
     steps:
       - name: "Install dependencies"
@@ -101,24 +101,9 @@ jobs:
         shell: bash
         run: |
           set -ex
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          # Source control
-          tdnf -y install ca-certificates git
-          # Build tools
-          tdnf -y install build-essential clang cmake ninja-build which
-          # libc++
-          tdnf -y install libcxx-devel llvm-libunwind-devel llvm-libunwind-static
-          # Dependencies
-          tdnf -y install openssl-devel libuv-devel nghttp2-devel curl-devel
-          # Test dependencies
-          tdnf -y install libarrow-devel parquet-libs-devel lldb npm jq expect
-          # Install CDDL via rubygems
-          tdnf -y install rubygems
-          gem install cddl
+          ./scripts/install-azure-linux-deps.sh
           # For packaging and release tests
-          tdnf -y install rpm-build procps
-
+          tdnf -y install rpm-build
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -130,7 +115,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCLIENT_PROTOCOLS_TEST=ON -DPACKAGE_TYPE=${{ matrix.platform.package_version }} -DCMAKE_BUILD_TYPE=Release ..
+          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCLIENT_PROTOCOLS_TEST=ON -DPACKAGE_TYPE=${{ matrix.platform.package_format }} -DCMAKE_BUILD_TYPE=Release ..
           ninja -v | tee build.log
 
       - name: "Install Extended Testing Tools"
