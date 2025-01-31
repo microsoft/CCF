@@ -6,6 +6,7 @@ import time
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
 from infra.clients import flush_info
+import infra.member
 import infra.path
 import infra.proc
 import infra.service_load
@@ -558,6 +559,13 @@ class Network:
             mc >= args.initial_operator_provisioner_count + args.initial_operator_count
         ), f"Not enough members ({mc}) for the set amount of operator provisioners and operators"
 
+        if args.initial_recovery_owner_count > 0:
+            assert (
+                mc
+                >= args.initial_recovery_participant_count
+                + args.initial_recovery_owner_count
+            ), f"Not enough members ({mc}) for the set amount of recovery participants and owners ({args.initial_recovery_participant_count + args.initial_recovery_owner_count})"
+
         initial_members_info = []
         for i in range(mc):
             member_data = None
@@ -568,10 +576,20 @@ class Network:
                 < args.initial_operator_provisioner_count + args.initial_operator_count
             ):
                 member_data = {"is_operator": True}
+            recovery_role = infra.member.RecoveryRole.NonParticipant
+            if i < args.initial_recovery_participant_count:
+                recovery_role = infra.member.RecoveryRole.Participant
+            elif (
+                i
+                < args.initial_recovery_participant_count
+                + args.initial_recovery_owner_count
+            ):
+                recovery_role = infra.member.RecoveryRole.Owner
+
             initial_members_info += [
                 (
                     i,
-                    (i < args.initial_recovery_member_count),
+                    recovery_role,
                     member_data,
                 )
             ]
@@ -698,7 +716,7 @@ class Network:
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
-    def recover(self, args, expected_recovery_count=None):
+    def recover(self, args, expected_recovery_count=None, via_recovery_owner=False):
         """
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
@@ -727,7 +745,11 @@ class Network:
             self.find_random_node(),
             previous_service_identity=prev_service_identity,
         )
-        self.consortium.recover_with_shares(self.find_random_node())
+
+        if via_recovery_owner:
+            self.consortium.recover_with_owner_share(self.find_random_node())
+        else:
+            self.consortium.recover_with_shares(self.find_random_node())
 
         for node in self.get_joined_nodes():
             self.wait_for_state(

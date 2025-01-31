@@ -37,6 +37,12 @@ class MemberStatus(Enum):
     ACTIVE = "Active"
 
 
+class RecoveryRole(Enum):
+    NonParticipant = "NonParticipant"
+    Participant = "Participant"
+    Owner = "Owner"
+
+
 class MemberAPI:
     class v1_Base:
         def propose(self, member, remote_node, proposal):
@@ -273,7 +279,7 @@ class Member:
         curve,
         common_dir,
         share_script,
-        is_recovery_member=True,
+        recovery_role=RecoveryRole.Participant,
         key_generator=None,
         member_data=None,
         authenticate_session=True,
@@ -284,7 +290,7 @@ class Member:
         self.status = MemberStatus.ACCEPTED
         self.share_script = share_script
         self.member_data = member_data
-        self.is_recovery_member = is_recovery_member
+        self.recovery_role = recovery_role
         self.is_retired = False
         self.authenticate_session = authenticate_session
         assert self.authenticate_session == "COSE", self.authenticate_session
@@ -298,11 +304,15 @@ class Member:
         self.member_info = {}
         self.member_info["certificate_file"] = f"{self.local_id}_cert.pem"
         self.member_info["encryption_public_key_file"] = (
-            f"{self.local_id}_enc_pubk.pem" if is_recovery_member else None
+            f"{self.local_id}_enc_pubk.pem"
+            if recovery_role != RecoveryRole.NonParticipant
+            else None
         )
         self.member_info["data_json_file"] = (
             f"{self.local_id}_data.json" if member_data else None
         )
+        if recovery_role == RecoveryRole.Owner:
+            self.member_info["recovery_role"] = "Owner"
 
         if key_generator is not None:
             key_generator_args = [
@@ -312,7 +322,7 @@ class Member:
                 f"{curve.name}",
             ]
 
-            if is_recovery_member:
+            if recovery_role != RecoveryRole.NonParticipant:
                 key_generator_args += [
                     "--gen-enc-key",
                 ]
@@ -418,7 +428,7 @@ class Member:
             )
 
     def get_and_submit_recovery_share(self, remote_node):
-        if not self.is_recovery_member:
+        if self.recovery_role == RecoveryRole.NonParticipant:
             raise ValueError(f"Member {self.local_id} does not have a recovery share")
 
         help_res = infra.proc.ccall(self.share_script, "--help", log_output=False)

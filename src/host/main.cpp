@@ -221,17 +221,29 @@ int main(int argc, char** argv)
           "On start, ledger directory should not exist ({})",
           config.ledger.directory));
       }
+
       // Count members with public encryption key as only these members will be
       // handed a recovery share.
-      // Note that it is acceptable to start a network without any member having
-      // a recovery share. The service will check that at least one recovery
-      // member is added before the service can be opened.
-      size_t members_with_pubk_count = 0;
+      // Note that it is acceptable to start a network without any member
+      // having a recovery share. The service will check that at least one
+      // recovery member (participant or owner) is added before the
+      // service can be opened.
+      size_t recovery_participants_count = 0;
+      size_t recovery_owners_count = 0;
       for (auto const& m : config.command.start.members)
       {
         if (m.encryption_public_key_file.has_value())
         {
-          members_with_pubk_count++;
+          auto role =
+            m.recovery_role.value_or(ccf::MemberRecoveryRole::Participant);
+          if (role == ccf::MemberRecoveryRole::Participant)
+          {
+            recovery_participants_count++;
+          }
+          else if (role == ccf::MemberRecoveryRole::Owner)
+          {
+            recovery_owners_count++;
+          }
         }
       }
 
@@ -239,20 +251,46 @@ int main(int argc, char** argv)
         config.command.start.service_configuration.recovery_threshold;
       if (recovery_threshold == 0)
       {
-        LOG_INFO_FMT(
-          "Recovery threshold unset. Defaulting to number of initial "
-          "consortium members with a public encryption key ({}).",
-          members_with_pubk_count);
-        recovery_threshold = members_with_pubk_count;
+        if (recovery_participants_count == 0 && recovery_owners_count != 0)
+        {
+          LOG_INFO_FMT(
+            "Recovery threshold unset. Defaulting to 1 as only consortium "
+            "members that are recovery owners ({}) are specified.",
+            recovery_owners_count);
+          recovery_threshold = 1;
+        }
+        else
+        {
+          LOG_INFO_FMT(
+            "Recovery threshold unset. Defaulting to number of initial "
+            "consortium members with a public encryption key ({}).",
+            recovery_participants_count);
+          recovery_threshold = recovery_participants_count;
+        }
       }
-      else if (recovery_threshold > members_with_pubk_count)
+      else
       {
-        throw std::logic_error(fmt::format(
-          "Recovery threshold ({}) cannot be greater than total number ({})"
-          "of initial consortium members with a public encryption "
-          "key (specified via --member-info options)",
-          recovery_threshold,
-          members_with_pubk_count));
+        if (recovery_participants_count == 0 && recovery_owners_count != 0)
+        {
+          if (recovery_threshold > 1)
+          {
+            throw std::logic_error(fmt::format(
+              "Recovery threshold ({}) cannot be greater than 1 when all "
+              "initial consortium members ({}) are of type recovery owner "
+              "(specified via --member-info options)",
+              recovery_threshold,
+              recovery_participants_count));
+          }
+        }
+        else if (recovery_threshold > recovery_participants_count)
+        {
+          throw std::logic_error(fmt::format(
+            "Recovery threshold ({}) cannot be greater than total number ({})"
+            "of initial consortium members with a public encryption "
+            "key (specified via --member-info options)",
+            recovery_threshold,
+            recovery_participants_count));
+        }
       }
     }
   }
@@ -612,12 +650,17 @@ int main(int argc, char** argv)
       for (auto const& m : config.command.start.members)
       {
         std::optional<ccf::crypto::Pem> public_encryption_key = std::nullopt;
+        std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
         if (
           m.encryption_public_key_file.has_value() &&
           !m.encryption_public_key_file.value().empty())
         {
           public_encryption_key = ccf::crypto::Pem(
             files::slurp(m.encryption_public_key_file.value()));
+          if (m.recovery_role.has_value())
+          {
+            recovery_role = m.recovery_role.value();
+          }
         }
 
         nlohmann::json md = nullptr;
@@ -629,7 +672,8 @@ int main(int argc, char** argv)
         startup_config.start.members.emplace_back(
           ccf::crypto::Pem(files::slurp(m.certificate_file)),
           public_encryption_key,
-          md);
+          md,
+          recovery_role);
       }
       startup_config.start.constitution = "";
       for (const auto& constitution_path :

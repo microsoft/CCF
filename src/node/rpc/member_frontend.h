@@ -610,7 +610,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "4.5.1";
+      openapi_info.document_version = "4.6.0";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -770,10 +770,12 @@ namespace ccf
         auto member_info = members->get(member_id.value());
         if (
           service_status.value() == ServiceStatus::OPEN &&
-          InternalTablesAccess::is_recovery_member(ctx.tx, member_id.value()))
+          InternalTablesAccess::is_recovery_participant_or_owner(
+            ctx.tx, member_id.value()))
         {
           // When the service is OPEN and the new active member is a recovery
-          // member, all recovery members are allocated new recovery shares
+          // participant/owner, all recovery members are allocated new recovery
+          // shares
           try
           {
             share_manager.shuffle_recovery_shares(ctx.tx);
