@@ -56,14 +56,6 @@ namespace ccf::crypto
         return k;
       }
 
-      std::vector<uint8_t> serialise() const
-      {
-        auto size = serialised_size;
-        std::vector<uint8_t> serialised(size);
-        serialise(serialised);
-        return serialised;
-      }
-
       void serialise(std::vector<uint8_t>& serialised) const
       {
         auto size = serialised_size;

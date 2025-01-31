@@ -54,7 +54,9 @@ namespace ccf
       std::vector<std::vector<uint8_t>> shares_;
       for (const ccf::crypto::sharing::Share& share : shares)
       {
-        shares_.emplace_back(share.serialise());
+        std::vector<uint8_t> share_serialised(share.serialised_size);
+        share.serialise(share_serialised);
+        shares_.emplace_back(share_serialised);
       }
       return shares_;
     }
