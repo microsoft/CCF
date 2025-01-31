@@ -159,14 +159,6 @@ def log_errors(
     except IOError:
         LOG.exception("Could not read err output {}".format(err_path))
 
-    # See https://github.com/microsoft/CCF/issues/1701
-    ignore_fatal_errors = False
-    for line in fatal_error_lines:
-        if line.startswith("Tracer caught signal 11"):
-            ignore_fatal_errors = True
-    if ignore_fatal_errors:
-        fatal_error_lines = []
-
     return error_lines, fatal_error_lines
 
 

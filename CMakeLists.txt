@@ -652,6 +652,11 @@ if(BUILD_TESTS)
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
     add_unit_test(
+      env_test ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/env.cpp
+      ${CCF_DIR}/src/host/env.cpp
+    )
+
+    add_unit_test(
       json_schema ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp
     )
 
