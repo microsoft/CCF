@@ -20,12 +20,14 @@ namespace ccf::pal::snp::ioctl6
   constexpr auto DEVICE = "/dev/sev-guest";
 
   // Table 22
+#pragma pack(push, 1)
   struct AttestationReq
   {
     uint8_t report_data[snp_attestation_report_data_size];
     uint32_t vmpl = 0;
     uint8_t reserved[28]; // needs to be zero
-  }; // aka snp_report_req in (linux) include/uapi/linux/sev-guest.h
+  }; // snp_report_req in (linux) include/uapi/linux/sev-guest.h
+#pragma pack(pop)
 
   // Table 25
 #pragma pack(push, 1)
@@ -47,6 +49,55 @@ namespace ccf::pal::snp::ioctl6
   };
 #pragma pack(pop)
 
+  // Table 20
+#pragma pack(push, 1)
+  struct DerivedKeyGuestFieldSelect
+  {
+    uint64_t reserved : 58;
+    uint32_t tcb_version : 1;
+    uint32_t guest_svn : 1;
+    uint32_t measurement : 1;
+    uint32_t family_id : 1;
+    uint32_t image_id : 1;
+    uint32_t guest_policy: 1;
+  };
+#pragma pack(pop)
+
+  // Table 19
+#pragma pack(push, 1)
+  struct KeySelect {
+    uint32_t reserved : 29;
+    uint8_t key_sel: 2;
+    uint8_t root_key_sel: 1;
+  }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
+  static_assert(sizeof(KeySelect) == 4);
+  struct DerivedKeyReq
+  {
+    KeySelect key_select = {.key_sel = 0, .root_key_sel = 0}; // TODO properly check vcek vs vlek
+    uint32_t reserved;
+    DerivedKeyGuestFieldSelect guest_field_select;
+    uint32_t vmpl = 0;
+    uint32_t guest_svn;
+    uint64_t tcb_version;
+  };
+#pragma pack(pop)
+
+// Table 21
+#pragma pack(push, 1)
+  struct DerivedKeyResp
+  {
+    uint32_t status;
+    uint8_t reserved[0x20 - 0x04];
+    uint8_t data[32];
+  }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
+  static_assert(sizeof(DerivedKeyResp) < 4000);
+  struct DerivedKeyRespWrapper
+  {
+    struct DerivedKeyResp resp;
+    uint8_t padding[4000 - sizeof(struct DerivedKeyResp)];
+  };
+#pragma pack(pop)
+
   struct ExitInfoErrors
   {
     uint32_t fw;
@@ -60,23 +111,29 @@ namespace ccf::pal::snp::ioctl6
   };
 
   // https://www.kernel.org/doc/html/v6.4/virt/coco/sev-guest.html#api-description
+  template <typename Req, typename Resp>
   struct GuestRequest
   {
     /* Message version number */
-    uint32_t msg_version;
+    uint32_t msg_version = 1;
 
     /* Request and response structure address */
-    AttestationReq* req_data;
-    AttestationRespWrapper* resp_wrapper;
+    Req* req_data;
+    Resp* resp_wrapper;
 
     /* bits[63:32]: VMM error code, bits[31:0] firmware error code (see
      * psp-sev.h) */
     ExitInfo exit_info;
   };
+  using GuestRequestAttestation = GuestRequest<AttestationReq, AttestationRespWrapper>;
+  using GuestRequestDerivedKey = GuestRequest<DerivedKeyReq, DerivedKeyRespWrapper>;
 
+  // From linux/include/uapi/linux/sev-guest.h
   constexpr char SEV_GUEST_IOC_TYPE = 'S';
   constexpr int SEV_SNP_GUEST_MSG_REPORT =
-    _IOWR(SEV_GUEST_IOC_TYPE, 0x0, struct snp::ioctl6::GuestRequest);
+    _IOWR(SEV_GUEST_IOC_TYPE, 0x0, GuestRequestAttestation);
+  constexpr int SEV_SNP_GUEST_MSG_DERIVED_KEY =
+    _IOWR(SEV_GUEST_IOC_TYPE, 0x1, GuestRequestDerivedKey);
 
   static inline bool is_sev_snp()
   {
@@ -110,8 +167,7 @@ namespace ccf::pal::snp::ioctl6
 
       // Documented at
       // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
-      GuestRequest payload = {
-        .msg_version = 1,
+      GuestRequestAttestation payload = {
         .req_data = &req,
         .resp_wrapper = &resp_wrapper,
         .exit_info = {0}};
@@ -138,6 +194,50 @@ namespace ccf::pal::snp::ioctl6
     {
       auto quote_bytes = reinterpret_cast<uint8_t*>(&resp_wrapper.resp.report);
       return {quote_bytes, quote_bytes + resp_wrapper.resp.report_size};
+    }
+  };
+
+  class DerivedKey
+  {
+    DerivedKeyReq req = {};
+    DerivedKeyRespWrapper resp_wrapper = {};
+
+  public:
+    DerivedKey()
+    {
+      int fd = open(DEVICE, O_RDWR | O_CLOEXEC);
+      if (fd < 0)
+      {
+        throw std::logic_error(fmt::format("Failed to open \"{}\"", DEVICE));
+      }
+
+      GuestRequestDerivedKey payload = {
+        .req_data = &req,
+        .resp_wrapper = &resp_wrapper,
+        .exit_info = {0}};
+      int rc = ioctl(fd, SEV_SNP_GUEST_MSG_DERIVED_KEY, &payload);
+      if (rc < 0)
+      {
+        CCF_APP_FAIL("IOCTL call failed: {}", strerror(errno));
+        CCF_APP_FAIL(
+          "Exit info, fw_error: {} vmm_error: {}",
+          payload.exit_info.errors.fw,
+          payload.exit_info.errors.vmm);
+        throw std::logic_error(
+          "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY");
+      }
+      if ((*payload.resp_wrapper).resp.status != 0)
+      {
+        CCF_APP_FAIL("SNP_GUEST_DERIVED_KEY failed: {}", (*payload.resp_wrapper).resp.status);
+        throw std::logic_error(
+          "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY");
+      }
+    }
+
+    const std::vector<uint8_t> get()
+    {
+      auto report_bytes = reinterpret_cast<uint8_t*>(&resp_wrapper.resp.data);
+      return std::vector(report_bytes, report_bytes + sizeof(resp_wrapper.resp.data));
     }
   };
 }
