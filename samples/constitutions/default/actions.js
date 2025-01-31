@@ -372,7 +372,14 @@ const actions = new Map([
       function (args) {
         checkX509CertBundle(args.cert, "cert");
         checkType(args.member_data, "object?", "member_data");
-        checkType(args.recovery_role, "string?", "recovery_role");
+        const recovery_role = args.recovery_role;
+        if (recovery_role !== undefined) {
+          checkEnum(
+            recovery_role,
+            ["NonParticipant", "Participant", "Owner"],
+            "recovery_role",
+          );
+        }
 
         if (
           args.encryption_pub_key == null &&
@@ -384,10 +391,6 @@ const actions = new Map([
           );
         }
         // Also check that public encryption key is well formed, if it exists
-
-        // Check if member exists
-        // if not, check there is no enc pub key
-        // if it does, check it doesn't have an enc pub key in ledger
       },
 
       function (args) {

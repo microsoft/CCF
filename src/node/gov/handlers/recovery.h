@@ -160,20 +160,23 @@ namespace ccf::gov::endpoints
           const auto threshold =
             InternalTablesAccess::get_recovery_threshold(ctx.tx);
 
-          // Same format of message, whether this is sufficient to trigger
-          // recovery or not
-          std::string message = fmt::format(
-            "{}/{} recovery shares successfully submitted",
-            submitted_shares_count,
-            threshold);
+          std::string message;
+          if (full_key_submitted)
+          {
+            message = "Full recovery key successfully submitted";
+          }
+          else
+          {
+            // Same format of message, whether this is sufficient to trigger
+            // recovery or not
+            message = fmt::format(
+              "{}/{} recovery shares successfully submitted",
+              submitted_shares_count,
+              threshold);
+          }
 
           if (submitted_shares_count >= threshold || full_key_submitted)
           {
-            if (full_key_submitted)
-            {
-              message += "\nFull recovery key successfully submitted";
-            }
-
             message += "\nEnd of recovery procedure initiated";
             GOV_INFO_FMT("{} - initiating recovery", message);
 
