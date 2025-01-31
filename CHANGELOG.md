@@ -5,13 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres Fto [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [6.0.0-dev14]
+## [6.0.0-dev15]
 
-[6.0.0-dev14]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev14
+[6.0.0-dev15]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev15
 
 ### Fixed
 
 - All containers now include the correct version of libstdc++/libstdc++-dev, and the Debian package captures the runtime requirement as well.
+- RPMs for Azure Linux 3.0 are now included in releases.
+
+## [6.0.0-dev14]
+
+[6.0.0-dev14]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev14
+
+Not all containers are available for this release, please see 6.0.0-dev15.
 
 ## [6.0.0-dev13]
 
