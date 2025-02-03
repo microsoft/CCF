@@ -656,12 +656,12 @@ if(BUILD_TESTS)
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
-		if(COMPILE_TARGET STREQUAL "snp")
-			add_unit_test(
-				snp_ioctl_test
-				${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
-			)
-		endif()
+    if(COMPILE_TARGET STREQUAL "snp")
+      add_unit_test(
+        snp_ioctl_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
+      )
+    endif()
 
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
 
@@ -944,7 +944,6 @@ if(BUILD_TESTS)
     add_test(NAME github_version_lts_test
              COMMAND ${PYTHON} ${CMAKE_SOURCE_DIR}/tests/infra/github.py
     )
-
   endif()
 
   if(NOT TSAN)
