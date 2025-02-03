@@ -70,7 +70,7 @@ namespace ccf
       }
     }
 
-    static bool is_recovery_member(
+    static bool is_recovery_participant_or_owner(
       ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
     {
       auto member_encryption_public_keys =
@@ -78,6 +78,27 @@ namespace ccf
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
       return member_encryption_public_keys->get(member_id).has_value();
+    }
+
+    static bool is_recovery_participant(
+      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
+    {
+      return is_recovery_participant_or_owner(tx, member_id) &&
+        !is_recovery_owner(tx, member_id);
+    }
+
+    static bool is_recovery_owner(
+      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
+    {
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto mi = member_info->get(member_id);
+      if (!mi.has_value())
+      {
+        return false;
+      }
+
+      return mi->recovery_role.has_value() &&
+        mi->recovery_role.value() == MemberRecoveryRole::Owner;
     }
 
     static bool is_active_member(
@@ -93,18 +114,18 @@ namespace ccf
       return mi->status == MemberStatus::ACTIVE;
     }
 
-    static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_members(
-      ccf::kv::ReadOnlyTx& tx)
+    static std::map<MemberId, ccf::crypto::Pem>
+    get_active_recovery_participants(ccf::kv::ReadOnlyTx& tx)
     {
       auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto member_encryption_public_keys =
         tx.ro<ccf::MemberPublicEncryptionKeys>(
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-      std::map<MemberId, ccf::crypto::Pem> active_recovery_members;
+      std::map<MemberId, ccf::crypto::Pem> active_recovery_participants;
 
       member_encryption_public_keys->foreach(
-        [&active_recovery_members,
+        [&active_recovery_participants,
          &member_info](const auto& mid, const auto& pem) {
           auto info = member_info->get(mid);
           if (!info.has_value())
@@ -113,13 +134,48 @@ namespace ccf
               fmt::format("Recovery member {} has no member info", mid));
           }
 
-          if (info->status == MemberStatus::ACTIVE)
+          if (
+            info->status == MemberStatus::ACTIVE &&
+            info->recovery_role.value_or(MemberRecoveryRole::Participant) ==
+              MemberRecoveryRole::Participant)
           {
-            active_recovery_members[mid] = pem;
+            active_recovery_participants[mid] = pem;
           }
           return true;
         });
-      return active_recovery_members;
+      return active_recovery_participants;
+    }
+
+    static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_owners(
+      ccf::kv::ReadOnlyTx& tx)
+    {
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_encryption_public_keys =
+        tx.ro<ccf::MemberPublicEncryptionKeys>(
+          Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
+
+      std::map<MemberId, ccf::crypto::Pem> active_recovery_owners;
+
+      member_encryption_public_keys->foreach(
+        [&active_recovery_owners,
+         &member_info](const auto& mid, const auto& pem) {
+          auto info = member_info->get(mid);
+          if (!info.has_value())
+          {
+            throw std::logic_error(
+              fmt::format("Recovery member {} has no member info", mid));
+          }
+
+          if (
+            info->status == MemberStatus::ACTIVE &&
+            info->recovery_role.value_or(MemberRecoveryRole::Participant) ==
+              MemberRecoveryRole::Owner)
+          {
+            active_recovery_owners[mid] = pem;
+          }
+          return true;
+        });
+      return active_recovery_owners;
     }
 
     static MemberId add_member(
@@ -141,9 +197,42 @@ namespace ccf
         return id;
       }
 
+      if (member_pub_info.recovery_role.has_value())
+      {
+        auto member_recovery_role = member_pub_info.recovery_role.value();
+        if (!member_pub_info.encryption_pub_key.has_value())
+        {
+          if (member_recovery_role != ccf::MemberRecoveryRole::NonParticipant)
+          {
+            throw std::logic_error(fmt::format(
+              "Member {} cannot be added as recovery_role has a value set but "
+              "no "
+              "encryption public key is specified",
+              id));
+          }
+        }
+        else
+        {
+          if (
+            member_recovery_role != ccf::MemberRecoveryRole::Participant &&
+            member_recovery_role != ccf::MemberRecoveryRole::Owner)
+          {
+            throw std::logic_error(fmt::format(
+              "Recovery member {} cannot be added as with recovery role value "
+              "of "
+              "{}",
+              id,
+              member_recovery_role));
+          }
+        }
+      }
+
       member_certs->put(id, member_pub_info.cert);
       member_info->put(
-        id, {MemberStatus::ACCEPTED, member_pub_info.member_data});
+        id,
+        {MemberStatus::ACCEPTED,
+         member_pub_info.member_data,
+         member_pub_info.recovery_role});
 
       if (member_pub_info.encryption_pub_key.has_value())
       {
@@ -209,24 +298,76 @@ namespace ccf
       // If the member was active and had a recovery share, check that
       // the new number of active members is still sufficient for
       // recovery
-      if (
-        member_to_remove->status == MemberStatus::ACTIVE &&
-        is_recovery_member(tx, member_id))
+      if (member_to_remove->status == MemberStatus::ACTIVE)
       {
-        // Because the member to remove is active, there is at least one active
-        // member (i.e. get_active_recovery_members_count_after >= 0)
-        size_t get_active_recovery_members_count_after =
-          get_active_recovery_members(tx).size() - 1;
-        auto recovery_threshold = get_recovery_threshold(tx);
-        if (get_active_recovery_members_count_after < recovery_threshold)
+        if (is_recovery_participant(tx, member_id))
         {
-          LOG_FAIL_FMT(
-            "Failed to remove recovery member {}: number of active recovery "
-            "members ({}) would be less than recovery threshold ({})",
-            member_id,
-            get_active_recovery_members_count_after,
-            recovery_threshold);
-          return false;
+          size_t active_recovery_participants_count_after =
+            get_active_recovery_participants(tx).size() - 1;
+          auto recovery_threshold = get_recovery_threshold(tx);
+          auto active_recovery_owners_count =
+            get_active_recovery_owners(tx).size();
+          if (
+            active_recovery_participants_count_after == 0 &&
+            active_recovery_owners_count > 0 && recovery_threshold == 1)
+          {
+            // Its fine to remove all active recovery particiants as long as
+            // recover owner(s) exist with a threshold of 1.
+            LOG_INFO_FMT(
+              "Allowing last active recovery participant member {}: to "
+              "be removed as active recovery owner members ({}) are present "
+              "with recovery threshold ({}).",
+              member_id,
+              active_recovery_owners_count,
+              recovery_threshold);
+          }
+          else if (
+            active_recovery_participants_count_after < recovery_threshold)
+          {
+            // Because the member to remove is active, there is at least one
+            // active member (i.e. active_recovery_participants_count_after >=
+            // 0)
+            LOG_FAIL_FMT(
+              "Failed to remove recovery member {}: number of active recovery "
+              "participant members ({}) would be less than recovery threshold "
+              "({})",
+              member_id,
+              active_recovery_participants_count_after,
+              recovery_threshold);
+            return false;
+          }
+        }
+        else if (is_recovery_owner(tx, member_id))
+        {
+          size_t active_recovery_owners_count_after =
+            get_active_recovery_owners(tx).size() - 1;
+          auto recovery_threshold = get_recovery_threshold(tx);
+          auto active_recovery_participants_count =
+            get_active_recovery_participants(tx).size();
+          if (active_recovery_owners_count_after == 0)
+          {
+            if (active_recovery_participants_count > 0)
+            {
+              LOG_INFO_FMT(
+                "Allowing last active recovery owner member {}: to "
+                "be removed as active recovery owner participants ({}) are "
+                "present with recovery threshold ({}).",
+                member_id,
+                active_recovery_participants_count,
+                recovery_threshold);
+            }
+            else
+            {
+              LOG_FAIL_FMT(
+                "Failed to remove last active recovery owner member {}: number "
+                "of active recovery participant members ({}) would be less "
+                "than recovery threshold ({})",
+                member_id,
+                active_recovery_participants_count,
+                recovery_threshold);
+              return false;
+            }
+          }
         }
       }
 
@@ -493,14 +634,30 @@ namespace ccf
     {
       auto service = tx.rw<ccf::Service>(Tables::SERVICE);
 
-      auto active_recovery_members_count =
-        get_active_recovery_members(tx).size();
-      if (active_recovery_members_count < get_recovery_threshold(tx))
+      auto active_recovery_participants_count =
+        get_active_recovery_participants(tx).size();
+      auto active_recovery_owners_count = get_active_recovery_owners(tx).size();
+      if (
+        active_recovery_participants_count == 0 &&
+        active_recovery_owners_count != 0)
+      {
+        if (get_recovery_threshold(tx) > 1)
+        {
+          LOG_FAIL_FMT(
+            "Cannot open network as a network with only active recovery owners "
+            "({}) can have "
+            "a recovery threshold of 1 but current recovery threshold value is "
+            "({})",
+            active_recovery_owners_count,
+            get_recovery_threshold(tx));
+        }
+      }
+      else if (active_recovery_participants_count < get_recovery_threshold(tx))
       {
         LOG_FAIL_FMT(
           "Cannot open network as number of active recovery members ({}) is "
           "less than recovery threshold ({})",
-          active_recovery_members_count,
+          active_recovery_participants_count,
           get_recovery_threshold(tx));
         return false;
       }
@@ -708,15 +865,33 @@ namespace ccf
       }
       else if (service_status.value() == ServiceStatus::OPEN)
       {
-        auto get_active_recovery_members_count =
-          get_active_recovery_members(tx).size();
-        if (threshold > get_active_recovery_members_count)
+        auto active_recovery_participants_count =
+          get_active_recovery_participants(tx).size();
+        auto active_recovery_owners_count =
+          get_active_recovery_owners(tx).size();
+
+        if (
+          active_recovery_owners_count != 0 &&
+          active_recovery_participants_count == 0)
+        {
+          if (threshold > 1)
+          {
+            LOG_FAIL_FMT(
+              "Cannot set recovery threshold to {} when only "
+              "active consortium members ({}) that are of type recovery owner "
+              "exist.",
+              threshold,
+              active_recovery_owners_count);
+            return false;
+          }
+        }
+        else if (threshold > active_recovery_participants_count)
         {
           LOG_FAIL_FMT(
             "Cannot set recovery threshold to {} as it is greater than the "
-            "number of active recovery members ({})",
+            "number of active recovery participant members ({})",
             threshold,
-            get_active_recovery_members_count);
+            active_recovery_participants_count);
           return false;
         }
       }

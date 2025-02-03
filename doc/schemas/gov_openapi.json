@@ -344,6 +344,9 @@
           "member_data": {
             "$ref": "#/components/schemas/json"
           },
+          "recovery_role": {
+            "$ref": "#/components/schemas/MemberRecoveryRole"
+          },
           "status": {
             "$ref": "#/components/schemas/MemberStatus"
           }
@@ -411,6 +414,14 @@
           "$ref": "#/components/schemas/string"
         },
         "type": "object"
+      },
+      "MemberRecoveryRole": {
+        "enum": [
+          "NonParticipant",
+          "Participant",
+          "Owner"
+        ],
+        "type": "string"
       },
       "MemberStatus": {
         "enum": [
@@ -1337,7 +1348,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.5.1"
+    "version": "4.6.0"
   },
   "openapi": "3.0.0",
   "paths": {
