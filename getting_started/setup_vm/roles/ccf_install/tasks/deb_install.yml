@@ -8,6 +8,12 @@
     update_cache: yes
   become: true
 
+- name: Install debs
+  apt:
+    name: libstdc++6
+    update_cache: yes
+  become: true
+
 - name: Get package url
   shell:
     cmd: |

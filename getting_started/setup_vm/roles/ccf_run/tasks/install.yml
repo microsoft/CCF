@@ -12,5 +12,4 @@
   apt:
     name: "{{ debs }}"
     update_cache: yes
-    state: latest
   become: yes
