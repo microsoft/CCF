@@ -59,16 +59,17 @@ namespace ccf::pal::snp::ioctl6
     uint32_t measurement : 1;
     uint32_t family_id : 1;
     uint32_t image_id : 1;
-    uint32_t guest_policy: 1;
+    uint32_t guest_policy : 1;
   };
 #pragma pack(pop)
 
   // Table 19
 #pragma pack(push, 1)
-  struct KeySelect {
+  struct KeySelect
+  {
     uint32_t reserved : 29;
-    uint8_t key_sel: 2;
-    uint8_t root_key_sel: 1;
+    uint8_t key_sel : 2;
+    uint8_t root_key_sel : 1;
   }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
   static_assert(sizeof(KeySelect) == 4);
   struct DerivedKeyReq
@@ -125,8 +126,10 @@ namespace ccf::pal::snp::ioctl6
      * psp-sev.h) */
     ExitInfo exit_info;
   };
-  using GuestRequestAttestation = GuestRequest<AttestationReq, AttestationRespWrapper>;
-  using GuestRequestDerivedKey = GuestRequest<DerivedKeyReq, DerivedKeyRespWrapper>;
+  using GuestRequestAttestation =
+    GuestRequest<AttestationReq, AttestationRespWrapper>;
+  using GuestRequestDerivedKey =
+    GuestRequest<DerivedKeyReq, DerivedKeyRespWrapper>;
 
   // From linux/include/uapi/linux/sev-guest.h
   constexpr char SEV_GUEST_IOC_TYPE = 'S';
@@ -168,9 +171,7 @@ namespace ccf::pal::snp::ioctl6
       // Documented at
       // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
       GuestRequestAttestation payload = {
-        .req_data = &req,
-        .resp_wrapper = &resp_wrapper,
-        .exit_info = {0}};
+        .req_data = &req, .resp_wrapper = &resp_wrapper, .exit_info = {0}};
 
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
       if (rc < 0)
@@ -212,9 +213,7 @@ namespace ccf::pal::snp::ioctl6
 
       DerivedKeyReq req = {};
       GuestRequestDerivedKey payload = {
-        .req_data = &req,
-        .resp_wrapper = &resp_wrapper,
-        .exit_info = {0}};
+        .req_data = &req, .resp_wrapper = &resp_wrapper, .exit_info = {0}};
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_DERIVED_KEY, &payload);
       if (rc < 0)
       {
@@ -228,7 +227,8 @@ namespace ccf::pal::snp::ioctl6
       }
       if ((*payload.resp_wrapper).resp.status != 0)
       {
-        CCF_APP_FAIL("SNP_GUEST_DERIVED_KEY failed: {}", resp_wrapper.resp.status);
+        CCF_APP_FAIL(
+          "SNP_GUEST_DERIVED_KEY failed: {}", resp_wrapper.resp.status);
         throw std::logic_error(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY");
       }

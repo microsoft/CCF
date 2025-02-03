@@ -29,7 +29,8 @@ namespace ccf::pal::snp
     }
   }
 
-  static  std::unique_ptr<ioctl6::DerivedKey> get_derived_key() {
+  static std::unique_ptr<ioctl6::DerivedKey> get_derived_key()
+  {
     if (ioctl6::is_sev_snp())
     {
       return std::make_unique<ioctl6::DerivedKey>();
