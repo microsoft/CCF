@@ -1025,13 +1025,20 @@ namespace ccf
         OPENSSL_cleanse(const_cast<char*>(share.data()), share.size());
 
         size_t submitted_shares_count = 0;
+        bool full_key_submitted = false;
         try
         {
           submitted_shares_count = share_manager.submit_recovery_share(
             ctx.tx, member_id.value(), raw_recovery_share);
+
+          full_key_submitted = ShareManager::is_full_key(raw_recovery_share);
+
+          OPENSSL_cleanse(raw_recovery_share.data(), raw_recovery_share.size());
         }
         catch (const std::exception& e)
         {
+          OPENSSL_cleanse(raw_recovery_share.data(), raw_recovery_share.size());
+
           constexpr auto error_msg = "Error submitting recovery shares.";
           GOV_FAIL_FMT(error_msg);
           GOV_DEBUG_FMT("Error: {}", e.what());
@@ -1042,61 +1049,60 @@ namespace ccf
             error_msg);
           return;
         }
-        OPENSSL_cleanse(raw_recovery_share.data(), raw_recovery_share.size());
 
-        if (
-          submitted_shares_count <
-          InternalTablesAccess::get_recovery_threshold(ctx.tx))
+        const auto threshold =
+          InternalTablesAccess::get_recovery_threshold(ctx.tx);
+
+        std::string message;
+        if (full_key_submitted)
         {
-          // The number of shares required to re-assemble the secret has not yet
-          // been reached
-          auto recovery_share = SubmitRecoveryShare::Out{fmt::format(
-            "{}/{} recovery shares successfully submitted.",
+          message = "Full recovery key successfully submitted";
+        }
+        else
+        {
+          // Same format of message, whether this is sufficient to trigger
+          // recovery or not
+          message = fmt::format(
+            "{}/{} recovery shares successfully submitted",
             submitted_shares_count,
-            InternalTablesAccess::get_recovery_threshold(ctx.tx))};
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CONTENT_TYPE,
-            http::headervalues::contenttype::JSON);
-          ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          return;
+            threshold);
         }
 
-        GOV_DEBUG_FMT(
-          "Reached recovery threshold {}",
-          InternalTablesAccess::get_recovery_threshold(ctx.tx));
-
-        try
+        if (submitted_shares_count >= threshold || full_key_submitted)
         {
-          node_operation->initiate_private_recovery(ctx.tx);
-        }
-        catch (const std::exception& e)
-        {
-          // Clear the submitted shares if combination fails so that members can
-          // start over.
-          constexpr auto error_msg = "Failed to initiate private recovery.";
-          GOV_FAIL_FMT(error_msg);
-          GOV_DEBUG_FMT("Error: {}", e.what());
-          ShareManager::clear_submitted_recovery_shares(ctx.tx);
-          ctx.rpc_ctx->set_apply_writes(true);
-          set_gov_error(
-            ctx.rpc_ctx,
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            errors::InternalError,
-            error_msg);
-          return;
+          message += "\nEnd of recovery procedure initiated";
+          GOV_INFO_FMT("{} - initiating recovery", message);
+
+          // Initiate recovery
+          try
+          {
+            node_operation->initiate_private_recovery(ctx.tx);
+          }
+          catch (const std::exception& e)
+          {
+            // Clear the submitted shares if combination fails so that members
+            // can start over.
+            constexpr auto error_msg = "Failed to initiate private recovery.";
+            GOV_FAIL_FMT(error_msg);
+            GOV_DEBUG_FMT("Error: {}", e.what());
+            ShareManager::clear_submitted_recovery_shares(ctx.tx);
+            ctx.rpc_ctx->set_apply_writes(true);
+            set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              errors::InternalError,
+              error_msg);
+            return;
+          }
         }
 
-        auto recovery_share = SubmitRecoveryShare::Out{fmt::format(
-          "{}/{} recovery shares successfully submitted. End of recovery "
-          "procedure initiated.",
-          submitted_shares_count,
-          InternalTablesAccess::get_recovery_threshold(ctx.tx))};
+        auto recovery_share = SubmitRecoveryShare::Out{message};
         ctx.rpc_ctx->set_response_header(
           ccf::http::headers::CONTENT_TYPE,
           http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        return;
       };
       make_endpoint(
         "/recovery_share",
