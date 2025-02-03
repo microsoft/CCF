@@ -28,4 +28,15 @@ namespace ccf::pal::snp
       throw std::logic_error("SEV-SNP not supported");
     }
   }
+
+  static  std::unique_ptr<ioctl6::DerivedKey> get_derived_key() {
+    if (ioctl6::is_sev_snp())
+    {
+      return std::make_unique<ioctl6::DerivedKey>();
+    }
+    else
+    {
+      throw std::logic_error("SEV-SNP Derived key not supported");
+    }
+  }
 };

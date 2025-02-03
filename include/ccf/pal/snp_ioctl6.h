@@ -73,7 +73,7 @@ namespace ccf::pal::snp::ioctl6
   static_assert(sizeof(KeySelect) == 4);
   struct DerivedKeyReq
   {
-    KeySelect key_select = {.key_sel = 0, .root_key_sel = 0}; // TODO properly check vcek vs vlek
+    KeySelect key_select = {.key_sel = 0, .root_key_sel = 0};
     uint32_t reserved;
     DerivedKeyGuestFieldSelect guest_field_select;
     uint32_t vmpl = 0;
@@ -199,7 +199,6 @@ namespace ccf::pal::snp::ioctl6
 
   class DerivedKey
   {
-    DerivedKeyReq req = {};
     DerivedKeyRespWrapper resp_wrapper = {};
 
   public:
@@ -211,6 +210,7 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(fmt::format("Failed to open \"{}\"", DEVICE));
       }
 
+      DerivedKeyReq req = {};
       GuestRequestDerivedKey payload = {
         .req_data = &req,
         .resp_wrapper = &resp_wrapper,
@@ -228,16 +228,15 @@ namespace ccf::pal::snp::ioctl6
       }
       if ((*payload.resp_wrapper).resp.status != 0)
       {
-        CCF_APP_FAIL("SNP_GUEST_DERIVED_KEY failed: {}", (*payload.resp_wrapper).resp.status);
+        CCF_APP_FAIL("SNP_GUEST_DERIVED_KEY failed: {}", resp_wrapper.resp.status);
         throw std::logic_error(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY");
       }
     }
 
-    const std::vector<uint8_t> get()
+    const std::span<const uint8_t> get_raw()
     {
-      auto report_bytes = reinterpret_cast<uint8_t*>(&resp_wrapper.resp.data);
-      return std::vector(report_bytes, report_bytes + sizeof(resp_wrapper.resp.data));
+      return std::span<const uint8_t>{resp_wrapper.resp.data};
     }
   };
 }
