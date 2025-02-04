@@ -24,9 +24,9 @@ RUN useradd -m $user \
 # Copy CCF source and build
 RUN mkdir /CCF
 COPY . /CCF/
-RUN gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-    && tdnf -y update
-    && tdnf -y install ca-certificates git
+RUN gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY \
+    && tdnf -y update \
+    && tdnf -y install ca-certificates git \
     && /CCF/scripts/./install-azure-linux-deps.sh
 RUN mkdir /CCF/build \
     && cd /CCF/build \
