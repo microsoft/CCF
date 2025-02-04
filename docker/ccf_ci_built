@@ -30,7 +30,7 @@ RUN gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY \
     && /CCF/scripts/./install-azure-linux-deps.sh
 RUN mkdir /CCF/build \
     && cd /CCF/build \
-    && cmake -GNinja -DCOMPILE_TARGET=snp .. \
+    && CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=snp .. \
     && ninja \ 
     && chmod -R 777 /CCF
 
