@@ -69,7 +69,7 @@ namespace ccf::pal::snp::ioctl6
     uint32_t reserved : 29;
     uint8_t key_sel : 2;
     uint8_t root_key_sel : 1;
-  }; 
+  };
   static_assert(sizeof(KeySelect) == 4);
 
   struct DerivedKeyReq
@@ -165,7 +165,8 @@ namespace ccf::pal::snp::ioctl6
       int fd = open(DEVICE, O_RDWR | O_CLOEXEC);
       if (fd < 0)
       {
-        throw std::logic_error(fmt::format("Failed to open \"{}\"", DEVICE));
+        throw std::logic_error(
+          fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
 
       // Documented at
@@ -176,8 +177,8 @@ namespace ccf::pal::snp::ioctl6
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
       if (rc < 0)
       {
-        CCF_APP_FAIL("IOCTL call failed: {}", strerror(errno));
-        CCF_APP_FAIL(
+        LOG_FAIL_FMT("IOCTL call failed: {}", strerror(errno));
+        LOG_FAIL_FMT(
           "Exit info, fw_error: {} vmm_error: {}",
           payload.exit_info.errors.fw,
           payload.exit_info.errors.vmm);
@@ -208,18 +209,20 @@ namespace ccf::pal::snp::ioctl6
       int fd = open(DEVICE, O_RDWR | O_CLOEXEC);
       if (fd < 0)
       {
-        throw std::logic_error(fmt::format("Failed to open \"{}\"", DEVICE));
+        throw std::logic_error(
+          fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
 
-      // HostData always included, + Measurement, binds the key to a specific C-ACI deployment
-      DerivedKeyReq req = {.guest_field_select={.measurement=1}};
+      // HostData always included, + Measurement, binds the key to a specific
+      // C-ACI deployment
+      DerivedKeyReq req = {.guest_field_select = {.measurement = 1}};
       GuestRequestDerivedKey payload = {
         .req_data = &req, .resp_wrapper = &resp_wrapper, .exit_info = {0}};
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_DERIVED_KEY, &payload);
       if (rc < 0)
       {
-        CCF_APP_FAIL("IOCTL call failed: {}", strerror(errno));
-        CCF_APP_FAIL(
+        LOG_FAIL_FMT("IOCTL call failed: {}", strerror(errno));
+        LOG_FAIL_FMT(
           "Exit info, fw_error: {} vmm_error: {}",
           payload.exit_info.errors.fw,
           payload.exit_info.errors.vmm);
@@ -228,7 +231,7 @@ namespace ccf::pal::snp::ioctl6
       }
       if ((*payload.resp_wrapper).resp.status != 0)
       {
-        CCF_APP_FAIL(
+        LOG_FAIL_FMT(
           "SNP_GUEST_DERIVED_KEY failed: {}", resp_wrapper.resp.status);
         throw std::logic_error(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY");

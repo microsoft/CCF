@@ -16,14 +16,14 @@
 TEST_CASE("SNP derive key")
 {
   using namespace ccf::pal;
-  auto key1 = ccf::pal::snp::ioctl6::DerivedKey();
-  auto key2 = ccf::pal::snp::ioctl6::DerivedKey();
+  auto key1 = snp::make_derived_key();
+  auto key2 = snp::make_derived_key();
 
   std::vector<uint8_t> expected_plaintext = {0xde, 0xad, 0xbe, 0xef};
   auto ciphertext =
-    ccf::crypto::aes_gcm_encrypt(key1.get_raw(), expected_plaintext);
+    ccf::crypto::aes_gcm_encrypt(key1->get_raw(), expected_plaintext);
   auto decrypted_plaintext =
-    ccf::crypto::aes_gcm_decrypt(key2.get_raw(), ciphertext);
+    ccf::crypto::aes_gcm_decrypt(key2->get_raw(), ciphertext);
 
   CHECK_EQ(
     ccf::ds::to_hex(expected_plaintext), ccf::ds::to_hex(decrypted_plaintext));
