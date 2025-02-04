@@ -213,9 +213,10 @@ namespace ccf::pal::snp::ioctl6
           fmt::format("Failed to open \"{}\" ({})", DEVICE, fd));
       }
 
-      // HostData always included, + Measurement, binds the key to a specific
-      // C-ACI deployment
-      DerivedKeyReq req = {.guest_field_select = {.measurement = 1}};
+      // This req by default mixes in HostData and the CPU VCEK
+      DerivedKeyReq req = {};
+      // We must also mix in the measurement
+      req.guest_field_select.measurement = 1;
       GuestRequestDerivedKey payload = {
         .req_data = &req, .resp_wrapper = &resp_wrapper, .exit_info = {0}};
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_DERIVED_KEY, &payload);
