@@ -49,8 +49,8 @@ namespace ccf::pal::snp::ioctl6
   };
 #pragma pack(pop)
 
-  // Table 20
 #pragma pack(push, 1)
+  // Table 20
   struct DerivedKeyGuestFieldSelect
   {
     uint64_t reserved : 58;
@@ -61,26 +61,26 @@ namespace ccf::pal::snp::ioctl6
     uint32_t image_id : 1;
     uint32_t guest_policy : 1;
   };
-#pragma pack(pop)
+  static_assert(sizeof(DerivedKeyGuestFieldSelect) == 8);
 
   // Table 19
-#pragma pack(push, 1)
   struct KeySelect
   {
     uint32_t reserved : 29;
     uint8_t key_sel : 2;
     uint8_t root_key_sel : 1;
-  }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
+  }; 
   static_assert(sizeof(KeySelect) == 4);
+
   struct DerivedKeyReq
   {
-    KeySelect key_select = {.key_sel = 0, .root_key_sel = 0};
+    KeySelect key_select;
     uint32_t reserved;
     DerivedKeyGuestFieldSelect guest_field_select;
     uint32_t vmpl = 0;
     uint32_t guest_svn;
     uint64_t tcb_version;
-  };
+  }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
 #pragma pack(pop)
 
 // Table 21
@@ -211,7 +211,8 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(fmt::format("Failed to open \"{}\"", DEVICE));
       }
 
-      DerivedKeyReq req = {};
+      // HostData always included, + Measurement, binds the key to a specific C-ACI deployment
+      DerivedKeyReq req = {.guest_field_select={.measurement=1}};
       GuestRequestDerivedKey payload = {
         .req_data = &req, .resp_wrapper = &resp_wrapper, .exit_info = {0}};
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_DERIVED_KEY, &payload);
