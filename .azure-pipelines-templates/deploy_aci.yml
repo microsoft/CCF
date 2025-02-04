@@ -50,7 +50,7 @@ jobs:
         env:
           ACR_REGISTRY_RESOURCE_NAME: ccfmsrc
           ACR_REGISTRY: ccfmsrc.azurecr.io
-          BASE_IMAGE: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+          BASE_IMAGE: mcr.microsoft.com/azurelinux/base/core:3.0
 
       - script: |
           set -ex
