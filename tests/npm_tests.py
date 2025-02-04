@@ -904,7 +904,7 @@ def test_npm_app(network, args):
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
 
-        # Test that static attestation report format is still valid on both SNP and virtual
+        # Test that static attestation report format can be verified on both SNP and virtual
         if args.enclave_platform != "sgx":
             LOG.info(
                 "Virtual: Test verifySnpAttestation with a static attestation report"

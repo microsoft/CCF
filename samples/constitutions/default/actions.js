@@ -372,11 +372,25 @@ const actions = new Map([
       function (args) {
         checkX509CertBundle(args.cert, "cert");
         checkType(args.member_data, "object?", "member_data");
-        // Also check that public encryption key is well formed, if it exists
+        const recovery_role = args.recovery_role;
+        if (recovery_role !== undefined) {
+          checkEnum(
+            recovery_role,
+            ["NonParticipant", "Participant", "Owner"],
+            "recovery_role",
+          );
+        }
 
-        // Check if member exists
-        // if not, check there is no enc pub key
-        // if it does, check it doesn't have an enc pub key in ledger
+        if (
+          args.encryption_pub_key == null &&
+          args.recovery_role !== null &&
+          args.recovery_role !== undefined
+        ) {
+          throw new Error(
+            "Cannot specify a recovery_role value when encryption_pub_key is not specified",
+          );
+        }
+        // Also check that public encryption key is well formed, if it exists
       },
 
       function (args) {
@@ -401,6 +415,7 @@ const actions = new Map([
 
         let member_info = {};
         member_info.member_data = args.member_data;
+        member_info.recovery_role = args.recovery_role;
         member_info.status = "Accepted";
         ccf.kv["public:ccf.gov.members.info"].set(
           rawMemberId,

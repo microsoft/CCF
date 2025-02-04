@@ -674,12 +674,7 @@ public:
 
 // This test checks that the ringbuffer functions correctly when the offsets
 // overflow and wrap around from their maximum representable size to 0
-TEST_CASE(
-  "Offset overflow" *
-  doctest::test_suite("ringbuffer")
-  // Skip when xAPIC mitigations are enabled, which are not correctly handled by
-  // SparseReader
-  * doctest::skip(ccf::pal::require_alignment_for_untrusted_reads()))
+TEST_CASE("Offset overflow" * doctest::test_suite("ringbuffer"))
 {
   const auto seed = time(NULL);
   INFO("Using seed: ", seed);
@@ -774,12 +769,7 @@ TEST_CASE(
   }
 }
 
-TEST_CASE(
-  "Malicious writer" *
-  doctest::test_suite("ringbuffer")
-  // Skip when xAPIC mitigations are enabled, since the core assertion that
-  // reads are within the original buffer is deliberately broken by the Reader
-  * doctest::skip(ccf::pal::require_alignment_for_untrusted_reads()))
+TEST_CASE("Malicious writer" * doctest::test_suite("ringbuffer"))
 {
   constexpr auto buffer_size = 256ull;
 

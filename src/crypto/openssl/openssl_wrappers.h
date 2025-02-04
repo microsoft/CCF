@@ -44,7 +44,10 @@ namespace ccf::crypto
       if (ec)
       {
         std::string err(256, '\0');
+        ERR_load_crypto_strings();
+        SSL_load_error_strings();
         ERR_error_string_n((unsigned long)ec, err.data(), err.size());
+        ERR_free_strings();
         // Remove any trailing NULs before returning
         err.resize(std::strlen(err.c_str()));
         return err;

@@ -6,6 +6,7 @@ import time
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
 from infra.clients import flush_info
+import infra.member
 import infra.path
 import infra.proc
 import infra.service_load
@@ -67,7 +68,11 @@ class PrimaryNotFound(Exception):
     pass
 
 
-class CodeIdNotFound(Exception):
+class MeasurementNotFound(Exception):
+    pass
+
+
+class HostDataNotFound(Exception):
     pass
 
 
@@ -153,14 +158,6 @@ def log_errors(
                 LOG.error(f"Contents of {err_path}:\n{''.join(fatal_error_lines)}")
     except IOError:
         LOG.exception("Could not read err output {}".format(err_path))
-
-    # See https://github.com/microsoft/CCF/issues/1701
-    ignore_fatal_errors = False
-    for line in fatal_error_lines:
-        if line.startswith("Tracer caught signal 11"):
-            ignore_fatal_errors = True
-    if ignore_fatal_errors:
-        fatal_error_lines = []
 
     return error_lines, fatal_error_lines
 
@@ -562,6 +559,13 @@ class Network:
             mc >= args.initial_operator_provisioner_count + args.initial_operator_count
         ), f"Not enough members ({mc}) for the set amount of operator provisioners and operators"
 
+        if args.initial_recovery_owner_count > 0:
+            assert (
+                mc
+                >= args.initial_recovery_participant_count
+                + args.initial_recovery_owner_count
+            ), f"Not enough members ({mc}) for the set amount of recovery participants and owners ({args.initial_recovery_participant_count + args.initial_recovery_owner_count})"
+
         initial_members_info = []
         for i in range(mc):
             member_data = None
@@ -572,10 +576,20 @@ class Network:
                 < args.initial_operator_provisioner_count + args.initial_operator_count
             ):
                 member_data = {"is_operator": True}
+            recovery_role = infra.member.RecoveryRole.NonParticipant
+            if i < args.initial_recovery_participant_count:
+                recovery_role = infra.member.RecoveryRole.Participant
+            elif (
+                i
+                < args.initial_recovery_participant_count
+                + args.initial_recovery_owner_count
+            ):
+                recovery_role = infra.member.RecoveryRole.Owner
+
             initial_members_info += [
                 (
                     i,
-                    (i < args.initial_recovery_member_count),
+                    recovery_role,
                     member_data,
                 )
             ]
@@ -702,7 +716,7 @@ class Network:
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
-    def recover(self, args, expected_recovery_count=None):
+    def recover(self, args, expected_recovery_count=None, via_recovery_owner=False):
         """
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
@@ -731,7 +745,11 @@ class Network:
             self.find_random_node(),
             previous_service_identity=prev_service_identity,
         )
-        self.consortium.recover_with_shares(self.find_random_node())
+
+        if via_recovery_owner:
+            self.consortium.recover_with_owner_share(self.find_random_node())
+        else:
+            self.consortium.recover_with_shares(self.find_random_node())
 
         for node in self.get_joined_nodes():
             self.wait_for_state(
@@ -926,7 +944,9 @@ class Network:
                     # Throw accurate exceptions if known errors found in
                     for error in errors:
                         if "Quote does not contain known enclave measurement" in error:
-                            raise CodeIdNotFound from e
+                            raise MeasurementNotFound from e
+                        if "Quote host data is not authorised" in error:
+                            raise HostDataNotFound from e
                         if "UVM endorsements are not authorised" in error:
                             raise UVMEndorsementsNotAuthorised from e
                         if "StartupSeqnoIsOld" in error:
