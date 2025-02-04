@@ -325,6 +325,11 @@
                         "data_json_file": {
                           "type": ["string", "null"],
                           "description": "Path to member data file (JSON)"
+                        },
+                        "recovery_role": {
+                          "type": "string",
+                          "enum": ["NonParticipant", "Participant", "Owner"],
+                          "description": "Whether the member acts as a recovery participant and gets assigned a share that can contribute towards a recovery threshold or as an owner and gets assigned a full recovery key"
                         }
                       },
                       "required": ["certificate_file"],

@@ -36,6 +36,11 @@ namespace ccf::pal
     }
   };
 
+  // Virtual
+  static constexpr size_t virtual_attestation_report_data_size = 32;
+  using VirtualAttestationReportData =
+    AttestationReportData<virtual_attestation_report_data_size>;
+
   // SGX
   static constexpr size_t sgx_attestation_report_data_size = 32;
   using SgxAttestationReportData =

@@ -26,7 +26,7 @@ namespace files
    * @param file file to check
    * @return true if the file exists.
    */
-  bool exists(const std::string& file)
+  static bool exists(const std::string& file)
   {
     std::ifstream f(file.c_str());
     return f.good();
@@ -40,7 +40,8 @@ namespace files
    * exist. If true, an empty vector is returned. If false, the process exits
    * @return vector<uint8_t> the file contents as bytes.
    */
-  std::vector<uint8_t> slurp(const std::string& file, bool optional = false)
+  static std::vector<uint8_t> slurp(
+    const std::string& file, bool optional = false)
   {
     std::ifstream f(file, std::ios::binary | std::ios::ate);
 
@@ -79,13 +80,14 @@ namespace files
    * exist. If true, an empty vector is returned. If false, the process exits
    * @return std::string the file contents as a string.
    */
-  std::string slurp_string(const std::string& file, bool optional = false)
+  static std::string slurp_string(
+    const std::string& file, bool optional = false)
   {
     auto v = slurp(file, optional);
     return {v.begin(), v.end()};
   }
 
-  std::optional<std::string> try_slurp_string(const std::string& file)
+  static std::optional<std::string> try_slurp_string(const std::string& file)
   {
     if (!fs::exists(file))
     {
@@ -103,7 +105,8 @@ namespace files
    * exits
    * @return nlohmann::json JSON object containing the parsed file
    */
-  nlohmann::json slurp_json(const std::string& file, bool optional = false)
+  static nlohmann::json slurp_json(
+    const std::string& file, bool optional = false)
   {
     auto v = slurp(file, optional);
     if (v.size() == 0)
@@ -118,7 +121,7 @@ namespace files
    * @param data vector to write
    * @param file the path
    */
-  void dump(const std::vector<uint8_t>& data, const std::string& file)
+  static void dump(const std::vector<uint8_t>& data, const std::string& file)
   {
     using namespace std;
     ofstream f(file, ios::binary | ios::trunc);
@@ -133,12 +136,12 @@ namespace files
    * @param data string to write
    * @param file the path
    */
-  void dump(const std::string& data, const std::string& file)
+  static void dump(const std::string& data, const std::string& file)
   {
     return dump(std::vector<uint8_t>(data.begin(), data.end()), file);
   }
 
-  void rename(const fs::path& src, const fs::path& dst)
+  static void rename(const fs::path& src, const fs::path& dst)
   {
     std::error_code ec;
     fs::rename(src, dst, ec);

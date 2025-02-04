@@ -301,8 +301,6 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/registry.cpp
 )
 
-set(OE_BINDIR "")
-
 if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
   add_san(ccf_js.snp)
@@ -474,11 +472,6 @@ option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
 option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
-option(
-  FORCE_ENABLE_XAPIC_MITIGATION
-  "Always enable aligned reads from host-memory to mitigate xAPIC stale data read vulnerability. When this setting is off, the mitigation is enabled at run-time when vulnerable hardware is detected"
-  OFF
-)
 
 # Allow framework code to use LOG_*_FMT macros. These will be removed from
 # public headers in future
@@ -657,6 +650,11 @@ if(BUILD_TESTS)
   # Unit tests
   if(BUILD_UNIT_TESTS)
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
+
+    add_unit_test(
+      env_test ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/env.cpp
+      ${CCF_DIR}/src/host/env.cpp
+    )
 
     add_unit_test(
       json_schema ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp
@@ -1020,8 +1018,6 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
       LABEL suite
       ADDITIONAL_ARGS
-        --oe-binary
-        ${OE_BINDIR}
         --ledger-recovery-timeout
         20
         --test-duration
@@ -1099,9 +1095,8 @@ if(BUILD_TESTS)
       NAME governance_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
       CONSTITUTION ${CONSTITUTION_ARGS}
-      ADDITIONAL_ARGS
-        --oe-binary ${OE_BINDIR} --initial-operator-count 1
-        --jinja-templates-path ${CMAKE_SOURCE_DIR}/samples/templates
+      ADDITIONAL_ARGS --initial-operator-count 1 --jinja-templates-path
+                      ${CMAKE_SOURCE_DIR}/samples/templates
     )
 
     add_e2e_test(
@@ -1113,8 +1108,11 @@ if(BUILD_TESTS)
     add_e2e_test(
       NAME code_update_test
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-      ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
-                      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      ADDITIONAL_ARGS
+        --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+        --constitution
+        ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
     )
 
     if(BUILD_TPCC)
@@ -1126,7 +1124,7 @@ if(BUILD_TESTS)
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
         COMMAND
           rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
-          --branch v3.0.7 --single-branch
+          --branch v3.2rc4 --single-branch -c advice.detachedHead=false
           https://github.com/drwetter/testssl.sh
           ${CMAKE_CURRENT_BINARY_DIR}/testssl
       )
@@ -1249,9 +1247,7 @@ if(BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
     )
 
-    list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
-         ${CCF_VERSION}
-    )
+    list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})
     if(LONG_TESTS)
       list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
     endif()
@@ -1261,7 +1257,10 @@ if(BUILD_TESTS)
         NAME lts_compatibility
         PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
         LABEL e2e
-        ADDITIONAL_ARGS ${LTS_TEST_ARGS}
+        ADDITIONAL_ARGS
+          ${LTS_TEST_ARGS}
+          --constitution
+          ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
       )
       set_property(
         TEST lts_compatibility

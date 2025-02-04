@@ -62,37 +62,66 @@ jobs:
           path: rel-notes.md
 
   build_release:
-    needs: release_notes
     name: Build Release
+    needs: release_notes
     strategy:
       matrix:
         platform:
           - name: virtual
-            image: default
-            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+            os: ubuntu
+            image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+            test_filter: "benchmark|unit"
           - name: snp
-            image: default
-            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-    runs-on: ${{ matrix.platform.nodes }}
+            os: ubuntu
+            image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+          - name: virtual
+            os: azure-linux
+            image: mcr.microsoft.com/azurelinux/base/core:3.0
+            test_filter: "benchmark|unit|lts"
+          - name: snp
+            os: azure-linux
+            image: mcr.microsoft.com/azurelinux/base/core:3.0
+
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-14-01-2025
-      options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro ${{ matrix.platform.container_options }}"
+      image: ${{ matrix.platform.image }}
+      options: "--user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE"
+
     steps:
+      - name: "Checkout dependencies"
+        if: ${{ matrix.platform.os == 'azure-linux' }}
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: "Install dependencies"
+        if: ${{ matrix.platform.os == 'azure-linux' }}
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/install-azure-linux-deps.sh
+          ./scripts/install-azure-linux-extended.sh
+          # For packaging and release tests
+          tdnf -y install rpm-build
+
       - name: "Build Release ${{ matrix.platform.name }}"
+        shell: bash
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} ${{ matrix.platform.cmake_options }} -DCLIENT_PROTOCOLS_TEST=ON ..
+          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCLIENT_PROTOCOLS_TEST=ON -DCMAKE_BUILD_TYPE=Release ..
           ninja -v | tee build.log
-        shell: bash
 
       - name: "Install Extended Testing Tools"
+        if: ${{ matrix.platform.os == 'ubuntu' && matrix.platform.name == 'virtual' }}
         run: |
           set -ex
           sudo apt-get -y update
@@ -100,9 +129,9 @@ jobs:
           cd getting_started/setup_vm
           ansible-playbook ccf-extended-testing.yml
         shell: bash
-        if: ${{ matrix.platform.name != 'snp' }}
 
       - name: "Test ${{ matrix.platform.name }}"
+        if: "${{ matrix.platform.name == 'virtual' }}"
         run: |
           set -ex
           cd build
@@ -114,23 +143,23 @@ jobs:
           # Suite tests
           ./tests.sh --timeout 600 --output-on-failure -L "suite"
           # Most tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|unit|suite"
+          ./tests.sh --timeout 360 --output-on-failure -LE "suite|${{ matrix.platform.test_filter }}"
         shell: bash
-        if: "${{ matrix.platform.name != 'snp' }}"
 
-      - name: "Upload logs for ${{ matrix.platform.name }}"
+      - name: "Upload logs for ${{ matrix.platform.os }}-${{ matrix.platform.name }}"
+        if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.platform.name }}
+          name: logs-${{ matrix.platform.os }}-${{ matrix.platform.name }}
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
             build/workspace/*.ledger/*
           if-no-files-found: ignore
-        if: success() || failure()
 
       - name: "Make .deb Package"
+        if: "${{ matrix.platform.os == 'ubuntu' }}"
         id: make_deb
         run: |
           set -ex
@@ -146,30 +175,56 @@ jobs:
           echo "name=$CCF_GITHUB_PKG" >> $GITHUB_OUTPUT
         shell: bash
 
+      - name: "Make .rpm Package"
+        if: "${{ matrix.platform.os == 'azure-linux' }}"
+        id: make_rpm
+        run: |
+          set -ex
+          set -o pipefail
+          cd build
+          cmake -L .. 2>/dev/null | grep CMAKE_INSTALL_PREFIX: | cut -d = -f 2 > /tmp/install_prefix
+          cpack -V -G RPM
+          INITIAL_PKG=`ls *.rpm`
+          CCF_GITHUB_PKG=${INITIAL_PKG//\~/_}
+          if [[ "$INITIAL_PKG" != "$CCF_GITHUB_PKG" ]]; then
+            mv $INITIAL_PKG $CCF_GITHUB_PKG
+          fi
+          echo "name=$CCF_GITHUB_PKG" >> $GITHUB_OUTPUT
+        shell: bash
+
       - name: "Install CCF Debian package"
+        if: "${{ matrix.platform.os == 'ubuntu' }}"
         run: |
           set -ex
           cd build
           sudo apt -y install ./${{ steps.make_deb.outputs.name }}
         shell: bash
 
+      - name: "Install CCF RPM package"
+        if: "${{ matrix.platform.os == 'azure-linux' }}"
+        run: |
+          set -ex
+          cd build
+          tdnf -y install ./${{ steps.make_rpm.outputs.name }}
+        shell: bash
+
       - name: "Test Installed CCF"
+        if: "${{ matrix.platform.name == 'virtual' }}"
         run: |
           set -ex
           set -o pipefail
           cd build
           cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./test_install.sh {}"
         shell: bash
-        if: "${{ matrix.platform.name != 'snp' }}"
 
       - name: "Recovery Benchmark for Installed CCF"
+        if: "${{ matrix.platform.name == 'virtual' }}"
         run: |
           set -ex
           set -o pipefail
           cd build
           cat /tmp/install_prefix | xargs -i bash -c "PYTHON_PACKAGE_PATH=../python ./recovery_benchmark.sh {}"
         shell: bash
-        if: "${{ matrix.platform.name != 'snp' }}"
 
       - name: "Test Building a Sample Against Installed CCF"
         run: |
@@ -178,26 +233,35 @@ jobs:
         shell: bash
 
       - name: "Upload .deb Package"
+        if: "${{ matrix.platform.os == 'ubuntu' }}"
         uses: actions/upload-artifact@v4
         with:
-          name: pkg-${{ matrix.platform.name }}
+          name: pkg-${{ matrix.platform.os }}-${{ matrix.platform.name }}
           path: build/${{ steps.make_deb.outputs.name }}
 
+      - name: "Upload .rpm Package"
+        if: "${{ matrix.platform.os == 'azure-linux' }}"
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.platform.os }}-${{ matrix.platform.name }}
+          path: build/${{ steps.make_rpm.outputs.name }}
+
       - name: "Upload Compatibility Report"
+        if: "${{ matrix.platform.os == 'ubuntu' && matrix.platform.name == 'virtual' }}"
         uses: actions/upload-artifact@v4
         with:
           name: compatibility
           path: build/compatibility_report.json
-        if: "${{ matrix.platform.name == 'virtual' }}"
 
       - name: "Upload TLS Report"
+        if: "${{ matrix.platform.os == 'ubuntu' && matrix.platform.name == 'virtual' }}"
         uses: actions/upload-artifact@v4
         with:
           name: tls
           path: build/tls_report.html
-        if: "${{ matrix.platform.name == 'virtual' }}"
 
       - name: "Build Python Wheel"
+        if: "${{ matrix.platform.os == 'ubuntu' && matrix.platform.name == 'virtual' }}"
         id: build_wheel
         run: |
           set -ex
@@ -209,16 +273,16 @@ jobs:
           WHL=`ls dist/*.whl`
           echo "name=$WHL" >> $GITHUB_OUTPUT
         shell: bash
-        if: "${{ matrix.platform.name == 'virtual' }}"
 
       - name: "Upload Python Wheel"
+        if: "${{ matrix.platform.os == 'ubuntu' && matrix.platform.name == 'virtual' }}"
         uses: actions/upload-artifact@v4
         with:
           name: wheel
           path: python/${{ steps.build_wheel.outputs.name }}
-        if: "${{ matrix.platform.name == 'virtual' }}"
 
       - name: "Build TS Package"
+        if: "${{ matrix.platform.os == 'ubuntu' && matrix.platform.name == 'virtual' }}"
         id: build_tstgz
         run: |
           set -ex
@@ -231,14 +295,13 @@ jobs:
           PKG=`ls *.tgz`
           echo "name=$PKG" >> $GITHUB_OUTPUT
         shell: bash
-        if: "${{ matrix.platform.name == 'virtual' }}"
 
       - name: "Upload TS Package"
+        if: "${{ matrix.platform.os == 'ubuntu' && matrix.platform.name == 'virtual' }}"
         uses: actions/upload-artifact@v4
         with:
           name: tstgz
           path: js/ccf-app/${{ steps.build_tstgz.outputs.name }}
-        if: "${{ matrix.platform.name == 'virtual' }}"
 
   create_release:
     needs:

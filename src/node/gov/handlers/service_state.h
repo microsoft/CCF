@@ -35,6 +35,19 @@ namespace ccf::gov::endpoints
       member["publicEncryptionKey"] = enc_key.value().str();
     }
 
+    ccf::MemberRecoveryRole recovery_role =
+      ccf::MemberRecoveryRole::NonParticipant;
+    if (member_details.recovery_role.has_value())
+    {
+      recovery_role = member_details.recovery_role.value();
+    }
+    else if (enc_key.has_value())
+    {
+      recovery_role = ccf::MemberRecoveryRole::Participant;
+    }
+
+    member["recoveryRole"] = recovery_role;
+
     return member;
   }
 
@@ -94,6 +107,18 @@ namespace ccf::gov::endpoints
       case ccf::QuoteFormat::insecure_virtual:
       {
         quote_info["format"] = "Insecure_Virtual";
+        quote_info["rawQuote"] = node_info.quote_info.quote;
+
+        {
+          const auto details =
+            nlohmann::json::parse(node_info.quote_info.quote);
+          auto j_details = nlohmann::json::object();
+          j_details["measurement"] = details["measurement"];
+          j_details["reportData"] = details["report_data"];
+          j_details["hostData"] = details["host_data"];
+          quote_info["details"] = j_details;
+        }
+
         break;
       }
       case ccf::QuoteFormat::amd_sev_snp_v1:
@@ -497,6 +522,39 @@ namespace ccf::gov::endpoints
             sgx_policy["measurements"] = sgx_measurements;
 
             response_body["sgx"] = sgx_policy;
+          }
+
+          // Describe Virtual join policy
+          {
+            auto virtual_policy = nlohmann::json::object();
+
+            auto virtual_measurements = nlohmann::json::array();
+            auto measurements_handle =
+              ctx.tx.template ro<ccf::VirtualMeasurements>(
+                ccf::Tables::NODE_VIRTUAL_MEASUREMENTS);
+            measurements_handle->foreach(
+              [&virtual_measurements](
+                const pal::VirtualAttestationMeasurement& measurement,
+                const ccf::CodeStatus& status) {
+                if (status == ccf::CodeStatus::ALLOWED_TO_JOIN)
+                {
+                  virtual_measurements.push_back(measurement);
+                }
+                return true;
+              });
+            virtual_policy["measurements"] = virtual_measurements;
+
+            auto virtual_host_data = nlohmann::json::array();
+            auto host_data_handle = ctx.tx.template ro<ccf::VirtualHostDataMap>(
+              ccf::Tables::VIRTUAL_HOST_DATA);
+            host_data_handle->foreach(
+              [&virtual_host_data](const HostData& host_data) {
+                virtual_host_data.push_back(host_data.hex_str());
+                return true;
+              });
+            virtual_policy["hostData"] = virtual_host_data;
+
+            response_body["virtual"] = virtual_policy;
           }
 
           // Describe SNP join policy

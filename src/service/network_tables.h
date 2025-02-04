@@ -20,6 +20,7 @@
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/users.h"
 #include "ccf/service/tables/uvm_endorsements.h"
+#include "ccf/service/tables/virtual_measurements.h"
 #include "kv/store.h"
 #include "tables/config.h"
 #include "tables/governance_history.h"
@@ -86,6 +87,11 @@ namespace ccf
     const NodeEndorsedCertificates node_endorsed_certificates = {
       Tables::NODE_ENDORSED_CERTIFICATES};
     const ACMECertificates acme_certificates = {Tables::ACME_CERTIFICATES};
+
+    const VirtualHostDataMap virtual_host_data = {Tables::VIRTUAL_HOST_DATA};
+    const VirtualMeasurements virtual_measurements = {
+      Tables::NODE_VIRTUAL_MEASUREMENTS};
+
     const SnpHostDataMap host_data = {Tables::HOST_DATA};
     const SnpMeasurements snp_measurements = {Tables::NODE_SNP_MEASUREMENTS};
     const SNPUVMEndorsements snp_uvm_endorsements = {
@@ -98,6 +104,8 @@ namespace ccf
         nodes,
         node_endorsed_certificates,
         acme_certificates,
+        virtual_host_data,
+        virtual_measurements,
         host_data,
         snp_measurements,
         snp_uvm_endorsements);

@@ -37,7 +37,7 @@ namespace ccf
     std::vector<uint8_t> endorsements;
     QuoteFormat format;
 
-    std::string mrenclave = {}; // < Hex-encoded
+    std::string measurement = {}; // < Hex-encoded
 
     std::optional<std::vector<uint8_t>> uvm_endorsements =
       std::nullopt; // SNP only
@@ -45,7 +45,7 @@ namespace ccf
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(Quote);
   DECLARE_JSON_REQUIRED_FIELDS(Quote, node_id, raw, endorsements, format);
-  DECLARE_JSON_OPTIONAL_FIELDS(Quote, mrenclave, uvm_endorsements);
+  DECLARE_JSON_OPTIONAL_FIELDS(Quote, measurement, uvm_endorsements);
 
   struct GetQuotes
   {
@@ -406,7 +406,7 @@ namespace ccf
       openapi_info.description =
         "This API provides public, uncredentialed access to service and node "
         "state.";
-      openapi_info.document_version = "4.11.0";
+      openapi_info.document_version = "4.12.0";
     }
 
     void init_handlers() override
@@ -553,6 +553,7 @@ namespace ccf
           auto node_info = nodes->get(existing_node_info->node_id);
           auto node_status = node_info->status;
           rep.node_status = node_status;
+          rep.node_id = existing_node_info->node_id;
           if (is_taking_part_in_acking(node_status))
           {
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
@@ -727,7 +728,7 @@ namespace ccf
           auto node_info = nodes->get(context.get_node_id());
           if (node_info.has_value() && node_info->code_digest.has_value())
           {
-            q.mrenclave = node_info->code_digest.value();
+            q.measurement = node_info->code_digest.value();
           }
           else
           {
@@ -735,7 +736,7 @@ namespace ccf
               AttestationProvider::get_measurement(node_quote_info);
             if (measurement.has_value())
             {
-              q.mrenclave = measurement.value().hex_str();
+              q.measurement = measurement.value().hex_str();
             }
             else
             {
@@ -785,6 +786,7 @@ namespace ccf
             q.raw = node_info.quote_info.quote;
             q.endorsements = node_info.quote_info.endorsements;
             q.format = node_info.quote_info.format;
+            q.uvm_endorsements = node_info.quote_info.uvm_endorsements;
 
             // get_measurement attempts to re-validate the quote to extract
             // mrenclave and the Open Enclave is insufficiently flexible to
@@ -794,7 +796,7 @@ namespace ccf
             // unreliable get_measurement otherwise.
             if (node_info.code_digest.has_value())
             {
-              q.mrenclave = node_info.code_digest.value();
+              q.measurement = node_info.code_digest.value();
             }
             else
             {
@@ -802,7 +804,7 @@ namespace ccf
                 AttestationProvider::get_measurement(node_info.quote_info);
               if (measurement.has_value())
               {
-                q.mrenclave = measurement.value().hex_str();
+                q.measurement = measurement.value().hex_str();
               }
             }
             quotes.emplace_back(q);
@@ -1561,6 +1563,7 @@ namespace ccf
           in.public_key,
           in.node_data};
         InternalTablesAccess::add_node(ctx.tx, in.node_id, node_info);
+
         if (
           in.quote_info.format != QuoteFormat::amd_sev_snp_v1 ||
           !in.snp_uvm_endorsements.has_value())
@@ -1570,14 +1573,40 @@ namespace ccf
           InternalTablesAccess::trust_node_measurement(
             ctx.tx, in.measurement, in.quote_info.format);
         }
-        if (in.quote_info.format == QuoteFormat::amd_sev_snp_v1)
+
+        switch (in.quote_info.format)
         {
-          auto host_data =
-            AttestationProvider::get_host_data(in.quote_info).value();
-          InternalTablesAccess::trust_node_host_data(
-            ctx.tx, host_data, in.snp_security_policy);
-          InternalTablesAccess::trust_node_uvm_endorsements(
-            ctx.tx, in.snp_uvm_endorsements);
+          case QuoteFormat::insecure_virtual:
+          {
+            auto host_data = AttestationProvider::get_host_data(in.quote_info);
+            if (host_data.has_value())
+            {
+              InternalTablesAccess::trust_node_virtual_host_data(
+                ctx.tx, host_data.value());
+            }
+            else
+            {
+              LOG_FAIL_FMT("Unable to extract host data from virtual quote");
+            }
+            break;
+          }
+
+          case QuoteFormat::amd_sev_snp_v1:
+          {
+            auto host_data =
+              AttestationProvider::get_host_data(in.quote_info).value();
+            InternalTablesAccess::trust_node_snp_host_data(
+              ctx.tx, host_data, in.snp_security_policy);
+
+            InternalTablesAccess::trust_node_uvm_endorsements(
+              ctx.tx, in.snp_uvm_endorsements);
+            break;
+          }
+
+          default:
+          {
+            break;
+          }
         }
 
         std::optional<ccf::ClaimsDigest::Digest> digest =
