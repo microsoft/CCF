@@ -3,13 +3,13 @@
 # Also contains CCF source and build directory
 
 # Latest image as of this change
-ARG base=ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+ARG base=mcr.microsoft.com/azurelinux/base/core:3.0
 FROM ${base}
 
 # SSH. Note that this could (should) be done in the base ccf_ci image instead
 # if we wanted to build this image faster
-RUN apt update \
-    && apt install -y openssh-server \
+RUN tdnf -y update \
+    && tdnf -y install openssh-server \
     && sed -i "s/.*PubkeyAuthentication.*/PubkeyAuthentication yes/g" /etc/ssh/sshd_config \
     && sed -i "s/.*PasswordAuthentication.*/PasswordAuthentication no/g" /etc/ssh/sshd_config \
     && mkdir -p /run/sshd # To avoid "Missing privilege separation directory: /run/sshd" error
@@ -24,6 +24,10 @@ RUN useradd -m $user \
 # Copy CCF source and build
 RUN mkdir /CCF
 COPY . /CCF/
+RUN gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+    && tdnf -y update
+    && tdnf -y install ca-certificates git
+    && /CCF/scripts/./install-azure-linux-deps.sh
 RUN mkdir /CCF/build \
     && cd /CCF/build \
     && cmake -GNinja -DCOMPILE_TARGET=snp .. \
