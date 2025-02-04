@@ -553,6 +553,7 @@ namespace ccf
           auto node_info = nodes->get(existing_node_info->node_id);
           auto node_status = node_info->status;
           rep.node_status = node_status;
+          rep.node_id = existing_node_info->node_id;
           if (is_taking_part_in_acking(node_status))
           {
             rep.network_info = JoinNetworkNodeToNode::Out::NetworkInfo(
