@@ -50,25 +50,26 @@ namespace ccf::pal::snp::ioctl6
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-  // Table 20
+  // Table 20 
+  // bit 0 is the first bit
   struct DerivedKeyGuestFieldSelect
   {
-    uint64_t reserved : 58;
-    uint32_t tcb_version : 1;
-    uint32_t guest_svn : 1;
-    uint32_t measurement : 1;
-    uint32_t family_id : 1;
-    uint32_t image_id : 1;
     uint32_t guest_policy : 1;
+    uint32_t image_id : 1;
+    uint32_t family_id : 1;
+    uint32_t measurement : 1;
+    uint32_t guest_svn : 1;
+    uint32_t tcb_version : 1;
+    uint64_t reserved : 58;
   };
   static_assert(sizeof(DerivedKeyGuestFieldSelect) == 8);
 
   // Table 19
   struct KeySelect
   {
-    uint32_t reserved : 29;
-    uint8_t key_sel : 2;
     uint8_t root_key_sel : 1;
+    uint8_t key_sel : 2;
+    uint32_t reserved : 29;
   };
   static_assert(sizeof(KeySelect) == 4);
 
