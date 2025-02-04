@@ -15,6 +15,6 @@ RUN apt update \
     && cd /tmp/setup_vm \
     && ansible-playbook app-run.yml --extra-vars "$ansible_vars" --extra-vars "platform=${platform}" --extra-vars "clang_version=${clang_version}"\
     && rm -rf /tmp/* \
-    && apt remove -y ansible software-properties-common curl \
+    && apt remove -y ansible software-properties-common \
     && apt -y autoremove \
     && apt -y clean
