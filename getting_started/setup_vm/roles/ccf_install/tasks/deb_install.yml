@@ -12,6 +12,7 @@
   apt:
     name: libstdc++6
     update_cache: yes
+    state: latest
   become: true
 
 - name: Get package url
