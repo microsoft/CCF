@@ -40,7 +40,7 @@ jobs:
             options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
           - name: snp
             image: default
-            nodes: [self-hosted, 1ES.Pool=gha-aci]
+            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
             options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
     runs-on: ${{ matrix.platform.nodes }}
     container:
