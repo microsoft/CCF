@@ -34,4 +34,6 @@ RUN mkdir /CCF/build \
     && ninja \ 
     && chmod -R 777 /CCF
 
+RUN ssh-keygen -A
+
 CMD ["/usr/sbin/sshd", "-D"]
