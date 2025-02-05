@@ -40,12 +40,6 @@
         },
         "type": "object"
       },
-      "CodeStatus": {
-        "enum": [
-          "AllowedToJoin"
-        ],
-        "type": "string"
-      },
       "Configuration": {
         "properties": {
           "idx": {
@@ -182,38 +176,6 @@
           "authority"
         ],
         "type": "object"
-      },
-      "GetCode__Out": {
-        "properties": {
-          "versions": {
-            "$ref": "#/components/schemas/GetCode__Version_array"
-          }
-        },
-        "required": [
-          "versions"
-        ],
-        "type": "object"
-      },
-      "GetCode__Version": {
-        "properties": {
-          "digest": {
-            "$ref": "#/components/schemas/string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/CodeStatus"
-          }
-        },
-        "required": [
-          "digest",
-          "status"
-        ],
-        "type": "object"
-      },
-      "GetCode__Version_array": {
-        "items": {
-          "$ref": "#/components/schemas/GetCode__Version"
-        },
-        "type": "array"
       },
       "GetCommit__Out": {
         "properties": {
@@ -614,7 +576,7 @@
           "format": {
             "$ref": "#/components/schemas/QuoteFormat"
           },
-          "mrenclave": {
+          "measurement": {
             "$ref": "#/components/schemas/string"
           },
           "node_id": {
@@ -896,7 +858,7 @@
   "info": {
     "description": "This API provides public, uncredentialed access to service and node state.",
     "title": "CCF Public Node API",
-    "version": "4.10.3"
+    "version": "4.12.0"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -937,32 +899,6 @@
         },
         "x-ccf-forwarding": {
           "$ref": "#/components/x-ccf-forwarding/never"
-        }
-      }
-    },
-    "/node/code": {
-      "get": {
-        "deprecated": true,
-        "description": "This endpoint is deprecated from 5.0.0. It is replaced by GET /gov/service/join-policy",
-        "operationId": "GetNodeCode",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetCode__Out"
-                }
-              }
-            },
-            "description": "Default response description"
-          },
-          "default": {
-            "$ref": "#/components/responses/default"
-          }
-        },
-        "summary": "Permitted SGX code identities",
-        "x-ccf-forwarding": {
-          "$ref": "#/components/x-ccf-forwarding/sometimes"
         }
       }
     },

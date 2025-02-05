@@ -53,11 +53,12 @@ namespace ccf
    */
   std::unique_ptr<ccf::endpoints::EndpointRegistry> make_user_endpoints(
     ccf::AbstractNodeContext& context);
+  // SNIPPET_END: app_interface
 
   /** To be implemented by the application.
    *
    * @return Vector of JavaScript FFI plugins
    */
+  CCF_DEPRECATED("Deprecated from 6.0.0")
   std::vector<ccf::js::FFIPlugin> get_js_plugins();
-  // SNIPPET_END: app_interface
 }

@@ -16,106 +16,119 @@
 #include <string>
 #include <vector>
 
-struct CCFConfig
+namespace ccf
 {
-  size_t worker_threads = 0;
-
-  // 2**24.5 as per RFC8446 Section 5.5
-  size_t node_to_node_message_limit = 23'726'566;
-
-  ccf::ds::SizeString historical_cache_soft_limit = {"512MB"};
-
-  ccf::consensus::Configuration consensus = {};
-  ccf::NodeInfoNetwork network = {};
-
-  struct NodeCertificateInfo
+  struct CCFConfig
   {
-    std::string subject_name = "CN=CCF Node";
-    std::vector<std::string> subject_alt_names = {};
-    ccf::crypto::CurveID curve_id = ccf::crypto::CurveID::SECP384R1;
-    size_t initial_validity_days = 1;
+    size_t worker_threads = 0;
 
-    bool operator==(const NodeCertificateInfo&) const = default;
-  };
-  NodeCertificateInfo node_certificate = {};
+    // 2**24.5 as per RFC8446 Section 5.5
+    size_t node_to_node_message_limit = 23'726'566;
 
-  struct LedgerSignatures
-  {
-    size_t tx_count = 5000;
-    ccf::ds::TimeString delay = {"1000ms"};
+    ccf::ds::SizeString historical_cache_soft_limit = {"512MB"};
 
-    bool operator==(const LedgerSignatures&) const = default;
-  };
-  LedgerSignatures ledger_signatures = {};
+    ccf::consensus::Configuration consensus = {};
+    ccf::NodeInfoNetwork network = {};
 
-  struct JWT
-  {
-    ccf::ds::TimeString key_refresh_interval = {"30min"};
-
-    bool operator==(const JWT&) const = default;
-  };
-  JWT jwt = {};
-
-  struct Attestation
-  {
-    ccf::pal::snp::EndorsementsServers snp_endorsements_servers = {};
-    std::optional<std::string> snp_security_policy_file = std::nullopt;
-    std::optional<std::string> snp_uvm_endorsements_file = std::nullopt;
-
-    struct Environment
+    struct NodeCertificateInfo
     {
-      std::optional<std::string> security_policy = std::nullopt;
-      std::optional<std::string> uvm_endorsements = std::nullopt;
+      std::string subject_name = "CN=CCF Node";
+      std::vector<std::string> subject_alt_names = {};
+      ccf::crypto::CurveID curve_id = ccf::crypto::CurveID::SECP384R1;
+      size_t initial_validity_days = 1;
 
-      bool operator==(const Environment&) const = default;
+      bool operator==(const NodeCertificateInfo&) const = default;
     };
-    Environment environment = {};
+    NodeCertificateInfo node_certificate = {};
 
-    bool operator==(const Attestation&) const = default;
+    struct LedgerSignatures
+    {
+      size_t tx_count = 5000;
+      ccf::ds::TimeString delay = {"1000ms"};
+
+      bool operator==(const LedgerSignatures&) const = default;
+    };
+    LedgerSignatures ledger_signatures = {};
+
+    struct JWT
+    {
+      ccf::ds::TimeString key_refresh_interval = {"30min"};
+
+      bool operator==(const JWT&) const = default;
+    };
+    JWT jwt = {};
+
+    struct Attestation
+    {
+      ccf::pal::snp::EndorsementsServers snp_endorsements_servers = {};
+      std::optional<std::string> snp_security_policy_file = std::nullopt;
+      std::optional<std::string> snp_uvm_endorsements_file = std::nullopt;
+
+      struct Environment
+      {
+        std::optional<std::string> security_policy = std::nullopt;
+        std::optional<std::string> uvm_endorsements = std::nullopt;
+
+        bool operator==(const Environment&) const = default;
+      };
+      Environment environment = {};
+
+      bool operator==(const Attestation&) const = default;
+    };
+    Attestation attestation = {};
+
+    struct Snapshots
+    {
+      std::string directory = "snapshots";
+      size_t tx_count = 10'000;
+      std::optional<std::string> read_only_directory = std::nullopt;
+
+      bool operator==(const Snapshots&) const = default;
+    };
+    Snapshots snapshots = {};
   };
-  Attestation attestation = {};
-};
 
-struct StartupConfig : CCFConfig
-{
-  StartupConfig() = default;
-  StartupConfig(const CCFConfig& common_base) : CCFConfig(common_base) {}
-
-  std::string startup_host_time;
-  size_t snapshot_tx_interval = 10'000;
-
-  // Only if starting or recovering
-  size_t initial_service_certificate_validity_days = 1;
-  std::string service_subject_name = "CN=CCF Service";
-  COSESignaturesConfig cose_signatures;
-
-  nlohmann::json service_data = nullptr;
-
-  nlohmann::json node_data = nullptr;
-
-  struct Start
+  struct StartupConfig : CCFConfig
   {
-    std::vector<ccf::NewMember> members;
-    std::string constitution;
-    ccf::ServiceConfiguration service_configuration;
+    StartupConfig() = default;
+    StartupConfig(const CCFConfig& common_base) : CCFConfig(common_base) {}
 
-    bool operator==(const Start& other) const = default;
-  };
-  Start start = {};
+    std::string startup_host_time;
+    size_t snapshot_tx_interval = 10'000;
 
-  struct Join
-  {
-    ccf::NodeInfoNetwork::NetAddress target_rpc_address;
-    ccf::ds::TimeString retry_timeout = {"1000ms"};
-    std::vector<uint8_t> service_cert = {};
-    bool follow_redirect = true;
-  };
-  Join join = {};
+    // Only if starting or recovering
+    size_t initial_service_certificate_validity_days = 1;
+    std::string service_subject_name = "CN=CCF Service";
+    ccf::COSESignaturesConfig cose_signatures;
 
-  struct Recover
-  {
-    std::optional<std::vector<uint8_t>> previous_service_identity =
-      std::nullopt;
+    nlohmann::json service_data = nullptr;
+
+    nlohmann::json node_data = nullptr;
+
+    struct Start
+    {
+      std::vector<ccf::NewMember> members;
+      std::string constitution;
+      ccf::ServiceConfiguration service_configuration;
+
+      bool operator==(const Start& other) const = default;
+    };
+    Start start = {};
+
+    struct Join
+    {
+      ccf::NodeInfoNetwork::NetAddress target_rpc_address;
+      ccf::ds::TimeString retry_timeout = {"1000ms"};
+      std::vector<uint8_t> service_cert = {};
+      bool follow_redirect = true;
+    };
+    Join join = {};
+
+    struct Recover
+    {
+      std::optional<std::vector<uint8_t>> previous_service_identity =
+        std::nullopt;
+    };
+    Recover recover = {};
   };
-  Recover recover = {};
-};
+}

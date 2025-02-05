@@ -268,7 +268,7 @@ namespace http
     }
 
     bool send_response(
-      http_status status_code,
+      ccf::http_status status_code,
       ccf::http::HeaderMap&& headers,
       ccf::http::HeaderMap&& trailers,
       std::span<const uint8_t> body) override
@@ -283,7 +283,12 @@ namespace http
       {
         response.set_header(k, v);
       }
-      response.set_body(body.data(), body.size());
+
+      response.set_body(
+        body.data(),
+        body.size(),
+        false /* Don't overwrite any existing content-length header */
+      );
 
       auto data = response.build_response();
       tls_io->send_raw(data.data(), data.size());
@@ -291,7 +296,7 @@ namespace http
     }
 
     bool start_stream(
-      http_status status, const ccf::http::HeaderMap& headers) override
+      ccf::http_status status, const ccf::http::HeaderMap& headers) override
     {
       throw std::logic_error("Not implemented!");
     }
@@ -380,7 +385,7 @@ namespace http
     }
 
     void handle_response(
-      http_status status,
+      ccf::http_status status,
       ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
@@ -504,7 +509,7 @@ namespace http
     }
 
     void handle_response(
-      http_status status,
+      ccf::http_status status,
       ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {

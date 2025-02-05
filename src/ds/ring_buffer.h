@@ -145,19 +145,24 @@ namespace ringbuffer
   {
     static inline uint64_t read64_impl(const BufferDef& bd, size_t index)
     {
+      auto src = bd.data + index;
+      auto src_64 = reinterpret_cast<uint64_t*>(src);
+
 #ifdef __cpp_lib_atomic_ref
-      auto& ref = *(reinterpret_cast<uint64_t*>(bd.data + index));
-      std::atomic_ref<uint64_t> slot(ref);
-      return slot.load(std::memory_order_acquire);
-#else
-      // __atomic_load is used instead of std::atomic_ref since it's not
-      // supported by libc++ yet.
+      if (Const::is_aligned(src, 8))
+      {
+        auto& ref = *src_64;
+        std::atomic_ref<uint64_t> slot(ref);
+        return slot.load(std::memory_order_acquire);
+      }
+#endif
+
+      // __atomic_load is used instead of std::atomic_ref when std::atomic_ref
+      // is unavailable, or the src pointer is not aligned
       // https://en.cppreference.com/w/Template:cpp/compiler_support/20
       uint64_t r = 0;
-      __atomic_load(
-        reinterpret_cast<uint64_t*>(bd.data + index), &r, __ATOMIC_ACQUIRE);
+      __atomic_load(src_64, &r, __ATOMIC_ACQUIRE);
       return r;
-#endif
     }
 
     static inline Message message(uint64_t header)
@@ -176,8 +181,6 @@ namespace ringbuffer
     friend class Writer;
 
     BufferDef bd;
-
-    std::vector<uint8_t> local_copy;
 
     virtual uint64_t read64(size_t index)
     {
@@ -248,25 +251,7 @@ namespace ringbuffer
         // Call the handler function for this message.
         bd.check_access(hd_index, advance);
 
-        if (ccf::pal::require_alignment_for_untrusted_reads() && size > 0)
-        {
-          // To prevent unaligned reads during message processing, copy aligned
-          // chunk into enclave memory
-          const auto copy_size = Const::align_size(size);
-          if (local_copy.size() < copy_size)
-          {
-            local_copy.resize(copy_size);
-          }
-          ccf::pal::safe_memcpy(
-            local_copy.data(),
-            bd.data + msg_index + Const::header_size(),
-            copy_size);
-          f(m, local_copy.data(), (size_t)size);
-        }
-        else
-        {
-          f(m, bd.data + msg_index + Const::header_size(), (size_t)size);
-        }
+        f(m, bd.data + msg_index + Const::header_size(), (size_t)size);
       }
 
       if (advance > 0)

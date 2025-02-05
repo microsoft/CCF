@@ -5,10 +5,10 @@
 #include "ccf/ds/ccf_exception.h"
 #include "ccf/ds/logger.h"
 #include "ccf/pal/locking.h"
+#include "ccf/service/reconfiguration_type.h"
 #include "ccf/tx_id.h"
 #include "ccf/tx_status.h"
 #include "ds/serialized.h"
-#include "enclave/reconfiguration_type.h"
 #include "impl/state.h"
 #include "kv/kv_types.h"
 #include "node/node_client.h"
@@ -175,7 +175,7 @@ namespace aft
     // active configuration.
     std::unordered_map<ccf::NodeId, NodeState> all_other_nodes;
     std::unordered_map<ccf::NodeId, ccf::SeqNo> retired_nodes;
-    ReconfigurationType reconfiguration_type;
+    ccf::ReconfigurationType reconfiguration_type;
 
     // Node client to trigger submission of RPC requests
     std::shared_ptr<ccf::NodeClient> node_client;
@@ -218,8 +218,8 @@ namespace aft
       bool public_only_ = false,
       ccf::kv::MembershipState initial_membership_state_ =
         ccf::kv::MembershipState::Active,
-      ReconfigurationType reconfiguration_type_ =
-        ReconfigurationType::ONE_TRANSACTION) :
+      ccf::ReconfigurationType reconfiguration_type_ =
+        ccf::ReconfigurationType::ONE_TRANSACTION) :
       store(std::move(store_)),
 
       timeout_elapsed(0),
@@ -564,7 +564,7 @@ namespace aft
         become_retired(idx, ccf::kv::RetirementPhase::Ordered);
       }
 
-      if (conf != configurations.back().nodes)
+      if (configurations.empty() || conf != configurations.back().nodes)
       {
         Configuration new_config = {idx, std::move(conf), idx};
         configurations.push_back(new_config);

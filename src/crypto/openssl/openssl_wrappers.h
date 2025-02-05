@@ -6,8 +6,9 @@
 
 #define FMT_HEADER_ONLY
 
+#include "ccf/ds/x509_time_fmt.h"
+
 #include <chrono>
-#include <ds/x509_time_fmt.h>
 #include <fmt/format.h>
 #include <memory>
 #include <openssl/asn1.h>
@@ -43,7 +44,10 @@ namespace ccf::crypto
       if (ec)
       {
         std::string err(256, '\0');
+        ERR_load_crypto_strings();
+        SSL_load_error_strings();
         ERR_error_string_n((unsigned long)ec, err.data(), err.size());
+        ERR_free_strings();
         // Remove any trailing NULs before returning
         err.resize(std::strlen(err.c_str()));
         return err;
@@ -360,7 +364,7 @@ namespace ccf::crypto
       Unique_X509_TIME(const std::string& s) :
         Unique_SSL_OBJECT(ASN1_TIME_new(), ASN1_TIME_free, /*check_null=*/false)
       {
-        auto t = ::ds::to_x509_time_string(s);
+        auto t = ccf::ds::to_x509_time_string(s);
         CHECK1(ASN1_TIME_set_string(*this, t.c_str()));
         CHECK1(ASN1_TIME_normalize(*this));
       }
@@ -368,7 +372,7 @@ namespace ccf::crypto
         Unique_SSL_OBJECT(t, ASN1_TIME_free, /*check_null=*/false)
       {}
       Unique_X509_TIME(const std::chrono::system_clock::time_point& t) :
-        Unique_X509_TIME(::ds::to_x509_time_string(t))
+        Unique_X509_TIME(ccf::ds::to_x509_time_string(t))
       {}
     };
 
@@ -423,6 +427,13 @@ namespace ccf::crypto
                                      EVP_ENCODE_CTX_free>
     {
       using Unique_SSL_OBJECT::Unique_SSL_OBJECT;
+    };
+
+    struct Unique_EVP_PKEY
+      : public Unique_SSL_OBJECT<EVP_PKEY, EVP_PKEY_new, EVP_PKEY_free>
+    {
+      Unique_EVP_PKEY() = default;
+      Unique_EVP_PKEY(EVP_PKEY* key) : Unique_SSL_OBJECT(key, EVP_PKEY_free) {}
     };
   }
 }

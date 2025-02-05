@@ -15,6 +15,7 @@ namespace ccf
   {
   public:
     bool is_public = false;
+    ccf::COSESignaturesConfig cose_signatures_config = {};
 
     ExtendedState state() override
     {
@@ -103,6 +104,11 @@ namespace ccf
     ccf::crypto::Pem get_self_signed_node_certificate() override
     {
       return {};
+    }
+
+    const ccf::COSESignaturesConfig& get_cose_signatures_config() override
+    {
+      return cose_signatures_config;
     }
   };
 

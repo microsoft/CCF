@@ -33,7 +33,7 @@ function endgroup() {
 
 
 group "Shell scripts"
-git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091,SC2181
+git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -S warning -s bash
 endgroup
 
 # No inline TODOs in the codebase, use tickets, with a pointer to the code if necessary.
@@ -49,7 +49,20 @@ if [[ -n "$violations" ]]; then
   echo "$violations"
   exit 1
 else
-  echo "No public header violations"
+  echo "No public-private include violations"
+fi
+endgroup
+
+group "Public header namespaces"
+# Enforce that all public headers namespace their exports
+# NB: This only greps for a namespace definition in each file, doesn't precisely enforce that no types escape that namespace - mistakes are possible
+violations=$(find "$ROOT_DIR/include/ccf" -type f -name "*.h" -print0 | xargs --null grep -L "namespace ccf" | sort || true)
+if [[ -n "$violations" ]]; then
+  echo "Public headers missing ccf namespace:"
+  echo "$violations"
+  exit 1
+else
+  echo "No public header namespace violations"
 fi
 endgroup
 

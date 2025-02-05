@@ -1,43 +1,296 @@
 #pragma once
 
-#include "../ds/ds.h"
-#include "freelist.h"
-#include "metadata.h"
-#include "sizeclasstable.h"
+#include "freelist_queue.h"
 
-#include <array>
-#include <atomic>
+#include <new>
 
 namespace snmalloc
 {
+  class RemoteMessageAssertions;
+
   /**
+   * Entries on a remote message queue.  Logically, this is a pair of freelist
+   * linkages, together with some metadata:
    *
-   * A RemoteAllocator is the message queue of freed objects.  It exposes a MPSC
-   * append-only atomic queue that uses one xchg per append.
+   * - a cyclic list ("ring") of free objects (atypically for rings, there is
+   *   no sentinel node here: the message itself is a free object),
    *
-   * The internal pointers are considered QueuePtr-s to support deployment
-   * scenarios in which the RemoteAllocator itself is exposed to the client.
-   * This is excessively paranoid in the common case that the RemoteAllocator-s
-   * are as "hard" for the client to reach as the Pagemap, which we trust to
-   * store not just Tame CapPtr<>s but raw C++ pointers.
+   * - the length of that ring
    *
-   * While we could try to condition the types used here on a flag in the
-   * backend's `struct Flags Options` value, we instead expose two domesticator
-   * callbacks at the interface and are careful to use one for the front and
-   * back values and the other for pointers read from the queue itself.  That's
-   * not ideal, but it lets the client condition its behavior appropriately and
-   * prevents us from accidentally following either of these pointers in generic
-   * code.
+   * - the linkage for the message queue itself
    *
-   * `domesticate_head` is used for the pointer used to reach the of the queue,
-   * while `domesticate_queue` is used to traverse the first link in the queue
-   * itself.  In the case that the RemoteAllocator is not easily accessible to
-   * the client, `domesticate_head` can just be a type coersion, and
-   * `domesticate_queue` should perform actual validation.  If the
-   * RemoteAllocator is exposed to the client, both Domesticators should perform
-   * validation.
+   * In practice, there is a fair bit more going on here: the ring of free
+   * objects is not entirely encoded as a freelist.  While traversing the
+   * successor pointers in objects on the ring will eventually lead back to
+   * this RemoteMessage object, the successor pointer from this object is
+   * encoded as a relative displacement.  This is guaranteed to be physically
+   * smaller than a full pointer (because slabs are smaller than the whole
+   * address space).  This gives us enough room to pack in the length of the
+   * ring, without needing to grow the structure.
    */
-  struct alignas(REMOTE_MIN_ALIGN) RemoteAllocator
+  class BatchedRemoteMessage
+  {
+    friend class BatchedRemoteMessageAssertions;
+
+    freelist::Object::T<> free_ring;
+    freelist::Object::T<> message_link;
+
+    static_assert(
+      sizeof(free_ring.next_object) >= sizeof(void*),
+      "BatchedRemoteMessage bitpacking needs sizeof(void*) in next_object");
+
+  public:
+    static auto emplace_in_alloc(capptr::Alloc<void> alloc)
+    {
+      return CapPtr<BatchedRemoteMessage, capptr::bounds::Alloc>::unsafe_from(
+        new (alloc.unsafe_ptr()) BatchedRemoteMessage());
+    }
+
+    static auto mk_from_freelist_builder(
+      freelist::Builder<false, true>& flb,
+      const FreeListKey& key,
+      address_t key_tweak)
+    {
+      size_t size = flb.extract_segment_length();
+
+      SNMALLOC_ASSERT(size < bits::one_at_bit(MAX_CAPACITY_BITS));
+
+      auto [first, last] = flb.extract_segment(key, key_tweak);
+
+      /*
+       * Preserve the last node's backpointer and change its type.  Because we
+       * use placement new to build our RemoteMessage atop the memory of a
+       * freelist::Object::T<> (to avoid UB) and the constructor may nullify
+       * the `prev` field, put it right back.  Ideally the compiler is smart
+       * enough to see that this is a no-op.
+       */
+      auto last_prev = last->prev;
+      auto self =
+        CapPtr<BatchedRemoteMessage, capptr::bounds::Alloc>::unsafe_from(
+          new (last.unsafe_ptr()) BatchedRemoteMessage());
+      self->free_ring.prev = last_prev;
+
+      // XXX On CHERI, we could do a fair bit better if we had a primitive for
+      // extracting and discarding the offset.  That probably beats the dance
+      // done below, but it should work as it stands.
+
+      auto n = freelist::HeadPtr::unsafe_from(
+        unsafe_from_uintptr<freelist::Object::T<>>(
+          (static_cast<uintptr_t>(pointer_diff_signed(self, first))
+           << MAX_CAPACITY_BITS) +
+          size));
+
+      // Close the ring, storing our bit-packed value in the next field.
+      freelist::Object::store_nextish(
+        &self->free_ring.next_object, first, key, key_tweak, n);
+
+      return self;
+    }
+
+    static freelist::HeadPtr
+    to_message_link(capptr::Alloc<BatchedRemoteMessage> m)
+    {
+      return pointer_offset(m, offsetof(BatchedRemoteMessage, message_link))
+        .as_reinterpret<freelist::Object::T<>>();
+    }
+
+    static capptr::Alloc<BatchedRemoteMessage>
+    from_message_link(freelist::HeadPtr chainPtr)
+    {
+      return pointer_offset_signed(
+               chainPtr,
+               -static_cast<ptrdiff_t>(
+                 offsetof(BatchedRemoteMessage, message_link)))
+        .as_reinterpret<BatchedRemoteMessage>();
+    }
+
+    template<SNMALLOC_CONCEPT(IsConfigLazy) Config, typename Domesticator_queue>
+    SNMALLOC_FAST_PATH static std::pair<freelist::HeadPtr, uint16_t>
+    open_free_ring(
+      capptr::Alloc<BatchedRemoteMessage> m,
+      size_t objsize,
+      const FreeListKey& key,
+      address_t key_tweak,
+      Domesticator_queue domesticate)
+    {
+      uintptr_t encoded =
+        m->free_ring.read_next(key, key_tweak, domesticate).unsafe_uintptr();
+
+      uint16_t decoded_size =
+        static_cast<uint16_t>(encoded) & bits::mask_bits(MAX_CAPACITY_BITS);
+      static_assert(sizeof(decoded_size) * 8 > MAX_CAPACITY_BITS);
+
+      /*
+       * Derive an out-of-bounds pointer to the next allocation, then use the
+       * authmap to reconstruct an in-bounds version, which we then immediately
+       * bound and rewild and then domesticate (how strange).
+       *
+       * XXX See above re: doing better on CHERI.
+       */
+      auto next = domesticate(
+        capptr_rewild(
+          Config::Backend::capptr_rederive_alloc(
+            pointer_offset_signed(
+              m, static_cast<ptrdiff_t>(encoded) >> MAX_CAPACITY_BITS),
+            objsize))
+          .template as_static<freelist::Object::T<>>());
+
+      if constexpr (mitigations(freelist_backward_edge))
+      {
+        next->check_prev(
+          signed_prev(address_cast(m), address_cast(next), key, key_tweak));
+      }
+      else
+      {
+        UNUSED(key);
+        UNUSED(key_tweak);
+      }
+
+      return {next.template as_static<freelist::Object::T<>>(), decoded_size};
+    }
+
+    template<SNMALLOC_CONCEPT(IsConfigLazy) Config, typename Domesticator_queue>
+    static uint16_t ring_size(
+      capptr::Alloc<BatchedRemoteMessage> m,
+      const FreeListKey& key,
+      address_t key_tweak,
+      Domesticator_queue domesticate)
+    {
+      uintptr_t encoded =
+        m->free_ring.read_next(key, key_tweak, domesticate).unsafe_uintptr();
+
+      uint16_t decoded_size =
+        static_cast<uint16_t>(encoded) & bits::mask_bits(MAX_CAPACITY_BITS);
+      static_assert(sizeof(decoded_size) * 8 > MAX_CAPACITY_BITS);
+
+      if constexpr (mitigations(freelist_backward_edge))
+      {
+        /*
+         * Like above, but we don't strictly need to rebound the pointer,
+         * since it's only used internally.  Still, doesn't hurt to bound
+         * to the free list linkage.
+         */
+        auto next = domesticate(
+          capptr_rewild(
+            Config::Backend::capptr_rederive_alloc(
+              pointer_offset_signed(
+                m, static_cast<ptrdiff_t>(encoded) >> MAX_CAPACITY_BITS),
+              sizeof(freelist::Object::T<>)))
+            .template as_static<freelist::Object::T<>>());
+
+        next->check_prev(
+          signed_prev(address_cast(m), address_cast(next), key, key_tweak));
+      }
+      else
+      {
+        UNUSED(key);
+        UNUSED(key_tweak);
+        UNUSED(domesticate);
+      }
+
+      return decoded_size;
+    }
+  };
+
+  class BatchedRemoteMessageAssertions
+  {
+    static_assert(
+      (DEALLOC_BATCH_RINGS == 0) ||
+      (sizeof(BatchedRemoteMessage) <= MIN_ALLOC_SIZE));
+    static_assert(offsetof(BatchedRemoteMessage, free_ring) == 0);
+
+    static_assert(
+      (DEALLOC_BATCH_RINGS == 0) ||
+        (MAX_SLAB_SPAN_BITS + MAX_CAPACITY_BITS < 8 * sizeof(void*)),
+      "Ring bit-stuffing trick can't reach far enough to enclose a slab");
+  };
+
+  /** The type of a remote message when we are not batching messages onto
+   * rings.
+   *
+   * Relative to BatchRemoteMessage, this type is smaller, as it contains only
+   * a single linkage, to the next message.  (And possibly a backref, if
+   * mitigations(freelist_backward_edge) is enabled.)
+   */
+  class SingletonRemoteMessage
+  {
+    friend class SingletonRemoteMessageAssertions;
+
+    freelist::Object::T<> message_link;
+
+  public:
+    static auto emplace_in_alloc(capptr::Alloc<void> alloc)
+    {
+      return CapPtr<SingletonRemoteMessage, capptr::bounds::Alloc>::unsafe_from(
+        new (alloc.unsafe_ptr()) SingletonRemoteMessage());
+    }
+
+    static freelist::HeadPtr
+    to_message_link(capptr::Alloc<SingletonRemoteMessage> m)
+    {
+      return pointer_offset(m, offsetof(SingletonRemoteMessage, message_link))
+        .as_reinterpret<freelist::Object::T<>>();
+    }
+
+    static capptr::Alloc<SingletonRemoteMessage>
+    from_message_link(freelist::HeadPtr chainPtr)
+    {
+      return pointer_offset_signed(
+               chainPtr,
+               -static_cast<ptrdiff_t>(
+                 offsetof(SingletonRemoteMessage, message_link)))
+        .as_reinterpret<SingletonRemoteMessage>();
+    }
+
+    template<SNMALLOC_CONCEPT(IsConfigLazy) Config, typename Domesticator_queue>
+    SNMALLOC_FAST_PATH static std::pair<freelist::HeadPtr, uint16_t>
+    open_free_ring(
+      capptr::Alloc<SingletonRemoteMessage> m,
+      size_t,
+      const FreeListKey&,
+      address_t,
+      Domesticator_queue)
+    {
+      return {
+        m.as_reinterpret<freelist::Object::T<>>(), static_cast<uint16_t>(1)};
+    }
+
+    template<SNMALLOC_CONCEPT(IsConfigLazy) Config, typename Domesticator_queue>
+    static uint16_t ring_size(
+      capptr::Alloc<SingletonRemoteMessage>,
+      const FreeListKey&,
+      address_t,
+      Domesticator_queue)
+    {
+      return 1;
+    }
+  };
+
+  class SingletonRemoteMessageAssertions
+  {
+    static_assert(sizeof(SingletonRemoteMessage) <= MIN_ALLOC_SIZE);
+    static_assert(
+      sizeof(SingletonRemoteMessage) == sizeof(freelist::Object::T<>));
+    static_assert(offsetof(SingletonRemoteMessage, message_link) == 0);
+  };
+
+  using RemoteMessage = std::conditional_t<
+    (DEALLOC_BATCH_RINGS > 0),
+    BatchedRemoteMessage,
+    SingletonRemoteMessage>;
+
+  static_assert(sizeof(RemoteMessage) <= MIN_ALLOC_SIZE);
+
+  /**
+   * A RemoteAllocator is the message queue of freed objects.  It builds on the
+   * FreeListMPSCQ but encapsulates knowledge that the objects are actually
+   * RemoteMessage-s and not just any freelist::object::T<>s.
+   *
+   * RemoteAllocator-s may be exposed to client tampering.  As a result,
+   * pointer domestication may be necessary.  See the documentation for
+   * FreeListMPSCQ for details.
+   */
+  struct RemoteAllocator
   {
     /**
      * Global key for all remote lists.
@@ -49,49 +302,37 @@ namespace snmalloc
      */
     inline static FreeListKey key_global{0xdeadbeef, 0xbeefdead, 0xdeadbeef};
 
-    using alloc_id_t = address_t;
+    FreeListMPSCQ<key_global> list;
 
-    // Store the message queue on a separate cacheline. It is mutable data that
-    // is read by other threads.
-    alignas(CACHELINE_SIZE) freelist::AtomicQueuePtr back{nullptr};
-    // Store the two ends on different cache lines as access by different
-    // threads.
-    alignas(CACHELINE_SIZE) freelist::AtomicQueuePtr front{nullptr};
-    // Fake first entry
-    freelist::Object::T<capptr::bounds::AllocWild> stub{};
+    using alloc_id_t = address_t;
 
     constexpr RemoteAllocator() = default;
 
     void invariant()
     {
-      SNMALLOC_ASSERT(
-        (address_cast(front.load()) == address_cast(&stub)) ||
-        (back != nullptr));
+      list.invariant();
     }
 
     void init()
     {
-      freelist::HeadPtr stub_ptr = freelist::HeadPtr::unsafe_from(&stub);
-      freelist::Object::atomic_store_null(stub_ptr, key_global);
-      front.store(freelist::QueuePtr::unsafe_from(&stub));
-      back.store(nullptr, std::memory_order_relaxed);
-      invariant();
+      list.init();
     }
 
-    freelist::QueuePtr destroy()
+    template<typename Domesticator_queue, typename Cb>
+    void destroy_and_iterate(Domesticator_queue domesticate, Cb cb)
     {
-      freelist::QueuePtr fnt = front.load();
-      back.store(nullptr, std::memory_order_relaxed);
-      if (address_cast(front.load()) == address_cast(&stub))
-        return nullptr;
-      return fnt;
+      auto cbwrap = [cb](freelist::HeadPtr p) SNMALLOC_FAST_PATH_LAMBDA {
+        cb(RemoteMessage::from_message_link(p));
+      };
+
+      return list.destroy_and_iterate(domesticate, cbwrap);
     }
 
-    template<typename Domesticator_head>
-    inline bool can_dequeue(Domesticator_head domesticate_head)
+    template<typename Domesticator_head, typename Domesticator_queue>
+    inline bool can_dequeue(
+      Domesticator_head domesticate_head, Domesticator_queue domesticate_queue)
     {
-      return domesticate_head(front.load())
-               ->atomic_read_next(key_global, domesticate_head) == nullptr;
+      return list.can_dequeue(domesticate_head, domesticate_queue);
     }
 
     /**
@@ -103,28 +344,14 @@ namespace snmalloc
      */
     template<typename Domesticator_head>
     void enqueue(
-      freelist::HeadPtr first,
-      freelist::HeadPtr last,
+      capptr::Alloc<RemoteMessage> first,
+      capptr::Alloc<RemoteMessage> last,
       Domesticator_head domesticate_head)
     {
-      invariant();
-      freelist::Object::atomic_store_null(last, key_global);
-
-      // Exchange needs to be acq_rel.
-      // *  It needs to be a release, so nullptr in next is visible.
-      // *  Needs to be acquire, so linking into the list does not race with
-      //    the other threads nullptr init of the next field.
-      freelist::QueuePtr prev =
-        back.exchange(capptr_rewild(last), std::memory_order_acq_rel);
-
-      if (SNMALLOC_LIKELY(prev != nullptr))
-      {
-        freelist::Object::atomic_store_next(
-          domesticate_head(prev), first, key_global);
-        return;
-      }
-
-      front.store(capptr_rewild(first));
+      list.enqueue(
+        RemoteMessage::to_message_link(first),
+        RemoteMessage::to_message_link(last),
+        domesticate_head);
     }
 
     /**
@@ -144,49 +371,10 @@ namespace snmalloc
       Domesticator_queue domesticate_queue,
       Cb cb)
     {
-      invariant();
-      SNMALLOC_ASSERT(front.load() != nullptr);
-
-      // Use back to bound, so we don't handle new entries.
-      auto b = back.load(std::memory_order_relaxed);
-      freelist::HeadPtr curr = domesticate_head(front.load());
-
-      while (address_cast(curr) != address_cast(b))
-      {
-        freelist::HeadPtr next =
-          curr->atomic_read_next(key_global, domesticate_queue);
-        // We have observed a non-linearisable effect of the queue.
-        // Just go back to allocating normally.
-        if (SNMALLOC_UNLIKELY(next == nullptr))
-          break;
-        // We want this element next, so start it loading.
-        Aal::prefetch(next.unsafe_ptr());
-        if (SNMALLOC_UNLIKELY(!cb(curr)))
-        {
-          /*
-           * We've domesticate_queue-d next so that we can read through it, but
-           * we're storing it back into client-accessible memory in
-           * !QueueHeadsAreTame builds, so go ahead and consider it Wild again.
-           * On QueueHeadsAreTame builds, the subsequent domesticate_head call
-           * above will also be a type-level sleight of hand, but we can still
-           * justify it by the domesticate_queue that happened in this
-           * dequeue().
-           */
-          front = capptr_rewild(next);
-          invariant();
-          return;
-        }
-
-        curr = next;
-      }
-
-      /*
-       * Here, we've hit the end of the queue: next is nullptr and curr has not
-       * been handed to the callback.  The same considerations about Wildness
-       * above hold here.
-       */
-      front = capptr_rewild(curr);
-      invariant();
+      auto cbwrap = [cb](freelist::HeadPtr p) SNMALLOC_FAST_PATH_LAMBDA {
+        return cb(RemoteMessage::from_message_link(p));
+      };
+      list.dequeue(domesticate_head, domesticate_queue, cbwrap);
     }
 
     alloc_id_t trunc_id()

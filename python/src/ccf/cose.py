@@ -44,6 +44,8 @@ GOV_MSG_TYPES = [
 # should move to a pycose.header value after RFC publication
 
 COSE_PHDR_VDP_LABEL = 396
+COSE_PHDR_VDS_LABEL = 395
+COSE_PHDR_VDS_CCF_LEDGER_SHA256 = 2
 COSE_RECEIPT_INCLUSION_PROOF_LABEL = -1
 
 # See https://datatracker.ietf.org/doc/draft-birkholz-cose-receipts-ccf-profile/
@@ -211,13 +213,23 @@ def verify_receipt(
     # Extract the expected KID from the public key used for verification,
     # and check it against the value set in the COSE header before using
     # it to verify the proofs.
-    expected_kid = sha256(
-        key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
-    ).digest()
+    expected_kid = (
+        sha256(key.public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo))
+        .digest()
+        .hex()
+        .encode()
+    )
     receipt = Sign1Message.decode(receipt_bytes)
     cose_key = from_cryptography_eckey_obj(key)
     assert receipt.phdr[pycose.headers.KID] == expected_kid
     receipt.key = cose_key
+
+    assert (
+        COSE_PHDR_VDS_LABEL in receipt.phdr
+    ), "Verifiable data structure type is required"
+    assert (
+        receipt.phdr[COSE_PHDR_VDS_LABEL] == COSE_PHDR_VDS_CCF_LEDGER_SHA256
+    ), "vds(395) protected header must be CCF_LEDGER_SHA256(2)"
 
     assert COSE_PHDR_VDP_LABEL in receipt.uhdr, "Verifiable data proof is required"
     proof = receipt.uhdr[COSE_PHDR_VDP_LABEL]

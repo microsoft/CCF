@@ -28,13 +28,6 @@ std::unique_ptr<threading::ThreadMessaging>
 std::chrono::microseconds ccf::Channel::min_gap_between_initiation_attempts(
   2'000'000);
 
-static bool is_aligned(void* p, size_t align, size_t count = 0)
-{
-  const auto start = reinterpret_cast<std::uintptr_t>(p);
-  const auto end = start + count;
-  return (start % align == 0) && (end % align == 0);
-}
-
 extern "C"
 {
   // Confirming in-enclave behaviour in separate unit tests is tricky, so we
@@ -72,7 +65,7 @@ extern "C"
     size_t enclave_version_size,
     size_t* enclave_version_len,
     StartType start_type,
-    LoggerLevel enclave_log_level,
+    ccf::LoggerLevel enclave_log_level,
     size_t num_worker_threads,
     void* time_location)
   {
@@ -87,12 +80,6 @@ extern "C"
     {
       LOG_FAIL_FMT("Memory outside enclave: enclave_config");
       return CreateNodeStatus::MemoryNotOutsideEnclave;
-    }
-
-    if (!is_aligned(enclave_config, 8, sizeof(EnclaveConfig)))
-    {
-      LOG_FAIL_FMT("Read source memory not aligned: enclave_config");
-      return CreateNodeStatus::UnalignedArguments;
     }
 
     EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
@@ -175,29 +162,14 @@ extern "C"
         return CreateNodeStatus::MemoryNotOutsideEnclave;
       }
 
-      if (!is_aligned(
-            time_location, 8, sizeof(*ccf::enclavetime::host_time_us)))
-      {
-        LOG_FAIL_FMT("Read source memory not aligned: time_location");
-        return CreateNodeStatus::UnalignedArguments;
-      }
-
       ccf::enclavetime::host_time_us =
         static_cast<decltype(ccf::enclavetime::host_time_us)>(time_location);
-
-      ccf::pal::speculation_barrier();
     }
 
     if (!ccf::pal::is_outside_enclave(ccf_config, ccf_config_size))
     {
       LOG_FAIL_FMT("Memory outside enclave: ccf_config");
       return CreateNodeStatus::MemoryNotOutsideEnclave;
-    }
-
-    if (!is_aligned(ccf_config, 8, ccf_config_size))
-    {
-      LOG_FAIL_FMT("Read source memory not aligned: ccf_config");
-      return CreateNodeStatus::UnalignedArguments;
     }
 
     if (!ccf::pal::is_outside_enclave(
@@ -207,15 +179,7 @@ extern "C"
       return CreateNodeStatus::MemoryNotOutsideEnclave;
     }
 
-    if (!is_aligned(startup_snapshot_data, 8, startup_snapshot_size))
-    {
-      LOG_FAIL_FMT("Read source memory not aligned: startup snapshot");
-      return CreateNodeStatus::UnalignedArguments;
-    }
-
-    ccf::pal::speculation_barrier();
-
-    StartupConfig cc =
+    ccf::StartupConfig cc =
       nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
 
     // 2-tx reconfiguration is currently experimental, disable it in release
@@ -223,7 +187,7 @@ extern "C"
     if (
       cc.start.service_configuration.reconfiguration_type.has_value() &&
       cc.start.service_configuration.reconfiguration_type.value() !=
-        ReconfigurationType::ONE_TRANSACTION)
+        ccf::ReconfigurationType::ONE_TRANSACTION)
     {
       LOG_FAIL_FMT(
         "2TX reconfiguration is experimental, disabled in release mode");

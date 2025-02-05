@@ -1,5 +1,4 @@
 #pragma once
-#include "../backend/globalconfig.h"
 #include "bounds_checks.h"
 
 namespace snmalloc
@@ -23,6 +22,7 @@ namespace snmalloc
     {
       char data[Size];
     };
+
     auto* d = static_cast<Block*>(dst);
     auto* s = static_cast<const Block*>(src);
     *d = *s;
@@ -192,7 +192,8 @@ namespace snmalloc
      * It's not entirely clear what we would do if this were not the case.
      * Best not think too hard about it now.
      */
-    static_assert(alignof(void*) == sizeof(void*));
+    static_assert(
+      alignof(void*) == sizeof(void*)); // NOLINT(misc-redundant-expression)
 
     static constexpr size_t LargestRegisterSize = 16;
 
@@ -254,6 +255,7 @@ namespace snmalloc
           {
             void* p[2];
           };
+
           if (sizeof(Ptr2) <= len)
           {
             auto dp = static_cast<Ptr2*>(dst);
