@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/pal/attestation_sev_snp.h"
-#include <openssl/crypto.h>
 
 #include <fcntl.h>
+#include <openssl/crypto.h>
 #include <stdint.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -51,7 +51,7 @@ namespace ccf::pal::snp::ioctl6
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-  // Table 20 
+  // Table 20
   // bit 0 is the first bit
   struct DerivedKeyGuestFieldSelect
   {
