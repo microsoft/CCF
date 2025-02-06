@@ -105,10 +105,8 @@ jobs:
         shell: bash
         run: |
           set -ex
-          ./scripts/install-azure-linux-deps.sh
-          ./scripts/install-azure-linux-extended.sh
-          # For packaging and release tests
-          tdnf -y install rpm-build
+          ./scripts/setup-ci-basic.sh
+          ./scripts/setup-ci-full.sh
 
       - name: "Build Release ${{ matrix.platform.name }}"
         shell: bash

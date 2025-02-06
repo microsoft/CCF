@@ -125,7 +125,7 @@ jobs:
         shell: bash
         run: |
           set -ex
-          ./scripts/install-azure-linux-deps.sh
+          ./scripts/setup-ci-basic.sh
 
       - name: "Build Debug"
         run: |
@@ -148,5 +148,5 @@ jobs:
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # All other acceptably fast tests, which are now supported on Mariner.
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|protocolstest|suite|unit|lts_compatibility"
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit|lts"
         shell: bash
