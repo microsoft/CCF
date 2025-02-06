@@ -19,6 +19,8 @@ TEST_CASE("SNP derive key")
   auto key1 = snp::make_derived_key();
   auto key2 = snp::make_derived_key();
 
+  REQUIRE_EQ(ccf::ds::to_hex(key1->get_raw()), ccf::ds::to_hex(key2->get_raw()));
+
   std::vector<uint8_t> expected_plaintext = {0xde, 0xad, 0xbe, 0xef};
   auto ciphertext =
     ccf::crypto::aes_gcm_encrypt(key1->get_raw(), expected_plaintext);

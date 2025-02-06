@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/pal/attestation_sev_snp.h"
+#include <openssl/crypto.h>
 
 #include <fcntl.h>
 #include <stdint.h>
@@ -240,7 +241,12 @@ namespace ccf::pal::snp::ioctl6
       }
     }
 
-    const std::span<const uint8_t> get_raw()
+    ~DerivedKey()
+    {
+      OPENSSL_cleanse(resp_wrapper.resp.data, sizeof(resp_wrapper.resp.data));
+    }
+
+    std::span<const uint8_t> get_raw()
     {
       return std::span<const uint8_t>{resp_wrapper.resp.data};
     }
