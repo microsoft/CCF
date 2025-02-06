@@ -335,8 +335,15 @@ namespace ccf::gov::endpoints
             auto js_endpoints_handle =
               ctx.tx.template ro<ccf::endpoints::EndpointsMap>(
                 ccf::endpoints::Tables::ENDPOINTS);
+
+            using RawEndpointsMap = ccf::kv::RawCopySerialisedMap<
+              ccf::endpoints::EndpointsMap::Key,
+              std::vector<uint8_t>>;
+            auto raw_js_endpoints_handle = ctx.tx.template ro<RawEndpointsMap>(
+              ccf::endpoints::Tables::ENDPOINTS);
+
             js_endpoints_handle->foreach(
-              [&endpoints, original_case](
+              [&endpoints, &raw_js_endpoints_handle, original_case](
                 const ccf::endpoints::EndpointKey& key,
                 const ccf::endpoints::EndpointProperties& properties) {
                 auto ib =
@@ -347,7 +354,15 @@ namespace ccf::gov::endpoints
 
                 if (original_case)
                 {
-                  operation = properties;
+                  const auto raw_value_opt = raw_js_endpoints_handle->get(key);
+                  if (!raw_value_opt.has_value())
+                  {
+                    throw std::runtime_error(
+                      "Table inconsistency: Cannot access key via raw handle?");
+                  }
+                  const auto& raw_value = raw_value_opt.value();
+                  operation =
+                    nlohmann::json::parse(raw_value.begin(), raw_value.end());
                 }
                 else
                 {
