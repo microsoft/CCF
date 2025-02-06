@@ -4,6 +4,8 @@
 
 #include "ccf/pal/attestation_sev_snp.h"
 
+#include <algorithm>
+#include <array>
 #include <fcntl.h>
 #include <openssl/crypto.h>
 #include <stdint.h>
@@ -19,6 +21,24 @@
 namespace ccf::pal::snp::ioctl6
 {
   constexpr auto DEVICE = "/dev/sev-guest";
+
+#pragma pack(push, 1)
+  template <typename T>
+  struct SafetyPadding
+  {
+    T data;
+    uint8_t safety_padding[1024];
+  };
+
+  template <typename T>
+  bool safety_padding_intact(SafetyPadding<T> data)
+  {
+    return std::all_of(
+      std::begin(data.safety_padding),
+      std::end(data.safety_padding),
+      [](uint8_t e) { return e == 0; });
+  }
+#pragma pack(pop)
 
   // Table 22
 #pragma pack(push, 1)
@@ -40,13 +60,6 @@ namespace ccf::pal::snp::ioctl6
     struct Attestation report;
     uint8_t padding[64];
     // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
-  };
-
-  static_assert(sizeof(AttestationResp) < 4000);
-  struct AttestationRespWrapper
-  {
-    struct AttestationResp resp;
-    uint8_t padding[4000 - sizeof(struct AttestationResp)];
   };
 #pragma pack(pop)
 
@@ -93,12 +106,6 @@ namespace ccf::pal::snp::ioctl6
     uint8_t reserved[0x20 - 0x04];
     uint8_t data[32];
   }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
-  static_assert(sizeof(DerivedKeyResp) < 4000);
-  struct DerivedKeyRespWrapper
-  {
-    struct DerivedKeyResp resp;
-    uint8_t padding[4000 - sizeof(struct DerivedKeyResp)];
-  };
 #pragma pack(pop)
 
   struct ExitInfoErrors
@@ -129,9 +136,9 @@ namespace ccf::pal::snp::ioctl6
     ExitInfo exit_info;
   };
   using GuestRequestAttestation =
-    GuestRequest<AttestationReq, AttestationRespWrapper>;
+    GuestRequest<AttestationReq, SafetyPadding<AttestationResp>>;
   using GuestRequestDerivedKey =
-    GuestRequest<DerivedKeyReq, DerivedKeyRespWrapper>;
+    GuestRequest<DerivedKeyReq, SafetyPadding<DerivedKeyResp>>;
 
   // From linux/include/uapi/linux/sev-guest.h
   constexpr char SEV_GUEST_IOC_TYPE = 'S';
@@ -147,12 +154,12 @@ namespace ccf::pal::snp::ioctl6
 
   class Attestation : public AttestationInterface
   {
-    AttestationReq req = {};
-    AttestationRespWrapper resp_wrapper = {};
+    SafetyPadding<AttestationResp> padded_resp = {};
 
   public:
     Attestation(const PlatformAttestationReportData& report_data)
     {
+      AttestationReq req = {};
       if (report_data.data.size() <= snp_attestation_report_data_size)
       {
         std::copy(
@@ -174,7 +181,7 @@ namespace ccf::pal::snp::ioctl6
       // Documented at
       // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
       GuestRequestAttestation payload = {
-        .req_data = &req, .resp_wrapper = &resp_wrapper, .exit_info = {0}};
+        .req_data = &req, .resp_wrapper = &padded_resp, .exit_info = {0}};
 
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
       if (rc < 0)
@@ -187,23 +194,31 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT");
       }
+
+      if (!safety_padding_intact(padded_resp))
+      {
+        // This occurs if a kernel/firmware upgrade causes the response to
+        // overflow the struct so it is better to fail early than deal with
+        // memory corruption.
+        throw std::logic_error("IOCTL overwrote safety padding.");
+      }
     }
 
     const snp::Attestation& get() const override
     {
-      return resp_wrapper.resp.report;
+      return padded_resp.data.report;
     }
 
     std::vector<uint8_t> get_raw() override
     {
-      auto quote_bytes = reinterpret_cast<uint8_t*>(&resp_wrapper.resp.report);
-      return {quote_bytes, quote_bytes + resp_wrapper.resp.report_size};
+      auto quote_bytes = reinterpret_cast<uint8_t*>(&padded_resp.data.report);
+      return {quote_bytes, quote_bytes + padded_resp.data.report_size};
     }
   };
 
   class DerivedKey
   {
-    DerivedKeyRespWrapper resp_wrapper = {};
+    SafetyPadding<DerivedKeyResp> padded_resp = {};
 
   public:
     DerivedKey()
@@ -220,7 +235,7 @@ namespace ccf::pal::snp::ioctl6
       // We must also mix in the measurement
       req.guest_field_select.measurement = 1;
       GuestRequestDerivedKey payload = {
-        .req_data = &req, .resp_wrapper = &resp_wrapper, .exit_info = {0}};
+        .req_data = &req, .resp_wrapper = &padded_resp, .exit_info = {0}};
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_DERIVED_KEY, &payload);
       if (rc < 0)
       {
@@ -232,10 +247,19 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY");
       }
-      if ((*payload.resp_wrapper).resp.status != 0)
+
+      if (!safety_padding_intact(padded_resp))
+      {
+        // This occurs if a kernel/firmware upgrade causes the response to
+        // overflow the struct so it is better to fail early than deal with
+        // memory corruption.
+        throw std::logic_error("IOCTL overwrote safety padding.");
+      }
+
+      if (padded_resp.data.status != 0)
       {
         LOG_FAIL_FMT(
-          "SNP_GUEST_DERIVED_KEY failed: {}", resp_wrapper.resp.status);
+          "SNP_GUEST_DERIVED_KEY failed: {}", padded_resp.data.status);
         throw std::logic_error(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY");
       }
@@ -243,12 +267,12 @@ namespace ccf::pal::snp::ioctl6
 
     ~DerivedKey()
     {
-      OPENSSL_cleanse(resp_wrapper.resp.data, sizeof(resp_wrapper.resp.data));
+      OPENSSL_cleanse(padded_resp.data.data, sizeof(padded_resp.data.data));
     }
 
     std::span<const uint8_t> get_raw()
     {
-      return std::span<const uint8_t>{resp_wrapper.resp.data};
+      return std::span<const uint8_t>{padded_resp.data.data};
     }
   };
 }
