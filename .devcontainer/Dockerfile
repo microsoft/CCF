@@ -8,5 +8,5 @@ FROM ${BASE_IMAGE}
 RUN gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY  \
     && tdnf -y update
 
-# VSCode server dependency
-RUN tdnf -y install awk
+# Basic dev deps, helps smoothly install VSCode server.
+RUN tdnf -y install build-essential
