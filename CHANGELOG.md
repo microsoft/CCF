@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
-## [5.0.11]
+## [5.0.0-12]
+
+[5.0.0-12]: https://github.com/microsoft/CCF/releases/tag/5.0.0-12
+
+### Fixed
+
+- CA certificate bundles used for JWT refresh and containing more than one certificate are now handled correctly (#6817).
 
 [5.0.11]: https://github.com/microsoft/CCF/releases/tag/ccf-5.0.11
 
