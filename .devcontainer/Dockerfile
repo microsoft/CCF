@@ -4,7 +4,7 @@
 ARG BASE_IMAGE=mcr.microsoft.com/azurelinux/base/core:3.0
 FROM ${BASE_IMAGE}
 
-# ?
+# Trust Microsoft-signed packages
 RUN gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY  \
     && tdnf -y update
 
