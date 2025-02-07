@@ -4,8 +4,7 @@
 
 set -ex
 
-./scripts/setup-ci-basic.sh
-./scripts/setup-ci-full.sh
+./scripts/setup-ci.sh
 ./scripts/setup-dev.sh
 
 git config --global --add safe.directory /workspaces/CCF

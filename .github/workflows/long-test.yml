@@ -303,7 +303,7 @@ jobs:
         shell: bash
         run: |
           set -ex
-          ./scripts/setup-ci-basic.sh
+          ./scripts/setup-ci.sh
 
       - name: "Build Debug (Long Test)"
         run: |
