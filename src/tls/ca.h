@@ -48,6 +48,15 @@ namespace tls
       }
     }
 
+    CA(const std::vector<ccf::crypto::Pem>& ca_pems, bool partial_ok_ = false) :
+      partial_ok(partial_ok_)
+    {
+      for (const auto& ca_pem : ca_pems)
+      {
+        append_cert(ca_pem.str());
+      }
+    }
+
     ~CA() = default;
 
     void use(SSL_CTX* ssl_ctx)
