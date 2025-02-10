@@ -303,7 +303,7 @@ jobs:
         shell: bash
         run: |
           set -ex
-          ./scripts/install-azure-linux-deps.sh
+          ./scripts/setup-ci.sh
 
       - name: "Build Debug (Long Test)"
         run: |
