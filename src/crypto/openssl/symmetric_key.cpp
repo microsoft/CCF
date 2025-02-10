@@ -69,13 +69,6 @@ namespace ccf::crypto
     {
       int aad_outl{0};
       CHECK1(EVP_EncryptUpdate(ctx, NULL, &aad_outl, aad.data(), aad.size()));
-
-// As we set out buffer to NULL, we expect the output length to be 0.
-// However, openssl 1.1.1 sets it to the input length, which doesn't break
-// the encryption, but still looks wrong.
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-      assert(aad_outl == 0);
-#endif
     }
 
     std::vector<uint8_t> ciphertext(plain.size());
@@ -124,13 +117,6 @@ namespace ccf::crypto
     {
       int aad_outl{0};
       CHECK1(EVP_DecryptUpdate(ctx, NULL, &aad_outl, aad.data(), aad.size()));
-
-// As we set out buffer to NULL, we expect the output length to be 0.
-// However, openssl 1.1.1 sets it to the input length, which doesn't break
-// the encryption, but still looks wrong.
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-      assert(aad_outl == 0);
-#endif
     }
 
     std::vector<uint8_t> plaintext(cipher.size());
