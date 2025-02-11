@@ -2,7 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#if (defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)) || defined(SGX_ATTESTATION_VERIFICATION)
+#if (defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)) || \
+  defined(SGX_ATTESTATION_VERIFICATION)
 
 #  include <array>
 #  include <openenclave/attestation/attester.h>

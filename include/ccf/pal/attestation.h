@@ -17,7 +17,7 @@
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 #  include <sys/ioctl.h>
 #  ifdef SGX_ATTESTATION_VERIFICATION
-#    include <ccf/pal/attestation_sgx.h> 
+#    include <ccf/pal/attestation_sgx.h>
 #  endif
 #else
 #  include "ccf/pal/attestation_sgx.h"
@@ -210,7 +210,8 @@ namespace ccf::pal
     }
   }
 
-#if (defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)) || defined(SGX_ATTESTATION_VERIFICATION)
+#if (defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)) || \
+  defined(SGX_ATTESTATION_VERIFICATION)
   static void verify_sgx_quote(
     const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,
@@ -218,7 +219,9 @@ namespace ccf::pal
   {
     if (quote_info.format != QuoteFormat::oe_sgx_v1)
     {
-      throw std::logic_error(fmt::format("Unexpected attestation quote to verify for SGX: {}", quote_info.format));
+      throw std::logic_error(fmt::format(
+        "Unexpected attestation quote to verify for SGX: {}",
+        quote_info.format));
     }
 
     sgx::Claims claims;
@@ -383,9 +386,9 @@ namespace ccf::pal
     }
     else
     {
-#if defined(SGX_ATTESTATION_VERIFICATION)
+#  if defined(SGX_ATTESTATION_VERIFICATION)
       verify_sgx_quote(quote_info, measurement, report_data);
-#else
+#  else
       if (is_sev_snp)
       {
         throw std::logic_error(
@@ -396,7 +399,7 @@ namespace ccf::pal
         throw std::logic_error(
           "Cannot verify SGX attestation report if node is virtual");
       }
-#endif
+#  endif
     }
   }
 
