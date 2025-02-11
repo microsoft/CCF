@@ -27,7 +27,7 @@ namespace ccf::pal::snp::ioctl6
   struct SafetyPadding
   {
     T data;
-    uint8_t safety_padding[1024];
+    uint8_t safety_padding[1024] = {0};
   };
 
   template <typename T>
@@ -46,7 +46,7 @@ namespace ccf::pal::snp::ioctl6
   {
     uint8_t report_data[snp_attestation_report_data_size];
     uint32_t vmpl = 0;
-    uint8_t reserved[28]; // needs to be zero
+    uint8_t reserved[28] = {0};
   }; // snp_report_req in (linux) include/uapi/linux/sev-guest.h
 #pragma pack(pop)
 
@@ -90,7 +90,7 @@ namespace ccf::pal::snp::ioctl6
   struct DerivedKeyReq
   {
     KeySelect key_select;
-    uint32_t reserved;
+    uint32_t reserved = 0;
     DerivedKeyGuestFieldSelect guest_field_select;
     uint32_t vmpl = 0;
     uint32_t guest_svn;
