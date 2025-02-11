@@ -279,7 +279,7 @@ namespace ccf::pal
 
         for (size_t j = 0; j < custom_claims.length; j++)
         {
-          auto& custom_claim = custom_claims.data[j];
+          const auto& custom_claim = custom_claims.data[j];
           if (std::string(custom_claim.name) == sgx::report_data_claim_name)
           {
             if (custom_claim.value_size != SgxAttestationReportData::size())
