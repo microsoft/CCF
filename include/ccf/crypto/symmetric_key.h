@@ -113,8 +113,8 @@ namespace ccf::crypto
   /// @param aad Additional authenticated data
   /// @return ciphertext
   std::vector<uint8_t> aes_gcm_encrypt(
-    const std::vector<uint8_t>& key,
-    std::vector<uint8_t>& plaintext,
+    std::span<const uint8_t> key,
+    std::span<const uint8_t> plaintext,
     const std::vector<uint8_t>& iv = default_iv,
     const std::vector<uint8_t>& aad = {});
 
@@ -125,8 +125,8 @@ namespace ccf::crypto
   /// @param aad Additional authenticated data
   /// @return plaintext
   std::vector<uint8_t> aes_gcm_decrypt(
-    const std::vector<uint8_t>& key,
-    std::vector<uint8_t>& ciphertext,
+    std::span<const uint8_t> key,
+    std::span<const uint8_t> ciphertext,
     const std::vector<uint8_t>& iv = default_iv,
     const std::vector<uint8_t>& aad = {});
 }
