@@ -8,12 +8,7 @@
 #include <atomic>
 #include <cstring>
 #include <functional>
-
-// Ideally this would be _mm_pause or similar, but finding cross-platform
-// headers that expose this neatly through OE (ie - non-standard std libs) is
-// awkward. Instead we resort to copying OE, and implementing this directly
-// ourselves.
-#define CCF_PAUSE() asm volatile("pause")
+#include <thread>
 
 // This file implements a Multiple-Producer Single-Consumer ringbuffer.
 
@@ -338,7 +333,7 @@ namespace ringbuffer
           // Retry until there is sufficient space.
           do
           {
-            CCF_PAUSE();
+            std::this_thread::yield();
             r = reserve(rsize);
           } while (!r.has_value());
         }

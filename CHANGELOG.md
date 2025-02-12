@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.0-dev20]
+
+[6.0.0-dev20]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev20
+
+### Fixed
+
+- CA certificate bundles used for JWT refresh and containing more than one certificate are now handled correctly (#6817).
+
+## [6.0.0-dev19]
+
+[6.0.0-dev19]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev19
+
+### Fixed
+
+Container dependencies.
+
 ## [6.0.0-dev18]
 
 [6.0.0-dev18]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev18
