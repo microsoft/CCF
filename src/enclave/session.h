@@ -18,7 +18,8 @@ namespace ccf
 
     struct SendRecvMsg
     {
-      std::vector<uint8_t> data;
+      size_t len;
+      const uint8_t* buf;
       std::shared_ptr<ThreadedSession> self;
     };
 
@@ -34,12 +35,13 @@ namespace ccf
     // that eventually invokes the virtual handle_incoming_data_thread()
     void handle_incoming_data(std::span<const uint8_t> data) override
     {
-      auto [_, body] = ringbuffer::read_message<::tcp::tcp_inbound>(data);
+      auto [_, len, buf] = ringbuffer::read_message<::tcp::tcp_inbound>(data);
 
       auto msg = std::make_unique<::threading::Tmsg<SendRecvMsg>>(
         &handle_incoming_data_cb);
       msg->data.self = this->shared_from_this();
-      msg->data.data.assign(body.data, body.data + body.size);
+      msg->data.len = len;
+      msg->data.buf = (const uint8_t*)buf /*crimes*/;
 
       ::threading::ThreadMessaging::instance().add_task(
         execution_thread, std::move(msg));
@@ -48,9 +50,11 @@ namespace ccf
     static void handle_incoming_data_cb(
       std::unique_ptr<::threading::Tmsg<SendRecvMsg>> msg)
     {
-      msg->data.self->handle_incoming_data_thread(std::move(msg->data.data));
+      msg->data.self->handle_incoming_data_thread(
+        {msg->data.buf, msg->data.len});
+      delete[] msg->data.buf;
     }
 
-    virtual void handle_incoming_data_thread(std::vector<uint8_t>&& data) = 0;
+    virtual void handle_incoming_data_thread(std::span<const uint8_t> data) = 0;
   };
 }

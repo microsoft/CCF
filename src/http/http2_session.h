@@ -45,23 +45,17 @@ namespace http
       tls_io->close();
     }
 
-    void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
+    void handle_incoming_data_thread(std::span<const uint8_t> data) override
     {
       tls_io->recv_buffered(data.data(), data.size());
 
       LOG_TRACE_FMT("recv called with {} bytes", data.size());
 
-      // Try to parse all incoming data, reusing the vector we were just passed
-      // for storage. Increase the size if the received vector was too small
-      // (for the case where this chunk is very small, but we had some previous
-      // data to continue reading).
+      // Try to parse all incoming data
       constexpr auto min_read_block_size = 4096;
-      if (data.size() < min_read_block_size)
-      {
-        data.resize(min_read_block_size);
-      }
+      thread_local std::vector<uint8_t> read_buf(min_read_block_size);
 
-      auto n_read = tls_io->read(data.data(), data.size(), false);
+      auto n_read = tls_io->read(read_buf.data(), read_buf.size(), false);
 
       while (true)
       {
@@ -72,14 +66,14 @@ namespace http
 
         LOG_TRACE_FMT("Going to parse {} bytes", n_read);
 
-        bool cont = parse({data.data(), n_read});
+        bool cont = parse({read_buf.data(), n_read});
         if (!cont)
         {
           return;
         }
 
         // Used all provided bytes - check if more are available
-        n_read = tls_io->read(data.data(), data.size(), false);
+        n_read = tls_io->read(read_buf.data(), read_buf.size(), false);
       }
     }
   };
