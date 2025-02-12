@@ -77,7 +77,7 @@ jobs:
           - name: virtual
             os: azure-linux
             image: mcr.microsoft.com/azurelinux/base/core:3.0
-            test_filter: "benchmark|unit|protocolstest|lts"
+            test_filter: "benchmark|unit|lts"
           - name: snp
             os: azure-linux
             image: mcr.microsoft.com/azurelinux/base/core:3.0
@@ -105,9 +105,7 @@ jobs:
         shell: bash
         run: |
           set -ex
-          ./scripts/install-azure-linux-deps.sh
-          # For packaging and release tests
-          tdnf -y install rpm-build
+          ./scripts/setup-ci.sh
 
       - name: "Build Release ${{ matrix.platform.name }}"
         shell: bash

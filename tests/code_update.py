@@ -51,7 +51,7 @@ def test_verify_quotes(network, args):
             j = r.body.json()
             if j["format"] == "Insecure_Virtual":
                 # A virtual attestation makes 3 claims:
-                # - The measurement (same on many nodes) is the result of calling `uname -a`
+                # - The measurement (same on any virtual node) is a hard-coded string, currently unmodifiable
                 claimed_measurement = j["measurement"]
                 # For consistency with other platforms, this endpoint always returns a hex-string.
                 # But for virtual, it's encoding some ASCII string, not a digest, so decode it for readability

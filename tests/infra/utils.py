@@ -8,8 +8,7 @@ import infra.proc
 
 def get_measurement(enclave_type, enclave_platform, package, library_dir="."):
     if enclave_platform == "virtual":
-        result = infra.proc.ccall("uname", "-a")
-        return result.stdout.decode().strip()
+        return "Insecure hard-coded virtual measurement v1"
 
     else:
         raise ValueError(f"Cannot get measurement on {enclave_platform}")

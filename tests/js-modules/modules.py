@@ -69,6 +69,20 @@ def compare_app_metadata(expected, actual, api_key_renames, route=[]):
             ), f"Mismatch at {path}, expected {expected} and found {actual}"
 
 
+def canonicalise(orig, renames):
+    if isinstance(orig, dict):
+        o = {}
+        for k, v in orig.items():
+            if k in renames:
+                k = renames[k]
+            o[k] = canonicalise(v, renames)
+        return o
+    elif isinstance(orig, str) and orig in renames:
+        return renames[orig]
+    else:
+        return orig
+
+
 @reqs.description("Test module access")
 def test_module_access(network, args):
     primary, _ = network.find_nodes()
@@ -98,16 +112,23 @@ def test_module_access(network, args):
     }
 
     with primary.api_versioned_client(api_version=args.gov_api_version) as c:
+        # The response with ?case=original should be almost exactly what was
+        # submitted (including exactly which fields are present/omitted). The
+        # only changes are the casing of HTTP verbs, and the prefixing of module
+        # names.
         r = c.get("/gov/service/javascript-app?case=original")
         assert r.status_code == http.HTTPStatus.OK, r.status_code
-        compare_app_metadata(
+        actual = r.body.json()
+        expected = canonicalise(
             expected_metadata,
-            r.body.json(),
             {
                 **http_methods_renamed,
                 **module_names_prefixed,
             },
         )
+        assert (
+            expected == actual
+        ), f"{json.dumps(expected, indent=2)}\nvs\n{json.dumps(actual, indent=2)}"
 
         r = c.get("/gov/service/javascript-app")
         assert r.status_code == http.HTTPStatus.OK, r.status_code

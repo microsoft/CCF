@@ -13,70 +13,7 @@
 
 namespace http
 {
-  class HTTP2Session : public ccf::ThreadedSession
-  {
-  protected:
-    std::shared_ptr<ccf::TLSSession> tls_io;
-    std::shared_ptr<ErrorReporter> error_reporter;
-    ::tcp::ConnID session_id;
-
-    HTTP2Session(
-      ::tcp::ConnID session_id_,
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<ccf::tls::Context> ctx,
-      const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
-      ccf::ThreadedSession(session_id_),
-      tls_io(std::make_shared<ccf::TLSSession>(
-        session_id_, writer_factory, std::move(ctx))),
-      error_reporter(error_reporter),
-      session_id(session_id_)
-    {}
-
-  public:
-    virtual bool parse(std::span<const uint8_t> data) = 0;
-
-    void send_data(std::span<const uint8_t> data) override
-    {
-      tls_io->send_raw(data.data(), data.size());
-    }
-
-    void close_session() override
-    {
-      tls_io->close();
-    }
-
-    void handle_incoming_data_thread(std::span<const uint8_t> data) override
-    {
-      tls_io->recv_buffered(data.data(), data.size());
-
-      LOG_TRACE_FMT("recv called with {} bytes", data.size());
-
-      // Try to parse all incoming data
-      constexpr auto min_read_block_size = 4096;
-      thread_local std::vector<uint8_t> read_buf(min_read_block_size);
-
-      auto n_read = tls_io->read(read_buf.data(), read_buf.size(), false);
-
-      while (true)
-      {
-        if (n_read == 0)
-        {
-          return;
-        }
-
-        LOG_TRACE_FMT("Going to parse {} bytes", n_read);
-
-        bool cont = parse({read_buf.data(), n_read});
-        if (!cont)
-        {
-          return;
-        }
-
-        // Used all provided bytes - check if more are available
-        n_read = tls_io->read(read_buf.data(), read_buf.size(), false);
-      }
-    }
-  };
+  using HTTP2Session = ccf::EncryptedSession;
 
   struct HTTP2SessionContext : public ccf::SessionContext
   {
@@ -245,6 +182,7 @@ namespace http
 
     std::shared_ptr<ccf::RPCMap> rpc_map;
     std::shared_ptr<ccf::RpcHandler> handler;
+    std::shared_ptr<ErrorReporter> error_reporter;
     ccf::ListenInterfaceID interface_id;
 
     http::ResponderLookup& responder_lookup;
@@ -311,10 +249,11 @@ namespace http
       const ccf::http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter,
       http::ResponderLookup& responder_lookup_) :
-      HTTP2Session(session_id_, writer_factory, std::move(ctx), error_reporter),
+      HTTP2Session(session_id_, writer_factory, std::move(ctx)),
       server_parser(
         std::make_shared<http2::ServerParser>(*this, configuration)),
       rpc_map(rpc_map),
+      error_reporter(error_reporter),
       interface_id(interface_id),
       responder_lookup(responder_lookup_)
     {
