@@ -465,7 +465,6 @@ namespace ccf
         // processed in a single iteration
         static constexpr size_t max_messages = 256;
 
-        size_t consecutive_idles = 0u;
         while (!bp.get_finished())
         {
           // First, read some messages from the ringbuffer
