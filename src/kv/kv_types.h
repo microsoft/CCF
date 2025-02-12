@@ -755,6 +755,9 @@ namespace ccf::kv
     virtual void set_flag_unsafe(StoreFlag f) = 0;
     virtual void unset_flag_unsafe(StoreFlag f) = 0;
     virtual bool flag_enabled_unsafe(StoreFlag f) const = 0;
+
+    virtual void heres_some_more_data_that_might_make_you_want_to_chunk_soon(
+      size_t size) = 0;
   };
 
   template <class StorePointer>

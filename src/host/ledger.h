@@ -1429,9 +1429,7 @@ namespace asynchost
         committable,
         force_chunk_after);
 
-      if (
-        committable &&
-        (force_chunk_after || file->get_current_size() >= chunk_threshold))
+      if (committable && force_chunk_after)
       {
         file->complete();
         LOG_DEBUG_FMT("Ledger chunk completed at {}", last_idx);

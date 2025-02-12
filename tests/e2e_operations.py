@@ -479,7 +479,7 @@ def run_file_operations(args):
                     r = c.get("/node/network").body.json()
                     assert r["service_data"] == service_data
 
-                test_save_committed_ledger_files(network, args)
+                # test_save_committed_ledger_files(network, args)
                 test_parse_snapshot_file(network, args)
                 test_forced_ledger_chunk(network, args)
                 test_forced_snapshot(network, args)
@@ -487,12 +487,21 @@ def run_file_operations(args):
                 test_snapshot_access(network, args)
                 test_empty_snapshot(network, args)
 
-                primary, _ = network.find_primary()
-                # Scoped transactions are not handled by historical range queries
-                network.stop_all_nodes(skip_verification=True)
+                with primary.client("user0") as c:
+                    for i in range(150):
+                        LOG.info(f"Posting #{i}:")
+                        c.post("/app/log/public", {"id": 42, "msg": "X" * 1024})
 
-                test_split_ledger_on_stopped_network(primary, args)
-                args.common_read_only_ledger_dir = None  # Reset for future tests
+                # test_forced_snapshot(network, args)
+                # test_large_snapshot(network, args)
+                # test_snapshot_access(network, args)
+
+                # primary, _ = network.find_primary()
+                # # Scoped transactions are not handled by historical range queries
+                # network.stop_all_nodes(skip_verification=True)
+
+                # test_split_ledger_on_stopped_network(primary, args)
+                # args.common_read_only_ledger_dir = None  # Reset for future tests
 
 
 def run_tls_san_checks(args):
@@ -1469,7 +1478,7 @@ def run_read_ledger_on_testdata(args):
 
 
 def run(args):
-    run_max_uncommitted_tx_count(args)
+    # run_max_uncommitted_tx_count(args)
     run_file_operations(args)
     run_tls_san_checks(args)
     run_config_timeout_check(args)

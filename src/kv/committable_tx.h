@@ -223,6 +223,10 @@ namespace ccf::kv
           auto data =
             serialise(commit_evidence_digest, commit_evidence, claims);
 
+          pimpl->store
+            ->heres_some_more_data_that_might_make_you_want_to_chunk_soon(
+              data.size());
+
           if (data.empty())
           {
             return CommitResult::SUCCESS;

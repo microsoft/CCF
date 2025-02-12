@@ -109,6 +109,8 @@ namespace ccf::kv
     // Ledger entry header flags
     uint8_t flags = 0;
 
+    size_t size_since_chunk = 0;
+
     bool commit_deserialised(
       OrderedChanges& changes,
       Version v,
@@ -1282,12 +1284,32 @@ namespace ccf::kv
 
     virtual void unset_flag_unsafe(StoreFlag f) override
     {
-      this->flags &= ~static_cast<uint8_t>(f);
+      const uint8_t uf = static_cast<uint8_t>(f);
+      this->flags &= ~uf;
+
+      if (
+        (uf &
+         static_cast<uint8_t>(
+           AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE)) != 0)
+      {
+        size_since_chunk = 0;
+      }
     }
 
     virtual bool flag_enabled_unsafe(StoreFlag f) const override
     {
       return (flags & static_cast<uint8_t>(f)) != 0;
+    }
+
+    virtual void heres_some_more_data_that_might_make_you_want_to_chunk_soon(
+      size_t size) override
+    {
+      size_since_chunk += size;
+      if (size_since_chunk > 10 * 1024)
+      {
+        set_flag_unsafe(
+          AbstractStore::StoreFlag::LEDGER_CHUNK_AT_NEXT_SIGNATURE);
+      }
     }
   };
 
