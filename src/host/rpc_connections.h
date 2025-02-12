@@ -128,7 +128,8 @@ namespace asynchost
           ::tcp::tcp_inbound,
           parent.to_enclave,
           id,
-          serializer::ByteRange{data, len});
+          len,
+          serializer::RawPointer<uint8_t>{data});
 
         return true;
       }

@@ -44,7 +44,7 @@ DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   ::tcp::tcp_connect, ::tcp::ConnID, std::string, std::string);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
-  ::tcp::tcp_inbound, ::tcp::ConnID, serializer::ByteRange);
+  ::tcp::tcp_inbound, ::tcp::ConnID, size_t, serializer::RawPointer<uint8_t>);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(
   ::tcp::tcp_outbound, ::tcp::ConnID, serializer::ByteRange);
 DECLARE_RINGBUFFER_MESSAGE_PAYLOAD(::tcp::tcp_stop, ::tcp::ConnID, std::string);
