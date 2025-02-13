@@ -963,7 +963,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Quote"
+                  "$ref": "#/components/schemas/Attestation"
                 }
               }
             },
