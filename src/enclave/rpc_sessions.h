@@ -621,6 +621,11 @@ namespace ccf
           {
             LOG_DEBUG_FMT(
               "Ignoring tls_inbound for unknown or refused session: {}", id);
+
+            auto [_, len, raw_pointer] =
+              ringbuffer::read_message<::tcp::tcp_inbound>(data, size);
+            delete[] raw_pointer.ptr;
+
             return;
           }
 

@@ -514,6 +514,28 @@ namespace ccf
         LOG_INFO_FMT("Enclave stopped successfully. Stopping host...");
         RINGBUFFER_WRITE_MESSAGE(AdminMessage::stopped, to_host);
 
+        LOG_INFO_FMT(
+          "Enclave stop - flushing and cleaning up ringbuffer-owned data");
+        {
+          messaging::BufferProcessor cleanup_bp("Enclave Cleanup");
+          oversized::FragmentReconstructor cleanup_fr(
+            cleanup_bp.get_dispatcher());
+
+          DISPATCHER_SET_MESSAGE_HANDLER(
+            cleanup_bp,
+            ::tcp::tcp_inbound,
+            [this](const uint8_t* data, size_t size) {
+              auto [_a, _b, raw_pointer] =
+                ringbuffer::read_message<::tcp::tcp_inbound>(data, size);
+
+              delete[] raw_pointer.ptr;
+            });
+
+          cleanup_bp.ignore_unknown();
+
+          cleanup_bp.read_all(circuit->read_from_outside());
+        }
+
         ccf::crypto::openssl_sha256_shutdown();
 
         return true;
