@@ -616,7 +616,7 @@ TEST_CASE("Multiple threads can wait" * doctest::test_suite("ringbuffer"))
         REQUIRE(last_message_body[0] < max_n);
         ++reads;
       }
-      CCF_PAUSE();
+      std::this_thread::yield();
     }
 
     REQUIRE(reads == target);

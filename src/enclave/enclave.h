@@ -465,7 +465,6 @@ namespace ccf
         // processed in a single iteration
         static constexpr size_t max_messages = 256;
 
-        size_t consecutive_idles = 0u;
         while (!bp.get_finished())
         {
           // First, read some messages from the ringbuffer
@@ -483,31 +482,7 @@ namespace ccf
           // messages were executed, idle
           if (read == 0 && thread_msg == 0)
           {
-            const auto time_now = ccf::get_enclave_time();
-            static std::chrono::microseconds idling_start_time;
-
-            if (consecutive_idles == 0)
-            {
-              idling_start_time = time_now;
-            }
-
-            // Handle initial idles by pausing, eventually sleep (in host)
-            constexpr std::chrono::milliseconds timeout(5);
-            if ((time_now - idling_start_time) > timeout)
-            {
-              std::this_thread::sleep_for(timeout * 10);
-            }
-            else
-            {
-              CCF_PAUSE();
-            }
-
-            consecutive_idles++;
-          }
-          else
-          {
-            // If some messages were read, reset consecutive idles count
-            consecutive_idles = 0;
+            std::this_thread::yield();
           }
         }
 
