@@ -458,10 +458,12 @@ class Member:
             ]
 
         if supports_api_version:
-            cmd += [
-                "--api-version",
-                self.gov_api_impl_inst.api_version(remote_node),
-            ]
+            api_version = (
+                self.gov_api_impl_inst.API_VERSION
+                if hasattr(self.gov_api_impl_inst, "API_VERSION")
+                else self.gov_api_impl_inst.api_version(remote_node)
+            )
+            cmd += ["--api-version", api_version]
 
         # Versions of the script that do not support --member-id arguments use
         # client certificates (forward to curl) to authenticate with the service.
