@@ -2,13 +2,16 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
+#if (defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)) || \
+  defined(SGX_ATTESTATION_VERIFICATION)
 
 #  include <array>
-#  include <openenclave/attestation/attester.h>
 #  include <openenclave/attestation/custom_claims.h>
 #  include <openenclave/attestation/sgx/evidence.h>
 #  include <openenclave/attestation/verifier.h>
+#  if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
+#    include <openenclave/attestation/attester.h>
+#  endif
 
 namespace ccf::pal
 {
@@ -48,6 +51,7 @@ namespace ccf::pal
       }
     };
 
+#  if defined(INSIDE_ENCLAVE) && !defined(VIRTUAL_ENCLAVE)
     struct Evidence
     {
       uint8_t* buffer = NULL;
@@ -69,6 +73,7 @@ namespace ccf::pal
         oe_free_endorsements(buffer);
       }
     };
+#  endif
 
     static constexpr oe_uuid_t oe_quote_format = {OE_FORMAT_UUID_SGX_ECDSA};
     static constexpr auto report_data_claim_name = OE_CLAIM_SGX_REPORT_DATA;
