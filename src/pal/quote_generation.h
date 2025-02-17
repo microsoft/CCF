@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/hash_provider.h"
 #include "ds/files.h"
 
 #include <nlohmann/json.hpp>
@@ -16,9 +17,32 @@ namespace ccf::pal
 
   static void emit_virtual_measurement(const std::string& package_path)
   {
-    auto package = files::slurp(package_path);
+    auto hasher = ccf::crypto::make_incremental_sha256();
+    std::ifstream f(package_path, std::ios::binary | std::ios::ate);
+    if (!f)
+    {
+      throw std::runtime_error(fmt::format(
+        "Cannot emit virtual measurement: Cannot open file {}", package_path));
+    }
 
-    auto package_hash = ccf::crypto::Sha256Hash(package);
+    const size_t size = f.tellg();
+    f.seekg(0, std::ios::beg);
+
+    static constexpr size_t buf_size = 4096;
+    char buf[buf_size];
+
+    size_t handled = 0;
+    while (handled < size)
+    {
+      const auto this_read = std::min(size - handled, buf_size);
+      f.read(buf, this_read);
+
+      hasher->update_hash({(const uint8_t*)buf, this_read});
+
+      handled += this_read;
+    }
+
+    const auto package_hash = hasher->finalise();
 
     auto j = nlohmann::json::object();
 

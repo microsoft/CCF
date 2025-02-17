@@ -125,7 +125,7 @@ jobs:
         shell: bash
         run: |
           set -ex
-          ./scripts/install-azure-linux-deps.sh
+          ./scripts/setup-ci.sh
 
       - name: "Build Debug"
         run: |
@@ -147,8 +147,8 @@ jobs:
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          # All other acceptably fast tests, which are now supported on Mariner.
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|protocolstest|suite|unit|lts_compatibility"
+          # All other acceptably fast tests, which are now supported on Azure Linux.
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit|lts"
         shell: bash
 
   build_caci:

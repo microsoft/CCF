@@ -100,8 +100,8 @@ namespace ccf::crypto
   }
 
   std::vector<uint8_t> aes_gcm_encrypt(
-    const std::vector<uint8_t>& key,
-    std::vector<uint8_t>& plaintext,
+    std::span<const uint8_t> key,
+    std::span<const uint8_t> plaintext,
     const std::vector<uint8_t>& iv,
     const std::vector<uint8_t>& aad)
   {
@@ -116,8 +116,8 @@ namespace ccf::crypto
   }
 
   std::vector<uint8_t> aes_gcm_decrypt(
-    const std::vector<uint8_t>& key,
-    std::vector<uint8_t>& ciphertext,
+    std::span<const uint8_t> key,
+    std::span<const uint8_t> ciphertext,
     const std::vector<uint8_t>& iv,
     const std::vector<uint8_t>& aad)
   {

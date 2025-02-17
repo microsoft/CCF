@@ -53,12 +53,14 @@ namespace ccf::pal::snp::ioctl5
   };
 
   // Table 22
+#pragma pack(push, 1)
   struct AttestationReq
   {
     uint8_t report_data[snp_attestation_report_data_size];
     uint32_t vmpl = 0;
     uint8_t reserved[28];
   };
+#pragma pack(pop)
 
   // Table 25
 #pragma pack(push, 1)
