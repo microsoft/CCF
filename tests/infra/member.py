@@ -271,6 +271,9 @@ class MemberAPI:
                 member, remote_node
             )
 
+        def api_version(self, remote_node):
+            return self._by_node_version(remote_node).API_VERSION
+
 
 class Member:
     def __init__(
@@ -457,7 +460,7 @@ class Member:
         if supports_api_version:
             cmd += [
                 "--api-version",
-                self.gov_api_impl_inst.API_VERSION,
+                self.gov_api_impl_inst.api_version(remote_node),
             ]
 
         # Versions of the script that do not support --member-id arguments use
