@@ -141,7 +141,10 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     uint8_t report_id[32]; /* 0x140 */
     uint8_t report_id_ma[32]; /* 0x160 */
     struct TcbVersion reported_tcb; /* 0x180 */
-    uint8_t reserved1[24]; /* 0x188 */
+    uint8_t cpuid_fam_id; /* 0x188*/
+    uint8_t cpuid_mod_id; /* 0x189 */
+    uint8_t cpuid_step; /* 0x18A */
+    uint8_t reserved1[21]; /* 0x18B */
     uint8_t chip_id[64]; /* 0x1A0 */
     struct TcbVersion committed_tcb; /* 0x1E0 */
     uint8_t current_minor; /* 0x1E8 */
