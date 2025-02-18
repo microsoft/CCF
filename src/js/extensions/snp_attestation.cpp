@@ -214,6 +214,10 @@ namespace ccf::js::extensions
     JS_CHECK_EXC(reported_tcb);
     JS_CHECK_SET(a.set("reported_tcb", std::move(reported_tcb)));
 
+    JS_CHECK_SET(a.set_uint32("cpuid_fam_id", attestation.cpuid_fam_id));
+    JS_CHECK_SET(a.set_uint32("cpuid_mod_id", attestation.cpuid_mod_id));
+    JS_CHECK_SET(a.set_uint32("cpuid_step", attestation.cpuid_step));
+
     auto attestation_chip_id = jsctx.new_array_buffer_copy(attestation.chip_id);
     JS_CHECK_EXC(attestation_chip_id);
     JS_CHECK_SET(a.set("chip_id", std::move(attestation_chip_id)));
