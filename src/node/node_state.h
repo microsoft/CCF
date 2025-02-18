@@ -434,6 +434,9 @@ namespace ccf
                 LOG_FAIL_FMT("{}", e.what());
                 throw;
               }
+              LOG_INFO_FMT(
+                "!!! Quote endorsements DONE callback, resetting external "
+                "pointer");
               quote_endorsements_client.reset();
             });
 

@@ -143,12 +143,14 @@ namespace ccf
             }
 
             msg->data.self->server_retries_count++;
+            LOG_INFO_FMT("!!! Incremented retries count");
             if (
               msg->data.self->server_retries_count >=
               max_retries_count(servers.front()))
             {
               if (servers.size() > 1)
               {
+                LOG_INFO_FMT("!!! Popping front");
                 // Move on to next server if we have passed max retries count
                 servers.pop_front();
               }
@@ -167,6 +169,7 @@ namespace ccf
               }
             }
 
+            LOG_INFO_FMT("!!! Calling another fetch");
             msg->data.self->fetch(servers.front());
           }
         },
@@ -312,6 +315,11 @@ namespace ccf
       rpcsessions(rpcsessions_),
       config(config_),
       done_cb(cb){};
+
+    virtual ~QuoteEndorsementsClient()
+    {
+      LOG_INFO_FMT("!!!! Deleting QuoteEndorsementsClient");
+    }
 
     void fetch_endorsements()
     {
