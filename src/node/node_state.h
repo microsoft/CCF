@@ -409,7 +409,7 @@ namespace ccf
         // Note: Node lock is already taken here as this is called back
         // synchronously with the call to pal::generate_quote
 
-        if (qi.format == QuoteFormat::amd_sev_snp_v1)
+        // if (qi.format == QuoteFormat::amd_sev_snp_v1)
         {
           if (config.attestation.snp_endorsements_servers.empty())
           {

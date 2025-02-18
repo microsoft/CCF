@@ -459,6 +459,13 @@ class CCFRemote(object):
             s["url"] = url
             s["max_retries_count"] = 4
             snp_endorsements_servers_list.append(s)
+        snp_endorsements_servers_list.append(
+            {
+                "type": "THIM",
+                "url": "1.2.3.4:5678",
+                "max_retries_count": 5,
+            }
+        )
 
         # Default snp_security_policy_file if not set
         if snp_security_policy_file is None:

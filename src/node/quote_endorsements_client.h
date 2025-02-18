@@ -221,6 +221,7 @@ namespace ccf
           endorsements_pem.end(), data.begin(), data.end());
       }
 
+      LOG_INFO_FMT("!!! pop_front");
       server.pop_front();
       if (server.empty())
       {
