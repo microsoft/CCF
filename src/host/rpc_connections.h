@@ -131,6 +131,10 @@ namespace asynchost
           len,
           serializer::RawPointer<uint8_t>{data});
 
+        // Ownership of this buffer has been passed over the ringbuffer -
+        // indicate to caller that they should not delete it
+        data = nullptr;
+
         return true;
       }
 

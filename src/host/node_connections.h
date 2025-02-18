@@ -43,7 +43,6 @@ namespace asynchost
           len);
 
         pending.insert(pending.end(), incoming, incoming + len);
-        delete[] incoming;
 
         const uint8_t* data = pending.data();
         size_t size = pending.size();

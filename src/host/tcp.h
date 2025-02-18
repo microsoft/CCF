@@ -808,12 +808,13 @@ namespace asynchost
       uint8_t* p = (uint8_t*)buf->base;
       const bool read_good = behaviour->on_read((size_t)sz, p, {});
 
-      // NB: If on_read succeeded, then someone else is now responsible for
-      // freeing p
+      if (p != nullptr)
+      {
+        on_free(buf);
+      }
 
       if (!read_good)
       {
-        on_free(buf);
         behaviour->on_disconnect();
         return;
       }
