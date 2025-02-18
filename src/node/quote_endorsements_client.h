@@ -124,12 +124,15 @@ namespace ccf
         ::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>(
         [](std::unique_ptr<::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>
              msg) {
+          LOG_INFO_FMT("!!! Handling QuoteEndorsementsClientTimeoutMsg");
           if (msg->data.self->has_completed)
           {
+            LOG_INFO_FMT("!!! has_completed - early exit");
             return;
           }
           if (msg->data.request_id >= msg->data.self->last_received_request_id)
           {
+            LOG_INFO_FMT("!!! request_id is late enough");
             auto& servers = msg->data.self->config.servers;
             // Should always contain at least one server,
             // installed by ccf::pal::make_endorsement_endpoint_configuration()
