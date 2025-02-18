@@ -57,6 +57,9 @@ interface SnpAttestationResult {
     report_id: string;
     report_id_ma: string;
     reported_tcb: TcbVersion;
+    cpuid_fam_id: number;
+    cpuid_mod_id: number;
+    cpuid_step: number;
     chip_id: string;
     committed_tcb: TcbVersion;
     current_minor: number;
