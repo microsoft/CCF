@@ -26,7 +26,7 @@ RUN mkdir /CCF
 COPY . /CCF/
 RUN mkdir /CCF/build \
     && cd /CCF/build \
-    && cmake -GNinja -DCOMPILE_TARGET=snp .. \
+    && cmake -GNinja -DCOMPILE_TARGET=snp -DWORKER_THREADS=2 .. \
     && ninja \ 
     && chmod -R 777 /CCF
 
