@@ -324,5 +324,5 @@ jobs:
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # All e2e tests, which are now supported on Mariner.
-          ./tests.sh --timeout 1600 --output-on-failure -LE "benchmark|lts_compatibility"
+          ./tests.sh --timeout 1600 --output-on-failure -LE "benchmark"
         shell: bash
