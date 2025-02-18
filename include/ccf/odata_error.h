@@ -38,6 +38,8 @@ namespace ccf
     std::string code;
     std::string message;
     std::vector<nlohmann::json> details = {};
+
+    bool operator==(const ODataError&) const = default;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(ODataError);
