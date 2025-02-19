@@ -37,7 +37,14 @@ namespace http
 
     void send_data(std::span<const uint8_t> data) override
     {
+      // Override send_data rather than send_data_thread, as the TLSSession
+      // handles dispatching for thread affinity
       tls_io->send_raw(data.data(), data.size());
+    }
+
+    void send_data_thread(std::vector<uint8_t>&& data) override
+    {
+      throw std::logic_error("Unimplemented");
     }
 
     void close_session() override
@@ -418,7 +425,7 @@ namespace http
   public:
     virtual bool parse(std::span<const uint8_t> data) = 0;
 
-    void send_data(std::span<const uint8_t> data) override
+    void send_data_thread(std::vector<uint8_t>&& data) override
     {
       if (ccf::threading::get_current_thread_id() != execution_thread)
       {
