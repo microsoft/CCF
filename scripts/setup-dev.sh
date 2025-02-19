@@ -5,4 +5,5 @@
 set -ex
 
 tdnf -y install  \
-    vim
+    vim  \
+    cpio # Used by LTS test to extract binaries from rpms
