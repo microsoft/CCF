@@ -5,6 +5,7 @@
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/report_data.h"
+#include "ccf/pal/snp_tcb_version.h"
 
 #include <array>
 #include <map>
@@ -34,23 +35,6 @@ pCCoMNit2uLo9M18fHz10lOMT8nWAUvRZFzteXCm+7PHdYPlmQwUw3LvenJ/ILXo
 QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 -----END PUBLIC KEY-----
 )";
-
-#pragma pack(push, 1)
-  // Table 3
-  struct TcbVersion
-  {
-    uint8_t boot_loader;
-    uint8_t tee;
-    uint8_t reserved[4];
-    uint8_t snp;
-    uint8_t microcode;
-
-    bool operator==(const TcbVersion&) const = default;
-  };
-#pragma pack(pop)
-  static_assert(
-    sizeof(TcbVersion) == sizeof(uint64_t),
-    "Can't cast TcbVersion to uint64_t");
 
 #pragma pack(push, 1)
   struct Signature
@@ -140,7 +124,10 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     uint8_t report_id[32]; /* 0x140 */
     uint8_t report_id_ma[32]; /* 0x160 */
     struct TcbVersion reported_tcb; /* 0x180 */
-    uint8_t reserved1[24]; /* 0x188 */
+    uint8_t cpuid_fam_id; /* 0x188*/
+    uint8_t cpuid_mod_id; /* 0x189 */
+    uint8_t cpuid_step; /* 0x18A */
+    uint8_t reserved1[21]; /* 0x18B */
     uint8_t chip_id[64]; /* 0x1A0 */
     struct TcbVersion committed_tcb; /* 0x1E0 */
     uint8_t current_minor; /* 0x1E8 */
