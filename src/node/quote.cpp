@@ -8,6 +8,7 @@
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "ccf/service/tables/virtual_measurements.h"
+#include "ccf/service/tables/tcb_versions.h"
 #include "node/uvm_endorsements.h"
 
 namespace ccf
@@ -265,5 +266,47 @@ namespace ccf
 
     return verify_quoted_node_public_key(
       expected_node_public_key_der, quoted_hash);
+  }
+
+  QuoteVerificationResult verify_tcb_version_against_store(
+    ccf::kv::ReadOnlyTx& tx, const QuoteInfo& quote_info)
+  {
+    switch (quote_info.format)
+    {
+      case QuoteFormat::amd_sev_snp_v1:
+      {
+        pal::PlatformAttestationMeasurement d = {};
+        pal::PlatformAttestationReportData r = {};
+        pal::verify_quote(quote_info, d, r);
+        auto attestation = *reinterpret_cast<const pal::snp::Attestation*>(
+          quote_info.quote.data());
+
+        if (attestation.version < 3)
+        {
+          // This is incorrect but once all servers' firmware are updated,
+          // this can instead fail
+          return QuoteVerificationResult::Verified;
+        }
+
+        SNP_TCB_Policy expected_policy = {
+          .cpu_model = attestation.cpuid_fam_id,
+          .tcb_version = attestation.reported_tcb};
+        if (!tx.ro<SNPTCBVersionMap>(Tables::TCB_Version)->contains(expected_policy))
+        {
+          return QuoteVerificationResult::FailedTCBVersionNotFound;
+        }
+        return QuoteVerificationResult::Verified;
+      }
+      case QuoteFormat::insecure_virtual:
+      {
+        return QuoteVerificationResult::Verified;
+      }
+      default:
+      {
+        throw std::logic_error(fmt::format(
+          "Unexpected quote format {} when verifying TCB against store",
+          quote_info.format));
+      }
+    }
   }
 }
