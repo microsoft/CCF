@@ -53,6 +53,27 @@ namespace ccf
     }
 
     virtual void handle_incoming_data_thread(std::vector<uint8_t>&& data) = 0;
+
+    // Implement Session::sent_data by dispatching a thread message
+    // that eventually invokes the virtual send_data_thread()
+    void send_data(std::span<const uint8_t> data) override
+    {
+      auto msg =
+        std::make_unique<::threading::Tmsg<SendRecvMsg>>(&send_data_cb);
+      msg->data.self = this->shared_from_this();
+      msg->data.data.assign(data.begin(), data.end());
+
+      ::threading::ThreadMessaging::instance().add_task(
+        execution_thread, std::move(msg));
+    }
+
+    static void send_data_cb(
+      std::unique_ptr<::threading::Tmsg<SendRecvMsg>> msg)
+    {
+      msg->data.self->send_data_thread(std::move(msg->data.data));
+    }
+
+    virtual void send_data_thread(std::vector<uint8_t>&& data) = 0;
   };
 
   class EncryptedSession : public ThreadedSession
@@ -77,7 +98,14 @@ namespace ccf
   public:
     void send_data(std::span<const uint8_t> data) override
     {
+      // Override send_data rather than send_data_thread, as the TLSSession
+      // handles dispatching for thread affinity
       tls_io->send_raw(data.data(), data.size());
+    }
+
+    void send_data_thread(std::vector<uint8_t>&& data) override
+    {
+      throw std::logic_error("Unimplemented");
     }
 
     void close_session() override
@@ -141,7 +169,7 @@ namespace ccf
       to_host(writer_factory_.create_writer_to_outside())
     {}
 
-    void send_data(std::span<const uint8_t> data) override
+    void send_data_thread(std::vector<uint8_t>&& data) override
     {
       RINGBUFFER_WRITE_MESSAGE(
         ::tcp::tcp_outbound,
