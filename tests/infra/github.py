@@ -160,6 +160,7 @@ def get_package_prefix_with_platform(tag_name, platform="snp"):
 
 
 def get_package_url_from_tag_name(tag_name, platform="snp"):
+    # First release with RPM packages for Azure Linux
     if get_version_from_tag_name(tag_name) >= Version("6.0.0.dev19"):
         return f"{REMOTE_URL}/releases/download/{tag_name}/{get_package_prefix_with_platform(tag_name, platform)}{RPM_PACKAGE_EXTENSION}"
     if get_version_from_tag_name(tag_name) >= Version("3.0.0-rc0"):
