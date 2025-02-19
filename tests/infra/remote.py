@@ -461,8 +461,8 @@ class CCFRemote(object):
             snp_endorsements_servers_list.append(s)
         snp_endorsements_servers_list.append(
             {
-                "type": "Azure",
-                "url": "global.acccache.azure.net:443",
+                "type": "THIM",
+                "url": "127.2.3.4:8989",
                 "max_retries_count": 5,
             }
         )
