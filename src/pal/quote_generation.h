@@ -67,13 +67,23 @@ namespace ccf::pal
     auto dumped_quote = quote.dump();
     std::vector<uint8_t> quote_vec(dumped_quote.begin(), dumped_quote.end());
 
+    ccf::pal::snp::Attestation att;
+
+    ccf::ds::from_hex(
+      "03265716b88d30fce1a5d08772e3c6ed6cbe8f94ca33e9b08640895a36daba58f057a6ba"
+      "6c849dc6b691e54b293c317771f82d71bd8a726aae58154817e8f230",
+      std::begin(att.chip_id),
+      std::end(att.chip_id));
+    uint64_t n = 0xd315000000000004;
+    att.reported_tcb = *(ccf::pal::snp::TcbVersion*)(&n);
+
     endorsement_cb(
       {.format = QuoteFormat::insecure_virtual,
        .quote = quote_vec,
        .endorsements = {},
        .uvm_endorsements = {},
        .endorsed_tcb = {}},
-      {});
+      snp::make_endorsement_endpoint_configuration(att, endorsements_servers));
   }
 
 #elif defined(PLATFORM_SNP)

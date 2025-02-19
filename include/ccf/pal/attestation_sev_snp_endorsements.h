@@ -109,6 +109,7 @@ namespace ccf::pal::snp
       params};
 
     info.max_retries_count = max_retries_count;
+    info.tls = false;
 
     return {info};
   }
@@ -142,12 +143,14 @@ namespace ccf::pal::snp
       true // DER
     };
     leaf.max_retries_count = max_retries_count;
+    leaf.tls = false;
     EndorsementEndpointsConfiguration::EndpointInfo chain{
       endpoint.host,
       endpoint.port,
       fmt::format("/vcek/v1/{}/cert_chain", product_name),
       {}};
     chain.max_retries_count = max_retries_count;
+    leaf.tls = false;
 
     server.push_back(leaf);
     server.push_back(chain);
