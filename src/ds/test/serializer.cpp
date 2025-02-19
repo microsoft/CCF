@@ -301,6 +301,10 @@ TEST_CASE("roundtrip" * doctest::test_suite("serializer"))
     require_roundtrip<CommonSerializer>(n, c);
     require_roundtrip<CommonSerializer>(n, s, n, s);
     require_roundtrip<CommonSerializer>(s, c, n, n + 1, s);
+
+    uint16_t* p = new uint16_t;
+    // require_roundtrip<CommonSerializer>(p); // < Not allowed
+    require_roundtrip<CommonSerializer>(serializer::RawPointer<uint16_t>{p});
   }
 
   SUBCASE("PreciseSerializer")

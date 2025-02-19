@@ -48,6 +48,8 @@ namespace messaging
 
     MessageCounts message_counts;
 
+    bool ignore_unknown_messages = false;
+
     std::string get_error_prefix()
     {
       return std::string("[") + std::string(name) + std::string("] ");
@@ -155,6 +157,11 @@ namespace messaging
       auto it = handlers.find(m);
       if (it == handlers.end())
       {
+        if (ignore_unknown_messages)
+        {
+          return;
+        }
+
         throw no_handler(
           get_error_prefix() +
           "No handler for this message: " + get_decorated_message_name(m));
@@ -196,6 +203,11 @@ namespace messaging
           {"count", it.second.messages}, {"bytes", it.second.bytes}};
       }
       return j;
+    }
+
+    void ignore_unknown()
+    {
+      ignore_unknown_messages = true;
     }
   };
 
@@ -305,6 +317,11 @@ namespace messaging
       }
 
       return total_read;
+    }
+
+    void ignore_unknown()
+    {
+      dispatcher.ignore_unknown();
     }
   };
 

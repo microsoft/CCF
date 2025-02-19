@@ -29,6 +29,18 @@ namespace serializer
     const size_t size;
   };
 
+  // We generally don't want to serialise raw pointers, so don't allow T* as
+  // members of these serializer tuples. If you're sure you want to serialise a
+  // pointer (have considered the ownership semantics), then you can wrap it in
+  // this struct to opt in.
+  template <typename T>
+  struct RawPointer
+  {
+    T* ptr;
+
+    bool operator==(const RawPointer<T>& other) const = default;
+  };
+
   namespace details
   {
     /// Call functor on each element, cat all results. f takes a tuple-element,
@@ -277,6 +289,15 @@ namespace serializer
       return std::tuple_cat(std::make_tuple(cs), std::make_tuple(bfs));
     }
 
+    /// Overload for RawPointers
+    template <typename T>
+    static auto serialize_value(const RawPointer<T>& p)
+    {
+      static_assert(sizeof(T*) == sizeof(uintptr_t));
+      auto cs = std::make_shared<CopiedSection<uintptr_t>>((uintptr_t)p.ptr);
+      return std::tuple_cat(std::make_tuple(cs));
+    }
+
     /// Generic case, for integral types - use raw byte representation
     template <
       typename T,
@@ -357,6 +378,15 @@ namespace serializer
       const uint8_t*& data, size_t& size, const Tag<std::string>&)
     {
       return serialized::read<std::string>(data, size);
+    }
+
+    /// Overload for RawPointers
+    template <typename T>
+    static RawPointer<T> deserialize_value(
+      const uint8_t*& data, size_t& size, const Tag<RawPointer<T>>&)
+    {
+      auto ptr = serialized::read<uintptr_t>(data, size);
+      return RawPointer<T>{(T*)ptr};
     }
 
     /// Generic case
