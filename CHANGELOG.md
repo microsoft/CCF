@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.13]
+
+[5.0.13]: https://github.com/microsoft/CCF/releases/tag/5.0.13
+
+###
+
+- Fixed thread-safety issues when CCF nodes attempted to contact non-TLS servers. This previously could cause errors when running SNP builds with multiple worker threads (#6836).
+
 ## [5.0.12]
 
 [5.0.12]: https://github.com/microsoft/CCF/releases/tag/5.0.12
