@@ -116,7 +116,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 #pragma pack(push, 1)
   // Table 21
 
-  static constexpr uint32_t attestation_version = 2;
+  static constexpr uint32_t minimum_attestation_version = 2;
   static constexpr uint32_t attestation_policy_abi_major = 1;
 
   struct Attestation
