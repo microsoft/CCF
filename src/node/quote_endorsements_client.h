@@ -224,7 +224,7 @@ namespace ccf
           http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
-          std::lock_guard<ccf::pal::Mutex> guard(msg->data.self->lock);
+          std::lock_guard<ccf::pal::Mutex> guard(this->lock);
 
           last_received_request_id++;
 
@@ -295,7 +295,7 @@ namespace ccf
 
     void fetch_endorsements()
     {
-      std::lock_guard<ccf::pal::Mutex> guard(msg->data.self->lock);
+      std::lock_guard<ccf::pal::Mutex> guard(this->lock);
       auto const& server = config.servers.front();
       if (server.empty())
       {
