@@ -85,6 +85,18 @@ jobs:
           set -o pipefail
           mapfile -t IP_ADDR_LIST <<< $(cat ~/ipAddresses | awk '{print $2}')
           ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
+          nproc --all
+          lscpu
+          cat /proc/cpuinfo 
+          '
+        name: print_cpu_stats
+        displayName: "Print CPU stats"
+
+      - script: |
+          set -ex
+          set -o pipefail
+          mapfile -t IP_ADDR_LIST <<< $(cat ~/ipAddresses | awk '{print $2}')
+          ssh agent@${IP_ADDR_LIST[0]} -o "StrictHostKeyChecking=no" -o ConnectTimeout=100 '
           echo ENV
           env
           echo ACI_ENV
