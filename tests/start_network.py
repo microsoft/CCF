@@ -30,6 +30,28 @@ def run(args):
         for host_desc in host_descs:
             interface = infra.interfaces.RPCInterface.from_args(args)
             interface.parse_from_str(host_desc)
+
+            if args.redirection_kind == "node-by-role":
+                LOG.warning("Redirection with node-by-role is enabled")
+                interface.redirections = infra.interfaces.RedirectionConfig(
+                    to_primary=infra.interfaces.NodeByRoleResolver(),
+                    to_backup=infra.interfaces.NodeByRoleResolver(
+                        target=infra.interfaces.TargetRole(
+                            infra.interfaces.NodeRole.backup
+                        )
+                    ),
+                )
+            elif args.redirection_kind == "static-address":
+                LOG.warning("Redirection with static-address is enabled")
+                interface.redirections = infra.interfaces.RedirectionConfig(
+                    to_primary=infra.interfaces.StaticAddressResolver(
+                        args.primary_hostname
+                    ),
+                    to_backup=infra.interfaces.StaticAddressResolver(
+                        args.backup_hostname
+                    ),
+                )
+
             hosts.append(
                 infra.interfaces.HostSpec(
                     rpc_interfaces={infra.interfaces.PRIMARY_RPC_INTERFACE: interface}
@@ -209,10 +231,32 @@ if __name__ == "__main__":
             type=int,
             default=0,
         )
+        parser.add_argument(
+            "--redirection-kind",
+            default="node-by-role",
+            choices=["node-by-role", "static-address"],
+            help="The redirection kind to use in lieu of forwarding. Either node-by-role or static-address",
+        )
+        parser.add_argument(
+            "--primary-hostname",
+            help="The primary hostname to set when --redirection-kind is set to static-address",
+        )
+        parser.add_argument(
+            "--backup-hostname",
+            help="The backup hostname to set when --redirection-kind is set to static-address",
+        )
 
     args = infra.e2e_args.cli_args(add)
     if args.recover and not all([args.ledger_dir, args.common_dir]):
         print("Error: --recover requires --ledger-dir and --common-dir arguments.")
+        sys.exit(1)
+
+    if args.redirection_kind == "static-address" and not all(
+        [args.primary_hostname, args.backup_hostname]
+    ):
+        print(
+            "Error: --redirection-kind static-address requires --primary-hostname and --backup-hostname arguments."
+        )
         sys.exit(1)
 
     if args.common_dir is not None:
