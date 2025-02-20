@@ -61,7 +61,7 @@ jobs:
           python3 scripts/azure_deployment/arm_template.py deploy aci \
             --subscription-id $(CCF_AZURE_SUBSCRIPTION_ID) \
             --resource-group ccf-aci \
-            --region northeurope \
+            --region eastus \
             --aci-type dynamic-agent \
             --deployment-name ci-$(Build.BuildNumber) \
             --aci-image ccfmsrc.azurecr.io/ccf/ci:pr-`git rev-parse HEAD` \
