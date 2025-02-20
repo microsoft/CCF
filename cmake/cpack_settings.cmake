@@ -61,7 +61,7 @@ set(CPACK_RPM_PACKAGE_REQUIRES "${CCF_RPM_DEPENDENCIES}")
 # Default is formed as `name + version + release + architecture` joined via `-`.
 # To keep consistent release naming, we want - package name as  `name + version
 # + architecture` - output format via underscore:
-# `name_version_release_architecture.rpm`
+# `name_version_architecture.rpm`
 
 # CPACK_RPM_PACKAGE_ARCHITECTURE is empty for some reason, however it should be
 # set to `uname -m` output, see
