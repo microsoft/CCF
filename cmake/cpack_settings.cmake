@@ -58,6 +58,23 @@ message(STATUS "RPM package dependencies: ${CCF_RPM_DEPENDENCIES}")
 
 set(CPACK_RPM_PACKAGE_REQUIRES "${CCF_RPM_DEPENDENCIES}")
 
-set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
+# Default is formed as `name + version + release + architecture` joined via `-`.
+# To keep consistent release naming, we want - package name as  `name + version
+# + architecture` - output format via underscore:
+# `name_version_release_architecture.rpm`
+
+# CPACK_RPM_PACKAGE_ARCHITECTURE is empty for some reason, however it should be
+# set to `uname -m` output, see
+# https://cmake.org/cmake/help/v3.7/module/CPackRPM.html#variable:CPACK_RPM_PACKAGE_ARCHITECTURE).
+execute_process(COMMAND uname -m OUTPUT_VARIABLE CPACK_RPM_PACKAGE_ARCHITECTURE)
+string(STRIP "${CPACK_RPM_PACKAGE_ARCHITECTURE}" CPACK_RPM_PACKAGE_ARCHITECTURE)
+
+set(FINAL_PACKAGE_NAME
+    "${CPACK_PACKAGE_NAME}_${CPACK_RPM_PACKAGE_VERSION}_${CPACK_RPM_PACKAGE_ARCHITECTURE}"
+)
+
+message(STATUS "Final RPM package name: ${FINAL_PACKAGE_NAME}.rpm")
+
+set(CPACK_RPM_FILE_NAME "${FINAL_PACKAGE_NAME}")
 
 include(CPack)
