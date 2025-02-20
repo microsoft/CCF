@@ -13,7 +13,6 @@ jobs:
 
   - job: deploy_primary_aci
     displayName: "Deploy ACI"
-    timeoutInMinutes: 120
     dependsOn:
       - generate_ssh_key
     variables:
