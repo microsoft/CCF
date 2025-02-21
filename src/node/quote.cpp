@@ -6,6 +6,7 @@
 #include "ccf/pal/attestation.h"
 #include "ccf/service/tables/code_id.h"
 #include "ccf/service/tables/snp_measurements.h"
+#include "ccf/service/tables/tcb_verification.h"
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "ccf/service/tables/virtual_measurements.h"
 #include "node/uvm_endorsements.h"
@@ -231,6 +232,51 @@ namespace ccf
     return QuoteVerificationResult::Verified;
   }
 
+  QuoteVerificationResult verify_tcb_version_against_store(
+    ccf::kv::ReadOnlyTx& tx, const QuoteInfo& quote_info)
+  {
+    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
+    {
+      return QuoteVerificationResult::Verified;
+    }
+
+    pal::PlatformAttestationMeasurement d = {};
+    pal::PlatformAttestationReportData r = {};
+    pal::verify_quote(quote_info, d, r);
+    auto attestation =
+      *reinterpret_cast<const pal::snp::Attestation*>(quote_info.quote.data());
+
+    if (attestation.version < 3)
+    {
+      // Necessary until all C-ACI servers are updated
+      return QuoteVerificationResult::Verified;
+    }
+
+    pal::snp::AttestChipModel cpuid = {
+      .family = attestation.cpuid_fam_id,
+      .model = attestation.cpuid_mod_id,
+      .stepping = attestation.cpuid_step};
+
+    auto min_tcb_opt =
+      tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS)->get(cpuid);
+    if (!min_tcb_opt.has_value())
+    {
+      return QuoteVerificationResult::FailedInvalidCPUID;
+    }
+
+    auto min_tcb = min_tcb_opt.value();
+
+    // only check snp and microcode as these are AMD controlled
+    if (
+      min_tcb.snp > attestation.reported_tcb.snp ||
+      min_tcb.microcode > attestation.reported_tcb.microcode)
+    {
+      return QuoteVerificationResult::FailedInvalidTcbVersion;
+    }
+
+    return QuoteVerificationResult::Verified;
+  }
+
   QuoteVerificationResult AttestationProvider::verify_quote_against_store(
     ccf::kv::ReadOnlyTx& tx,
     const QuoteInfo& quote_info,
@@ -258,6 +304,12 @@ namespace ccf
 
     rc = verify_enclave_measurement_against_store(
       tx, measurement, quote_info.format, quote_info.uvm_endorsements);
+    if (rc != QuoteVerificationResult::Verified)
+    {
+      return rc;
+    }
+
+    rc = verify_tcb_version_against_store(tx, quote_info);
     if (rc != QuoteVerificationResult::Verified)
     {
       return rc;
