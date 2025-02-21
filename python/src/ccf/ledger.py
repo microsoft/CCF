@@ -554,7 +554,7 @@ class LedgerValidator:
         node_status = NodeStatus(node_info[0])
         # Note: Even nodes that are Retired, and for which retired_committed is True
         # may be issuing signatures, to ensure the liveness of a reconfiguring
-        # network. They will stop doing so once the transaction that sets retired_committed,
+        # network. They will stop doing so once the transaction that sets retired_committed is itself committed,
         # but that is unfortunately not observable from the ledger alone.
         if node_status == NodeStatus.PENDING:
             raise UntrustedNodeException(
