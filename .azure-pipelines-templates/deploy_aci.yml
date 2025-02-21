@@ -127,7 +127,7 @@ jobs:
           # Remove irrelevant and bulky data from workspace before uploading
           ./scripts/prune_workspace.sh /ccfci/workspace_$(Build.BuildNumber)
           # Create single compressed archive for faster transfer
-          tar -caf /ccfci/workspace_$(Build.BuildNumber).tar.gz /ccfci/workspace_$(Build.BuildNumber)
+          tar -C /ccfci -caf /ccfci/workspace_$(Build.BuildNumber).tar.gz ./workspace_$(Build.BuildNumber)
           '
         name: gather_workspace
         displayName: "Gather workspace"
