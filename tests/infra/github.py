@@ -24,7 +24,7 @@ TAG_DEVELOPMENT_SUFFIX = "-dev"
 TAG_RELEASE_CANDIDATE_SUFFIX = "-rc"
 MAIN_BRANCH_NAME = "main"
 DEBIAN_PACKAGE_EXTENSION = "_amd64.deb"
-RPM_PACKAGE_EXTENSION = "-1.x86_64.rpm"
+RPM_PACKAGE_EXTENSION = ".x86_64.rpm"
 # This assumes that CCF is installed at `/opt/ccf`, which is true from 1.0.0
 INSTALL_DIRECTORY_PREFIX = "ccf_install_"
 INSTALL_DIRECTORY_SUB_PATH = "opt/ccf"
