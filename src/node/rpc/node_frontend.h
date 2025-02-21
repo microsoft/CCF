@@ -1644,6 +1644,8 @@ namespace ccf
           }
         }
 
+        InternalTablesAccess::trust_static_snp_tcb_version(ctx.tx);
+
         std::optional<ccf::ClaimsDigest::Digest> digest =
           ccf::get_create_tx_claims_digest(ctx.tx);
         if (digest.has_value())

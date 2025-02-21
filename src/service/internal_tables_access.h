@@ -11,6 +11,7 @@
 #include "ccf/service/tables/snp_measurements.h"
 #include "ccf/service/tables/users.h"
 #include "ccf/service/tables/virtual_measurements.h"
+#include "ccf/service/tables/tcb_verification.h"
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
 #include "crypto/openssl/cose_sign.h"
@@ -820,6 +821,47 @@ namespace ccf
       uvme->put(
         uvm_endorsements->did,
         {{uvm_endorsements->feed, {uvm_endorsements->svn}}});
+    }
+
+    static void trust_static_snp_tcb_version(ccf::kv::Tx& tx)
+    {
+      auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+
+      constexpr auto milan_chip_id = pal::snp::get_attest_chip_model(
+        {.stepping = 0x1,
+         .base_model = 0x1,
+         .base_family = 0xF,
+         .extended_model = 0x0,
+         .extended_family = 0x0A});
+      constexpr pal::snp::TcbVersion milan_tcb_version = {.microcode = 0xDB, .snp = 0x18};
+      h->put(milan_chip_id, milan_tcb_version);
+
+      constexpr auto milan_x_chip_id = pal::snp::get_attest_chip_model(
+        {.stepping = 0x2,
+         .base_model = 0x1,
+         .base_family = 0xF,
+         .extended_model = 0x0,
+         .extended_family = 0x0A});
+      constexpr pal::snp::TcbVersion milan_x_tcb_version = {.microcode = 0x44, .snp = 0x18};
+      h->put(milan_x_chip_id, milan_x_tcb_version);
+
+      constexpr auto genoa_chip_id = pal::snp::get_attest_chip_model(
+        {.stepping = 0x1,
+         .base_model = 0x1,
+         .base_family = 0xF,
+         .extended_model = 0x1,
+         .extended_family = 0x0A});
+      constexpr pal::snp::TcbVersion genoa_tcb_version = {.microcode = 0x54, .snp = 0x17};
+      h->put(genoa_chip_id, genoa_tcb_version);
+
+      constexpr auto genoa_x_chip_id = pal::snp::get_attest_chip_model(
+        {.stepping = 0x2,
+         .base_model = 0x1,
+         .base_family = 0xF,
+         .extended_model = 0x1,
+         .extended_family = 0x0A});
+      constexpr pal::snp::TcbVersion genoa_x_tcb_version = {.microcode = 0x4F, .snp = 0x17};
+      h->put(genoa_x_chip_id, genoa_x_tcb_version);
     }
 
     static void init_configuration(

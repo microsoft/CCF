@@ -22,6 +22,8 @@ namespace ccf
     FailedInvalidHostData,
     FailedInvalidQuotedPublicKey,
     FailedUVMEndorsementsNotFound,
+    FailedInvalidCPUID,
+    FailedInvalidTcbVersion
   };
 
   class AttestationProvider
