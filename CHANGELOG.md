@@ -11,8 +11,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ###
 
+- Memory leak during EC key creation is fixed (#6845).
 - Fixed thread-safety issues when CCF nodes attempted to contact non-TLS servers. This previously could cause errors when running SNP builds with multiple worker threads (#6836).
-- Add config option in start-network.py choose redirection kind (#6732, #6755)
+- Add config option in start-network.py to choose redirection kind (#6732, #6755)
 
 ## [5.0.12]
 

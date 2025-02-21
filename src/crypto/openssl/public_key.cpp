@@ -296,7 +296,7 @@ namespace ccf::crypto
       OSSL_PKEY_PARAM_PUB_KEY, (void*)raw.data(), raw.size());
     params[2] = OSSL_PARAM_construct_end();
 
-    auto pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
+    Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
 
     EVP_PKEY* pkey = NULL;
