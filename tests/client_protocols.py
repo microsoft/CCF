@@ -14,10 +14,20 @@ import re
 H2SPEC_BIN = "/opt/h2spec/h2spec"
 
 
+def is_azure_linux():
+    os_release = subprocess.check_output(
+        "cat /etc/os-release", universal_newlines=True, shell=True
+    ).lower()
+    return "ubuntu" not in os_release
+
+
 def compare_golden():
     script_path = os.path.realpath(__file__)
     script_dir = os.path.dirname(script_path)
-    golden_file = os.path.join(script_dir, "tls_report.csv")
+    golden_file = os.path.join(
+        script_dir,
+        "tls_report_azure_linux.csv" if is_azure_linux() else "tls_report.csv",
+    )
     print(f"Comparing output to golden file: {golden_file}")
 
     # Read both files into arrays
