@@ -97,6 +97,84 @@ namespace ccf::pal
         quote.vmpl));
     }
 
+    // Check the FW and Microcode is sufficiently up to date: https://www.amd.com/en/resources/product-security/bulletin/amd-sb-3019.html
+    if (quote.version > 2)
+    {
+      pal::snp::AttestChipModel quote_chip_model = {
+        .family = quote.cpuid_fam_id,
+        .model = quote.cpuid_mod_id,
+        .stepping = quote.cpuid_step,
+      };
+
+      constexpr auto milan_chip_id = pal::snp::get_attest_chip_model(
+        {.stepping = 0x1,
+         .base_model = 0x1,
+         .base_family = 0xF,
+         .extended_model = 0x0,
+         .extended_family = 0x0A});
+      if (
+        quote_chip_model == milan_chip_id &&
+        !(quote.reported_tcb.microcode >= 0xDB &&
+          quote.reported_tcb.snp >= 0x18))
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: guest attestation report is not from a valid Milan "
+          "processor",
+          quote.reported_tcb));
+      }
+
+      constexpr auto milan_x_chip_id = pal::snp::get_attest_chip_model(
+        {.stepping = 0x2,
+         .base_model = 0x1,
+         .base_family = 0xF,
+         .extended_model = 0x0,
+         .extended_family = 0x0A});
+      if (
+        quote_chip_model == milan_x_chip_id &&
+        !(quote.reported_tcb.microcode >= 0x44 &&
+          quote.reported_tcb.snp >= 0x18))
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: guest attestation report is not from a valid Milan X"
+          "processor",
+          quote.reported_tcb));
+      }
+
+      constexpr auto genoa_chip_id = pal::snp::get_attest_chip_model(
+        {.stepping = 0x1,
+         .base_model = 0x1,
+         .base_family = 0xF,
+         .extended_model = 0x1,
+         .extended_family = 0x0A});
+      if (
+        quote_chip_model == genoa_chip_id &&
+        !(quote.reported_tcb.microcode >= 0x54 &&
+          quote.reported_tcb.snp >= 0x17))
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: guest attestation report is not from a valid Genoa "
+          "processor",
+          quote.reported_tcb));
+      }
+
+      constexpr auto genoa_x_chip_id = pal::snp::get_attest_chip_model(
+        {.stepping = 0x2,
+         .base_model = 0x1,
+         .base_family = 0xF,
+         .extended_model = 0x1,
+         .extended_family = 0x0A});
+      if (
+        quote_chip_model == milan_chip_id &&
+        !(quote.reported_tcb.microcode >= 0x4F &&
+          quote.reported_tcb.snp >= 0x17))
+      {
+        throw std::logic_error(fmt::format(
+          "SEV-SNP: guest attestation report is not from a valid Genoa X "
+          "processor",
+          quote.reported_tcb));
+      }
+    }
+
     report_data = SnpAttestationReportData(quote.report_data);
     measurement = SnpAttestationMeasurement(quote.measurement);
 

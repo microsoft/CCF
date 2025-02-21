@@ -264,4 +264,36 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 
     virtual ~AttestationInterface() = default;
   };
+
+  #pragma pack(push, 1)
+  struct CPUID
+  {
+    uint8_t stepping : 4;
+    uint8_t base_model : 4;
+    uint8_t base_family : 4;
+    uint8_t reserved : 4;
+    uint8_t extended_model : 4;
+    uint8_t extended_family : 8;
+    uint8_t reserved2 : 4;
+  };
+  static_assert(sizeof(CPUID) == sizeof(uint32_t), "Can't cast CPUID to uint32_t");
+
+  struct AttestChipModel
+  {
+    uint8_t family;
+    uint8_t model;
+    uint8_t stepping;
+    
+    bool operator==(const AttestChipModel&) const = default;
+  };
+  #pragma pack(pop)
+
+  constexpr AttestChipModel get_attest_chip_model(const CPUID& cpuid)
+  {
+    AttestChipModel model;
+    model.family = cpuid.base_family + cpuid.extended_family;
+    model.model = (cpuid.extended_model << 4) | cpuid.base_model;
+    model.stepping = cpuid.stepping;
+    return model;
+  }
 }
