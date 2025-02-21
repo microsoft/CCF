@@ -170,6 +170,12 @@ namespace ccf::pal
           "SEV-SNP: guest attestation report is not from a valid Genoa X "
           "processor"));
       }
+
+      throw std::logic_error(fmt::format(
+        "SEV-SNP: Unrecognised processor family/model/stepping: {}/{}/{}",
+        quote_chip_model.family,
+        quote_chip_model.model,
+        quote_chip_model.stepping));
     }
 
     report_data = SnpAttestationReportData(quote.report_data);
