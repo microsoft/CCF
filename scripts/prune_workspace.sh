@@ -22,12 +22,12 @@ rm -rf ${WORKSPACE_DIR}/.npm
 
 # Remove all but the latest snapshot
 function prune_snapshot_dir(){
-  pushd "${1}"
+  pushd "${1}" || exit
   ls -v | head -n -1 | xargs -d '\n' -r rm --
-  popd
+  popd || exit
 }
 
-for snapshot_dir in $( find ${WORKSPACE_DIR} -type d -name "*.snapshots*" )
+find ${WORKSPACE_DIR} -type d -name "*.snapshots*" | while read snapshot_dir
 do
   prune_snapshot_dir $snapshot_dir
 done
