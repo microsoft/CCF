@@ -98,7 +98,8 @@ namespace ccf::pal
         quote.vmpl));
     }
 
-    // Check the FW and Microcode is sufficiently up to date: https://www.amd.com/en/resources/product-security/bulletin/amd-sb-3019.html
+    // Check the FW and Microcode is sufficiently up to date:
+    // https://www.amd.com/en/resources/product-security/bulletin/amd-sb-3019.html
     if (quote.version > 2)
     {
       pal::snp::AttestChipModel quote_chip_model = {
@@ -120,8 +121,7 @@ namespace ccf::pal
       {
         throw std::logic_error(fmt::format(
           "SEV-SNP: guest attestation report is not from a valid Milan "
-          "processor",
-          quote.reported_tcb));
+          "processor"));
       }
 
       constexpr auto milan_x_chip_id = pal::snp::get_attest_chip_model(
@@ -137,8 +137,7 @@ namespace ccf::pal
       {
         throw std::logic_error(fmt::format(
           "SEV-SNP: guest attestation report is not from a valid Milan X"
-          "processor",
-          quote.reported_tcb));
+          "processor"));
       }
 
       constexpr auto genoa_chip_id = pal::snp::get_attest_chip_model(
@@ -154,8 +153,7 @@ namespace ccf::pal
       {
         throw std::logic_error(fmt::format(
           "SEV-SNP: guest attestation report is not from a valid Genoa "
-          "processor",
-          quote.reported_tcb));
+          "processor"));
       }
 
       constexpr auto genoa_x_chip_id = pal::snp::get_attest_chip_model(
@@ -171,8 +169,7 @@ namespace ccf::pal
       {
         throw std::logic_error(fmt::format(
           "SEV-SNP: guest attestation report is not from a valid Genoa X "
-          "processor",
-          quote.reported_tcb));
+          "processor"));
       }
     }
 
