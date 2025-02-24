@@ -326,3 +326,110 @@ jobs:
           # All e2e tests, which are now supported on Mariner.
           ./tests.sh --timeout 1600 --output-on-failure -LE "benchmark"
         shell: bash
+
+  long-asan-azure-linux:
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    name: "Azure Linux ASAN"
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
+
+      - name: "Build Debug (Long Test)"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSAN=ON ..
+          ninja
+
+      - name: "Test"
+        run: |
+          set +x
+          cd build
+          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
+
+      - name: "Upload logs"
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-asan-al
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*.ledger/*
+          if-no-files-found: ignore
+
+
+  long-tsan-azure-linux:
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    name: "Azure Linux TSAN"
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
+
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
+
+      - name: "Build Debug (Long Test)"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DTSAN=ON -DWORKER_THREADS=2 ..
+          ninja
+
+      - name: "Test"
+        run: |
+          set +x
+          cd build
+          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
+
+      - name: "Upload logs"
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-tsan-al
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*.ledger/*
+          if-no-files-found: ignore
