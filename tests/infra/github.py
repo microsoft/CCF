@@ -24,7 +24,7 @@ TAG_DEVELOPMENT_SUFFIX = "-dev"
 TAG_RELEASE_CANDIDATE_SUFFIX = "-rc"
 MAIN_BRANCH_NAME = "main"
 DEBIAN_PACKAGE_EXTENSION = "_amd64.deb"
-RPM_PACKAGE_EXTENSION = "-1.x86_64.rpm"
+RPM_PACKAGE_EXTENSION = "_x86_64.rpm"
 # This assumes that CCF is installed at `/opt/ccf`, which is true from 1.0.0
 INSTALL_DIRECTORY_PREFIX = "ccf_install_"
 INSTALL_DIRECTORY_SUB_PATH = "opt/ccf"
@@ -150,19 +150,14 @@ def get_major_version_from_branch_name(branch_name):
 
 def get_package_prefix_with_platform(tag_name, platform="snp"):
     tag_components = tag_name.split("-")
-    if len(tag_components) > 3:
-        assert False, f"Unexpected tag format: {tag_name} parsed into {tag_components}"
-
-    prefix = tag_components[0] + f"_{platform}" + f"-{tag_components[1]}"
-    if len(tag_components) == 3:
-        prefix += f"_{tag_components[2]}"
-    return prefix
+    tag_components[0] += f"_{platform}"
+    return "-".join(tag_components)
 
 
 def get_package_url_from_tag_name(tag_name, platform="snp"):
     # First release with RPM packages for Azure Linux
     if get_version_from_tag_name(tag_name) >= Version("6.0.0.dev19"):
-        return f"{REMOTE_URL}/releases/download/{tag_name}/{get_package_prefix_with_platform(tag_name, platform)}{RPM_PACKAGE_EXTENSION}"
+        return f"{REMOTE_URL}/releases/download/{tag_name}/{get_package_prefix_with_platform(tag_name, platform).replace('-', '_')}{RPM_PACKAGE_EXTENSION}"
     if get_version_from_tag_name(tag_name) >= Version("3.0.0-rc0"):
         return f'{REMOTE_URL}/releases/download/{tag_name}/{get_package_prefix_with_platform(tag_name, platform).replace("-", "_")}{DEBIAN_PACKAGE_EXTENSION}'
     else:
