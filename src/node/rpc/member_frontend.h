@@ -15,6 +15,7 @@
 #include "ccf/service/tables/jwt.h"
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
+#include "ccf/service/tables/tcb_verification.h"
 #include "frontend.h"
 #include "js/extensions/ccf/network.h"
 #include "js/extensions/ccf/node.h"

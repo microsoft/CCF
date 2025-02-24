@@ -52,6 +52,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
   static_assert(
     sizeof(TcbVersion) == sizeof(uint64_t),
     "Can't cast TcbVersion to uint64_t");
+  DECLARE_JSON_TYPE(TcbVersion);
+  DECLARE_JSON_REQUIRED_FIELDS(TcbVersion, boot_loader, tee, snp, microcode);
 
 #pragma pack(push, 1)
   struct Signature
@@ -265,6 +267,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     virtual ~AttestationInterface() = default;
   };
 
+  static uint8_t MIN_TCB_VERIF_VERSION = 3;
 #pragma pack(push, 1)
   struct CPUID
   {
@@ -288,6 +291,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     bool operator==(const AttestChipModel&) const = default;
   };
 #pragma pack(pop)
+  DECLARE_JSON_TYPE(AttestChipModel);
+  DECLARE_JSON_REQUIRED_FIELDS(AttestChipModel, family, model, stepping);
 
   constexpr AttestChipModel get_attest_chip_model(const CPUID& cpuid)
   {

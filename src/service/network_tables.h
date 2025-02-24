@@ -97,7 +97,7 @@ namespace ccf
     const SnpMeasurements snp_measurements = {Tables::NODE_SNP_MEASUREMENTS};
     const SNPUVMEndorsements snp_uvm_endorsements = {
       Tables::NODE_SNP_UVM_ENDORSEMENTS};
-    const SNPTCBVersions snp_tcb_versions = {Tables::SNP_TCB_VERSIONS};
+    const SnpTcbVersionMap snp_tcb_versions = {Tables::SNP_TCB_VERSIONS};
 
     inline auto get_all_node_tables() const
     {
@@ -110,8 +110,8 @@ namespace ccf
         virtual_measurements,
         host_data,
         snp_measurements,
-        snp_uvm_endorsements,
-        snp_tcb_versions);
+        snp_uvm_endorsements
+        );
     }
 
     //
