@@ -289,6 +289,10 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     uint8_t stepping;
 
     bool operator==(const AttestChipModel&) const = default;
+    std::string hex_str() const
+    {
+      return fmt::format("{:02x}{:02x}{:02x}", family, model, stepping);
+    }
   };
 #pragma pack(pop)
   DECLARE_JSON_TYPE(AttestChipModel);

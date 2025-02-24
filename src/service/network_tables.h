@@ -110,8 +110,8 @@ namespace ccf
         virtual_measurements,
         host_data,
         snp_measurements,
-        snp_uvm_endorsements
-        );
+        snp_uvm_endorsements,
+        snp_tcb_versions);
     }
 
     //
