@@ -834,7 +834,7 @@ namespace ccf
          .extended_model = 0x0,
          .extended_family = 0x0A});
       constexpr pal::snp::TcbVersion milan_tcb_version = {
-        .microcode = 0xDB, .snp = 0x18};
+        .snp = 0x18, .microcode = 0xDB};
       h->put(milan_chip_id, milan_tcb_version);
 
       constexpr auto milan_x_chip_id = pal::snp::get_attest_chip_model(
@@ -844,7 +844,7 @@ namespace ccf
          .extended_model = 0x0,
          .extended_family = 0x0A});
       constexpr pal::snp::TcbVersion milan_x_tcb_version = {
-        .microcode = 0x44, .snp = 0x18};
+        .snp = 0x18, .microcode = 0x44};
       h->put(milan_x_chip_id, milan_x_tcb_version);
 
       constexpr auto genoa_chip_id = pal::snp::get_attest_chip_model(
@@ -854,7 +854,7 @@ namespace ccf
          .extended_model = 0x1,
          .extended_family = 0x0A});
       constexpr pal::snp::TcbVersion genoa_tcb_version = {
-        .microcode = 0x54, .snp = 0x17};
+        .snp = 0x17, .microcode = 0x54};
       h->put(genoa_chip_id, genoa_tcb_version);
 
       constexpr auto genoa_x_chip_id = pal::snp::get_attest_chip_model(
@@ -864,38 +864,22 @@ namespace ccf
          .extended_model = 0x1,
          .extended_family = 0x0A});
       constexpr pal::snp::TcbVersion genoa_x_tcb_version = {
-        .microcode = 0x4F, .snp = 0x17};
+        .snp = 0x17, .microcode = 0x4F};
       h->put(genoa_x_chip_id, genoa_x_tcb_version);
     }
 
     static void trust_node_snp_tcb_version(
-      ccf::kv::Tx& tx, cost QuoteInto& quote_info)
+      ccf::kv::Tx& tx, pal::snp::Attestation& attestation)
     {
-      if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
+      if (attestation.version >= pal::snp::MIN_TCB_VERIF_VERSION)
       {
-        try
-        {
-          pal::PlatformAttestationMeasurement d = {};
-          pal::PlatformAttestationReportData r = {};
-          pal::verify_quote(quote_info, d, r);
-          auto attestation = *reinterpret_cast<const pal::snp::Attestation*>(
-            quote_info.quote.data());
-          if (attestation.version >= pal::snp::MIN_TCB_VERIF_VERSION)
-          {
-            pal::snp::AttestChipModel chip_id{
-              .family = attestation.cpuid_fam_id,
-              .model = attestation.cpuid_mod_id,
-              .stepping = attestation.cpuid_step,
-            };
-            auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
-            h->put(chip_id, attestation.reported_tcb);
-          }
-        }
-        catch (const std::exception& e)
-        {
-          LOG_FAIL_FMT("Failed to verify attestation report: {}", e.what());
-          return std::nullopt;
-        }
+        pal::snp::AttestChipModel chip_id{
+          .family = attestation.cpuid_fam_id,
+          .model = attestation.cpuid_mod_id,
+          .stepping = attestation.cpuid_step,
+        };
+        auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+        h->put(chip_id, attestation.reported_tcb);
       }
     }
 
