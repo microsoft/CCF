@@ -215,10 +215,10 @@ int main(int argc, char** argv)
   {
     if (config.command.type == StartType::Start)
     {
-      if (files::exists(config.ledger.directory))
+      if (files::exists(config.ledger.directory) && !fs::is_empty(config.ledger.directory))
       {
         throw std::logic_error(fmt::format(
-          "On start, ledger directory should not exist ({})",
+          "On start, ledger directory should not exist or be empty ({})",
           config.ledger.directory));
       }
 
