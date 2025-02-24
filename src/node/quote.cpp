@@ -139,6 +139,29 @@ namespace ccf
     return measurement;
   }
 
+  std::optional<pal::snp::Attestation> AttestationProvider::get_snp_attestation(
+    const QuoteInfo& quote_info)
+  {
+    if (quote_info.format != QuoteFormat::amd_sev_snp_v1)
+    {
+      return std::nullopt;
+    }
+    try
+    {
+      pal::PlatformAttestationMeasurement d = {};
+      pal::PlatformAttestationReportData r = {};
+      pal::verify_quote(quote_info, d, r);
+      auto attestation = *reinterpret_cast<const pal::snp::Attestation*>(
+        quote_info.quote.data());
+      return attestation;
+    }
+    catch (const std::exception& e)
+    {
+      LOG_FAIL_FMT("Failed to verify local attestation report: {}", e.what());
+      return std::nullopt;
+    }
+  }
+
   std::optional<HostData> AttestationProvider::get_host_data(
     const QuoteInfo& quote_info)
   {
