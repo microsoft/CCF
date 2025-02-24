@@ -99,7 +99,7 @@ namespace ccf::pal
 
     // Check the FW and Microcode is sufficiently up to date:
     // https://www.amd.com/en/resources/product-security/bulletin/amd-sb-3019.html
-    if (quote.version > 2)
+    if (quote.version > MIN_TCB_VERIF_VERSION)
     {
       pal::snp::AttestChipModel quote_chip_model = {
         .family = quote.cpuid_fam_id,
