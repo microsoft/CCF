@@ -869,17 +869,33 @@ namespace ccf
     }
 
     static void trust_node_snp_tcb_version(
-      ccf::kv::Tx& tx, const pal::snp::Attestation& attestation)
+      ccf::kv::Tx& tx, cost QuoteInto& quote_info)
     {
-      if (attestation.version >= pal::snp::MIN_TCB_VERIF_VERSION)
+      if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
       {
-        pal::snp::AttestChipModel chip_id{
-          .family = attestation.cpuid_fam_id,
-          .model = attestation.cpuid_mod_id,
-          .stepping = attestation.cpuid_step,
-        };
-        auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
-        h->put(chip_id, attestation.reported_tcb);
+        try
+        {
+          pal::PlatformAttestationMeasurement d = {};
+          pal::PlatformAttestationReportData r = {};
+          pal::verify_quote(quote_info, d, r);
+          auto attestation = *reinterpret_cast<const pal::snp::Attestation*>(
+            quote_info.quote.data());
+          if (attestation.version >= pal::snp::MIN_TCB_VERIF_VERSION)
+          {
+            pal::snp::AttestChipModel chip_id{
+              .family = attestation.cpuid_fam_id,
+              .model = attestation.cpuid_mod_id,
+              .stepping = attestation.cpuid_step,
+            };
+            auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+            h->put(chip_id, attestation.reported_tcb);
+          }
+        }
+        catch (const std::exception& e)
+        {
+          LOG_FAIL_FMT("Failed to verify attestation report: {}", e.what());
+          return std::nullopt;
+        }
       }
     }
 
