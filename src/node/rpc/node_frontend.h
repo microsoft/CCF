@@ -1621,6 +1621,8 @@ namespace ccf
             ctx.tx, in.measurement, in.quote_info.format);
         }
 
+        InternalTablesAccess::trust_static_snp_tcb_version(ctx.tx);
+
         switch (in.quote_info.format)
         {
           case QuoteFormat::insecure_virtual:
@@ -1647,6 +1649,11 @@ namespace ccf
 
             InternalTablesAccess::trust_node_uvm_endorsements(
               ctx.tx, in.snp_uvm_endorsements);
+
+            auto attestation =
+              AttestationProvider::get_snp_attestation(in.quote_info).value();
+            InternalTablesAccess::trust_node_snp_tcb_version(
+              ctx.tx, attestation);
             break;
           }
 
@@ -1655,9 +1662,6 @@ namespace ccf
             break;
           }
         }
-
-        InternalTablesAccess::trust_static_snp_tcb_version(ctx.tx);
-        InternalTablesAccess::trust_node_snp_tcb_version(ctx.tx, in.quote_info);
 
         std::optional<ccf::ClaimsDigest::Digest> digest =
           ccf::get_create_tx_claims_digest(ctx.tx);
