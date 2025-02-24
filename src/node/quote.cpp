@@ -246,7 +246,7 @@ namespace ccf
     auto attestation =
       *reinterpret_cast<const pal::snp::Attestation*>(quote_info.quote.data());
 
-    if (attestation.version < 3)
+    if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
     {
       // Necessary until all C-ACI servers are updated
       return QuoteVerificationResult::Verified;
