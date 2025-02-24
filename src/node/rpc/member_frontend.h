@@ -510,8 +510,7 @@ namespace ccf
               if constexpr (
                 std::is_same_v<typename T::Key, ccf::crypto::Sha256Hash> ||
                 pal::is_attestation_measurement<typename T::Key>::value ||
-                std::is_same_v<typename T::Key, ccf::pal::snp::AttestChipModel>
-              )
+                std::is_same_v<typename T::Key, ccf::pal::snp::AttestChipModel>)
               {
                 response_body[k.hex_str()] = v;
               }
