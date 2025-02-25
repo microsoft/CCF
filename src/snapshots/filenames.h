@@ -152,6 +152,12 @@ namespace snapshots
         continue;
       }
 
+      if (fs::is_empty(file_name))
+      {
+        LOG_INFO_FMT("Ignoring empty snapshot file {}", file_name);
+        continue;
+      }
+
       auto snapshot_idx = get_snapshot_idx_from_file_name(file_name);
       if (snapshot_idx > latest_committed_snapshot_idx)
       {
