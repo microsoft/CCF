@@ -51,6 +51,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
   static_assert(
     sizeof(TcbVersion) == sizeof(uint64_t),
     "Can't cast TcbVersion to uint64_t");
+  DECLARE_JSON_TYPE(TcbVersion);
+  DECLARE_JSON_REQUIRED_FIELDS(TcbVersion, boot_loader, tee, snp, microcode);
 
 #pragma pack(push, 1)
   struct Signature
@@ -140,7 +142,10 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     uint8_t report_id[32]; /* 0x140 */
     uint8_t report_id_ma[32]; /* 0x160 */
     struct TcbVersion reported_tcb; /* 0x180 */
-    uint8_t reserved1[24]; /* 0x188 */
+    uint8_t cpuid_fam_id; /* 0x188*/
+    uint8_t cpuid_mod_id; /* 0x189 */
+    uint8_t cpuid_step; /* 0x18A */
+    uint8_t reserved1[21]; /* 0x18B */
     uint8_t chip_id[64]; /* 0x1A0 */
     struct TcbVersion committed_tcb; /* 0x1E0 */
     uint8_t current_minor; /* 0x1E8 */
@@ -259,5 +264,73 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     virtual std::vector<uint8_t> get_raw() = 0;
 
     virtual ~AttestationInterface() = default;
+  };
+
+  static uint8_t MIN_TCB_VERIF_VERSION = 3;
+#pragma pack(push, 1)
+  struct CPUID
+  {
+    uint8_t stepping : 4;
+    uint8_t base_model : 4;
+    uint8_t base_family : 4;
+    uint8_t reserved : 4;
+    uint8_t extended_model : 4;
+    uint8_t extended_family : 8;
+    uint8_t reserved2 : 4;
+  };
+  static_assert(
+    sizeof(CPUID) == sizeof(uint32_t), "Can't cast CPUID to uint32_t");
+
+  struct AttestChipModel
+  {
+    uint8_t family;
+    uint8_t model;
+    uint8_t stepping;
+
+    bool operator==(const AttestChipModel&) const = default;
+    std::string hex_str() const
+    {
+      auto begin = reinterpret_cast<const uint8_t*>(this);
+      return ccf::ds::to_hex(begin, begin + sizeof(AttestChipModel));
+    }
+  };
+#pragma pack(pop)
+  DECLARE_JSON_TYPE(AttestChipModel);
+  DECLARE_JSON_REQUIRED_FIELDS(AttestChipModel, family, model, stepping);
+  constexpr AttestChipModel get_attest_chip_model(const CPUID& cpuid)
+  {
+    AttestChipModel model;
+    model.family = cpuid.base_family + cpuid.extended_family;
+    model.model = (cpuid.extended_model << 4) | cpuid.base_model;
+    model.stepping = cpuid.stepping;
+    return model;
+  }
+}
+
+namespace ccf::kv::serialisers
+{
+  // Use hex string to ensure uniformity between the endpoint perspective and
+  // the kv's key
+  template <>
+  struct BlitSerialiser<ccf::pal::snp::AttestChipModel>
+  {
+    static SerialisedEntry to_serialised(
+      const ccf::pal::snp::AttestChipModel& chip)
+    {
+      auto hex_str = chip.hex_str();
+      return SerialisedEntry(hex_str.begin(), hex_str.end());
+    }
+
+    static ccf::pal::snp::AttestChipModel from_serialised(
+      const SerialisedEntry& data)
+    {
+      ccf::pal::snp::AttestChipModel ret;
+      auto buf_ptr = reinterpret_cast<uint8_t*>(&ret);
+      ccf::ds::from_hex(
+        std::string(data.data(), data.end()),
+        buf_ptr,
+        buf_ptr + sizeof(ccf::pal::snp::AttestChipModel));
+      return ret;
+    }
   };
 }
