@@ -1,16 +1,4 @@
 jobs:
-  - job: generate_ssh_key
-    displayName: "Generate SSH Key"
-    variables:
-      Codeql.SkipTaskAutoInjection: true
-      skipComponentGovernanceDetection: true
-    pool:
-      vmImage: ubuntu-20.04
-    steps:
-      - checkout: none
-
-      - template: generate_ssh_key.yml
-
   - job: deploy_primary_aci
     displayName: "Deploy ACI"
     dependsOn:
@@ -18,7 +6,6 @@ jobs:
     variables:
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
-      sshKey: $[ dependencies.generate_ssh_key.outputs['generate_ssh_key.sshKey'] ]
     pool:
       name: ado-virtual-ccf-sub # To build CCF quickly
       demands:
@@ -31,9 +18,7 @@ jobs:
         fetchDepth: 0
         fetchTags: true
 
-      - template: install_ssh_key.yml
-        parameters:
-          ssh_key: $(sshKey)
+      - template: generate_ssh_key.yml
 
       - template: azure_cli.yml
         parameters:
@@ -68,7 +53,6 @@ jobs:
             --managed-identity $(CCF_SNP_CI_MANAGED_IDENTITY_ID) \
             --ports 22 \
             --aci-setup-timeout 300 \
-            --aci-private-key-b64 $(sshKey) \
             --out ~/aci_ips
           # Create a ~/ipAddresses files which is a list of `<container group name> <IP address>` separated by newlines.
           source ./scripts/azure_deployment/escape_data.sh # Include escape_data to handle newlines.
