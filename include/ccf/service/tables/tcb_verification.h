@@ -9,7 +9,7 @@
 namespace ccf
 {
   using SnpTcbVersionMap =
-    kv::Map<pal::snp::AttestChipModel, pal::snp::TcbVersion>;
+    ServiceMap<pal::snp::AttestChipModel, pal::snp::TcbVersion>;
 
   namespace Tables
   {
