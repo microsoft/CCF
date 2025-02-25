@@ -794,7 +794,7 @@ def run_late_mounted_ledger_check(args):
                     if r.status_code == http.HTTPStatus.OK:
                         assert r.body.json()["msg"] == msg
                         return True
-                    LOG.warning(f"Not yet, with {r.status_code}")  # TODO
+                    assert r.status_code == http.HTTPStatus.ACCEPTED
                     time.sleep(0.2)
             return False
 
@@ -844,7 +844,7 @@ def run_late_mounted_ledger_check(args):
             # Historical query still fails, but node survives
             assert not try_historical_fetch(new_node)
             expected_errors.append(
-                f"Invalid table offset at start of committed ledger file"
+                "Invalid table offset at start of committed ledger file"
             )
 
             # Write an invalid table offset at the start of each file
@@ -856,7 +856,7 @@ def run_late_mounted_ledger_check(args):
 
             # Historical query still fails, but node survives
             assert not try_historical_fetch(new_node)
-            expected_errors.append(f"greater than total file size")
+            expected_errors.append("greater than total file size")
 
             # Copy correct files
             for dst_path, src_path in dst_files.items():
