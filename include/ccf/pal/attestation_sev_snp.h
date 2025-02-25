@@ -295,6 +295,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     }
   };
 #pragma pack(pop)
+  DECLARE_JSON_TYPE(AttestChipModel);
+  DECLARE_JSON_REQUIRED_FIELDS(AttestChipModel, family, model, stepping);
   constexpr AttestChipModel get_attest_chip_model(const CPUID& cpuid)
   {
     AttestChipModel model;

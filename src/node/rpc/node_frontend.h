@@ -1650,10 +1650,8 @@ namespace ccf
             InternalTablesAccess::trust_node_uvm_endorsements(
               ctx.tx, in.snp_uvm_endorsements);
 
-            auto attestation =
-              AttestationProvider::get_snp_attestation(in.quote_info).value();
             InternalTablesAccess::trust_node_snp_tcb_version(
-              ctx.tx, attestation);
+              ctx.tx, in.quote_info);
             break;
           }
 
