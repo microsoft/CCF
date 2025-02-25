@@ -311,7 +311,7 @@ namespace ccf::kv::serialisers
 {
   // Use hex string to ensure uniformity between the endpoint perspective and
   // the kv's key
-  template<>
+  template <>
   struct BlitSerialiser<ccf::pal::snp::AttestChipModel>
   {
     static SerialisedEntry to_serialised(

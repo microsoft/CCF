@@ -867,12 +867,10 @@ namespace ccf
         .snp = 0x17, .microcode = 0x4F};
       h->put(genoa_x_chip_id, genoa_x_tcb_version);
     }
-    
+
     static void trust_node_snp_tcb_version(
       ccf::kv::Tx& tx, QuoteInfo quote_info)
     {
-      // Directly accessing attestation as it will have already been verified
-      // TODO more reasonably extract out info previously
       auto attestation = *reinterpret_cast<const pal::snp::Attestation*>(
         quote_info.quote.data());
 
