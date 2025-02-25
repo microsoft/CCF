@@ -1,8 +1,6 @@
 jobs:
   - job: deploy_primary_aci
     displayName: "Deploy ACI"
-    dependsOn:
-      - generate_ssh_key
     variables:
       Codeql.SkipTaskAutoInjection: true
       skipComponentGovernanceDetection: true
