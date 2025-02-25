@@ -291,13 +291,11 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     bool operator==(const AttestChipModel&) const = default;
     std::string hex_str() const
     {
-      return fmt::format("{:02x}{:02x}{:02x}", family, model, stepping);
+      auto begin = reinterpret_cast<const uint8_t*>(this);
+      return ccf::ds::to_hex(begin, begin + sizeof(AttestChipModel));
     }
   };
 #pragma pack(pop)
-  DECLARE_JSON_TYPE(AttestChipModel);
-  DECLARE_JSON_REQUIRED_FIELDS(AttestChipModel, family, model, stepping);
-
   constexpr AttestChipModel get_attest_chip_model(const CPUID& cpuid)
   {
     AttestChipModel model;
@@ -306,4 +304,32 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     model.stepping = cpuid.stepping;
     return model;
   }
+}
+
+namespace ccf::kv::serialisers
+{
+  // Use hex string to ensure uniformity between the endpoint perspective and
+  // the kv's key
+  template<>
+  struct BlitSerialiser<ccf::pal::snp::AttestChipModel>
+  {
+    static SerialisedEntry to_serialised(
+      const ccf::pal::snp::AttestChipModel& chip)
+    {
+      auto hex_str = chip.hex_str();
+      return SerialisedEntry(hex_str.begin(), hex_str.end());
+    }
+
+    static ccf::pal::snp::AttestChipModel from_serialised(
+      const SerialisedEntry& data)
+    {
+      ccf::pal::snp::AttestChipModel ret;
+      auto buf_ptr = reinterpret_cast<uint8_t*>(&ret);
+      ccf::ds::from_hex(
+        std::string(data.data(), data.end()),
+        buf_ptr,
+        buf_ptr + sizeof(ccf::pal::snp::AttestChipModel));
+      return ret;
+    }
+  };
 }
