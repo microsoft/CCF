@@ -1,5 +1,6 @@
 steps:
   - script: |
       set -ex
+      mkdir -p ~/.ssh
       sudo ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
     displayName: "Generate SSH Key"
