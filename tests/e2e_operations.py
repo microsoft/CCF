@@ -22,6 +22,7 @@ import subprocess
 import time
 import http
 import copy
+import struct
 import infra.snp as snp
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -845,6 +846,17 @@ def run_late_mounted_ledger_check(args):
             expected_errors.append(
                 f"Invalid table offset at start of committed ledger file"
             )
+
+            # Write an invalid table offset at the start of each file
+            for dst_path, src_path in dst_files.items():
+                with open(dst_path, "r+b") as f:
+                    f.seek(0)
+                    size = os.path.getsize(src_path)
+                    f.write(struct.pack("<Q", size + 1))
+
+            # Historical query still fails, but node survives
+            assert not try_historical_fetch(new_node)
+            expected_errors.append(f"greater than total file size")
 
             # Copy correct files
             for dst_path, src_path in dst_files.items():
