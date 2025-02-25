@@ -833,7 +833,7 @@ def run_late_mounted_ledger_check(args):
 
             # Historical query still fails, but node survives
             assert not try_historical_fetch(new_node)
-            expected_errors.append("Could not open ledger file")
+            expected_errors.append("Failed to read positions offset from ledger file")
 
             # Create files of the correct size, but filled with zeros
             for dst_path, src_path in dst_files.items():
@@ -843,7 +843,7 @@ def run_late_mounted_ledger_check(args):
             # Historical query still fails, but node survives
             assert not try_historical_fetch(new_node)
             expected_errors.append(
-                f"Exception while attempting to deserialise entry {msg_seqno}: Cannot deserialise entry format 0"
+                f"Invalid table offset at start of committed ledger file"
             )
 
             # Copy correct files
@@ -851,8 +851,26 @@ def run_late_mounted_ledger_check(args):
                 with open(dst_path, "wb") as f:
                     f.write(open(src_path, "rb").read())
 
-            # Historical query now passes?
+            # Historical query now passes
             assert try_historical_fetch(new_node)
+
+            # Remove node
+            network.retire_node(primary, new_node)
+            new_node.stop()
+
+            # Check node output for expected errors
+            out_path, _ = new_node.get_logs()
+            for line in open(out_path, "r", encoding="utf-8").readlines():
+                expected_errors = [
+                    error for error in expected_errors if error not in line
+                ]
+                if len(expected_errors) == 0:
+                    break
+            else:
+                LOG.error("Expected to find following error messages in node output:")
+                for error in expected_errors:
+                    LOG.error(f"  {error}")
+                raise AssertionError(expected_errors)
 
 
 def run(args):
