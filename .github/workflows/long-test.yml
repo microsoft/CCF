@@ -380,7 +380,6 @@ jobs:
             build/workspace/*.ledger/*
           if-no-files-found: ignore
 
-
   long-tsan-azure-linux:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: "Azure Linux TSAN"
