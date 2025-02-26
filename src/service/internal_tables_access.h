@@ -9,6 +9,7 @@
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/snp_measurements.h"
+#include "ccf/service/tables/tcb_verification.h"
 #include "ccf/service/tables/users.h"
 #include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
@@ -820,6 +821,74 @@ namespace ccf
       uvme->put(
         uvm_endorsements->did,
         {{uvm_endorsements->feed, {uvm_endorsements->svn}}});
+    }
+
+    static void trust_static_snp_tcb_version(ccf::kv::Tx& tx)
+    {
+      auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+
+      constexpr auto milan_chip_id = pal::snp::get_attest_chip_model(
+        {.stepping = 0x1,
+         .base_model = 0x1,
+         .base_family = 0xF,
+         .reserved = 0,
+         .extended_model = 0x0,
+         .extended_family = 0x0A,
+         .reserved2 = 0});
+      constexpr pal::snp::TcbVersion milan_tcb_version = {
+        .boot_loader = 0, .tee = 0, .reserved={0}, .snp = 0x18, .microcode = 0xDB};
+      h->put(milan_chip_id, milan_tcb_version);
+
+      constexpr auto milan_x_chip_id = pal::snp::get_attest_chip_model(
+        {.stepping = 0x2,
+         .base_model = 0x1,
+         .base_family = 0xF,
+         .reserved = 0,
+         .extended_model = 0x0,
+         .extended_family = 0x0A,
+         .reserved2 = 0});
+      constexpr pal::snp::TcbVersion milan_x_tcb_version = {
+        .boot_loader = 0, .tee = 0, .reserved={0}, .snp = 0x18, .microcode = 0x44};
+      h->put(milan_x_chip_id, milan_x_tcb_version);
+
+      constexpr auto genoa_chip_id = pal::snp::get_attest_chip_model(
+        {.stepping = 0x1,
+         .base_model = 0x1,
+         .base_family = 0xF,
+         .reserved = 0,
+         .extended_model = 0x1,
+         .extended_family = 0x0A,
+         .reserved2 = 0});
+      constexpr pal::snp::TcbVersion genoa_tcb_version = {
+        .boot_loader = 0, .tee = 0, .reserved={0}, .snp = 0x17, .microcode = 0x54};
+      h->put(genoa_chip_id, genoa_tcb_version);
+
+      constexpr auto genoa_x_chip_id = pal::snp::get_attest_chip_model(
+        {.stepping = 0x2,
+         .base_model = 0x1,
+         .base_family = 0xF,
+         .reserved = 0,
+         .extended_model = 0x1,
+         .extended_family = 0x0A,
+         .reserved2 = 0});
+      constexpr pal::snp::TcbVersion genoa_x_tcb_version = {
+        .boot_loader = 0, .tee = 0, .reserved={0}, .snp = 0x17, .microcode = 0x4F};
+      h->put(genoa_x_chip_id, genoa_x_tcb_version);
+    }
+
+    static void trust_node_snp_tcb_version(
+      ccf::kv::Tx& tx, pal::snp::Attestation& attestation)
+    {
+      if (attestation.version >= pal::snp::MIN_TCB_VERIF_VERSION)
+      {
+        pal::snp::AttestChipModel chip_id{
+          .family = attestation.cpuid_fam_id,
+          .model = attestation.cpuid_mod_id,
+          .stepping = attestation.cpuid_step,
+        };
+        auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+        h->put(chip_id, attestation.reported_tcb);
+      }
     }
 
     static void init_configuration(
