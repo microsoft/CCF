@@ -296,6 +296,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     }
   };
 #pragma pack(pop)
+  DECLARE_JSON_TYPE(AttestChipModel);
+  DECLARE_JSON_REQUIRED_FIELDS(AttestChipModel, family, model, stepping);
   constexpr AttestChipModel get_attest_chip_model(const CPUID& cpuid)
   {
     AttestChipModel model;
@@ -310,7 +312,7 @@ namespace ccf::kv::serialisers
 {
   // Use hex string to ensure uniformity between the endpoint perspective and
   // the kv's key
-  template<>
+  template <>
   struct BlitSerialiser<ccf::pal::snp::AttestChipModel>
   {
     static SerialisedEntry to_serialised(
