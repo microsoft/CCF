@@ -264,7 +264,7 @@ namespace asynchost
         return;
       }
 
-      if (committed)
+      if (table_offset != 0)
       {
         // If the chunk was completed, read positions table from file directly
         total_len = table_offset;
