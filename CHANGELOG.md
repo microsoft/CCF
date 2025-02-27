@@ -9,17 +9,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [6.0.0-dev21]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev21
 
-### Added
+### Fixed
 
-- Added `GET /node/attestations` and `GET /node/attestations/self`, as aliases for the `/quote` endpoints. These return attestations on every platform, not only SGX quotes.
+- `ccf.ledger`/`read_ledger.py` previously enforced too strict a condition on node membership when validating ledger files (#6849).
 
 ## [6.0.0-dev20]
 
 [6.0.0-dev20]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev20
 
+### Added
+
+- Added `GET /node/attestations` and `GET /node/attestations/self`, as aliases for the `/quote` endpoints. These return attestations on every platform, not only SGX quotes.
+
 ### Fixed
 
 - CA certificate bundles used for JWT refresh and containing more than one certificate are now handled correctly (#6817).
+- Memory leak during EC key creation is fixed (#6845).
+- Fixed thread-safety issues when CCF nodes attempted to contact non-TLS servers. This previously could cause errors when running SNP builds with multiple worker threads (#6836).
+- SNP nodes will no longer crash when run on firmware returning v3 attestations (#6841).
 
 ## [6.0.0-dev19]
 
