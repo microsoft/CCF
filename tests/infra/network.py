@@ -903,7 +903,8 @@ class Network:
             arg: getattr(args, arg, None)
             for arg in infra.network.Network.node_args_to_forward
         }
-        self._setup_node(node, lib_name, args, target_node, **forwarded_args, **kwargs)
+        forwarded_args.update(kwargs)
+        self._setup_node(node, lib_name, args, target_node, **forwarded_args)
 
     def run_join_node(
         self,
