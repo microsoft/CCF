@@ -271,12 +271,6 @@
         },
         "type": "object"
       },
-      "JwtIssuerKeyFilter": {
-        "enum": [
-          "all"
-        ],
-        "type": "string"
-      },
       "JwtIssuerMetadata": {
         "properties": {
           "auto_refresh": {
@@ -284,9 +278,6 @@
           },
           "ca_cert_bundle_name": {
             "$ref": "#/components/schemas/string"
-          },
-          "key_filter": {
-            "$ref": "#/components/schemas/JwtIssuerKeyFilter"
           }
         },
         "type": "object"
@@ -1348,7 +1339,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.6.0"
+    "version": "4.6.1"
   },
   "openapi": "3.0.0",
   "paths": {
