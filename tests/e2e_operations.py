@@ -335,14 +335,12 @@ def test_empty_snapshot(network, args):
             new_node.stop()
 
             # Check that the empty snapshot is correctly skipped
-            out, _ = new_node.remote.get_logs()
-            with open(out, "r", encoding="utf-8") as outf:
-                logs_lines = outf.readlines()
-
-            assert any(
-                f"Ignoring empty snapshot file {snapshot_name}" in line
-                for line in logs_lines
-            ), "Expecting empty snapshot to be skipped"
+            if not new_node.check_log_for_error_message(
+                f"Ignoring empty snapshot file {snapshot_name}"
+            ):
+                raise AssertionError(
+                    f"Expected empty snapshot file {snapshot_name} to be skipped in node logs"
+                )
 
 
 def split_all_ledger_files_in_dir(input_dir, output_dir):
@@ -787,6 +785,7 @@ def run_cose_signatures_config_check(args):
                         False
                     ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
 
+
 def run_late_mounted_ledger_check(args):
     nargs = copy.deepcopy(args)
     nargs.nodes = infra.e2e_args.min_nodes(nargs, f=0)
@@ -918,6 +917,7 @@ def run_late_mounted_ledger_check(args):
                     LOG.error(f"  {error}")
                 raise AssertionError(expected_errors)
 
+
 def run_empty_ledger_dir_check(args):
     with infra.network.network(
         args.nodes,
@@ -951,15 +951,12 @@ def run_empty_ledger_dir_check(args):
                 pass
 
             # Check that the node has failed with the expected error message
-            out, _ = primary.remote.get_logs()
-            with open(out, "r", encoding="utf-8") as outf:
-                logs_lines = outf.readlines()
-
-            assert any(
+            if not primary.check_log_for_error_message(
                 f"On start, ledger directory should not exist or be empty ({dir_name})"
-                in line
-                for line in logs_lines
-            ), "Expecting non-empty ledger directory to fail"
+            ):
+                raise AssertionError(
+                    f"Expected node error message with non-empty ledger directory {dir_name}"
+                )
 
 
 def run(args):
