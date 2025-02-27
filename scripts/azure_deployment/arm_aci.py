@@ -110,7 +110,9 @@ def make_dev_container_command(args):
     ]
 
 
-def make_dev_container(id, name, image, command, ports, with_volume):
+def make_dev_container(
+    id, name, image, command, ports, with_volume, memory_gb, core_count
+):
     t = {
         "name": f"{name}-{id}",
         "properties": {
@@ -118,7 +120,7 @@ def make_dev_container(id, name, image, command, ports, with_volume):
             "command": command,
             "ports": [{"protocol": "TCP", "port": p} for p in ports],
             "environmentVariables": [],
-            "resources": {"requests": {"memoryInGB": 16, "cpu": 4}},
+            "resources": {"requests": {"memoryInGB": memory_gb, "cpu": core_count}},
         },
     }
     if with_volume:
@@ -162,6 +164,18 @@ def parse_aci_args(parser: ArgumentParser) -> Namespace:
         help="List of TCP ports to expose publicly on each container",
         action="append",
         default=[],
+    )
+    parser.add_argument(
+        "--memory-gb",
+        help="How many GB of memory to request for the container",
+        type=int,
+        default=16,
+    )
+    parser.add_argument(
+        "--core-count",
+        help="How many CPU cores to request for the container",
+        type=int,
+        default=4,
     )
 
     # SEV-SNP options
@@ -245,6 +259,8 @@ def make_aci_deployment(args: Namespace) -> Deployment:
                 command,
                 args.ports,
                 with_volume=True,
+                memory_gb=args.memory_gb,
+                core_count=args.core_count,
             )
         ]
 
