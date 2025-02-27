@@ -249,8 +249,7 @@ namespace asynchost
       if (committed && table_offset == 0)
       {
         throw std::logic_error(fmt::format(
-          "Invalid table offset at start of committed ledger file {}. Is file "
-          "corrupt?",
+          "Committed ledger file {} cannot be read: invalid table offset (0)",
           file_path));
       }
 
