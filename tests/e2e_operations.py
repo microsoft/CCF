@@ -816,7 +816,7 @@ def run_empty_ledger_dir_check(args):
             # Start new network, this should fail
             try:
                 network.start(args, ledger_dir=tmp_dir)
-            except:
+            except Exception:
                 pass
 
             # Check that the node has failed with the expected error message
