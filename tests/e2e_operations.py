@@ -843,9 +843,7 @@ def run_late_mounted_ledger_check(args):
 
             # Historical query still fails, but node survives
             assert not try_historical_fetch(new_node)
-            expected_errors.append(
-                "Invalid table offset at start of committed ledger file"
-            )
+            expected_errors.append("cannot be read: invalid table offset (0)")
 
             # Write an invalid table offset at the start of each file
             for dst_path, src_path in dst_files.items():
