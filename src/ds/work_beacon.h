@@ -26,6 +26,26 @@ namespace ccf::ds
       --work_available;
     }
 
+    // Returns true if condition variable indicated work is available, false if
+    // timeout was reached
+    template <typename DurationRep, typename DurationPeriod>
+    bool wait_for_work_with_timeout(
+      const std::chrono::duration<DurationRep, DurationPeriod>& timeout)
+    {
+      std::unique_lock<std::mutex> lock(mutex);
+      const auto woke_for_work = condition_variable.wait_for(
+        lock, timeout, [this] { return work_available > 0; });
+      if (woke_for_work)
+      {
+        if (work_available > 0)
+        {
+          --work_available;
+        }
+      }
+
+      return woke_for_work;
+    }
+
     void notify_work_available()
     {
       {
