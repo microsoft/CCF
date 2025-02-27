@@ -67,7 +67,8 @@ extern "C"
     StartType start_type,
     ccf::LoggerLevel enclave_log_level,
     size_t num_worker_threads,
-    void* time_location)
+    void* time_location,
+    const ccf::ds::WorkBeaconPtr& work_beacon)
   {
     std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
@@ -225,7 +226,8 @@ extern "C"
         cc.ledger_signatures.tx_count,
         cc.ledger_signatures.delay.count_ms(),
         cc.consensus,
-        cc.node_certificate.curve_id);
+        cc.node_certificate.curve_id,
+        work_beacon);
     }
     catch (const ccf::ccf_oe_attester_init_error& e)
     {
@@ -316,7 +318,8 @@ extern "C"
       }
 
       while (num_pending_threads != 0)
-      {}
+      {
+      }
 
       LOG_INFO_FMT("All threads are ready!");
 
@@ -325,7 +328,8 @@ extern "C"
         auto s = e.load()->run_main();
         while (num_complete_threads !=
                threading::ThreadMessaging::instance().thread_count() - 1)
-        {}
+        {
+        }
         threading::ThreadMessaging::shutdown();
         return s;
       }
