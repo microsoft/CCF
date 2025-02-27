@@ -22,6 +22,7 @@ import subprocess
 import time
 import http
 import copy
+import struct
 import infra.snp as snp
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -750,6 +751,138 @@ def run_cose_signatures_config_check(args):
                     ), f"Failed to get receipt for txid {txid} after {max_retries} retries"
 
 
+def run_late_mounted_ledger_check(args):
+    nargs = copy.deepcopy(args)
+    nargs.nodes = infra.e2e_args.min_nodes(nargs, f=0)
+
+    with infra.network.network(
+        nargs.nodes,
+        nargs.binary_dir,
+        nargs.debug_nodes,
+        nargs.perf_nodes,
+        pdb=nargs.pdb,
+    ) as network:
+        network.start_and_open(
+            nargs,
+        )
+
+        primary, _ = network.find_primary()
+
+        msg_id = 42
+        msg = str(random.random())
+
+        # Write a new entry
+        with primary.client("user0") as c:
+            r = c.post(
+                "/app/log/private",
+                body={"id": msg_id, "msg": msg},
+            )
+            assert r.status_code == http.HTTPStatus.OK.value, r
+            c.wait_for_commit(r)
+
+            msg_seqno = r.seqno
+            msg_tx_id = f"{r.view}.{r.seqno}"
+
+        def try_historical_fetch(node, timeout=1):
+            with node.client("user0") as c:
+                start_time = time.time()
+                while time.time() < (start_time + timeout):
+                    r = c.get(
+                        f"/app/log/private/historical?id={msg_id}",
+                        headers={infra.clients.CCF_TX_ID_HEADER: msg_tx_id},
+                    )
+                    if r.status_code == http.HTTPStatus.OK:
+                        assert r.body.json()["msg"] == msg
+                        return True
+                    assert r.status_code == http.HTTPStatus.ACCEPTED
+                    time.sleep(0.2)
+            return False
+
+        # Confirm this can be retrieved with a historical query
+        assert try_historical_fetch(primary)
+
+        expected_errors = []
+
+        # Create a temporary directory to manually construct a ledger in
+        with tempfile.TemporaryDirectory() as temp_dir:
+            new_node = network.create_node("local://localhost")
+            network.join_node(
+                new_node,
+                nargs.package,
+                nargs,
+                from_snapshot=True,
+                copy_ledger=False,
+                common_read_only_ledger_dir=temp_dir,  # New node will try to read from temp directory
+            )
+            network.trust_node(new_node, args)
+
+            # Due to copy_ledger=False, this new node cannot access this historical entry
+            assert not try_historical_fetch(new_node)
+            expected_errors.append(f"Cannot find ledger file for seqno {msg_seqno}")
+
+            # Gather the source files that the operator should backfill
+            src_ledger_dir = primary.remote.ledger_paths()[0]
+            dst_files = {
+                os.path.join(temp_dir, filename): os.path.join(src_ledger_dir, filename)
+                for filename in os.listdir(src_ledger_dir)
+            }
+
+            # Create empy files in the new node's directory, with the correct names
+            for dst_path in dst_files.keys():
+                with open(dst_path, "wb") as f:
+                    pass
+
+            # Historical query still fails, but node survives
+            assert not try_historical_fetch(new_node)
+            expected_errors.append("Failed to read positions offset from ledger file")
+
+            # Create files of the correct size, but filled with zeros
+            for dst_path, src_path in dst_files.items():
+                with open(dst_path, "wb") as f:
+                    f.write(bytes(os.path.getsize(src_path)))
+
+            # Historical query still fails, but node survives
+            assert not try_historical_fetch(new_node)
+            expected_errors.append("cannot be read: invalid table offset (0)")
+
+            # Write an invalid table offset at the start of each file
+            for dst_path, src_path in dst_files.items():
+                with open(dst_path, "r+b") as f:
+                    f.seek(0)
+                    size = os.path.getsize(src_path)
+                    f.write(struct.pack("<Q", size + 1))
+
+            # Historical query still fails, but node survives
+            assert not try_historical_fetch(new_node)
+            expected_errors.append("greater than total file size")
+
+            # Copy correct files
+            for dst_path, src_path in dst_files.items():
+                with open(dst_path, "wb") as f:
+                    f.write(open(src_path, "rb").read())
+
+            # Historical query now passes
+            assert try_historical_fetch(new_node)
+
+            # Remove node
+            network.retire_node(primary, new_node)
+            new_node.stop()
+
+            # Check node output for expected errors
+            out_path, _ = new_node.get_logs()
+            for line in open(out_path, "r", encoding="utf-8").readlines():
+                expected_errors = [
+                    error for error in expected_errors if error not in line
+                ]
+                if len(expected_errors) == 0:
+                    break
+            else:
+                LOG.error("Expected to find following error messages in node output:")
+                for error in expected_errors:
+                    LOG.error(f"  {error}")
+                raise AssertionError(expected_errors)
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -761,3 +894,4 @@ def run(args):
     run_sighup_check(args)
     run_service_subject_name_check(args)
     run_cose_signatures_config_check(args)
+    run_late_mounted_ledger_check(args)
