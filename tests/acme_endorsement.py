@@ -73,7 +73,7 @@ def wait_for_certificates(
             for node in network.nodes:
                 iface = node.host.rpc_interfaces[interface_name]
                 try:
-                    context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+                    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
                     context.verify_mode = ssl.CERT_REQUIRED
                     context.check_hostname = True
                     context.load_verify_locations(cadata=root_cert)
