@@ -218,7 +218,8 @@ namespace host
       StartType start_type,
       ccf::LoggerLevel enclave_log_level,
       size_t num_worker_thread,
-      void* time_location)
+      void* time_location,
+      const ccf::ds::WorkBeaconPtr& work_beacon)
     {
       CreateNodeStatus status = CreateNodeStatus::InternalError;
       constexpr size_t enclave_version_size = 256;
@@ -238,7 +239,7 @@ namespace host
     node_cert.size(), &node_cert_len, service_cert.data(), \
     service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
     enclave_version_buf.size(), &enclave_version_len, start_type, \
-    enclave_log_level, num_worker_thread, time_location
+    enclave_log_level, num_worker_thread, time_location, work_beacon
 
       oe_result_t err = OE_FAILURE;
 
