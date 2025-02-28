@@ -973,7 +973,11 @@ if(BUILD_TESTS)
   endif()
 
   if(LONG_TESTS)
-    set(ADDITIONAL_RECOVERY_ARGS --with-load)
+    # Submit a large load of transactions before recovers to test all code paths.
+    # Unless we're building with TSAN, where this is too slow.
+    if(NOT TSAN)
+      set(ADDITIONAL_RECOVERY_ARGS --with-load)
+    endif()
 
     add_e2e_test(
       NAME recovery_test_cft_api_0
