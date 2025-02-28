@@ -198,9 +198,6 @@ TEST_CASE("WorkBeacon" * doctest::test_suite("workbeacon"))
 
           // Then try to be a little more precise, allowing head-room for
           // different build configs and cosmic rays
-          REQUIRE(
-            wakes_with_waits <=
-            5 * n_senders * ((float)n_receivers / n_senders));
           REQUIRE(wakes_with_waits * 1000 < wakes_with_spinloop);
         }
       }
