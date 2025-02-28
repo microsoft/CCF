@@ -21,7 +21,6 @@ Before adding public token signing keys to a running CCF network, the IdP has to
           "name": "set_jwt_issuer",
           "args": {
             "issuer": "my_issuer",
-            "key_filter": "all",
             "auto_refresh": false
           }
         }
@@ -95,7 +94,6 @@ Now the issuer can be created with auto-refresh enabled:
           "name": "set_jwt_issuer",
           "args": {
             "issuer": "https://login.microsoftonline.com/common/v2.0",
-            "key_filter": "all",
             "ca_cert_bundle_name": "jwt_ms",
             "auto_refresh": true
           }

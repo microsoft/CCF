@@ -67,7 +67,8 @@ extern "C"
     StartType start_type,
     ccf::LoggerLevel enclave_log_level,
     size_t num_worker_threads,
-    void* time_location)
+    void* time_location,
+    const ccf::ds::WorkBeaconPtr& work_beacon)
   {
     std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
@@ -225,7 +226,8 @@ extern "C"
         cc.ledger_signatures.tx_count,
         cc.ledger_signatures.delay.count_ms(),
         cc.consensus,
-        cc.node_certificate.curve_id);
+        cc.node_certificate.curve_id,
+        work_beacon);
     }
     catch (const ccf::ccf_oe_attester_init_error& e)
     {

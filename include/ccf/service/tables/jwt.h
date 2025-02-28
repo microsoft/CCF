@@ -21,8 +21,6 @@ namespace ccf
 
   struct JwtIssuerMetadata
   {
-    /// JWT issuer key filter, kept for compatibility with existing ledgers
-    JwtIssuerKeyFilter key_filter = JwtIssuerKeyFilter::All;
     /// Optional CA bundle name used for authentication when auto-refreshing
     std::optional<std::string> ca_cert_bundle_name;
     /// Whether to auto-refresh keys from the issuer
@@ -32,7 +30,7 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(JwtIssuerMetadata);
   DECLARE_JSON_REQUIRED_FIELDS(JwtIssuerMetadata);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    JwtIssuerMetadata, key_filter, ca_cert_bundle_name, auto_refresh);
+    JwtIssuerMetadata, ca_cert_bundle_name, auto_refresh);
 
   using JwtIssuer = std::string;
   using JwtKeyId = std::string;

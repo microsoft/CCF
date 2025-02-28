@@ -465,6 +465,7 @@ class Network:
                             workspace=args.workspace,
                             label=args.label,
                             common_dir=self.common_dir,
+                            ledger_dir=ledger_dir,
                             members_info=self.consortium.get_members_info(),
                             **forwarded_args_with_overrides,
                             **kwargs,
@@ -902,7 +903,8 @@ class Network:
             arg: getattr(args, arg, None)
             for arg in infra.network.Network.node_args_to_forward
         }
-        self._setup_node(node, lib_name, args, target_node, **forwarded_args, **kwargs)
+        forwarded_args.update(kwargs)
+        self._setup_node(node, lib_name, args, target_node, **forwarded_args)
 
     def run_join_node(
         self,

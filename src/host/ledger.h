@@ -246,6 +246,13 @@ namespace asynchost
           "Failed to read positions offset from ledger file {}", file_path));
       }
 
+      if (committed && table_offset == 0)
+      {
+        throw std::logic_error(fmt::format(
+          "Committed ledger file {} cannot be read: invalid table offset (0)",
+          file_path));
+      }
+
       total_len = sizeof(positions_offset_header_t);
 
       if (from_existing_file)
@@ -806,7 +813,10 @@ namespace asynchost
       catch (const std::exception& e)
       {
         LOG_FAIL_FMT(
-          "Could not open ledger file {} to read seqno {}", match.value(), idx);
+          "Could not open ledger file {} to read seqno {}: {}",
+          match.value(),
+          idx,
+          e.what());
         return nullptr;
       }
 

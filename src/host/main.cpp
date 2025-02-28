@@ -14,6 +14,7 @@
 #include "ds/files.h"
 #include "ds/non_blocking.h"
 #include "ds/nonstd.h"
+#include "ds/notifying.h"
 #include "ds/oversized.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
@@ -215,10 +216,12 @@ int main(int argc, char** argv)
   {
     if (config.command.type == StartType::Start)
     {
-      if (files::exists(config.ledger.directory))
+      if (
+        files::exists(config.ledger.directory) &&
+        !fs::is_empty(config.ledger.directory))
       {
         throw std::logic_error(fmt::format(
-          "On start, ledger directory should not exist ({})",
+          "On start, ledger directory should not exist or be empty ({})",
           config.ledger.directory));
       }
 
@@ -371,10 +374,15 @@ int main(int argc, char** argv)
   ringbuffer::Circuit circuit(to_enclave_def, from_enclave_def);
   messaging::BufferProcessor bp("Host");
 
+  ringbuffer::WriterFactory base_factory(circuit);
+
+  // To avoid polling an idle ringbuffer, all writes are paired with a
+  // condition_variable notification, which readers may wait on
+  ringbuffer::NotifyingWriterFactory notifying_factory(base_factory);
+
   // To prevent deadlock, all blocking writes from the host to the ringbuffer
   // will be queued if the ringbuffer is full
-  ringbuffer::WriterFactory base_factory(circuit);
-  ringbuffer::NonBlockingWriterFactory non_blocking_factory(base_factory);
+  ringbuffer::NonBlockingWriterFactory non_blocking_factory(notifying_factory);
 
   // Factory for creating writers which will handle writing of large messages
   oversized::WriterConfig writer_config{
@@ -830,7 +838,8 @@ int main(int argc, char** argv)
       config.command.type,
       enclave_log_level,
       config.worker_threads,
-      time_updater->behaviour.get_value());
+      time_updater->behaviour.get_value(),
+      notifying_factory.get_inbound_work_beacon());
     ecall_completed.store(true);
     flusher_thread.join();
 

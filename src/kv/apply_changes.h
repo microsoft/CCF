@@ -59,15 +59,8 @@ namespace ccf::kv
 
     for (auto it = changes.begin(); it != changes.end(); ++it)
     {
-      bool changeset_has_writes = it->second.changeset->has_writes();
-      if (changeset_has_writes)
-      {
-        has_writes = true;
-      }
-      if (changeset_has_writes || track_read_versions)
-      {
-        it->second.map->lock();
-      }
+      has_writes |= it->second.changeset->has_writes();
+      it->second.map->lock();
     }
 
     bool ok = true;
@@ -177,10 +170,7 @@ namespace ccf::kv
 
     for (auto it = changes.begin(); it != changes.end(); ++it)
     {
-      if (it->second.changeset->has_writes() || track_read_versions)
-      {
-        it->second.map->unlock();
-      }
+      it->second.map->unlock();
     }
 
     if (!ok)

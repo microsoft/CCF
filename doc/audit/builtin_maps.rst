@@ -376,9 +376,6 @@ JWT issuers.
    :project: CCF
    :members:
 
-.. doxygenenum:: ccf::JwtIssuerKeyFilter
-   :project: CCF
-
 ``jwt.public_signing_keys``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

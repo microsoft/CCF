@@ -13,15 +13,15 @@
         },
         "platform": {
           "type": "string",
-          "enum": ["SGX", "SNP", "Virtual"],
-          "default": "SGX",
+          "enum": ["SNP", "Virtual"],
+          "default": "SNP",
           "description": "Trusted Execution Environment platform"
         },
         "type": {
           "type": "string",
           "enum": ["Release", "Debug", "Virtual"],
           "default": "Release",
-          "description": "Type of enclave application (only if platform is SGX). \"Virtual\" is deprecated (use ``platform`` instead)"
+          "description": "Type of enclave application (only if platform is SGX, now deprecated). \"Virtual\" is deprecated (use ``platform`` instead)"
         }
       },
       "description": "This section includes configuration for the enclave application launched by this node",
@@ -522,7 +522,7 @@
           "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. If set, attestation endorsements from ``--snp-security-context-dir-var`` are ignored, but uvm endorsements from that directory are still used."
         }
       },
-      "description": "This section includes configuration for the attestation for AMD SEV-SNP platform (ignored for SGX)",
+      "description": "This section includes configuration for the attestation for AMD SEV-SNP platform.",
       "additionalProperties": false
     },
     "service_data_json_file": {
