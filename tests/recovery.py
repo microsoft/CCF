@@ -593,6 +593,9 @@ def test_persistence_old_snapshot(network, args):
     )
 
     try:
+        network.ignore_error_pattern_on_shutdown(
+            "uv_getaddrinfo for host:service [invalid:8000] failed with error temporary failure"
+        )
         network.trust_node(new_node, args, timeout=3)
     except TimeoutError:
         pass
