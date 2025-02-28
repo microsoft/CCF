@@ -988,53 +988,53 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "2024-07-01"
   )
 
+  add_e2e_test(
+    NAME recovery_test_suite
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+    LABEL suite
+    ADDITIONAL_ARGS
+      --test-duration
+      300
+      --test-suite
+      rekey_recovery
+      --test-suite
+      membership_recovery
+      --jinja-templates-path
+      ${CMAKE_SOURCE_DIR}/samples/templates
+  )
+
+  add_e2e_test(
+    NAME reconfiguration_test_suite
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+    LABEL suite
+    ADDITIONAL_ARGS
+      --test-duration 300 --test-suite reconfiguration --jinja-templates-path
+      ${CMAKE_SOURCE_DIR}/samples/templates
+  )
+
+  if(LONG_TESTS)
     add_e2e_test(
-      NAME recovery_test_suite
+      NAME regression_test_suite
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
       LABEL suite
-      ADDITIONAL_ARGS
-        --test-duration
-        300
-        --test-suite
-        rekey_recovery
-        --test-suite
-        membership_recovery
-        --jinja-templates-path
-        ${CMAKE_SOURCE_DIR}/samples/templates
+      ADDITIONAL_ARGS --test-duration 300 --test-suite regression_5236
     )
+  endif()
 
-    add_e2e_test(
-      NAME reconfiguration_test_suite
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-      LABEL suite
-      ADDITIONAL_ARGS
-        --test-duration 300 --test-suite reconfiguration --jinja-templates-path
-        ${CMAKE_SOURCE_DIR}/samples/templates
-    )
-
-    if(LONG_TESTS)
-      add_e2e_test(
-        NAME regression_test_suite
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-        LABEL suite
-        ADDITIONAL_ARGS --test-duration 300 --test-suite regression_5236
-      )
-    endif()
-
-    add_e2e_test(
-      NAME full_test_suite
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-      LABEL suite
-      ADDITIONAL_ARGS
-        --ledger-recovery-timeout
-        20
-        --test-duration
-        300
-        --test-suite
-        all
-        --jinja-templates-path
-        ${CMAKE_SOURCE_DIR}/samples/templates
-    )
+  add_e2e_test(
+    NAME full_test_suite
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+    LABEL suite
+    ADDITIONAL_ARGS
+      --ledger-recovery-timeout
+      20
+      --test-duration
+      300
+      --test-suite
+      all
+      --jinja-templates-path
+      ${CMAKE_SOURCE_DIR}/samples/templates
+  )
 
   add_e2e_test(
     NAME committable_suffix_test
@@ -1097,13 +1097,13 @@ if(BUILD_TESTS)
       ${CCF_DIR}/samples/constitutions/default/apply.js
   )
 
-    add_e2e_test(
-      NAME governance_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-      CONSTITUTION ${CONSTITUTION_ARGS}
-      ADDITIONAL_ARGS --initial-operator-count 1 --jinja-templates-path
-                      ${CMAKE_SOURCE_DIR}/samples/templates
-    )
+  add_e2e_test(
+    NAME governance_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+    CONSTITUTION ${CONSTITUTION_ARGS}
+    ADDITIONAL_ARGS --initial-operator-count 1 --jinja-templates-path
+                    ${CMAKE_SOURCE_DIR}/samples/templates
+  )
 
   add_e2e_test(
     NAME jwt_test
@@ -1111,33 +1111,33 @@ if(BUILD_TESTS)
     LABEL snp_flaky
   )
 
-    add_e2e_test(
-      NAME code_update_test
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-      ADDITIONAL_ARGS
-        --js-app-bundle
-        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-        --constitution
-        ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
-    )
+  add_e2e_test(
+    NAME code_update_test
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+    ADDITIONAL_ARGS
+      --js-app-bundle
+      ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+      --constitution
+      ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
+  )
 
   if(BUILD_TPCC)
     include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tpcc/tpcc.cmake)
   endif()
 
-    if(CLIENT_PROTOCOLS_TEST)
-      add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
-        COMMAND
-          rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
-          --branch v3.2rc4 --single-branch -c advice.detachedHead=false
-          https://github.com/drwetter/testssl.sh
-          ${CMAKE_CURRENT_BINARY_DIR}/testssl
-      )
-      add_custom_target(
-        testssl ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
-      )
-    endif()
+  if(CLIENT_PROTOCOLS_TEST)
+    add_custom_command(
+      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
+      COMMAND
+        rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
+        --branch v3.2rc4 --single-branch -c advice.detachedHead=false
+        https://github.com/drwetter/testssl.sh
+        ${CMAKE_CURRENT_BINARY_DIR}/testssl
+    )
+    add_custom_target(
+      testssl ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
+    )
+  endif()
 
   add_e2e_test(
     NAME e2e_logging_cft
@@ -1250,32 +1250,32 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
   )
 
-    list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})
-    if(LONG_TESTS)
-      list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
-    endif()
+  list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})
+  if(LONG_TESTS)
+    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
+  endif()
 
-    if(NOT SAN)
-      add_e2e_test(
-        NAME lts_compatibility
-        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
-        LABEL e2e
-        ADDITIONAL_ARGS
-          ${LTS_TEST_ARGS}
-          --constitution
-          ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
-      )
-      set_property(
-        TEST lts_compatibility
-        APPEND
-        PROPERTY ENVIRONMENT "LTS_COMPAT_GOV_CLIENT=1"
-      )
-      set_property(
-        TEST lts_compatibility
-        APPEND
-        PROPERTY LABELS lts_compatibility
-      )
-    endif()
+  if(NOT SAN)
+    add_e2e_test(
+      NAME lts_compatibility
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+      LABEL e2e
+      ADDITIONAL_ARGS
+        ${LTS_TEST_ARGS}
+        --constitution
+        ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
+    )
+    set_property(
+      TEST lts_compatibility
+      APPEND
+      PROPERTY ENVIRONMENT "LTS_COMPAT_GOV_CLIENT=1"
+    )
+    set_property(
+      TEST lts_compatibility
+      APPEND
+      PROPERTY LABELS lts_compatibility
+    )
+  endif()
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)
