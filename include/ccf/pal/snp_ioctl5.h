@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/pal/attestation_sev_snp.h"
+#include "ccf/ds/logger.h"
 
 #include <fcntl.h>
 #include <stdint.h>
