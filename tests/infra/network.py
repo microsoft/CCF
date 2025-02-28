@@ -465,6 +465,7 @@ class Network:
                             workspace=args.workspace,
                             label=args.label,
                             common_dir=self.common_dir,
+                            ledger_dir=ledger_dir,
                             members_info=self.consortium.get_members_info(),
                             **forwarded_args_with_overrides,
                             **kwargs,
