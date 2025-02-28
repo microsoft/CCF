@@ -35,7 +35,7 @@ TEST_CASE("E2E")
   quote_info.format = QuoteFormat::amd_sev_snp_v1;
   quote_info.quote = attest_intf->get_raw();
 
-  auto rc = AttestationProvider::verify_tcb_version_against_store(tx, quote_info);
+  auto rc = verify_tcb_version_against_store(tx, quote_info);
   CHECK_EQ(rc, QuoteVerificationResult::FailedInvalidCPUID);
 
   auto attestation = attest_intf->get();
@@ -49,18 +49,18 @@ TEST_CASE("E2E")
   };
   h->put(chip_id, current_tcb);
 
-  rc = AttestationProvider::verify_tcb_version_against_store(tx, quote_info);
+  rc = verify_tcb_version_against_store(tx, quote_info);
   CHECK_EQ(rc, QuoteVerificationResult::Verified);
 
   auto new_tcb_snp = current_tcb;
   new_tcb_snp.snp += 1;
   h->put(chip_id, new_tcb_snp);
-  rc = AttestationProvider::verify_tcb_version_against_store(tx, quote_info);
+  rc = verify_tcb_version_against_store(tx, quote_info);
   CHECK_EQ(rc, QuoteVerificationResult::FailedInvalidTcbVersion);
 
   auto new_tcb_microcode = current_tcb;
   new_tcb_microcode.microcode += 1;
   h->put(chip_id, new_tcb_microcode);
-  rc = AttestationProvider::verify_tcb_version_against_store(tx, quote_info);
+  rc = verify_tcb_version_against_store(tx, quote_info);
   CHECK_EQ(rc, QuoteVerificationResult::FailedInvalidTcbVersion);
 }
