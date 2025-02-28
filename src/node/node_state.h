@@ -361,7 +361,7 @@ namespace ccf
             quote_info.uvm_endorsements = uvm_endorsements_raw;
             LOG_INFO_FMT(
               "Successfully verified attested UVM endorsements: {}",
-              snp_uvm_endorsements.to_str());
+              snp_uvm_endorsements->to_str());
           }
           catch (const std::exception& e)
           {
