@@ -64,8 +64,8 @@ namespace snapshots
     const std::string_view header =
       ccf::nonstd::trim(std::string_view(buffer, nitems));
 
-    // Ignore HTTP status line
-    if (!header.starts_with("HTTP/1.1"))
+    // Ignore HTTP status line, and empty line
+    if (!header.empty() && !header.starts_with("HTTP/1.1"))
     {
       const auto [field, value] = ccf::nonstd::split_1(header, ": ");
       if (!value.empty())
