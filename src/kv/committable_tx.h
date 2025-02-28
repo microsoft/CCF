@@ -130,7 +130,6 @@ namespace ccf::kv
      */
     CommitResult commit(
       const ccf::ClaimsDigest& claims = ccf::empty_claims(),
-      bool track_read_versions = false,
       std::function<std::tuple<Version, Version>(bool has_new_map)>
         version_resolver = nullptr,
       std::function<void(
@@ -170,7 +169,6 @@ namespace ccf::kv
         hooks,
         pimpl->created_maps,
         new_maps_conflict_version,
-        track_read_versions,
         track_deletes_on_missing_keys);
 
       if (maps_created)
@@ -422,7 +420,6 @@ namespace ccf::kv
         throw std::logic_error("Reserved transaction cannot be empty");
 
       std::vector<ConsensusHookPtr> hooks;
-      bool track_read_versions = false;
       bool track_deletes_on_missing_keys = false;
       auto c = apply_changes(
         all_changes,
@@ -430,7 +427,6 @@ namespace ccf::kv
         hooks,
         pimpl->created_maps,
         version,
-        track_read_versions,
         track_deletes_on_missing_keys,
         rollback_count);
       success = c.has_value();
