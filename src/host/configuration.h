@@ -31,9 +31,7 @@ namespace host
   };
   DECLARE_JSON_ENUM(
     EnclavePlatform,
-    {{EnclavePlatform::SGX, "SGX"},
-     {EnclavePlatform::SNP, "SNP"},
-     {EnclavePlatform::VIRTUAL, "Virtual"}});
+    {{EnclavePlatform::SNP, "SNP"}, {EnclavePlatform::VIRTUAL, "Virtual"}});
 
   enum class LogFormat
   {
