@@ -347,9 +347,21 @@ namespace ccf
           {
             auto uvm_endorsements_raw = ccf::crypto::raw_from_b64(
               config.attestation.environment.uvm_endorsements.value());
-            snp_uvm_endorsements =
-              verify_uvm_endorsements(uvm_endorsements_raw, node_measurement);
+            // A node at this stage does not have a notion of what UVM
+            // descriptor is acceptable. That is decided either by the Joinee,
+            // or by Consortium endorsing the Start or Recovery node. For that
+            // reason, we extract an endorsement descriptor from the UVM
+            // endorsements and make it available in the ledger's initial or
+            // recovery transaction.
+            snp_uvm_endorsements = verify_uvm_endorsements(
+              uvm_endorsements_raw,
+              node_measurement,
+              {},
+              false /* Do not check roots of trust */);
             quote_info.uvm_endorsements = uvm_endorsements_raw;
+            LOG_INFO_FMT(
+              "Successfully verified attested UVM endorsements: {}",
+              snp_uvm_endorsements.to_str());
           }
           catch (const std::exception& e)
           {
