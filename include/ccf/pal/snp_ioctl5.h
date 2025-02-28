@@ -31,7 +31,7 @@ namespace ccf::pal::snp::ioctl5
     uint32_t error; /* firmware error code on failure (see psp-sev.h) */
   };
 
-  // Table 99
+  // Table 102
   enum MsgType
   {
     MSG_TYPE_INVALID = 0,
@@ -52,15 +52,17 @@ namespace ccf::pal::snp::ioctl5
     MSG_TYPE_MAX
   };
 
-  // Table 20
+  // Table 22
+#pragma pack(push, 1)
   struct AttestationReq
   {
     uint8_t report_data[snp_attestation_report_data_size];
     uint32_t vmpl = 0;
     uint8_t reserved[28];
   };
+#pragma pack(pop)
 
-  // Table 23
+  // Table 25
 #pragma pack(push, 1)
   struct AttestationResp
   {

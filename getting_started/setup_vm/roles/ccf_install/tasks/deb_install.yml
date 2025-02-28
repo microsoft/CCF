@@ -1,6 +1,20 @@
 - name: Include vars
   include_vars: common.yml
 
+- name: Add stdcxx APT repository
+  apt_repository:
+    repo: "ppa:ubuntu-toolchain-r/test"
+    state: present
+    update_cache: yes
+  become: true
+
+- name: Install debs
+  apt:
+    name: libstdc++6
+    update_cache: yes
+    state: latest
+  become: true
+
 - name: Get package url
   shell:
     cmd: |
@@ -32,14 +46,6 @@
     recurse: yes
   become: true
   when: run_js|bool
-
-- name: Copy JS generic (SGX)
-  copy:
-    src: "/opt/ccf_{{ platform }}/lib/{{ ccf_js_app_name }}.enclave.so.signed"
-    dest: "/usr/lib/ccf/{{ ccf_js_app_name }}.enclave.so.signed"
-    remote_src: true
-  become: true
-  when: (run_js|bool) and (platform == "sgx")
 
 - name: Copy JS generic (Virtual)
   copy:

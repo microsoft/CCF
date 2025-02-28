@@ -184,7 +184,7 @@ void test_calloc()
     alloc.dealloc(p, size);
   }
 
-  snmalloc::debug_check_empty<StandardConfig>();
+  snmalloc::debug_check_empty<snmalloc::Alloc::Config>();
 }
 
 void test_double_alloc()
@@ -229,7 +229,7 @@ void test_double_alloc()
       }
     }
   }
-  snmalloc::debug_check_empty<StandardConfig>();
+  snmalloc::debug_check_empty<snmalloc::Alloc::Config>();
 }
 
 void test_external_pointer()
@@ -237,7 +237,9 @@ void test_external_pointer()
   // Malloc does not have an external pointer querying mechanism.
   auto& alloc = ThreadAlloc::get();
 
-  for (uint8_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
+  for (snmalloc::smallsizeclass_t sc = size_to_sizeclass(MIN_ALLOC_SIZE);
+       sc < NUM_SMALL_SIZECLASSES;
+       sc++)
   {
     size_t size = sizeclass_to_size(sc);
     void* p1 = alloc.alloc(size);
@@ -273,7 +275,7 @@ void test_external_pointer()
     alloc.dealloc(p1, size);
   }
 
-  snmalloc::debug_check_empty<StandardConfig>();
+  snmalloc::debug_check_empty<snmalloc::Alloc::Config>();
 };
 
 void check_offset(void* base, void* interior)
@@ -470,7 +472,9 @@ void test_static_sized_allocs()
 void test_remaining_bytes()
 {
   auto& alloc = ThreadAlloc::get();
-  for (size_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
+  for (snmalloc::smallsizeclass_t sc = size_to_sizeclass(MIN_ALLOC_SIZE);
+       sc < NUM_SMALL_SIZECLASSES;
+       sc++)
   {
     auto size = sizeclass_to_size(sc);
     char* p = (char*)alloc.alloc(size);

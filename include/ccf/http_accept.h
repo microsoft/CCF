@@ -45,27 +45,20 @@ namespace ccf::http
 
     bool operator<(const AcceptHeaderField& other) const
     {
-      if (q_factor != other.q_factor)
+      static constexpr auto float_comp_epsilon = 0.0000001f;
+      if (std::abs(q_factor - other.q_factor) > float_comp_epsilon)
       {
         return q_factor < other.q_factor;
       }
 
-      if (is_wildcard(mime_type))
+      if (is_wildcard(mime_type) && !is_wildcard(other.mime_type))
       {
         return true;
-      }
-      else if (is_wildcard(other.mime_type))
-      {
-        return false;
       }
 
-      if (is_wildcard(mime_subtype))
+      if (is_wildcard(mime_subtype) && !is_wildcard(other.mime_subtype))
       {
         return true;
-      }
-      else if (is_wildcard(other.mime_subtype))
-      {
-        return false;
       }
 
       // Spec says these mime types are now equivalent. For stability, we

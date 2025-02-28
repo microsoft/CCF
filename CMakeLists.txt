@@ -113,7 +113,7 @@ endif()
 option(USE_SNMALLOC "Link virtual build against snmalloc" ON)
 
 # Default inherited from Open Enclave usage
-option(USE_LIBCXX "Use libc++ instead of libstdc++" ON)
+option(USE_LIBCXX "Use libc++ instead of libstdc++" OFF)
 
 enable_language(ASM)
 
@@ -131,20 +131,6 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
-
-if(SAN AND LVI_MITIGATIONS)
-  message(
-    FATAL_ERROR
-      "Building with both SAN and LVI mitigations is unsafe and deadlocks - choose one"
-  )
-endif()
-
-if(TSAN AND LVI_MITIGATIONS)
-  message(
-    FATAL_ERROR
-      "Building with both TSAN and LVI mitigations is unsafe and deadlocks - choose one"
-  )
-endif()
 
 # Copy and install CCF utilities
 set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh verify_quote.sh)
@@ -216,7 +202,6 @@ set(CCF_ENDPOINTS_SOURCES
 
 include(${CCF_DIR}/cmake/crypto.cmake)
 include(${CCF_DIR}/cmake/quickjs.cmake)
-include(${CCF_DIR}/cmake/nghttp2.cmake)
 include(${CCF_DIR}/cmake/qcbor.cmake)
 include(${CCF_DIR}/cmake/t_cose.cmake)
 
@@ -230,6 +215,7 @@ else()
   set(SNMALLOC_HEADER_ONLY_LIBRARY ON)
   add_subdirectory(3rdparty/exported/snmalloc EXCLUDE_FROM_ALL)
   set(SNMALLOC_COMPILE_OPTIONS "-mcx16")
+  set(SNMALLOC_INCLUDE_DIRS 3rdparty/exported/snmalloc/src)
   list(APPEND CCHOST_SOURCES src/host/snmalloc.cpp)
 endif()
 
@@ -245,7 +231,9 @@ add_san(cchost)
 target_compile_options(
   cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
 )
-target_include_directories(cchost PRIVATE ${CCF_GENERATED_DIR})
+target_include_directories(
+  cchost PRIVATE ${CCF_GENERATED_DIR} ${SNMALLOC_INCLUDE_DIRS}
+)
 
 if(COMPILE_TARGET STREQUAL "snp")
   target_compile_definitions(cchost PUBLIC PLATFORM_SNP)
@@ -254,8 +242,15 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
 endif()
 
 target_link_libraries(
-  cchost PRIVATE uv ${TLS_LIBRARY} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
-                 ${LINK_LIBCXX} ccfcrypto.host
+  cchost
+  PRIVATE uv
+          ${TLS_LIBRARY}
+          ${CMAKE_DL_LIBS}
+          ${CMAKE_THREAD_LIBS_INIT}
+          ${LINK_LIBCXX}
+          ccfcrypto.host
+          curl
+          http_parser.host
 )
 
 install(TARGETS cchost DESTINATION bin)
@@ -305,8 +300,6 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/extensions/ccf/request.cpp
     ${CCF_DIR}/src/js/registry.cpp
 )
-
-set(OE_BINDIR "")
 
 if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
@@ -479,11 +472,6 @@ option(BUILD_TESTS "Build tests" ON)
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
 option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
-option(
-  FORCE_ENABLE_XAPIC_MITIGATION
-  "Always enable aligned reads from host-memory to mitigate xAPIC stale data read vulnerability. When this setting is off, the mitigation is enabled at run-time when vulnerable hardware is detected"
-  OFF
-)
 
 # Allow framework code to use LOG_*_FMT macros. These will be removed from
 # public headers in future
@@ -536,7 +524,7 @@ if(COMPILE_TARGET STREQUAL "snp")
            ccf_endpoints.snp
            ccfcrypto.snp
            ccf_kv.snp
-           nghttp2.snp
+           nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -585,7 +573,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
            ccf_endpoints.host
            ccfcrypto.host
            ccf_kv.host
-           nghttp2.host
+           nghttp2
            ${CMAKE_THREAD_LIBS_INIT}
   )
 
@@ -661,7 +649,19 @@ if(BUILD_TESTS)
 
   # Unit tests
   if(BUILD_UNIT_TESTS)
+    if(COMPILE_TARGET STREQUAL "snp")
+      add_unit_test(
+        snp_ioctl_test
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
+      )
+    endif()
+
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
+
+    add_unit_test(
+      env_test ${CMAKE_CURRENT_SOURCE_DIR}/src/host/test/env.cpp
+      ${CCF_DIR}/src/host/env.cpp
+    )
 
     add_unit_test(
       json_schema ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/json_schema.cpp
@@ -708,6 +708,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/contiguous_set.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/dl_list.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -933,13 +934,6 @@ if(BUILD_TESTS)
       PROPERTY LABELS unit_test
     )
 
-    # https://github.com/microsoft/CCF/issues/5198
-    set_property(
-      TEST csr_test
-      APPEND
-      PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
-    )
-
     add_test(NAME versionifier_test
              COMMAND ${PYTHON}
                      ${CMAKE_SOURCE_DIR}/python/src/ccf/_versionifier.py
@@ -994,55 +988,53 @@ if(BUILD_TESTS)
     ADDITIONAL_ARGS ${ADDITIONAL_RECOVERY_ARGS} --gov-api-version "2024-07-01"
   )
 
-  add_e2e_test(
-    NAME recovery_test_suite
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    LABEL suite
-    ADDITIONAL_ARGS
-      --test-duration
-      150
-      --test-suite
-      rekey_recovery
-      --test-suite
-      membership_recovery
-      --jinja-templates-path
-      ${CMAKE_SOURCE_DIR}/samples/templates
-  )
-
-  add_e2e_test(
-    NAME reconfiguration_test_suite
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    LABEL suite
-    ADDITIONAL_ARGS
-      --test-duration 200 --test-suite reconfiguration --jinja-templates-path
-      ${CMAKE_SOURCE_DIR}/samples/templates
-  )
-
-  if(LONG_TESTS)
     add_e2e_test(
-      NAME regression_test_suite
+      NAME recovery_test_suite
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
       LABEL suite
-      ADDITIONAL_ARGS --test-duration 200 --test-suite regression_5236
+      ADDITIONAL_ARGS
+        --test-duration
+        300
+        --test-suite
+        rekey_recovery
+        --test-suite
+        membership_recovery
+        --jinja-templates-path
+        ${CMAKE_SOURCE_DIR}/samples/templates
     )
-  endif()
 
-  add_e2e_test(
-    NAME full_test_suite
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
-    LABEL suite
-    ADDITIONAL_ARGS
-      --oe-binary
-      ${OE_BINDIR}
-      --ledger-recovery-timeout
-      20
-      --test-duration
-      200
-      --test-suite
-      all
-      --jinja-templates-path
-      ${CMAKE_SOURCE_DIR}/samples/templates
-  )
+    add_e2e_test(
+      NAME reconfiguration_test_suite
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+      LABEL suite
+      ADDITIONAL_ARGS
+        --test-duration 300 --test-suite reconfiguration --jinja-templates-path
+        ${CMAKE_SOURCE_DIR}/samples/templates
+    )
+
+    if(LONG_TESTS)
+      add_e2e_test(
+        NAME regression_test_suite
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+        LABEL suite
+        ADDITIONAL_ARGS --test-duration 300 --test-suite regression_5236
+      )
+    endif()
+
+    add_e2e_test(
+      NAME full_test_suite
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/e2e_suite.py
+      LABEL suite
+      ADDITIONAL_ARGS
+        --ledger-recovery-timeout
+        20
+        --test-duration
+        300
+        --test-suite
+        all
+        --jinja-templates-path
+        ${CMAKE_SOURCE_DIR}/samples/templates
+    )
 
   add_e2e_test(
     NAME committable_suffix_test
@@ -1105,14 +1097,13 @@ if(BUILD_TESTS)
       ${CCF_DIR}/samples/constitutions/default/apply.js
   )
 
-  add_e2e_test(
-    NAME governance_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
-    CONSTITUTION ${CONSTITUTION_ARGS}
-    ADDITIONAL_ARGS
-      --oe-binary ${OE_BINDIR} --initial-operator-count 1
-      --jinja-templates-path ${CMAKE_SOURCE_DIR}/samples/templates
-  )
+    add_e2e_test(
+      NAME governance_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/governance.py
+      CONSTITUTION ${CONSTITUTION_ARGS}
+      ADDITIONAL_ARGS --initial-operator-count 1 --jinja-templates-path
+                      ${CMAKE_SOURCE_DIR}/samples/templates
+    )
 
   add_e2e_test(
     NAME jwt_test
@@ -1120,29 +1111,33 @@ if(BUILD_TESTS)
     LABEL snp_flaky
   )
 
-  add_e2e_test(
-    NAME code_update_test
-    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
-    ADDITIONAL_ARGS --oe-binary ${OE_BINDIR} --js-app-bundle
-                    ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
-  )
+    add_e2e_test(
+      NAME code_update_test
+      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/code_update.py
+      ADDITIONAL_ARGS
+        --js-app-bundle
+        ${CMAKE_SOURCE_DIR}/samples/apps/logging/js
+        --constitution
+        ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
+    )
 
   if(BUILD_TPCC)
     include(${CMAKE_CURRENT_SOURCE_DIR}/src/apps/tpcc/tpcc.cmake)
   endif()
 
-  if(CLIENT_PROTOCOLS_TEST)
-    add_custom_command(
-      OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
-      COMMAND
-        rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
-        --branch v3.0.7 --single-branch https://github.com/drwetter/testssl.sh
-        ${CMAKE_CURRENT_BINARY_DIR}/testssl
-    )
-    add_custom_target(
-      testssl ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
-    )
-  endif()
+    if(CLIENT_PROTOCOLS_TEST)
+      add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
+        COMMAND
+          rm -rf ${CMAKE_CURRENT_BINARY_DIR}/testssl && git clone --depth 1
+          --branch v3.2rc4 --single-branch -c advice.detachedHead=false
+          https://github.com/drwetter/testssl.sh
+          ${CMAKE_CURRENT_BINARY_DIR}/testssl
+      )
+      add_custom_target(
+        testssl ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/testssl/testssl.sh
+      )
+    endif()
 
   add_e2e_test(
     NAME e2e_logging_cft
@@ -1255,26 +1250,32 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
   )
 
-  list(APPEND LTS_TEST_ARGS --oe-binary ${OE_BINDIR} --ccf-version
-       ${CCF_VERSION}
-  )
-  if(LONG_TESTS)
-    list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
-  endif()
+    list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})
+    if(LONG_TESTS)
+      list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
+    endif()
 
-  if(NOT SAN)
-    add_e2e_test(
-      NAME lts_compatibility
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
-      LABEL e2e
-      ADDITIONAL_ARGS ${LTS_TEST_ARGS}
-    )
-    set_property(
-      TEST lts_compatibility
-      APPEND
-      PROPERTY ENVIRONMENT "LTS_COMPAT_GOV_CLIENT=1"
-    )
-  endif()
+    if(NOT SAN)
+      add_e2e_test(
+        NAME lts_compatibility
+        PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+        LABEL e2e
+        ADDITIONAL_ARGS
+          ${LTS_TEST_ARGS}
+          --constitution
+          ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
+      )
+      set_property(
+        TEST lts_compatibility
+        APPEND
+        PROPERTY ENVIRONMENT "LTS_COMPAT_GOV_CLIENT=1"
+      )
+      set_property(
+        TEST lts_compatibility
+        APPEND
+        PROPERTY LABELS lts_compatibility
+      )
+    endif()
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)

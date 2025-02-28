@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
-import os
 import tempfile
 import json
 import time
@@ -280,34 +279,6 @@ def test_jwt_without_key_policy(network, args):
         assert stored_key == issuer.key_pub_pem, "input key is not equal to stored key"
 
     return network
-
-
-def make_attested_cert(network, args):
-    keygen = os.path.join(args.binary_dir, "keygenerator.sh")
-    oeutil = os.path.join(args.oe_binary, "oeutil")
-    infra.proc.ccall(
-        keygen, "--name", "attested", "--gen-enc-key", path=network.common_dir
-    ).check_returncode()
-    privk = os.path.join(network.common_dir, "attested_enc_privk.pem")
-    pubk = os.path.join(network.common_dir, "attested_enc_pubk.pem")
-    der = os.path.join(network.common_dir, "oe_cert.der")
-    infra.proc.ccall(
-        oeutil,
-        "generate-evidence",
-        "-f",
-        "cert",
-        privk,
-        pubk,
-        "-o",
-        der,
-        # To ensure in-process attestation is always used, clear the env to unset the SGX_AESM_ADDR variable
-        env={},
-    ).check_returncode()
-    pem = os.path.join(network.common_dir, "oe_cert.pem")
-    infra.proc.ccall(
-        "openssl", "x509", "-inform", "der", "-in", der, "-out", pem
-    ).check_returncode()
-    return pem
 
 
 def check_kv_jwt_key_matches(args, network, kid, key_pem):
@@ -601,13 +572,43 @@ YSEY1QSteDwsOoBrp+uvFRTp2InBuThs4pFsiv9kuXclVzDAGySj4dzp30d8tbQk
 CAUw7C29C79Fv1C5qfPrmAESrciIxpg0X40KPMbp1ZWVbd4=
 -----END CERTIFICATE-----"""
 
+DIGICERT_GLOBAL_ROOT_G2_CA = """-----BEGIN CERTIFICATE-----
+MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh
+MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
+d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH
+MjAeFw0xMzA4MDExMjAwMDBaFw0zODAxMTUxMjAwMDBaMGExCzAJBgNVBAYTAlVT
+MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j
+b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IEcyMIIBIjANBgkqhkiG
+9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuzfNNNx7a8myaJCtSnX/RrohCgiN9RlUyfuI
+2/Ou8jqJkTx65qsGGmvPrC3oXgkkRLpimn7Wo6h+4FR1IAWsULecYxpsMNzaHxmx
+1x7e/dfgy5SDN67sH0NO3Xss0r0upS/kqbitOtSZpLYl6ZtrAGCSYP9PIUkY92eQ
+q2EGnI/yuum06ZIya7XzV+hdG82MHauVBJVJ8zUtluNJbd134/tJS7SsVQepj5Wz
+tCO7TG1F8PapspUwtP1MVYwnSlcUfIKdzXOS0xZKBgyMUNGPHgm+F6HmIcr9g+UQ
+vIOlCsRnKPZzFBQ9RnbDhxSJITRNrw9FDKZJobq7nMWxM4MphQIDAQABo0IwQDAP
+BgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBhjAdBgNVHQ4EFgQUTiJUIBiV
+5uNu5g/6+rkS7QYXjzkwDQYJKoZIhvcNAQELBQADggEBAGBnKJRvDkhj6zHd6mcY
+1Yl9PMWLSn/pvtsrF9+wX3N3KjITOYFnQoQj8kVnNeyIv/iPsGEMNKSuIEyExtv4
+NeF22d+mQrvHRAiGfzZ0JFrabA0UWTW98kndth/Jsw1HKj2ZL7tcu7XUIOGZX1NG
+Fdtom/DzMNU+MeKNhJ7jitralj41E6Vf8PlwUHBHQRFXGU7Aj64GxJUTFy8bJZ91
+8rGOmaFvE7FBcf6IKshPECBV1/MUReXgRPTqh5Uykw7+U0b6LJ3/iyK5S9kJRaTe
+pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl
+MrY=
+-----END CERTIFICATE-----"""
 
-def test_jwt_key_refresh_aad(network, args):
+
+def test_jwt_key_refresh_aad(network, args, ascending=True):
     primary, _ = network.find_nodes()
 
     LOG.info("Add CA cert for Entra JWT issuer")
     with tempfile.NamedTemporaryFile(prefix="ccf", mode="w+") as ca_cert_bundle_fp:
-        ca_cert_bundle_fp.write(DIGICERT_GLOBAL_ROOT_CA)
+        if ascending:
+            ca_cert_bundle_fp.write(DIGICERT_GLOBAL_ROOT_CA)
+            ca_cert_bundle_fp.write("\n")
+            ca_cert_bundle_fp.write(DIGICERT_GLOBAL_ROOT_G2_CA)
+        else:
+            ca_cert_bundle_fp.write(DIGICERT_GLOBAL_ROOT_G2_CA)
+            ca_cert_bundle_fp.write("\n")
+            ca_cert_bundle_fp.write(DIGICERT_GLOBAL_ROOT_CA)
         ca_cert_bundle_fp.flush()
         network.consortium.set_ca_cert_bundle(primary, "aad", ca_cert_bundle_fp.name)
 
@@ -658,8 +659,9 @@ def run_auto(args):
         primary.stop()
         network.wait_for_new_primary(primary)
         test_jwt_key_auto_refresh(network, args)
-        # Check that we can refresh keys for AAD endpoint
-        test_jwt_key_refresh_aad(network, args)
+        # Check that we can refresh keys for Entra endpoint
+        test_jwt_key_refresh_aad(network, args, ascending=True)
+        test_jwt_key_refresh_aad(network, args, ascending=False)
         test_jwt_key_auto_refresh_entries(network, args)
 
 

@@ -4,7 +4,6 @@
 #include "../pal/pal.h"
 
 #include <atomic>
-#include <functional>
 
 namespace snmalloc
 {
@@ -93,7 +92,9 @@ namespace snmalloc
     {}
 
     void set_owner() {}
+
     void clear_owner() {}
+
     void assert_not_owned_by_current_thread() {}
   };
 
@@ -133,4 +134,11 @@ namespace snmalloc
       lock.flag.store(false, std::memory_order_release);
     }
   };
+
+  template<typename F>
+  inline void with(FlagWord& lock, F&& f)
+  {
+    FlagLock l(lock);
+    f();
+  }
 } // namespace snmalloc

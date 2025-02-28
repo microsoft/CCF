@@ -5,7 +5,6 @@ from contextlib import contextmanager, closing
 from enum import Enum, auto
 import infra.crypto
 import infra.remote
-import infra.docker_remote
 from datetime import datetime, timedelta, timezone
 import infra.net
 import infra.path
@@ -119,7 +118,6 @@ class Node:
         node_port=0,
         version=None,
         node_data_json_file=None,
-        nodes_in_container=False,
     ):
         self.local_node_id = local_node_id
         self.binary_dir = binary_dir
@@ -147,8 +145,6 @@ class Node:
         self.label = None
         self.verify_ca_by_default = True
 
-        requires_docker_remote = nodes_in_container or os.getenv("CONTAINER_NODES")
-
         if isinstance(self.host, str):
             raise ValueError("Translate host to HostSpec before you get here")
 
@@ -156,23 +152,13 @@ class Node:
             # Main RPC interface determines remote implementation
             if interface_name == infra.interfaces.PRIMARY_RPC_INTERFACE:
                 if rpc_interface.protocol == "local":
-                    self.remote_impl = (
-                        infra.docker_remote.DockerRemote
-                        if requires_docker_remote
-                        else infra.remote.LocalRemote
-                    )
-                    # Node client address does not currently work with DockerRemote
-                    if not requires_docker_remote:
-                        if not self.major_version or self.major_version > 1:
-                            self.node_client_host = str(
-                                ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
-                                + self.local_node_id
-                            )
-                elif rpc_interface.protocol == "ssh":
-                    if requires_docker_remote:
-                        raise ValueError(
-                            "Cannot use SSH remote with containerised nodes"
+                    self.remote_impl = infra.remote.LocalRemote
+                    if not self.major_version or self.major_version > 1:
+                        self.node_client_host = str(
+                            ipaddress.ip_address(BASE_NODE_CLIENT_HOST)
+                            + self.local_node_id
                         )
+                elif rpc_interface.protocol == "ssh":
                     self.remote_impl = infra.remote.SSHRemote
                 else:
                     assert (
@@ -298,6 +284,7 @@ class Node:
         self.common_dir = common_dir
         members_info = members_info or []
         self.label = label
+        self.enclave_platform = enclave_platform
 
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(

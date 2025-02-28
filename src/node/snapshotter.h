@@ -320,8 +320,6 @@ namespace ccf
         return false;
       }
 
-      ccf::pal::speculation_barrier();
-
       std::copy(
         pending_snapshot.serialised_snapshot.begin(),
         pending_snapshot.serialised_snapshot.end(),

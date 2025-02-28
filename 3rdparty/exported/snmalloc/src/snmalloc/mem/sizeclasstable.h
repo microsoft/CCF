@@ -24,7 +24,7 @@ namespace snmalloc
     // For example, 24 byte allocations can be
     // problematic for some data due to alignment issues.
     auto sc = static_cast<smallsizeclass_t>(
-      bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size));
+      bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(size));
 
     SNMALLOC_ASSERT(sc == static_cast<uint8_t>(sc));
 
@@ -165,10 +165,12 @@ namespace snmalloc
     uint16_t waking;
   };
 
+  static_assert(sizeof(sizeclass_data_slow::capacity) * 8 > MAX_CAPACITY_BITS);
+
   struct SizeClassTable
   {
-    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_fast> fast_;
-    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_slow> slow_;
+    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_fast> fast_{};
+    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_slow> slow_{};
 
     size_t DIV_MULT_SHIFT{0};
 
@@ -203,7 +205,7 @@ namespace snmalloc
       return slow_[index.raw()];
     }
 
-    constexpr SizeClassTable() : fast_(), slow_(), DIV_MULT_SHIFT()
+    constexpr SizeClassTable()
     {
       size_t max_capacity = 0;
 
@@ -214,12 +216,13 @@ namespace snmalloc
         auto& meta = fast_small(sizeclass);
 
         size_t rsize =
-          bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
+          bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(
+            sizeclass);
         meta.size = rsize;
         size_t slab_bits = bits::max(
           bits::next_pow2_bits_const(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
 
-        meta.slab_mask = bits::one_at_bit(slab_bits) - 1;
+        meta.slab_mask = bits::mask_bits(slab_bits);
 
         auto& meta_slow = slow(sizeclass_t::from_small_class(sizeclass));
         meta_slow.capacity =
@@ -244,8 +247,7 @@ namespace snmalloc
       {
         // Calculate reciprocal division constant.
         auto& meta = fast_small(sizeclass);
-        meta.div_mult =
-          ((bits::one_at_bit(DIV_MULT_SHIFT) - 1) / meta.size) + 1;
+        meta.div_mult = (bits::mask_bits(DIV_MULT_SHIFT) / meta.size) + 1;
 
         size_t zero = 0;
         meta.mod_zero_mult = (~zero / meta.size) + 1;
@@ -268,6 +270,9 @@ namespace snmalloc
   };
 
   constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
+
+  static_assert(
+    bits::BITS - sizeclass_metadata.DIV_MULT_SHIFT <= MAX_CAPACITY_BITS);
 
   constexpr size_t DIV_MULT_SHIFT = sizeclass_metadata.DIV_MULT_SHIFT;
 
@@ -332,14 +337,11 @@ namespace snmalloc
       .capacity;
   }
 
-  constexpr address_t start_of_object(sizeclass_t sc, address_t addr)
+  SNMALLOC_FAST_PATH constexpr size_t slab_index(sizeclass_t sc, address_t addr)
   {
     auto meta = sizeclass_metadata.fast(sc);
-    address_t slab_start = addr & ~meta.slab_mask;
     size_t offset = addr & meta.slab_mask;
-    size_t size = meta.size;
-
-    if constexpr (sizeof(addr) >= 8)
+    if constexpr (sizeof(offset) >= 8)
     {
       // Only works for 64 bit multiplication, as the following will overflow in
       // 32bit.
@@ -350,15 +352,25 @@ namespace snmalloc
       // the slab_mask by making the `div_mult` zero. The link uses 128 bit
       // multiplication, we have shrunk the range of the calculation to remove
       // this dependency.
-      size_t offset_start = ((offset * meta.div_mult) >> DIV_MULT_SHIFT) * size;
-      return slab_start + offset_start;
+      size_t index = ((offset * meta.div_mult) >> DIV_MULT_SHIFT);
+      return index;
     }
     else
     {
+      size_t size = meta.size;
       if (size == 0)
         return 0;
-      return slab_start + (offset / size) * size;
+      return offset / size;
     }
+  }
+
+  SNMALLOC_FAST_PATH constexpr address_t
+  start_of_object(sizeclass_t sc, address_t addr)
+  {
+    auto meta = sizeclass_metadata.fast(sc);
+    address_t slab_start = addr & ~meta.slab_mask;
+    size_t index = slab_index(sc, addr);
+    return slab_start + (index * meta.size);
   }
 
   constexpr size_t index_in_object(sizeclass_t sc, address_t addr)
@@ -405,7 +417,7 @@ namespace snmalloc
   {
     // We subtract and shift to reduce the size of the table, i.e. we don't have
     // to store a value for every size.
-    return (s - 1) >> MIN_ALLOC_BITS;
+    return (s - 1) >> MIN_ALLOC_STEP_BITS;
   }
 
   constexpr size_t sizeclass_lookup_size =
@@ -421,13 +433,29 @@ namespace snmalloc
 
     constexpr SizeClassLookup()
     {
+      constexpr sizeclass_compress_t minimum_class =
+        static_cast<sizeclass_compress_t>(
+          size_to_sizeclass_const(MIN_ALLOC_SIZE));
+
+      /* Some unused sizeclasses is OK, but keep it within reason! */
+      static_assert(minimum_class < sizeclass_lookup_size);
+
       size_t curr = 1;
-      for (sizeclass_compress_t sizeclass = 0;
-           sizeclass < NUM_SMALL_SIZECLASSES;
-           sizeclass++)
+
+      sizeclass_compress_t sizeclass = 0;
+      for (; sizeclass < minimum_class; sizeclass++)
       {
         for (; curr <= sizeclass_metadata.fast_small(sizeclass).size;
-             curr += 1 << MIN_ALLOC_BITS)
+             curr += MIN_ALLOC_STEP_SIZE)
+        {
+          table[sizeclass_lookup_index(curr)] = minimum_class;
+        }
+      }
+
+      for (; sizeclass < NUM_SMALL_SIZECLASSES; sizeclass++)
+      {
+        for (; curr <= sizeclass_metadata.fast_small(sizeclass).size;
+             curr += MIN_ALLOC_STEP_SIZE)
         {
           auto i = sizeclass_lookup_index(curr);
           if (i == sizeclass_lookup_size)
@@ -478,6 +506,12 @@ namespace snmalloc
   {
     if (size > sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1))
     {
+      if (size > bits::one_at_bit(bits::BITS - 1))
+      {
+        // This size is too large, no rounding should occur as will result in a
+        // failed allocation later.
+        return size;
+      }
       return bits::next_pow2(size);
     }
     // If realloc(ptr, 0) returns nullptr, some consumers treat this as a

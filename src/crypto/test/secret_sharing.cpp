@@ -172,7 +172,9 @@ TEST_CASE("Serialisation")
   share.y[7] = 6;
   share.y[8] = 7;
   share.y[9] = 56;
-  Share new_share(share.serialise());
+  std::vector<uint8_t> serialised(share.serialised_size);
+  share.serialise(serialised);
+  Share new_share(serialised);
 
   INFO(share.to_str());
   INFO(new_share.to_str());
