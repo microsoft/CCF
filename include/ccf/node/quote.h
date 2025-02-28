@@ -47,4 +47,7 @@ namespace ccf
       const std::vector<uint8_t>& expected_node_public_key_der,
       pal::PlatformAttestationMeasurement& measurement);
   };
+  QuoteVerificationResult verify_tcb_version_against_store(
+    ccf::kv::ReadOnlyTx& tx, const QuoteInfo& quote_info);
+
 }

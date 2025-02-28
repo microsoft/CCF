@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/ds/logger.h"
 #include "ccf/pal/attestation_sev_snp.h"
 
 #include <algorithm>
