@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - `ccf.ledger`/`read_ledger.py` previously enforced too strict a condition on node membership when validating ledger files (#6849).
-- Restore low CPU usage on idle nodes, which had increased in dev20.
+- Restore low CPU usage on idle nodes, which had increased in dev20 (#6816).
 
 ## [6.0.0-dev20]
 
