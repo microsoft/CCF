@@ -836,7 +836,11 @@ namespace ccf
          .extended_family = 0x0A,
          .reserved2 = 0});
       constexpr pal::snp::TcbVersion milan_tcb_version = {
-        .boot_loader = 0, .tee = 0, .reserved={0}, .snp = 0x18, .microcode = 0xDB};
+        .boot_loader = 0,
+        .tee = 0,
+        .reserved = {0},
+        .snp = 0x18,
+        .microcode = 0xDB};
       h->put(milan_chip_id, milan_tcb_version);
 
       constexpr auto milan_x_chip_id = pal::snp::get_attest_chip_model(
@@ -848,7 +852,11 @@ namespace ccf
          .extended_family = 0x0A,
          .reserved2 = 0});
       constexpr pal::snp::TcbVersion milan_x_tcb_version = {
-        .boot_loader = 0, .tee = 0, .reserved={0}, .snp = 0x18, .microcode = 0x44};
+        .boot_loader = 0,
+        .tee = 0,
+        .reserved = {0},
+        .snp = 0x18,
+        .microcode = 0x44};
       h->put(milan_x_chip_id, milan_x_tcb_version);
 
       constexpr auto genoa_chip_id = pal::snp::get_attest_chip_model(
@@ -860,7 +868,11 @@ namespace ccf
          .extended_family = 0x0A,
          .reserved2 = 0});
       constexpr pal::snp::TcbVersion genoa_tcb_version = {
-        .boot_loader = 0, .tee = 0, .reserved={0}, .snp = 0x17, .microcode = 0x54};
+        .boot_loader = 0,
+        .tee = 0,
+        .reserved = {0},
+        .snp = 0x17,
+        .microcode = 0x54};
       h->put(genoa_chip_id, genoa_tcb_version);
 
       constexpr auto genoa_x_chip_id = pal::snp::get_attest_chip_model(
@@ -872,7 +884,11 @@ namespace ccf
          .extended_family = 0x0A,
          .reserved2 = 0});
       constexpr pal::snp::TcbVersion genoa_x_tcb_version = {
-        .boot_loader = 0, .tee = 0, .reserved={0}, .snp = 0x17, .microcode = 0x4F};
+        .boot_loader = 0,
+        .tee = 0,
+        .reserved = {0},
+        .snp = 0x17,
+        .microcode = 0x4F};
       h->put(genoa_x_chip_id, genoa_x_tcb_version);
     }
 
