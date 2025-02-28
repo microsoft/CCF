@@ -1,14 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/ds/quote_info.h"
+#include "ccf/node/quote.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/snp_ioctl.h"
 #include "ccf/service/tables/tcb_verification.h"
-#include "ccf/node/quote.h"
 #include "kv/store.h"
 #include "kv/test/null_encryptor.h"
 #include "pal/quote_generation.h"
-#include "ccf/ds/quote_info.h"
 
 #include <random>
 #include <span>
