@@ -9,33 +9,11 @@
 #include <dlfcn.h>
 #include <filesystem>
 
-#ifdef PLATFORM_SGX
-#  include <ccf_u.h>
-#  include <openenclave/bits/result.h>
-#  include <openenclave/host.h>
-#  include <openenclave/trace.h>
-#endif
-
 #if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
 // Include order matters. virtual_enclave.h uses the OE definitions if
 // available, else creates its own stubs
 #  include "enclave/virtual_enclave.h"
 #endif
-
-extern "C"
-{
-#ifdef PLATFORM_SGX
-  void nop_oe_logger(
-    void* context,
-    bool is_enclave,
-    const struct tm* t,
-    long int usecs,
-    oe_log_level_t level,
-    uint64_t host_thread_id,
-    const char* message)
-  {}
-#endif
-}
 
 namespace host
 {
@@ -88,9 +66,6 @@ namespace host
   class Enclave
   {
   private:
-#ifdef PLATFORM_SGX
-    oe_enclave_t* sgx_handle = nullptr;
-#endif
 #if defined(PLATFORM_VIRTUAL) || defined(PLATFORM_SNP)
     void* virtual_handle = nullptr;
 #endif
@@ -100,7 +75,6 @@ namespace host
      * Create an uninitialized enclave hosting the given library.
      *
      * @param path Path to signed enclave library file
-     * @param type Type of enclave to load
      * @param platform Trusted Execution Platform of enclave, influencing what
      * flags should be passed to OE, or whether to dlload a virtual enclave
      */
@@ -114,42 +88,6 @@ namespace host
 
       switch (platform)
       {
-        case host::EnclavePlatform::SGX:
-        {
-#ifdef PLATFORM_SGX
-          uint32_t oe_flags = 0;
-          if (type == host::EnclaveType::DEBUG)
-          {
-            expect_enclave_file_suffix(path, ".enclave.so.debuggable", type);
-            oe_flags |= OE_ENCLAVE_FLAG_DEBUG;
-          }
-          else
-          {
-            expect_enclave_file_suffix(path, ".enclave.so.signed", type);
-          }
-
-          auto err = oe_create_ccf_enclave(
-            path.c_str(),
-            OE_ENCLAVE_TYPE_SGX,
-            oe_flags,
-            nullptr,
-            0,
-            &sgx_handle);
-
-          if (err != OE_OK)
-          {
-            throw std::logic_error(
-              fmt::format("Could not create enclave: {}", oe_result_str(err)));
-          }
-#else
-          throw std::logic_error(fmt::format(
-            "SGX enclaves are not supported in current build - cannot launch "
-            "{}",
-            path));
-#endif // defined(PLATFORM_SGX)
-          break;
-        }
-
         case host::EnclavePlatform::SNP:
         {
 #if defined(PLATFORM_SNP)
@@ -188,19 +126,6 @@ namespace host
 
     ~Enclave()
     {
-#ifdef PLATFORM_SGX
-      if (sgx_handle != nullptr)
-      {
-        auto err = oe_terminate_enclave(sgx_handle);
-
-        if (err != OE_OK)
-        {
-          LOG_FAIL_FMT(
-            "Error while terminating enclave: {}", oe_result_str(err));
-        }
-      }
-#endif
-
 #if defined(PLATFORM_SNP) || defined(PLATFORM_VIRTUAL)
       if (virtual_handle != nullptr)
       {
@@ -251,12 +176,6 @@ namespace host
         err = virtual_create_node(virtual_handle, CREATE_NODE_ARGS);
       }
 #endif
-#ifdef PLATFORM_SGX
-      if (sgx_handle != nullptr)
-      {
-        err = enclave_create_node(sgx_handle, CREATE_NODE_ARGS);
-      }
-#endif
 
       if (err != OE_OK || status != CreateNodeStatus::OK)
       {
@@ -296,12 +215,6 @@ namespace host
       if (virtual_handle != nullptr)
       {
         err = virtual_run(virtual_handle, &ret);
-      }
-#endif
-#ifdef PLATFORM_SGX
-      if (sgx_handle != nullptr)
-      {
-        err = enclave_run(sgx_handle, &ret);
       }
 #endif
 
