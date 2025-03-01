@@ -229,7 +229,6 @@ if __name__ == "__main__":
         )
         parser.add_argument(
             "--redirection-kind",
-            default="node-by-role",
             choices=["node-by-role", "static-address"],
             help="The redirection kind to use in lieu of forwarding. Either node-by-role or static-address",
         )
