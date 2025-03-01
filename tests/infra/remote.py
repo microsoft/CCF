@@ -336,6 +336,7 @@ class CCFRemote(object):
         ignore_first_sigterm=False,
         node_container_image=None,
         follow_redirect=True,
+        fetch_recent_snapshot=True,
         max_uncommitted_tx_count=0,
         snp_security_policy_file=None,
         snp_uvm_endorsements_file=None,
@@ -351,32 +352,28 @@ class CCFRemote(object):
 
         snp_security_context_directory_envvar = None
 
-        if "env" in kwargs:
-            env = kwargs["env"]
-        else:
-            env = {}
-            if enclave_platform == "virtual":
-                env["UBSAN_OPTIONS"] = "print_stacktrace=1"
-                ubsan_opts = kwargs.get("ubsan_options")
-                if ubsan_opts:
-                    env["UBSAN_OPTIONS"] += ":" + ubsan_opts
-                env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
-                # https://github.com/microsoft/CCF/issues/5198
-                env["ASAN_OPTIONS"] = os.environ.get(
-                    "ASAN_OPTIONS", "alloc_dealloc_mismatch=0"
+        env = kwargs.get("env", {})
+        if enclave_platform == "snp":
+            env.update(snp.get_aci_env())
+
+        if enclave_platform == "virtual":
+            env["UBSAN_OPTIONS"] = "print_stacktrace=1"
+            ubsan_opts = kwargs.get("ubsan_options")
+            if ubsan_opts:
+                env["UBSAN_OPTIONS"] += ":" + ubsan_opts
+            env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
+            env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "")
+        elif enclave_platform == "snp":
+            snp_security_context_directory_envvar = (
+                snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
+                if set_snp_uvm_security_context_dir_envvar
+                and snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR in env
+                else None
+            )
+            if snp_uvm_security_context_dir is not None:
+                env[snp_security_context_directory_envvar] = (
+                    snp_uvm_security_context_dir
                 )
-            elif enclave_platform == "snp":
-                env = snp.get_aci_env()
-                snp_security_context_directory_envvar = (
-                    snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
-                    if set_snp_uvm_security_context_dir_envvar
-                    and snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR in env
-                    else None
-                )
-                if snp_uvm_security_context_dir is not None:
-                    env[snp_security_context_directory_envvar] = (
-                        snp_uvm_security_context_dir
-                    )
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
         if oe_log_level:
@@ -437,6 +434,9 @@ class CCFRemote(object):
 
         # Constitution
         constitution = [os.path.basename(f) for f in constitution]
+        assert len(set(constitution)) == len(
+            constitution
+        ), f"Constitution contains files with duplicate names, which is not going to do what you want. Recommend renaming one of them, or improving this infra to copy them to unique names. {constitution=}"
 
         # ACME
         if "acme" in kwargs and host.acme_challenge_server_interface:
@@ -533,6 +533,7 @@ class CCFRemote(object):
                 ignore_first_sigterm=ignore_first_sigterm,
                 node_address=remote_class.get_node_address(node_address),
                 follow_redirect=follow_redirect,
+                fetch_recent_snapshot=fetch_recent_snapshot,
                 max_uncommitted_tx_count=max_uncommitted_tx_count,
                 snp_security_policy_file=snp_security_policy_file,
                 snp_uvm_endorsements_file=snp_uvm_endorsements_file,

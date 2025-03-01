@@ -26,13 +26,6 @@ function(add_unit_test name)
              "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
 
-  # https://github.com/microsoft/CCF/issues/5198
-  set_property(
-    TEST ${name}
-    APPEND
-    PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
-  )
-
 endfunction()
 
 # Test binary wrapper

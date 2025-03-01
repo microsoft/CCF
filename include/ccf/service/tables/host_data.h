@@ -12,8 +12,11 @@ using HostDataMetadata =
 namespace ccf
 {
   using SnpHostDataMap = ServiceMap<HostData, HostDataMetadata>;
+  using VirtualHostDataMap = ServiceSet<HostData>;
   namespace Tables
   {
     static constexpr auto HOST_DATA = "public:ccf.gov.nodes.snp.host_data";
+    static constexpr auto VIRTUAL_HOST_DATA =
+      "public:ccf.gov.nodes.virtual.host_data";
   }
 }

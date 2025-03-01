@@ -126,6 +126,19 @@ def range_from_filename(filename: str) -> Tuple[int, Optional[int]]:
         raise ValueError(f"Could not read seqno range from ledger file {filename}")
 
 
+def snapshot_index_from_filename(filename: str) -> Tuple[int, int]:
+    elements = (
+        os.path.basename(filename)
+        .replace(COMMITTED_FILE_SUFFIX, "")
+        .replace("snapshot_", "")
+        .split("_")
+    )
+    if len(elements) == 2:
+        return (int(elements[0]), int(elements[1]))
+    else:
+        raise ValueError(f"Could not read snapshot index from file name {filename}")
+
+
 class GcmHeader:
     view: int
     seqno: int
@@ -533,14 +546,17 @@ class LedgerValidator:
     @staticmethod
     def _verify_node_status(tx_info: TxBundleInfo):
         """Verify item 1, The merkle root is signed by a valid node in the given network"""
-        # Note: A retired primary will still issue signature transactions until
-        # its retirement is committed
+        if tx_info.signing_node not in tx_info.node_activity:
+            raise UntrustedNodeException(
+                f"The signing node {tx_info.signing_node} is not part of the network"
+            )
         node_info = tx_info.node_activity[tx_info.signing_node]
         node_status = NodeStatus(node_info[0])
-        if node_status not in (
-            NodeStatus.TRUSTED,
-            NodeStatus.RETIRED,
-        ) or (node_status == NodeStatus.RETIRED and node_info[2]):
+        # Note: Even nodes that are Retired, and for which retired_committed is True
+        # may be issuing signatures, to ensure the liveness of a reconfiguring
+        # network. They will stop doing so once the transaction that sets retired_committed is itself committed,
+        # but that is unfortunately not observable from the ledger alone.
+        if node_status == NodeStatus.PENDING:
             raise UntrustedNodeException(
                 f"The signing node {tx_info.signing_node} has unexpected status {node_status.value}"
             )
@@ -849,6 +865,17 @@ class Snapshot(Entry):
 
     def get_len(self) -> int:
         return self._file_size
+
+
+def latest_snapshot(snapshots_dir):
+    best_name, best_seqno = None, None
+    for s in os.listdir(snapshots_dir):
+        with ccf.ledger.Snapshot(os.path.join(snapshots_dir, s)) as snapshot:
+            snapshot_seqno = snapshot.get_public_domain().get_seqno()
+            if best_seqno is None or snapshot_seqno > best_seqno:
+                best_name = s
+                best_seqno = snapshot_seqno
+    return best_name
 
 
 class LedgerChunk:

@@ -10,6 +10,7 @@
 #include "ccf/pal/mem.h"
 #include "crypto/openssl/hash.h"
 #include "ds/oversized.h"
+#include "ds/work_beacon.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
@@ -47,6 +48,7 @@ namespace ccf
     std::unique_ptr<ringbuffer::Circuit> circuit;
     std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory;
     std::unique_ptr<oversized::WriterFactory> writer_factory;
+    ccf::ds::WorkBeaconPtr work_beacon;
     RingbufferLogger* ringbuffer_logger = nullptr;
     ccf::NetworkState network;
     std::shared_ptr<RPCMap> rpc_map;
@@ -89,10 +91,12 @@ namespace ccf
       size_t sig_tx_interval,
       size_t sig_ms_interval,
       const ccf::consensus::Configuration& consensus_config,
-      const ccf::crypto::CurveID& curve_id) :
+      const ccf::crypto::CurveID& curve_id,
+      const ccf::ds::WorkBeaconPtr& work_beacon_) :
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
+      work_beacon(work_beacon_),
       ringbuffer_logger(ringbuffer_logger_),
       network(),
       rpc_map(std::make_shared<RPCMap>()),
@@ -465,9 +469,13 @@ namespace ccf
         // processed in a single iteration
         static constexpr size_t max_messages = 256;
 
-        size_t consecutive_idles = 0u;
         while (!bp.get_finished())
         {
+          // Wait until the host indicates that some ringbuffer messages are
+          // available, but wake at least every 100ms to check thread messages
+          work_beacon->wait_for_work_with_timeout(
+            std::chrono::milliseconds(100));
+
           // First, read some messages from the ringbuffer
           auto read = bp.read_n(max_messages, circuit->read_from_outside());
 
@@ -483,31 +491,7 @@ namespace ccf
           // messages were executed, idle
           if (read == 0 && thread_msg == 0)
           {
-            const auto time_now = ccf::get_enclave_time();
-            static std::chrono::microseconds idling_start_time;
-
-            if (consecutive_idles == 0)
-            {
-              idling_start_time = time_now;
-            }
-
-            // Handle initial idles by pausing, eventually sleep (in host)
-            constexpr std::chrono::milliseconds timeout(5);
-            if ((time_now - idling_start_time) > timeout)
-            {
-              std::this_thread::sleep_for(timeout * 10);
-            }
-            else
-            {
-              CCF_PAUSE();
-            }
-
-            consecutive_idles++;
-          }
-          else
-          {
-            // If some messages were read, reset consecutive idles count
-            consecutive_idles = 0;
+            std::this_thread::yield();
           }
         }
 

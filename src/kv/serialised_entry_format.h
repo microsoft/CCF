@@ -17,20 +17,19 @@ namespace ccf::kv
     FORCE_LEDGER_CHUNK_BEFORE = 0x02
   };
 
-  // 6 bytes are used for the size of the serialised entry
-  static const size_t max_entry_size = 1UL << 48;
-
   struct SerialisedEntryHeader
   {
     uint8_t version = entry_format_v1;
     SerialisedEntryFlags flags = 0;
 
-    uint64_t size
-      : (sizeof(uint64_t) - sizeof(uint8_t) - sizeof(SerialisedEntryFlags)) *
-        CHAR_BIT;
+    static constexpr auto BITS_FOR_SIZE =
+      (sizeof(uint64_t) - sizeof(uint8_t) - sizeof(SerialisedEntryFlags)) *
+      CHAR_BIT;
+    uint64_t size : BITS_FOR_SIZE;
 
     void set_size(uint64_t size_)
     {
+      static constexpr size_t max_entry_size = 1UL << BITS_FOR_SIZE;
       CCF_ASSERT_FMT(
         size_ < max_entry_size,
         "Cannot serialise entry of size {} (max allowed size is {})",

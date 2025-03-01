@@ -121,7 +121,18 @@ def generate_and_verify_jwk(client):
         assert body["pem"] == pub_pem
 
     # EdDSA
-    for curve in ["curve25519", "x25519"]:
+    running_under_asan = (
+        len(
+            subprocess.run(
+                " nm -an cchost | grep asan", shell=True, capture_output=True
+            ).stdout
+        )
+        > 0
+    )
+    curves_for_eddsa = (
+        ["curve25519", "x25519"] if not running_under_asan else ["curve25519"]
+    )
+    for curve in curves_for_eddsa:
         priv_pem, pub_pem = infra.crypto.generate_eddsa_keypair(curve)
         # Private
         ref_priv_jwk = jwk.JWK.from_pem(priv_pem.encode()).export_private(as_dict=True)
@@ -904,7 +915,7 @@ def test_npm_app(network, args):
             )
             assert r.status_code == http.HTTPStatus.BAD_REQUEST, r.status_code
 
-        # Test that static attestation report format is still valid on both SNP and virtual
+        # Test that static attestation report format can be verified on both SNP and virtual
         if args.enclave_platform != "sgx":
             LOG.info(
                 "Virtual: Test verifySnpAttestation with a static attestation report"

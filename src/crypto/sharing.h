@@ -56,17 +56,20 @@ namespace ccf::crypto
         return k;
       }
 
-      std::vector<uint8_t> serialise() const
+      void serialise(std::vector<uint8_t>& serialised) const
       {
         auto size = serialised_size;
-        std::vector<uint8_t> serialised(size);
+        if (serialised.size() != size)
+        {
+          throw std::invalid_argument("Invalid serialised share size");
+        }
+
         auto data = serialised.data();
         serialized::write(data, size, x);
         for (size_t i = 0; i < LIMBS; ++i)
         {
           serialized::write(data, size, y[i]);
         }
-        return serialised;
       }
 
       Share(const std::span<uint8_t const>& serialised)

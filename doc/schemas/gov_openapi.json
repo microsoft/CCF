@@ -271,12 +271,6 @@
         },
         "type": "object"
       },
-      "JwtIssuerKeyFilter": {
-        "enum": [
-          "all"
-        ],
-        "type": "string"
-      },
       "JwtIssuerMetadata": {
         "properties": {
           "auto_refresh": {
@@ -284,9 +278,6 @@
           },
           "ca_cert_bundle_name": {
             "$ref": "#/components/schemas/string"
-          },
-          "key_filter": {
-            "$ref": "#/components/schemas/JwtIssuerKeyFilter"
           }
         },
         "type": "object"
@@ -343,6 +334,9 @@
         "properties": {
           "member_data": {
             "$ref": "#/components/schemas/json"
+          },
+          "recovery_role": {
+            "$ref": "#/components/schemas/MemberRecoveryRole"
           },
           "status": {
             "$ref": "#/components/schemas/MemberStatus"
@@ -411,6 +405,14 @@
           "$ref": "#/components/schemas/string"
         },
         "type": "object"
+      },
+      "MemberRecoveryRole": {
+        "enum": [
+          "NonParticipant",
+          "Participant",
+          "Owner"
+        ],
+        "type": "string"
       },
       "MemberStatus": {
         "enum": [
@@ -1240,6 +1242,12 @@
       "string": {
         "type": "string"
       },
+      "string_to_CodeStatus": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/CodeStatus"
+        },
+        "type": "object"
+      },
       "string_to_JwtIssuerMetadata": {
         "additionalProperties": {
           "$ref": "#/components/schemas/JwtIssuerMetadata"
@@ -1331,7 +1339,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.5.0"
+    "version": "4.6.1"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -2138,6 +2146,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/string_to_string_to_UVMEndorsementsData"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/virtual/host_data": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvNodesVirtualHostData",
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/virtual/measurements": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvNodesVirtualMeasurements",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_CodeStatus"
                 }
               }
             },
