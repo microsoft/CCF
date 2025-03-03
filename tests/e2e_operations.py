@@ -1011,7 +1011,7 @@ def run_initial_uvm_descriptor_checks(args):
         recovery_seqno = None
         with recovered_primary.client() as c:
             r = c.get("/node/state").body.json()
-            recovery_seqno = r["startup_seqno"]
+            recovery_seqno = r["startup_seqno"] - 1
         network.stop_all_nodes()
         ledger = ccf.ledger.Ledger(
             recovered_primary.remote.ledger_paths(), committed_only=False
