@@ -4,9 +4,12 @@
 #define NO_BOOTSTRAP_ALLOCATOR
 #define SNMALLOC_USE_WAIT_ON_ADDRESS 0
 
+#define SNMALLOC_CHECK_CLIENT
+
 #ifndef NDEBUG
 #  define NDEBUG
 #endif
 
 #include "snmalloc/src/snmalloc/override/malloc.cc"
 #include "snmalloc/src/snmalloc/override/new.cc"
+#include "snmalloc/src/snmalloc/override/memcpy.cc"
