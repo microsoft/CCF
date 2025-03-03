@@ -976,7 +976,7 @@ def run_initial_uvm_descriptor_checks(args):
 
         ledger_dirs = primary.remote.ledger_paths()
         ledger = ccf.ledger.Ledger(ledger_dirs)
-        first_chunk = next(ledger)
+        first_chunk = next(iter(ledger))
         first_tx = next(first_chunk)
         tables = first_tx.get_public_domain().get_tables()
         endorsements = tables["public:ccf.gov.nodes.snp.uvm_endorsements"]
