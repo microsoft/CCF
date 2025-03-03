@@ -6,8 +6,8 @@
 #  error Should only be included in cchost builds with virtual support
 #endif
 
+#include "ccf/service/consensus_type.h"
 #include "common/enclave_interface_types.h"
-#include "consensus_type.h"
 
 #include <dlfcn.h>
 #include <stdlib.h>
@@ -115,9 +115,10 @@ extern "C"
     size_t enclave_version_size,
     size_t* enclave_version_len,
     StartType start_type,
-    LoggerLevel enclave_log_level,
+    ccf::LoggerLevel enclave_log_level,
     size_t num_worker_thread,
-    void* time_location)
+    void* time_location,
+    const ccf::ds::WorkBeaconPtr& work_beacon)
   {
     using create_node_func_t = CreateNodeStatus (*)(
       void*,
@@ -135,9 +136,10 @@ extern "C"
       size_t,
       size_t*,
       StartType,
-      LoggerLevel,
+      ccf::LoggerLevel,
       size_t,
-      void*);
+      void*,
+      const ccf::ds::WorkBeaconPtr&);
 
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>(
@@ -161,7 +163,8 @@ extern "C"
       start_type,
       enclave_log_level,
       num_worker_thread,
-      time_location);
+      time_location,
+      work_beacon);
 
     // Only return OE_OK when the error isn't OE related
     switch (*status)

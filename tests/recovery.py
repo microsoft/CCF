@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
+import infra.member
 import infra.network
 import infra.node
 import infra.logging_app as app
@@ -16,7 +17,7 @@ from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
 import infra.health_watcher
 import time
-from e2e_logging import verify_receipt
+from e2e_logging import verify_receipt, test_cose_receipt_schema
 import infra.service_load
 import ccf.tx_id
 import tempfile
@@ -108,7 +109,9 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
 
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
-def test_recover_service(network, args, from_snapshot=True, no_ledger=False):
+def test_recover_service(
+    network, args, from_snapshot=True, no_ledger=False, via_recovery_owner=False
+):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
@@ -199,7 +202,7 @@ def test_recover_service(network, args, from_snapshot=True, no_ledger=False):
             r = c.get("/node/ready/app")
             assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value, r
 
-    recovered_network.recover(args)
+    recovered_network.recover(args, via_recovery_owner=via_recovery_owner)
 
     LOG.info("Check that new service view is as expected")
     new_primary, _ = recovered_network.find_primary()
@@ -220,6 +223,7 @@ def test_recover_service(network, args, from_snapshot=True, no_ledger=False):
 
 @reqs.description("Recover a service with wrong service identity")
 @reqs.recover(number_txs=2)
+@reqs.sufficient_network_recovery_count(required_count=1)
 def test_recover_service_with_wrong_identity(network, args):
     old_primary, _ = network.find_primary()
 
@@ -934,6 +938,8 @@ def run(args):
             ref_msg = get_and_verify_historical_receipt(network, ref_msg)
 
             LOG.success("Recovery complete on all nodes")
+            # Verify COSE receipt schema and issuer/subject have remained the same
+            test_cose_receipt_schema(network, args)
 
         primary, _ = network.find_primary()
         network.stop_all_nodes()
@@ -964,12 +970,12 @@ def run(args):
                     ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
     test_recover_service_from_files(
-        args, "expired_service", expected_recovery_count=1, test_receipt=True
+        args, "expired_service", expected_recovery_count=2, test_receipt=True
     )
-    # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> main.
+    # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
     # This is used to test recovery from SGX to SNP.
     test_recover_service_from_files(
-        args, "sgx_service", expected_recovery_count=3, test_receipt=False
+        args, "sgx_service", expected_recovery_count=4, test_receipt=False
     )
 
 
@@ -990,6 +996,67 @@ def run_recover_snapshot_alone(args):
         primary, _ = network.find_primary()
         # Recover node solely from snapshot
         test_recover_service(network, args, from_snapshot=True, no_ledger=True)
+        return network
+
+
+def run_recover_via_initial_recovery_owner(args):
+    """
+    Recover a service using the recovery owner added as part of service creation, without requiring any other recovery members to participate.
+    """
+    txs = app.LoggingTxs("user0")
+    args.initial_member_count = 4
+    args.initial_recovery_participant_count = 3
+    args.initial_recovery_owner_count = 1
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        # Recover service using recovery owner and participants
+        network = test_recover_service(
+            network, args, from_snapshot=True, via_recovery_owner=True
+        )
+        network = test_recover_service(network, args, from_snapshot=True)
+        return network
+
+
+def run_recover_via_added_recovery_owner(args):
+    """
+    Recover a service using the recovery owner added after opening the service, without requiring any other recovery members to participate.
+    """
+    txs = app.LoggingTxs("user0")
+    args.initial_recovery_participant_count = 2
+    args.initial_recovery_owner_count = 0
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
+
+        # Add a recovery owner after opening the network
+        recovery_owner = network.consortium.generate_and_add_new_member(
+            primary,
+            curve=args.participants_curve,
+            recovery_role=infra.member.RecoveryRole.Owner,
+        )
+        r = recovery_owner.ack(primary)
+        with primary.client() as nc:
+            nc.wait_for_commit(r)
+
+        # Recover service using recovery owner and participants
+        network = test_recover_service(
+            network, args, from_snapshot=True, via_recovery_owner=True
+        )
+        network = test_recover_service(network, args, from_snapshot=True)
         return network
 
 
@@ -1045,6 +1112,20 @@ checked. Note that the key for each logging message is unique (per table).
     cr.add(
         "recovery_snapshot_alone",
         run_recover_snapshot_alone,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_via_initial_recovery_owner",
+        run_recover_via_initial_recovery_owner,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_via_added_recovery_owner",
+        run_recover_via_added_recovery_owner,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
     )

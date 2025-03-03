@@ -29,7 +29,7 @@ namespace http
   }
 
   inline std::vector<uint8_t> error(
-    http_status status, const std::string& code, std::string&& msg)
+    ccf::http_status status, const std::string& code, std::string&& msg)
   {
     return error({status, code, std::move(msg)});
   }
@@ -56,7 +56,7 @@ namespace http
     ccf::http::HeaderMap response_headers;
     ccf::http::HeaderMap response_trailers;
     std::vector<uint8_t> response_body = {};
-    http_status response_status = HTTP_STATUS_OK;
+    ccf::http_status response_status = HTTP_STATUS_OK;
 
     bool serialised = false;
 
@@ -136,7 +136,7 @@ namespace http
       return response_body;
     }
 
-    http_status get_response_http_status() const
+    ccf::http_status get_response_http_status() const
     {
       return response_status;
     }
@@ -215,19 +215,36 @@ namespace http
       return responder;
     }
 
+    template <typename T>
+    void _set_response_body(T&& body)
+    {
+      // HEAD responses must not contain a body - clients will ignore it
+      if (verb != HTTP_HEAD)
+      {
+        if constexpr (std::is_same_v<T, std::string>)
+        {
+          response_body = std::vector<uint8_t>(body.begin(), body.end());
+        }
+        else
+        {
+          response_body = std::forward<T>(body);
+        }
+      }
+    }
+
     virtual void set_response_body(const std::vector<uint8_t>& body) override
     {
-      response_body = body;
+      _set_response_body(body);
     }
 
     virtual void set_response_body(std::vector<uint8_t>&& body) override
     {
-      response_body = std::move(body);
+      _set_response_body(std::move(body));
     }
 
     virtual void set_response_body(std::string&& body) override
     {
-      response_body = std::vector<uint8_t>(body.begin(), body.end());
+      _set_response_body(std::move(body));
     }
 
     virtual const std::vector<uint8_t>& get_response_body() const override
@@ -237,7 +254,7 @@ namespace http
 
     virtual void set_response_status(int status) override
     {
-      response_status = (http_status)status;
+      response_status = (ccf::http_status)status;
     }
 
     virtual int get_response_status() const override

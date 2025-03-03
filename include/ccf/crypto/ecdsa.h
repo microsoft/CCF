@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/curve.h"
 
+#include <span>
 #include <vector>
 
 namespace ccf::crypto
@@ -28,7 +29,7 @@ namespace ccf::crypto
    * @param signature The signature in IEEE P1363 encoding
    */
   std::vector<uint8_t> ecdsa_sig_p1363_to_der(
-    const std::vector<uint8_t>& signature);
+    std::span<const uint8_t> signature);
 
   std::vector<uint8_t> ecdsa_sig_der_to_p1363(
     const std::vector<uint8_t>& signature, CurveID curveId);

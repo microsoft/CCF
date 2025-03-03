@@ -7,6 +7,7 @@
 // CCF
 #include "ccf/app_interface.h"
 #include "ccf/common_auth_policies.h"
+#include "ccf/cose_signatures_config_interface.h"
 #include "ccf/crypto/cose.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hash.h"
@@ -470,7 +471,7 @@ namespace loggingapp
         "recording messages at client-specified IDs. It demonstrates most of "
         "the features available to CCF apps.";
 
-      openapi_info.document_version = "2.6.0";
+      openapi_info.document_version = "2.8.0";
 
       index_per_public_key = std::make_shared<RecordsIndexingStrategy>(
         PUBLIC_RECORDS, context, 10000, 20);
@@ -2096,6 +2097,33 @@ namespace loggingapp
         HTTP_GET,
         ccf::historical::read_only_adapter_v4(
           get_cose_receipt, context, is_tx_committed),
+        auth_policies)
+        .set_auto_schema<void, void>()
+        .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)
+        .install();
+
+      auto get_cose_signatures_config =
+        [&](ccf::endpoints::ReadOnlyEndpointContext& ctx) {
+          auto subsystem =
+            context.get_subsystem<ccf::cose::AbstractCOSESignaturesConfig>();
+          if (!subsystem)
+          {
+            ctx.rpc_ctx->set_error(
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              ccf::errors::InternalError,
+              "COSE signatures subsystem not available");
+            return;
+          }
+          auto config = subsystem->get_cose_signatures_config();
+
+          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+          ctx.rpc_ctx->set_response_body(nlohmann::json(config).dump());
+        };
+
+      make_read_only_endpoint(
+        "/cose_signatures_config",
+        HTTP_GET,
+        get_cose_signatures_config,
         auth_policies)
         .set_auto_schema<void, void>()
         .set_forwarding_required(ccf::endpoints::ForwardingRequired::Never)

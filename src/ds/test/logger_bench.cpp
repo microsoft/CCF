@@ -51,7 +51,7 @@ static void log_accepted(picobench::state& s)
 {
   prepare_loggers<LK, Absorb>();
 
-  ccf::logger::config::level() = LoggerLevel::DEBUG;
+  ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
   {
     picobench::scope scope(s);
 
@@ -69,7 +69,7 @@ static void log_accepted_fmt(picobench::state& s)
 {
   prepare_loggers<LK, Absorb>();
 
-  ccf::logger::config::level() = LoggerLevel::DEBUG;
+  ccf::logger::config::level() = ccf::LoggerLevel::DEBUG;
   {
     picobench::scope scope(s);
 
@@ -87,7 +87,7 @@ static void log_rejected(picobench::state& s)
 {
   prepare_loggers<LK, Absorb>();
 
-  ccf::logger::config::level() = LoggerLevel::FAIL;
+  ccf::logger::config::level() = ccf::LoggerLevel::FAIL;
   {
     picobench::scope scope(s);
 
@@ -105,7 +105,7 @@ static void log_rejected_fmt(picobench::state& s)
 {
   prepare_loggers<LK, Absorb>();
 
-  ccf::logger::config::level() = LoggerLevel::FAIL;
+  ccf::logger::config::level() = ccf::LoggerLevel::FAIL;
   {
     picobench::scope scope(s);
 

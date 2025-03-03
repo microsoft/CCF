@@ -18,6 +18,8 @@ from e2e_logging import test_random_receipts
 from governance import test_all_nodes_cert_renewal, test_service_cert_renewal
 from infra.snp import IS_SNP
 from distutils.dir_util import copy_tree
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 from loguru import logger as LOG
 
@@ -76,7 +78,7 @@ def get_new_constitution_for_install(args, install_path):
         args.constitution[:] = [
             (
                 os.path.join(constitution_directory, fragment_name)
-                if fragment_name in f
+                if os.path.basename(f) == fragment_name
                 else f
             )
             for f in args.constitution
@@ -98,6 +100,7 @@ def test_new_service(
     binary_dir,
     library_dir,
     version,
+    expected_subject_name=None,
 ):
     if IS_SNP:
         LOG.info(
@@ -148,6 +151,15 @@ def test_new_service(
 
     test_all_nodes_cert_renewal(network, args, valid_from=valid_from)
     test_service_cert_renewal(network, args, valid_from=valid_from)
+
+    if expected_subject_name:
+        LOG.info(f"Confirming subject name == {expected_subject_name}")
+        with primary.client() as c:
+            r = c.get("/node/network")
+            assert r.status_code == 200, r
+            cert_pem = r.body.json()["service_certificate"]
+            cert = x509.load_pem_x509_certificate(cert_pem.encode(), default_backend())
+            assert cert.subject.rfc4514_string() == expected_subject_name, cert
 
     LOG.info("Apply transactions to new nodes only")
     issue_activity_on_live_service(network, args)
@@ -206,6 +218,8 @@ def run_code_upgrade_from(
 
     set_js_args(args, from_install_path, to_install_path)
 
+    service_subject_name = "CN=LTS custom service name"
+
     jwt_issuer = infra.jwt_issuer.JwtIssuer(
         "https://localhost", refresh_interval=args.jwt_key_refresh_interval_s
     )
@@ -225,7 +239,10 @@ def run_code_upgrade_from(
                 kwargs["reconfiguration_type"] = "OneTransaction"
 
             network.start_and_open(
-                args, node_container_image=from_container_image, **kwargs
+                args,
+                node_container_image=from_container_image,
+                service_subject_name=service_subject_name,
+                **kwargs,
             )
 
             old_nodes = network.get_joined_nodes()
@@ -234,18 +251,35 @@ def run_code_upgrade_from(
             LOG.info("Apply transactions to old service")
             issue_activity_on_live_service(network, args)
 
-            new_code_id = infra.utils.get_code_id(
-                args.enclave_type,
-                args.enclave_platform,
-                args.oe_binary,
-                args.package,
-                library_dir=to_library_dir,
-            )
-            network.consortium.add_new_code(primary, new_code_id)
-
             LOG.info("Update constitution")
             new_constitution = get_new_constitution_for_install(args, to_install_path)
             network.consortium.set_constitution(primary, new_constitution)
+
+            new_measurement = infra.utils.get_measurement(
+                args.enclave_type,
+                args.enclave_platform,
+                args.package,
+                library_dir=to_library_dir,
+            )
+            network.consortium.add_measurement(
+                primary, args.enclave_platform, new_measurement
+            )
+
+            new_host_data = None
+            try:
+                new_host_data, new_security_policy = (
+                    infra.utils.get_host_data_and_security_policy(
+                        args.enclave_type,
+                        args.enclave_platform,
+                        args.package,
+                        library_dir=to_library_dir,
+                    )
+                )
+                network.consortium.add_host_data(
+                    primary, args.enclave_platform, new_host_data, new_security_policy
+                )
+            except ValueError as e:
+                LOG.warning(f"Not setting host data/security policy for new nodes: {e}")
 
             # Note: alternate between joining from snapshot and replaying entire ledger
             new_nodes = []
@@ -287,18 +321,57 @@ def run_code_upgrade_from(
                         version == expected_version
                     ), f"For node {node.local_node_id}, expect version {expected_version}, got {version}"
 
+            # Verify that either custom service_subject_name was applied,
+            # or that a default name is used
+            primary, _ = network.find_primary()
+            with primary.client() as c:
+                r = c.get("/node/network")
+                assert r.status_code == 200, r
+                cert_pem = r.body.json()["service_certificate"]
+                cert = x509.load_pem_x509_certificate(
+                    cert_pem.encode(), default_backend()
+                )
+                version = primary.version or args.ccf_version
+                if not infra.node.version_after(version, "ccf-5.0.0-dev14"):
+                    service_subject_name = cert.subject.rfc4514_string()
+                    LOG.info(
+                        f"Custom subject name not supported on {version}, so falling back to default {service_subject_name}"
+                    )
+                else:
+                    LOG.info(f"Custom subject name should be supported on {version}")
+                    assert cert.subject.rfc4514_string() == service_subject_name, cert
+
             LOG.info("Apply transactions to hybrid network, with primary as old node")
             issue_activity_on_live_service(network, args)
 
-            old_code_id = infra.utils.get_code_id(
+            primary, _ = network.find_primary()
+
+            old_measurement = infra.utils.get_measurement(
                 args.enclave_type,
                 args.enclave_platform,
-                args.oe_binary,
                 args.package,
                 library_dir=from_library_dir,
             )
-            primary, _ = network.find_primary()
-            network.consortium.retire_code(primary, old_code_id)
+            if old_measurement != new_measurement:
+                network.consortium.remove_measurement(
+                    primary, args.enclave_platform, old_measurement
+                )
+
+            # If host_data was found for original nodes, check if it's different on new nodes, in which case old should be removed
+            if new_host_data is not None:
+                old_host_data, old_security_policy = (
+                    infra.utils.get_host_data_and_security_policy(
+                        args.enclave_type,
+                        args.enclave_platform,
+                        args.package,
+                        library_dir=from_library_dir,
+                    )
+                )
+
+                if old_host_data != new_host_data:
+                    network.consortium.remove_host_data(
+                        primary, args.enclave_platform, old_host_data
+                    )
 
             for index, node in enumerate(old_nodes):
                 network.retire_node(primary, node)
@@ -357,12 +430,8 @@ def run_code_upgrade_from(
 
             # Rollover JWKS so that new primary must read historical CA bundle table
             # and retrieve new keys via auto refresh
-            if not os.getenv("CONTAINER_NODES"):
-                jwt_issuer.refresh_keys()
-                jwt_issuer.wait_for_refresh(network, args)
-            else:
-                # https://github.com/microsoft/CCF/issues/2608#issuecomment-924785744
-                LOG.warning("Skipping JWT refresh as running nodes in container")
+            jwt_issuer.refresh_keys()
+            jwt_issuer.wait_for_refresh(network, args)
 
             test_new_service(
                 network,
@@ -371,6 +440,7 @@ def run_code_upgrade_from(
                 to_binary_dir,
                 to_library_dir,
                 to_version,
+                service_subject_name,
             )
             network.get_latest_ledger_public_state()
 
@@ -623,12 +693,6 @@ if __name__ == "__main__":
             "--release-install-path",
             type=str,
             help='Absolute path to existing CCF release, e.g. "/opt/ccf"',
-            default=None,
-        )
-        parser.add_argument(
-            "--release-install-image",
-            type=str,
-            help="If --release-install-path is set, specify a docker image to run release in (only if CONTAINER_NODES envvar is set) ",
             default=None,
         )
         parser.add_argument("--dry-run", action="store_true")

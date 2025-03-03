@@ -71,6 +71,7 @@ namespace ccf
   {
     JwtIssuer issuer;
     ccf::crypto::Pem cert;
+    std::string public_key;
   };
   DECLARE_JSON_TYPE(KeyIdInfo)
   DECLARE_JSON_REQUIRED_FIELDS(KeyIdInfo, issuer, cert)
@@ -98,7 +99,7 @@ namespace ccf
     // and sets the HTTP response
     static void set_gov_error(
       const std::shared_ptr<ccf::RpcContext>& rpc_ctx,
-      http_status status,
+      ccf::http_status status,
       const std::string& code,
       std::string&& msg)
     {
@@ -487,8 +488,10 @@ namespace ccf
         ccf::nonstd::is_specialization<T, ccf::kv::TypedMap>::value;
       constexpr bool is_value =
         ccf::nonstd::is_specialization<T, ccf::kv::TypedValue>::value;
+      constexpr bool is_set =
+        ccf::nonstd::is_specialization<T, ccf::kv::TypedSet>::value;
 
-      if constexpr (!(is_map || is_value))
+      if constexpr (!(is_map || is_value || is_set))
       {
         static_assert(
           ccf::nonstd::dependent_false_v<T>, "Unsupported table type");
@@ -525,6 +528,14 @@ namespace ccf
           else if constexpr (is_value)
           {
             response_body = handle->get();
+          }
+          else if constexpr (is_set)
+          {
+            response_body = nlohmann::json::array();
+            handle->foreach([&response_body](const auto& k) {
+              response_body.push_back(k);
+              return true;
+            });
           }
 
           return ccf::make_success(response_body);
@@ -599,7 +610,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "4.4.0";
+      openapi_info.document_version = "4.6.1";
     }
 
     static std::optional<MemberId> get_caller_member_id(
@@ -759,10 +770,12 @@ namespace ccf
         auto member_info = members->get(member_id.value());
         if (
           service_status.value() == ServiceStatus::OPEN &&
-          InternalTablesAccess::is_recovery_member(ctx.tx, member_id.value()))
+          InternalTablesAccess::is_recovery_participant_or_owner(
+            ctx.tx, member_id.value()))
         {
           // When the service is OPEN and the new active member is a recovery
-          // member, all recovery members are allocated new recovery shares
+          // participant/owner, all recovery members are allocated new recovery
+          // shares
           try
           {
             share_manager.shuffle_recovery_shares(ctx.tx);
@@ -1012,13 +1025,20 @@ namespace ccf
         OPENSSL_cleanse(const_cast<char*>(share.data()), share.size());
 
         size_t submitted_shares_count = 0;
+        bool full_key_submitted = false;
         try
         {
           submitted_shares_count = share_manager.submit_recovery_share(
             ctx.tx, member_id.value(), raw_recovery_share);
+
+          full_key_submitted = ShareManager::is_full_key(raw_recovery_share);
+
+          OPENSSL_cleanse(raw_recovery_share.data(), raw_recovery_share.size());
         }
         catch (const std::exception& e)
         {
+          OPENSSL_cleanse(raw_recovery_share.data(), raw_recovery_share.size());
+
           constexpr auto error_msg = "Error submitting recovery shares.";
           GOV_FAIL_FMT(error_msg);
           GOV_DEBUG_FMT("Error: {}", e.what());
@@ -1029,61 +1049,60 @@ namespace ccf
             error_msg);
           return;
         }
-        OPENSSL_cleanse(raw_recovery_share.data(), raw_recovery_share.size());
 
-        if (
-          submitted_shares_count <
-          InternalTablesAccess::get_recovery_threshold(ctx.tx))
+        const auto threshold =
+          InternalTablesAccess::get_recovery_threshold(ctx.tx);
+
+        std::string message;
+        if (full_key_submitted)
         {
-          // The number of shares required to re-assemble the secret has not yet
-          // been reached
-          auto recovery_share = SubmitRecoveryShare::Out{fmt::format(
-            "{}/{} recovery shares successfully submitted.",
+          message = "Full recovery key successfully submitted";
+        }
+        else
+        {
+          // Same format of message, whether this is sufficient to trigger
+          // recovery or not
+          message = fmt::format(
+            "{}/{} recovery shares successfully submitted",
             submitted_shares_count,
-            InternalTablesAccess::get_recovery_threshold(ctx.tx))};
-          ctx.rpc_ctx->set_response_header(
-            ccf::http::headers::CONTENT_TYPE,
-            http::headervalues::contenttype::JSON);
-          ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
-          ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
-          return;
+            threshold);
         }
 
-        GOV_DEBUG_FMT(
-          "Reached recovery threshold {}",
-          InternalTablesAccess::get_recovery_threshold(ctx.tx));
-
-        try
+        if (submitted_shares_count >= threshold || full_key_submitted)
         {
-          node_operation->initiate_private_recovery(ctx.tx);
-        }
-        catch (const std::exception& e)
-        {
-          // Clear the submitted shares if combination fails so that members can
-          // start over.
-          constexpr auto error_msg = "Failed to initiate private recovery.";
-          GOV_FAIL_FMT(error_msg);
-          GOV_DEBUG_FMT("Error: {}", e.what());
-          ShareManager::clear_submitted_recovery_shares(ctx.tx);
-          ctx.rpc_ctx->set_apply_writes(true);
-          set_gov_error(
-            ctx.rpc_ctx,
-            HTTP_STATUS_INTERNAL_SERVER_ERROR,
-            errors::InternalError,
-            error_msg);
-          return;
+          message += "\nEnd of recovery procedure initiated";
+          GOV_INFO_FMT("{} - initiating recovery", message);
+
+          // Initiate recovery
+          try
+          {
+            node_operation->initiate_private_recovery(ctx.tx);
+          }
+          catch (const std::exception& e)
+          {
+            // Clear the submitted shares if combination fails so that members
+            // can start over.
+            constexpr auto error_msg = "Failed to initiate private recovery.";
+            GOV_FAIL_FMT(error_msg);
+            GOV_DEBUG_FMT("Error: {}", e.what());
+            ShareManager::clear_submitted_recovery_shares(ctx.tx);
+            ctx.rpc_ctx->set_apply_writes(true);
+            set_gov_error(
+              ctx.rpc_ctx,
+              HTTP_STATUS_INTERNAL_SERVER_ERROR,
+              errors::InternalError,
+              error_msg);
+            return;
+          }
         }
 
-        auto recovery_share = SubmitRecoveryShare::Out{fmt::format(
-          "{}/{} recovery shares successfully submitted. End of recovery "
-          "procedure initiated.",
-          submitted_shares_count,
-          InternalTablesAccess::get_recovery_threshold(ctx.tx))};
+        auto recovery_share = SubmitRecoveryShare::Out{message};
         ctx.rpc_ctx->set_response_header(
           ccf::http::headers::CONTENT_TYPE,
           http::headervalues::contenttype::JSON);
         ctx.rpc_ctx->set_response_body(nlohmann::json(recovery_share).dump());
         ctx.rpc_ctx->set_response_status(HTTP_STATUS_OK);
+        return;
       };
       make_endpoint(
         "/recovery_share",
@@ -1108,7 +1127,9 @@ namespace ccf
           for (const auto& metadata : v)
           {
             info.push_back(KeyIdInfo{
-              metadata.issuer, ccf::crypto::cert_der_to_pem(metadata.cert)});
+              .issuer = metadata.issuer,
+              .cert = ccf::crypto::Pem(),
+              .public_key = ccf::crypto::b64_from_raw(metadata.public_key)});
           }
           kmap.emplace(k, std::move(info));
           return true;

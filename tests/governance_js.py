@@ -728,7 +728,7 @@ def test_operator_provisioner_proposals_and_votes(network, args):
         args.participants_curve,
         network.consortium.common_dir,
         network.consortium.share_script,
-        is_recovery_member=False,
+        recovery_role=infra.member.RecoveryRole.NonParticipant,
         key_generator=network.consortium.key_generator,
         authenticate_session=network.consortium.authenticate_session,
         gov_api_impl=network.consortium.gov_api_impl,
@@ -855,7 +855,9 @@ def test_actions(network, args):
     try:
         network.consortium.set_recovery_threshold(
             node,
-            recovery_threshold=len(network.consortium.get_active_recovery_members())
+            recovery_threshold=len(
+                network.consortium.get_active_recovery_participants()
+            )
             + 1,
         )
         assert (

@@ -71,34 +71,46 @@ namespace http
       return body;
     }
 
-    void set_body(const std::vector<uint8_t>* b)
+    void set_body(
+      const std::vector<uint8_t>* b, bool overwrite_content_length = true)
     {
       if (b != nullptr)
       {
-        set_body(b->data(), b->size());
+        set_body(b->data(), b->size(), overwrite_content_length);
       }
       else
       {
-        set_body(nullptr, 0);
+        set_body(nullptr, 0, overwrite_content_length);
       }
     }
 
-    void set_body(const uint8_t* b, size_t s)
+    void set_body(
+      const uint8_t* b, size_t s, bool overwrite_content_length = true)
     {
       body = b;
       body_size = s;
 
-      headers[ccf::http::headers::CONTENT_LENGTH] =
-        fmt::format("{}", get_content_length());
+      if (
+        overwrite_content_length ||
+        headers.find(ccf::http::headers::CONTENT_LENGTH) == headers.end())
+      {
+        headers[ccf::http::headers::CONTENT_LENGTH] =
+          fmt::format("{}", get_content_length());
+      }
     }
 
-    void set_body(const std::string& s)
+    void set_body(const std::string& s, bool overwrite_content_length = true)
     {
       body = (uint8_t*)s.data();
       body_size = s.size();
 
-      headers[ccf::http::headers::CONTENT_LENGTH] =
-        fmt::format("{}", get_content_length());
+      if (
+        overwrite_content_length ||
+        headers.find(ccf::http::headers::CONTENT_LENGTH) == headers.end())
+      {
+        headers[ccf::http::headers::CONTENT_LENGTH] =
+          fmt::format("{}", get_content_length());
+      }
     }
   };
 
@@ -187,10 +199,10 @@ namespace http
   class Response : public Message
   {
   private:
-    http_status status;
+    ccf::http_status status;
 
   public:
-    Response(http_status s = HTTP_STATUS_OK) : status(s) {}
+    Response(ccf::http_status s = HTTP_STATUS_OK) : status(s) {}
 
     std::vector<uint8_t> build_response(bool header_only = false) const
     {
@@ -204,7 +216,7 @@ namespace http
         "\r\n"
         "{}",
         status,
-        http_status_str(status),
+        ccf::http_status_str(status),
         get_header_string(headers),
         body_view);
 

@@ -9,10 +9,10 @@
 #include "ccf/ds/logger.h"
 #include "ccf/js/core/context.h"
 #include "ccf/node/cose_signatures_config.h"
-#include "ccf/pal/attestation.h"
 #include "ccf/pal/locking.h"
 #include "ccf/pal/platform.h"
 #include "ccf/service/node_info_network.h"
+#include "ccf/service/reconfiguration_type.h"
 #include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/service.h"
 #include "ccf_acme_client.h"
@@ -20,7 +20,6 @@
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
 #include "ds/state_machine.h"
-#include "enclave/reconfiguration_type.h"
 #include "enclave/rpc_sessions.h"
 #include "encryptor.h"
 #include "history.h"
@@ -34,6 +33,7 @@
 #include "node/node_to_node_channel_manager.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
+#include "pal/quote_generation.h"
 #include "quote_endorsements_client.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
@@ -91,7 +91,7 @@ namespace ccf
     std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     pal::PlatformAttestationMeasurement node_measurement;
-    StartupConfig config;
+    ccf::StartupConfig config;
     std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
@@ -298,41 +298,43 @@ namespace ccf
       }
 
       // Verify that the security policy matches the quoted digest of the policy
+      if (!config.attestation.environment.security_policy.has_value())
+      {
+        LOG_INFO_FMT(
+          "Security policy not set, skipping check against attestation host "
+          "data");
+      }
+      else
+      {
+        auto quoted_digest = AttestationProvider::get_host_data(quote_info);
+        if (!quoted_digest.has_value())
+        {
+          throw std::logic_error("Unable to find host data in attestation");
+        }
+
+        auto const& security_policy =
+          config.attestation.environment.security_policy.value();
+
+        auto security_policy_digest =
+          quote_info.format == QuoteFormat::amd_sev_snp_v1 ?
+          ccf::crypto::Sha256Hash(ccf::crypto::raw_from_b64(security_policy)) :
+          ccf::crypto::Sha256Hash(security_policy);
+        if (security_policy_digest != quoted_digest.value())
+        {
+          throw std::logic_error(fmt::format(
+            "Digest of decoded security policy \"{}\" {} does not match "
+            "attestation host data {}",
+            security_policy,
+            security_policy_digest.hex_str(),
+            quoted_digest.value().hex_str()));
+        }
+        LOG_INFO_FMT(
+          "Successfully verified attested security policy {}",
+          security_policy_digest);
+      }
+
       if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
       {
-        if (!config.attestation.environment.security_policy.has_value())
-        {
-          LOG_INFO_FMT(
-            "Security policy not set, skipping check against attestation host "
-            "data");
-        }
-        else
-        {
-          auto quoted_digest = AttestationProvider::get_host_data(quote_info);
-          if (!quoted_digest.has_value())
-          {
-            throw std::logic_error("Unable to find host data in attestation");
-          }
-
-          auto const& security_policy =
-            config.attestation.environment.security_policy.value();
-
-          auto security_policy_digest =
-            ccf::crypto::Sha256Hash(ccf::crypto::raw_from_b64(security_policy));
-          if (security_policy_digest != quoted_digest.value())
-          {
-            throw std::logic_error(fmt::format(
-              "Digest of decoded security policy \"{}\" {} does not match "
-              "attestation host data {}",
-              security_policy,
-              security_policy_digest.hex_str(),
-              quoted_digest.value().hex_str()));
-          }
-          LOG_INFO_FMT(
-            "Successfully verified attested security policy {}",
-            security_policy_digest);
-        }
-
         if (!config.attestation.environment.uvm_endorsements.has_value())
         {
           LOG_INFO_FMT(
@@ -462,7 +464,7 @@ namespace ccf
 
     NodeCreateInfo create(
       StartType start_type_,
-      StartupConfig&& config_,
+      ccf::StartupConfig&& config_,
       std::vector<uint8_t>&& startup_snapshot_)
     {
       std::lock_guard<pal::Mutex> guard(lock);
@@ -498,12 +500,11 @@ namespace ccf
       {
         case StartType::Start:
         {
-          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+          network.identity = std::make_unique<ccf::NetworkIdentity>(
             config.service_subject_name,
             curve_id,
             config.startup_host_time,
-            config.initial_service_certificate_validity_days,
-            config.cose_signatures);
+            config.initial_service_certificate_validity_days);
 
           network.ledger_secrets->init();
 
@@ -512,7 +513,7 @@ namespace ccf
 
           setup_consensus(
             ServiceStatus::OPENING,
-            ReconfigurationType::ONE_TRANSACTION,
+            ccf::ReconfigurationType::ONE_TRANSACTION,
             false,
             endorsed_node_cert);
 
@@ -539,15 +540,11 @@ namespace ccf
           ccf::crypto::Pem previous_service_identity_cert(
             config.recover.previous_service_identity.value());
 
-          network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+          network.identity = std::make_unique<ccf::NetworkIdentity>(
             ccf::crypto::get_subject_name(previous_service_identity_cert),
             curve_id,
             config.startup_host_time,
-            config.initial_service_certificate_validity_days,
-            config.cose_signatures);
-
-          history->set_service_signing_identity(
-            network.identity->get_key_pair(), config.cose_signatures);
+            config.initial_service_certificate_validity_days);
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -591,7 +588,7 @@ namespace ccf
         target_host,
         target_port,
         [this](
-          http_status status,
+          ccf::http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           std::lock_guard<pal::Mutex> guard(lock);
@@ -631,7 +628,7 @@ namespace ccf
               LOG_FAIL_FMT(
                 "An error occurred while joining the network: {} {}{}",
                 status,
-                http_status_str(status),
+                ccf::http_status_str(status),
                 data.empty() ?
                   "" :
                   fmt::format("  '{}'", std::string(data.begin(), data.end())));
@@ -664,7 +661,7 @@ namespace ccf
               throw std::logic_error("Expected network info in join response");
             }
 
-            network.identity = std::make_unique<ReplicatedNetworkIdentity>(
+            network.identity = std::make_unique<ccf::NetworkIdentity>(
               resp.network_info->identity);
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
@@ -672,7 +669,7 @@ namespace ccf
             history->set_service_signing_identity(
               network.identity->get_key_pair(),
               resp.network_info->cose_signatures_config.value_or(
-                COSESignaturesConfig{}));
+                ccf::COSESignaturesConfig{}));
 
             ccf::crypto::Pem n2n_channels_cert;
             if (!resp.network_info->endorsed_certificate.has_value())
@@ -686,7 +683,7 @@ namespace ccf
             setup_consensus(
               resp.network_info->service_status.value_or(
                 ServiceStatus::OPENING),
-              ReconfigurationType::ONE_TRANSACTION,
+              ccf::ReconfigurationType::ONE_TRANSACTION,
               resp.network_info->public_only,
               n2n_channels_cert);
             auto_refresh_jwt_keys();
@@ -914,7 +911,10 @@ namespace ccf
       {
         auto entry = ::consensus::LedgerEnclave::get_entry(data, size);
 
-        LOG_INFO_FMT("Deserialising public ledger entry [{}]", entry.size());
+        LOG_INFO_FMT(
+          "Deserialising public ledger entry #{} [{} bytes]",
+          last_recovered_idx,
+          entry.size());
 
         // When reading the private ledger, deserialise in the recovery store
 
@@ -1048,6 +1048,37 @@ namespace ccf
         index = s.seqno;
         view = s.view;
       }
+      else
+      {
+        throw std::logic_error("No signature found after recovery");
+      }
+
+      ccf::COSESignaturesConfig cs_cfg{};
+      auto lcs = tx.ro(network.cose_signatures)->get();
+      if (lcs.has_value())
+      {
+        CoseSignature cs = lcs.value();
+        LOG_INFO_FMT("COSE signature found after recovery");
+        try
+        {
+          auto [issuer, subject] = cose::extract_iss_sub_from_sig(cs);
+          LOG_INFO_FMT(
+            "COSE signature issuer: {}, subject: {}", issuer, subject);
+          cs_cfg = ccf::COSESignaturesConfig{issuer, subject};
+        }
+        catch (const cose::COSEDecodeError& e)
+        {
+          LOG_FAIL_FMT("COSE signature decode error: {}", e.what());
+          throw;
+        }
+      }
+      else
+      {
+        LOG_INFO_FMT("No COSE signature found after recovery");
+      }
+
+      history->set_service_signing_identity(
+        network.identity->get_key_pair(), cs_cfg);
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       if (h)
@@ -1058,7 +1089,9 @@ namespace ccf
       auto service_config = tx.ro(network.config)->get();
 
       setup_consensus(
-        ServiceStatus::OPENING, ReconfigurationType::ONE_TRANSACTION, true);
+        ServiceStatus::OPENING,
+        ccf::ReconfigurationType::ONE_TRANSACTION,
+        true);
       auto_refresh_jwt_keys();
 
       LOG_DEBUG_FMT("Restarting consensus at view: {} seqno: {}", view, index);
@@ -1761,6 +1794,18 @@ namespace ccf
       return self_signed_node_cert;
     }
 
+    const ccf::COSESignaturesConfig& get_cose_signatures_config() override
+    {
+      if (history == nullptr)
+      {
+        throw std::logic_error(
+          "Attempting to access COSE signatures config before history has been "
+          "constructed");
+      }
+
+      return history->get_cose_signatures_config();
+    }
+
   private:
     bool is_ip(const std::string_view& hostname)
     {
@@ -1960,16 +2005,18 @@ namespace ccf
       }
 
       const auto status = ctx->get_response_status();
+      const auto& raw_body = ctx->get_response_body();
       if (status != HTTP_STATUS_OK)
       {
         LOG_FAIL_FMT(
-          "Create response is error: {} {}",
+          "Create response is error: {} {}\n{}",
           status,
-          http_status_str((http_status)status));
+          ccf::http_status_str((ccf::http_status)status),
+          std::string(raw_body.begin(), raw_body.end()));
         return false;
       }
 
-      const auto body = nlohmann::json::parse(ctx->get_response_body());
+      const auto body = nlohmann::json::parse(raw_body);
       if (!body.is_boolean())
       {
         LOG_FAIL_FMT("Expected boolean body in create response");
@@ -2513,7 +2560,7 @@ namespace ccf
 
     void setup_consensus(
       ServiceStatus service_status,
-      ReconfigurationType reconfiguration_type,
+      ccf::ReconfigurationType reconfiguration_type,
       bool public_only = false,
       const std::optional<ccf::crypto::Pem>& endorsed_node_certificate_ =
         std::nullopt)
@@ -2602,7 +2649,7 @@ namespace ccf
         throw std::logic_error("Snapshotter already initialised");
       }
       snapshotter = std::make_shared<Snapshotter>(
-        writer_factory, network.tables, config.snapshot_tx_interval);
+        writer_factory, network.tables, config.snapshots.tx_count);
     }
 
     void read_ledger_entries(::consensus::Index from, ::consensus::Index to)
@@ -2689,7 +2736,7 @@ namespace ccf
       n2n_channels->set_idle_timeout(idle_timeout);
     }
 
-    virtual const StartupConfig& get_node_config() const override
+    virtual const ccf::StartupConfig& get_node_config() const override
     {
       return config;
     }
@@ -2710,8 +2757,8 @@ namespace ccf
     virtual void make_http_request(
       const ::http::URL& url,
       ::http::Request&& req,
-      std::function<
-        bool(http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
+      std::function<bool(
+        ccf::http_status status, http::HeaderMap&&, std::vector<uint8_t>&&)>
         callback,
       const std::vector<std::string>& ca_certs = {},
       const std::string& app_protocol = "HTTP1",
@@ -2734,7 +2781,7 @@ namespace ccf
         url.host,
         url.port,
         [callback](
-          http_status status,
+          ccf::http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
           return callback(status, std::move(headers), std::move(data));

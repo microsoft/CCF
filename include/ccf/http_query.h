@@ -56,6 +56,27 @@ namespace ccf::http
       val = T(param_val);
       return true;
     }
+    else if constexpr (std::is_same_v<T, bool>)
+    {
+      if (param_val == "true")
+      {
+        val = true;
+        return true;
+      }
+      else if (param_val == "false")
+      {
+        val = false;
+        return true;
+      }
+      else
+      {
+        error_reason = fmt::format(
+          "Unable to parse value '{}' as bool in parameter '{}'",
+          param_val,
+          param_key);
+        return false;
+      }
+    }
     else if constexpr (std::is_integral_v<T>)
     {
       const auto [p, ec] =

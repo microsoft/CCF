@@ -3,17 +3,19 @@
 
 #include "ccf/ds/logger.h"
 #include "ccf/ds/unit_strings.h"
+#include "ccf/ds/x509_time_fmt.h"
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/platform.h"
 #include "ccf/version.h"
 #include "config_schema.h"
 #include "configuration.h"
+#include "crypto/openssl/hash.h"
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/non_blocking.h"
 #include "ds/nonstd.h"
+#include "ds/notifying.h"
 #include "ds/oversized.h"
-#include "ds/x509_time_fmt.h"
 #include "enclave.h"
 #include "handle_ring_buffer.h"
 #include "host/env.h"
@@ -21,10 +23,12 @@
 #include "lfs_file_handler.h"
 #include "load_monitor.h"
 #include "node_connections.h"
+#include "pal/quote_generation.h"
 #include "process_launcher.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
-#include "snapshots.h"
+#include "snapshots/fetch.h"
+#include "snapshots/snapshot_manager.h"
 #include "ticker.h"
 #include "time_updater.h"
 
@@ -72,6 +76,9 @@ int main(int argc, char** argv)
 {
   // ignore SIGPIPE
   signal(SIGPIPE, SIG_IGN);
+
+  ccf::crypto::openssl_sha256_init();
+
   CLI::App app{
     "CCF Host launcher. Runs a single CCF node, based on the given "
     "configuration file.\n"
@@ -80,9 +87,11 @@ int main(int argc, char** argv)
     "platforms) their value is captured in an attestation even if the "
     "configuration file itself is unattested.\n"};
 
-  std::string config_file_path = "config.json";
-  app.add_option(
-    "-c,--config", config_file_path, "Path to JSON configuration file");
+  std::string config_file_path;
+  app
+    .add_option(
+      "-c,--config", config_file_path, "Path to JSON configuration file")
+    ->required();
 
   ccf::ds::TimeString config_timeout = {"0s"};
   app.add_option(
@@ -97,12 +106,13 @@ int main(int argc, char** argv)
   app.add_flag(
     "-v, --version", print_version, "Display CCF host version and exit");
 
-  LoggerLevel enclave_log_level = LoggerLevel::INFO;
-  std::map<std::string, LoggerLevel> log_level_options;
-  for (size_t i = ccf::logger::MOST_VERBOSE; i < LoggerLevel::MAX_LOG_LEVEL;
+  ccf::LoggerLevel enclave_log_level = ccf::LoggerLevel::INFO;
+  std::map<std::string, ccf::LoggerLevel> log_level_options;
+  for (size_t i = ccf::logger::MOST_VERBOSE;
+       i < ccf::LoggerLevel::MAX_LOG_LEVEL;
        ++i)
   {
-    const auto l = (LoggerLevel)i;
+    const auto l = (ccf::LoggerLevel)i;
     log_level_options[ccf::logger::to_string(l)] = l;
   }
 
@@ -206,23 +216,37 @@ int main(int argc, char** argv)
   {
     if (config.command.type == StartType::Start)
     {
-      if (files::exists(config.ledger.directory))
+      if (
+        files::exists(config.ledger.directory) &&
+        !fs::is_empty(config.ledger.directory))
       {
         throw std::logic_error(fmt::format(
-          "On start, ledger directory should not exist ({})",
+          "On start, ledger directory should not exist or be empty ({})",
           config.ledger.directory));
       }
+
       // Count members with public encryption key as only these members will be
       // handed a recovery share.
-      // Note that it is acceptable to start a network without any member having
-      // a recovery share. The service will check that at least one recovery
-      // member is added before the service can be opened.
-      size_t members_with_pubk_count = 0;
+      // Note that it is acceptable to start a network without any member
+      // having a recovery share. The service will check that at least one
+      // recovery member (participant or owner) is added before the
+      // service can be opened.
+      size_t recovery_participants_count = 0;
+      size_t recovery_owners_count = 0;
       for (auto const& m : config.command.start.members)
       {
         if (m.encryption_public_key_file.has_value())
         {
-          members_with_pubk_count++;
+          auto role =
+            m.recovery_role.value_or(ccf::MemberRecoveryRole::Participant);
+          if (role == ccf::MemberRecoveryRole::Participant)
+          {
+            recovery_participants_count++;
+          }
+          else if (role == ccf::MemberRecoveryRole::Owner)
+          {
+            recovery_owners_count++;
+          }
         }
       }
 
@@ -230,20 +254,46 @@ int main(int argc, char** argv)
         config.command.start.service_configuration.recovery_threshold;
       if (recovery_threshold == 0)
       {
-        LOG_INFO_FMT(
-          "Recovery threshold unset. Defaulting to number of initial "
-          "consortium members with a public encryption key ({}).",
-          members_with_pubk_count);
-        recovery_threshold = members_with_pubk_count;
+        if (recovery_participants_count == 0 && recovery_owners_count != 0)
+        {
+          LOG_INFO_FMT(
+            "Recovery threshold unset. Defaulting to 1 as only consortium "
+            "members that are recovery owners ({}) are specified.",
+            recovery_owners_count);
+          recovery_threshold = 1;
+        }
+        else
+        {
+          LOG_INFO_FMT(
+            "Recovery threshold unset. Defaulting to number of initial "
+            "consortium members with a public encryption key ({}).",
+            recovery_participants_count);
+          recovery_threshold = recovery_participants_count;
+        }
       }
-      else if (recovery_threshold > members_with_pubk_count)
+      else
       {
-        throw std::logic_error(fmt::format(
-          "Recovery threshold ({}) cannot be greater than total number ({})"
-          "of initial consortium members with a public encryption "
-          "key (specified via --member-info options)",
-          recovery_threshold,
-          members_with_pubk_count));
+        if (recovery_participants_count == 0 && recovery_owners_count != 0)
+        {
+          if (recovery_threshold > 1)
+          {
+            throw std::logic_error(fmt::format(
+              "Recovery threshold ({}) cannot be greater than 1 when all "
+              "initial consortium members ({}) are of type recovery owner "
+              "(specified via --member-info options)",
+              recovery_threshold,
+              recovery_participants_count));
+          }
+        }
+        else if (recovery_threshold > recovery_participants_count)
+        {
+          throw std::logic_error(fmt::format(
+            "Recovery threshold ({}) cannot be greater than total number ({})"
+            "of initial consortium members with a public encryption "
+            "key (specified via --member-info options)",
+            recovery_threshold,
+            recovery_participants_count));
+        }
       }
     }
   }
@@ -324,10 +374,15 @@ int main(int argc, char** argv)
   ringbuffer::Circuit circuit(to_enclave_def, from_enclave_def);
   messaging::BufferProcessor bp("Host");
 
+  ringbuffer::WriterFactory base_factory(circuit);
+
+  // To avoid polling an idle ringbuffer, all writes are paired with a
+  // condition_variable notification, which readers may wait on
+  ringbuffer::NotifyingWriterFactory notifying_factory(base_factory);
+
   // To prevent deadlock, all blocking writes from the host to the ringbuffer
   // will be queued if the ringbuffer is full
-  ringbuffer::WriterFactory base_factory(circuit);
-  ringbuffer::NonBlockingWriterFactory non_blocking_factory(base_factory);
+  ringbuffer::NonBlockingWriterFactory non_blocking_factory(notifying_factory);
 
   // Factory for creating writers which will handle writing of large messages
   oversized::WriterConfig writer_config{
@@ -373,7 +428,7 @@ int main(int argc, char** argv)
       config.ledger.read_only_directories);
     ledger.register_message_handlers(bp.get_dispatcher());
 
-    asynchost::SnapshotManager snapshots(
+    snapshots::SnapshotManager snapshots(
       config.snapshots.directory,
       writer_factory,
       config.snapshots.read_only_directory);
@@ -502,9 +557,7 @@ int main(int argc, char** argv)
 
     enclave_config.writer_config = writer_config;
 
-    StartupConfig startup_config(config);
-
-    startup_config.snapshot_tx_interval = config.snapshots.tx_count;
+    ccf::StartupConfig startup_config(config);
 
     if (startup_config.attestation.snp_security_policy_file.has_value())
     {
@@ -519,6 +572,11 @@ int main(int argc, char** argv)
 
       startup_config.attestation.environment.security_policy =
         files::try_slurp_string(security_policy_file);
+    }
+
+    if (config.enclave.platform == host::EnclavePlatform::VIRTUAL)
+    {
+      ccf::pal::emit_virtual_measurement(enclave_file_path);
     }
 
     if (startup_config.attestation.snp_uvm_endorsements_file.has_value())
@@ -593,19 +651,24 @@ int main(int argc, char** argv)
     LOG_INFO_FMT("Startup host time: {}", startup_host_time);
 
     startup_config.startup_host_time =
-      ::ds::to_x509_time_string(startup_host_time);
+      ccf::ds::to_x509_time_string(startup_host_time);
 
     if (config.command.type == StartType::Start)
     {
       for (auto const& m : config.command.start.members)
       {
         std::optional<ccf::crypto::Pem> public_encryption_key = std::nullopt;
+        std::optional<ccf::MemberRecoveryRole> recovery_role = std::nullopt;
         if (
           m.encryption_public_key_file.has_value() &&
           !m.encryption_public_key_file.value().empty())
         {
           public_encryption_key = ccf::crypto::Pem(
             files::slurp(m.encryption_public_key_file.value()));
+          if (m.recovery_role.has_value())
+          {
+            recovery_role = m.recovery_role.value();
+          }
         }
 
         nlohmann::json md = nullptr;
@@ -617,7 +680,8 @@ int main(int argc, char** argv)
         startup_config.start.members.emplace_back(
           ccf::crypto::Pem(files::slurp(m.certificate_file)),
           public_encryption_key,
-          md);
+          md,
+          recovery_role);
       }
       startup_config.start.constitution = "";
       for (const auto& constitution_path :
@@ -687,22 +751,62 @@ int main(int argc, char** argv)
       config.command.type == StartType::Join ||
       config.command.type == StartType::Recover)
     {
-      auto latest_committed_snapshot =
-        snapshots.find_latest_committed_snapshot();
-      if (latest_committed_snapshot.has_value())
-      {
-        auto& [snapshot_dir, snapshot_file] = latest_committed_snapshot.value();
-        startup_snapshot = files::slurp(snapshot_dir / snapshot_file);
+      auto latest_local_snapshot = snapshots.find_latest_committed_snapshot();
 
-        LOG_INFO_FMT(
-          "Found latest snapshot file: {} (size: {})",
-          snapshot_dir / snapshot_file,
-          startup_snapshot.size());
-      }
-      else
+      if (
+        config.command.type == StartType::Join &&
+        config.command.join.fetch_recent_snapshot)
       {
-        LOG_INFO_FMT(
-          "No snapshot found: Node will replay all historical transactions");
+        // Try to fetch a recent snapshot from peer
+        const size_t latest_local_idx = latest_local_snapshot.has_value() ?
+          snapshots::get_snapshot_idx_from_file_name(
+            latest_local_snapshot->second) :
+          0;
+        auto latest_peer_snapshot = snapshots::fetch_from_peer(
+          config.command.join.target_rpc_address,
+          config.command.service_certificate_file,
+          latest_local_idx);
+
+        if (latest_peer_snapshot.has_value())
+        {
+          LOG_INFO_FMT(
+            "Received snapshot {} from peer (size: {}) - writing this to disk "
+            "and using for join startup",
+            latest_peer_snapshot->snapshot_name,
+            latest_peer_snapshot->snapshot_data.size());
+
+          const auto dst_path = fs::path(config.snapshots.directory) /
+            fs::path(latest_peer_snapshot->snapshot_name);
+          if (files::exists(dst_path))
+          {
+            LOG_FATAL_FMT(
+              "Unable to write peer snapshot - already have a file at {}. "
+              "Exiting.",
+              dst_path);
+            return static_cast<int>(CLI::ExitCodes::FileError);
+          }
+          files::dump(latest_peer_snapshot->snapshot_data, dst_path);
+          startup_snapshot = latest_peer_snapshot->snapshot_data;
+        }
+      }
+
+      if (startup_snapshot.empty())
+      {
+        if (latest_local_snapshot.has_value())
+        {
+          auto& [snapshot_dir, snapshot_file] = latest_local_snapshot.value();
+          startup_snapshot = files::slurp(snapshot_dir / snapshot_file);
+
+          LOG_INFO_FMT(
+            "Found latest local snapshot file: {} (size: {})",
+            snapshot_dir / snapshot_file,
+            startup_snapshot.size());
+        }
+        else
+        {
+          LOG_INFO_FMT(
+            "No snapshot found: Node will replay all historical transactions");
+        }
       }
     }
 
@@ -734,7 +838,8 @@ int main(int argc, char** argv)
       config.command.type,
       enclave_log_level,
       config.worker_threads,
-      time_updater->behaviour.get_value());
+      time_updater->behaviour.get_value(),
+      notifying_factory.get_inbound_work_beacon());
     ecall_completed.store(true);
     flusher_thread.join();
 
@@ -821,6 +926,8 @@ int main(int argc, char** argv)
   auto rc = uv_loop_close(uv_default_loop());
   if (rc)
     LOG_FAIL_FMT("Failed to close uv loop cleanly: {}", uv_err_name(rc));
+
+  ccf::crypto::openssl_sha256_shutdown();
 
   return rc;
 }

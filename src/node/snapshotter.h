@@ -2,11 +2,11 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/ccf_assert.h"
 #include "ccf/ds/logger.h"
 #include "ccf/pal/enclave.h"
 #include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
+#include "ds/ccf_assert.h"
 #include "ds/thread_messaging.h"
 #include "kv/kv_types.h"
 #include "kv/store.h"
@@ -316,8 +316,6 @@ namespace ccf
         pending_snapshots.erase(search);
         return false;
       }
-
-      ccf::pal::speculation_barrier();
 
       std::copy(
         pending_snapshot.serialised_snapshot.begin(),

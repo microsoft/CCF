@@ -137,7 +137,7 @@ namespace ccf
     void handle_jwt_jwks_response(
       const std::string& issuer,
       const std::optional<std::string>& issuer_constraint,
-      http_status status,
+      ccf::http_status status,
       std::vector<uint8_t>&& data)
     {
       if (status != HTTP_STATUS_OK)
@@ -145,7 +145,7 @@ namespace ccf
         LOG_FAIL_FMT(
           "JWT key auto-refresh: Error while requesting JWKS: {} {}{}",
           status,
-          http_status_str(status),
+          ccf::http_status_str(status),
           data.empty() ?
             "" :
             fmt::format("  '{}'", std::string(data.begin(), data.end())));
@@ -193,7 +193,7 @@ namespace ccf
     void handle_jwt_metadata_response(
       const std::string& issuer,
       std::shared_ptr<::tls::CA> ca,
-      http_status status,
+      ccf::http_status status,
       std::vector<uint8_t>&& data)
     {
       if (status != HTTP_STATUS_OK)
@@ -202,7 +202,7 @@ namespace ccf
           "JWT key auto-refresh: Error while requesting OpenID metadata: {} "
           "{}{}",
           status,
-          http_status_str(status),
+          ccf::http_status_str(status),
           data.empty() ?
             "" :
             fmt::format("  '{}'", std::string(data.begin(), data.end())));
@@ -269,7 +269,9 @@ namespace ccf
         std::string(jwks_url.host),
         std::string(jwks_url_port),
         [this, issuer, issuer_constraint](
-          http_status status, http::HeaderMap&&, std::vector<uint8_t>&& data) {
+          ccf::http_status status,
+          http::HeaderMap&&,
+          std::vector<uint8_t>&& data) {
           handle_jwt_jwks_response(
             issuer, issuer_constraint, status, std::move(data));
           return true;
@@ -320,7 +322,9 @@ namespace ccf
         auto metadata_url_port =
           !metadata_url.port.empty() ? metadata_url.port : "443";
 
-        auto ca = std::make_shared<::tls::CA>(ca_cert_bundle_pem.value());
+        auto ca_pems =
+          crypto::split_x509_cert_bundle(ca_cert_bundle_pem.value());
+        auto ca = std::make_shared<::tls::CA>(ca_pems);
         auto ca_cert = std::make_shared<::tls::Cert>(
           ca, std::nullopt, std::nullopt, metadata_url.host);
 
@@ -336,7 +340,7 @@ namespace ccf
           std::string(metadata_url.host),
           std::string(metadata_url_port),
           [this, issuer, ca](
-            http_status status,
+            ccf::http_status status,
             ccf::http::HeaderMap&&,
             std::vector<uint8_t>&& data) {
             handle_jwt_metadata_response(issuer, ca, status, std::move(data));

@@ -5,6 +5,167 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.0-dev21]
+
+[6.0.0-dev21]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev21
+
+### Fixed
+
+- `ccf.ledger`/`read_ledger.py` previously enforced too strict a condition on node membership when validating ledger files (#6849).
+- Restore low CPU usage on idle nodes, which had increased in dev20 (#6816).
+
+## [6.0.0-dev20]
+
+[6.0.0-dev20]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev20
+
+### Added
+
+- Added `GET /node/attestations` and `GET /node/attestations/self`, as aliases for the `/quote` endpoints. These return attestations on every platform, not only SGX quotes.
+
+### Fixed
+
+- CA certificate bundles used for JWT refresh and containing more than one certificate are now handled correctly (#6817).
+- Memory leak during EC key creation is fixed (#6845).
+- Fixed thread-safety issues when CCF nodes attempted to contact non-TLS servers. This previously could cause errors when running SNP builds with multiple worker threads (#6836).
+- SNP nodes will no longer crash when run on firmware returning v3 attestations (#6841).
+
+## [6.0.0-dev19]
+
+[6.0.0-dev19]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev19
+
+### Fixed
+
+Container dependencies.
+
+## [6.0.0-dev18]
+
+[6.0.0-dev18]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev18
+
+### Fixed
+
+Container dependencies.
+
+## [6.0.0-dev17]
+
+[6.0.0-dev17]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev17
+
+### Fixed
+
+Container dependencies.
+
+## [6.0.0-dev16]
+
+[6.0.0-dev16]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev16
+
+### Added
+
+- Members can now be configured with an explicit `recovery_role`. Members without an encryption key default to `NonParticipant`, members with an encryption key set default to `Participant` and continue to receive a recovery share. A new recovery role `Owner` allows members to receive a full key, letting them perform a recovery single-handedly. The process and APIs remain identical (#6705).
+
+## [6.0.0-dev15]
+
+[6.0.0-dev15]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev15
+
+### Fixed
+
+- All containers now include the correct version of libstdc++/libstdc++-dev, and the Debian package captures the runtime requirement as well.
+- RPMs for Azure Linux 3.0 are now included in releases.
+
+## [6.0.0-dev14]
+
+[6.0.0-dev14]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev14
+
+## [6.0.0-dev13]
+
+[6.0.0-dev13]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev13
+
+### Added
+
+- Joining nodes can now request a snapshot from their peers at startup, rather than relying on file access. The joinee's snapshot will be fetched and used if it is more recent than the joiner has access to. This behaviour is enabled by default, but can be disabled via the `command.join.fetch_recent_snapshot` config option (#6758).
+
+### Changed
+
+- CCF now defaults to using libstdc++ rather than libc++, and no longer builds with LTO, to improve compatibility with other C++ libraries.
+
+## [6.0.0-dev12]
+
+[6.0.0-dev12]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev12
+
+### Dependencies
+
+- nghttp2 is now picked up from the OS rather than vendored to enable libcurl usage
+- Misc dependency updates (#6725)
+
+## [6.0.0-dev11]
+
+[6.0.0-dev11]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev11
+
+### Added
+
+- `GET /gov/service/javascript-app` now takes an optional `?case=original` query argument. When passed, the response will contain the raw original `snake_case` field names, for direct comparison, rather than the API-standard `camelCase` projections.
+- Applications can now extend `js_generic` (ie - a JS app where JS endpoints are edited by governance transactions), from the public header `ccf/js/samples/governance_driven_registry.h`. The API for existing JS-programmability apps using `DynamicJSEndpointRegistry` should be unaffected.
+
+### Fixed
+
+- `cose_signatures` configuration (`issuer`/`subject`) is now correctly preserved across disaster recovery (#6709).
+
+### Deprecated
+
+- The function `ccf::get_js_plugins()` and associated FFI plugin system for JS is deprecated. Similar functionality should now be implemented through a `js::Extension` returned from `DynamicJSEndpointRegistry::get_extensions()`.
+
+### Dependencies
+
+- nghttp2 updated from 1.55.1 to 1.64.0
+
+## [6.0.0-dev10]
+
+[6.0.0-dev10]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev10
+
+### Added
+
+- Expose `ccf:http::parse_accept_header()` and `ccf::http::AcceptHeaderField` (#6706).
+- Added `ccf::cose::AbstractCOSESignaturesConfig` subsystem to expose COSE signature configuration to application handlers (#6707).
+- Package `build_bundle.ts` under `npx ccf-build-bundle` to allow javascript users to build a ccf schema bundle (#6704).
+
+## [6.0.0-dev9]
+
+[6.0.0-dev9]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev9
+
+### Changed
+
+- The `read_ledger.py` tool now has a `--quiet` option which avoids printing anything per-transaction, as well as other performance improvements, which should make it more useful in verifying the integrity of large ledgers.
+- COSE signatures now set a kid that is a hex-encoded SHA-256 of the DER representation of the key used to produce them (#6703).
+
+## [6.0.0-dev8]
+
+[6.0.0-dev8]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev8
+
+### Changed
+
+- All definitions in CCF's public headers are now under the `ccf::` namespace. Any application code which references any of these types directly (notably `StartupConfig`, `http_status`, `LoggerLevel`), they will now need to be prefixed with the `ccf::` namespace.
+- `cchost` now requires `--config`.
+
+### Changed
+
+- JWT authentication now supports raw public keys along with certificates (#6601).
+  - Public key information ('n' and 'e', or 'x', 'y' and 'crv' fields) now have a priority if defined in JWK set, 'x5c' remains as a backup option.
+  - Has same side-effects as #5809 does please see the changelog entry for that change for more details. In short:
+    - stale JWKs may be used for JWT validation on older nodes during the upgrade.
+    - old tables are not cleaned up, #6222 is tracking those.
+- A deprecated `GET /gov/jwt_keys/all` has been altered because of #6601, as soon as JWT certificates are no longer stored in CCF. A new "public_key" field has been added, "cert" is now left empty.
+
+## [6.0.0-dev7]
+
+[6.0.0-dev7]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev7
+
+### Changed
+
+- `ccf::http::get_query_value()` now supports bool types with `"true"` and `"false"` as values.
+- Service certificates and endorsements used for historical receipts now have a pathlen constraint of 1 instead of 0, reflecting the fact that there can be a single intermediate in endorsement chains. Historically the value had been 0, which happened to work because of a quirk in OpenSSL when Issuer and Subject match on an element in the chain.
+
+### Fixed
+
+- Services upgrading from 4.x to 5.x may accidentally change their service's subject name, resulting in cryptographic errors when verifying anything endorsed by the old subject name. The subject name field is now correctly populated and retained across joins, renewals, and disaster recoveries.
+
 ## [6.0.0-dev6]
 
 [6.0.0-dev6]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev6

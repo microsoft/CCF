@@ -20,7 +20,7 @@ jobs:
   checks:
     name: "Format and License Checks"
     runs-on: ubuntu-latest
-    container: ghcr.io/microsoft/ccf/ci/default:build-08-10-2024
+    container: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
 
     steps:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -37,14 +37,14 @@ jobs:
           - name: virtual
             image: default
             nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
           - name: snp
             image: default
             nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
     runs-on: ${{ matrix.platform.nodes }}
     container:
-      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-08-10-2024
+      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-14-01-2025
       options: ${{ matrix.platform.options }}
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +57,7 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF ..
+          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 
@@ -98,30 +98,34 @@ jobs:
   build_and_test_azure_linux:
     name: "Azure Linux CI"
     needs: checks
+    strategy:
+      matrix:
+        platform:
+          - name: virtual
+          - name: snp
+
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE -v /lib/modules:/lib/modules:ro
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
-      - name: "Install dependencies"
+      - name: "Checkout dependencies"
+        shell: bash
         run: |
-          set -ex
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
-          # Source control
           tdnf -y install ca-certificates git
-          # Build tools
-          tdnf -y install build-essential clang cmake ninja-build which
-          # Dependencies
-          tdnf -y install openssl-devel libuv-devel
-          # Test dependencies
-          tdnf -y install libarrow-devel parquet-libs-devel lldb
-        shell: bash
 
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
 
       - name: "Build Debug"
         run: |
@@ -129,11 +133,12 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          CC=`which clang` CXX=`which clang++` cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLVI_MITIGATIONS=OFF -DUSE_LIBCXX=OFF ..
+          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 
-      - name: "Test virtual"
+      - name: "Test ${{ matrix.platform.name }}"
+        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
         run: |
           set -ex
           cd build
@@ -142,6 +147,8 @@ jobs:
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          # All other acceptably fast tests, which are now supported on Azure Linux.
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
 
   build_caci:
@@ -152,4 +159,5 @@ jobs:
       - name: "Steps that run in a C-ACI container, hopefully"
         run: |
           ls
-          ls /dev/sev
+          ls -la /dev/sev-guest
+          sleep 10000

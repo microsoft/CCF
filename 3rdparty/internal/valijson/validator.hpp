@@ -8,10 +8,15 @@ namespace valijson {
 class Schema;
 class ValidationResults;
 
+
 /**
- * @brief  Class that provides validation functionality.
+ * @brief   Class that provides validation functionality.
+ *
+ * @tparam  RegexEngine regular expression engine used for pattern constraint validation.
+
  */
-class Validator
+template <typename RegexEngine>
+class ValidatorT
 {
 public:
     enum TypeCheckingMode
@@ -23,7 +28,7 @@ public:
     /**
      * @brief  Construct a Validator that uses strong type checking by default
      */
-    Validator()
+    ValidatorT()
       : strictTypes(true) { }
 
     /**
@@ -31,7 +36,7 @@ public:
      *
      * @param  typeCheckingMode  choice of strong or weak type checking
      */
-    Validator(TypeCheckingMode typeCheckingMode)
+    ValidatorT(TypeCheckingMode typeCheckingMode)
       : strictTypes(typeCheckingMode == kStrongTypes) { }
 
     /**
@@ -58,7 +63,7 @@ public:
             ValidationResults *results)
     {
         // Construct a ValidationVisitor to perform validation at the root level
-        ValidationVisitor<AdapterType> v(target,
+        ValidationVisitor<AdapterType, RegexEngine> v(target,
                 std::vector<std::string>(1, "<root>"), strictTypes, results, regexesCache);
 
         return v.validateSchema(schema);
@@ -67,11 +72,29 @@ public:
 private:
 
     /// Flag indicating that strict type comparisons should be used
-    const bool strictTypes;
+    bool strictTypes;
 
     /// Cached regex objects for pattern constraint. Key - pattern.
-    std::unordered_map<std::string, std::regex> regexesCache;
-
+    std::unordered_map<std::string, RegexEngine> regexesCache;
 };
+
+/**
+ * @brief   Struct that provides a default Regular Expression Engine using std::regex
+ */
+struct DefaultRegexEngine
+{
+    DefaultRegexEngine(const std::string& pattern)
+      : regex(pattern) { }
+
+    static bool search(const std::string& s, const DefaultRegexEngine& r)
+    {
+        return std::regex_search(s, r.regex);
+    }
+
+private:
+    std::regex regex;
+};
+
+using Validator = ValidatorT<DefaultRegexEngine>;
 
 }  // namespace valijson

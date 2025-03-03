@@ -1967,7 +1967,7 @@ def test_basic_constraints(network, args):
     )
     assert basic_constraints.critical is True
     assert basic_constraints.value.ca is True
-    assert basic_constraints.value.path_length == 0
+    assert basic_constraints.value.path_length == 1
 
     node_pem = primary.get_tls_certificate_pem()
     node_cert = load_pem_x509_certificate(node_pem.encode(), default_backend())
@@ -2251,6 +2251,23 @@ def run_app_space_js(args):
         run_main_tests(network, args)
 
 
+def test_cose_config(network, args):
+
+    configs = set()
+
+    for node in network.get_joined_nodes():
+        with node.client("user0") as c:
+            r = c.get("/cose_signatures_config")
+            assert r.status_code == http.HTTPStatus.OK.value, r.status_code
+            configs.add(r.body.text())
+
+    assert len(configs) == 1, configs
+    assert (
+        configs.pop() == '{"issuer":"service.example.com","subject":"ledger.signature"}'
+    ), configs
+    return network
+
+
 def run_main_tests(network, args):
     test_basic_constraints(network, args)
     test(network, args)
@@ -2295,6 +2312,7 @@ def run_main_tests(network, args):
     test_genesis_receipt(network, args)
     if args.package == "samples/apps/logging/liblogging":
         test_etags(network, args)
+        test_cose_config(network, args)
 
 
 def run_parsing_errors(args):

@@ -1,31 +1,31 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.path
-import hashlib
-import os
-import subprocess
+from hashlib import sha256
+import infra.snp as snp
+import infra.proc
 
 
-def get_code_id(
-    enclave_type, enclave_platform, oe_binary_dir, package, library_dir="."
+def get_measurement(enclave_type, enclave_platform, package, library_dir="."):
+    if enclave_platform == "virtual":
+        return "Insecure hard-coded virtual measurement v1"
+
+    else:
+        raise ValueError(f"Cannot get measurement on {enclave_platform}")
+
+
+def get_host_data_and_security_policy(
+    enclave_type, enclave_platform, package, library_dir="."
 ):
     lib_path = infra.path.build_lib_path(
         package, enclave_type, enclave_platform, library_dir
     )
-
-    if enclave_platform == "sgx":
-        res = subprocess.run(
-            [os.path.join(oe_binary_dir, "oesign"), "dump", "-e", lib_path],
-            capture_output=True,
-            check=True,
-        )
-        lines = [
-            line
-            for line in res.stdout.decode().split(os.linesep)
-            if line.startswith("mrenclave=")
-        ]
-
-        return lines[0].split("=")[1]
+    if enclave_platform == "snp":
+        security_policy = snp.get_container_group_security_policy()
+        host_data = sha256(security_policy.encode()).hexdigest()
+        return host_data, security_policy
+    elif enclave_platform == "virtual":
+        hash = sha256(open(lib_path, "rb").read())
+        return hash.hexdigest(), None
     else:
-        # Virtual and SNP
-        return hashlib.sha256(lib_path.encode()).hexdigest()
+        raise ValueError(f"Cannot get security policy on {enclave_platform}")

@@ -1,14 +1,14 @@
-/*==============================================================================
- ieee754.c -- floating-point conversion between half, double & single-precision
-
- Copyright (c) 2018-2020, Laurence Lundblade. All rights reserved.
-
- SPDX-License-Identifier: BSD-3-Clause
-
- See BSD-3-Clause license in README.md
-
- Created on 7/23/18
- =============================================================================*/
+/* ==========================================================================
+ * ieee754.h -- Conversion between half, double & single-precision floats
+ *
+ * Copyright (c) 2018-2024, Laurence Lundblade. All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * See BSD-3-Clause license in file named "LICENSE"
+ *
+ * Created on 7/23/18
+ * ========================================================================== */
 
 #ifndef QCBOR_DISABLE_PREFERRED_FLOAT
 
@@ -18,130 +18,109 @@
 #include <stdint.h>
 
 
-
-/*
- General comments
-
- This is a complete in that it handles all conversion cases including
- +/- infinity, +/- zero, subnormal numbers, qNaN, sNaN and NaN
- payloads.
-
- This conforms to IEEE 754-2008, but note that this doesn't specify
- conversions, just the encodings.
-
- NaN payloads are preserved with alignment on the LSB. The qNaN bit is
- handled differently and explicity copied. It is always the MSB of the
- significand. The NaN payload MSBs (except the qNaN bit) are truncated
- when going from double or single to half.
-
- TODO: what does the C cast do with NaN payloads from
- double to single? It probably depends entirely on the
- CPU.
-
- */
-
-/*
- Most simply just explicilty encode the type you want, single or
- double.  This works easily everywhere since standard C supports both
- these types and so does qcbor.  This encoder also supports half
- precision and there's a few ways to use it to encode floating-point
- numbers in less space.
-
- Without losing precision, you can encode a single or double such that
- the special values of 0, NaN and Infinity encode as half-precision.
- This CBOR decodoer and most others should handle this properly.
-
- If you don't mind losing precision, then you can use half-precision.
- One way to do this is to set up your environment to use
- ___fp_16. Some compilers and CPUs support it even though it is not
- standard C. What is nice about this is that your program will use
- less memory and floating-point operations like multiplying, adding
- and such will be faster.
-
- Another way to make use of half-precision is to represent the values
- in your program as single or double, but encode them in CBOR as
- half-precision. This cuts the size of the encoded messages by 2 or 4,
- but doesn't reduce memory needs or speed because you are still using
- single or double in your code.
-
+/** @file ieee754.h
+ *
+ * This implements floating-point conversion between half, single and
+ * double precision floating-point numbers, in particular convesion to
+ * smaller representation (e.g., double to single) that does not lose
+ * precision for CBOR preferred serialization.
+ *
+ * This implementation works entirely with shifts and masks and does
+ * not require any floating-point HW or library.
+ *
+ * This conforms to IEEE 754-2008, but note that it doesn't specify
+ * conversions, just the encodings.
+ *
+ * This is complete, supporting +/- infinity, +/- zero, subnormals and
+ * NaN payloads. NaN payloads are converted to smaller by dropping the
+ * right most bits if they are zero and shifting to the right. If the
+ * rightmost bits are not zero the conversion is not performed. When
+ * converting from smaller to larger, the payload is shifted left and
+ * zero-padded. This is what is specified by CBOR preferred
+ * serialization and what modern HW conversion instructions do. CBOR
+ * CDE handling for NaN is not clearly specified, but upcoming
+ * documents may clarify this.
+ *
+ * There is no special handling of silent and quiet NaNs. It probably
+ * isn't necessary to transmit these special NaNs as there purpose is
+ * more for propgating errors up through some calculation. In many
+ * cases the handlng of the NaN payload will work for silent and quiet
+ * NaNs.
+ *
+ * A previous version of this was usable as a general library for
+ * conversion. This version is reduced to what is needed for CBOR.
  */
 
 
-
-/*
- Convert single-precision float to half-precision float.  Precision
- and NaN payload bits will be lost. Too-large values will round up to
- infinity and too small to zero.
+/**
+ * @brief Convert half-precision float to double-precision float.
+ *
+ * @param[in] uHalfPrecision   Half-prevision number to convert.
+ *
+ * @returns double-presion value.
+ *
+ * This is a lossless conversion because every half-precision value
+ * can be represented as a double. There is no error condition.
+ *
+ * There is no half-precision type in C, so it is represented here as
+ * a @c uint16_t. The bits of @c uHalfPrecision are as described for
+ * half-precision by IEEE 754.
  */
-uint16_t IEEE754_FloatToHalf(float f);
+double
+IEEE754_HalfToDouble(uint16_t uHalfPrecision);
 
 
-/*
- Convert double-precision float to half-precision float.  Precision
- and NaN payload bits will be lost. Too-large values will round up to
- infinity and too small to zero.
+/** Holds a floating-point value that could be half, single or
+ * double-precision.  The value is in a @c uint64_t that may be copied
+ * to a float or double.  Simply casting uValue will usually work but
+ * may generate compiler or static analyzer warnings. Using
+ * UsefulBufUtil_CopyUint64ToDouble() or
+ * UsefulBufUtil_CopyUint32ToFloat() will not (and will not generate
+ * any extra code).
  */
-uint16_t IEEE754_DoubleToHalf(double d);
-
-
-/*
- Convert half-precision float to double-precision float.
- This is a loss-less conversion.
- */
-double IEEE754_HalfToDouble(uint16_t uHalfPrecision);
-
-
-// Both tags the value and gives the size
-#define IEEE754_UNION_IS_HALF   2
-#define IEEE754_UNION_IS_SINGLE 4
-#define IEEE754_UNION_IS_DOUBLE 8
-
 typedef struct {
-    uint8_t uSize;  // One of IEEE754_IS_xxxx
-    uint64_t uValue;
+   enum {IEEE754_UNION_IS_HALF   = 2,
+         IEEE754_UNION_IS_SINGLE = 4,
+         IEEE754_UNION_IS_DOUBLE = 8,
+   } uSize; /* Size of uValue */
+   uint64_t uValue;
 } IEEE754_union;
 
 
-/*
- Converts double-precision to single-precision or half-precision if
- possible without loss of precisions. If not, leaves it as a
- double. Only converts to single-precision unless bAllowHalfPrecision
- is set.
+/**
+ * @brief Convert a double to either single or half-precision.
+ *
+ * @param[in] d                    The value to convert.
+ * @param[in] bAllowHalfPrecision  If true, convert to either half or
+ *                                 single precision.
+ *
+ * @returns Unconverted value, or value converted to single or half-precision.
+ *
+ * This always succeeds. If the value cannot be converted without the
+ * loss of precision, it is not converted.
+ *
+ * This handles all subnormals and NaN payloads.
  */
-IEEE754_union IEEE754_DoubleToSmallestInternal(double d, int bAllowHalfPrecision);
+IEEE754_union
+IEEE754_DoubleToSmaller(double d, int bAllowHalfPrecision);
 
-/*
- Converts double-precision to single-precision if possible without
- loss of precision. If not, leaves it as a double.
+
+/**
+ * @brief Convert a single-precision float to half-precision.
+ *
+ * @param[in] f  The value to convert.
+ *
+ * @returns Either unconverted value or value converted to half-precision.
+ *
+ * This always succeeds. If the value cannot be converted without the
+ * loss of precision, it is not converted.
+ *
+ * This handles all subnormals and NaN payloads.
  */
-static inline IEEE754_union IEEE754_DoubleToSmall(double d)
-{
-    return IEEE754_DoubleToSmallestInternal(d, 0);
-}
-
-
-/*
- Converts double-precision to single-precision or half-precision if
- possible without loss of precisions. If not, leaves it as a double.
- */
-static inline IEEE754_union IEEE754_DoubleToSmallest(double d)
-{
-    return IEEE754_DoubleToSmallestInternal(d, 1);
-}
-
-
-/*
- Converts single-precision to half-precision if possible without loss
- of precision. If not leaves as single-precision.
- */
-IEEE754_union IEEE754_FloatToSmallest(float f);
+IEEE754_union
+IEEE754_SingleToHalf(float f);
 
 
 #endif /* ieee754_h */
 
-
 #endif /* QCBOR_DISABLE_PREFERRED_FLOAT */
-
-
-
-

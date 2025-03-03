@@ -13,76 +13,7 @@
 
 namespace http
 {
-  class HTTPSession : public ccf::ThreadedSession
-  {
-  protected:
-    std::shared_ptr<ccf::TLSSession> tls_io;
-    std::shared_ptr<ErrorReporter> error_reporter;
-    ::tcp::ConnID session_id;
-
-    HTTPSession(
-      ::tcp::ConnID session_id_,
-      ringbuffer::AbstractWriterFactory& writer_factory,
-      std::unique_ptr<ccf::tls::Context> ctx,
-      const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
-      ccf::ThreadedSession(session_id_),
-      tls_io(std::make_shared<ccf::TLSSession>(
-        session_id_, writer_factory, std::move(ctx))),
-      error_reporter(error_reporter),
-      session_id(session_id_)
-    {}
-
-  public:
-    virtual bool parse(std::span<const uint8_t> data) = 0;
-
-    void send_data(std::span<const uint8_t> data) override
-    {
-      tls_io->send_raw(data.data(), data.size());
-    }
-
-    void close_session() override
-    {
-      tls_io->close();
-    }
-
-    void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
-    {
-      tls_io->recv_buffered(data.data(), data.size());
-
-      LOG_TRACE_FMT("recv called with {} bytes", data.size());
-
-      // Try to parse all incoming data, reusing the vector we were just passed
-      // for storage. Increase the size if the received vector was too small
-      // (for the case where this chunk is very small, but we had some previous
-      // data to continue reading).
-      constexpr auto min_read_block_size = 4096;
-      if (data.size() < min_read_block_size)
-      {
-        data.resize(min_read_block_size);
-      }
-
-      auto n_read = tls_io->read(data.data(), data.size(), false);
-
-      while (true)
-      {
-        if (n_read == 0)
-        {
-          return;
-        }
-
-        LOG_TRACE_FMT("Going to parse {} bytes", n_read);
-
-        bool cont = parse({data.data(), n_read});
-        if (!cont)
-        {
-          return;
-        }
-
-        // Used all provided bytes - check if more are available
-        n_read = tls_io->read(data.data(), data.size(), false);
-      }
-    }
-  };
+  using HTTPSession = ccf::EncryptedSession;
 
   class HTTPServerSession : public HTTPSession,
                             public http::RequestProcessor,
@@ -94,6 +25,7 @@ namespace http
     std::shared_ptr<ccf::RPCMap> rpc_map;
     std::shared_ptr<ccf::RpcHandler> handler;
     std::shared_ptr<ccf::SessionContext> session_ctx;
+    std::shared_ptr<ErrorReporter> error_reporter;
     ccf::ListenInterfaceID interface_id;
 
   public:
@@ -105,9 +37,10 @@ namespace http
       std::unique_ptr<ccf::tls::Context> ctx,
       const ccf::http::ParserConfiguration& configuration,
       const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
-      HTTPSession(session_id_, writer_factory, std::move(ctx), error_reporter),
+      HTTPSession(session_id_, writer_factory, std::move(ctx)),
       request_parser(*this, configuration),
       rpc_map(rpc_map),
+      error_reporter(error_reporter),
       interface_id(interface_id)
     {}
 
@@ -268,7 +201,7 @@ namespace http
     }
 
     bool send_response(
-      http_status status_code,
+      ccf::http_status status_code,
       ccf::http::HeaderMap&& headers,
       ccf::http::HeaderMap&& trailers,
       std::span<const uint8_t> body) override
@@ -283,7 +216,12 @@ namespace http
       {
         response.set_header(k, v);
       }
-      response.set_body(body.data(), body.size());
+
+      response.set_body(
+        body.data(),
+        body.size(),
+        false /* Don't overwrite any existing content-length header */
+      );
 
       auto data = response.build_response();
       tls_io->send_raw(data.data(), data.size());
@@ -291,7 +229,7 @@ namespace http
     }
 
     bool start_stream(
-      http_status status, const ccf::http::HeaderMap& headers) override
+      ccf::http_status status, const ccf::http::HeaderMap& headers) override
     {
       throw std::logic_error("Not implemented!");
     }
@@ -380,7 +318,7 @@ namespace http
     }
 
     void handle_response(
-      http_status status,
+      ccf::http_status status,
       ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {
@@ -391,65 +329,7 @@ namespace http
     }
   };
 
-  class UnencryptedHTTPSession : public ccf::ThreadedSession
-  {
-  protected:
-    std::shared_ptr<ErrorReporter> error_reporter;
-    ::tcp::ConnID session_id;
-    ringbuffer::AbstractWriterFactory& writer_factory;
-    ringbuffer::WriterPtr to_host;
-    size_t execution_thread;
-
-    UnencryptedHTTPSession(
-      ::tcp::ConnID session_id_,
-      ringbuffer::AbstractWriterFactory& writer_factory_,
-      const std::shared_ptr<ErrorReporter>& error_reporter = nullptr) :
-      ccf::ThreadedSession(session_id_),
-      error_reporter(error_reporter),
-      session_id(session_id_),
-      writer_factory(writer_factory_),
-      to_host(writer_factory.create_writer_to_outside())
-    {
-      execution_thread =
-        threading::ThreadMessaging::instance().get_execution_thread(
-          session_id_);
-    }
-
-  public:
-    virtual bool parse(std::span<const uint8_t> data) = 0;
-
-    void send_data(std::span<const uint8_t> data) override
-    {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::logic_error(
-          "Called UnencryptedHTTPSession::send_data "
-          "from wrong thread");
-      }
-      RINGBUFFER_WRITE_MESSAGE(
-        ::tcp::tcp_outbound,
-        to_host,
-        session_id,
-        serializer::ByteRange{data.data(), data.size()});
-    }
-
-    void close_session() override
-    {
-      if (ccf::threading::get_current_thread_id() != execution_thread)
-      {
-        throw std::logic_error(
-          "Called UnencryptedHTTPSession::close_session "
-          "from wrong thread");
-      }
-      RINGBUFFER_WRITE_MESSAGE(
-        ::tcp::tcp_stop, to_host, session_id, std::string("Session closed"));
-    }
-
-    void handle_incoming_data_thread(std::vector<uint8_t>&& data) override
-    {
-      parse(data);
-    }
-  };
+  using UnencryptedHTTPSession = ccf::UnencryptedSession;
 
   class UnencryptedHTTPClientSession : public UnencryptedHTTPSession,
                                        public ccf::ClientSession,
@@ -504,7 +384,7 @@ namespace http
     }
 
     void handle_response(
-      http_status status,
+      ccf::http_status status,
       ccf::http::HeaderMap&& headers,
       std::vector<uint8_t>&& body) override
     {

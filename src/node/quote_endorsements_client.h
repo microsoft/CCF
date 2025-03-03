@@ -44,6 +44,8 @@ namespace ccf
 
     std::vector<uint8_t> endorsements_pem;
 
+    ccf::pal::Mutex lock;
+
     // Uniquely identify each received request. We assume that this client sends
     // requests in series, after receiving the response to each one or after a
     // long timeout.
@@ -124,6 +126,7 @@ namespace ccf
         ::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>(
         [](std::unique_ptr<::threading::Tmsg<QuoteEndorsementsClientTimeoutMsg>>
              msg) {
+          std::lock_guard<ccf::pal::Mutex> guard(msg->data.self->lock);
           if (msg->data.self->has_completed)
           {
             return;
@@ -240,9 +243,11 @@ namespace ccf
         endpoint.host,
         endpoint.port,
         [this, server, endpoint](
-          http_status status,
+          ccf::http_status status,
           http::HeaderMap&& headers,
           std::vector<uint8_t>&& data) {
+          std::lock_guard<ccf::pal::Mutex> guard(this->lock);
+
           last_received_request_id++;
 
           if (status == HTTP_STATUS_OK)
@@ -312,6 +317,7 @@ namespace ccf
 
     void fetch_endorsements()
     {
+      std::lock_guard<ccf::pal::Mutex> guard(this->lock);
       auto const& server = config.servers.front();
       if (server.empty())
       {

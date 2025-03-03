@@ -54,6 +54,17 @@ namespace ccf::crypto
       auto msg = OpenSSL::error_string(ec);
       throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
     }
+
+// As it's a common pattern to rely on successful key wrapper construction as a
+// confirmation of a concrete key type, this must fail for non-RSA keys.
+#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
+    if (!key || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+#else
+    if (!key || !EVP_PKEY_get0_RSA(key))
+#endif
+    {
+      throw std::logic_error("invalid RSA key");
+    }
   }
 
   std::pair<Unique_BIGNUM, Unique_BIGNUM> get_modulus_and_exponent(
@@ -203,6 +214,22 @@ namespace ccf::crypto
     CHECK1(EVP_PKEY_verify_init(pctx));
     CHECK1(EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PSS_PADDING));
     CHECK1(EVP_PKEY_CTX_set_rsa_pss_saltlen(pctx, salt_length));
+    CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
+    return EVP_PKEY_verify(
+             pctx, signature, signature_size, hash.data(), hash.size()) == 1;
+  }
+
+  bool RSAPublicKey_OpenSSL::verify_pkcs1(
+    const uint8_t* contents,
+    size_t contents_size,
+    const uint8_t* signature,
+    size_t signature_size,
+    MDType md_type)
+  {
+    auto hash = OpenSSLHashProvider().Hash(contents, contents_size, md_type);
+    Unique_EVP_PKEY_CTX pctx(key);
+    CHECK1(EVP_PKEY_verify_init(pctx));
+    CHECK1(EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PADDING));
     CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
     return EVP_PKEY_verify(
              pctx, signature, signature_size, hash.data(), hash.size()) == 1;
