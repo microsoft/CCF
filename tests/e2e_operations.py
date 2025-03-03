@@ -7,6 +7,7 @@ import shutil
 import infra.logging_app as app
 import infra.e2e_args
 import infra.network
+import infra.snp
 import ccf.ledger
 from ccf.tx_id import TxID
 import base64
@@ -959,6 +960,32 @@ def run_empty_ledger_dir_check(args):
                 )
 
 
+def run_initial_uvm_descriptor_checks(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        LOG.info("Start a network and stop it")
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
+        network.stop_all_nodes()
+        LOG.info("Check that the a UVM descriptor is present")
+
+        ledger_dirs = primary.remote.ledger_paths()
+        ledger = ccf.ledger.Ledger(ledger_dirs)
+        first_chunk = next(ledger)
+        first_tx = next(first_chunk)
+        tables = first_tx.get_public_domain().get_tables()
+        endorsements = tables["public:ccf.gov.nodes.snp.uvm_endorsements"]
+        assert len(endorsements) == 1, endorsements
+        (key,) = endorsements.keys()
+        assert key.startswith("did:x509:"), key
+        LOG.info(f"Initial UVM endorsement found in ledger: {endorsements[key]}")
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -972,3 +999,5 @@ def run(args):
     run_cose_signatures_config_check(args)
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
+    if infra.snp.is_snp():
+        run_initial_uvm_descriptor_checks(args)
