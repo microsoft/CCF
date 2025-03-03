@@ -25,7 +25,7 @@ jobs:
     # Insufficient space to run on public runner, so use custom pool
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root
 
     permissions:
@@ -37,8 +37,14 @@ jobs:
         language: ["cpp"]
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -52,12 +58,21 @@ jobs:
           languages: ${{ matrix.language }}
           queries: security-extended
 
-      - run: |
+      - name: "Install dependencies"
+        shell: bash
+        run: |
           set -ex
+          ./scripts/setup-ci.sh
+
+      - name: "Run CMake"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
           cmake -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF ..
-        name: Run CMake
+          ninja
+        shell: bash
 
       - run: |
           cd build
