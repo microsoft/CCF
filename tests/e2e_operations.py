@@ -971,6 +971,7 @@ def run_initial_uvm_descriptor_checks(args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         primary, _ = network.find_primary()
+        snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
         LOG.info("Check that the a UVM descriptor is present")
 
@@ -984,6 +985,53 @@ def run_initial_uvm_descriptor_checks(args):
         (key,) = endorsements.keys()
         assert key.startswith(b"did:x509:"), key
         LOG.info(f"Initial UVM endorsement found in ledger: {endorsements[key]}")
+
+        LOG.info("Start a recovery network and stop it")
+        current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+        recovered_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+            existing_network=network,
+        )
+
+        recovered_network.start_in_recovery(
+            args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            snapshots_dir=snapshots_dir,
+        )
+        recovered_primary, _ = recovered_network.find_primary()
+        LOG.info("Check that the UVM descriptor is present in the recovery tx")
+        recovery_seqno = None
+        with recovered_primary.client() as c:
+            r = c.get("/node/state").body.json()
+            recovery_seqno = r["last_recovered_seqno"]
+        network.stop_all_nodes()
+        ledger = ccf.ledger.Ledger(
+            recovered_primary.remote.ledger_paths(), committed_only=False
+        )
+        for chunk in ledger:
+            _, chunk_end_seqno = chunk.get_seqnos()
+            if chunk_end_seqno < recovery_seqno:
+                continue
+            for tx in chunk:
+                tables = tx.get_public_domain().get_tables()
+                seqno = tx.get_public_domain().get_seqno()
+                if seqno < recovery_seqno:
+                    continue
+                else:
+                    tables = tx.get_public_domain().get_tables()
+                    endorsements = tables["public:ccf.gov.nodes.snp.uvm_endorsements"]
+                    assert len(endorsements) == 1, endorsements
+                    (key,) = endorsements.keys()
+                    assert key.startswith(b"did:x509:"), key
+                    LOG.info(
+                        f"Recovery UVM endorsement found in ledger: {endorsements[key]}"
+                    )
+                    return
+        assert False, "No UVM endorsement found in recovery ledger"
 
 
 def run(args):
