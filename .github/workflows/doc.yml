@@ -11,18 +11,30 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:latest
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
     steps:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
+
+
       - name: Build Documentation
         run: |
           set -x
+          ./scripts/setup-ci.sh
           python3 -m venv env
           source env/bin/activate
           pip install -U pip
@@ -31,6 +43,7 @@ jobs:
           pip install -U -r doc/historical_ccf_requirements.txt
           sphinx-multiversion -D smv_remote_whitelist=origin doc build/html
         shell: bash
+
       - name: Set up top-level directory
         run: |
           set -x
@@ -38,6 +51,7 @@ jobs:
           touch .nojekyll
           cp ../../doc/index.html .
         shell: bash
+
       - name: Upload pages
         uses: actions/upload-pages-artifact@v3
         with:
