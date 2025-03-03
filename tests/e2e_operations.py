@@ -982,7 +982,7 @@ def run_initial_uvm_descriptor_checks(args):
         endorsements = tables["public:ccf.gov.nodes.snp.uvm_endorsements"]
         assert len(endorsements) == 1, endorsements
         (key,) = endorsements.keys()
-        assert key.startswith("did:x509:"), key
+        assert key.startswith(b"did:x509:"), key
         LOG.info(f"Initial UVM endorsement found in ledger: {endorsements[key]}")
 
 
