@@ -159,4 +159,5 @@ jobs:
       - name: "Steps that run in a C-ACI container, hopefully"
         run: |
           ls
-          ls -la /dev/sev
+          ls -la /dev/sev-guest
+          sleep 10000
