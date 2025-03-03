@@ -971,6 +971,7 @@ def run_initial_uvm_descriptor_checks(args):
         LOG.info("Start a network and stop it")
         network.start_and_open(args)
         primary, _ = network.find_primary()
+        old_common = infra.network.get_common_folder_name(args.workspace, args.label)
         snapshots_dir = network.get_committed_snapshots(primary)
         network.stop_all_nodes()
         LOG.info("Check that the a UVM descriptor is present")
@@ -996,6 +997,9 @@ def run_initial_uvm_descriptor_checks(args):
             existing_network=network,
         )
 
+        args.previous_service_identity_file = os.path.join(
+            old_common, "service_cert.pem"
+        )
         recovered_network.start_in_recovery(
             args,
             ledger_dir=current_ledger_dir,
