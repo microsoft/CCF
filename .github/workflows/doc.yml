@@ -16,14 +16,14 @@ jobs:
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
     steps:
-      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
       - name: "Checkout dependencies"
         shell: bash
         run: |
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
           tdnf -y install ca-certificates git
+
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/checkout@v4
         with:
