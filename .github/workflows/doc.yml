@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    paths:
-      - ".github/workflows/doc.yml"
   workflow_dispatch:
 
 jobs:
@@ -59,20 +56,20 @@ jobs:
         with:
           path: build/html
 
-  # # This is purposefully separate to keep the scope with
-  # # with the permissions to deploy to a minimum.
-  # deploy:
-  #   name: Deploy
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: read
-  #     pages: write
-  #     id-token: write
-  #   environment:
-  #     name: github-pages
-  #     url: ${{steps.deployment.outputs.page_url}}
-  #   steps:
-  #     - name: Deploy to GitHub Pages
-  #       id: deployment
-  #       uses: actions/deploy-pages@v4
+  # This is purposefully separate to keep the scope with
+  # with the permissions to deploy to a minimum.
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{steps.deployment.outputs.page_url}}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
