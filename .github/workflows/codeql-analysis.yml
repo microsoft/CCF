@@ -71,7 +71,6 @@ jobs:
           mkdir build
           cd build
           cmake -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF ..
-          ninja
         shell: bash
 
       - run: |
