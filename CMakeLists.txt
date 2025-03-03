@@ -709,6 +709,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/unit_strings.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/dl_list.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/nonstd.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/work_beacon.cpp
     )
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
@@ -1244,14 +1245,9 @@ if(BUILD_TESTS)
       NAME schema_test_cft
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/schema.py
       ADDITIONAL_ARGS
-        --schema-dir
-        ${CMAKE_SOURCE_DIR}/doc/schemas
-        --ledger-tutorial
-        ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
-        --config-samples-dir
+        --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas --ledger-tutorial
+        ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py --config-samples-dir
         ${CMAKE_SOURCE_DIR}/samples/config
-        --config-file-1x
-        ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
     )
 
     list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})

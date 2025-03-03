@@ -24,7 +24,8 @@ tdnf -y install  \
     nghttp2-devel  \
     curl-devel  \
     libarrow-devel  \
-    parquet-libs-devel
+    parquet-libs-devel  \
+    doxygen
 
 # To run standard tests
 tdnf -y install  \
