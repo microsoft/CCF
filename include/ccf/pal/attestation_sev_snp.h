@@ -6,6 +6,7 @@
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/report_data.h"
+#include "ccf/pal/hardware_info.h"
 
 #include <array>
 #include <map>
@@ -278,33 +279,33 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     uint8_t extended_model : 4;
     uint8_t extended_family : 8;
     uint8_t reserved2 : 4;
-  };
-  static_assert(
-    sizeof(CPUID) == sizeof(uint32_t), "Can't cast CPUID to uint32_t");
 
-  struct AttestChipModel
-  {
-    uint8_t family;
-    uint8_t model;
-    uint8_t stepping;
-
-    bool operator==(const AttestChipModel&) const = default;
+    bool operator==(const CPUID&) const = default;
     std::string hex_str() const
     {
       auto begin = reinterpret_cast<const uint8_t*>(this);
-      return ccf::ds::to_hex(begin, begin + sizeof(AttestChipModel));
+      return ccf::ds::to_hex(begin, begin + sizeof(CPUID));
+    }
+    inline uint8_t get_family_id() const
+    {
+      return this->base_family + this->extended_family;
+    }
+    inline uint8_t get_model_id() const
+    {
+      return (this->extended_model << 4) | this->base_model;
     }
   };
+  static_assert(
+    sizeof(CPUID) == sizeof(uint32_t), "Can't cast CPUID to uint32_t");
 #pragma pack(pop)
-  DECLARE_JSON_TYPE(AttestChipModel);
-  DECLARE_JSON_REQUIRED_FIELDS(AttestChipModel, family, model, stepping);
-  constexpr AttestChipModel get_attest_chip_model(const CPUID& cpuid)
+  DECLARE_JSON_TYPE(CPUID);
+  DECLARE_JSON_REQUIRED_FIELDS(CPUID, stepping, base_model, base_family, extended_model, extended_family);
+
+  static CPUID get_cpuid()
   {
-    AttestChipModel model;
-    model.family = cpuid.base_family + cpuid.extended_family;
-    model.model = (cpuid.extended_model << 4) | cpuid.base_model;
-    model.stepping = cpuid.stepping;
-    return model;
+    CpuidInfo cpuid_info{};
+    cpuid(&cpuid_info, 1, 0);
+    return *reinterpret_cast<CPUID*>(&cpuid_info.eax); // TODO validate
   }
 }
 
@@ -313,24 +314,24 @@ namespace ccf::kv::serialisers
   // Use hex string to ensure uniformity between the endpoint perspective and
   // the kv's key
   template <>
-  struct BlitSerialiser<ccf::pal::snp::AttestChipModel>
+  struct BlitSerialiser<ccf::pal::snp::CPUID>
   {
     static SerialisedEntry to_serialised(
-      const ccf::pal::snp::AttestChipModel& chip)
+      const ccf::pal::snp::CPUID& chip)
     {
       auto hex_str = chip.hex_str();
       return SerialisedEntry(hex_str.begin(), hex_str.end());
     }
 
-    static ccf::pal::snp::AttestChipModel from_serialised(
+    static ccf::pal::snp::CPUID from_serialised(
       const SerialisedEntry& data)
     {
-      ccf::pal::snp::AttestChipModel ret;
+      ccf::pal::snp::CPUID ret;
       auto buf_ptr = reinterpret_cast<uint8_t*>(&ret);
       ccf::ds::from_hex(
         std::string(data.data(), data.end()),
         buf_ptr,
-        buf_ptr + sizeof(ccf::pal::snp::AttestChipModel));
+        buf_ptr + sizeof(ccf::pal::snp::CPUID));
       return ret;
     }
   };

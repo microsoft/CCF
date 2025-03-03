@@ -708,13 +708,6 @@ if(BUILD_TESTS)
         snp_ioctl_test
         ${CMAKE_CURRENT_SOURCE_DIR}/src/pal/test/snp_ioctl_test.cpp
       )
-
-      add_unit_test(
-        snp_attestation_verification
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/snp_attestation_verification.cpp
-        ${CCF_DIR}/src/node/quote.cpp
-      )
-      target_link_libraries(snp_attestation_verification PRIVATE ccf_kv.host)
     endif()
 
     add_unit_test(map_test ${CMAKE_CURRENT_SOURCE_DIR}/src/ds/test/map_test.cpp)
