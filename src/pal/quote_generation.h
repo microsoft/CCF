@@ -4,6 +4,7 @@
 
 #include "ccf/crypto/hash_provider.h"
 #include "ds/files.h"
+#include "ccf/pal/attestation.h"
 
 #include <nlohmann/json.hpp>
 #include <string>
