@@ -183,6 +183,12 @@ jobs:
           tdnf install -y jre wget
           python3 tla/install_deps.py --skip-apt-packages
 
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
+
       - name: "Build"
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
