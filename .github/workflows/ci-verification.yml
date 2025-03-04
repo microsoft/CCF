@@ -178,6 +178,9 @@ jobs:
           tdnf -y install ca-certificates git
 
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Install TLC dependencies
         run: |
           tdnf install -y jre wget
