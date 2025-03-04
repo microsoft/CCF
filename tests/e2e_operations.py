@@ -1039,38 +1039,6 @@ def run_initial_uvm_descriptor_checks(args):
                     return
         assert False, "No UVM endorsement found in recovery ledger"
 
-def run_initial_snp_tcb_checks(args):
-    with infram.network.network(
-      args.nodes,
-      args.binary_dir,
-      args.debug_nodes,
-      args.perf_nodes,
-      pdb=args.pdb,
-    ) as network:
-        LOG.info("Start a network and stop it")
-        network.start_and_open(args)
-        primary, _ = network.find_primary()
-        old_common = infra.network.get_common_folder_name(args.workspace, args.label)
-        snapshots_dir = network.get_committed_snapshots(primary)
-        network.stop_all_nodes()
-
-        LOG.info("Check that the a TCB version is present")
-        ledger_dirs = primary.remote.ledger_paths()
-        ledger = ccf.ledger.Ledger(ledger_dirs)
-        first_chunk = next(iter(ledger))
-        first_tx = next(first_chunk)
-        tables = first_tx.get_public_domain().get_tables()
-        versions = tables["public:ccf.gov.nodes.snp.tcb_versions"]
-        assert len(versions) == 1, versions
-        for key in versions.keys():
-          amd_cpuids = [
-            b"\x00\xA0\x0F\x11",
-            b"\x00\xA0\x0F\x12",
-            b"\x00\xA1\x0F\x11",
-            b"\x00\xA1\x0F\x12"]
-          assert key in , key
-        LOG.info(f"Initial TCB version found in ledger: {versions[key]}")
-
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
