@@ -191,6 +191,7 @@ jobs:
 
       - name: "Build"
         run: |
+          set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
