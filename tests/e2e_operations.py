@@ -1010,11 +1010,11 @@ def run_initial_uvm_descriptor_checks(args):
         LOG.info("Check that the UVM descriptor is present in the recovery tx")
         recovery_seqno = None
         with recovered_primary.client() as c:
-            r = c.get("/node/state").body.json()
-            recovery_seqno = r["startup_seqno"] - 1
+            r = c.get("/node/network").body.json()
+            recovery_seqno = r["current_service_create_txid"]
         network.stop_all_nodes()
         ledger = ccf.ledger.Ledger(
-            recovered_primary.remote.ledger_paths(), committed_only=False
+            recovered_primary.remote.ledger_paths(), committed_only=False, read_recovery_files=True
         )
         for chunk in ledger:
             _, chunk_end_seqno = chunk.get_seqnos()
