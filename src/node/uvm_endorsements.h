@@ -26,6 +26,11 @@ namespace ccf
     std::string svn;
 
     bool operator==(const UVMEndorsements&) const = default;
+
+    inline std::string to_str()
+    {
+      return fmt::format("did: {}, feed: {}, svn: {}", did, feed, svn);
+    }
   };
   DECLARE_JSON_TYPE(UVMEndorsements);
   DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsements, did, feed, svn);
@@ -269,7 +274,8 @@ namespace ccf
     const std::vector<uint8_t>& uvm_endorsements_raw,
     const pal::PlatformAttestationMeasurement& uvm_measurement,
     const std::vector<UVMEndorsements>& uvm_roots_of_trust =
-      default_uvm_roots_of_trust)
+      default_uvm_roots_of_trust,
+    bool enforce_uvm_roots_of_trust = true)
   {
     auto phdr = cose::decode_protected_header(uvm_endorsements_raw);
 
@@ -368,7 +374,9 @@ namespace ccf
 
     UVMEndorsements end{did, phdr.feed, payload.sevsnpvm_guest_svn};
 
-    if (!matches_uvm_roots_of_trust(end, uvm_roots_of_trust))
+    if (
+      enforce_uvm_roots_of_trust &&
+      !matches_uvm_roots_of_trust(end, uvm_roots_of_trust))
     {
       throw std::logic_error(fmt::format(
         "UVM endorsements did {}, feed {}, svn {} "
