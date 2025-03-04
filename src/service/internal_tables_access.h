@@ -827,13 +827,14 @@ namespace ccf
     {
       auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
 
-      constexpr pal::snp::CPUID milan_chip_id {.stepping = 0x1,
-         .base_model = 0x1,
-         .base_family = 0xF,
-         .reserved = 0,
-         .extended_model = 0x0,
-         .extended_family = 0x0A,
-         .reserved2 = 0};
+      constexpr pal::snp::CPUID milan_chip_id{
+        .stepping = 0x1,
+        .base_model = 0x1,
+        .base_family = 0xF,
+        .reserved = 0,
+        .extended_model = 0x0,
+        .extended_family = 0x0A,
+        .reserved2 = 0};
       constexpr pal::snp::TcbVersion milan_tcb_version = {
         .boot_loader = 0,
         .tee = 0,
@@ -842,13 +843,14 @@ namespace ccf
         .microcode = 0xDB};
       h->put(milan_chip_id, milan_tcb_version);
 
-      constexpr pal::snp::CPUID milan_x_chip_id {.stepping = 0x2,
-         .base_model = 0x1,
-         .base_family = 0xF,
-         .reserved = 0,
-         .extended_model = 0x0,
-         .extended_family = 0x0A,
-         .reserved2 = 0};
+      constexpr pal::snp::CPUID milan_x_chip_id{
+        .stepping = 0x2,
+        .base_model = 0x1,
+        .base_family = 0xF,
+        .reserved = 0,
+        .extended_model = 0x0,
+        .extended_family = 0x0A,
+        .reserved2 = 0};
       constexpr pal::snp::TcbVersion milan_x_tcb_version = {
         .boot_loader = 0,
         .tee = 0,
@@ -857,13 +859,14 @@ namespace ccf
         .microcode = 0x44};
       h->put(milan_x_chip_id, milan_x_tcb_version);
 
-      constexpr pal::snp::CPUID genoa_chip_id {.stepping = 0x1,
-         .base_model = 0x1,
-         .base_family = 0xF,
-         .reserved = 0,
-         .extended_model = 0x1,
-         .extended_family = 0x0A,
-         .reserved2 = 0};
+      constexpr pal::snp::CPUID genoa_chip_id{
+        .stepping = 0x1,
+        .base_model = 0x1,
+        .base_family = 0xF,
+        .reserved = 0,
+        .extended_model = 0x1,
+        .extended_family = 0x0A,
+        .reserved2 = 0};
       constexpr pal::snp::TcbVersion genoa_tcb_version = {
         .boot_loader = 0,
         .tee = 0,
@@ -872,13 +875,14 @@ namespace ccf
         .microcode = 0x54};
       h->put(genoa_chip_id, genoa_tcb_version);
 
-      constexpr pal::snp::CPUID genoa_x_chip_id {.stepping = 0x2,
-         .base_model = 0x1,
-         .base_family = 0xF,
-         .reserved = 0,
-         .extended_model = 0x1,
-         .extended_family = 0x0A,
-         .reserved2 = 0};
+      constexpr pal::snp::CPUID genoa_x_chip_id{
+        .stepping = 0x2,
+        .base_model = 0x1,
+        .base_family = 0xF,
+        .reserved = 0,
+        .extended_model = 0x1,
+        .extended_family = 0x0A,
+        .reserved2 = 0};
       constexpr pal::snp::TcbVersion genoa_x_tcb_version = {
         .boot_loader = 0,
         .tee = 0,
@@ -891,7 +895,7 @@ namespace ccf
     static void trust_node_snp_tcb_version(
       ccf::kv::Tx& tx, pal::snp::Attestation& attestation)
     {
-      // Fall back to statically configured tcb versions 
+      // Fall back to statically configured tcb versions
       auto cpuid = pal::snp::get_cpuid();
       if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
       {
@@ -906,7 +910,11 @@ namespace ccf
         cpuid->stepping != attestation.cpuid_step)
       {
         LOG_FAIL_FMT(
-          "Snp cpuid does not match attestation cpuid ({} != {}, {}, {})", cpuid->hex_str(), attestation.cpuid_fam_id, attestation.cpuid_mod_id, attestation.cpuid_step);
+          "Snp cpuid does not match attestation cpuid ({} != {}, {}, {})",
+          cpuid->hex_str(),
+          attestation.cpuid_fam_id,
+          attestation.cpuid_mod_id,
+          attestation.cpuid_step);
         trust_static_snp_tcb_version(tx);
         return;
       }

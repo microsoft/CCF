@@ -6,7 +6,6 @@
 #include "ccf/pal/attestation_sev_snp_endorsements.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/report_data.h"
-#include "ccf/pal/hardware_info.h"
 
 #include <array>
 #include <map>
@@ -297,11 +296,13 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
   };
 #pragma pack(pop)
   DECLARE_JSON_TYPE(CPUID);
-  DECLARE_JSON_REQUIRED_FIELDS(CPUID, stepping, base_model, base_family, extended_model, extended_family);
+  DECLARE_JSON_REQUIRED_FIELDS(
+    CPUID, stepping, base_model, base_family, extended_model, extended_family);
   static_assert(
     sizeof(CPUID) == sizeof(uint32_t), "Can't cast CPUID to uint32_t");
 
-  union UnionedCPUID{
+  union UnionedCPUID
+  {
     uint32_t eax;
     CPUID cpuid;
   };
@@ -310,10 +311,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
   {
     UnionedCPUID cpuid_eax;
     cpuid_eax.eax = 0;
-    asm volatile(
-      "cpuid"
-      : "=a"(cpuid_eax.eax)
-      : "a"(1));
+    asm volatile("cpuid" : "=a"(cpuid_eax.eax) : "a"(1));
     return cpuid_eax.cpuid;
   }
 }
@@ -325,15 +323,13 @@ namespace ccf::kv::serialisers
   template <>
   struct BlitSerialiser<ccf::pal::snp::CPUID>
   {
-    static SerialisedEntry to_serialised(
-      const ccf::pal::snp::CPUID& chip)
+    static SerialisedEntry to_serialised(const ccf::pal::snp::CPUID& chip)
     {
       auto hex_str = chip.hex_str();
       return SerialisedEntry(hex_str.begin(), hex_str.end());
     }
 
-    static ccf::pal::snp::CPUID from_serialised(
-      const SerialisedEntry& data)
+    static ccf::pal::snp::CPUID from_serialised(const SerialisedEntry& data)
     {
       ccf::pal::snp::CPUID ret;
       auto buf_ptr = reinterpret_cast<uint8_t*>(&ret);

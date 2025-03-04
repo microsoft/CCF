@@ -276,16 +276,19 @@ namespace ccf
     }
 
     std::optional<pal::snp::TcbVersion> min_tcb_opt = std::nullopt;
-    
+
     auto h = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
-    // expensive but there should not be many entries in this table only one per cpu
-    h->foreach([&min_tcb_opt, &attestation](const pal::snp::CPUID& cpuid, const pal::snp::TcbVersion& v) {
-      if (cpuid.get_family_id() == attestation.cpuid_fam_id &&
-          cpuid.get_model_id() == attestation.cpuid_mod_id &&
-          cpuid.stepping == attestation.cpuid_step) {
+    // expensive but there should not be many entries
+    h->foreach([&min_tcb_opt, &attestation](
+                 const pal::snp::CPUID& cpuid, const pal::snp::TcbVersion& v) {
+      if (
+        cpuid.get_family_id() == attestation.cpuid_fam_id &&
+        cpuid.get_model_id() == attestation.cpuid_mod_id &&
+        cpuid.stepping == attestation.cpuid_step)
+      {
         min_tcb_opt = v;
         return false;
-      } 
+      }
       return true;
     });
 
