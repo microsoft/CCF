@@ -295,17 +295,26 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       return (this->extended_model << 4) | this->base_model;
     }
   };
-  static_assert(
-    sizeof(CPUID) == sizeof(uint32_t), "Can't cast CPUID to uint32_t");
 #pragma pack(pop)
   DECLARE_JSON_TYPE(CPUID);
   DECLARE_JSON_REQUIRED_FIELDS(CPUID, stepping, base_model, base_family, extended_model, extended_family);
+  static_assert(
+    sizeof(CPUID) == sizeof(uint32_t), "Can't cast CPUID to uint32_t");
+
+  union UnionedCPUID{
+    uint32_t eax;
+    CPUID cpuid;
+  };
 
   static CPUID get_cpuid()
   {
-    CpuidInfo cpuid_info{};
-    cpuid(&cpuid_info, 1, 0);
-    return *reinterpret_cast<CPUID*>(&cpuid_info.eax); // TODO validate
+    UnionedCPUID cpuid_eax;
+    cpuid_eax.eax = 0;
+    asm volatile(
+      "cpuid"
+      : "=a"(cpuid_eax.eax)
+      : "a"(1));
+    return cpuid_eax.cpuid;
   }
 }
 
