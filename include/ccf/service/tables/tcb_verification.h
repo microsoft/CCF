@@ -13,6 +13,6 @@ namespace ccf
   namespace Tables
   {
     static constexpr auto SNP_TCB_VERSIONS =
-      "public:ccf.gov.nodes.snp_tcb_versions";
+      "public:ccf.gov.nodes.snp.tcb_versions";
   }
 }
