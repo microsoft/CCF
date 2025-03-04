@@ -114,6 +114,11 @@ namespace ccf
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot,
       uint32_t generation_count)
     {
+      auto snapshot_version = snapshot->get_version();
+
+      // Note this is NOT held for the entire function body, only to protect
+      // accesses to pending_snapshots
+      std::unique_lock<ccf::pal::Mutex> guard(lock);
       if (pending_snapshots.size() >= max_pending_snapshots_count)
       {
         LOG_FAIL_FMT(
@@ -123,7 +128,14 @@ namespace ccf
         return;
       }
 
-      auto snapshot_version = snapshot->get_version();
+      // It is possible that the signature following the snapshot evidence is
+      // scheduled by another thread while the below snapshot evidence
+      // transaction is committed. To allow for such scenario, the evidence
+      // seqno is recorded via `record_snapshot_evidence_idx()` on a hook rather
+      // than here.
+      pending_snapshots[generation_count] = {};
+      pending_snapshots[generation_count].version = snapshot_version;
+      guard.unlock();
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
       auto serialised_snapshot_size = serialised_snapshot.size();
@@ -147,14 +159,6 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
-      // It is possible that the signature following the snapshot evidence is
-      // scheduled by another thread while the below snapshot evidence
-      // transaction is committed. To allow for such scenario, the evidence
-      // seqno is recorded via `record_snapshot_evidence_idx()` on a hook rather
-      // than here.
-      pending_snapshots[generation_count] = {};
-      pending_snapshots[generation_count].version = snapshot_version;
-
       auto rc =
         tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
       if (rc != ccf::kv::CommitResult::SUCCESS)
@@ -168,11 +172,13 @@ namespace ccf
 
       auto evidence_version = tx.commit_version();
 
+      guard.lock();
       pending_snapshots[generation_count].commit_evidence = commit_evidence;
       pending_snapshots[generation_count].write_set_digest = ws_digest;
       pending_snapshots[generation_count].snapshot_digest = cd.value();
       pending_snapshots[generation_count].serialised_snapshot =
         std::move(serialised_snapshot);
+      guard.unlock();
 
       auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(
