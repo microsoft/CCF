@@ -160,4 +160,3 @@ jobs:
         run: |
           ls
           ls -la /dev/sev-guest
-          sleep 10000
