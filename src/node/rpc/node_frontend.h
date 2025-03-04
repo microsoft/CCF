@@ -1640,7 +1640,6 @@ namespace ccf
             break;
 
             InternalTablesAccess::trust_static_snp_tcb_version(ctx.tx);
-
           }
 
           case QuoteFormat::amd_sev_snp_v1:
