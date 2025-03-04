@@ -891,12 +891,27 @@ namespace ccf
     static void trust_node_snp_tcb_version(
       ccf::kv::Tx& tx, pal::snp::Attestation& attestation)
     {
-      if (attestation.version >= pal::snp::MIN_TCB_VERIF_VERSION)
+      // Fall back to statically configured tcb versions 
+      auto cpuid = pal::snp::get_cpuid();
+      if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
       {
-        auto cpuid = pal::snp::get_cpuid();
-        auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
-        h->put(cpuid, attestation.reported_tcb);
+        LOG_FAIL_FMT(
+          "Snp attestation version ({}) too old", attestation.version);
+        trust_static_snp_tcb_version(tx);
+        return;
       }
+      if (
+        cpuid->get_family_id() != attestation.cpuid_fam_id ||
+        cpuid->get_model_id() != attestation.cpuid_mod_id ||
+        cpuid->stepping != attestation.cpuid_step)
+      {
+        LOG_FAIL_FMT(
+          "Snp cpuid does not match attestation cpuid ({} != {}, {}, {})", cpuid->hex_str(), attestation.cpuid_fam_id, attestation.cpuid_mod_id, attestation.cpuid_step);
+        trust_static_snp_tcb_version(tx);
+        return;
+      }
+      auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+      h->put(cpuid, attestation.reported_tcb);
     }
 
     static void init_configuration(
