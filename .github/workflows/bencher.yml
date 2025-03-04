@@ -6,9 +6,9 @@ on:
   push:
     branches:
       - main
-      - test_bencher_azure_linux
   workflow_dispatch:
-
+      - test_bencher_azure_linux
+      
 jobs:
   run_benchmarks:
     name: Continuous Benchmarking with Bencher
