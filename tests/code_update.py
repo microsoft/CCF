@@ -276,46 +276,46 @@ def test_host_data_tables(network, args):
 @reqs.description("Test tcb version tables")
 @reqs.snp_only()
 def test_tcb_version_tables(network, args):
-  primary, _ = network.find_nodes()
-  LOG.info("Checking that the TCB versions is correctly populated")
-  cpuid, tcb_version = None, None
-  with primary.api_versioned_client(api_version=args.gov_api_version) as client:
-    r = client.get("/gov/service/join-policy")
-    assert r.status_code == http.HTTPStatus.OK, r
-    versions = r.body.json()["snp"]["tcbVersions"]
-    assert len(versions) == 1, f"Expected one TCB version, {versions}"
-    cpuid, tcb_version = next(iter(versions.items()))
+    primary, _ = network.find_nodes()
+    LOG.info("Checking that the TCB versions is correctly populated")
+    cpuid, tcb_version = None, None
+    with primary.api_versioned_client(api_version=args.gov_api_version) as client:
+        r = client.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        versions = r.body.json()["snp"]["tcbVersions"]
+        assert len(versions) == 1, f"Expected one TCB version, {versions}"
+        cpuid, tcb_version = next(iter(versions.items()))
 
-  LOG.info("Removing current cpuid's TCB version")
-  network.consortium.remove_snp_tcb_version(primary, cpuid)
-  with primary.api_versioned_client(api_version=args.gov_api_version) as client:
-    r = client.get("/gov/service/join-policy")
-    assert r.status_code == http.HTTPStatus.OK, r
-    versions = r.body.json()["snp"]["tcbVersions"]
-    assert len(versions) == 0, f"Expected no TCB versions, {versions}"
+    LOG.info("Removing current cpuid's TCB version")
+    network.consortium.remove_snp_tcb_version(primary, cpuid)
+    with primary.api_versioned_client(api_version=args.gov_api_version) as client:
+        r = client.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        versions = r.body.json()["snp"]["tcbVersions"]
+        assert len(versions) == 0, f"Expected no TCB versions, {versions}"
 
-  LOG.info("Checking new nodes are prevented from joining")
-  thrown_exception = None
-  try:
+    LOG.info("Checking new nodes are prevented from joining")
+    thrown_exception = None
+    try:
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, args.package, args, timeout=3)
+        network.trust_node(new_node, args)
+    except Exception as e:
+        thrown_exception = e
+    assert thrown_exception is None, "New node should not have been able to join"
+
+    LOG.info("Adding new cpuid's TCB version")
+    network.consortium.add_snp_tcb_version(primary, cpuid, tcb_version)
+    with primary.api_versioned_client(api_version=args.gov_api_version) as client:
+        r = client.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        versions = r.body.json()["snp"]["tcbVersions"]
+        assert len(versions) == 1, f"Expected one TCB version, {versions}"
+
+    LOG.info("Checking new nodes are allowed to join")
     new_node = network.create_node("local://localhost")
     network.join_node(new_node, args.package, args, timeout=3)
     network.trust_node(new_node, args)
-  except e:
-    exception = e
-  assert (exception is None), f"New node should not have been able to join"
-
-  LOG.info("Adding new cpuid's TCB version")
-  network.consortium.add_snp_tcb_version(primary, cpuid, tcb_version)
-  with primary.api_versioned_client(api_version=args.gov_api_version) as client:
-    r = client.get("/gov/service/join-policy")
-    assert r.status_code == http.HTTPStatus.OK, r
-    versions = r.body.json()["snp"]["tcbVersions"]
-    assert len(versions) == 1, f"Expected one TCB version, {versions}"
-
-  LOG.info("Checking new nodes are allowed to join")
-  new_node = network.create_node("local://localhost")
-  network.join_node(new_node, args.package, args, timeout=3)
-  network.trust_node(new_node, args)
 
 
 @reqs.description("Join node with no security policy")

@@ -7,12 +7,12 @@
 #include "ccf/js/extensions/ccf/converters.h"
 
 #include "ccf/js/core/context.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/version.h"
 #include "js/checks.h"
 #include "node/rpc/jwt_management.h"
-#include "ccf/pal/attestation_sev_snp.h"
-#include <nlohmann/json.hpp>
 
+#include <nlohmann/json.hpp>
 #include <quickjs/quickjs.h>
 
 namespace ccf::js::extensions
@@ -206,9 +206,11 @@ namespace ccf::js::extensions
       auto str = jsctx.json_stringify(jsctx.wrap(argv[0]));
       JS_CHECK_EXC(str);
 
-      pal::snp::TcbVersion tcb_version = nlohmann::json::parse(jsctx.to_str(str));
+      pal::snp::TcbVersion tcb_version =
+        nlohmann::json::parse(jsctx.to_str(str));
 
-      auto buf = jsctx.new_array_buffer_copy((uint8_t*)&tcb_version, sizeof(pal::snp::TcbVersion));
+      auto buf = jsctx.new_array_buffer_copy(
+        (uint8_t*)&tcb_version, sizeof(pal::snp::TcbVersion));
       JS_CHECK_EXC(buf);
 
       return buf.take();
@@ -240,6 +242,8 @@ namespace ccf::js::extensions
 
     ccf.set("pemToId", ctx.new_c_function(js_pem_to_id, "pemToId", 1));
 
-    ccf.set("jsonToSnpTcbVersion", ctx.new_c_function(js_json_to_tcb_version, "jsonToSnpTcbVersion", 1));
+    ccf.set(
+      "jsonToSnpTcbVersion",
+      ctx.new_c_function(js_json_to_tcb_version, "jsonToSnpTcbVersion", 1));
   }
 }

@@ -1039,6 +1039,7 @@ def run_initial_uvm_descriptor_checks(args):
                     return
         assert False, "No UVM endorsement found in recovery ledger"
 
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -1054,4 +1055,3 @@ def run(args):
     run_empty_ledger_dir_check(args)
     if infra.snp.is_snp():
         run_initial_uvm_descriptor_checks(args)
-        run_initial_snp_tcb_checks(args)
