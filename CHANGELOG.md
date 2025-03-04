@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Restore low CPU usage on idle nodes, which had increased in dev20 (#6816).
 - Nodes in Start and Recovery modes no longer enforce specific UVM descriptors, and will instead derive one from UVM endorsements if found. The consortium must check that the value is acceptable, record their agreement by opening the network (#6869).
 
+### Removed
+
+- The function `ccf::get_js_plugins()` and associated FFI plugin system for JS is _removed_. Similar functionality must now be implemented through a `js::Extension` returned from `DynamicJSEndpointRegistry::get_extensions()`.
+
 ## [6.0.0-dev20]
 
 [6.0.0-dev20]: https://github.com/microsoft/CCF/releases/tag/6.0.0-dev20
