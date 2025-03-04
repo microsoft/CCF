@@ -59,11 +59,7 @@ namespace ccf::kv
 
     for (auto it = changes.begin(); it != changes.end(); ++it)
     {
-      bool changeset_has_writes = it->second.changeset->has_writes();
-      if (changeset_has_writes)
-      {
-        has_writes = true;
-      }
+      has_writes |= it->second.changeset->has_writes();
       it->second.map->lock();
     }
 
