@@ -155,8 +155,7 @@ namespace ccf
       pending_snapshots[generation_count] = {};
       pending_snapshots[generation_count].version = snapshot_version;
 
-      auto rc =
-        tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
+      auto rc = tx.commit(cd, nullptr, capture_ws_digest_and_commit_evidence);
       if (rc != ccf::kv::CommitResult::SUCCESS)
       {
         LOG_FAIL_FMT(
