@@ -889,7 +889,7 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
-    
+
     def add_snp_tcb_version(self, remote_node, cpuid, new_tcb_version):
         proposal_body, careful_vote = self.make_proposal(
             "add_snp_tcb_version",
@@ -922,7 +922,7 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
-    
+
     def remove_snp_tcb_version(self, remote_node, cpuid):
         proposal_body, careful_vote = self.make_proposal(
             "remove_snp_tcb_version",
@@ -930,7 +930,6 @@ class Consortium:
         )
         proposal = self.get_any_active_member().propose(remote_node, proposal_body)
         return self.vote_using_majority(remote_node, proposal, careful_vote)
-
 
     def set_node_data(self, remote_node, node_service_id, node_data):
         proposal, careful_vote = self.make_proposal(
