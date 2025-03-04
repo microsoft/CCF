@@ -6,9 +6,9 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
       - test_bencher_azure_linux
-      
+  workflow_dispatch:
+
 jobs:
   run_benchmarks:
     name: Continuous Benchmarking with Bencher
@@ -29,10 +29,10 @@ jobs:
           fetch-depth: 0
 
       - name: "Install dependencies"
-          shell: bash
-          run: |
-            set -ex
-            ./scripts/setup-ci.sh
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
 
       - name: Build and run virtual perf tests
         run: |
