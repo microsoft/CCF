@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `ccf.ledger`/`read_ledger.py` previously enforced too strict a condition on node membership when validating ledger files (#6849).
 - Restore low CPU usage on idle nodes, which had increased in dev20 (#6816).
+- Nodes in Start and Recovery modes no longer enforce specific UVM descriptors, and will instead derive one from UVM endorsements if found. The consortium must check that the value is acceptable, record their agreement by opening the network (#6869).
 
 ## [6.0.0-dev20]
 

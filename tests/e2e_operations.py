@@ -1014,7 +1014,9 @@ def run_initial_uvm_descriptor_checks(args):
             recovery_seqno = int(r["current_service_create_txid"].split(".")[1])
         network.stop_all_nodes()
         ledger = ccf.ledger.Ledger(
-            recovered_primary.remote.ledger_paths(), committed_only=False, read_recovery_files=True
+            recovered_primary.remote.ledger_paths(),
+            committed_only=False,
+            read_recovery_files=True,
         )
         for chunk in ledger:
             _, chunk_end_seqno = chunk.get_seqnos()
