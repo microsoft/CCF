@@ -1609,8 +1609,6 @@ namespace ccf
             ctx.tx, in.measurement, in.quote_info.format);
         }
 
-        InternalTablesAccess::trust_static_snp_tcb_version(ctx.tx);
-
         switch (in.quote_info.format)
         {
           case QuoteFormat::insecure_virtual:
