@@ -114,17 +114,27 @@ namespace ccf
       std::unique_ptr<ccf::kv::AbstractStore::AbstractSnapshot> snapshot,
       uint32_t generation_count)
     {
-      std::unique_lock<ccf::pal::Mutex> guard(lock);
-      if (pending_snapshots.size() >= max_pending_snapshots_count)
-      {
-        LOG_FAIL_FMT(
-          "Skipping new snapshot generation as {} snapshots are already "
-          "pending",
-          pending_snapshots.size());
-        return;
-      }
-
       auto snapshot_version = snapshot->get_version();
+
+      {
+        std::unique_lock<ccf::pal::Mutex> guard(lock);
+        if (pending_snapshots.size() >= max_pending_snapshots_count)
+        {
+          LOG_FAIL_FMT(
+            "Skipping new snapshot generation as {} snapshots are already "
+            "pending",
+            pending_snapshots.size());
+          return;
+        }
+
+        // It is possible that the signature following the snapshot evidence is
+        // scheduled by another thread while the below snapshot evidence
+        // transaction is committed. To allow for such scenario, the evidence
+        // seqno is recorded via `record_snapshot_evidence_idx()` on a hook
+        // rather than here.
+        pending_snapshots[generation_count] = {};
+        pending_snapshots[generation_count].version = snapshot_version;
+      }
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
       auto serialised_snapshot_size = serialised_snapshot.size();
@@ -144,19 +154,6 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
-      // It is possible that the signature following the snapshot evidence is
-      // scheduled by another thread while the below snapshot evidence
-      // transaction is committed. To allow for such scenario, the evidence
-      // seqno is recorded via `record_snapshot_evidence_idx()` on a hook rather
-      // than here.
-      pending_snapshots[generation_count] = {};
-      pending_snapshots[generation_count].version = snapshot_version;
-
-      // Temporarily unlock, while interacting with KV.
-      guard.unlock();
-      auto tx = store->create_tx();
-      auto evidence = tx.wo<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
-      evidence->put({snapshot_hash, snapshot_version});
       auto rc =
         tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
       if (rc != ccf::kv::CommitResult::SUCCESS)
@@ -171,11 +168,14 @@ namespace ccf
 
       auto evidence_version = tx.commit_version();
 
-      pending_snapshots[generation_count].commit_evidence = commit_evidence;
-      pending_snapshots[generation_count].write_set_digest = ws_digest;
-      pending_snapshots[generation_count].snapshot_digest = cd.value();
-      pending_snapshots[generation_count].serialised_snapshot =
-        std::move(serialised_snapshot);
+      {
+        std::unique_lock<ccf::pal::Mutex> guard(lock);
+        pending_snapshots[generation_count].commit_evidence = commit_evidence;
+        pending_snapshots[generation_count].write_set_digest = ws_digest;
+        pending_snapshots[generation_count].snapshot_digest = cd.value();
+        pending_snapshots[generation_count].serialised_snapshot =
+          std::move(serialised_snapshot);
+      }
 
       auto to_host = writer_factory.create_writer_to_outside();
       RINGBUFFER_WRITE_MESSAGE(

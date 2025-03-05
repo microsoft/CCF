@@ -282,8 +282,6 @@ set(CCF_JS_SOURCES
     ${CCF_DIR}/src/js/core/wrapped_value.cpp
     ${CCF_DIR}/src/js/core/runtime.cpp
     ${CCF_DIR}/src/js/core/context.cpp
-    ${CCF_DIR}/src/js/no_plugins.cpp
-    ${CCF_DIR}/src/js/ffi_plugins.cpp
     ${CCF_DIR}/src/js/extensions/console.cpp
     ${CCF_DIR}/src/js/extensions/math/random.cpp
     ${CCF_DIR}/src/js/extensions/snp_attestation.cpp
@@ -974,8 +972,8 @@ if(BUILD_TESTS)
   endif()
 
   if(LONG_TESTS)
-    # Submit a large load of transactions before recovers to test all code paths.
-    # Unless we're building with TSAN, where this is too slow.
+    # Submit a large load of transactions before recovers to test all code
+    # paths. Unless we're building with TSAN, where this is too slow.
     if(NOT TSAN)
       set(ADDITIONAL_RECOVERY_ARGS --with-load)
     endif()
@@ -1260,27 +1258,15 @@ if(BUILD_TESTS)
     list(APPEND LTS_TEST_ARGS --check-ledger-compatibility)
   endif()
 
-  if(NOT SAN)
-    add_e2e_test(
-      NAME lts_compatibility
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
-      LABEL e2e
-      ADDITIONAL_ARGS
-        ${LTS_TEST_ARGS}
-        --constitution
-        ${CMAKE_SOURCE_DIR}/samples/constitutions/virtual/virtual_attestation_actions.js
-    )
-    set_property(
-      TEST lts_compatibility
-      APPEND
-      PROPERTY ENVIRONMENT "LTS_COMPAT_GOV_CLIENT=1"
-    )
-    set_property(
-      TEST lts_compatibility
-      APPEND
-      PROPERTY LABELS lts_compatibility
-    )
-  endif()
+  add_e2e_test(
+    NAME lts_compatibility
+    PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/lts_compatibility.py
+    LABEL e2e
+    ADDITIONAL_ARGS
+      --schema-dir ${CMAKE_SOURCE_DIR}/doc/schemas --ledger-tutorial
+      ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py --config-samples-dir
+      ${CMAKE_SOURCE_DIR}/samples/config
+  )
 
   if(LONG_TESTS)
     set(ROTATION_TEST_ARGS --rotation-retirements 10)
