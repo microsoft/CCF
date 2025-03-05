@@ -1192,7 +1192,9 @@ const actions = new Map([
       },
       function (args) {
         const cpuid = hexStrToBuf(args.cpuid);
-        ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid);
+        if ( ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid)) {
+          ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid);
+        }
       },
     ),
   ],

@@ -282,8 +282,10 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     bool operator==(const CPUID&) const = default;
     std::string hex_str() const
     {
-      auto begin = reinterpret_cast<const uint8_t*>(this);
-      return ccf::ds::to_hex(begin, begin + sizeof(CPUID));
+      uint8_t buf[sizeof(CPUID)];
+      memcpy(buf, this, sizeof(CPUID));
+      std::reverse(buf, buf + sizeof(CPUID)); // fix little endianness of AMD
+      return ccf::ds::to_hex(buf, buf + sizeof(CPUID));
     }
     inline uint8_t get_family_id() const
     {
@@ -300,6 +302,15 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     CPUID, stepping, base_model, base_family, extended_model, extended_family);
   static_assert(
     sizeof(CPUID) == sizeof(uint32_t), "Can't cast CPUID to uint32_t");
+  static CPUID cpuid_from_hex(const std::string& hex_str)
+  {
+    CPUID ret;
+    auto buf_ptr = reinterpret_cast<uint8_t*>(&ret);
+    ccf::ds::from_hex(
+      hex_str, buf_ptr, buf_ptr + sizeof(CPUID));
+    std::reverse(buf_ptr, buf_ptr + sizeof(CPUID)); //fix little endianness of AMD
+    return ret;
+  }
 
   union UnionedCPUID
   {
@@ -331,13 +342,7 @@ namespace ccf::kv::serialisers
 
     static ccf::pal::snp::CPUID from_serialised(const SerialisedEntry& data)
     {
-      ccf::pal::snp::CPUID ret;
-      auto buf_ptr = reinterpret_cast<uint8_t*>(&ret);
-      ccf::ds::from_hex(
-        std::string(data.data(), data.end()),
-        buf_ptr,
-        buf_ptr + sizeof(ccf::pal::snp::CPUID));
-      return ret;
+      return ccf::pal::snp::cpuid_from_hex(std::string(data.data(), data.end()));
     }
   };
 }
