@@ -154,6 +154,9 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
+      auto tx = store->create_tx();
+      auto evidence = tx.wo<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
+      evidence->put({snapshot_hash, snapshot_version});
       auto rc =
         tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
       if (rc != ccf::kv::CommitResult::SUCCESS)
@@ -164,7 +167,6 @@ namespace ccf
           rc);
         return;
       }
-      guard.lock();
 
       auto evidence_version = tx.commit_version();
 
