@@ -160,7 +160,6 @@ jobs:
         shell: bash
         run: |
           tdnf -y install git
-          df -kh
 
       - uses: actions/checkout@v4
         with:
