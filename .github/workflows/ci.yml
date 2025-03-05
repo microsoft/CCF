@@ -150,3 +150,33 @@ jobs:
           # All other acceptably fast tests, which are now supported on Azure Linux.
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
+
+  build_caci:
+    name: "Experimental C-ACI CI"
+    runs-on: [self-hosted, 1ES.Pool=gha-caci-ne]
+
+    steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          tdnf -y install git
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
+
+      - name: "Build Debug"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
+          ninja
+        shell: bash
