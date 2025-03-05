@@ -1097,6 +1097,38 @@ const actions = new Map([
     ),
   ],
   [
+    "add_snp_tcb_version",
+    new Action(
+      function (args) {
+        checkType(args.cpuid, "string", "cpuid");
+        checkLength(hexStrToBuf(args.cpuid), 4, 4, "cpuid");
+
+        checkType(args.tcb_version, "object", "tcb_version");
+        checkType(
+          args.tcb_version?.boot_loader,
+          "number",
+          "tcb_version.boot_loader",
+        );
+        checkType(args.tcb_version?.tee, "number", "tcb_version.tee");
+        checkType(args.tcb_version?.snp, "number", "tcb_version.snp");
+        checkType(
+          args.tcb_version?.microcode,
+          "number",
+          "tcb_version.microcode",
+        );
+      },
+      function (args) {
+        ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].set(
+          hexStrToBuf(args.cpuid),
+          ccf.jsonToSnpTcbVersion(args.tcb_version),
+        );
+
+        // Is this required?
+        //invalidateOtherOpenProposals(proposalId);
+      },
+    ),
+  ],
+  [
     "remove_snp_host_data",
     new Action(
       function (args) {
@@ -1147,6 +1179,21 @@ const actions = new Map([
             ccf.strToBuf(args.did),
             ccf.jsonCompatibleToBuf(uvme),
           );
+        }
+      },
+    ),
+  ],
+  [
+    "remove_snp_tcb_version",
+    new Action(
+      function (args) {
+        checkType(args.cpuid, "string", "cpuid");
+        checkLength(hexStrToBuf(args.cpuid), 4, 4, "cpuid");
+      },
+      function (args) {
+        const cpuid = hexStrToBuf(args.cpuid);
+        if ( ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid)) {
+          ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid);
         }
       },
     ),
