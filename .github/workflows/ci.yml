@@ -159,4 +159,5 @@ jobs:
       - name: "Steps that run in a C-ACI container"
         run: |
           uname -a
+          cat /etc/os-release
           ls -la /dev/sev-guest
