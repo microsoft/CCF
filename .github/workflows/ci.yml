@@ -156,8 +156,27 @@ jobs:
     runs-on: [self-hosted, 1ES.Pool=gha-caci-ne]
 
     steps:
-      - name: "Steps that run in a C-ACI container"
+      - name: "Checkout dependencies"
+        shell: bash
         run: |
-          uname -a
-          cat /etc/os-release
-          ls -la /dev/sev-guest
+          tdnf -y install git
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
+
+      - name: "Build Debug"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
+          ninja
+        shell: bash
