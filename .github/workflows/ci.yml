@@ -156,7 +156,7 @@ jobs:
     runs-on: [self-hosted, 1ES.Pool=gha-caci-ne]
 
     steps:
-      - name: "Steps that run in a C-ACI container, hopefully"
+      - name: "Steps that run in a C-ACI container"
         run: |
-          ls
+          uname -a
           ls -la /dev/sev-guest
