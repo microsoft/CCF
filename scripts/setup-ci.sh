@@ -27,35 +27,35 @@ tdnf -y install  \
     parquet-libs-devel  \
     doxygen
 
-# To run standard tests
-tdnf -y install  \
-    lldb  \
-    expect  \
-    npm  \
-    jq
+# # To run standard tests
+# tdnf -y install  \
+#     lldb  \
+#     expect  \
+#     npm  \
+#     jq
 
-# Extra-dependency for CDDL schema checker
-tdnf -y install rubygems
-gem install cddl
+# # Extra-dependency for CDDL schema checker
+# tdnf -y install rubygems
+# gem install cddl
 
-# Release (extended) tests
-tdnf -y install procps
+# # Release (extended) tests
+# tdnf -y install procps
 
-# protocoltest
-tdnf install -y bind-utils
-curl -L --output h2spec_linux_amd64.tar.gz https://github.com/summerwind/h2spec/releases/download/$H2SPEC_VERSION/h2spec_linux_amd64.tar.gz
-tar -xvf h2spec_linux_amd64.tar.gz
-mkdir /opt/h2spec
-mv h2spec /opt/h2spec/h2spec
-rm h2spec_linux_amd64.tar.gz
+# # protocoltest
+# tdnf install -y bind-utils
+# curl -L --output h2spec_linux_amd64.tar.gz https://github.com/summerwind/h2spec/releases/download/$H2SPEC_VERSION/h2spec_linux_amd64.tar.gz
+# tar -xvf h2spec_linux_amd64.tar.gz
+# mkdir /opt/h2spec
+# mv h2spec /opt/h2spec/h2spec
+# rm h2spec_linux_amd64.tar.gz
 
-# acme endorsement tests
-mkdir -p /opt/pebble
-curl -L --output pebble_linux-amd64 https://github.com/letsencrypt/pebble/releases/download/$PEBBLE_VERSION/pebble_linux-amd64
-mv pebble_linux-amd64 /opt/pebble/pebble_linux-amd64
-curl -L --output pebble-challtestsrv_linux-amd64 https://github.com/letsencrypt/pebble/releases/download/$PEBBLE_VERSION/pebble-challtestsrv_linux-amd64
-mv pebble-challtestsrv_linux-amd64 /opt/pebble/pebble-challtestsrv_linux-amd64
-chmod +x /opt/pebble/pebble_linux-amd64 /opt/pebble/pebble-challtestsrv_linux-amd64
+# # acme endorsement tests
+# mkdir -p /opt/pebble
+# curl -L --output pebble_linux-amd64 https://github.com/letsencrypt/pebble/releases/download/$PEBBLE_VERSION/pebble_linux-amd64
+# mv pebble_linux-amd64 /opt/pebble/pebble_linux-amd64
+# curl -L --output pebble-challtestsrv_linux-amd64 https://github.com/letsencrypt/pebble/releases/download/$PEBBLE_VERSION/pebble-challtestsrv_linux-amd64
+# mv pebble-challtestsrv_linux-amd64 /opt/pebble/pebble-challtestsrv_linux-amd64
+# chmod +x /opt/pebble/pebble_linux-amd64 /opt/pebble/pebble-challtestsrv_linux-amd64
 
-# For packaging
-tdnf -y install rpm-build
+# # For packaging
+# tdnf -y install rpm-build
