@@ -138,7 +138,11 @@ namespace ccf
 
       auto serialised_snapshot = store->serialise_snapshot(std::move(snapshot));
       auto serialised_snapshot_size = serialised_snapshot.size();
+
+      auto tx = store->create_tx();
+      auto evidence = tx.rw<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
       auto snapshot_hash = ccf::crypto::Sha256Hash(serialised_snapshot);
+      evidence->put({snapshot_hash, snapshot_version});
 
       ccf::ClaimsDigest cd;
       cd.set(std::move(snapshot_hash));
@@ -154,9 +158,6 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
-      auto tx = store->create_tx();
-      auto evidence = tx.wo<SnapshotEvidence>(Tables::SNAPSHOT_EVIDENCE);
-      evidence->put({snapshot_hash, snapshot_version});
       auto rc =
         tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
       if (rc != ccf::kv::CommitResult::SUCCESS)
