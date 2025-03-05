@@ -207,7 +207,7 @@ namespace ccf::js::extensions
       JS_CHECK_EXC(str);
 
       pal::snp::TcbVersion tcb_version =
-        nlohmann::json::parse(jsctx.to_str(str));
+        nlohmann::json::parse(jsctx.to_str(str).value());
 
       auto buf = jsctx.new_array_buffer_copy(
         (uint8_t*)&tcb_version, sizeof(pal::snp::TcbVersion));

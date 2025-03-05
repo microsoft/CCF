@@ -905,13 +905,13 @@ namespace ccf
         return;
       }
       if (
-        cpuid->get_family_id() != attestation.cpuid_fam_id ||
-        cpuid->get_model_id() != attestation.cpuid_mod_id ||
-        cpuid->stepping != attestation.cpuid_step)
+        cpuid.get_family_id() != attestation.cpuid_fam_id ||
+        cpuid.get_model_id() != attestation.cpuid_mod_id ||
+        cpuid.stepping != attestation.cpuid_step)
       {
         LOG_FAIL_FMT(
           "Snp cpuid does not match attestation cpuid ({} != {}, {}, {})",
-          cpuid->hex_str(),
+          cpuid.hex_str(),
           attestation.cpuid_fam_id,
           attestation.cpuid_mod_id,
           attestation.cpuid_step);
