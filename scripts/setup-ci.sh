@@ -4,8 +4,8 @@
 
 set -ex
 
-H2SPEC_VERSION="v2.6.0"
-PEBBLE_VERSION="v2.3.1"
+# H2SPEC_VERSION="v2.6.0"
+# PEBBLE_VERSION="v2.3.1"
 
 # Source control
 tdnf -y install  \
