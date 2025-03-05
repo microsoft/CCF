@@ -7,6 +7,7 @@ import shutil
 import infra.logging_app as app
 import infra.e2e_args
 import infra.network
+import infra.snp
 import ccf.ledger
 from ccf.tx_id import TxID
 import base64
@@ -959,6 +960,86 @@ def run_empty_ledger_dir_check(args):
                 )
 
 
+def run_initial_uvm_descriptor_checks(args):
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+    ) as network:
+        LOG.info("Start a network and stop it")
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
+        old_common = infra.network.get_common_folder_name(args.workspace, args.label)
+        snapshots_dir = network.get_committed_snapshots(primary)
+        network.stop_all_nodes()
+        LOG.info("Check that the a UVM descriptor is present")
+
+        ledger_dirs = primary.remote.ledger_paths()
+        ledger = ccf.ledger.Ledger(ledger_dirs)
+        first_chunk = next(iter(ledger))
+        first_tx = next(first_chunk)
+        tables = first_tx.get_public_domain().get_tables()
+        endorsements = tables["public:ccf.gov.nodes.snp.uvm_endorsements"]
+        assert len(endorsements) == 1, endorsements
+        (key,) = endorsements.keys()
+        assert key.startswith(b"did:x509:"), key
+        LOG.info(f"Initial UVM endorsement found in ledger: {endorsements[key]}")
+
+        LOG.info("Start a recovery network and stop it")
+        current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+        recovered_network = infra.network.Network(
+            args.nodes,
+            args.binary_dir,
+            args.debug_nodes,
+            args.perf_nodes,
+            existing_network=network,
+        )
+
+        args.previous_service_identity_file = os.path.join(
+            old_common, "service_cert.pem"
+        )
+        recovered_network.start_in_recovery(
+            args,
+            ledger_dir=current_ledger_dir,
+            committed_ledger_dirs=committed_ledger_dirs,
+            snapshots_dir=snapshots_dir,
+        )
+        recovered_primary, _ = recovered_network.find_primary()
+        LOG.info("Check that the UVM descriptor is present in the recovery tx")
+        recovery_seqno = None
+        with recovered_primary.client() as c:
+            r = c.get("/node/network").body.json()
+            recovery_seqno = int(r["current_service_create_txid"].split(".")[1])
+        network.stop_all_nodes()
+        ledger = ccf.ledger.Ledger(
+            recovered_primary.remote.ledger_paths(),
+            committed_only=False,
+            read_recovery_files=True,
+        )
+        for chunk in ledger:
+            _, chunk_end_seqno = chunk.get_seqnos()
+            if chunk_end_seqno < recovery_seqno:
+                continue
+            for tx in chunk:
+                tables = tx.get_public_domain().get_tables()
+                seqno = tx.get_public_domain().get_seqno()
+                if seqno < recovery_seqno:
+                    continue
+                else:
+                    tables = tx.get_public_domain().get_tables()
+                    endorsements = tables["public:ccf.gov.nodes.snp.uvm_endorsements"]
+                    assert len(endorsements) == 1, endorsements
+                    (key,) = endorsements.keys()
+                    assert key.startswith(b"did:x509:"), key
+                    LOG.info(
+                        f"Recovery UVM endorsement found in ledger: {endorsements[key]}"
+                    )
+                    return
+        assert False, "No UVM endorsement found in recovery ledger"
+
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
@@ -972,3 +1053,5 @@ def run(args):
     run_cose_signatures_config_check(args)
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
+    if infra.snp.is_snp():
+        run_initial_uvm_descriptor_checks(args)
