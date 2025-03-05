@@ -117,8 +117,7 @@ extern "C"
 
     // Note: because logger uses ringbuffer, logger can only be initialised once
     // ringbuffer memory has been verified
-    auto new_logger = std::make_unique<ccf::RingbufferLogger>(
-      writer_factory->create_writer_to_outside());
+    auto new_logger = std::make_unique<ccf::RingbufferLogger>(*writer_factory);
     auto ringbuffer_logger = new_logger.get();
     ccf::logger::config::loggers().push_back(std::move(new_logger));
 
