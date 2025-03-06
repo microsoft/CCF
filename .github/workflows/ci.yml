@@ -28,9 +28,10 @@ jobs:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Checkout repository
         uses: actions/checkout@v4
-      - run: |
-        ./scripts/setup-dev.sh
-        ./scripts/ci-checks.sh
+        run: |
+          set -ex
+          ./scripts/setup-dev.sh
+          ./scripts/ci-checks.sh
 
   build_and_test:
     name: CI
