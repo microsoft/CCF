@@ -1117,14 +1117,13 @@ const actions = new Map([
           "tcb_version.microcode",
         );
       },
-      function (args) {
+      function (args, proposalId) {
         ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].set(
-          hexStrToBuf(args.cpuid),
+          ccf.strToBuf(args.cpuid),
           ccf.jsonToSnpTcbVersion(args.tcb_version),
         );
 
-        // Is this required?
-        //invalidateOtherOpenProposals(proposalId);
+        invalidateOtherOpenProposals(proposalId);
       },
     ),
   ],

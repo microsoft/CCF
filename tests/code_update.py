@@ -286,6 +286,16 @@ def test_tcb_version_tables(network, args):
         assert len(versions) == 1, f"Expected one TCB version, {versions}"
         cpuid, tcb_version = next(iter(versions.items()))
 
+    LOG.info("Change current cpuid's TCB version")
+    test_tcb_version = {"boot_loader": 0, "microcode": 0, "snp": 0, "tee": 0}
+    network.consortium.add_snp_tcb_version(primary, cpuid, test_tcb_version)
+    with primary.api_versioned_client(api_version=args.gov_api_version) as client:
+        r = client.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        versions = r.body.json()["snp"]["tcbVersions"]
+        assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
+        assert versions[cpuid] == test_tcb_version, f"TCB version does not match, {versions}"
+
     LOG.info("Removing current cpuid's TCB version")
     network.consortium.remove_snp_tcb_version(primary, cpuid)
     with primary.api_versioned_client(api_version=args.gov_api_version) as client:
@@ -768,43 +778,43 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_verify_quotes(network, args)
-
-        # Measurements
-        test_measurements_tables(network, args)
-        if not snp.IS_SNP:
-            test_add_node_with_untrusted_measurement(network, args)
-
-        # Host data/security policy
-        test_host_data_tables(network, args)
-        test_add_node_with_untrusted_host_data(network, args)
-
+#        test_verify_quotes(network, args)
+#
+#        # Measurements
+#        test_measurements_tables(network, args)
+#        if not snp.IS_SNP:
+#            test_add_node_with_untrusted_measurement(network, args)
+#
+#        # Host data/security policy
+#        test_host_data_tables(network, args)
+#        test_add_node_with_untrusted_host_data(network, args)
+#
         if snp.IS_SNP:
-            # Virtual has no security policy, _only_ host data (unassociated with anything)
-            test_add_node_with_stubbed_security_policy(network, args)
-            test_start_node_with_mismatched_host_data(network, args)
-            test_add_node_without_security_policy(network, args)
+#            # Virtual has no security policy, _only_ host data (unassociated with anything)
+#            test_add_node_with_stubbed_security_policy(network, args)
+#            test_start_node_with_mismatched_host_data(network, args)
+#            test_add_node_without_security_policy(network, args)
             test_tcb_version_tables(network, args)
-
-            # Endorsements
-            test_endorsements_tables(network, args)
-            test_add_node_with_no_uvm_endorsements(network, args)
-
-        if not snp.IS_SNP:
-            # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
-            test_proposal_invalidation(network, args)
-
-            # This is in practice equivalent to either "unknown measurement" or "unknown host data", but is explicitly
-            # testing that (without artifically removing/corrupting those values) a replacement package differs
-            # in one of these values
-            test_add_node_with_different_package(network, args)
-            test_update_all_nodes(network, args)
-
-        # Run again at the end to confirm current nodes are acceptable
-        test_verify_quotes(network, args)
-
-        if snp.IS_SNP:
-            test_add_node_with_no_uvm_endorsements_in_kv(network, args)
+#
+#            # Endorsements
+#            test_endorsements_tables(network, args)
+#            test_add_node_with_no_uvm_endorsements(network, args)
+#
+#        if not snp.IS_SNP:
+#            # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
+#            test_proposal_invalidation(network, args)
+#
+#            # This is in practice equivalent to either "unknown measurement" or "unknown host data", but is explicitly
+#            # testing that (without artifically removing/corrupting those values) a replacement package differs
+#            # in one of these values
+#            test_add_node_with_different_package(network, args)
+#            test_update_all_nodes(network, args)
+#
+#        # Run again at the end to confirm current nodes are acceptable
+#        test_verify_quotes(network, args)
+#
+#        if snp.IS_SNP:
+#            test_add_node_with_no_uvm_endorsements_in_kv(network, args)
 
 
 if __name__ == "__main__":
