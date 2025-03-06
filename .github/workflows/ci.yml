@@ -19,14 +19,18 @@ permissions:
 jobs:
   checks:
     name: "Format and License Checks"
-    runs-on: ubuntu-latest
-    container: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    container:
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Checkout repository
         uses: actions/checkout@v4
-      - run: ./scripts/ci-checks.sh
+      - run: |
+        ./scripts/setup-dev.sh
+        ./scripts/ci-checks.sh
 
   build_and_test:
     name: CI
