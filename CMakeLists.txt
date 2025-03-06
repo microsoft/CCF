@@ -1249,8 +1249,6 @@ if(BUILD_TESTS)
       ${CMAKE_SOURCE_DIR}/python/ledger_tutorial.py
       --config-samples-dir
       ${CMAKE_SOURCE_DIR}/samples/config
-      --config-file-1x
-      ${CMAKE_SOURCE_DIR}/python/config_1_x.ini
   )
 
   list(APPEND LTS_TEST_ARGS --ccf-version ${CCF_VERSION})
