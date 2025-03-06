@@ -156,11 +156,6 @@ jobs:
     runs-on: [self-hosted, 1ES.Pool=gha-caci-ne]
 
     steps:
-      - name: "Checkout dependencies"
-        shell: bash
-        run: |
-          tdnf -y install git
-
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
