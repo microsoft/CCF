@@ -40,6 +40,7 @@ jobs:
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
+          tdnf -y install tar npm
           ./scripts/setup-dev.sh
           ./scripts/ci-checks.sh
         shell: bash

@@ -7,8 +7,7 @@ set -ex
 tdnf -y install  \
     vim  \
     clang-tools-extra  \
-    python-pip \
-    tar
+    python-pip
 
 # For LTS test to extract binaries from rpms
 tdnf -y install cpio
