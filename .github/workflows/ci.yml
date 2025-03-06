@@ -25,13 +25,24 @@ jobs:
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
-      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run CI checks
         run: |
           set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
           ./scripts/setup-dev.sh
           ./scripts/ci-checks.sh
+        shell: bash
 
   build_and_test:
     name: CI
