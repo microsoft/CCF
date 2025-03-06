@@ -165,12 +165,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
-
       - name: "Build Debug"
         run: |
           set -ex
