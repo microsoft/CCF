@@ -841,7 +841,7 @@ namespace ccf
         .reserved = {0},
         .snp = 0x18,
         .microcode = 0xDB};
-      h->put(milan_chip_id, milan_tcb_version);
+      h->put(milan_chip_id.hex_str(), milan_tcb_version);
 
       constexpr pal::snp::CPUID milan_x_chip_id{
         .stepping = 0x2,
@@ -857,7 +857,7 @@ namespace ccf
         .reserved = {0},
         .snp = 0x18,
         .microcode = 0x44};
-      h->put(milan_x_chip_id, milan_x_tcb_version);
+      h->put(milan_x_chip_id.hex_str(), milan_x_tcb_version);
 
       constexpr pal::snp::CPUID genoa_chip_id{
         .stepping = 0x1,
@@ -873,7 +873,7 @@ namespace ccf
         .reserved = {0},
         .snp = 0x17,
         .microcode = 0x54};
-      h->put(genoa_chip_id, genoa_tcb_version);
+      h->put(genoa_chip_id.hex_str(), genoa_tcb_version);
 
       constexpr pal::snp::CPUID genoa_x_chip_id{
         .stepping = 0x2,
@@ -889,7 +889,7 @@ namespace ccf
         .reserved = {0},
         .snp = 0x17,
         .microcode = 0x4F};
-      h->put(genoa_x_chip_id, genoa_x_tcb_version);
+      h->put(genoa_x_chip_id.hex_str(), genoa_x_tcb_version);
     }
 
     static void trust_node_snp_tcb_version(
@@ -919,7 +919,7 @@ namespace ccf
         return;
       }
       auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
-      h->put(cpuid, attestation.reported_tcb);
+      h->put(cpuid.hex_str(), attestation.reported_tcb);
     }
 
     static void init_configuration(

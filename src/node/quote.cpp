@@ -280,7 +280,8 @@ namespace ccf
     auto h = tx.ro<SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
     // expensive but there should not be many entries
     h->foreach([&min_tcb_opt, &attestation](
-                 const pal::snp::CPUID& cpuid, const pal::snp::TcbVersion& v) {
+                 const std::string cpuid_hex, const pal::snp::TcbVersion& v) {
+      auto cpuid = pal::snp::cpuid_from_hex(cpuid_hex);
       if (
         cpuid.get_family_id() == attestation.cpuid_fam_id &&
         cpuid.get_model_id() == attestation.cpuid_mod_id &&

@@ -282,10 +282,10 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     bool operator==(const CPUID&) const = default;
     std::string hex_str() const
     {
-      uint8_t buf[sizeof(CPUID)];
-      memcpy(buf, this, sizeof(CPUID));
-      std::reverse(buf, buf + sizeof(CPUID)); // fix little endianness of AMD
-      return ccf::ds::to_hex(buf, buf + sizeof(CPUID));
+      CPUID buf = *this;
+      auto buf_ptr = reinterpret_cast<uint8_t*>(&buf);
+      std::reverse(buf_ptr, buf_ptr + sizeof(CPUID));
+      return ccf::ds::to_hex(buf_ptr, buf_ptr + sizeof(CPUID));
     }
     inline uint8_t get_family_id() const
     {
@@ -312,18 +312,20 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     return ret;
   }
 
-  union UnionedCPUID
-  {
-    uint32_t eax;
-    CPUID cpuid;
-  };
-
   static CPUID get_cpuid()
   {
-    UnionedCPUID cpuid_eax;
-    cpuid_eax.eax = 0;
-    asm volatile("cpuid" : "=a"(cpuid_eax.eax) : "a"(1));
-    return cpuid_eax.cpuid;
+    uint32_t ieax = 1;
+    uint64_t iebx = 0;
+    uint64_t iecx = 0;
+    uint64_t iedx = 0;
+    uint32_t oeax = 0;
+    uint64_t oebx = 0;
+    uint64_t oecx = 0;
+    uint64_t oedx = 0;
+    // pass in e{b,c,d}x to prevent cpuid from blatting other registers
+    asm volatile("cpuid" : "=a"(oeax), "=b"(oebx), "=c"(oecx), "=d"(oedx): "a"(ieax), "b"(iebx), "c"(iecx), "d"(iedx));
+    auto cpuid =  *reinterpret_cast<CPUID*>(&oeax);
+    return cpuid;
   }
 }
 

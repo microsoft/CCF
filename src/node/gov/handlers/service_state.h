@@ -619,11 +619,12 @@ namespace ccf::gov::endpoints
             auto tcb_versions_handle =
               ctx.tx.template ro<ccf::SnpTcbVersionMap>(
                 ccf::Tables::SNP_TCB_VERSIONS);
+
             tcb_versions_handle->foreach(
               [&snp_tcb_versions](
-                const pal::snp::CPUID& cpuid,
+                const std::string& cpuid,
                 const pal::snp::TcbVersion& tcb_version) {
-                snp_tcb_versions[cpuid.hex_str()] = tcb_version;
+                snp_tcb_versions[cpuid] = tcb_version;
                 return true;
               });
             snp_policy["tcbVersions"] = snp_tcb_versions;
