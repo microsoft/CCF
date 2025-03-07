@@ -193,28 +193,6 @@ namespace ccf::js::extensions
           ctx, "Failed to parse PEM: %s", exc.what());
       }
     }
-
-    JSValue js_json_to_tcb_version(
-      JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
-    {
-      if (argc != 1)
-        return JS_ThrowTypeError(
-          ctx, "Passed %d arguments, but expected 1", argc);
-
-      js::core::Context& jsctx = *(js::core::Context*)JS_GetContextOpaque(ctx);
-
-      auto str = jsctx.json_stringify(jsctx.wrap(argv[0]));
-      JS_CHECK_EXC(str);
-
-      pal::snp::TcbVersion tcb_version =
-        nlohmann::json::parse(jsctx.to_str(str).value());
-
-      auto buf = jsctx.new_array_buffer_copy(
-        (uint8_t*)&tcb_version, sizeof(pal::snp::TcbVersion));
-      JS_CHECK_EXC(buf);
-
-      return buf.take();
-    }
   }
 
   void ConvertersExtension::install(js::core::Context& ctx)
@@ -242,8 +220,5 @@ namespace ccf::js::extensions
 
     ccf.set("pemToId", ctx.new_c_function(js_pem_to_id, "pemToId", 1));
 
-    ccf.set(
-      "jsonToSnpTcbVersion",
-      ctx.new_c_function(js_json_to_tcb_version, "jsonToSnpTcbVersion", 1));
   }
 }

@@ -1101,7 +1101,7 @@ const actions = new Map([
     new Action(
       function (args) {
         checkType(args.cpuid, "string", "cpuid");
-        checkLength(hexStrToBuf(args.cpuid), 4, 4, "cpuid");
+        checkLength(ccf.strToBuf(args.cpuid), 8, 8, "cpuid");
 
         checkType(args.tcb_version, "object", "tcb_version");
         checkType(
@@ -1120,7 +1120,7 @@ const actions = new Map([
       function (args, proposalId) {
         ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].set(
           ccf.strToBuf(args.cpuid),
-          ccf.jsonToSnpTcbVersion(args.tcb_version),
+          ccf.jsonCompatibleToBuf(args.tcb_version),
         );
 
         invalidateOtherOpenProposals(proposalId);
@@ -1187,12 +1187,14 @@ const actions = new Map([
     new Action(
       function (args) {
         checkType(args.cpuid, "string", "cpuid");
-        checkLength(hexStrToBuf(args.cpuid), 4, 4, "cpuid");
+        checkLength(ccf.strToBuf(args.cpuid), 8, 8, "cpuid");
       },
       function (args) {
-        const cpuid = hexStrToBuf(args.cpuid);
+        const cpuid = ccf.strToBuf(args.cpuid);
         if ( ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid)) {
           ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid);
+        } else {
+          throw new Error("CPUID not found");
         }
       },
     ),
