@@ -169,8 +169,6 @@ extern "C"
     // Only return OE_OK when the error isn't OE related
     switch (*status)
     {
-      case CreateNodeStatus::OEAttesterInitFailed:
-      case CreateNodeStatus::OEVerifierInitFailed:
       case CreateNodeStatus::EnclaveInitFailed:
       case CreateNodeStatus::MemoryNotOutsideEnclave:
         return OE_FAILURE;

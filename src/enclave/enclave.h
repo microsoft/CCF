@@ -6,7 +6,6 @@
 #include "ccf/js/core/context.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
-#include "ccf/pal/enclave.h"
 #include "ccf/pal/mem.h"
 #include "crypto/openssl/hash.h"
 #include "ds/oversized.h"
@@ -35,7 +34,6 @@
 #include "ringbuffer_logger.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
-#include "verify.h"
 
 #include <openssl/engine.h>
 
@@ -101,14 +99,8 @@ namespace ccf
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
     {
-      ccf::pal::initialize_enclave();
-      ccf::initialize_verifiers();
       ccf::crypto::openssl_sha256_init();
 
-      // https://github.com/microsoft/CCF/issues/5569
-      // Open Enclave with OpenSSL 3.x (default for SGX) is built with RDCPU
-      // (https://github.com/openenclave/openenclave/blob/master/docs/OpenSSLSupport.md#how-to-use-rand-apis)
-      // and so does not need to make use of the (deprecated) ENGINE_x API.
 #if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
       // From
       // https://software.intel.com/content/www/us/en/develop/articles/how-to-use-the-rdrand-engine-in-openssl-for-random-number-generation.html
@@ -217,8 +209,6 @@ namespace ccf
       }
 #endif
       LOG_TRACE_FMT("Shutting down enclave");
-      ccf::shutdown_verifiers();
-      ccf::pal::shutdown_enclave();
       ccf::crypto::openssl_sha256_shutdown();
     }
 
