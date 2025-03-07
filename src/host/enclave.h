@@ -22,21 +22,6 @@
 #  include "enclave/virtual_enclave.h"
 #endif
 
-extern "C"
-{
-#ifdef PLATFORM_SGX
-  void nop_oe_logger(
-    void* context,
-    bool is_enclave,
-    const struct tm* t,
-    long int usecs,
-    oe_log_level_t level,
-    uint64_t host_thread_id,
-    const char* message)
-  {}
-#endif
-}
-
 namespace host
 {
   void expect_enclave_file_suffix(
@@ -127,10 +112,6 @@ namespace host
           {
             expect_enclave_file_suffix(path, ".enclave.so.signed", type);
           }
-
-#  ifdef CCF_DISABLE_VERBOSE_LOGGING
-          oe_log_set_callback(nullptr, nop_oe_logger);
-#  endif
 
           auto err = oe_create_ccf_enclave(
             path.c_str(),

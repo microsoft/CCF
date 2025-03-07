@@ -134,8 +134,6 @@ extern "C"
     auto ringbuffer_logger = new_logger.get();
     ccf::logger::config::loggers().push_back(std::move(new_logger));
 
-    ccf::pal::redirect_platform_logging();
-
     enclave_sanity_checks();
 
     {
