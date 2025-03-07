@@ -1636,6 +1636,8 @@ namespace ccf
               LOG_FAIL_FMT("Unable to extract host data from virtual quote");
             }
             break;
+
+            InternalTablesAccess::trust_static_snp_tcb_version(ctx.tx);
           }
 
           case QuoteFormat::amd_sev_snp_v1:
@@ -1647,6 +1649,11 @@ namespace ccf
 
             InternalTablesAccess::trust_node_uvm_endorsements(
               ctx.tx, in.snp_uvm_endorsements);
+
+            auto attestation =
+              AttestationProvider::get_snp_attestation(in.quote_info).value();
+            InternalTablesAccess::trust_node_snp_tcb_version(
+              ctx.tx, attestation);
             break;
           }
 
