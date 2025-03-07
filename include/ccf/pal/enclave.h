@@ -16,8 +16,6 @@ namespace ccf::pal
 {
 #if !defined(INSIDE_ENCLAVE) || defined(VIRTUAL_ENCLAVE)
 
-  static inline void redirect_platform_logging() {}
-
   static inline void initialize_enclave() {}
 
   static inline void shutdown_enclave() {}
@@ -28,41 +26,6 @@ namespace ccf::pal
   }
 
 #else
-
-  static void open_enclave_logging_callback(
-    void* context,
-    oe_log_level_t level,
-    uint64_t thread_id,
-    const char* message)
-  {
-    switch (level)
-    {
-      case OE_LOG_LEVEL_FATAL:
-        CCF_LOG_FMT(FATAL, "")("OE: {}", message);
-        break;
-      case OE_LOG_LEVEL_ERROR:
-        CCF_LOG_FMT(FAIL, "")("OE: {}", message);
-        break;
-      case OE_LOG_LEVEL_WARNING:
-        CCF_LOG_FMT(FAIL, "")("OE: {}", message);
-        break;
-      case OE_LOG_LEVEL_INFO:
-        CCF_LOG_FMT(INFO, "")("OE: {}", message);
-        break;
-      case OE_LOG_LEVEL_VERBOSE:
-        CCF_LOG_FMT(DEBUG, "")("OE: {}", message);
-        break;
-      case OE_LOG_LEVEL_MAX:
-      case OE_LOG_LEVEL_NONE:
-        CCF_LOG_FMT(TRACE, "")("OE: {}", message);
-        break;
-    }
-  }
-
-  static inline void redirect_platform_logging()
-  {
-    oe_enclave_log_set_callback(nullptr, &open_enclave_logging_callback);
-  }
 
   static inline void initialize_enclave()
   {

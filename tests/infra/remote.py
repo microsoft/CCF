@@ -666,9 +666,7 @@ class CCFRemote(object):
                         snp_uvm_security_context_dir
                     )
 
-        oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
-        if oe_log_level:
-            env["OE_LOG_LEVEL"] = oe_log_level
+        env["OE_LOG_LEVEL"] = "INFO"
 
         self.name = f"{label}_{local_node_id}"
         self.start_type = start_type

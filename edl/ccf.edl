@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 enclave {
+    from "openenclave/edl/logging.edl" import *;
     from "openenclave/edl/sgx/platform.edl" import *;
     from "openenclave/edl/time.edl" import *;
 
