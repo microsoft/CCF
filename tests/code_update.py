@@ -310,9 +310,9 @@ def test_tcb_version_tables(network, args):
         new_node = network.create_node("local://localhost")
         network.join_node(new_node, args.package, args, timeout=3)
         network.trust_node(new_node, args)
-    except Exception as e:
+    except TimeoutError as e:
         thrown_exception = e
-    assert thrown_exception is None, "New node should not have been able to join"
+    assert thrown_exception is not None, "New node should not have been able to join"
 
     LOG.info("Adding new cpuid's TCB version")
     network.consortium.add_snp_tcb_version(primary, cpuid, tcb_version)
@@ -778,43 +778,43 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-#        test_verify_quotes(network, args)
-#
-#        # Measurements
-#        test_measurements_tables(network, args)
-#        if not snp.IS_SNP:
-#            test_add_node_with_untrusted_measurement(network, args)
-#
-#        # Host data/security policy
-#        test_host_data_tables(network, args)
-#        test_add_node_with_untrusted_host_data(network, args)
-#
+        test_verify_quotes(network, args)
+
+        # Measurements
+        test_measurements_tables(network, args)
+        if not snp.IS_SNP:
+            test_add_node_with_untrusted_measurement(network, args)
+
+        # Host data/security policy
+        test_host_data_tables(network, args)
+        test_add_node_with_untrusted_host_data(network, args)
+
         if snp.IS_SNP:
-#            # Virtual has no security policy, _only_ host data (unassociated with anything)
-#            test_add_node_with_stubbed_security_policy(network, args)
-#            test_start_node_with_mismatched_host_data(network, args)
-#            test_add_node_without_security_policy(network, args)
+            # Virtual has no security policy, _only_ host data (unassociated with anything)
+            test_add_node_with_stubbed_security_policy(network, args)
+            test_start_node_with_mismatched_host_data(network, args)
+            test_add_node_without_security_policy(network, args)
             test_tcb_version_tables(network, args)
-#
-#            # Endorsements
-#            test_endorsements_tables(network, args)
-#            test_add_node_with_no_uvm_endorsements(network, args)
-#
-#        if not snp.IS_SNP:
-#            # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
-#            test_proposal_invalidation(network, args)
-#
-#            # This is in practice equivalent to either "unknown measurement" or "unknown host data", but is explicitly
-#            # testing that (without artifically removing/corrupting those values) a replacement package differs
-#            # in one of these values
-#            test_add_node_with_different_package(network, args)
-#            test_update_all_nodes(network, args)
-#
-#        # Run again at the end to confirm current nodes are acceptable
-#        test_verify_quotes(network, args)
-#
-#        if snp.IS_SNP:
-#            test_add_node_with_no_uvm_endorsements_in_kv(network, args)
+
+            # Endorsements
+            test_endorsements_tables(network, args)
+            test_add_node_with_no_uvm_endorsements(network, args)
+
+        if not snp.IS_SNP:
+            # NB: Assumes the current nodes are still using args.package, so must run before test_update_all_nodes
+            test_proposal_invalidation(network, args)
+
+            # This is in practice equivalent to either "unknown measurement" or "unknown host data", but is explicitly
+            # testing that (without artifically removing/corrupting those values) a replacement package differs
+            # in one of these values
+            test_add_node_with_different_package(network, args)
+            test_update_all_nodes(network, args)
+
+        # Run again at the end to confirm current nodes are acceptable
+        test_verify_quotes(network, args)
+
+        if snp.IS_SNP:
+            test_add_node_with_no_uvm_endorsements_in_kv(network, args)
 
 
 if __name__ == "__main__":
