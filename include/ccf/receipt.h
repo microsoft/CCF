@@ -178,10 +178,10 @@ namespace ccf
   void add_schema_components(
     T& helper, nlohmann::json& schema, const ProofReceipt::Components* comp)
   {
-    helper.template add_schema_component<decltype(
-      ProofReceipt::Components::write_set_digest)>();
-    helper.template add_schema_component<decltype(
-      ProofReceipt::Components::claims_digest)>();
+    helper.template add_schema_component<
+      decltype(ProofReceipt::Components::write_set_digest)>();
+    helper.template add_schema_component<
+      decltype(ProofReceipt::Components::claims_digest)>();
 
     fill_json_schema(schema, comp);
   }
