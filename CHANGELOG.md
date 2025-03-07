@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - `ccf.ledger`/`read_ledger.py` previously enforced too strict a condition on node membership when validating ledger files (#6849).
 - Removed default value for redirection-kind parameter to start_network script (#6887).
 - Don't throw error if the ledger directory exists but is empty on node start (#6885).
-- Open Enclave logs directly to standard output, without restriction.
+- Open Enclave logs directly to standard output, without restriction (#6888)
 
 ## [5.0.13]
 
