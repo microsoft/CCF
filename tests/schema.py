@@ -201,12 +201,6 @@ if __name__ == "__main__":
             type=str,
             default=None,
         )
-        parser.add_argument(
-            "--config-file-1x",
-            help="Path to 1.x configuration file",
-            type=str,
-            default=None,
-        )
 
     cr = ConcurrentRunner(add)
 
