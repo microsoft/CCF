@@ -151,7 +151,8 @@ TEST_CASE("Reconstruction" * doctest::test_suite("oversized"))
       MessageStream ms{ascending, 0, 0};
 
       while (!write_more(ms, fragment_size))
-      {}
+      {
+      }
 
       REQUIRE(complete_messages == complete_prior + 1);
     }
