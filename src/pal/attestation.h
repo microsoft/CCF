@@ -101,8 +101,12 @@ namespace ccf::pal
       auto* quote =
         reinterpret_cast<const snp::Attestation*>(node_quote_info.quote.data());
       const auto reported_tcb = quote->reported_tcb;
-      const uint8_t* raw = reinterpret_cast<const uint8_t*>(&reported_tcb);
-      const auto tcb_as_hex = ccf::ds::to_hex(raw, raw + sizeof(reported_tcb));
+
+      // tcbm is a single hex value, like DB18000000000004. To match that with a
+      // TcbVersion, we need to reverse the bytes.
+      const uint64_t flipped_tcb = *reinterpret_cast<uint64_t*>(&reported_tcb);
+      auto tcb_as_hex = ccf::ds::to_hex(flipped_tcb);
+      ccf::nonstd::to_upper(tcb_as_hex);
 
       if (tcb_as_hex == aci_endorsements.tcbm)
       {
