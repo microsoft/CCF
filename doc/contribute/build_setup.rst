@@ -59,23 +59,19 @@ Develop for Azure Linux OS
 Setting up Azure Linux VM
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-See the official Azure Linux documentation for developers for details: `Azure Linux VMs in Azure | Mariner OS <https://eng.ms/docs/products/azure-linux/gettingstarted/azurevm/azurevm>`_.
-
-In short, there's no possibility to choose an image in UI, so the CLI steps required to get an Azure Linux based VM in Microsoft Azure are
+There's no possibility to choose an image in UI, so the CLI steps required to get an Azure Linux based VM in Microsoft Azure are
 
 .. code-block:: bash
 
     az group create --name [GROUP_NAME] --location eastus2
     az vm create --name [VM-NAME] --resource-group [GROUP_NAME] --image MicrosoftCBLMariner:azure-linux-3:azure-linux-3:latest --admin-username [USERNAME] --ssh-key-values C:\Users\[USERNAME\.ssh\[KEY].pub --os-disk-size-gb 512
 
-Afterwards, go to your VM and select a proper RAM and CPU profile. I you don't know which one you want, select `Standard D16s v3` (64 RAM and 16 CPU cores).
-
-Then select a proper network security group and rules to use your VM. Refer to other VMs you have and reuse the same group if you have doubts.
+Afterwards, go to your VM and select a proper RAM and CPU profile. If you don't know which one you want, select `Standard D16s v3` (64 RAM and 16 CPU cores).
 
 How to install docker
 ~~~~~~~~~~~~~~~~~~~~~
 
-Currently the only sensible way we've found is downloading binaries: https://docs.docker.com/engine/install/binaries/#install-daemon-and-client-binaries-on-linux.
+Via downloading binaries: https://docs.docker.com/engine/install/binaries/#install-daemon-and-client-binaries-on-linux.
 
 .. code-block:: bash
 
