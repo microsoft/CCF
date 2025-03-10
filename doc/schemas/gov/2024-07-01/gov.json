@@ -2261,7 +2261,7 @@
             "$ref": "#/definitions/ServiceState.UvmEndorsementFeeds"
           }
         },
-        "tcbVersions" : {
+        "tcbVersions": {
           "type": "object",
           "description": "Collection of minimum TCB versions. Keyed by corresponding CPUID.",
           "additionalProperties": {
