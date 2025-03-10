@@ -106,5 +106,3 @@ How do I find more information about Azure Linux?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Try searching for "Mariner". This was Azure Linux's previous name, a lot of useful support discussions happened under that name, and it's far easier to search for.
-
-There's an `Azure Linux (Mariner) Community <https://teams.microsoft.com/l/team/19%3Aa3a8a3987aa74b478870a2f246811e2d%40thread.tacv2/conversations?groupId=5ef827e3-78d9-4463-b0fe-23c2727b4342&tenantId=72f988bf-86f1-41af-91ab-2d7cd011db47>`_  on Teams that's pretty active and helpful.
