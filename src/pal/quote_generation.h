@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/hash_provider.h"
+#include "ccf/pal/attestation.h"
 #include "ds/files.h"
 
 #include <nlohmann/json.hpp>

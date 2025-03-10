@@ -165,8 +165,7 @@ def run(args):
         for method in sorted(set(all_methods)):
             LOG.info(f"  {method}")
 
-    if made_changes or not documents_valid:
-        assert False
+    assert not (made_changes or not documents_valid)
 
 
 def run_nobuiltins(args):
