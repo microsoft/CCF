@@ -53,7 +53,7 @@ If you use `Visual Studio Code`_ you can install the `Remote Container`_ extensi
 .. _`Visual Studio Code`: https://code.visualstudio.com/
 .. _`Remote Container`: https://code.visualstudio.com/docs/remote/containers
 
-Develor for Azure Linux OS
+Develop for Azure Linux OS
 --------------------------
 
 Setting up Azure Linux VM
