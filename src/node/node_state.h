@@ -33,6 +33,7 @@
 #include "node/node_to_node_channel_manager.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
+#include "pal/attestation.h"
 #include "quote_endorsements_client.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
