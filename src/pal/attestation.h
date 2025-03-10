@@ -6,6 +6,7 @@
 #include "ccf/ds/hex.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/report_data.h"
+#include "ccf/pal/snp_ioctl.h"
 #include "ds/files.h"
 
 #include <unistd.h>
