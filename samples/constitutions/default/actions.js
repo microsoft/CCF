@@ -1102,7 +1102,7 @@ const actions = new Map([
       function (args) {
         checkType(args.cpuid, "string", "cpuid");
         checkLength(ccf.strToBuf(args.cpuid), 8, 8, "cpuid");
-        checkLength(ccf.hexStrToBuf(args.cpuid), 4, 4, "cpuid");
+        checkLength(hexStrToBuf(args.cpuid), 4, 4, "cpuid");
 
         checkType(args.tcb_version, "object", "tcb_version");
         checkType(
