@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/ecdsa.h"
+#include "ccf/crypto/hash_provider.h"
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/verifier.h"
 #include "ccf/ds/hex.h"
@@ -11,6 +12,7 @@
 #include "ccf/node/startup_config.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/snp_ioctl.h"
+#include "ds/files.h"
 
 #include <fcntl.h>
 #include <functional>
@@ -24,6 +26,48 @@ namespace ccf::pal
   using RetrieveEndorsementCallback = std::function<void(
     const QuoteInfo& quote_info,
     const snp::EndorsementEndpointsConfiguration& config)>;
+
+  static std::string virtual_attestation_path(const std::string& suffix)
+  {
+    return fmt::format("ccf_virtual_attestation.{}.{}", ::getpid(), suffix);
+  };
+
+  static void emit_virtual_measurement(const std::string& package_path)
+  {
+    auto hasher = ccf::crypto::make_incremental_sha256();
+    std::ifstream f(package_path, std::ios::binary | std::ios::ate);
+    if (!f)
+    {
+      throw std::runtime_error(fmt::format(
+        "Cannot emit virtual measurement: Cannot open file {}", package_path));
+    }
+
+    const size_t size = f.tellg();
+    f.seekg(0, std::ios::beg);
+
+    static constexpr size_t buf_size = 4096;
+    char buf[buf_size];
+
+    size_t handled = 0;
+    while (handled < size)
+    {
+      const auto this_read = std::min(size - handled, buf_size);
+      f.read(buf, this_read);
+
+      hasher->update_hash({(const uint8_t*)buf, this_read});
+
+      handled += this_read;
+    }
+
+    const auto package_hash = hasher->finalise();
+
+    auto j = nlohmann::json::object();
+
+    j["measurement"] = "Insecure hard-coded virtual measurement v1";
+    j["host_data"] = package_hash.hex_str();
+
+    files::dump(j.dump(2), virtual_attestation_path("measurement"));
+  }
 
   static void verify_virtual_attestation_report(
     const QuoteInfo& quote_info,
@@ -273,11 +317,31 @@ namespace ccf::pal
     QuoteInfo& node_quote_info,
     const ccf::CCFConfig::Attestation& attestation_config)
   {
-    if (attestation_config.snp_endorsements_file.has_value())
+    if (attestation_config.environment.snp_endorsements.has_value())
     {
+      const auto raw_data = ccf::crypto::raw_from_b64(
+        attestation_config.environment.snp_endorsements.value());
+
+      const auto j = nlohmann::json::parse(raw_data);
+      const auto aci_endorsements =
+        j.get<ccf::pal::snp::ACIReportEndorsements>();
+
+      auto& endorsements_pem = node_quote_info.endorsements;
+      endorsements_pem.insert(
+        endorsements_pem.end(),
+        aci_endorsements.vcek_cert.begin(),
+        aci_endorsements.vcek_cert.end());
+      endorsements_pem.insert(
+        endorsements_pem.end(),
+        aci_endorsements.certificate_chain.begin(),
+        aci_endorsements.certificate_chain.end());
+
+      // TODO: Should we check that this is a valid PEM chain now?
+
+      return;
     }
 
-    if (config.attestation.snp_endorsements_servers.empty())
+    if (attestation_config.snp_endorsements_servers.empty())
     {
       throw std::runtime_error(
         "One or more SNP endorsements servers must be specified to fetch "
@@ -286,7 +350,7 @@ namespace ccf::pal
 
     // TODO: Fetch from servers, inline
     throw std::runtime_error(
-      "Fetching from SNP endorsement servers is currently unimplemented")
+      "Fetching from SNP endorsement servers is currently unimplemented");
   }
 
   static void populate_attestation_endorsements(

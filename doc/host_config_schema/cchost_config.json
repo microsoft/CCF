@@ -495,6 +495,10 @@
           "type": ["string", "null"],
           "description": "Path to file containing UVM endorsements as a base64-encoded COSE Sign1 (SEV-SNP only). Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR"
         },
+        "snp_endorsements_file": {
+          "type": ["string", "null"],
+          "description": "Path to file containing AMD hardware endorsements (a PEM certificate chain), base-64 encoded. Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR. Will be used in preference to snp_endorsements_servers"
+        },
         "snp_endorsements_servers": {
           "type": "array",
           "items": {

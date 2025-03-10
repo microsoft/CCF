@@ -33,7 +33,6 @@
 #include "node/node_to_node_channel_manager.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
-#include "pal/quote_generation.h"
 #include "quote_endorsements_client.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
@@ -285,8 +284,10 @@ namespace ccf
     //
     // funcs in state "initialized"
     //
-    void launch_node()
+    void launch_node(QuoteInfo&& node_quote_info)
     {
+      this->quote_info = std::move(node_quote_info);
+
       auto measurement = AttestationProvider::get_measurement(quote_info);
       if (measurement.has_value())
       {
@@ -419,11 +420,12 @@ namespace ccf
       ccf::QuoteInfo node_quote_info;
 
       ccf::pal::populate_attestation(node_quote_info, report_data);
-      ccf::pal::populate_attestation_endorsements(node_quote_info, report_data);
+      ccf::pal::populate_attestation_endorsements(
+        node_quote_info, config.attestation);
 
       try
       {
-        launch_node(node_quote_info);
+        launch_node(std::move(node_quote_info));
       }
       catch (const std::exception& e)
       {

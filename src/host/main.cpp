@@ -23,7 +23,6 @@
 #include "lfs_file_handler.h"
 #include "load_monitor.h"
 #include "node_connections.h"
-#include "pal/quote_generation.h"
 #include "process_launcher.h"
 #include "rpc_connections.h"
 #include "sig_term.h"
@@ -574,11 +573,6 @@ int main(int argc, char** argv)
         files::try_slurp_string(security_policy_file);
     }
 
-    if (config.enclave.platform == host::EnclavePlatform::VIRTUAL)
-    {
-      ccf::pal::emit_virtual_measurement(enclave_file_path);
-    }
-
     if (startup_config.attestation.snp_uvm_endorsements_file.has_value())
     {
       auto snp_uvm_endorsements_file =
@@ -592,6 +586,26 @@ int main(int argc, char** argv)
 
       startup_config.attestation.environment.uvm_endorsements =
         files::try_slurp_string(snp_uvm_endorsements_file);
+    }
+
+    if (startup_config.attestation.snp_endorsements_file.has_value())
+    {
+      auto snp_endorsements_file =
+        startup_config.attestation.snp_endorsements_file.value();
+      LOG_DEBUG_FMT(
+        "Resolving snp_endorsements_file: {}", snp_endorsements_file);
+      snp_endorsements_file =
+        ccf::env::expand_envvars_in_path(snp_endorsements_file);
+      LOG_DEBUG_FMT(
+        "Resolved snp_endorsements_file: {}", snp_endorsements_file);
+
+      startup_config.attestation.environment.snp_endorsements =
+        files::try_slurp_string(snp_endorsements_file);
+    }
+
+    if (config.enclave.platform == host::EnclavePlatform::VIRTUAL)
+    {
+      ccf::pal::emit_virtual_measurement(enclave_file_path);
     }
 
     for (auto endorsement_servers_it =
