@@ -5,7 +5,7 @@
 #include "ccf/crypto/key_pair.h"
 #include "ccf/crypto/public_key.h"
 #include "crypto/openssl/public_key.h"
-#include "openssl_wrappers.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 
 #include <optional>
 #include <stdexcept>

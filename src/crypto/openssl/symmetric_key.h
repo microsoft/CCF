@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ccf/crypto/symmetric_key.h"
-#include "openssl_wrappers.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 
 #include <openssl/crypto.h>
 

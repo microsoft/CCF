@@ -3,7 +3,7 @@
 
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/rsa_key_pair.h"
-#include "openssl_wrappers.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 
 #if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
 #  include <openssl/core_names.h>

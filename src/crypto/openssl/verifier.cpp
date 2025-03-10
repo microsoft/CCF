@@ -5,7 +5,7 @@
 
 #include "ccf/crypto/public_key.h"
 #include "ccf/ds/logger.h"
-#include "crypto/openssl/openssl_wrappers.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "x509_time.h"
 

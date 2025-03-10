@@ -3,7 +3,7 @@
 #pragma once
 
 #include "crypto/openssl/key_pair.h"
-#include "crypto/openssl/openssl_wrappers.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "tls/ca.h"
 
 #include <cstring>

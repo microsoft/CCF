@@ -6,7 +6,7 @@
 #include "ccf/crypto/curve.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/public_key.h"
-#include "openssl_wrappers.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "x509_time.h"
 
 #define FMT_HEADER_ONLY
