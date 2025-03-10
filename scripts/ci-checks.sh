@@ -94,6 +94,7 @@ endgroup
 group "OpenAPI"
 npm install --loglevel=error --no-save @apidevtools/swagger-cli 1>/dev/null
 find doc/schemas/*.json -exec npx swagger-cli validate {} \;
+find doc/schemas/gov/*/*.json -exec npx swagger-cli validate {} \;
 endgroup
 
 group "Copyright notice headers"
