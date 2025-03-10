@@ -8,6 +8,7 @@
 #include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
+#include "ccf/node/startup_config.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/snp_ioctl.h"
 
@@ -238,6 +239,75 @@ namespace ccf::pal
     }
   }
 #endif
+
+  static void populate_attestation(
+    QuoteInfo& node_quote_info,
+    const PlatformAttestationReportData& report_data)
+  {
+#if defined(PLATFORM_VIRTUAL)
+    node_quote_info.format = QuoteFormat::insecure_virtual;
+
+    auto quote = files::slurp_json(virtual_attestation_path("measurement"));
+    quote["report_data"] = ccf::crypto::b64_from_raw(report_data.data);
+
+    auto dumped_quote = quote.dump();
+    node_quote_info.quote =
+      std::vector<uint8_t>(dumped_quote.begin(), dumped_quote.end());
+
+    // Also write the virtual quote to a file, so it could be
+    // inspected/retrieved elsewhere
+    files::dump(dumped_quote, virtual_attestation_path("attestation"));
+
+#elif defined(PLATFORM_SNP)
+    node_quote_info.format = QuoteFormat::amd_sev_snp_v1;
+    auto attestation = ccf::pal::snp::get_attestation(report_data);
+
+    node_quote_info.quote = attestation->get_raw();
+
+#else
+    throw std::logic_error("Unable to construct attestation");
+#endif
+  }
+
+  static void populate_snp_attestation_endorsements(
+    QuoteInfo& node_quote_info,
+    const ccf::CCFConfig::Attestation& attestation_config)
+  {
+    if (attestation_config.snp_endorsements_file.has_value())
+    {
+    }
+
+    if (config.attestation.snp_endorsements_servers.empty())
+    {
+      throw std::runtime_error(
+        "One or more SNP endorsements servers must be specified to fetch "
+        "the collateral for the attestation");
+    }
+
+    // TODO: Fetch from servers, inline
+    throw std::runtime_error(
+      "Fetching from SNP endorsement servers is currently unimplemented")
+  }
+
+  static void populate_attestation_endorsements(
+    QuoteInfo& node_quote_info,
+    const ccf::CCFConfig::Attestation& attestation_config)
+  {
+    switch (node_quote_info.format)
+    {
+      case (QuoteFormat::amd_sev_snp_v1):
+      {
+        populate_snp_attestation_endorsements(
+          node_quote_info, attestation_config);
+        break;
+      }
+      default:
+      {
+        // There are no endorsements for virtual attestations
+        break;
+      }
+    }
+  }
 
   class AttestationCollateralFetchingTimeout : public std::exception
   {
