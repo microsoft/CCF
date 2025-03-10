@@ -53,7 +53,7 @@ namespace ccf::indexing
       strategies.erase(strategy);
     }
 
-    nlohmann::json describe() const
+    nlohmann::json describe()
     {
       std::lock_guard<ccf::pal::Mutex> guard(lock);
       auto j = nlohmann::json::array();
