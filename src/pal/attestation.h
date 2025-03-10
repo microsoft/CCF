@@ -104,8 +104,9 @@ namespace ccf::pal
 
       // tcbm is a single hex value, like DB18000000000004. To match that with a
       // TcbVersion, we need to reverse the bytes.
-      const uint64_t flipped_tcb = *reinterpret_cast<uint64_t*>(&reported_tcb);
-      auto tcb_as_hex = ccf::ds::to_hex(flipped_tcb);
+      const uint64_t flipped_tcb =
+        *reinterpret_cast<const uint64_t*>(&reported_tcb);
+      auto tcb_as_hex = fmt::format("{:02x}", flipped_tcb);
       ccf::nonstd::to_upper(tcb_as_hex);
 
       if (tcb_as_hex == aci_endorsements.tcbm)
