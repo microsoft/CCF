@@ -294,7 +294,9 @@ def test_tcb_version_tables(network, args):
         assert r.status_code == http.HTTPStatus.OK, r
         versions = r.body.json()["snp"]["tcbVersions"]
         assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
-        assert versions[cpuid] == test_tcb_version, f"TCB version does not match, {versions}"
+        assert (
+            versions[cpuid] == test_tcb_version
+        ), f"TCB version does not match, {versions}"
 
     LOG.info("Removing current cpuid's TCB version")
     network.consortium.remove_snp_tcb_version(primary, cpuid)

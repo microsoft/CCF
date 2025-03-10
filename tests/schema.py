@@ -167,6 +167,7 @@ def run(args):
 
     assert not (made_changes or not documents_valid)
 
+
 def run_nobuiltins(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb

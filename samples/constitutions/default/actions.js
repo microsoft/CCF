@@ -1192,7 +1192,7 @@ const actions = new Map([
       },
       function (args) {
         const cpuid = ccf.strToBuf(args.cpuid);
-        if ( ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid)) {
+        if (ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid)) {
           ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid);
         } else {
           throw new Error("CPUID not found");
