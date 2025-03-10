@@ -169,3 +169,16 @@ jobs:
           cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
+
+      - name: "Tests"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
+          # Unit tests
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          # All other acceptably fast tests, which are now supported on Azure Linux.
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+        shell: bash
