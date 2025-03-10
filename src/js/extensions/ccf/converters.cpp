@@ -219,6 +219,5 @@ namespace ccf::js::extensions
       ctx.new_c_function(js_enable_metrics_logging, "enableMetricsLogging", 1));
 
     ccf.set("pemToId", ctx.new_c_function(js_pem_to_id, "pemToId", 1));
-
   }
 }

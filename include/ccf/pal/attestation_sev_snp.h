@@ -306,9 +306,9 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
   {
     CPUID ret;
     auto buf_ptr = reinterpret_cast<uint8_t*>(&ret);
-    ccf::ds::from_hex(
-      hex_str, buf_ptr, buf_ptr + sizeof(CPUID));
-    std::reverse(buf_ptr, buf_ptr + sizeof(CPUID)); //fix little endianness of AMD
+    ccf::ds::from_hex(hex_str, buf_ptr, buf_ptr + sizeof(CPUID));
+    std::reverse(
+      buf_ptr, buf_ptr + sizeof(CPUID)); // fix little endianness of AMD
     return ret;
   }
 
@@ -323,8 +323,10 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     uint64_t oecx = 0;
     uint64_t oedx = 0;
     // pass in e{b,c,d}x to prevent cpuid from blatting other registers
-    asm volatile("cpuid" : "=a"(oeax), "=b"(oebx), "=c"(oecx), "=d"(oedx): "a"(ieax), "b"(iebx), "c"(iecx), "d"(iedx));
-    auto cpuid =  *reinterpret_cast<CPUID*>(&oeax);
+    asm volatile("cpuid"
+                 : "=a"(oeax), "=b"(oebx), "=c"(oecx), "=d"(oedx)
+                 : "a"(ieax), "b"(iebx), "c"(iecx), "d"(iedx));
+    auto cpuid = *reinterpret_cast<CPUID*>(&oeax);
     return cpuid;
   }
 }
@@ -344,7 +346,8 @@ namespace ccf::kv::serialisers
 
     static ccf::pal::snp::CPUID from_serialised(const SerialisedEntry& data)
     {
-      return ccf::pal::snp::cpuid_from_hex(std::string(data.data(), data.end()));
+      return ccf::pal::snp::cpuid_from_hex(
+        std::string(data.data(), data.end()));
     }
   };
 }
