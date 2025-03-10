@@ -33,7 +33,7 @@
 #include "node/node_to_node_channel_manager.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
-#include "pal/quote_generation.h"
+#include "pal/attestation.h"
 #include "quote_endorsements_client.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
@@ -285,8 +285,10 @@ namespace ccf
     //
     // funcs in state "initialized"
     //
-    void launch_node()
+    void launch_node(QuoteInfo&& node_quote_info)
     {
+      this->quote_info = std::move(node_quote_info);
+
       auto measurement = AttestationProvider::get_measurement(quote_info);
       if (measurement.has_value())
       {
@@ -413,65 +415,24 @@ namespace ccf
 
     void initiate_quote_generation()
     {
-      auto fetch_endorsements = [this](
-                                  const QuoteInfo& qi,
-                                  const pal::snp::
-                                    EndorsementEndpointsConfiguration&
-                                      endpoint_config) {
-        // Note: Node lock is already taken here as this is called back
-        // synchronously with the call to pal::generate_quote
-
-        if (qi.format == QuoteFormat::amd_sev_snp_v1)
-        {
-          if (config.attestation.snp_endorsements_servers.empty())
-          {
-            throw std::runtime_error(
-              "One or more SNP endorsements servers must be specified to fetch "
-              "the collateral for the attestation");
-          }
-          // On SEV-SNP, fetch endorsements from servers if specified
-          quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
-            rpcsessions,
-            endpoint_config,
-            [this, qi](std::vector<uint8_t>&& endorsements) {
-              std::lock_guard<pal::Mutex> guard(lock);
-              quote_info = qi;
-              quote_info.endorsements = std::move(endorsements);
-              try
-              {
-                launch_node();
-              }
-              catch (const std::exception& e)
-              {
-                LOG_FAIL_FMT("{}", e.what());
-                throw;
-              }
-              quote_endorsements_client.reset();
-            });
-
-          quote_endorsements_client->fetch_endorsements();
-          return;
-        }
-
-        if (!((qi.format == QuoteFormat::oe_sgx_v1 &&
-               !qi.endorsements.empty()) ||
-              (qi.format != QuoteFormat::oe_sgx_v1 && qi.endorsements.empty())))
-        {
-          throw std::runtime_error(
-            "SGX quote generation should have already fetched endorsements");
-        }
-
-        quote_info = qi;
-        launch_node();
-      };
-
       pal::PlatformAttestationReportData report_data =
         ccf::crypto::Sha256Hash((node_sign_kp->public_key_der()));
 
-      pal::generate_quote(
-        report_data,
-        fetch_endorsements,
-        config.attestation.snp_endorsements_servers);
+      ccf::QuoteInfo node_quote_info;
+
+      ccf::pal::populate_attestation(node_quote_info, report_data);
+      ccf::pal::populate_attestation_endorsements(
+        node_quote_info, config.attestation);
+
+      try
+      {
+        launch_node(std::move(node_quote_info));
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("{}", e.what());
+        throw;
+      }
     }
 
     NodeCreateInfo create(
