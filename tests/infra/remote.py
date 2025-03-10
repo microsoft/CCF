@@ -475,9 +475,7 @@ class CCFRemote(object):
 
         # Default snp_endorsements_file if not set
         if snp_endorsements_file is None:
-            snp_endorsements_file = (
-                "$UVM_SECURITY_CONTEXT_DIR/host-amd-cert-base64"
-            )
+            snp_endorsements_file = "$UVM_SECURITY_CONTEXT_DIR/host-amd-cert-base64"
 
         # Validate consensus timers
         if (
