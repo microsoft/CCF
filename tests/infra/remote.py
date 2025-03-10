@@ -340,6 +340,7 @@ class CCFRemote(object):
         max_uncommitted_tx_count=0,
         snp_security_policy_file=None,
         snp_uvm_endorsements_file=None,
+        snp_endorsements_file=None,
         service_subject_name="CN=CCF Test Service",
         historical_cache_soft_limit=None,
         cose_signatures_issuer="service.example.com",
@@ -472,6 +473,12 @@ class CCFRemote(object):
                 "$UVM_SECURITY_CONTEXT_DIR/reference-info-base64"
             )
 
+        # Default snp_endorsements_file if not set
+        if snp_endorsements_file is None:
+            snp_endorsements_file = (
+                "$UVM_SECURITY_CONTEXT_DIR/host-amd-cert-base64"
+            )
+
         # Validate consensus timers
         if (
             election_timeout_ms is not None
@@ -537,6 +544,7 @@ class CCFRemote(object):
                 max_uncommitted_tx_count=max_uncommitted_tx_count,
                 snp_security_policy_file=snp_security_policy_file,
                 snp_uvm_endorsements_file=snp_uvm_endorsements_file,
+                snp_endorsements_file=snp_endorsements_file,
                 service_subject_name=service_subject_name,
                 historical_cache_soft_limit=historical_cache_soft_limit,
                 cose_signatures_issuer=cose_signatures_issuer,

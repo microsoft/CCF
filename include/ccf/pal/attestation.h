@@ -326,19 +326,40 @@ namespace ccf::pal
       const auto aci_endorsements =
         j.get<ccf::pal::snp::ACIReportEndorsements>();
 
-      auto& endorsements_pem = node_quote_info.endorsements;
-      endorsements_pem.insert(
-        endorsements_pem.end(),
-        aci_endorsements.vcek_cert.begin(),
-        aci_endorsements.vcek_cert.end());
-      endorsements_pem.insert(
-        endorsements_pem.end(),
-        aci_endorsements.certificate_chain.begin(),
-        aci_endorsements.certificate_chain.end());
+      // Check that tcbm in endorsement matches reported TCB in our retrieved
+      // attestation
+      auto* quote =
+        reinterpret_cast<const snp::Attestation*>(node_quote_info.quote.data());
+      const auto reported_tcb = quote->reported_tcb;
+      const uint8_t* raw = reinterpret_cast<const uint8_t*>(&reported_tcb);
+      const auto tcb_as_hex = ccf::ds::to_hex(raw, raw + sizeof(reported_tcb));
 
-      // TODO: Should we check that this is a valid PEM chain now?
+      if (tcb_as_hex == aci_endorsements.tcbm)
+      {
+        auto& endorsements_pem = node_quote_info.endorsements;
+        endorsements_pem.insert(
+          endorsements_pem.end(),
+          aci_endorsements.vcek_cert.begin(),
+          aci_endorsements.vcek_cert.end());
+        endorsements_pem.insert(
+          endorsements_pem.end(),
+          aci_endorsements.certificate_chain.begin(),
+          aci_endorsements.certificate_chain.end());
 
-      return;
+        // TODO: Should we check that this is a valid PEM chain now?
+
+        return;
+      }
+      else
+      {
+        LOG_INFO_FMT(
+          "SNP endorsements loaded from disk ({}) contained tcbm {}, which "
+          "does not match reported TCB of current attestation {}. Falling back "
+          "to fetching fresh endorsements from server.",
+          attestation_config.snp_endorsements_file.value(),
+          aci_endorsements.tcbm,
+          tcb_as_hex);
+      }
     }
 
     if (attestation_config.snp_endorsements_servers.empty())
