@@ -122,8 +122,6 @@ namespace ccf::pal
           aci_endorsements.certificate_chain.begin(),
           aci_endorsements.certificate_chain.end());
 
-        // TODO: Should we check that this is a valid PEM chain now?
-
         return;
       }
       else
