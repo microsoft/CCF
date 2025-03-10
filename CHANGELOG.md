@@ -92,6 +92,10 @@ Note: this release candidate still includes `.deb` packages targeting Ubuntu 20.
 - In configuration, `attestation.snp_endorsements_servers` can specify a `max_retries_count`. If the count has been exhausted without success for all configured servers, the node will shut down (#6478).
 - When deciding which nodes are allowed to join, only UVM roots of trust defined in `public:ccf.gov.nodes.snp.uvm_endorsements` are considered (#6489).
 
+### Added
+
+- Attestations of new SNP nodes must be from a trusted TCB version higher than the minimum TCB version stored for that CPU model in `public:ccf.gov.nodes.snp.tcb_versions`. Added `add_snp_tcb_version(cpuid, tcb_version)` and `remove_snp_tcb_version(cpuid)`
+
 ### Fixed
 
 - `ccf.ledger`/`read_ledger.py` previously enforced too strict a condition on node membership when validating ledger files (#6849).
