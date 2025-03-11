@@ -141,6 +141,7 @@ def run(
     tables_regex=None,
     insecure_skip_verification=False,
     uncommitted=False,
+    read_recovery_files=False,
     tables_format_rules=None,
 ):
     table_filter = re.compile(tables_regex) if tables_regex is not None else None
@@ -166,7 +167,10 @@ def run(
         )
         ledger_paths = paths
         ledger = ccf.ledger.Ledger(
-            ledger_paths, committed_only=not uncommitted, validator=validator
+            ledger_paths,
+            committed_only=not uncommitted,
+            read_recovery_files=read_recovery_files,
+            validator=validator,
         )
 
         LOG.info(f"Reading ledger from {ledger_paths}")
@@ -226,7 +230,14 @@ def main():
         action="store_true",
     )
     parser.add_argument(
-        "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
+        "--uncommitted",
+        help="Also parse uncommitted ledger files. Note that if these are in a live node directory, they may be being modified.",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--recovery",
+        help="Also parse .recovery ledger files. Note that if these are in a live node directory, they may be being modified.",
+        action="store_true",
     )
 
     display_options = parser.add_mutually_exclusive_group()
@@ -272,6 +283,7 @@ def main():
         tables_regex=args.tables,
         insecure_skip_verification=args.insecure_skip_verification,
         uncommitted=args.uncommitted,
+        read_recovery_files=args.recovery,
     ):
         sys.exit(1)
 

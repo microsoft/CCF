@@ -3,9 +3,9 @@
 
 #include "crypto/openssl/symmetric_key.h"
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
-#include "crypto/openssl/openssl_wrappers.h"
 #include "ds/thread_messaging.h"
 
 #include <openssl/aes.h>

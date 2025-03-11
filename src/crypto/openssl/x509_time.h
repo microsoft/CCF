@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/ds/x509_time_fmt.h"
-#include "openssl_wrappers.h"
 
 #include <openssl/asn1.h>
 
