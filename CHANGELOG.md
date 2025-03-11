@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - `ccf/crypto/openssl/openssl_wrappers.h` is now exposed.
 
+### Added
+
+- The `read-ledger.py` tool now has a `--recovery` argument, which will allow it to parse `.recovery` files. Previously these were ignored (#6896).
+
 ## [6.0.0-rc0]
 
 [6.0.0-rc0]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc0
