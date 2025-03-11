@@ -420,9 +420,72 @@ namespace ccf
                                       endpoint_config) {
         // Note: Node lock is already taken here as this is called back
         // synchronously with the call to pal::generate_quote
+        this->quote_info = qi;
 
-        if (qi.format == QuoteFormat::amd_sev_snp_v1)
+        if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {
+          // Use endorsements retrieved from file, if available
+          if (config.attestation.environment.snp_endorsements.has_value())
+          {
+            const auto raw_data = ccf::crypto::raw_from_b64(
+              config.attestation.environment.snp_endorsements.value());
+
+            const auto j = nlohmann::json::parse(raw_data);
+            const auto aci_endorsements =
+              j.get<ccf::pal::snp::ACIReportEndorsements>();
+
+            // Check that tcbm in endorsement matches reported TCB in our
+            // retrieved attestation
+            auto* quote = reinterpret_cast<const ccf::pal::snp::Attestation*>(
+              quote_info.quote.data());
+            const auto reported_tcb = quote->reported_tcb;
+
+            // tcbm is a single hex value, like DB18000000000004. To match that
+            // with a TcbVersion, reverse the bytes by treating as a uint64_t.
+            const uint64_t flipped_tcb =
+              *reinterpret_cast<const uint64_t*>(&reported_tcb);
+            auto tcb_as_hex = fmt::format("{:02x}", flipped_tcb);
+            ccf::nonstd::to_upper(tcb_as_hex);
+
+            if (tcb_as_hex == aci_endorsements.tcbm)
+            {
+              LOG_INFO_FMT(
+                "Using SNP endorsements loaded from file, endorsing TCB {}",
+                tcb_as_hex);
+
+              auto& endorsements_pem = quote_info.endorsements;
+              endorsements_pem.insert(
+                endorsements_pem.end(),
+                aci_endorsements.vcek_cert.begin(),
+                aci_endorsements.vcek_cert.end());
+              endorsements_pem.insert(
+                endorsements_pem.end(),
+                aci_endorsements.certificate_chain.begin(),
+                aci_endorsements.certificate_chain.end());
+
+              try
+              {
+                launch_node();
+                return;
+              }
+              catch (const std::exception& e)
+              {
+                LOG_FAIL_FMT("{}", e.what());
+                throw;
+              }
+            }
+            else
+            {
+              LOG_INFO_FMT(
+                "SNP endorsements loaded from disk ({}) contained tcbm {}, "
+                "which does not match reported TCB of current attestation {}. "
+                "Falling back to fetching fresh endorsements from server.",
+                config.attestation.snp_endorsements_file.value(),
+                aci_endorsements.tcbm,
+                tcb_as_hex);
+            }
+          }
+
           if (config.attestation.snp_endorsements_servers.empty())
           {
             throw std::runtime_error(
@@ -433,9 +496,8 @@ namespace ccf
           quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
             rpcsessions,
             endpoint_config,
-            [this, qi](std::vector<uint8_t>&& endorsements) {
+            [this](std::vector<uint8_t>&& endorsements) {
               std::lock_guard<pal::Mutex> guard(lock);
-              quote_info = qi;
               quote_info.endorsements = std::move(endorsements);
               try
               {
@@ -452,17 +514,19 @@ namespace ccf
           quote_endorsements_client->fetch_endorsements();
           return;
         }
-
-        if (!((qi.format == QuoteFormat::oe_sgx_v1 &&
-               !qi.endorsements.empty()) ||
-              (qi.format != QuoteFormat::oe_sgx_v1 && qi.endorsements.empty())))
+        else // Non-SNP
         {
-          throw std::runtime_error(
-            "SGX quote generation should have already fetched endorsements");
-        }
+          if (!((quote_info.format == QuoteFormat::oe_sgx_v1 &&
+                 !quote_info.endorsements.empty()) ||
+                (quote_info.format != QuoteFormat::oe_sgx_v1 &&
+                 quote_info.endorsements.empty())))
+          {
+            throw std::runtime_error(
+              "SGX quote generation should have already fetched endorsements");
+          }
 
-        quote_info = qi;
-        launch_node();
+          launch_node();
+        }
       };
 
       pal::PlatformAttestationReportData report_data =
