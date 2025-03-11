@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ccf/kv/read_only_store.h"
+#include "ccf/pal/locking.h"
 #include "ccf/tx_id.h"
 
 #include <optional>
@@ -68,6 +69,7 @@ namespace ccf::indexing
   class LazyStrategy : public Base
   {
   protected:
+    ccf::pal::Mutex lock;
     ccf::SeqNo max_requested_seqno = 0;
 
   public:
@@ -78,6 +80,7 @@ namespace ccf::indexing
       const auto base = Base::next_requested();
       if (base.has_value())
       {
+        std::lock_guard<ccf::pal::Mutex> guard(lock);
         if (*base <= max_requested_seqno)
         {
           return base;
@@ -89,6 +92,7 @@ namespace ccf::indexing
 
     void extend_index_to(ccf::TxID to_txid)
     {
+      std::lock_guard<ccf::pal::Mutex> guard(lock);
       if (to_txid.seqno > max_requested_seqno)
       {
         max_requested_seqno = to_txid.seqno;

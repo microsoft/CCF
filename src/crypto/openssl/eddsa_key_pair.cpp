@@ -3,7 +3,7 @@
 
 #include "crypto/openssl/eddsa_key_pair.h"
 
-#include "openssl_wrappers.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 
 namespace ccf::crypto
 {

@@ -3,9 +3,9 @@
 #pragma once
 
 #include "ccf/crypto/cose_verifier.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ccf/crypto/verifier.h"
-#include "crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/public_key.h"
 
 #include <chrono>

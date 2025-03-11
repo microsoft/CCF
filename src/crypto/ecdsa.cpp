@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/crypto/ecdsa.h"
 
-#include "crypto/openssl/openssl_wrappers.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/public_key.h"
 
 #include <openssl/bn.h>

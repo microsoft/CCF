@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/ds/logger.h"
-#include "crypto/openssl/openssl_wrappers.h"
 
 #include <openssl/err.h>
 #include <openssl/evp.h>
