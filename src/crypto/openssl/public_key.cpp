@@ -3,9 +3,9 @@
 
 #include "crypto/openssl/public_key.h"
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/ds/logger.h"
 #include "crypto/openssl/hash.h"
-#include "openssl_wrappers.h"
 
 #include <openssl/ec.h>
 #include <openssl/engine.h>
