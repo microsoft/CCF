@@ -1373,7 +1373,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.7.1"
+    "version": "4.7.2"
   },
   "openapi": "3.0.0",
   "paths": {
