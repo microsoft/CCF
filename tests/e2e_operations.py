@@ -1061,7 +1061,7 @@ def run_initial_tcb_version_checks(args):
         first_chunk = next(iter(ledger))
         first_tx = next(first_chunk)
         tables = first_tx.get_public_domain().get_tables()
-        tcb_versions = tables["public:ccf.gov.nodes.snp.uvm_endorsements"]
+        tcb_versions = tables["public:ccf.gov.nodes.snp.tcb_versions"]
         assert len(tcb_versions) == 1, tcb_versions
         LOG.info(f"Initial TCB_version found in ledger: {tcb_versions}")
 
@@ -1106,7 +1106,7 @@ def run_initial_tcb_version_checks(args):
                     continue
                 else:
                     tables = tx.get_public_domain().get_tables()
-                    tcb_versions = tables["public:ccf.gov.nodes.snp.uvm_endorsements"]
+                    tcb_versions = tables["public:ccf.gov.nodes.snp.tcb_versions"]
                     assert len(tcb_versions) == 1, tcb_versions
                     LOG.info(f"Recovery TCB_version found in ledger: {tcb_versions}")
                     return
