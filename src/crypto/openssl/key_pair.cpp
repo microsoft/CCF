@@ -4,9 +4,9 @@
 #include "crypto/openssl/key_pair.h"
 
 #include "ccf/crypto/curve.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/public_key.h"
-#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "x509_time.h"
 
 #define FMT_HEADER_ONLY
