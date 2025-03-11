@@ -1112,6 +1112,7 @@ def run_initial_tcb_version_checks(args):
                     return
         assert False, "No TCB_version found in recovery ledger"
 
+
 def run(args):
     run_max_uncommitted_tx_count(args)
     run_file_operations(args)
