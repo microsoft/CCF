@@ -11,7 +11,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- `ccf/crypto/openssl/openssl_wrappers.h` is now exposed.
+- OpenSSL helpers in `ccf/crypto/openssl/openssl_wrappers.h` are now exposed (#6895).
+- Fixed potential races in indexing interfaces and `LazyStrategy` (#6886).
+- Removed default value for redirection-kind parameter to start_network script (#6887).
+- Don't throw error if the ledger directory exists but is empty on node start (#6885).
+- Open Enclave logs directly to standard output, without restriction (#6888).
 
 ### Added
 
