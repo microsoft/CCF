@@ -1213,6 +1213,11 @@ if(BUILD_TESTS)
       CONFIGURATIONS partitions
       ADDITIONAL_ARGS ${PARTITIONS_TEST_ARGS}
     )
+    set_property(
+      TEST partitions_cft
+      APPEND
+      PROPERTY ENVIRONMENT "XTABLES_LIBDIR=/usr/lib/iptables"
+    )
 
     add_e2e_test(
       NAME connections_cft
