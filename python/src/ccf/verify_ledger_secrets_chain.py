@@ -29,15 +29,13 @@ def historical_secrets_invariant(current, prev):
         assert expected_next_version == reported_next_version
 
 
-def run(paths, uncommitted=False, insecure_skip_verification=False):
+def run(paths, uncommitted=False):
     historical_secrets_table = "public:ccf.internal.historical_encrypted_ledger_secret"
 
-    validator = ccf.ledger.LedgerValidator() if not insecure_skip_verification else None
     ledger_paths = paths
     ledger = ccf.ledger.Ledger(
         ledger_paths,
         committed_only=not uncommitted,
-        validator=validator,
         read_recovery_files=True,
     )
 
@@ -95,18 +93,11 @@ def main():
     parser.add_argument(
         "--uncommitted", help="Also parse uncommitted ledger files", action="store_true"
     )
-    parser.add_argument(
-        "--insecure-skip-verification",
-        help="INSECURE: skip ledger Merkle tree integrity verification",
-        action="store_true",
-        default=False,
-    )
 
     args = parser.parse_args()
 
     if not run(
         args.paths,
-        insecure_skip_verification=args.insecure_skip_verification,
         uncommitted=args.uncommitted,
     ):
         sys.exit(1)
