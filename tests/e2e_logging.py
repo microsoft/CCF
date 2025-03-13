@@ -364,6 +364,7 @@ def test_protocols(network, args):
         "--http3": {
             "errors": [
                 "the installed libcurl version doesn't support this",
+                "the installed libcurl version does not support this",
                 "option --http3: is unknown",
             ]
         },
