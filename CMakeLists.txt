@@ -1213,11 +1213,25 @@ if(BUILD_TESTS)
       CONFIGURATIONS partitions
       ADDITIONAL_ARGS ${PARTITIONS_TEST_ARGS}
     )
-    set_property(
-      TEST partitions_cft
-      APPEND
-      PROPERTY ENVIRONMENT "XTABLES_LIBDIR=/usr/lib/iptables"
+
+    execute_process(
+      COMMAND "cat" "/etc/os-release"
+      COMMAND "grep" "^NAME="
+      COMMAND "cut" "-d" "=" "-f" "2"
+      COMMAND "tr" "-d" "\""
+      OUTPUT_VARIABLE "OS_RELEASE"
+      RESULT_VARIABLE RETURN_CODE
     )
+    if(NOT RETURN_CODE STREQUAL "0")
+      message(FATAL_ERROR "Error calling cat /etc/os-release")
+    endif()
+    if(OS_RELEASE STREQUAL "Microsoft Azure Linux")
+      set_property(
+        TEST partitions_cft
+        APPEND
+        PROPERTY ENVIRONMENT "XTABLES_LIBDIR=/usr/lib/iptables"
+      )
+    endif()
 
     add_e2e_test(
       NAME connections_cft
