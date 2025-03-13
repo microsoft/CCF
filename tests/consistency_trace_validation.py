@@ -3,6 +3,7 @@
 
 import infra.e2e_args
 import subprocess
+import signal
 import sys
 import time
 import os
@@ -44,7 +45,7 @@ def run(args):
             tvc.poll()
             if tvc.returncode is not None:
                 raise Exception(f"tvc failed with rc {tvc.returncode}")
-            tvc.send_signal(subprocess.signal.SIGINT)
+            tvc.send_signal(signal.SIGINT)
             tvc.wait()
 
 
