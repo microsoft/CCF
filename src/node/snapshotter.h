@@ -157,14 +157,6 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
-      // It is possible that the signature following the snapshot evidence is
-      // scheduled by another thread while the below snapshot evidence
-      // transaction is committed. To allow for such scenario, the evidence
-      // seqno is recorded via `record_snapshot_evidence_idx()` on a hook rather
-      // than here.
-      pending_snapshots[generation_count] = {};
-      pending_snapshots[generation_count].version = snapshot_version;
-
       auto rc = tx.commit(cd, nullptr, capture_ws_digest_and_commit_evidence);
       if (rc != ccf::kv::CommitResult::SUCCESS)
       {
