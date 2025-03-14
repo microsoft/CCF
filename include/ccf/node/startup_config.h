@@ -63,11 +63,15 @@ namespace ccf
       ccf::pal::snp::EndorsementsServers snp_endorsements_servers = {};
       std::optional<std::string> snp_security_policy_file = std::nullopt;
       std::optional<std::string> snp_uvm_endorsements_file = std::nullopt;
+      std::optional<std::string> snp_endorsements_file = std::nullopt;
 
       struct Environment
       {
+        // Each of these contains the string read from the relevant file. It is
+        // expected to be a base-64 string.
         std::optional<std::string> security_policy = std::nullopt;
         std::optional<std::string> uvm_endorsements = std::nullopt;
+        std::optional<std::string> snp_endorsements = std::nullopt;
 
         bool operator==(const Environment&) const = default;
       };
