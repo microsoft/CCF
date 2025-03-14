@@ -22,19 +22,24 @@ jobs:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
-    defaults:
-      run:
-        working-directory: tla
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
-      - uses: actions/checkout@v4
-      - run: |
-          sudo apt update
-          sudo apt install -y default-jre
-          python3 install_deps.py
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
 
-      - run: ./tlc.py --trace-name 2C2N mc --term-count 2 --request-count 0 --raft-configs 2C2N --disable-check-quorum consensus/MCccfraft.tla
+      - uses: actions/checkout@v4
+      - name: Install TLC dependencies
+        run: |
+          tdnf install -y jre wget
+          python3 tla/install_deps.py --skip-apt-packages
+
+      - run: cd tla && ./tlc.py --trace-name 2C2N mc --term-count 2 --request-count 0 --raft-configs 2C2N --disable-check-quorum consensus/MCccfraft.tla
 
       - name: Upload TLC traces
         uses: actions/upload-artifact@v4
@@ -50,19 +55,24 @@ jobs:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-verification') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
-    defaults:
-      run:
-        working-directory: tla
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
-      - uses: actions/checkout@v4
-      - run: |
-          sudo apt update
-          sudo apt install -y default-jre
-          python3 install_deps.py
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
 
-      - run: ./tlc.py --trace-name 3C2N mc --term-count 2 --request-count 0 --raft-configs 3C2N --disable-check-quorum consensus/MCccfraft.tla
+      - uses: actions/checkout@v4
+      - name: Install TLC dependencies
+        run: |
+          tdnf install -y jre wget
+          python3 tla/install_deps.py --skip-apt-packages
+
+      - run: cd tla && ./tlc.py --trace-name 3C2N mc --term-count 2 --request-count 0 --raft-configs 3C2N --disable-check-quorum consensus/MCccfraft.tla
 
       - name: Upload TLC traces
         uses: actions/upload-artifact@v4

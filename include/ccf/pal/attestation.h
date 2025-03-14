@@ -38,8 +38,7 @@ namespace ccf::pal
       j["report_data"].get<std::vector<uint8_t>>());
   }
 
-  // Verifying SNP attestation report is available on all platforms as unlike
-  // SGX, this does not require external dependencies (Open Enclave for SGX).
+  // Verifying SNP attestation report is available on all platforms.
   static void verify_snp_attestation_report(
     const QuoteInfo& quote_info,
     PlatformAttestationMeasurement& measurement,

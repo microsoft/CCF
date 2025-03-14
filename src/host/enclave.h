@@ -75,6 +75,7 @@ namespace host
      * Create an uninitialized enclave hosting the given library.
      *
      * @param path Path to signed enclave library file
+     * @param type Type of enclave to load
      * @param platform Trusted Execution Platform of enclave, influencing what
      * flags should be passed to OE, or whether to dlload a virtual enclave
      */
