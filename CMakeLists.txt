@@ -1221,10 +1221,12 @@ if(BUILD_TESTS)
       COMMAND "tr" "-d" "\""
       OUTPUT_VARIABLE "OS_RELEASE"
       RESULT_VARIABLE RETURN_CODE
+      OUTPUT_STRIP_TRAILING_WHITESPACE
     )
     if(NOT RETURN_CODE STREQUAL "0")
       message(FATAL_ERROR "Error calling cat /etc/os-release")
     endif()
+    message(STATUS "OS_RELEASE = ${OS_RELEASE}")
     if(OS_RELEASE STREQUAL "Microsoft Azure Linux")
       set_property(
         TEST partitions_cft
