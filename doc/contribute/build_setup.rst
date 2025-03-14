@@ -53,3 +53,52 @@ If you use `Visual Studio Code`_ you can install the `Remote Container`_ extensi
 .. _`Visual Studio Code`: https://code.visualstudio.com/
 .. _`Remote Container`: https://code.visualstudio.com/docs/remote/containers
 
+Develop for Azure Linux OS
+--------------------------
+
+Setting up Azure Linux VM
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There's no possibility to choose an image in UI, so the CLI steps required to get an Azure Linux based VM in Microsoft Azure are
+
+.. code-block:: bash
+
+    az group create --name [GROUP_NAME] --location eastus2
+    az vm create --name [VM-NAME] --resource-group [GROUP_NAME] --image MicrosoftCBLMariner:azure-linux-3:azure-linux-3:latest --admin-username [USERNAME] --ssh-key-values C:\Users\[USERNAME\.ssh\[KEY].pub --os-disk-size-gb 512
+
+Afterwards, go to your VM and select a proper RAM and CPU profile. If you don't know which one you want, select `Standard D16s v3` (64 RAM and 16 CPU cores).
+
+How to install docker
+~~~~~~~~~~~~~~~~~~~~~
+
+Via downloading binaries: https://docs.docker.com/engine/install/binaries/#install-daemon-and-client-binaries-on-linux.
+
+.. code-block:: bash
+
+    wget https://download.docker.com/linux/static/stable/x86_64/docker-28.0.1.tgz
+    tar xzvf docker-28.0.1.tgz
+    sudo cp docker/* /usr/bin/
+    sudo dockerd &
+    sudo docker run hello-world
+
+How do I install an EXTENDED package
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There are 2 lists of packages in the official Azure Linux repo - `SPECS <https://github.com/microsoft/azurelinux/tree/3.0/SPECS>`_
+and `SPECS-EXTENDED <https://github.com/microsoft/azurelinux/tree/3.0/SPECS-EXTENDED>`_.
+
+The latter are hosted on `packages.microsoft.com <https://packages.microsoft.com/azurelinux/3.0/prod/extended/x86_64/>`_, but to consume them you'll need to manually add the repo. One way to do this is to put the .repo file directly into ``/etc/yum.repos.d``:
+
+.. code-block:: bash
+
+    sudo wget https://packages.microsoft.com/azurelinux/3.0/prod/extended/x86_64/config.repo -O /etc/yum.repos.d/azurelinux-official-extended.repo
+
+Where is perf?
+~~~~~~~~~~~~~~
+
+In `kernel-tools <https://github.com/microsoft/azurelinux/discussions/6476>`_. If anyone works out how to get ``tdnf repoquery`` to say this, please add it here.
+
+How do I find more information about Azure Linux?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Try searching for "Mariner". This was Azure Linux's previous name, a lot of useful support discussions happened under that name, and it's far easier to search for.

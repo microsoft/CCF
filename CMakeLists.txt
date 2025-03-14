@@ -107,12 +107,10 @@ if(KV_STATE_RB)
 endif()
 
 # This option controls whether to link virtual builds against snmalloc rather
-# than use the system allocator. In builds using Open Enclave, enclave
-# allocation is managed separately and enabling snmalloc is done by linking
-# openenclave::oesnmalloc
-option(USE_SNMALLOC "Link virtual build against snmalloc" ON)
+# than use the system allocator.
+option(USE_SNMALLOC "Link against snmalloc" ON)
 
-# Default inherited from Open Enclave usage
+# Useful for debugging with libc++ hardening options
 option(USE_LIBCXX "Use libc++ instead of libstdc++" OFF)
 
 enable_language(ASM)

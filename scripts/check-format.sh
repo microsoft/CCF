@@ -29,9 +29,11 @@ else
 fi
 
 CLANG_FORMAT=clang-format
-if [ -x "$(command -v clang-format-11)" ]; then
-    CLANG_FORMAT=clang-format-11
+if [ -x "$(command -v clang-format-18)" ]; then
+    CLANG_FORMAT=clang-format-18
 fi
+
+echo "Using $(${CLANG_FORMAT} --version)"
 
 file_name_regex="^[[:lower:]0-9_]+$"
 unformatted_files=""
