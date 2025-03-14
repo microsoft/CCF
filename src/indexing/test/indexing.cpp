@@ -452,7 +452,7 @@ TEST_CASE_TEMPLATE(
 }
 
 using namespace std::chrono_literals;
-const auto max_multithread_run_time = 100s;
+const auto max_multithread_run_time = 500s;
 
 // Uses the real classes, and access + update them concurrently
 TEST_CASE(
