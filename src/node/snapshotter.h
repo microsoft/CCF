@@ -3,7 +3,6 @@
 #pragma once
 
 #include "ccf/ds/logger.h"
-#include "ccf/pal/enclave.h"
 #include "ccf/pal/locking.h"
 #include "consensus/ledger_enclave_types.h"
 #include "ds/ccf_assert.h"
@@ -158,8 +157,7 @@ namespace ccf
           commit_evidence = commit_evidence_;
         };
 
-      auto rc =
-        tx.commit(cd, false, nullptr, capture_ws_digest_and_commit_evidence);
+      auto rc = tx.commit(cd, nullptr, capture_ws_digest_and_commit_evidence);
       if (rc != ccf::kv::CommitResult::SUCCESS)
       {
         LOG_FAIL_FMT(
@@ -306,18 +304,6 @@ namespace ccf
           "size [{} bytes]. Discarding snapshot for seqno {}",
           snapshot_buf.size(),
           pending_snapshot.serialised_snapshot.size(),
-          pending_snapshot.version);
-        pending_snapshots.erase(search);
-        return false;
-      }
-      else if (!ccf::pal::is_outside_enclave(
-                 snapshot_buf.data(), snapshot_buf.size()))
-      {
-        // Sanitise host-allocated buffer. Note that buffer alignment is not
-        // checked as the buffer is only written to and never read.
-        LOG_FAIL_FMT(
-          "Host allocated snapshot buffer is not outside enclave memory. "
-          "Discarding snapshot for seqno {}",
           pending_snapshot.version);
         pending_snapshots.erase(search);
         return false;

@@ -777,7 +777,7 @@ namespace ccf
           // else args owns a valid Tx relating to a non-pending response, which
           // should be applied
           ccf::kv::CommittableTx& tx = *args.owned_tx;
-          ccf::kv::CommitResult result = tx.commit(ctx->claims, false);
+          ccf::kv::CommitResult result = tx.commit(ctx->claims);
 
           switch (result)
           {
