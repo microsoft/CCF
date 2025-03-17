@@ -50,9 +50,19 @@ endif()
 
 message(STATUS "RPM package version: ${CPACK_RPM_PACKAGE_VERSION}")
 
-set(CCF_RPM_DEPENDENCIES
-    "libuv >= 1.34.2, openssl >= 3.3.0, nghttp2 >= 1.40.0, curl >= 7.68.0, libcxxabi >= 18.1.2"
-)
+if(CCF_RPM_PACKAGE_DEVEL)
+  set(CCF_RPM_DEPENDENCIES
+    "libuv-devel >= 1.34.2, openssl-devel >= 3.3.0, nghttp2 >= 1.40.0, curl >= 7.68.0, libcxxabi >= 18.1.2"
+  )
+  # + build toolchain
+  set(CCF_RPM_DEPENDENCIES
+    "${CCF_RPM_DEPENDENCIES}, cmake >= 3.30, build-essential >= 3.0, clang >= 18.1.2"
+  )
+else()
+  set(CCF_RPM_DEPENDENCIES
+      "libuv >= 1.34.2, openssl >= 3.3.0, nghttp2 >= 1.40.0, curl >= 7.68.0, libcxxabi >= 18.1.2"
+  )
+endif()
 
 message(STATUS "RPM package dependencies: ${CCF_RPM_DEPENDENCIES}")
 
