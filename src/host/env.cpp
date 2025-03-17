@@ -15,9 +15,9 @@ namespace ccf::env
     {
       return str;
     }
-    
+
     const auto name = str.substr(1);
-    char* value = std::getenv(name.c_str()); //NOLINT(concurrency-mt-unsafe)
+    char* value = std::getenv(name.c_str()); // NOLINT(concurrency-mt-unsafe)
     if (value == nullptr)
     {
       return str;
