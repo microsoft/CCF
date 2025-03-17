@@ -52,7 +52,7 @@ message(STATUS "RPM package version: ${CPACK_RPM_PACKAGE_VERSION}")
 
 if(CCF_RPM_PACKAGE_DEVEL)
   set(CCF_RPM_DEPENDENCIES
-    "libuv-devel >= 1.34.2, openssl-devel >= 3.3.0, nghttp2 >= 1.40.0, curl >= 7.68.0, libcxxabi >= 18.1.2"
+    "libuv >= 1.34.2, openssl-devel >= 3.3.0, nghttp2-devel >= 1.40.0, curl >= 7.68.0, libcxxabi >= 18.1.2"
   )
   # + build toolchain
   set(CCF_RPM_DEPENDENCIES
