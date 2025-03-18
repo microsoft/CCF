@@ -537,8 +537,7 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        LOG_FAIL_FMT("Exception in {}", __PRETTY_FUNCTION__);
-        LOG_DEBUG_FMT("Error: {}", e.what());
+        LOG_FAIL_EXC(e.what());
         return;
       }
     }
