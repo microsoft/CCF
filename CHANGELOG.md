@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## 6.0.0-rc2
+
+[6.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc2
+
+### Added
+
+- Exposed 'devel' version of CCF rpm package for Azure Linux (#6904).
+
 ## [6.0.0-rc1]
 
 [6.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc1
