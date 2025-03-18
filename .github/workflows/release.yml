@@ -189,7 +189,7 @@ jobs:
           echo "name=$CCF_GITHUB_PKG" >> $GITHUB_OUTPUT
         shell: bash
 
-      - name: "Make -devel.rpm Package"
+      - name: "Make ccf-devel.rpm Package"
         if: "${{ matrix.platform.os == 'azure-linux' }}"
         id: make_rpm_devel
         run: |
