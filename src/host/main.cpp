@@ -4,8 +4,8 @@
 #include "ccf/ds/logger.h"
 #include "ccf/ds/unit_strings.h"
 #include "ccf/ds/x509_time_fmt.h"
-#include "ccf/pal/attestation.h"
 #include "ccf/pal/platform.h"
+#include "ccf/service/node_info_network.h"
 #include "ccf/version.h"
 #include "config_schema.h"
 #include "configuration.h"
@@ -13,7 +13,6 @@
 #include "ds/cli_helper.h"
 #include "ds/files.h"
 #include "ds/non_blocking.h"
-#include "ds/nonstd.h"
 #include "ds/notifying.h"
 #include "ds/oversized.h"
 #include "enclave.h"
@@ -29,24 +28,27 @@
 #include "sig_term.h"
 #include "snapshots/fetch.h"
 #include "snapshots/snapshot_manager.h"
+#include "tcp.h"
 #include "ticker.h"
+#include "time_bound_logger.h"
 #include "time_updater.h"
+#include "udp.h"
 
 #include <CLI11/CLI11.hpp>
-#include <codecvt>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
-#include <locale>
+#include <map>
 #include <string>
-#include <sys/types.h>
 #include <thread>
 #include <unistd.h>
 
 namespace fs = std::filesystem;
 
-extern char** environ;
+// Matches definition in unistd.h, non-const
+extern char**
+  environ; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,readability-redundant-declaration)
 
 using namespace std::string_literals;
 using namespace std::chrono_literals;
@@ -61,16 +63,8 @@ bool asynchost::TCPImpl::alloc_quota_logged = false;
 size_t asynchost::UDPImpl::remaining_read_quota =
   asynchost::UDPImpl::max_read_quota;
 
-std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(10'000);
-
-void print_version(size_t)
-{
-  std::cout << "CCF host: " << ccf::ccf_version << std::endl;
-  std::cout << "Platform: "
-            << nlohmann::json(ccf::pal::platform).get<std::string>()
-            << std::endl;
-  exit(0);
-}
+std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(
+  10'000); // NOLINT(cppcoreguidelines-avoid-magic-numbers)
 
 int main(int argc, char** argv)
 {
@@ -144,9 +138,6 @@ int main(int argc, char** argv)
   nlohmann::json config_json;
   const auto config_timeout_end = std::chrono::high_resolution_clock::now() +
     std::chrono::microseconds(config_timeout);
-  // The line above is considered a "DeadStore" by clang-tidy, perhaps
-  // because there is a path in the loop below where it is not used.
-  (void)config_timeout_end;
   std::string config_parsing_error = "";
   do
   {

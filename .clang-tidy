@@ -1,0 +1,22 @@
+---
+Checks: >
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  -clang-analyzer-deadcode.DeadStores,
+  bugprone-*,
+  cert-*,
+  -cert-err58-cpp,
+  concurrency-*,
+  cppcoreguidelines-*,
+  misc-*,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  performance-*,
+  -performance-avoid-endl,
+  portability-*,
+  readability-*,
+  -readability-function-cognitive-complexity,
+
+WarningsAsErrors: '*'
+HeaderFilterRegex: ''
+FormatStyle:     'file'
