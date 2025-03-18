@@ -1121,7 +1121,7 @@ const actions = new Map([
       function (args, proposalId) {
         // ensure cpuid is uppercase to prevent aliasing
         ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].set(
-          ccf.strToBuf(cpuid.toUpperCase()),
+          ccf.strToBuf(args.cpuid.toUpperCase()),
           ccf.jsonCompatibleToBuf(args.tcb_version),
         );
 
@@ -1192,15 +1192,25 @@ const actions = new Map([
         checkLength(ccf.strToBuf(args.cpuid), 8, 8, "cpuid");
       },
       function (args) {
+        let found = false;
+
         const cpuid_lower = ccf.strToBuf(args.cpuid.toLowerCase());
-        const cpuid_upper = ccf.strToBuf(args.cpuid.toUpperCase());
-        if (ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid_lower)) {
+        if (
+          ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid_lower)
+        ) {
           ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid_lower);
-        } else if (
+          found = true;
+        } 
+
+        const cpuid_upper = ccf.strToBuf(args.cpuid.toUpperCase());
+        if (
           ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid_upper)
         ) {
           ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid_upper);
-        } else {
+          found = true;
+        } 
+
+        if (!found) {
           throw new Error("CPUID not found");
         }
       },
