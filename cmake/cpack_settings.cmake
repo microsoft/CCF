@@ -50,9 +50,12 @@ endif()
 
 message(STATUS "RPM package version: ${CPACK_RPM_PACKAGE_VERSION}")
 
+set(OPENSSL_MINIMAL_VERSION "3.3.0")
+set(NGHTTP2_MINIMAL_VERSION "1.40.0")
+
 if(CCF_RPM_PACKAGE_DEVEL)
   set(CCF_RPM_BASE_DEPENDENCIES
-      "openssl-devel >= 3.3.0, nghttp2-devel >= 1.40.0"
+      "openssl-devel >= ${OPENSSL_MINIMAL_VERSION}, nghttp2-devel >= ${NGHTTP2_MINIMAL_VERSION}"
   )
   # + build toolchain
   set(CCF_RPM_BASE_DEPENDENCIES
@@ -61,7 +64,9 @@ if(CCF_RPM_PACKAGE_DEVEL)
   # + alter name
   set(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-devel")
 else()
-  set(CCF_RPM_BASE_DEPENDENCIES "openssl >= 3.3.0, nghttp2 >= 1.40.0")
+  set(CCF_RPM_BASE_DEPENDENCIES
+      "openssl >= ${OPENSSL_MINIMAL_VERSION}, nghttp2 >= ${NGHTTP2_MINIMAL_VERSION}"
+  )
 endif()
 
 set(CCF_RPM_DEPENDENCIES
