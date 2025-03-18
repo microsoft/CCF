@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Added
 
-- Exposed 'devel' version of CCF rpm package for Azure Linux (#6904).
+- Releases now contain two RPMs, `ccf-devel` to support building CCF applications, and `ccf` to support running pre-built CCF applications (#6904).
 
 ## [6.0.0-rc1]
 
