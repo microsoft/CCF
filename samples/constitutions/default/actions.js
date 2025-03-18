@@ -1195,20 +1195,16 @@ const actions = new Map([
         let found = false;
 
         const cpuid_lower = ccf.strToBuf(args.cpuid.toLowerCase());
-        if (
-          ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid_lower)
-        ) {
+        if (ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid_lower)) {
           ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid_lower);
           found = true;
-        } 
+        }
 
         const cpuid_upper = ccf.strToBuf(args.cpuid.toUpperCase());
-        if (
-          ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid_upper)
-        ) {
+        if (ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid_upper)) {
           ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid_upper);
           found = true;
-        } 
+        }
 
         if (!found) {
           throw new Error("CPUID not found");
