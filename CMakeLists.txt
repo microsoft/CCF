@@ -316,7 +316,7 @@ if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
   add_san(ccf_js.snp)
   target_link_libraries(ccf_js.snp PUBLIC ccfcrypto.snp quickjs.snp)
-  target_compile_definitions(ccf_js.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
+  target_compile_definitions(ccf_js.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
   add_warning_checks(ccf_js.snp)
   install(
     TARGETS ccf_js.snp
