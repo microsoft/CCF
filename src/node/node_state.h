@@ -427,65 +427,75 @@ namespace ccf
           // Use endorsements retrieved from file, if available
           if (config.attestation.environment.snp_endorsements.has_value())
           {
-            const auto raw_data = ccf::crypto::raw_from_b64(
-              config.attestation.environment.snp_endorsements.value());
-
-            const auto j = nlohmann::json::parse(raw_data);
-            const auto aci_endorsements =
-              j.get<ccf::pal::snp::ACIReportEndorsements>();
-
-            // Check that tcbm in endorsement matches reported TCB in our
-            // retrieved attestation
-            auto* quote = reinterpret_cast<const ccf::pal::snp::Attestation*>(
-              quote_info.quote.data());
-            const auto reported_tcb = quote->reported_tcb;
-
-            // tcbm is a single hex value, like DB18000000000004. To match that
-            // with a TcbVersion, reverse the bytes.
-            const uint8_t* tcb_begin =
-              reinterpret_cast<const uint8_t*>(&reported_tcb);
-            const std::span<const uint8_t> tcb_bytes{
-              tcb_begin, tcb_begin + sizeof(reported_tcb)};
-            auto tcb_as_hex = fmt::format(
-              "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
-            ccf::nonstd::to_upper(tcb_as_hex);
-
-            if (tcb_as_hex == aci_endorsements.tcbm)
+            try
             {
-              LOG_INFO_FMT(
-                "Using SNP endorsements loaded from file, endorsing TCB {}",
-                tcb_as_hex);
+              const auto raw_data = ccf::crypto::raw_from_b64(
+                config.attestation.environment.snp_endorsements.value());
 
-              auto& endorsements_pem = quote_info.endorsements;
-              endorsements_pem.insert(
-                endorsements_pem.end(),
-                aci_endorsements.vcek_cert.begin(),
-                aci_endorsements.vcek_cert.end());
-              endorsements_pem.insert(
-                endorsements_pem.end(),
-                aci_endorsements.certificate_chain.begin(),
-                aci_endorsements.certificate_chain.end());
+              const auto j = nlohmann::json::parse(raw_data);
+              const auto aci_endorsements =
+                j.get<ccf::pal::snp::ACIReportEndorsements>();
 
-              try
+              // Check that tcbm in endorsement matches reported TCB in our
+              // retrieved attestation
+              auto* quote = reinterpret_cast<const ccf::pal::snp::Attestation*>(
+                quote_info.quote.data());
+              const auto reported_tcb = quote->reported_tcb;
+
+              // tcbm is a single hex value, like DB18000000000004. To match
+              // that with a TcbVersion, reverse the bytes.
+              const uint8_t* tcb_begin =
+                reinterpret_cast<const uint8_t*>(&reported_tcb);
+              const std::span<const uint8_t> tcb_bytes{
+                tcb_begin, tcb_begin + sizeof(reported_tcb)};
+              auto tcb_as_hex = fmt::format(
+                "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
+              ccf::nonstd::to_upper(tcb_as_hex);
+
+              if (tcb_as_hex == aci_endorsements.tcbm)
               {
-                launch_node();
-                return;
+                LOG_INFO_FMT(
+                  "Using SNP endorsements loaded from file, endorsing TCB {}",
+                  tcb_as_hex);
+
+                auto& endorsements_pem = quote_info.endorsements;
+                endorsements_pem.insert(
+                  endorsements_pem.end(),
+                  aci_endorsements.vcek_cert.begin(),
+                  aci_endorsements.vcek_cert.end());
+                endorsements_pem.insert(
+                  endorsements_pem.end(),
+                  aci_endorsements.certificate_chain.begin(),
+                  aci_endorsements.certificate_chain.end());
+
+                try
+                {
+                  launch_node();
+                  return;
+                }
+                catch (const std::exception& e)
+                {
+                  LOG_FAIL_FMT("{}", e.what());
+                  throw;
+                }
               }
-              catch (const std::exception& e)
+              else
               {
-                LOG_FAIL_FMT("{}", e.what());
-                throw;
+                LOG_FAIL_FMT(
+                  "SNP endorsements loaded from disk ({}) contained tcbm {}, "
+                  "which does not match reported TCB of current attestation "
+                  "{}. "
+                  "Falling back to fetching fresh endorsements from server.",
+                  config.attestation.snp_endorsements_file.value(),
+                  aci_endorsements.tcbm,
+                  tcb_as_hex);
               }
             }
-            else
+            catch (const std::exception& e)
             {
-              LOG_INFO_FMT(
-                "SNP endorsements loaded from disk ({}) contained tcbm {}, "
-                "which does not match reported TCB of current attestation {}. "
-                "Falling back to fetching fresh endorsements from server.",
-                config.attestation.snp_endorsements_file.value(),
-                aci_endorsements.tcbm,
-                tcb_as_hex);
+              LOG_FAIL_FMT(
+                "Error attempting to use SNP endorsements from file: {}",
+                e.what());
             }
           }
 
