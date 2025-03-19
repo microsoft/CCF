@@ -36,6 +36,8 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   )
 endif()
 
+option(CCF_RPM_PACKAGE_DEVEL OFF)
+
 include(${CCF_DIR}/cmake/cpack_settings.cmake)
 
 message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
@@ -252,6 +254,7 @@ target_link_libraries(
           curl
           http_parser.host
 )
+target_compile_definitions(cchost PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 install(TARGETS cchost DESTINATION bin)
 
@@ -315,6 +318,7 @@ if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_js.snp "${CCF_JS_SOURCES}")
   add_san(ccf_js.snp)
   target_link_libraries(ccf_js.snp PUBLIC ccfcrypto.snp quickjs.snp)
+  target_compile_definitions(ccf_js.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
   add_warning_checks(ccf_js.snp)
   install(
     TARGETS ccf_js.snp
@@ -326,6 +330,7 @@ endif()
 add_host_library(ccf_js.host "${CCF_JS_SOURCES}")
 add_san(ccf_js.host)
 target_link_libraries(ccf_js.host PUBLIC ccfcrypto.host quickjs.host)
+target_compile_definitions(ccf_js.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
 add_warning_checks(ccf_js.host)
 if(INSTALL_VIRTUAL_LIBRARIES)
   install(
@@ -345,6 +350,7 @@ if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_kv.snp "${CCF_KV_SOURCES}")
   add_san(ccf_kv.snp)
   add_warning_checks(ccf_kv.snp)
+  target_compile_definitions(ccf_kv.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
   install(
     TARGETS ccf_kv.snp
     EXPORT ccf
@@ -355,6 +361,7 @@ endif()
 add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
 add_san(ccf_kv.host)
 add_warning_checks(ccf_kv.host)
+target_compile_definitions(ccf_kv.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
 if(INSTALL_VIRTUAL_LIBRARIES)
   install(
     TARGETS ccf_kv.host
@@ -373,6 +380,7 @@ if(COMPILE_TARGET STREQUAL "snp")
   )
   add_san(ccf_endpoints.snp)
   add_warning_checks(ccf_endpoints.snp)
+  target_compile_definitions(ccf_endpoints.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
   install(
     TARGETS ccf_endpoints.snp
     EXPORT ccf
@@ -388,7 +396,7 @@ target_link_libraries(
 )
 add_san(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
-
+target_compile_definitions(ccf_endpoints.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
 if(INSTALL_VIRTUAL_LIBRARIES)
   install(
     TARGETS ccf_endpoints.host
@@ -483,10 +491,6 @@ option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(CLIENT_PROTOCOLS_TEST "Test client protocols (TLS, HTTP/2)" OFF)
 option(BUILD_TPCC "Build TPPC sample app and clients" OFF)
 
-# Allow framework code to use LOG_*_FMT macros. These will be removed from
-# public headers in future
-add_compile_definitions(CCF_LOGGER_NO_DEPRECATE)
-
 option(CCF_RAFT_TRACING "Enable tracing of Raft consensus" OFF)
 if(CCF_RAFT_TRACING)
   add_compile_definitions(CCF_RAFT_TRACING)
@@ -513,6 +517,7 @@ if(COMPILE_TARGET STREQUAL "snp")
 
   target_compile_options(ccf.snp PUBLIC ${COMPILE_LIBCXX})
   add_warning_checks(ccf.snp)
+  target_compile_definitions(ccf.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
   target_include_directories(
     ccf.snp SYSTEM
@@ -562,6 +567,7 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
 
   target_compile_options(ccf.virtual PUBLIC ${COMPILE_LIBCXX})
   add_warning_checks(ccf.virtual)
+  target_compile_definitions(ccf.virtual PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
   target_include_directories(
     ccf.virtual SYSTEM
@@ -918,6 +924,7 @@ if(BUILD_TESTS)
       merkle_mem PRIVATE ${CMAKE_THREAD_LIBS_INIT} ${LINK_LIBCXX}
                          ccfcrypto.host
     )
+    target_compile_definitions(merkle_mem PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
     # Raft driver and scenario test
     add_executable(
@@ -926,6 +933,7 @@ if(BUILD_TESTS)
     )
     target_link_libraries(raft_driver PRIVATE ccfcrypto.host)
     target_include_directories(raft_driver PRIVATE src/aft)
+    target_compile_definitions(raft_driver PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
     add_test(
       NAME raft_scenario_test
