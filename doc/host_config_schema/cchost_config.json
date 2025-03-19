@@ -497,7 +497,7 @@
         },
         "snp_endorsements_file": {
           "type": ["string", "null"],
-          "description": "Path to file containing AMD hardware endorsements (a PEM certificate chain), base-64 encoded. Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR. Will be used in preference to snp_endorsements_servers"
+          "description": "Path to file containing AMD hardware endorsements (a PEM certificate chain), base-64 encoded. Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR. Will be used in preference to snp_endorsements_servers if the tcbm in this file matches that of the attestation"
         },
         "snp_endorsements_servers": {
           "type": "array",
