@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The RPM package is now split into two separate packages
   - `ccf-devel` RPM to support building CCF applications (#6904)
   - `ccf` to support running pre-built CCF applications (#6909)
+  
+### Added
+
+- Attestations of new SNP nodes must be from a trusted TCB version higher than the minimum TCB version stored for that CPU model in `public:ccf.gov.nodes.snp.tcb_versions`. Added `add_snp_tcb_version(cpuid, tcb_version)` and `remove_snp_tcb_version(cpuid)` governance actions. New clusters will automatically populate the TCB version, pre-existing clusters must be set a TCB version when upgrading. (#6837)
 
 ## [6.0.0-rc1]
 
@@ -91,10 +95,6 @@ Note: this release candidate still includes `.deb` packages targeting Ubuntu 20.
 - Nodes started in `Join` mode will shut down if they receive an unrecoverable condition such as `StartupSeqnoIsOld` or `InvalidQuote` when attempting to join (#6471, #6489).
 - In configuration, `attestation.snp_endorsements_servers` can specify a `max_retries_count`. If the count has been exhausted without success for all configured servers, the node will shut down (#6478).
 - When deciding which nodes are allowed to join, only UVM roots of trust defined in `public:ccf.gov.nodes.snp.uvm_endorsements` are considered (#6489).
-
-### Added
-
-- Attestations of new SNP nodes must be from a trusted TCB version higher than the minimum TCB version stored for that CPU model in `public:ccf.gov.nodes.snp.tcb_versions`. Added `add_snp_tcb_version(cpuid, tcb_version)` and `remove_snp_tcb_version(cpuid)`
 
 ### Fixed
 
