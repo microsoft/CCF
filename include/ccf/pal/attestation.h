@@ -8,6 +8,7 @@
 #include "ccf/ds/hex.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/quote_info.h"
+#include "ccf/node/startup_config.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/pal/snp_ioctl.h"
 
