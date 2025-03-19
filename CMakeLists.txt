@@ -11,7 +11,7 @@ set(COMPILE_TARGET
 )
 
 # Default CMakeLists processing path. To exclude building and installing testing
-# stuff set this to OFF, e.g. to build the release RPM.
+# stuff set this to OFF, e.g. to build the run-only RPM.
 option(CCF_DEVEL "CCF Devel Mode" ON)
 
 message(STATUS "CCF Devel Mode: ${CCF_DEVEL}")
