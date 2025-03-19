@@ -441,10 +441,13 @@ namespace ccf
             const auto reported_tcb = quote->reported_tcb;
 
             // tcbm is a single hex value, like DB18000000000004. To match that
-            // with a TcbVersion, reverse the bytes by treating as a uint64_t.
-            const uint64_t flipped_tcb =
-              *reinterpret_cast<const uint64_t*>(&reported_tcb);
-            auto tcb_as_hex = fmt::format("{:02x}", flipped_tcb);
+            // with a TcbVersion, reverse the bytes.
+            const uint8_t* tcb_begin =
+              reinterpret_cast<const uint8_t*>(&reported_tcb);
+            const std::span<const uint8_t> tcb_bytes{
+              tcb_begin, tcb_begin + sizeof(reported_tcb)};
+            auto tcb_as_hex = fmt::format(
+              "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
             ccf::nonstd::to_upper(tcb_as_hex);
 
             if (tcb_as_hex == aci_endorsements.tcbm)
