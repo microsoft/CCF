@@ -286,6 +286,9 @@ def test_tcb_version_tables(network, args):
         assert len(versions) == 1, f"Expected one TCB version, {versions}"
         cpuid, tcb_version = next(iter(versions.items()))
 
+    LOG.info("CPUID should be uppercase")
+    assert cpuid.upper() == cpuid, f"Expected uppercase CPUID, {cpuid}"
+
     LOG.info("Change current cpuid's TCB version")
     test_tcb_version = {"boot_loader": 0, "microcode": 0, "snp": 0, "tee": 0}
     network.consortium.add_snp_tcb_version(primary, cpuid, test_tcb_version)
@@ -296,7 +299,7 @@ def test_tcb_version_tables(network, args):
         assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
         assert (
             versions[cpuid] == test_tcb_version
-        ), f"TCB version does not match, {versions}"
+        ), f"TCB version does not match, {versions} != {test_tcb_version}"
 
     LOG.info("Removing current cpuid's TCB version")
     network.consortium.remove_snp_tcb_version(primary, cpuid)
