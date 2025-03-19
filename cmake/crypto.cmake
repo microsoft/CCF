@@ -40,6 +40,7 @@ if(COMPILE_TARGET STREQUAL "snp")
   target_link_libraries(ccfcrypto.snp PUBLIC crypto)
   target_link_libraries(ccfcrypto.snp PUBLIC ssl)
   set_property(TARGET ccfcrypto.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
+  target_compile_definitions(ccfcrypto.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
   install(
     TARGETS ccfcrypto.snp
@@ -61,6 +62,7 @@ target_link_libraries(ccfcrypto.host PUBLIC t_cose.host)
 target_link_libraries(ccfcrypto.host PUBLIC crypto)
 target_link_libraries(ccfcrypto.host PUBLIC ssl)
 set_property(TARGET ccfcrypto.host PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_compile_definitions(ccfcrypto.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 if(INSTALL_VIRTUAL_LIBRARIES)
   install(
