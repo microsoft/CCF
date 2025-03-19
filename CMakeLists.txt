@@ -10,6 +10,12 @@ set(COMPILE_TARGET
           "Target compilation platforms, Choose from: ${ALLOWED_TARGETS}"
 )
 
+# Default CMakeLists processing path. To exclude building and installing testing
+# stuff set this to OFF, e.g. to build the run-only RPM.
+option(CCF_DEVEL "CCF Devel Mode" ON)
+
+message(STATUS "CCF Devel Mode: ${CCF_DEVEL}")
+
 set(CCF_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 include(${CCF_DIR}/cmake/preproject.cmake)
 include(${CCF_DIR}/cmake/version.cmake)
@@ -36,15 +42,15 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   )
 endif()
 
-option(CCF_RPM_PACKAGE_DEVEL OFF)
-
 include(${CCF_DIR}/cmake/cpack_settings.cmake)
 
 message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
 
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
-        DESTINATION cmake
-)
+if(CCF_DEVEL)
+  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/preproject.cmake
+          DESTINATION cmake
+  )
+endif()
 
 include(GNUInstallDirs)
 
@@ -130,47 +136,57 @@ include_directories(SYSTEM ${CCF_3RD_PARTY_EXPORTED_DIR})
 include_directories(SYSTEM ${CCF_3RD_PARTY_INTERNAL_DIR})
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake)
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake DESTINATION cmake)
 
-# Copy and install CCF utilities
-set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh verify_quote.sh)
-foreach(UTILITY ${CCF_UTILITIES})
-  configure_file(
-    ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
-  )
-  install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION bin)
-endforeach()
-
-# Copy utilities from tests directory
-set(CCF_TEST_UTILITIES tests.sh convert_pico_to_bencher.py test_install.sh
-                       docker_wrap.sh config.jinja recovery_benchmark.sh
-)
-foreach(UTILITY ${CCF_TEST_UTILITIES})
-  configure_file(
-    ${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
-  )
-endforeach()
-
-# Install additional utilities
-install(PROGRAMS ${CCF_DIR}/samples/scripts/snpinfo.sh DESTINATION bin)
-install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
-
-if(SAN)
-  install(FILES ${CCF_DIR}/src/san_common.suppressions DESTINATION bin)
+if(CCF_DEVEL)
+  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tools.cmake DESTINATION cmake)
 endif()
 
-# Install getting_started scripts for VM creation and setup
-install(
-  DIRECTORY ${CCF_DIR}/getting_started/
-  DESTINATION getting_started
-  USE_SOURCE_PERMISSIONS
-)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake)
+if(CCF_DEVEL)
+  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ccf_app.cmake
+          DESTINATION cmake
+  )
+endif()
+
+if(CCF_DEVEL)
+  # Copy and install CCF utilities
+  set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh verify_quote.sh)
+  foreach(UTILITY ${CCF_UTILITIES})
+    configure_file(
+      ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
+    )
+    install(PROGRAMS ${CCF_DIR}/python/utils/${UTILITY} DESTINATION bin)
+  endforeach()
+
+  # Copy utilities from tests directory
+  set(CCF_TEST_UTILITIES tests.sh convert_pico_to_bencher.py test_install.sh
+                         docker_wrap.sh config.jinja recovery_benchmark.sh
+  )
+  foreach(UTILITY ${CCF_TEST_UTILITIES})
+    configure_file(
+      ${CCF_DIR}/tests/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
+    )
+  endforeach()
+
+  # Install additional utilities
+  install(PROGRAMS ${CCF_DIR}/samples/scripts/snpinfo.sh DESTINATION bin)
+  install(FILES ${CCF_DIR}/tests/config.jinja DESTINATION bin)
+
+  if(SAN)
+    install(FILES ${CCF_DIR}/src/san_common.suppressions DESTINATION bin)
+  endif()
+
+  # Install getting_started scripts for VM creation and setup
+  install(
+    DIRECTORY ${CCF_DIR}/getting_started/
+    DESTINATION getting_started
+    USE_SOURCE_PERMISSIONS
+  )
+endif()
 
 if(COMPILE_TARGET STREQUAL "snp")
   set(INSTALL_VIRTUAL_LIBRARIES OFF)
-else()
+elseif(CCF_DEVEL)
   set(INSTALL_VIRTUAL_LIBRARIES ON)
 endif()
 
@@ -274,11 +290,13 @@ endif()
 if(COMPILE_TARGET STREQUAL "snp")
   add_library(http_parser.snp "${HTTP_PARSER_SOURCES}")
   set_property(TARGET http_parser.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
-  install(
-    TARGETS http_parser.snp
-    EXPORT ccf
-    DESTINATION lib
-  )
+  if(CCF_DEVEL)
+    install(
+      TARGETS http_parser.snp
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
 endif()
 
 add_library(http_parser.host "${HTTP_PARSER_SOURCES}")
@@ -320,11 +338,13 @@ if(COMPILE_TARGET STREQUAL "snp")
   target_link_libraries(ccf_js.snp PUBLIC ccfcrypto.snp quickjs.snp)
   target_compile_definitions(ccf_js.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
   add_warning_checks(ccf_js.snp)
-  install(
-    TARGETS ccf_js.snp
-    EXPORT ccf
-    DESTINATION lib
-  )
+  if(CCF_DEVEL)
+    install(
+      TARGETS ccf_js.snp
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
 endif()
 
 add_host_library(ccf_js.host "${CCF_JS_SOURCES}")
@@ -351,11 +371,13 @@ if(COMPILE_TARGET STREQUAL "snp")
   add_san(ccf_kv.snp)
   add_warning_checks(ccf_kv.snp)
   target_compile_definitions(ccf_kv.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
-  install(
-    TARGETS ccf_kv.snp
-    EXPORT ccf
-    DESTINATION lib
-  )
+  if(CCF_DEVEL)
+    install(
+      TARGETS ccf_kv.snp
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
 endif()
 
 add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
@@ -381,11 +403,13 @@ if(COMPILE_TARGET STREQUAL "snp")
   add_san(ccf_endpoints.snp)
   add_warning_checks(ccf_endpoints.snp)
   target_compile_definitions(ccf_endpoints.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
-  install(
-    TARGETS ccf_endpoints.snp
-    EXPORT ccf
-    DESTINATION lib
-  )
+  if(CCF_DEVEL)
+    install(
+      TARGETS ccf_endpoints.snp
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
 endif()
 
 add_host_library(ccf_endpoints.host "${CCF_ENDPOINTS_SOURCES}")
@@ -428,26 +452,34 @@ set(CCF_NETWORK_TEST_ARGS
 
 # SNIPPET_START: JS generic application
 add_ccf_app(
-  js_generic SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp INSTALL_LIBS ON
+  js_generic SRCS ${CCF_DIR}/src/apps/js_generic/js_generic.cpp INSTALL_LIBS
+                  ${CCF_DEVEL}
 )
 # SNIPPET_END: JS generic application
 
-install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
-        DESTINATION samples/logging
-)
+if(CCF_DEVEL)
+  install(DIRECTORY ${CCF_DIR}/samples/apps/logging/js
+          DESTINATION samples/logging
+  )
+endif()
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/common.cmake)
 
-file(WRITE ${CMAKE_BINARY_DIR}/PLATFORM "${COMPILE_TARGET}")
-install(FILES ${CMAKE_BINARY_DIR}/PLATFORM DESTINATION share)
+if(CCF_DEVEL)
+  file(WRITE ${CMAKE_BINARY_DIR}/PLATFORM "${COMPILE_TARGET}")
+  install(FILES ${CMAKE_BINARY_DIR}/PLATFORM DESTINATION share)
+endif()
 
 set(CMAKE_GENERATED_COMMENT
     "This file was auto-generated by CMake from a corresponding *.in file. DO NOT EDIT"
 )
+
 configure_file(
   ${CCF_DIR}/src/common/version.h.in ${CCF_DIR}/include/ccf/version.h @ONLY
 )
-install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
+if(CCF_DEVEL)
+  install(FILES ${CCF_DIR}/include/ccf/version.h DESTINATION include/ccf)
+endif()
 
 file(READ ${CCF_DIR}/doc/host_config_schema/cchost_config.json
      HOST_CONFIG_SCHEMA
@@ -547,11 +579,13 @@ if(COMPILE_TARGET STREQUAL "snp")
 
   add_san(ccf.snp)
 
-  install(
-    TARGETS ccf.snp
-    EXPORT ccf
-    DESTINATION lib
-  )
+  if(CCF_DEVEL)
+    install(
+      TARGETS ccf.snp
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
 
   add_dependencies(ccf ccf.snp)
 
@@ -597,65 +631,69 @@ elseif(COMPILE_TARGET STREQUAL "virtual")
 
   add_san(ccf.virtual)
 
-  install(
-    TARGETS ccf.virtual
-    EXPORT ccf
-    DESTINATION lib
-  )
+  if(CCF_DEVEL)
+    install(
+      TARGETS ccf.virtual
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
 
   add_dependencies(ccf ccf.virtual)
 endif()
 
-install(
-  EXPORT ccf
-  DESTINATION cmake
-  FILE ccf-targets.cmake
-)
+if(CCF_DEVEL)
+  install(
+    EXPORT ccf
+    DESTINATION cmake
+    FILE ccf-targets.cmake
+  )
 
-# Install exported 3rd-party library includes
-install(
-  DIRECTORY 3rdparty/exported/
-  DESTINATION include/3rdparty
-  FILES_MATCHING
-  PATTERN "*.h"
-  PATTERN "*.hpp"
-  PATTERN "*.inc"
-)
+  # Install exported 3rd-party library includes
+  install(
+    DIRECTORY 3rdparty/exported/
+    DESTINATION include/3rdparty
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "*.hpp"
+    PATTERN "*.inc"
+  )
 
-# Install all private CCF headers, which may still be needed
-install(
-  DIRECTORY src/
-  DESTINATION include/ccf/_private
-  FILES_MATCHING
-  PATTERN "*.h"
-  PATTERN "*/test*" EXCLUDE
-)
+  # Install all private CCF headers, which may still be needed
+  install(
+    DIRECTORY src/
+    DESTINATION include/ccf/_private
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "*/test*" EXCLUDE
+  )
 
-# Install all public CCF headers
-install(
-  DIRECTORY include/
-  DESTINATION include
-  FILES_MATCHING
-  PATTERN "*.h"
-)
+  # Install all public CCF headers
+  install(
+    DIRECTORY include/
+    DESTINATION include
+    FILES_MATCHING
+    PATTERN "*.h"
+  )
 
-# Install CCF Python infrastructure
-install(
-  DIRECTORY tests/infra/
-  DESTINATION bin/infra
-  FILES_MATCHING
-  PATTERN "*.py"
-  PATTERN "*/__pycache__*" EXCLUDE
-)
+  # Install CCF Python infrastructure
+  install(
+    DIRECTORY tests/infra/
+    DESTINATION bin/infra
+    FILES_MATCHING
+    PATTERN "*.py"
+    PATTERN "*/__pycache__*" EXCLUDE
+  )
 
-install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
-install(PROGRAMS tests/docker_wrap.sh DESTINATION bin)
-install(FILES samples/constitutions/default/actions.js DESTINATION bin)
-install(FILES samples/constitutions/default/validate.js DESTINATION bin)
-install(FILES samples/constitutions/sandbox/resolve.js DESTINATION bin)
-install(FILES samples/constitutions/default/apply.js DESTINATION bin)
-install(FILES tests/start_network.py DESTINATION bin)
-install(FILES tests/requirements.txt DESTINATION bin)
+  install(PROGRAMS tests/sandbox/sandbox.sh DESTINATION bin)
+  install(PROGRAMS tests/docker_wrap.sh DESTINATION bin)
+  install(FILES samples/constitutions/default/actions.js DESTINATION bin)
+  install(FILES samples/constitutions/default/validate.js DESTINATION bin)
+  install(FILES samples/constitutions/sandbox/resolve.js DESTINATION bin)
+  install(FILES samples/constitutions/default/apply.js DESTINATION bin)
+  install(FILES tests/start_network.py DESTINATION bin)
+  install(FILES tests/requirements.txt DESTINATION bin)
+endif()
 
 # Add sample apps
 add_subdirectory(${CCF_DIR}/samples)
@@ -1387,22 +1425,27 @@ if(BUILD_TESTS)
   endif()
 endif()
 
-# Generate and install CMake export file for consumers using CMake
-include(CMakePackageConfigHelpers)
-configure_package_config_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/${CCF_PROJECT}-config.cmake.in
-  ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
-  PATH_VARS CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_BINDIR CMAKE_INSTALL_INCLUDEDIR
-)
-write_basic_package_version_file(
-  ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
-  COMPATIBILITY SameMajorVersion
-)
-install(FILES ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
-              ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
-)
+if(CCF_DEVEL)
+  # Generate and install CMake export file for consumers using CMake
+  include(CMakePackageConfigHelpers)
+  configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/${CCF_PROJECT}-config.cmake.in
+    ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
+    PATH_VARS CMAKE_INSTALL_LIBDIR CMAKE_INSTALL_BINDIR
+              CMAKE_INSTALL_INCLUDEDIR
+  )
+  write_basic_package_version_file(
+    ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
+    COMPATIBILITY SameMajorVersion
+  )
+  install(FILES ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config.cmake
+                ${CMAKE_BINARY_DIR}/cmake/${CCF_PROJECT}-config-version.cmake
+          DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake
+  )
+endif()
 
-# Perf tool executable
-include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
+if(CCF_DEVEL)
+  # Perf tool executable
+  include(${CCF_DIR}/tests/perf-system/submitter/CMakeLists.txt)
+endif()
