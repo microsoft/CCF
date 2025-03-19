@@ -5,13 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## 6.0.0-rc2
+
+[6.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc2
+
+### Added
+
+- Releases now contain two RPMs, `ccf-devel` to support building CCF applications, and `ccf` to support running pre-built CCF applications (#6904).
+
 ## [6.0.0-rc1]
 
 [6.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc1
 
 ### Changed
 
-- `ccf/crypto/openssl/openssl_wrappers.h` is now exposed.
+- OpenSSL helpers in `ccf/crypto/openssl/openssl_wrappers.h` are now exposed (#6895).
+- Fixed potential races in indexing interfaces and `LazyStrategy` (#6886).
+- Removed default value for redirection-kind parameter to start_network script (#6887).
+- Don't throw error if the ledger directory exists but is empty on node start (#6885).
+- Open Enclave logs directly to standard output, without restriction (#6888).
 
 ### Added
 

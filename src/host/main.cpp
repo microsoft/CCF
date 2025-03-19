@@ -142,8 +142,11 @@ int main(int argc, char** argv)
     config_file_path,
     true /* return an empty string if the file does not exist */);
   nlohmann::json config_json;
-  auto config_timeout_end = std::chrono::high_resolution_clock::now() +
+  const auto config_timeout_end = std::chrono::high_resolution_clock::now() +
     std::chrono::microseconds(config_timeout);
+  // The line above is considered a "DeadStore" by clang-tidy, perhaps
+  // because there is a path in the loop below where it is not used.
+  (void)config_timeout_end;
   std::string config_parsing_error = "";
   do
   {

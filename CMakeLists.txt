@@ -36,6 +36,8 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   )
 endif()
 
+option(CCF_RPM_PACKAGE_DEVEL OFF)
+
 include(${CCF_DIR}/cmake/cpack_settings.cmake)
 
 message(STATUS "CMAKE_INSTALL_PREFIX is '${CMAKE_INSTALL_PREFIX}'")
@@ -112,6 +114,8 @@ option(USE_SNMALLOC "Link against snmalloc" ON)
 
 # Useful for debugging with libc++ hardening options
 option(USE_LIBCXX "Use libc++ instead of libstdc++" OFF)
+
+option(CLANG_TIDY "Run clang-tidy on the codebase" OFF)
 
 enable_language(ASM)
 
@@ -252,6 +256,18 @@ target_link_libraries(
 )
 
 install(TARGETS cchost DESTINATION bin)
+
+if(CLANG_TIDY)
+  find_program(
+    CLANG_TIDY_EXE NAMES "clang-tidy" "clang-tidy-18" "clang-tidy-15"
+  )
+  message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
+  # Start with cchost
+  set_target_properties(
+    cchost PROPERTIES C_CLANG_TIDY "${CLANG_TIDY_EXE}" CXX_CLANG_TIDY
+                                                       "${CLANG_TIDY_EXE}"
+  )
+endif()
 
 # HTTP parser
 if(COMPILE_TARGET STREQUAL "snp")
