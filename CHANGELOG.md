@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- The RPM package is now split int two separate packages
+- The RPM package is now split into two separate packages
   - `ccf-devel` RPM to support building CCF applications (#6904)
   - `ccf` to support running pre-built CCF applications (#6909)
 
