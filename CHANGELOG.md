@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Internal logging macros (`LOG_INFO_FMT`, `LOG_DEBUG_FMT` etc) deprecated in 3.0 (#4024), have been removed and can no longer be used by application code. Replace with the `CCF_APP_*` equivalent (#6908).
 
+### Added
+
+- Releases now contain two RPMs, `ccf-devel` to support building CCF applications, and `ccf` to support running pre-built CCF applications (#6904).
+
 ## [6.0.0-rc1]
 
 [6.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc1
