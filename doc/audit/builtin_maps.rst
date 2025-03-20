@@ -204,9 +204,18 @@ The minimum trusted TCB version for new nodes allowed to join the network (:doc`
 
 .. note:: For improved serviceability on confidential ACI deployments, see :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` map.
 
-**Key** AMD CPUID, represented as a hex string without an '0x' prefix.
+**Key** AMD CPUID, represented as a lowercase hex string without an '0x' prefix.
 
 **Value** The minimum TCB version for that CPUID.
+
+**Example**
+.. list-table::
+   :header-rows: 1
+
+   * - CPUID
+     - TCB Version
+   * - ``00a00f11``
+     - ``{boot_loader: 4, tee: 0, snp: 24, microcode: 219}``
 
 ``service.info``
 ~~~~~~~~~~~~~~~~
