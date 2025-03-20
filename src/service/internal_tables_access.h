@@ -904,8 +904,8 @@ namespace ccf
         return;
       }
 
-      // As cpuid -> attestation cpuid is surjective, we must use the local cpuid
-      // and validate it against the attestation's cpuid
+      // As cpuid -> attestation cpuid is surjective, we must use the local
+      // cpuid and validate it against the attestation's cpuid
       auto cpuid = pal::snp::get_cpuid_untrusted();
       if (
         cpuid.get_family_id() != attestation.cpuid_fam_id ||

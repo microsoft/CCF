@@ -269,7 +269,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
 
   static uint8_t MIN_TCB_VERIF_VERSION = 3;
 #pragma pack(push, 1)
-  // AMD CPUID specification. Chapter 2 Fn0000_0001_EAX 
+  // AMD CPUID specification. Chapter 2 Fn0000_0001_EAX
   // Milan: 0x00A00F11
   // Genoa: 0X00A10F11
   // Note: The CPUID is little-endian so the hex_string is reversed

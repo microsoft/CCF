@@ -24,7 +24,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Attestations of new SNP nodes must be from a trusted TCB version higher than the minimum TCB version stored for that CPU model in `public:ccf.gov.nodes.snp.tcb_versions`. Added `set_snp_minimum_tcb_version(cpuid, tcb_version)` and `remove_snp_minimum_tcb_version(cpuid)` governance actions. New clusters will automatically populate the TCB version, pre-existing clusters must set a TCB version when upgrading. (#6837)
 - Expose `AttestationProvider::get_snp_attestation` to extract snp attestations from a quote. (#6837)
 
-
 ## [6.0.0-rc1]
 
 [6.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc1
