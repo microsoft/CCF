@@ -1104,7 +1104,9 @@ const actions = new Map([
         checkLength(ccf.strToBuf(args.cpuid), 8, 8, "cpuid");
         checkLength(hexStrToBuf(args.cpuid), 4, 4, "cpuid");
         if (args.cpuid !== args.cpuid.toLowerCase()) {
-          throw new Error(`CPUID must be an lowercaqse hex string, ${args.cpuid}`);
+          throw new Error(
+            `CPUID must be an lowercaqse hex string, ${args.cpuid}`,
+          );
         }
 
         checkType(args.tcb_version, "object", "tcb_version");

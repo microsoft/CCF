@@ -312,7 +312,8 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
     return ret;
   }
 
-  // On SEVSNP cpuid cannot be trusted and must be validated against an attestation.
+  // On SEVSNP cpuid cannot be trusted and must be validated against an
+  // attestation.
   static CPUID get_cpuid_untrusted()
   {
     uint32_t ieax = 1;
