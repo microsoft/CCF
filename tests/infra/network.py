@@ -203,6 +203,7 @@ class Network:
         "max_msg_size_bytes",
         "snp_security_policy_file",
         "snp_uvm_endorsements_file",
+        "snp_endorsements_file",
         "subject_name",
         "idle_connection_timeout_s",
     ]
