@@ -3,6 +3,7 @@
 
 #include "host/env.h"
 
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <vector>
