@@ -68,10 +68,6 @@ namespace fs = std::filesystem;
 
 using namespace std::chrono_literals;
 
-// Matches definition in unistd.h, non-const
-extern char**
-  environ; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,readability-redundant-declaration)
-
 using namespace std::string_literals;
 using namespace std::chrono_literals;
 
