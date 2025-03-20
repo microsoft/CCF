@@ -291,7 +291,7 @@ def test_tcb_version_tables(network, args):
 
     LOG.info("Change current cpuid's TCB version")
     test_tcb_version = {"boot_loader": 0, "microcode": 0, "snp": 0, "tee": 0}
-    network.consortium.add_snp_tcb_version(primary, cpuid, test_tcb_version)
+    network.consortium.set_snp_minimum_tcb_version(primary, cpuid, test_tcb_version)
     with primary.api_versioned_client(api_version=args.gov_api_version) as client:
         r = client.get("/gov/service/join-policy")
         assert r.status_code == http.HTTPStatus.OK, r
@@ -302,7 +302,7 @@ def test_tcb_version_tables(network, args):
         ), f"TCB version does not match, {versions} != {test_tcb_version}"
 
     LOG.info("Removing current cpuid's TCB version")
-    network.consortium.remove_snp_tcb_version(primary, cpuid)
+    network.consortium.remove_snp_minimum_tcb_version(primary, cpuid)
     with primary.api_versioned_client(api_version=args.gov_api_version) as client:
         r = client.get("/gov/service/join-policy")
         assert r.status_code == http.HTTPStatus.OK, r
@@ -320,7 +320,7 @@ def test_tcb_version_tables(network, args):
     assert thrown_exception is not None, "New node should not have been able to join"
 
     LOG.info("Adding new cpuid's TCB version")
-    network.consortium.add_snp_tcb_version(primary, cpuid, tcb_version)
+    network.consortium.set_snp_minimum_tcb_version(primary, cpuid, tcb_version)
     with primary.api_versioned_client(api_version=args.gov_api_version) as client:
         r = client.get("/gov/service/join-policy")
         assert r.status_code == http.HTTPStatus.OK, r

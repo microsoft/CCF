@@ -1097,7 +1097,7 @@ const actions = new Map([
     ),
   ],
   [
-    "add_snp_tcb_version",
+    "set_snp_minimum_tcb_version",
     new Action(
       function (args) {
         checkType(args.cpuid, "string", "cpuid");
@@ -1185,7 +1185,7 @@ const actions = new Map([
     ),
   ],
   [
-    "remove_snp_tcb_version",
+    "remove_snp_minimum_tcb_version",
     new Action(
       function (args) {
         checkType(args.cpuid, "string", "cpuid");

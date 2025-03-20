@@ -896,7 +896,6 @@ namespace ccf
       ccf::kv::Tx& tx, pal::snp::Attestation& attestation)
     {
       // Fall back to statically configured tcb versions
-      auto cpuid = pal::snp::get_cpuid();
       if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
       {
         LOG_FAIL_FMT(
@@ -904,6 +903,9 @@ namespace ccf
         trust_static_snp_tcb_version(tx);
         return;
       }
+      // As cpuid -> attestation cpuid is surjective, we must use local cpuid and
+      // validate it against the attestation's cpuid
+      auto cpuid = pal::snp::get_cpuid_untrusted();
       if (
         cpuid.get_family_id() != attestation.cpuid_fam_id ||
         cpuid.get_model_id() != attestation.cpuid_mod_id ||

@@ -75,7 +75,7 @@ The following governance proposals can be issued to add/remove these trusted val
 - ``add_snp_host_data``/``remove_snp_host_data``: To add/remove a trusted security policy, e.g. when adding a new trusted container image as part of the code upgrade procedure. 
 - ``add_snp_uvm_endorsement``/``add_snp_uvm_endorsement``: To add remove a trusted UVM endorsement (Azure deployment only).
 - ``add_snp_measurement``/``remove_snp_measurement``: To add/remove a trusted measurement.
-- ``add_snp_tcb_version``/``remove_snp_tcb_version``: To add/remove a minimum trusted TCB version.
+- ``set_snp_minimum_tcb_version``/``remove_snp_minimum_tcb_version``: To add/remove a minimum trusted TCB version.
 
 .. rubric:: Footnotes
 
