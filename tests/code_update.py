@@ -286,8 +286,8 @@ def test_tcb_version_tables(network, args):
         assert len(versions) == 1, f"Expected one TCB version, {versions}"
         cpuid, tcb_version = next(iter(versions.items()))
 
-    LOG.info("CPUID should be uppercase")
-    assert cpuid.upper() == cpuid, f"Expected uppercase CPUID, {cpuid}"
+    LOG.info("CPUID should be lowercase")
+    assert cpuid.lower() == cpuid, f"Expected lowercase CPUID, {cpuid}"
 
     LOG.info("Change current cpuid's TCB version")
     test_tcb_version = {"boot_loader": 0, "microcode": 0, "snp": 0, "tee": 0}

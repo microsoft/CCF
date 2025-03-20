@@ -1103,6 +1103,9 @@ const actions = new Map([
         checkType(args.cpuid, "string", "cpuid");
         checkLength(ccf.strToBuf(args.cpuid), 8, 8, "cpuid");
         checkLength(hexStrToBuf(args.cpuid), 4, 4, "cpuid");
+        if (args.cpuid !== args.cpuid.toLowerCase()) {
+          throw new Error(`CPUID must be an lowercaqse hex string, ${args.cpuid}`);
+        }
 
         checkType(args.tcb_version, "object", "tcb_version");
         checkType(
@@ -1121,7 +1124,7 @@ const actions = new Map([
       function (args, proposalId) {
         // ensure cpuid is uppercase to prevent aliasing
         ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].set(
-          ccf.strToBuf(args.cpuid.toUpperCase()),
+          ccf.strToBuf(args.cpuid),
           ccf.jsonCompatibleToBuf(args.tcb_version),
         );
 
@@ -1192,22 +1195,11 @@ const actions = new Map([
         checkLength(ccf.strToBuf(args.cpuid), 8, 8, "cpuid");
       },
       function (args) {
-        let found = false;
-
-        const cpuid_lower = ccf.strToBuf(args.cpuid.toLowerCase());
-        if (ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid_lower)) {
-          ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid_lower);
-          found = true;
-        }
-
-        const cpuid_upper = ccf.strToBuf(args.cpuid.toUpperCase());
-        if (ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid_upper)) {
-          ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid_upper);
-          found = true;
-        }
-
-        if (!found) {
-          throw new Error("CPUID not found");
+        const cpuid = ccf.strToBuf(args.cpuid);
+        if (ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid)) {
+          ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid);
+        } else {
+          throw new Error(`CPUID ${args.cpuid} not found`);
         }
       },
     ),

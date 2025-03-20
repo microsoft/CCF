@@ -285,9 +285,7 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
       CPUID buf = *this;
       auto buf_ptr = reinterpret_cast<uint8_t*>(&buf);
       std::reverse(buf_ptr, buf_ptr + sizeof(CPUID));
-      auto hex_repr = ccf::ds::to_hex(buf_ptr, buf_ptr + sizeof(CPUID));
-      ccf::nonstd::to_upper(hex_repr);
-      return hex_repr;
+      return ccf::ds::to_hex(buf_ptr, buf_ptr + sizeof(CPUID));
     }
     inline uint8_t get_family_id() const
     {
