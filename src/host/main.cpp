@@ -237,7 +237,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 
   nlohmann::json environment;
   for (int i = 0;
-       environ[i] != nullptr; // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+       environ[i] != // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+       nullptr;
        i++)
   {
     auto [k, v] = ccf::nonstd::split_1(
