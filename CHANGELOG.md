@@ -18,10 +18,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - The RPM package is now split into two separate packages
   - `ccf-devel` RPM to support building CCF applications (#6904)
   - `ccf` to support running pre-built CCF applications (#6909)
-  
+
 ### Added
 
-- Attestations of new SNP nodes must be from a trusted TCB version higher than the minimum TCB version stored for that CPU model in `public:ccf.gov.nodes.snp.tcb_versions`. Added `add_snp_tcb_version(cpuid, tcb_version)` and `remove_snp_tcb_version(cpuid)` governance actions. New clusters will automatically populate the TCB version, pre-existing clusters must be set a TCB version when upgrading. (#6837)
+- Attestations of new SNP nodes must be from a trusted TCB version higher than the minimum TCB version stored for that CPU model in `public:ccf.gov.nodes.snp.tcb_versions`. Added `add_snp_tcb_version(cpuid, tcb_version)` and `remove_snp_tcb_version(cpuid)` governance actions. New clusters will automatically populate the TCB version, pre-existing clusters must set a TCB version when upgrading. (#6837)
 
 ## [6.0.0-rc1]
 
