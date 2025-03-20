@@ -475,7 +475,7 @@ namespace ccf
                 }
                 catch (const std::exception& e)
                 {
-                  LOG_FAIL_FMT("{}", e.what());
+                  LOG_FAIL_FMT("Failed to launch node: {}", e.what());
                   throw;
                 }
               }
