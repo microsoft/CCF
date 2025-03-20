@@ -8,6 +8,7 @@ Checks: >
   -cert-err58-cpp,
   concurrency-*,
   cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-do-while,
   misc-*,
   modernize-*,
   -modernize-use-trailing-return-type,
@@ -16,7 +17,9 @@ Checks: >
   portability-*,
   readability-*,
   -readability-function-cognitive-complexity,
+  -misc-const-correctness,
+  -misc-include-cleaner
 
 WarningsAsErrors: '*'
-HeaderFilterRegex: ''
+HeaderFilterRegex: '.*/3rdparty/.*'
 FormatStyle:     'file'
