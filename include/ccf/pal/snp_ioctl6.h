@@ -186,13 +186,13 @@ namespace ccf::pal::snp::ioctl6
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
       if (rc < 0)
       {
-        LOG_FAIL_FMT("IOCTL call failed: {}", strerror(errno));
-        LOG_FAIL_FMT(
-          "Exit info, fw_error: {} vmm_error: {}",
+        const auto msg = fmt::format(
+          "Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT: {} fw_error: {} "
+          "vmm_error: {}",
+          strerror(errno),
           payload.exit_info.errors.fw,
           payload.exit_info.errors.vmm);
-        throw std::logic_error(
-          "Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT");
+        throw std::logic_error(msg);
       }
 
       if (!safety_padding_intact(padded_resp))
@@ -239,13 +239,13 @@ namespace ccf::pal::snp::ioctl6
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_DERIVED_KEY, &payload);
       if (rc < 0)
       {
-        LOG_FAIL_FMT("IOCTL call failed: {}", strerror(errno));
-        LOG_FAIL_FMT(
-          "Exit info, fw_error: {} vmm_error: {}",
+        const auto msg = fmt::format(
+          "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY: {} fw_error: "
+          "{} vmm_error: {}",
+          strerror(errno),
           payload.exit_info.errors.fw,
           payload.exit_info.errors.vmm);
-        throw std::logic_error(
-          "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY");
+        throw std::logic_error(msg);
       }
 
       if (!safety_padding_intact(padded_resp))
@@ -258,10 +258,10 @@ namespace ccf::pal::snp::ioctl6
 
       if (padded_resp.data.status != 0)
       {
-        LOG_FAIL_FMT(
-          "SNP_GUEST_DERIVED_KEY failed: {}", padded_resp.data.status);
-        throw std::logic_error(
-          "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY");
+        const auto msg = fmt::format(
+          "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY: {}",
+          padded_resp.data.status);
+        throw std::logic_error(msg);
       }
     }
 
