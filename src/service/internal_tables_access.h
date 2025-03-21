@@ -899,7 +899,7 @@ namespace ccf
       if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
       {
         LOG_FAIL_FMT(
-          "Snp attestation version ({}) too old", attestation.version);
+          "SNP attestation version {} older than {}, falling back to static minimum TCB values", attestation.version, pal::snp::MIN_TCB_VERIF_VERSION);
         trust_static_snp_tcb_version(tx);
         return;
       }
