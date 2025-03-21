@@ -169,7 +169,7 @@ jobs:
         shell: bash
 
   build_caci:
-    name: "Experimental C-ACI CI"
+    name: "Confidential Container (ACI) CI"
     runs-on: [self-hosted, 1ES.Pool=gha-caci-ne]
 
     steps:
@@ -196,6 +196,7 @@ jobs:
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          # All other acceptably fast tests, which are now supported on Azure Linux.
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          # Minimal end to end test that exercises SNP attestation verification
+          # but works within the current 4 core budget
+          ./tests.sh --timeout 360 --output-on-failure -R code_update
         shell: bash
