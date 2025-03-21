@@ -913,7 +913,7 @@ namespace ccf
         cpuid.stepping != attestation.cpuid_step)
       {
         LOG_FAIL_FMT(
-          "Snp cpuid does not match attestation cpuid ({} != {}, {}, {})",
+          "CPU-sourced cpuid does not match attestation cpuid ({} != {}, {}, {})",
           cpuid.hex_str(),
           attestation.cpuid_fam_id,
           attestation.cpuid_mod_id,
