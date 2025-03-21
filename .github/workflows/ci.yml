@@ -187,6 +187,11 @@ jobs:
           ninja
         shell: bash
 
+      - name: "ls"
+        run: |
+          set -ex
+          ls /
+
       - name: "Tests"
         run: |
           set -ex
