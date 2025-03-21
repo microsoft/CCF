@@ -2,7 +2,8 @@
     "configurations": [
         {
             "name": "Linux",
-            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+            "includePath": ["${workspaceFolder}/include", "${workspaceFolder}/src"]
         }
     ],
     "version": 4

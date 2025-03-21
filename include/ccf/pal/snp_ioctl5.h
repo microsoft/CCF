@@ -124,10 +124,11 @@ namespace ccf::pal::snp::ioctl5
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
       if (rc < 0)
       {
-        CCF_APP_FAIL("IOCTL call failed: {}", strerror(errno));
-        CCF_APP_FAIL("Payload error: {}", payload.error);
-        throw std::logic_error(
-          "Failed to issue ioctl SEV_SNP_GUEST_MSG_REPORT");
+        const auto msg = fmt::format(
+          "Failed to issue ioctl SEV_SNP: {} payload error: {}",
+          strerror(errno),
+          payload.error);
+        throw std::logic_error(msg);
       }
     }
 

@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/crypto/symmetric_key.h"
-#include "ccf/ds/logger.h"
 #include "ccf/pal/snp_ioctl.h"
 #include "crypto/openssl/hash.h"
 
