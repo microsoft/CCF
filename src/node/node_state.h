@@ -1140,7 +1140,10 @@ namespace ccf
       {
         auto entry = ::consensus::LedgerEnclave::get_entry(data, size);
 
-        LOG_INFO_FMT("Deserialising private ledger entry [{}]", entry.size());
+        LOG_INFO_FMT(
+          "Deserialising private ledger entry {} [{}]",
+          last_recovered_idx + 1,
+          entry.size());
 
         // When reading the private ledger, deserialise in the recovery store
         ccf::kv::ApplyResult result = ccf::kv::ApplyResult::FAIL;
