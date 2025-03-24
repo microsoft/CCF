@@ -899,7 +899,10 @@ namespace ccf
       if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
       {
         LOG_FAIL_FMT(
-          "SNP attestation version {} older than {}, falling back to static minimum TCB values", attestation.version, pal::snp::MIN_TCB_VERIF_VERSION);
+          "SNP attestation version {} older than {}, falling back to static "
+          "minimum TCB values",
+          attestation.version,
+          pal::snp::MIN_TCB_VERIF_VERSION);
         trust_static_snp_tcb_version(tx);
         return;
       }
@@ -913,7 +916,8 @@ namespace ccf
         cpuid.stepping != attestation.cpuid_step)
       {
         LOG_FAIL_FMT(
-          "CPU-sourced cpuid does not match attestation cpuid ({} != {}, {}, {})",
+          "CPU-sourced cpuid does not match attestation cpuid ({} != {}, {}, "
+          "{})",
           cpuid.hex_str(),
           attestation.cpuid_fam_id,
           attestation.cpuid_mod_id,
