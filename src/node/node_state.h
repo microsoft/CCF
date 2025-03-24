@@ -2299,7 +2299,13 @@ namespace ccf
               return;
             }
           }
-          // TODO: Log error cases in these branches
+
+          LOG_INFO_FMT(
+            "Found no ledger secrets for this node ({}) in global commit hook "
+            "for {} @ {}",
+            self,
+            network.secrets.get_name(),
+            hook_version);
         }));
 
       network.tables->set_global_hook(
