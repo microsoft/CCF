@@ -941,7 +941,7 @@ class Network:
                 self.nodes.remove(node)
                 if errors:
                     giving_up_fetching = re.compile(
-                        "Giving up retrying fetching attestation endorsements from .* after (\d+) attempts"
+                        r"Giving up retrying fetching attestation endorsements from .* after (\d+) attempts"
                     )
                     # Throw accurate exceptions if known errors found in
                     for error in errors:
@@ -1697,7 +1697,7 @@ class Network:
         with open(previous_identity, "w", encoding="utf-8") as f:
             f.write(current_ident)
         args.previous_service_identity_file = previous_identity
-        return args
+        return current_ident
 
     def identity(self, name=None):
         if name is not None:

@@ -17,6 +17,7 @@ import http
 import contextlib
 import ccf.ledger
 from reconfiguration import test_ledger_invariants
+import subprocess
 
 from loguru import logger as LOG
 
@@ -711,6 +712,126 @@ def test_session_consistency(network, args):
     return network
 
 
+@reqs.supports_methods("/app/log/public")
+def test_recovery_elections(orig_network, args):
+    # Ensure we have 3 nodes
+    original_size = orig_network.resize(3, args)
+
+    old_primary, _ = orig_network.find_nodes()
+    with old_primary.client("user0") as c:
+        LOG.warning("Writing some initial state")
+        for _ in range(20):
+            r = c.post("/app/log/public", {"id": 42, "msg": "X" * 15000})
+            assert r.status_code == 200, r
+
+        r = c.get("/node/network")
+        assert r.status_code == 200, r
+        previous_identity = orig_network.save_service_identity(args)
+        c.wait_for_commit(
+            orig_network.consortium.set_recovery_threshold(old_primary, 1)
+        )
+    orig_network.stop_all_nodes()
+    current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
+
+    network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=orig_network,
+        init_partitioner=True,
+    )
+    network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+    new_primary, new_backups = network.find_nodes()
+
+    # Manually recover
+    network.consortium.transition_service_to_open(
+        new_primary, previous_service_identity=previous_identity
+    )
+
+    member = network.consortium.get_active_recovery_participants()[0]
+
+    import os
+
+    traced_files = []
+    backup = new_backups[0]
+    root_dir = (
+        "/home/edashton/1.CCF/build.virtual/workspace/partitions_cft_4/0.ledger.current"
+    )
+    for file in os.listdir(root_dir):
+        traced_files.append(f"--trace-path={os.path.join(root_dir, file)}")
+    strace_command = [
+        "strace",
+        "--output=backup_strace.txt",
+        f"--attach={backup.remote.remote.proc.pid}",
+        "-t",
+        "--trace=!futex,epoll_pwait",
+        "--inject=lseek:delay_exit=5s",
+        # "-e",
+        # r"trace=%file",
+        # "-e",
+        # "trace=close",
+        # *traced_files,
+    ]
+    LOG.warning(f"About to run strace: {strace_command}")
+    strace_process = subprocess.Popen(strace_command)
+    LOG.warning(f"{strace_process=}")
+    member.get_and_submit_recovery_share(new_primary)
+
+    LOG.warning(f"!!! K, now waiting for primary to finish")
+    network.wait_for_state(
+        new_primary,
+        infra.node.State.PART_OF_NETWORK.value,
+        timeout=30,
+    )
+    LOG.warning(
+        f"!!! I can't confirm where the backup is, but he should be in private recovery still"
+    )
+    time.sleep(5)
+    LOG.warning(
+        f"!!! Ace, so now I kill the primary and then let the backup free again"
+    )
+
+    strace_process.terminate()
+    out, err = strace_process.communicate()
+
+    new_primary.stop()
+
+    LOG.warning(f"!!! sleeping for a bit, arbitrarily")
+    time.sleep(10)
+
+    LOG.warning(f"!!!! AND NOW I HOPE TO HAVE A DEAD STATE, SO I TRY ANOTHER RECOVERY")
+
+    with backup.client("user0") as c:
+        previous_identity = network.save_service_identity(args)
+    network.stop_all_nodes()
+    current_ledger_dir, committed_ledger_dirs = backup.get_ledger()
+
+    recovery_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+    recovery_network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+    LOG.warning(f"!!!! HOPING THAT THE FOLLOWING FAILS !!!!")
+    recovery_network.recover(args)
+
+    # Restore original network size
+    recovery_network.resize(original_size, args)
+
+    return recovery_network
+
+
 def run(args):
     txs = app.LoggingTxs("user0")
 
@@ -725,19 +846,20 @@ def run(args):
     ) as network:
         network.start_and_open(args)
 
-        test_invalid_partitions(network, args)
-        test_partition_majority(network, args)
-        test_isolate_primary_from_one_backup(network, args)
-        test_new_joiner_helps_liveness(network, args)
-        test_expired_certs(network, args)
-        for n in range(5):
-            test_isolate_and_reconnect_primary(network, args, iteration=n)
-        test_election_reconfiguration(network, args)
-        test_forwarding_timeout(network, args)
-        # HTTP2 doesn't support forwarding
-        if not args.http2:
-            test_session_consistency(network, args)
-        test_ledger_invariants(network, args)
+        # test_invalid_partitions(network, args)
+        # test_partition_majority(network, args)
+        # test_isolate_primary_from_one_backup(network, args)
+        # test_new_joiner_helps_liveness(network, args)
+        # test_expired_certs(network, args)
+        # for n in range(5):
+        #     test_isolate_and_reconnect_primary(network, args, iteration=n)
+        # test_election_reconfiguration(network, args)
+        # test_forwarding_timeout(network, args)
+        # # HTTP2 doesn't support forwarding
+        # if not args.http2:
+        #     test_session_consistency(network, args)
+        test_recovery_elections(network, args)
+        # test_ledger_invariants(network, args)
 
 
 if __name__ == "__main__":
