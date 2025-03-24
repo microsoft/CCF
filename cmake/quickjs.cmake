@@ -41,11 +41,13 @@ if(COMPILE_TARGET STREQUAL "snp")
                        $<INSTALL_INTERFACE:include/3rdparty/quickjs>
   )
 
-  install(
-    TARGETS quickjs.snp
-    EXPORT ccf
-    DESTINATION lib
-  )
+  if(CCF_DEVEL)
+    install(
+      TARGETS quickjs.snp
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
 endif()
 
 add_library(quickjs.host STATIC ${QUICKJS_SRC})

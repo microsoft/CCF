@@ -12,6 +12,9 @@
 
 namespace aft
 {
+  constexpr size_t ADDITIONAL_METADATA_SIZE = sizeof(bool) /* committable */ +
+    sizeof(aft::Term) + sizeof(ccf::kv::Version);
+
   class LedgerStubProxy
   {
   protected:
@@ -45,14 +48,12 @@ namespace aft
       const size_t idx = ledger.size() + 1;
       assert(idx == index);
       auto additional_size =
-        sizeof(size_t) + sizeof(bool) + sizeof(term) + sizeof(index);
+        sizeof(size_t) /* size-prefix */ + ADDITIONAL_METADATA_SIZE;
       std::vector<uint8_t> combined(additional_size);
       {
         uint8_t* data = combined.data();
         serialized::write(
-          data,
-          additional_size,
-          (sizeof(bool) + sizeof(term) + sizeof(index) + original.size()));
+          data, additional_size, (ADDITIONAL_METADATA_SIZE + original.size()));
         serialized::write(data, additional_size, globally_committable);
         serialized::write(data, additional_size, term);
         serialized::write(data, additional_size, index);
@@ -98,8 +99,8 @@ namespace aft
         // Remove the View and Index that were written during put_entry
         data->erase(
           data->begin(),
-          data->begin() + sizeof(size_t) + sizeof(ccf::kv::Term) +
-            sizeof(ccf::kv::Version));
+          data->begin() + sizeof(size_t) /* size prefix */ +
+            ADDITIONAL_METADATA_SIZE);
       }
 
       return data;
