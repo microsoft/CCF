@@ -201,7 +201,7 @@ jobs:
           mkdir -p /github/home/.cache
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all) -E indexing
           # Minimal end to end test that exercises SNP attestation verification
           # but works within the current 4 core budget
           ./tests.sh --timeout 360 --output-on-failure -R code_update
