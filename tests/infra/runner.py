@@ -234,8 +234,6 @@ class ConcurrentRunner:
         self.threads.append(threading.Thread(name=prefix, target=target, args=[args_]))
 
     def run(self, max_concurrent=None):
-        # This may already be too much for 4 core ACI
-        max_concurrent = 1
         config = {
             "handlers": [
                 {
