@@ -713,11 +713,11 @@ def test_session_consistency(network, args):
 
 
 @reqs.supports_methods("/app/log/public")
-def test_recovery_elections(orig_network, args):
+def test_recovery_elections(network, args):
     # Ensure we have 3 nodes
-    original_size = orig_network.resize(3, args)
+    original_size = network.resize(3, args)
 
-    old_primary, _ = orig_network.find_nodes()
+    old_primary, _ = network.find_nodes()
     with old_primary.client("user0") as c:
         LOG.warning("Writing some initial state")
         for _ in range(20):
@@ -726,21 +726,11 @@ def test_recovery_elections(orig_network, args):
 
         r = c.get("/node/network")
         assert r.status_code == 200, r
-        previous_identity = orig_network.save_service_identity(args)
-        c.wait_for_commit(
-            orig_network.consortium.set_recovery_threshold(old_primary, 1)
-        )
-    orig_network.stop_all_nodes()
+        previous_identity = network.save_service_identity(args)
+        c.wait_for_commit(network.consortium.set_recovery_threshold(old_primary, 1))
+    network.stop_all_nodes()
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
-    network = infra.network.Network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        existing_network=orig_network,
-        init_partitioner=True,
-    )
     network.start_in_recovery(
         args,
         ledger_dir=current_ledger_dir,
@@ -771,16 +761,13 @@ def test_recovery_elections(orig_network, args):
         "-t",
         "--trace=!futex,epoll_pwait",
         "--inject=lseek:delay_exit=5s",
-        # "-e",
-        # r"trace=%file",
-        # "-e",
-        # "trace=close",
-        # *traced_files,
     ]
     LOG.warning(f"About to run strace: {strace_command}")
     strace_process = subprocess.Popen(strace_command)
     LOG.warning(f"{strace_process=}")
+
     member.get_and_submit_recovery_share(new_primary)
+    network.recovery_count += 1
 
     LOG.warning(f"!!! K, now waiting for primary to finish")
     network.wait_for_state(
@@ -811,25 +798,18 @@ def test_recovery_elections(orig_network, args):
     network.stop_all_nodes()
     current_ledger_dir, committed_ledger_dirs = backup.get_ledger()
 
-    recovery_network = infra.network.Network(
-        args.nodes,
-        args.binary_dir,
-        args.debug_nodes,
-        args.perf_nodes,
-        existing_network=network,
-    )
-    recovery_network.start_in_recovery(
+    network.start_in_recovery(
         args,
         ledger_dir=current_ledger_dir,
         committed_ledger_dirs=committed_ledger_dirs,
     )
     LOG.warning(f"!!!! HOPING THAT THE FOLLOWING FAILS !!!!")
-    recovery_network.recover(args)
+    network.recover(args)
 
     # Restore original network size
-    recovery_network.resize(original_size, args)
+    network.resize(original_size, args)
 
-    return recovery_network
+    return network
 
 
 def run(args):
