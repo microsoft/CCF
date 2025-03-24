@@ -433,7 +433,6 @@ namespace ccf
 
     static std::map<NodeId, NodeInfo> get_trusted_nodes(ccf::kv::ReadOnlyTx& tx)
     {
-      // Returns the list of trusted nodes
       std::map<NodeId, NodeInfo> active_nodes;
 
       auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);

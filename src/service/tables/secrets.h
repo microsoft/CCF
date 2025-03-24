@@ -31,7 +31,7 @@ namespace ccf
   using EncryptedLedgerSecrets = std::vector<EncryptedLedgerSecret>;
   using LedgerSecretsForNodes = std::map<NodeId, EncryptedLedgerSecrets>;
 
-  // This map is used to share encrypted ledger secrets between nodes, during
+  // This map is used to broadcast encrypted ledger secrets to all nodes, during
   // recovery (past secrets) and re-keying (new secret)
   using Secrets = ServiceValue<LedgerSecretsForNodes>;
   namespace Tables
