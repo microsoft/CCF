@@ -431,36 +431,31 @@ namespace ccf
       node->put(id, node_info);
     }
 
-    static auto get_trusted_nodes(
-      ccf::kv::ReadOnlyTx& tx,
-      std::optional<NodeId> self_to_exclude = std::nullopt)
+    static std::map<NodeId, NodeInfo> get_trusted_nodes(ccf::kv::ReadOnlyTx& tx)
     {
-      // Returns the list of trusted nodes. If self_to_exclude is set,
-      // self_to_exclude is not included in the list of returned nodes.
+      // Returns the list of trusted nodes
       std::map<NodeId, NodeInfo> active_nodes;
 
       auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
 
-      nodes->foreach([&active_nodes, &nodes, self_to_exclude](
-                       const NodeId& nid, const NodeInfo& ni) {
-        if (
-          ni.status == ccf::NodeStatus::TRUSTED &&
-          (!self_to_exclude.has_value() || self_to_exclude.value() != nid))
-        {
-          active_nodes[nid] = ni;
-        }
-        else if (ni.status == ccf::NodeStatus::RETIRED)
-        {
-          // If a node is retired, but knowledge of their retirement has not yet
-          // been globally committed, they are still considered active.
-          auto cni = nodes->get_globally_committed(nid);
-          if (cni.has_value() && !cni->retired_committed)
+      nodes->foreach(
+        [&active_nodes, &nodes](const NodeId& nid, const NodeInfo& ni) {
+          if (ni.status == ccf::NodeStatus::TRUSTED)
           {
             active_nodes[nid] = ni;
           }
-        }
-        return true;
-      });
+          else if (ni.status == ccf::NodeStatus::RETIRED)
+          {
+            // If a node is retired, but knowledge of their retirement has not
+            // yet been globally committed, they are still considered active.
+            auto cni = nodes->get_globally_committed(nid);
+            if (cni.has_value() && !cni->retired_committed)
+            {
+              active_nodes[nid] = ni;
+            }
+          }
+          return true;
+        });
 
       return active_nodes;
     }

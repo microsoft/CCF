@@ -148,7 +148,6 @@ namespace ccf
     std::vector<ccf::kv::Version> view_history;
     ::consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets = {};
-    LedgerSecretsMap recovered_ledger_secrets = {};
     ::consensus::Index last_recovered_idx = 0;
     static const size_t recovery_batch_size = 100;
 
@@ -1299,7 +1298,6 @@ namespace ccf
       // Open the service
       if (consensus->can_replicate())
       {
-        setup_one_off_secret_hook();
         auto tx = network.tables->create_tx();
 
         // Clear recovery shares that were submitted to initiate the recovery
@@ -1650,18 +1648,24 @@ namespace ccf
       }
     }
 
+    // Decrypts chain of ledger secrets, and writes those to the ledger
+    // encrypted for each node. On a commit hook for this write, each node
+    // (including this one!) will begin_private_recovery().
     void initiate_private_recovery(ccf::kv::Tx& tx) override
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfPublicNetwork);
 
-      recovered_ledger_secrets = share_manager.restore_recovery_shares_info(
-        tx, recovered_encrypted_ledger_secrets);
+      LedgerSecretsMap recovered_ledger_secrets =
+        share_manager.restore_recovery_shares_info(
+          tx, recovered_encrypted_ledger_secrets);
 
       // Broadcast decrypted ledger secrets to other nodes for them to
       // initiate private recovery too
       LedgerSecretsBroadcast::broadcast_some(
-        network, self, tx, recovered_ledger_secrets);
+        InternalTablesAccess::get_trusted_nodes(tx),
+        tx.wo(network.secrets),
+        std::move(recovered_ledger_secrets));
     }
 
     //
@@ -1856,7 +1860,9 @@ namespace ccf
       auto new_ledger_secret = make_ledger_secret();
       share_manager.issue_recovery_shares(tx, new_ledger_secret);
       LedgerSecretsBroadcast::broadcast_new(
-        network, tx, std::move(new_ledger_secret));
+        InternalTablesAccess::get_trusted_nodes(tx),
+        tx.wo(network.secrets),
+        std::move(new_ledger_secret));
 
       return true;
     }
@@ -2162,14 +2168,11 @@ namespace ccf
         threading::get_current_thread_id(), std::move(msg));
     }
 
-    void backup_initiate_private_recovery()
+    void begin_private_recovery()
     {
-      if (!consensus->is_backup())
-        return;
-
       sm.expect(NodeStartupState::partOfPublicNetwork);
 
-      LOG_INFO_FMT("Initiating end of recovery (backup)");
+      LOG_INFO_FMT("Beginning private recovery");
 
       setup_private_recovery_store();
 
@@ -2292,42 +2295,12 @@ namespace ccf
               // recovery protocol (backup only)
               network.ledger_secrets->restore_historical(
                 std::move(restored_ledger_secrets));
-              backup_initiate_private_recovery();
+              begin_private_recovery();
               return;
             }
           }
+          // TODO: Log error cases in these branches
         }));
-
-      network.tables->set_global_hook(
-        network.encrypted_submitted_shares.get_name(),
-        network.encrypted_submitted_shares.wrap_commit_hook(
-          [this](
-            ccf::kv::Version hook_version,
-            const EncryptedSubmittedShares::Write& w) {
-            // Initiate recovery procedure from global hook, once all recovery
-            // shares have been submitted (i.e. recovered_ledger_secrets is
-            // set)
-            if (!recovered_ledger_secrets.empty())
-            {
-              network.ledger_secrets->restore_historical(
-                std::move(recovered_ledger_secrets));
-
-              LOG_INFO_FMT("Initiating end of recovery (primary)");
-
-              setup_private_recovery_store();
-              reset_recovery_hook();
-
-              // Start reading private security domain of ledger
-              last_recovered_idx = recovery_store->current_version();
-              read_ledger_entries(
-                last_recovered_idx + 1,
-                last_recovered_idx + recovery_batch_size);
-
-              sm.advance(NodeStartupState::readingPrivateLedger);
-            }
-
-            return;
-          }));
 
       network.tables->set_global_hook(
         network.nodes.get_name(),
