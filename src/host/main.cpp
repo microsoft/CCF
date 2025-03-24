@@ -142,8 +142,11 @@ int main(int argc, char** argv)
     config_file_path,
     true /* return an empty string if the file does not exist */);
   nlohmann::json config_json;
-  auto config_timeout_end = std::chrono::high_resolution_clock::now() +
+  const auto config_timeout_end = std::chrono::high_resolution_clock::now() +
     std::chrono::microseconds(config_timeout);
+  // The line above is considered a "DeadStore" by clang-tidy, perhaps
+  // because there is a path in the loop below where it is not used.
+  (void)config_timeout_end;
   std::string config_parsing_error = "";
   do
   {
@@ -574,11 +577,6 @@ int main(int argc, char** argv)
         files::try_slurp_string(security_policy_file);
     }
 
-    if (config.enclave.platform == host::EnclavePlatform::VIRTUAL)
-    {
-      ccf::pal::emit_virtual_measurement(enclave_file_path);
-    }
-
     if (startup_config.attestation.snp_uvm_endorsements_file.has_value())
     {
       auto snp_uvm_endorsements_file =
@@ -622,6 +620,26 @@ int main(int argc, char** argv)
           "Resolved snp_endorsements_server url: {}",
           endorsement_servers_it->url);
       }
+    }
+
+    if (startup_config.attestation.snp_endorsements_file.has_value())
+    {
+      auto snp_endorsements_file =
+        startup_config.attestation.snp_endorsements_file.value();
+      LOG_DEBUG_FMT(
+        "Resolving snp_endorsements_file: {}", snp_endorsements_file);
+      snp_endorsements_file =
+        ccf::env::expand_envvars_in_path(snp_endorsements_file);
+      LOG_DEBUG_FMT(
+        "Resolved snp_endorsements_file: {}", snp_endorsements_file);
+
+      startup_config.attestation.environment.snp_endorsements =
+        files::try_slurp_string(snp_endorsements_file);
+    }
+
+    if (config.enclave.platform == host::EnclavePlatform::VIRTUAL)
+    {
+      ccf::pal::emit_virtual_measurement(enclave_file_path);
     }
 
     if (config.node_data_json_file.has_value())

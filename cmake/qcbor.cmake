@@ -19,11 +19,13 @@ if(COMPILE_TARGET STREQUAL "snp")
   set_property(TARGET qcbor.snp PROPERTY POSITION_INDEPENDENT_CODE ON)
   add_san(qcbor.snp)
 
-  install(
-    TARGETS qcbor.snp
-    EXPORT ccf
-    DESTINATION lib
-  )
+  if(CCF_DEVEL)
+    install(
+      TARGETS qcbor.snp
+      EXPORT ccf
+      DESTINATION lib
+    )
+  endif()
 endif()
 
 add_library(qcbor.host STATIC ${QCBOR_SRCS})

@@ -169,3 +169,49 @@ jobs:
           # Partitions tests
           ./tests.sh --timeout 240 --output-on-failure -L partitions -C partitions
         shell: bash
+
+  build_caci:
+    name: "Confidential Container (ACI) CI"
+    runs-on: [self-hosted, 1ES.Pool=gha-caci-ne]
+    needs: checks
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Build Debug"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
+          mkdir build
+          cd build
+          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
+          ninja
+        shell: bash
+
+      - name: "Tests"
+        run: |
+          set -ex
+          cd build
+          rm -rf /github/home/.cache
+          mkdir -p /github/home/.cache
+          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
+          # Unit tests, minus indexing that is sometimes timing out with this few cores
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all) -E indexing
+          # Minimal end to end test that exercises SNP attestation verification
+          # but works within the current 4 core budget
+          ./tests.sh --timeout 360 --output-on-failure -R code_update
+        shell: bash
+
+      - name: "Upload logs"
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-caci-snp
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*.ledger/*
+          if-no-files-found: ignore
+        if: success() || failure()

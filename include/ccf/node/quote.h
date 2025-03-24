@@ -4,6 +4,7 @@
 
 #include "ccf/ccf_deprecated.h"
 #include "ccf/ds/quote_info.h"
+#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/measurement.h"
 #include "ccf/service/tables/host_data.h"
 #include "ccf/tx.h"
@@ -22,6 +23,8 @@ namespace ccf
     FailedInvalidHostData,
     FailedInvalidQuotedPublicKey,
     FailedUVMEndorsementsNotFound,
+    FailedInvalidCPUID,
+    FailedInvalidTcbVersion
   };
 
   class AttestationProvider
@@ -35,10 +38,16 @@ namespace ccf
 
     static std::optional<HostData> get_host_data(const QuoteInfo& quote_info);
 
+    static std::optional<pal::snp::Attestation> get_snp_attestation(
+      const QuoteInfo& quote_info);
+
     static QuoteVerificationResult verify_quote_against_store(
       ccf::kv::ReadOnlyTx& tx,
       const QuoteInfo& quote_info,
       const std::vector<uint8_t>& expected_node_public_key_der,
       pal::PlatformAttestationMeasurement& measurement);
   };
+  QuoteVerificationResult verify_tcb_version_against_store(
+    ccf::kv::ReadOnlyTx& tx, const QuoteInfo& quote_info);
+
 }
