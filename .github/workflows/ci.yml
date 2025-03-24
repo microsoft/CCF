@@ -169,7 +169,6 @@ jobs:
         shell: bash
 
       - name: "Upload logs for ${{ matrix.platform.name }}"
-        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
         uses: actions/upload-artifact@v4
         with:
           name: logs-azurelinux-${{ matrix.platform.name }}
