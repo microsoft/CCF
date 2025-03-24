@@ -720,7 +720,7 @@ def test_recovery_elections(network, args):
     old_primary, _ = network.find_nodes()
     with old_primary.client("user0") as c:
         LOG.warning("Writing some initial state")
-        for _ in range(20):
+        for _ in range(300):
             r = c.post("/app/log/public", {"id": 42, "msg": "X" * 15000})
             assert r.status_code == 200, r
 
@@ -760,7 +760,7 @@ def test_recovery_elections(network, args):
         f"--attach={backup.remote.remote.proc.pid}",
         "-t",
         "--trace=!futex,epoll_pwait",
-        "--inject=lseek:delay_exit=5s",
+        "--inject=lseek:delay_exit=10s",
     ]
     LOG.warning(f"About to run strace: {strace_command}")
     strace_process = subprocess.Popen(strace_command)
