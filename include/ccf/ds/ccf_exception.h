@@ -40,12 +40,3 @@ namespace ccf
     {}
   };
 };
-
-// Convenient wrapper to report exception errors. Exception message is only
-// displayed in debug mode
-#define LOG_FAIL_EXC(msg) \
-  do \
-  { \
-    LOG_FAIL_FMT("Exception in {}", __PRETTY_FUNCTION__); \
-    LOG_DEBUG_FMT("Error: {}", msg); \
-  } while (0)

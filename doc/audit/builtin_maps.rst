@@ -197,6 +197,26 @@ For Confidential Azure Container Instance (ACI) deployments, trusted endorsement
 
 **Value** Map of issuer feed to Security Version Number (SVN) represented as JSON. See https://ietf-wg-scitt.github.io/draft-ietf-scitt-architecture/draft-ietf-scitt-architecture.html#name-issuer-identity.
 
+``nodes.snp.tcb_versions``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The minimum trusted TCB version for new nodes allowed to join the network (:doc`SNP <../operations/platforms/snp>` only).
+
+.. note:: For improved serviceability on confidential ACI deployments, see :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` map.
+
+**Key** AMD CPUID, represented as a lowercase hex string without an '0x' prefix.
+
+**Value** The minimum TCB version for that CPUID.
+
+**Example**
+.. list-table::
+   :header-rows: 1
+
+   * - CPUID
+     - TCB Version
+   * - ``00a00f11``
+     - ``{boot_loader: 4, tee: 0, snp: 24, microcode: 219}``
+
 ``service.info``
 ~~~~~~~~~~~~~~~~
 

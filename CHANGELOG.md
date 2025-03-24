@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.0-rc2]
+
+[6.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc2
+
+### Removed
+
+- Internal logging macros (`LOG_INFO_FMT`, `LOG_DEBUG_FMT` etc) deprecated in 3.0 (#4024), have been removed and can no longer be used by application code. Replace with the `CCF_APP_*` equivalent (#6908).
+
+### Changed
+
+- The RPM package is now split into two separate packages
+  - `ccf-devel` RPM to support building CCF applications (#6904)
+  - `ccf` to support running pre-built CCF applications (#6909)
+
+### Added
+
+- Attestations of new SNP nodes must be from a trusted TCB version higher than the minimum TCB version stored for that CPU model in `public:ccf.gov.nodes.snp.tcb_versions`. Added `set_snp_minimum_tcb_version(cpuid, tcb_version)` and `remove_snp_minimum_tcb_version(cpuid)` governance actions. New networks will automatically populate the TCB version, pre-existing networks must set a TCB version when upgrading. (#6837)
+- Expose `AttestationProvider::get_snp_attestation` to extract snp attestations from a quote. (#6837)
+
 ## [6.0.0-rc1]
 
 [6.0.0-rc1]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc1

@@ -273,6 +273,66 @@ def test_host_data_tables(network, args):
     return network
 
 
+@reqs.description("Test tcb version tables")
+@reqs.snp_only()
+def test_tcb_version_tables(network, args):
+    primary, _ = network.find_nodes()
+    LOG.info("Checking that the TCB versions is correctly populated")
+    cpuid, tcb_version = None, None
+    with primary.api_versioned_client(api_version=args.gov_api_version) as client:
+        r = client.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        versions = r.body.json()["snp"]["tcbVersions"]
+        assert len(versions) == 1, f"Expected one TCB version, {versions}"
+        cpuid, tcb_version = next(iter(versions.items()))
+
+    LOG.info("CPUID should be lowercase")
+    assert cpuid.lower() == cpuid, f"Expected lowercase CPUID, {cpuid}"
+
+    LOG.info("Change current cpuid's TCB version")
+    test_tcb_version = {"boot_loader": 0, "microcode": 0, "snp": 0, "tee": 0}
+    network.consortium.set_snp_minimum_tcb_version(primary, cpuid, test_tcb_version)
+    with primary.api_versioned_client(api_version=args.gov_api_version) as client:
+        r = client.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        versions = r.body.json()["snp"]["tcbVersions"]
+        assert cpuid in versions, f"Expected {cpuid} in TCB versions, {versions}"
+        assert (
+            versions[cpuid] == test_tcb_version
+        ), f"TCB version does not match, {versions} != {test_tcb_version}"
+
+    LOG.info("Removing current cpuid's TCB version")
+    network.consortium.remove_snp_minimum_tcb_version(primary, cpuid)
+    with primary.api_versioned_client(api_version=args.gov_api_version) as client:
+        r = client.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        versions = r.body.json()["snp"]["tcbVersions"]
+        assert len(versions) == 0, f"Expected no TCB versions, {versions}"
+
+    LOG.info("Checking new nodes are prevented from joining")
+    thrown_exception = None
+    try:
+        new_node = network.create_node("local://localhost")
+        network.join_node(new_node, args.package, args, timeout=3)
+        network.trust_node(new_node, args)
+    except TimeoutError as e:
+        thrown_exception = e
+    assert thrown_exception is not None, "New node should not have been able to join"
+
+    LOG.info("Adding new cpuid's TCB version")
+    network.consortium.set_snp_minimum_tcb_version(primary, cpuid, tcb_version)
+    with primary.api_versioned_client(api_version=args.gov_api_version) as client:
+        r = client.get("/gov/service/join-policy")
+        assert r.status_code == http.HTTPStatus.OK, r
+        versions = r.body.json()["snp"]["tcbVersions"]
+        assert len(versions) == 1, f"Expected one TCB version, {versions}"
+
+    LOG.info("Checking new nodes are allowed to join")
+    new_node = network.create_node("local://localhost")
+    network.join_node(new_node, args.package, args, timeout=3)
+    network.trust_node(new_node, args)
+
+
 @reqs.description("Join node with no security policy")
 @reqs.snp_only()
 def test_add_node_without_security_policy(network, args):
@@ -739,6 +799,7 @@ def run(args):
             test_add_node_with_stubbed_security_policy(network, args)
             test_start_node_with_mismatched_host_data(network, args)
             test_add_node_without_security_policy(network, args)
+            test_tcb_version_tables(network, args)
 
             # Endorsements
             test_endorsements_tables(network, args)
