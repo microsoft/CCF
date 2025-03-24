@@ -187,12 +187,6 @@ jobs:
           ninja
         shell: bash
 
-      - name: "ls"
-        run: |
-          set -ex
-          ls /
-          cat /proc/1/environ
-
       - name: "Tests"
         run: |
           set -ex
@@ -200,9 +194,21 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
-          # Unit tests
+          # Unit tests, minus indexing that is sometimes timing out with this few cores
           ./tests.sh --output-on-failure -L unit -j$(nproc --all) -E indexing
           # Minimal end to end test that exercises SNP attestation verification
           # but works within the current 4 core budget
           ./tests.sh --timeout 360 --output-on-failure -R code_update
         shell: bash
+
+      - name: "Upload logs"
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-caci-snp
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*.ledger/*
+          if-no-files-found: ignore
+        if: success() || failure()
