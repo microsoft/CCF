@@ -191,6 +191,7 @@ jobs:
         run: |
           set -ex
           ls /
+          cat /proc/1/environ
 
       - name: "Tests"
         run: |
