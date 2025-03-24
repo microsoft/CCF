@@ -1097,6 +1097,44 @@ const actions = new Map([
     ),
   ],
   [
+    "set_snp_minimum_tcb_version",
+    new Action(
+      function (args) {
+        checkType(args.cpuid, "string", "cpuid");
+        checkLength(ccf.strToBuf(args.cpuid), 8, 8, "cpuid");
+        checkLength(hexStrToBuf(args.cpuid), 4, 4, "cpuid");
+        if (args.cpuid !== args.cpuid.toLowerCase()) {
+          throw new Error(
+            `CPUID must be an lowercaqse hex string, ${args.cpuid}`,
+          );
+        }
+
+        checkType(args.tcb_version, "object", "tcb_version");
+        checkType(
+          args.tcb_version?.boot_loader,
+          "number",
+          "tcb_version.boot_loader",
+        );
+        checkType(args.tcb_version?.tee, "number", "tcb_version.tee");
+        checkType(args.tcb_version?.snp, "number", "tcb_version.snp");
+        checkType(
+          args.tcb_version?.microcode,
+          "number",
+          "tcb_version.microcode",
+        );
+      },
+      function (args, proposalId) {
+        // ensure cpuid is uppercase to prevent aliasing
+        ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].set(
+          ccf.strToBuf(args.cpuid),
+          ccf.jsonCompatibleToBuf(args.tcb_version),
+        );
+
+        invalidateOtherOpenProposals(proposalId);
+      },
+    ),
+  ],
+  [
     "remove_snp_host_data",
     new Action(
       function (args) {
@@ -1147,6 +1185,23 @@ const actions = new Map([
             ccf.strToBuf(args.did),
             ccf.jsonCompatibleToBuf(uvme),
           );
+        }
+      },
+    ),
+  ],
+  [
+    "remove_snp_minimum_tcb_version",
+    new Action(
+      function (args) {
+        checkType(args.cpuid, "string", "cpuid");
+        checkLength(ccf.strToBuf(args.cpuid), 8, 8, "cpuid");
+      },
+      function (args) {
+        const cpuid = ccf.strToBuf(args.cpuid);
+        if (ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].has(cpuid)) {
+          ccf.kv["public:ccf.gov.nodes.snp.tcb_versions"].delete(cpuid);
+        } else {
+          throw new Error(`CPUID ${args.cpuid} not found`);
         }
       },
     ),
