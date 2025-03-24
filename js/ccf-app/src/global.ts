@@ -789,6 +789,9 @@ export interface SnpAttestationResult {
     report_id: ArrayBuffer;
     report_id_ma: ArrayBuffer;
     reported_tcb: TcbVersion;
+    cpuid_fam_id: number;
+    cpuid_mod_id: number;
+    cpuid_step: number;
     chip_id: ArrayBuffer;
     committed_tcb: TcbVersion;
     current_minor: number;
