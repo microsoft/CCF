@@ -10,7 +10,7 @@ Join policy updates
 -----------
 
 When a node is started in ``Start`` or ``Recovery`` mode, it populates the join policy with its own environment.
-For example on C-ACI ``nodes.snp.host_data`` will be populated with the security policy of the container.
+Specifically on C-ACI, new SNP nodes will populate ``nodes.snp.host_data``, ``nodes.snp.uvm_endorsements`` and ``nodes.snp.tcb_versions`` with their corresponding local values.
 
 The benefit is that if new deployments are deployed on homogenous hardware and software stacks, then the join policy will automatically be populated with the correct values.
 
