@@ -150,7 +150,7 @@ endif()
 
 if(CCF_DEVEL)
   # Copy and install CCF utilities
-  set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh verify_quote.sh)
+  set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh)
   foreach(UTILITY ${CCF_UTILITIES})
     configure_file(
       ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
@@ -273,18 +273,6 @@ target_link_libraries(
 target_compile_definitions(cchost PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 install(TARGETS cchost DESTINATION bin)
-
-if(CLANG_TIDY)
-  find_program(
-    CLANG_TIDY_EXE NAMES "clang-tidy" "clang-tidy-18" "clang-tidy-15"
-  )
-  message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
-  # Start with cchost
-  set_target_properties(
-    cchost PROPERTIES C_CLANG_TIDY "${CLANG_TIDY_EXE}" CXX_CLANG_TIDY
-                                                       "${CLANG_TIDY_EXE}"
-  )
-endif()
 
 # HTTP parser
 if(COMPILE_TARGET STREQUAL "snp")
@@ -426,6 +414,18 @@ if(INSTALL_VIRTUAL_LIBRARIES)
     TARGETS ccf_endpoints.host
     EXPORT ccf
     DESTINATION lib
+  )
+endif()
+
+if(CLANG_TIDY)
+  find_program(
+    CLANG_TIDY_EXE NAMES "clang-tidy" "clang-tidy-18" "clang-tidy-15"
+  )
+  message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
+  # Start with cchost
+  set_target_properties(
+    cchost PROPERTIES C_CLANG_TIDY "${CLANG_TIDY_EXE}" CXX_CLANG_TIDY
+                                                       "${CLANG_TIDY_EXE}"
   )
 endif()
 
@@ -1271,6 +1271,27 @@ if(BUILD_TESTS)
       CONFIGURATIONS partitions
       ADDITIONAL_ARGS ${PARTITIONS_TEST_ARGS}
     )
+
+    execute_process(
+      COMMAND "cat" "/etc/os-release"
+      COMMAND "grep" "^NAME="
+      COMMAND "cut" "-d" "=" "-f" "2"
+      COMMAND "tr" "-d" "\""
+      OUTPUT_VARIABLE "OS_RELEASE"
+      RESULT_VARIABLE RETURN_CODE
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if(NOT RETURN_CODE STREQUAL "0")
+      message(FATAL_ERROR "Error calling cat /etc/os-release")
+    endif()
+    message(STATUS "OS_RELEASE = ${OS_RELEASE}")
+    if(OS_RELEASE STREQUAL "Microsoft Azure Linux")
+      set_property(
+        TEST partitions_cft
+        APPEND
+        PROPERTY ENVIRONMENT "XTABLES_LIBDIR=/usr/lib/iptables"
+      )
+    endif()
 
     add_e2e_test(
       NAME connections_cft
