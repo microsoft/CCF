@@ -37,10 +37,7 @@ namespace ccf
     {{MemberRecoveryRole::NonParticipant, "NonParticipant"},
      {MemberRecoveryRole::Participant, "Participant"},
      {MemberRecoveryRole::Owner, "Owner"}});
-}
 
-namespace ccf
-{
   struct NewMember
   {
     ccf::crypto::Pem cert;
@@ -83,6 +80,7 @@ namespace ccf
         members for example. */
     nlohmann::json member_data = nullptr;
 
+    /// Optional recovery role of the member
     std::optional<MemberRecoveryRole> recovery_role = std::nullopt;
 
     bool operator==(const MemberDetails& rhs) const
