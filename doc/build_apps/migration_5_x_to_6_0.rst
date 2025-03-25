@@ -9,7 +9,7 @@ A full feature list is available in the `6.0 release notes <https://github.com/m
 Join policy updates
 -----------
 
-When a member is started in ``Start`` or ``Recovery`` mode, it populates the join policy with its own environment.
+When a node is started in ``Start`` or ``Recovery`` mode, it populates the join policy with its own environment.
 For example on C-ACI ``nodes.snp.host_data`` will be populated with the security policy of the container.
 
 The benefit is that if new deployments are deployed on homogenous hardware and software stacks, then the join policy will automatically be populated with the correct values.
@@ -18,11 +18,11 @@ The benefit is that if new deployments are deployed on homogenous hardware and s
 SNP TCB version
 ~~~~~~~~~~~~~~~
 
-CCF now also supports validating the TCB version of the joining member's attestation.
+CCF now also supports validating the TCB version of the joining node's attestation.
 This introduced a new table, ``nodes.snp.tcb_versions``, which is the minimum TCB version for joining nodes and is automatically populated for new networks.
 
 Old networks which are migrating to 6.0 will need to populate this table manually, using the ``set_snp_minimum_tcb_version`` governance action.
-If they are not populated then new members may fail when joining the network.
+If they are not populated then new nodes may fail when joining the network.
 
 For example to set the minimum TCB version on Milan CPUs the following proposal can be submitted:
 .. code-block:: json
