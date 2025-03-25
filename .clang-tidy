@@ -1,0 +1,25 @@
+---
+Checks: >
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  -clang-analyzer-deadcode.DeadStores,
+  bugprone-*,
+  cert-*,
+  -cert-err58-cpp,
+  concurrency-*,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-do-while,
+  misc-*,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  performance-*,
+  -performance-avoid-endl,
+  portability-*,
+  readability-*,
+  -readability-function-cognitive-complexity,
+  -misc-const-correctness,
+  -misc-include-cleaner
+
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*/3rdparty/.*'
+FormatStyle:     'file'

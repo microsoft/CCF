@@ -274,18 +274,6 @@ target_compile_definitions(cchost PRIVATE CCF_LOGGER_NO_DEPRECATE)
 
 install(TARGETS cchost DESTINATION bin)
 
-if(CLANG_TIDY)
-  find_program(
-    CLANG_TIDY_EXE NAMES "clang-tidy" "clang-tidy-18" "clang-tidy-15"
-  )
-  message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
-  # Start with cchost
-  set_target_properties(
-    cchost PROPERTIES C_CLANG_TIDY "${CLANG_TIDY_EXE}" CXX_CLANG_TIDY
-                                                       "${CLANG_TIDY_EXE}"
-  )
-endif()
-
 # HTTP parser
 if(COMPILE_TARGET STREQUAL "snp")
   add_library(http_parser.snp "${HTTP_PARSER_SOURCES}")
@@ -426,6 +414,18 @@ if(INSTALL_VIRTUAL_LIBRARIES)
     TARGETS ccf_endpoints.host
     EXPORT ccf
     DESTINATION lib
+  )
+endif()
+
+if(CLANG_TIDY)
+  find_program(
+    CLANG_TIDY_EXE NAMES "clang-tidy" "clang-tidy-18" "clang-tidy-15"
+  )
+  message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
+  # Start with cchost
+  set_target_properties(
+    cchost PROPERTIES C_CLANG_TIDY "${CLANG_TIDY_EXE}" CXX_CLANG_TIDY
+                                                       "${CLANG_TIDY_EXE}"
   )
 endif()
 
