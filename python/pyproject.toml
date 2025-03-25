@@ -28,7 +28,6 @@ dependencies = [
 script-files = [
     "utils/keygenerator.sh",
     "utils/submit_recovery_share.sh",
-    "utils/verify_quote.sh"
 ]
 
 [project.urls]
