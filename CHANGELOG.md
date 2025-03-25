@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 
 - Internal logging macros (`LOG_INFO_FMT`, `LOG_DEBUG_FMT` etc) deprecated in 3.0 (#4024), have been removed and can no longer be used by application code. Replace with the `CCF_APP_*` equivalent (#6908).
+- `verify_quote.sh` script (#6919).
 
 ### Changed
 
