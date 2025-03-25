@@ -713,11 +713,11 @@ def test_session_consistency(network, args):
 
 
 @reqs.supports_methods("/app/log/public")
-def test_recovery_elections(network, args):
+def test_recovery_elections(orig_network, args):
     # Ensure we have 3 nodes
-    original_size = network.resize(3, args)
+    original_size = orig_network.resize(3, args)
 
-    old_primary, _ = network.find_nodes()
+    old_primary, _ = orig_network.find_nodes()
     with old_primary.client("user0") as c:
         LOG.warning("Writing some initial state")
         for _ in range(300):
@@ -726,11 +726,20 @@ def test_recovery_elections(network, args):
 
         r = c.get("/node/network")
         assert r.status_code == 200, r
-        previous_identity = network.save_service_identity(args)
-        c.wait_for_commit(network.consortium.set_recovery_threshold(old_primary, 1))
-    network.stop_all_nodes()
+        previous_identity = orig_network.save_service_identity(args)
+        c.wait_for_commit(
+            orig_network.consortium.set_recovery_threshold(old_primary, 1)
+        )
+    orig_network.stop_all_nodes()
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
+    network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=orig_network,
+    )
     network.start_in_recovery(
         args,
         ledger_dir=current_ledger_dir,
@@ -743,17 +752,12 @@ def test_recovery_elections(network, args):
         new_primary, previous_service_identity=previous_identity
     )
 
+    with new_primary.client("user0") as c:
+        previous_identity = network.save_service_identity(args)
+
     member = network.consortium.get_active_recovery_participants()[0]
 
-    import os
-
-    traced_files = []
     backup = new_backups[0]
-    root_dir = (
-        "/home/edashton/1.CCF/build.virtual/workspace/partitions_cft_4/0.ledger.current"
-    )
-    for file in os.listdir(root_dir):
-        traced_files.append(f"--trace-path={os.path.join(root_dir, file)}")
     strace_command = [
         "strace",
         "--output=backup_strace.txt",
@@ -792,24 +796,29 @@ def test_recovery_elections(network, args):
     time.sleep(10)
 
     LOG.warning(f"!!!! AND NOW I HOPE TO HAVE A DEAD STATE, SO I TRY ANOTHER RECOVERY")
-
-    with backup.client("user0") as c:
-        previous_identity = network.save_service_identity(args)
+    network.ignore_errors_on_shutdown()
     network.stop_all_nodes()
     current_ledger_dir, committed_ledger_dirs = backup.get_ledger()
 
-    network.start_in_recovery(
+    recovery_network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=network,
+    )
+    recovery_network.start_in_recovery(
         args,
         ledger_dir=current_ledger_dir,
         committed_ledger_dirs=committed_ledger_dirs,
     )
     LOG.warning(f"!!!! HOPING THAT THE FOLLOWING FAILS !!!!")
-    network.recover(args)
+    recovery_network.recover(args)
 
     # Restore original network size
-    network.resize(original_size, args)
+    recovery_network.resize(original_size, args)
 
-    return network
+    return recovery_network
 
 
 def run(args):
