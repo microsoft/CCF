@@ -10,29 +10,37 @@ To summarise the headline features, we are ending support for SGX platforms, imp
 Join policy updates
 -----------
 
-When a member is started in ``Start`` or ``Recovery`` mode, it populates its local 
+When a member is started in ``Start`` or ``Recovery`` mode, it populates the join policy with its own environment.
+For example on C-ACI ``nodes.snp.host_data`` will be populated with the security policy of the container.
 
-When a new network is started with SNP members, the first member prepopulates the join policy with its own environment.
-This means that if the network is running on homogenous hardware, the join policy will be automatically populated with the correct values.
+The benefit is that if new deployments are deployed on homogenous hardware and software stacks, then the join policy will automatically be populated with the correct values.
 
-This 
-
-Automatically populated join-policy
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 SNP TCB version
 ~~~~~~~~~~~~~~~
 
+CCF now also supports validating the TCB version of the joining member's attestation.
+This introduced a new table, ``nodes.snp.tcb_versions``, which is the minimum TCB version for joining nodes and is automatically populated for new networks.
 
+Old networks which are migrating to 6.0 will need to populate this table manually, using the ``set_snp_minimum_tcb_version`` governance action.
+If they are not populated then new members may fail when joining the network.
 
-Shipped Artifacts
------------------
+For example to set the minimum TCB version on Milan CPUs the following proposal can be submitted:
+.. code-block:: json
 
-Docker images
-
-Azure Linux and RPM packages
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Recovery role
--------------
-/
+    {
+      "actions": [
+        {
+          "name": "set_snp_minimum_tcb_version",
+          "args": {
+            "cpuid": "00a0f11",
+            "tcb_version": {
+              "boot_loader": 255,
+              "tee": 255,
+              "snp": 255, 
+              "microcode": 255 
+            }
+          }
+        }
+      ]
+    }
