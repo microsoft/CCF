@@ -1,0 +1,11 @@
+FROM mcr.microsoft.com/azurelinux/base/core:3.0
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+RUN gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+RUN tdnf -y update
+RUN tdnf -y install ca-certificates git
+RUN tdnf -y install wget tar dotnet-sdk-8.0
+ENV RUNNER_ALLOW_RUNASROOT=true
+
+COPY scripts/setup-ci.sh /tmp/setup-ci.sh
+RUN chmod +x /tmp/setup-ci.sh
+RUN /tmp/setup-ci.sh

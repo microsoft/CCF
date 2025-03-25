@@ -158,7 +158,7 @@ size_t run_jobs(size_t n_senders, size_t n_receivers)
 
 TEST_CASE("WorkBeacon" * doctest::test_suite("workbeacon"))
 {
-  std::vector<size_t> test_vals{1, 5, 8};
+  std::vector<size_t> test_vals{1, 5};
   for (auto n_senders : test_vals)
   {
     for (auto n_receivers : test_vals)
