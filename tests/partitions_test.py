@@ -733,6 +733,7 @@ def test_recovery_elections(orig_network, args):
     orig_network.stop_all_nodes()
     current_ledger_dir, committed_ledger_dirs = old_primary.get_ledger()
 
+    # Create a recovery network, where we will manually take the recovery steps (transition to open and submit share)
     network = infra.network.Network(
         args.nodes,
         args.binary_dir,
@@ -746,8 +747,6 @@ def test_recovery_elections(orig_network, args):
         committed_ledger_dirs=committed_ledger_dirs,
     )
     new_primary, new_backups = network.find_nodes()
-
-    # Manually recover
     network.consortium.transition_service_to_open(
         new_primary, previous_service_identity=previous_identity
     )
@@ -757,49 +756,58 @@ def test_recovery_elections(orig_network, args):
 
     member = network.consortium.get_active_recovery_participants()[0]
 
+    # Delaying backup's file IO, so that we can control how long it takes to complete private recovery
     backup = new_backups[0]
+    LOG.info(f"Using strace to inject delays in file IO of {backup}")
+    assert not backup.remote.check_done()
+
     strace_command = [
         "strace",
-        "--output=backup_strace.txt",
         f"--attach={backup.remote.remote.proc.pid}",
-        "-t",
-        "--trace=!futex,epoll_pwait",
         "--inject=lseek:delay_exit=10s",
     ]
     LOG.warning(f"About to run strace: {strace_command}")
-    strace_process = subprocess.Popen(strace_command)
-    LOG.warning(f"{strace_process=}")
+    strace_process = subprocess.Popen(
+        strace_command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
 
     member.get_and_submit_recovery_share(new_primary)
     network.recovery_count += 1
 
-    LOG.warning(f"!!! K, now waiting for primary to finish")
+    LOG.info(f"Confirming that primary completes private recovery")
     network.wait_for_state(
         new_primary,
         infra.node.State.PART_OF_NETWORK.value,
         timeout=30,
     )
-    LOG.warning(
-        f"!!! I can't confirm where the backup is, but he should be in private recovery still"
-    )
-    time.sleep(5)
-    LOG.warning(
-        f"!!! Ace, so now I kill the primary and then let the backup free again"
-    )
 
+    election_s = args.election_timeout_ms / 1000
+    LOG.info(
+        f"Holding backup stalled via strace for {election_s}, to trigger an election"
+    )
+    time.sleep(election_s)
+
+    LOG.info(f"Ending strace, and terminating primary node")
     strace_process.terminate()
-    out, err = strace_process.communicate()
+    strace_process.communicate()
 
     new_primary.stop()
 
-    LOG.warning(f"!!! sleeping for a bit, arbitrarily")
-    time.sleep(10)
+    LOG.info(
+        f"Give {backup} time to finish its recovery (including becoming primary), and confirm that it dies in the process"
+    )
+    time.sleep(election_s)
+    assert backup.remote.check_done()
 
-    LOG.warning(f"!!!! AND NOW I HOPE TO HAVE A DEAD STATE, SO I TRY ANOTHER RECOVERY")
     network.ignore_errors_on_shutdown()
     network.stop_all_nodes()
     current_ledger_dir, committed_ledger_dirs = backup.get_ledger()
 
+    LOG.info(
+        "Trying a further recovery, to confirm that the ledger is in a recoverable state"
+    )
     recovery_network = infra.network.Network(
         args.nodes,
         args.binary_dir,
@@ -812,7 +820,6 @@ def test_recovery_elections(orig_network, args):
         ledger_dir=current_ledger_dir,
         committed_ledger_dirs=committed_ledger_dirs,
     )
-    LOG.warning(f"!!!! HOPING THAT THE FOLLOWING FAILS !!!!")
     recovery_network.recover(args)
 
     # Restore original network size
