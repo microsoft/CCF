@@ -227,6 +227,9 @@ class LocalRemote(CmdMixin):
     def sigterm(self):
         self.proc.terminate()
 
+    def sigkill(self):
+        self.proc.send_signal(signal.SIGKILL)
+
     def stop(self):
         """
         Disconnect the client, and therefore shut down the command as well.
@@ -665,6 +668,9 @@ class CCFRemote(object):
 
     def sigterm(self):
         self.remote.sigterm()
+
+    def sigkill(self):
+        self.remote.sigkill()
 
     def stop(self):
         try:
