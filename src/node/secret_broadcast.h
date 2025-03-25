@@ -5,7 +5,6 @@
 #include "ccf/crypto/key_wrap.h"
 #include "ccf/crypto/rsa_key_pair.h"
 #include "ledger_secrets.h"
-#include "network_state.h"
 #include "service/internal_tables_access.h"
 
 #include <optional>
@@ -15,17 +14,16 @@ namespace ccf
   class LedgerSecretsBroadcast
   {
   public:
+    using SecretsWriteHandle = ccf::Secrets::WriteOnlyHandle;
+
     static void broadcast_some(
-      NetworkState& network,
-      NodeId self,
-      ccf::kv::Tx& tx,
+      std::map<NodeId, NodeInfo>&& nodes,
+      SecretsWriteHandle* secrets,
       const LedgerSecretsMap& some_ledger_secrets)
     {
-      auto secrets = tx.rw(network.secrets);
-
       LedgerSecretsForNodes secrets_for_nodes;
 
-      for (auto [nid, ni] : InternalTablesAccess::get_trusted_nodes(tx, self))
+      for (auto [nid, ni] : nodes)
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
 
@@ -46,15 +44,13 @@ namespace ccf
     }
 
     static void broadcast_new(
-      NetworkState& network,
-      ccf::kv::Tx& tx,
+      std::map<NodeId, NodeInfo>&& nodes,
+      SecretsWriteHandle* secrets,
       LedgerSecretPtr&& new_ledger_secret)
     {
-      auto secrets = tx.rw(network.secrets);
-
       LedgerSecretsForNodes secrets_for_nodes;
 
-      for (auto [nid, ni] : InternalTablesAccess::get_trusted_nodes(tx))
+      for (auto [nid, ni] : nodes)
       {
         std::vector<EncryptedLedgerSecret> ledger_secrets_for_node;
 
