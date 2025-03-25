@@ -1302,8 +1302,36 @@ namespace ccf
       // Open the service
       if (consensus->can_replicate())
       {
+        LOG_INFO_FMT(
+          "End of private recovery: attempting to write service open "
+          "transition in {}",
+          __func__);
+
         setup_one_off_secret_hook();
         auto tx = network.tables->create_tx();
+
+        {
+          // Ensure this transition happens at-most-once, by checking that no
+          // other node has already advanced the state
+          auto service = tx.ro<ccf::Service>(Tables::SERVICE);
+          auto active_service = service->get();
+
+          if (!active_service.has_value())
+          {
+            throw std::logic_error(
+              fmt::format("Error in {}: no value in service table", __func__));
+          }
+
+          if (
+            active_service->status !=
+            ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+          {
+            throw std::logic_error(fmt::format(
+              "Error in {}: current service status is {}",
+              __func__,
+              active_service->status));
+          }
+        }
 
         // Clear recovery shares that were submitted to initiate the recovery
         // procedure
