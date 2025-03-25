@@ -57,5 +57,8 @@ curl -L --output pebble-challtestsrv_linux-amd64 https://github.com/letsencrypt/
 mv pebble-challtestsrv_linux-amd64 /opt/pebble/pebble-challtestsrv_linux-amd64
 chmod +x /opt/pebble/pebble_linux-amd64 /opt/pebble/pebble-challtestsrv_linux-amd64
 
+# partitions test
+tdnf -y install iptables
+
 # For packaging
 tdnf -y install rpm-build
