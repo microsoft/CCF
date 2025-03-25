@@ -2180,11 +2180,10 @@ namespace ccf
       setup_one_off_secret_hook();
 
       // Start reading private security domain of ledger
+      sm.advance(NodeStartupState::readingPrivateLedger);
       last_recovered_idx = recovery_store->current_version();
       read_ledger_entries(
         last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
-
-      sm.advance(NodeStartupState::readingPrivateLedger);
     }
 
     void setup_basic_hooks()
