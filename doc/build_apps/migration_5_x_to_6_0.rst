@@ -3,7 +3,7 @@
 
 This page outlines the major changes introduced in 6.0 and how developers and operators should update their applications and deployments when migrating from 5.x to 6.0.
 
-A full feature list is available in the 6.0 release notes.
+A full feature list is available in the `6.0 release notes <https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-rc0>`_.
 
 To summarise the headline features, we are ending support for SGX platforms, improving the join policy for validating the security of new members, and changing the distribution model for CCF.
 
