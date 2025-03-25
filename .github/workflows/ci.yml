@@ -103,7 +103,7 @@ jobs:
       - name: "Upload logs for ${{ matrix.platform.name }}"
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.platform.name }}
+          name: logs-ubuntu-${{ matrix.platform.name }}
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
@@ -167,6 +167,18 @@ jobs:
           # All other acceptably fast tests, which are now supported on Azure Linux.
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
         shell: bash
+
+      - name: "Upload logs for ${{ matrix.platform.name }}"
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-azurelinux-${{ matrix.platform.name }}
+          path: |
+            build/workspace/*/*.config.json
+            build/workspace/*/out
+            build/workspace/*/err
+            build/workspace/*.ledger/*
+          if-no-files-found: ignore
+        if: success() || failure()
 
   build_caci:
     name: "Confidential Container (ACI) CI"
