@@ -257,7 +257,9 @@ class ConcurrentRunner:
             return
 
         if not max_concurrent:
-            max_concurrent = len(self.threads)
+            ###########################################################################
+            # Obviously this is a temporary brute-force change and should not be merged
+            max_concurrent = 1  # len(self.threads)
 
         thread_groups = [
             self.threads[i : i + max_concurrent]
