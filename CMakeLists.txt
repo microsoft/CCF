@@ -150,7 +150,7 @@ endif()
 
 if(CCF_DEVEL)
   # Copy and install CCF utilities
-  set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh verify_quote.sh)
+  set(CCF_UTILITIES keygenerator.sh submit_recovery_share.sh)
   foreach(UTILITY ${CCF_UTILITIES})
     configure_file(
       ${CCF_DIR}/python/utils/${UTILITY} ${CMAKE_CURRENT_BINARY_DIR} COPYONLY
