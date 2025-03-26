@@ -11,7 +11,7 @@ Generating Member Keys and Certificates
 First, the identity and encryption public and private key pairs of the new member should be created.
 
 The ``keygenerator.sh`` script can be used to generate the member’s certificate and associated private key as well as their encryption public and private keys.
-It is included in the `ccf` Python package, and the `.deb` package will install it under `/opt/ccf_*/bin/`.
+It is included in the `ccf` Python package, and the `.rpm` package will install it under `/opt/ccf_*/bin/`.
 
 .. code-block:: bash
 

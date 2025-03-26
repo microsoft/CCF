@@ -1,7 +1,7 @@
 Consensus Protocol
 ==================
 
-The consensus protocol for CCF is Crash Fault Tolerance (:term:`CFT`) and is based on `Raft <https://raft.github.io/>`_. The key differences between the original Raft protocol (as described in the `Raft paper <https://raft.github.io/raft.pdf>`_), and CCF Raft are as follows:
+The consensus protocol for CCF implements Crash Fault Tolerance (:term:`CFT`) and is based on `Raft <https://raft.github.io/>`_. The key differences between the original Raft protocol (as described in the `Raft paper <https://raft.github.io/raft.pdf>`_), and CCF Raft are as follows:
 
 * Transactions in CCF Raft are not considered to be committed until a subsequent signed transaction has been committed. More information can be found :doc:`here </architecture/merkle_tree>`. Transactions in the ledger before the last signed transactions are discarded during leader election.
 * CCF Raft does not support node restart as the unique identity of each node is tied to the node process launch. If a node fails and is replaced, it must rejoin Raft via reconfiguration.
@@ -18,12 +18,13 @@ Extensions for Omission Faults
 
 .. warning:: Support for these extensions is work-in-progress. See https://github.com/microsoft/CCF/issues/2577. 
 
-The CFT consensus variant also supports some extensions for :term:`omission fault`.
+The CFT consensus implementation in CCF also supports some extensions for :term:`omission fault`.
 This may happen when the network is unreliable and may lead to one or more nodes being isolated from the rest of the network.
 
 Supported extensions include:
 
 - "CheckQuorum": the primary node automatically steps down, in the same view, if it does not hear back (via ``AppendEntriesResponse`` messages) from a majority of backups within a ``consensus.election_timeout`` period. This prevents an isolated primary node from still processing client write requests without being able to commit them.
+- "NoTimeoutRetirement": a primary node that completes its retirement sends a ProposeRequestVote message to the most up-to-date node in the new configuration, causing that node to run for election without waiting for time out.
 
 Replica State Machine
 ---------------------

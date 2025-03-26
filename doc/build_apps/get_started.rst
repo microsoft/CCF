@@ -15,7 +15,6 @@ Development environment
 
 -  VS Code Dev Container |Open in VSCode|
 -  Github codespace: |Github codespace|
--  Virtual Machine (`Creating a Virtual Machine in Azure to run CCF <https://github.com/microsoft/CCF/blob/main/getting_started/azure_vm/README.md>`__)
 
 (JavaScript/Typescript) Applications
 ------------------------------------

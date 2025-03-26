@@ -1,7 +1,8 @@
-4.x to 5.0 Migration Guide
-==========================
+Migrating from forwarding to redirection
+========================================
 
-This page outlines the major changes introduced in 5.0, and how developers should update their apps when transitioning from 4.x to 5.0. A full feature list is available in the 5.0 release notes.
+.. note::
+    Forwarding is deprecated in CCF 5.0, and will be removed in CCF 7.0.
 
 Redirections
 ------------
