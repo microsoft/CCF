@@ -147,7 +147,7 @@ def recover_with_primary_dying(args, recovered_network):
 
     primary, _ = recovered_network.find_primary()
     while not primary or primary.node_id == retired_id:
-        LOG.info("Kepp looking for new primary!")
+        LOG.info("Keep looking for new primary")
         time.sleep(0.1)
         primary, _ = recovered_network.find_primary()
 
