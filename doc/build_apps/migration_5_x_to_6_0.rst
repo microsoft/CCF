@@ -47,5 +47,4 @@ For example to set the minimum TCB version on Milan CPUs the following proposal 
 CCF release distribution
 ------------------------
 
-CCF is no longer releasing docker images, or ubuntu 20.04 packages.
-Instead CCF is releasing a single RPM package which can be installed on Azure Linux 3.0.
+Binary releases now target Azure Linux 3.0, and are provided as RPM packages, `ccf-devel` for application development, and `ccf` for the runtime. Reference dockerfiles are provided, but containers and Debian packages are no longer published.
