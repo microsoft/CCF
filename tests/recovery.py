@@ -108,7 +108,7 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
 
 
 def recover_with_primary_dying(args, recovered_network):
-    # Minimal copy-paste from network.recover() with primary assassination.
+    # Minimal copy-paste from network.recover() with primary shut down.
     recovered_network.consortium.activate(recovered_network.find_random_node())
     recovered_network.consortium.check_for_service(
         recovered_network.find_random_node(),
