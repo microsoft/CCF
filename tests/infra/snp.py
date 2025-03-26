@@ -45,10 +45,11 @@ EMPTY_SNP_SECURITY_POLICY = ""
 
 def get_aci_env():
     env = {}
-    with open(WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH, "r", encoding="utf-8") as f:
-        for line in f.read().splitlines():
-            env_key, env_value = line.partition("=")[::2]
-            env[env_key] = env_value
+    if os.path.exists(WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH):
+        with open(WELL_KNOWN_ACI_ENVIRONMENT_FILE_PATH, "r", encoding="utf-8") as f:
+            for line in f.read().splitlines():
+                env_key, env_value = line.partition("=")[::2]
+                env[env_key] = env_value
     return env
 
 
