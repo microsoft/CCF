@@ -721,7 +721,13 @@ def test_recovery_elections(orig_network, args):
     with old_primary.client("user0") as c:
         LOG.warning("Writing some initial state")
         for _ in range(300):
-            r = c.post("/app/log/public", {"id": 42, "msg": "X" * 15000})
+            r = c.post(
+                "/app/log/public",
+                {
+                    "id": 42,
+                    "msg": "Uninteresting recoverable transactions",
+                },
+            )
             assert r.status_code == 200, r
 
         r = c.get("/node/network")
@@ -771,6 +777,10 @@ def test_recovery_elections(orig_network, args):
         "strace",
         f"--attach={backup.remote.remote.proc.pid}",
         "--inject=lseek:delay_exit=10s",
+        "-tt",
+        "--trace=lseek,read,open,openat",
+        "--decode-fds=all",
+        "--output=strace_output.txt",
     ]
     LOG.warning(f"About to run strace: {strace_command}")
     strace_process = subprocess.Popen(
