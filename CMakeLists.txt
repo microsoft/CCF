@@ -1026,7 +1026,7 @@ if(BUILD_TESTS)
     add_picobench(hash_bench SRCS src/ds/test/hash_bench.cpp)
 
     if(LONG_TESTS)
-      set(ADDITIONAL_RECOVERY_ARGS --with-load)
+      set(ADDITIONAL_RECOVERY_ARGS --with-load --with-election)
 
       add_e2e_test(
         NAME recovery_test_cft_api_0

@@ -464,6 +464,9 @@ class Node:
     def sigterm(self):
         self.remote.sigterm()
 
+    def sigkill(self):
+        self.remote.sigkill()
+
     def is_stopped(self):
         return self.network_state == NodeNetworkState.stopped
 
