@@ -756,7 +756,13 @@ def test_recovery_elections(orig_network, args):
 
     member = network.consortium.get_active_recovery_participants()[0]
 
-    # Delaying backup's file IO, so that we can control how long it takes to complete private recovery
+    # We need to delay a backup's private recovery process until:
+    # - The primary has completed its private recovery, and fully opened the network
+    # - The backup has called and won an election
+    # So that the backup node _is primary_ at the point it completes private recovery.
+    # We force the delay by injecting a delay into the file operations of the backup,
+    # and force an election (after the primary has completed its recovery) by killing
+    # the original primary node.
     backup = new_backups[0]
     LOG.info(f"Using strace to inject delays in file IO of {backup}")
     assert not backup.remote.check_done()
@@ -776,7 +782,7 @@ def test_recovery_elections(orig_network, args):
     member.get_and_submit_recovery_share(new_primary)
     network.recovery_count += 1
 
-    LOG.info(f"Confirming that primary completes private recovery")
+    LOG.info("Confirming that primary completes private recovery")
     network.wait_for_state(
         new_primary,
         infra.node.State.PART_OF_NETWORK.value,
@@ -789,7 +795,7 @@ def test_recovery_elections(orig_network, args):
     )
     time.sleep(election_s)
 
-    LOG.info(f"Ending strace, and terminating primary node")
+    LOG.info("Ending strace, and terminating primary node")
     strace_process.terminate()
     strace_process.communicate()
 
@@ -799,6 +805,9 @@ def test_recovery_elections(orig_network, args):
         f"Give {backup} time to finish its recovery (including becoming primary), and confirm that it dies in the process"
     )
     time.sleep(election_s)
+    # The result of all of that is that this node, which had become primary while it
+    # completed its private recovery, crashed at the end of recovery (rather than)
+    # producing an invalid ledger)
     assert backup.remote.check_done()
 
     network.ignore_errors_on_shutdown()
