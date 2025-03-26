@@ -209,6 +209,7 @@ The minimum trusted TCB version for new nodes allowed to join the network (:doc`
 **Value** The minimum TCB version for that CPUID.
 
 **Example**
+
 .. list-table::
    :header-rows: 1
 

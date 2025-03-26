@@ -1272,6 +1272,11 @@ namespace ccf
 
       sm.expect(NodeStartupState::readingPrivateLedger);
 
+      LOG_INFO_FMT(
+        "Try end private recovery at {}. Is primary: {}",
+        recovery_v,
+        consensus->is_primary());
+
       if (recovery_v != recovery_store->current_version())
       {
         throw std::logic_error(fmt::format(
@@ -1302,9 +1307,8 @@ namespace ccf
       if (consensus->can_replicate())
       {
         LOG_INFO_FMT(
-          "End of private recovery: attempting to write service open "
-          "transition in {}",
-          __func__);
+          "Try end private recovery at {}. Trigger service opening",
+          recovery_v);
 
         auto tx = network.tables->create_tx();
 
