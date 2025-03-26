@@ -509,5 +509,5 @@ if __name__ == "__main__":
 
     args.package = "samples/apps/logging/liblogging"
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.snp_endorsements_servers = ["AMD:kdsintf.amd.com"]
+    args.snp_endorsements_servers = ["Azure:global.acccache.azure.net"]
     run(args)
