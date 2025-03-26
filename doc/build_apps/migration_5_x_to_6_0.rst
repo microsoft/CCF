@@ -19,7 +19,7 @@ SNP TCB version
 ~~~~~~~~~~~~~~~
 
 CCF now also supports validating the TCB version of the joining node's attestation.
-This introduced a new table, ``nodes.snp.tcb_versions``, which is the minimum TCB version for joining nodes and is automatically populated for new networks.
+This introduced a new table, ``nodes.snp.tcb_versions``, which is the minimum TCB version for joining nodes, per CPU model, and is automatically populated for new networks.
 
 Old networks which are migrating to 6.0 will need to populate this table manually, using the ``set_snp_minimum_tcb_version`` governance action.
 If they are not populated then new nodes may fail when joining the network.
