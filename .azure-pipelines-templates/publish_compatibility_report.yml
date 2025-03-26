@@ -1,5 +1,0 @@
-steps:
-  - task: PublishPipelineArtifact@1
-    inputs:
-      artifactName: "Compatibility report"
-      targetPath: build/compatibility_report.json

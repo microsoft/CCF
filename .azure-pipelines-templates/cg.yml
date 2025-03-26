@@ -1,7 +1,0 @@
-steps:
-  - task: ComponentGovernanceComponentDetection@0
-    inputs:
-      ignoreDirectories: "tests,samples"
-      scanType: "Register"
-      verbosity: "Verbose"
-      alertWarningLevel: "High"
