@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [6.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc2
 
+### Fixed
+
+- Fixed a bug which could produce an invalid secret chain in the ledger if an election occurred during private recovery (#6926).
+
 ### Removed
 
 - Internal logging macros (`LOG_INFO_FMT`, `LOG_DEBUG_FMT` etc) deprecated in 3.0 (#4024), have been removed and can no longer be used by application code. Replace with the `CCF_APP_*` equivalent (#6908).
