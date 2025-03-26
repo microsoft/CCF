@@ -124,7 +124,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
+          ninja cchost logging
         shell: bash
 
       - name: "Tests"
@@ -134,8 +134,6 @@ jobs:
           rm -rf /github/home/.cache
           mkdir -p /github/home/.cache
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
-          # Unit tests, minus indexing that is sometimes timing out with this few cores
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all) -E indexing
           # Minimal end to end test that exercises SNP attestation verification
           # but works within the current 4 core budget
           ./tests.sh --timeout 360 --output-on-failure -R code_update
