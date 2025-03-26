@@ -150,7 +150,7 @@ def get_major_version_from_branch_name(branch_name):
 
 def get_package_prefix_with_platform(tag_name, platform="snp"):
     tag_components = tag_name.split("-")
-    tag_components[0] += f"_{platform}"
+    tag_components[0] += f"_{platform}_devel"
     return "-".join(tag_components)
 
 
