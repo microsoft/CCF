@@ -3,6 +3,7 @@
 
 import os
 import base64
+import glob
 from hashlib import sha256
 
 # Path to the SEV guest device on patched 5.x kernels
@@ -50,6 +51,9 @@ def get_aci_env():
             for line in f.read().splitlines():
                 env_key, env_value = line.partition("=")[::2]
                 env[env_key] = env_value
+    else:
+        (security_context_dir,) = glob.glob("/security-context-*")
+        env[ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR] = security_context_dir
     return env
 
 
