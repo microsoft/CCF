@@ -1316,8 +1316,8 @@ namespace ccf
 
           if (!active_service.has_value())
           {
-            throw std::logic_error(
-              fmt::format("Error in {}: no value in service table", __func__));
+            throw std::logic_error(fmt::format(
+              "Error in {}: no value in {}", __func__, Tables::SERVICE));
           }
 
           if (

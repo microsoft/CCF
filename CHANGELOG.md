@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- Fixed a bug which could produce an invalid secret chain in the ledger if an election occurred during private recovery (#6926).
+- Fixed a bug which could produce an invalid secret chain (containing duplicate ledger secret sealing entries) in the ledger if an election occurred during private recovery (#6926).
 
 ### Removed
 
