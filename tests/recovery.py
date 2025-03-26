@@ -199,7 +199,7 @@ def test_recover_service(
         # to allow election to happen if primary gets killed. These later get verified post-recovery (logging app verify_tx() thing).
         network.txs.issue(
             network,
-            number_txs=4000,
+            number_txs=10000,
             send_public=False,
             msg=str(bytes(random.getrandbits(8) for _ in range(512))),
         )
