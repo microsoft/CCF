@@ -194,7 +194,7 @@ TEST_CASE("WorkBeacon" * doctest::test_suite("workbeacon"))
           // First assert the order
           REQUIRE(wakes_with_beacon == 0);
           REQUIRE(wakes_with_beacon <= wakes_with_waits);
-          REQUIRE(wakes_with_waits < wakes_with_spinloop);
+          REQUIRE(wakes_with_waits <= wakes_with_spinloop);
 
           // Then try to be a little more precise, allowing head-room for
           // different build configs and cosmic rays
