@@ -124,7 +124,7 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
+          ninja cchost logging
         shell: bash
 
       - name: "Tests"
