@@ -216,6 +216,7 @@ function(add_perf_test)
       ${VERIFICATION_ARG} --label ${TEST_NAME} --snapshot-tx-interval 10000
       --perf-label ${PARSED_ARGS_PERF_LABEL} ${PARSED_ARGS_ADDITIONAL_ARGS} -e
       ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM} ${NODES}
+    CONFIGURATIONS perf
   )
 
   # Make python test client framework importable

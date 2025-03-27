@@ -77,7 +77,7 @@ File: `release.yml`
 
 # Containers GHCR
 
-Produces reference release images from 5.0.0-rc0 onwards. Complete images are attested and published to GHCR. Triggered on release publishing.
+Produces reference release images for 5.x release version. Not used from 6.0.0 onwards. Complete images are attested and published to GHCR. Triggered on release publishing.
 
 File: `containers-ghcr.yml`
 3rd party dependencies:

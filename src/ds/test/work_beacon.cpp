@@ -195,7 +195,10 @@ TEST_CASE("WorkBeacon" * doctest::test_suite("workbeacon"))
           REQUIRE(wakes_with_beacon == 0);
           REQUIRE(wakes_with_beacon <= wakes_with_waits);
 
-          // Sometimes, somehow, we get no spinloop wakeups.
+          // In occasional runs on some build configurations, we see 0 wakes
+          // when using the spinloop. This is surprising, but not impossible. In
+          // this instance we obviously don't see any improvement in the waiting
+          // scheme, so skip the following assertions
           if (wakes_with_spinloop > 0)
           {
             REQUIRE(wakes_with_waits < wakes_with_spinloop);
