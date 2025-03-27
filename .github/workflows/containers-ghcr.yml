@@ -3,6 +3,9 @@ name: "Containers GHCR"
 on:
   release:
     types: [published]
+    tags:
+      - "ccf-[5].*"
+
 
 env:
   REGISTRY: ghcr.io
