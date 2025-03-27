@@ -52,67 +52,67 @@ namespace ccf
       UserEndpointRegistry::init_handlers();
 
       auto create = [this](auto& ctx) {
-        LOG_DEBUG_FMT("Creating tpcc database");
+        CCF_APP_DEBUG("Creating tpcc database");
         const auto& body = ctx.rpc_ctx->get_request_body();
         auto db = tpcc::DbCreation::deserialize(body.data(), body.size());
         tpcc::SetupDb setup_db(ctx, db.new_orders_per_district, db.seed);
         setup_db.run();
-        LOG_DEBUG_FMT("Creating tpcc database - end");
+        CCF_APP_DEBUG("Creating tpcc database - end");
 
         set_no_content_status(ctx);
       };
 
       auto do_stock_level = [this](auto& ctx) {
-        LOG_DEBUG_FMT("stock level");
+        CCF_APP_DEBUG("stock level");
         const auto& body = ctx.rpc_ctx->get_request_body();
         auto info = tpcc::StockLevel::deserialize(body.data(), body.size());
         tpcc::TpccTransactions tx(ctx, info.seed);
         tx.stock_level(info.warehouse_id, info.district_id, info.threshold);
-        LOG_DEBUG_FMT("stock level - end");
+        CCF_APP_DEBUG("stock level - end");
 
         set_no_content_status(ctx);
       };
 
       auto do_order_status = [this](auto& ctx) {
-        LOG_DEBUG_FMT("order status");
+        CCF_APP_DEBUG("order status");
         const auto& body = ctx.rpc_ctx->get_request_body();
         auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
         tpcc::TpccTransactions tx(ctx, info.seed);
         tx.order_status();
-        LOG_DEBUG_FMT("order status - end");
+        CCF_APP_DEBUG("order status - end");
 
         set_no_content_status(ctx);
       };
 
       auto do_delivery = [this](auto& ctx) {
-        LOG_DEBUG_FMT("delivery");
+        CCF_APP_DEBUG("delivery");
         const auto& body = ctx.rpc_ctx->get_request_body();
         auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
         tpcc::TpccTransactions tx(ctx, info.seed);
         tx.delivery();
-        LOG_DEBUG_FMT("delivery - end");
+        CCF_APP_DEBUG("delivery - end");
 
         set_no_content_status(ctx);
       };
 
       auto do_payment = [this](auto& ctx) {
-        LOG_DEBUG_FMT("payment");
+        CCF_APP_DEBUG("payment");
         const auto& body = ctx.rpc_ctx->get_request_body();
         auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
         tpcc::TpccTransactions tx(ctx, info.seed);
         tx.payment();
-        LOG_DEBUG_FMT("payment - end");
+        CCF_APP_DEBUG("payment - end");
 
         set_no_content_status(ctx);
       };
 
       auto do_new_order = [this](auto& ctx) {
-        LOG_DEBUG_FMT("new order");
+        CCF_APP_DEBUG("new order");
         const auto& body = ctx.rpc_ctx->get_request_body();
         auto info = tpcc::TxInfo::deserialize(body.data(), body.size());
         tpcc::TpccTransactions tx(ctx, info.seed);
         tx.new_order();
-        LOG_DEBUG_FMT("new order - end");
+        CCF_APP_DEBUG("new order - end");
 
         set_no_content_status(ctx);
       };
