@@ -6,7 +6,6 @@ on:
     tags:
       - "ccf-[5].*"
 
-
 env:
   REGISTRY: ghcr.io
 
