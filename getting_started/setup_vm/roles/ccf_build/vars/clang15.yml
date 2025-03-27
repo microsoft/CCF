@@ -24,6 +24,7 @@ debs:
   - curl # client test infra
   - shellcheck # bash lint
   - iptables # partition test infra
+  - strace # partition test infra
   - rubygems # required to install cddl checker
 
 # Not installed on GitHub Actions environment because of conflicting package
