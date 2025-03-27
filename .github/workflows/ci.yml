@@ -61,7 +61,7 @@ jobs:
             options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
     runs-on: ${{ matrix.platform.nodes }}
     container:
-      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-14-01-2025
+      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-27-03-2025
       options: ${{ matrix.platform.options }}
     steps:
       - uses: actions/checkout@v4

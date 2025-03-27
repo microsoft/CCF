@@ -17,7 +17,7 @@ jobs:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+      image: ghcr.io/microsoft/ccf/ci/default:build-27-03-2025
 
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+      image: ghcr.io/microsoft/ccf/ci/default:build-27-03-2025
 
     steps:
       - uses: actions/checkout@v4
@@ -79,7 +79,7 @@ jobs:
     name: TSAN
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+      image: ghcr.io/microsoft/ccf/ci/default:build-27-03-2025
 
     steps:
       - uses: actions/checkout@v4
@@ -117,7 +117,7 @@ jobs:
     name: LTS
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+      image: ghcr.io/microsoft/ccf/ci/default:build-27-03-2025
 
     steps:
       - uses: actions/checkout@v4

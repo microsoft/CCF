@@ -69,11 +69,11 @@ jobs:
         platform:
           - name: virtual
             os: ubuntu
-            image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+            image: ghcr.io/microsoft/ccf/ci/default:build-27-03-2025
             test_filter: "benchmark|unit"
           - name: snp
             os: ubuntu
-            image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+            image: ghcr.io/microsoft/ccf/ci/default:build-27-03-2025
           - name: virtual
             os: azure-linux
             image: mcr.microsoft.com/azurelinux/base/core:3.0
