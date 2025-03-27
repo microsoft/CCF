@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 
-- GHCR containers are no longer published from 6.0.0-rc3 onwards. Use RPM packages instead (#).
+- GHCR containers are no longer published from 6.0.0-rc3 onwards. Use RPM packages instead (#6938).
 
 ## [6.0.0-rc2]
 
