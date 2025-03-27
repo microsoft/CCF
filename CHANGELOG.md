@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 
+- Reference containers are no longer published to GHCR from 6.0.0-rc3 onwards. Azure Linux base images and RPM packages are recommended instead (#6938).
 - Debian packages are no longer published from 6.0.0-rc3 onwards. Azure Linux base images and RPM packages are recommended instead (#6939).
 
 ## [6.0.0-rc2]
