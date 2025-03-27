@@ -769,6 +769,7 @@ if(BUILD_TESTS)
 
     add_library(ccf_task_system ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/task_system.cpp)
     set_property(TARGET ccf_task_system PROPERTY POSITION_INDEPENDENT_CODE ON)
+    target_compile_definitions(ccf_task_system PRIVATE CCF_LOGGER_NO_DEPRECATE)
     target_link_libraries(
       ccf_task_system
       PUBLIC uv

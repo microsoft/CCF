@@ -2,6 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #include "tasks/task_system.h"
 
+#include "ccf/ds/logger.h"
+
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #define FMT_HEADER_ONLY
@@ -236,6 +238,7 @@ TEST_CASE("Cancellation - basic")
 
       for (size_t i = 0; i < to_cancel; ++i)
       {
+        // TODO: Why do some of these cancellations fail?
         ccf::tasks::TaskSystem::cancel_task(std::move(handles[i]));
       }
     });
@@ -262,10 +265,12 @@ struct ChaoticCancellerTask : public CompletionCountingTask
 
 TEST_CASE("Cancellation - dynamic")
 {
-  static constexpr auto n_tasks = 2000;
-  using BasicTaskType = ThreadIDCountingTask;
+  static constexpr auto n_tasks = 64;
+  using BasicTaskType = RecursiveThreadIDCountingTask<100>;
 
   // Insert some tasks which, when executed, will try to cancel other tasks.
+  // TODO: Why does this produce no cancellations? Because these were enqueued
+  // later?
   run_n_thread_counting_tasks<BasicTaskType>(
     n_tasks, [](TaskHandles&& handles) {
       REQUIRE(handles.size() == n_tasks);
@@ -288,9 +293,59 @@ TEST_CASE("Cancellation - dynamic")
     });
 }
 
+TEST_CASE("Exception handling")
+{
+  {
+    DOCTEST_INFO("Throw during execution");
+
+    std::atomic<bool> started_exec = false;
+    std::atomic<bool> finished_exec = false;
+    std::atomic<bool> completion_callback = false;
+
+    ccf::tasks::TaskSystem::enqueue_task(
+      std::make_unique<ccf::tasks::SimpleTask>(
+        [&]() {
+          started_exec.store(true);
+          throw std::logic_error("This task was an unmitigated disaster");
+          finished_exec.store(true);
+        },
+        [&](bool) { completion_callback.store(true); }));
+
+    REQUIRE_NOTHROW(run());
+
+    REQUIRE(started_exec.load());
+    REQUIRE_FALSE(finished_exec.load());
+    REQUIRE(completion_callback.load());
+  }
+
+  {
+    DOCTEST_INFO("Throw during completion callback");
+
+    std::atomic<bool> exec = false;
+    std::atomic<bool> started_callback = false;
+    std::atomic<bool> finished_callback = false;
+
+    ccf::tasks::TaskSystem::enqueue_task(
+      std::make_unique<ccf::tasks::SimpleTask>(
+        [&]() { exec.store(true); },
+        [&](bool) {
+          started_callback.store(true);
+          throw std::logic_error("This callback was an unmitigated disaster");
+          finished_callback.store(true);
+        }));
+
+    REQUIRE_NOTHROW(run());
+
+    REQUIRE(exec.load());
+    REQUIRE(started_callback.load());
+    REQUIRE_FALSE(finished_callback.load());
+  }
+}
+
 int main(int argc, char** argv)
 {
   ccf::tasks::TaskSystem::init();
+  ccf::logger::config::default_init();
 
   doctest::Context context;
   context.applyCommandLine(argc, argv);

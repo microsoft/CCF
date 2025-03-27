@@ -2,10 +2,9 @@
 // Licensed under the Apache 2.0 License.
 #include "tasks/task_system.h"
 
+#include "ccf/ds/logger.h"
 #include "tasks/queues/locking_concurrent_queue.h"
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 #include <thread>
 #include <uv.h>
 
@@ -16,13 +15,30 @@ namespace ccf::tasks
     static void do_uv_task(uv_work_t* req)
     {
       auto task = static_cast<ccf::tasks::Task*>(req->data);
-      task->execute_task();
+
+      try
+      {
+        task->execute_task();
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT("Exception thrown while executing task: {}", e.what());
+      }
     }
 
     static void after_uv_task(uv_work_t* req, int status)
     {
       auto task = static_cast<ccf::tasks::Task*>(req->data);
-      task->after_task_cb(status == UV_ECANCELED);
+
+      try
+      {
+        task->after_task_cb(status == UV_ECANCELED);
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Exception thrown while executing post-task callback: {}", e.what());
+      }
 
       delete task;
       delete req;
@@ -86,7 +102,15 @@ namespace ccf::tasks
         "The given cancellation token is not a valid uv_work handle");
     }
 
-    return uv_cancel(request) == 0;
+    const auto return_code = uv_cancel(request);
+    // if (return_code != 0)
+    // {
+    //   fmt::print(
+    //     "Unexpected return code when trying to cancel: {} {}\n",
+    //     return_code,
+    //     uv_strerror(return_code));
+    // }
+    return return_code == 0;
   }
 
   void TaskSystem::run_for(const std::chrono::milliseconds& s)
