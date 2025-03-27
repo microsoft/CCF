@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [6.0.0-rc3]
 
+[6.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-rc3
+
 ### Removed
 
 - GHCR containers are no longer published from 6.0.0-rc3 onwards. Use RPM packages instead (#).
