@@ -479,7 +479,7 @@ namespace tpcc
 
     void run()
     {
-      LOG_INFO_FMT("Start create");
+      CCF_APP_INFO("Start create");
       if (already_run)
       {
         throw std::logic_error("Can only create the database 1 time");
@@ -492,7 +492,7 @@ namespace tpcc
         make_stock(i);
         make_warehouse_without_stock(i);
       }
-      LOG_INFO_FMT("end create");
+      CCF_APP_INFO("end create");
     }
   };
 }
