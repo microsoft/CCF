@@ -148,6 +148,12 @@ def get_major_version_from_branch_name(branch_name):
     )
 
 
+def get_devel_package_prefix_with_platform(tag_name, platform="snp"):
+    tag_components = tag_name.split("-")
+    tag_components[0] += f"_{platform}_devel"
+    return "-".join(tag_components)
+
+
 def get_package_prefix_with_platform(tag_name, platform="snp"):
     tag_components = tag_name.split("-")
     tag_components[0] += f"_{platform}"
@@ -156,6 +162,8 @@ def get_package_prefix_with_platform(tag_name, platform="snp"):
 
 def get_package_url_from_tag_name(tag_name, platform="snp"):
     # First release with RPM packages for Azure Linux
+    if get_version_from_tag_name(tag_name) >= Version("6.0.0.rc2"):
+        return f"{REMOTE_URL}/releases/download/{tag_name}/{get_devel_package_prefix_with_platform(tag_name, platform).replace('-', '_')}{RPM_PACKAGE_EXTENSION}"
     if get_version_from_tag_name(tag_name) >= Version("6.0.0.dev19"):
         return f"{REMOTE_URL}/releases/download/{tag_name}/{get_package_prefix_with_platform(tag_name, platform).replace('-', '_')}{RPM_PACKAGE_EXTENSION}"
     if get_version_from_tag_name(tag_name) >= Version("3.0.0-rc0"):
