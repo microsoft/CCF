@@ -1,0 +1,5 @@
+FROM ghcr.io/microsoft/ccf/ci/default:build-05-12-2024
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+ENV RUNNER_ALLOW_RUNASROOT=true
+
+RUN apt update && apt install -y wget tar dotnet-sdk-8.0
