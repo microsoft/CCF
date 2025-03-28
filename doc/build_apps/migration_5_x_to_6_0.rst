@@ -7,7 +7,7 @@ A full feature list is available in the `6.0 release notes <https://github.com/m
 
 
 Join policy updates
------------
+-------------------
 
 When a node is started in ``Start`` or ``Recovery`` mode, it populates the join policy with its own environment.
 Specifically on C-ACI, new SNP nodes will populate ``nodes.snp.host_data``, ``nodes.snp.uvm_endorsements`` and ``nodes.snp.tcb_versions`` with their corresponding local values.
