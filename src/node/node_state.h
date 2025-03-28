@@ -1216,7 +1216,10 @@ namespace ccf
       {
         auto entry = ::consensus::LedgerEnclave::get_entry(data, size);
 
-        LOG_INFO_FMT("Deserialising private ledger entry [{}]", entry.size());
+        LOG_INFO_FMT(
+          "Deserialising private ledger entry {} [{}]",
+          last_recovered_idx + 1,
+          entry.size());
 
         // When reading the private ledger, deserialise in the recovery store
         ccf::kv::ApplyResult result = ccf::kv::ApplyResult::FAIL;
@@ -1308,6 +1311,29 @@ namespace ccf
           recovery_v);
 
         auto tx = network.tables->create_tx();
+
+        {
+          // Ensure this transition happens at-most-once, by checking that no
+          // other node has already advanced the state
+          auto service = tx.ro<ccf::Service>(Tables::SERVICE);
+          auto active_service = service->get();
+
+          if (!active_service.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Error in {}: no value in {}", __func__, Tables::SERVICE));
+          }
+
+          if (
+            active_service->status !=
+            ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+          {
+            throw std::logic_error(fmt::format(
+              "Error in {}: current service status is {}",
+              __func__,
+              active_service->status));
+          }
+        }
 
         // Clear recovery shares that were submitted to initiate the recovery
         // procedure

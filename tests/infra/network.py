@@ -1698,7 +1698,7 @@ class Network:
         with open(previous_identity, "w", encoding="utf-8") as f:
             f.write(current_ident)
         args.previous_service_identity_file = previous_identity
-        return args
+        return current_ident
 
     def identity(self, name=None):
         if name is not None:
