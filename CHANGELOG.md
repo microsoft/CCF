@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.0]
+
+[6.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0
+
+### Fixed
+
+- Fixed a bug which could produce an invalid secret chain (containing duplicate ledger secret sealing entries) in the ledger if an election occurred during private recovery (#6926).
+
 ## [6.0.0-rc3]
 
 [6.0.0-rc3]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0-rc3
@@ -17,10 +25,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [6.0.0-rc2]
 
 [6.0.0-rc2]: https://github.com/microsoft/CCF/releases/tag/6.0.0-rc2
-
-### Fixed
-
-- Fixed a bug which could produce an invalid secret chain (containing duplicate ledger secret sealing entries) in the ledger if an election occurred during private recovery (#6926).
 
 ### Removed
 
