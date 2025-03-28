@@ -6,6 +6,7 @@ import sys
 import json
 import re
 import argparse
+from datetime import datetime
 from enum import Enum, auto
 
 from loguru import logger as LOG
@@ -43,11 +44,25 @@ def fmt_json(data):
     return json.dumps(json.loads(data), indent=2)
 
 
+def fmt_cose_recent_timestamp(data):
+    s = data.decode()
+    ts, _ = s.split(":")
+    dt = datetime.fromtimestamp(int(ts))
+    return f"[{dt.isoformat()}] {s}"
+
+
 # List of table name regex to key and value format functions (first match is used)
 # Callers can specify additional rules (e.g. for application-specific
 # public tables) which get looked up first.
 default_format_rule = {"key": fmt_raw, "value": fmt_raw}
 default_tables_format_rules = [
+    (
+        "^public:ccf\\.gov\\.cose_recent_proposals$",
+        {
+            "key": fmt_cose_recent_timestamp,
+            "value": fmt_json,
+        },
+    ),
     (
         "^public:ccf\\.internal\\..*$",
         {
