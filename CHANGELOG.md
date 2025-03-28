@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [6.0.0]
 
-[6.0.0]: https://github.com/microsoft/CCF/releases/tag/6.0.0
+[6.0.0]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.0
 
 ### Important
 
@@ -134,6 +134,7 @@ It also adds COSE_Sign1 ledger signatures, to support the generation of COSE rec
 - Fixed thread-safety issues when CCF nodes attempted to contact non-TLS servers. This previously could cause errors when running SNP builds with multiple worker threads (#6836).
 - SNP nodes will no longer crash when run on firmware returning v3 attestations (#6841).
 - Fixed potential races in indexing interfaces and `LazyStrategy` (#6886).
+- Fixed a bug which could produce an invalid secret chain (containing duplicate ledger secret sealing entries) in the ledger if an election occurred during private recovery (#6926).
 
 ### Removed
 
