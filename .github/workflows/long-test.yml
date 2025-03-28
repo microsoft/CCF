@@ -45,7 +45,7 @@ jobs:
           cd build
           ../scripts/scan-build.sh
 
-  long-asan-azure-linux:
+  long-asan:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
     name: "ASAN"
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
@@ -231,6 +231,8 @@ jobs:
         run: |
           set -ex
           ./scripts/setup-ci.sh
+          # This run requires libc++ to run with hardening mode
+          tdnf -y install libcxx-devel libunwind-devel
 
       - name: "Build"
         run: |
