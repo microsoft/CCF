@@ -16,6 +16,10 @@ namespace ccf::tasks
     static void init();
 
     static TaskHandle enqueue_task(std::unique_ptr<ccf::tasks::Task>&& task);
+    static TaskHandle enqueue_task_after_delay(
+      std::unique_ptr<ccf::tasks::Task>&& task,
+      const std::chrono::milliseconds& delay);
+
     static bool cancel_task(TaskHandle&& token);
 
     static void run_for(const std::chrono::milliseconds& s);

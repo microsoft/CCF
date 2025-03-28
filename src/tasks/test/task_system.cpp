@@ -130,9 +130,10 @@ TaskHandles shuffle_and_submit(Tasks&& tasks)
   return handles;
 }
 
-void run()
+void run(size_t milliseconds_to_run = 100)
 {
-  ccf::tasks::TaskSystem::run_for(std::chrono::milliseconds(100));
+  ccf::tasks::TaskSystem::run_for(
+    std::chrono::milliseconds(milliseconds_to_run));
 }
 
 using Canceller = std::function<void(TaskHandles&&)>;
@@ -340,6 +341,47 @@ TEST_CASE("Exception handling")
     REQUIRE(started_callback.load());
     REQUIRE_FALSE(finished_callback.load());
   }
+}
+
+struct TickerTask : public ccf::tasks::Task
+{
+  std::string name;
+  std::chrono::milliseconds delay;
+
+  TickerTask(const std::string& name_, std::chrono::milliseconds delay_) :
+    name(name_),
+    delay(delay_)
+  {}
+
+  void execute_task() override
+  {
+    LOG_INFO_FMT("I'm {}, and I tick every {}ms", name, delay.count());
+
+    ccf::tasks::TaskSystem::enqueue_task_after_delay(
+      std::make_unique<TickerTask>(name, delay), delay);
+  }
+};
+
+TEST_CASE("Delayed tasks")
+{
+  using namespace std::chrono_literals;
+
+  // TODO: Add a test that actually counts how often some delayed tasks happen
+  // TODO: Add a nicer wrapper for repeated tasks, so they don't have to
+  // manually schedule another delayed task
+
+  fmt::print("About to enqueue\n");
+  ccf::tasks::TaskSystem::enqueue_task_after_delay(
+    std::make_unique<TickerTask>("Alice", 500ms), 500ms);
+  ccf::tasks::TaskSystem::enqueue_task_after_delay(
+    std::make_unique<TickerTask>("Bob", 1000ms), 1000ms);
+  ccf::tasks::TaskSystem::enqueue_task_after_delay(
+    std::make_unique<TickerTask>("Charlie", 2000ms), 2000ms);
+  fmt::print("Finished enqueue\n");
+
+  fmt::print("About to run\n");
+  run(10000);
+  fmt::print("Finished run\n");
 }
 
 int main(int argc, char** argv)

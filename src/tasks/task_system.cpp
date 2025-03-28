@@ -45,8 +45,13 @@ namespace ccf::tasks
     }
 
     static LockingConcurrentQueue<uv_work_t*> pending_work = {};
-    static uv_async_t async_handle = {};
+    static uv_async_t async_handle_enqueue_pending_work = {};
     static std::thread::id main_thread_id = std::this_thread::get_id();
+
+    static void queue_work_main_thread(uv_work_t* work)
+    {
+      uv_queue_work(uv_default_loop(), work, &do_uv_task, &after_uv_task);
+    }
 
     static void enqueue_pending_work(uv_async_t* async)
     {
@@ -54,8 +59,7 @@ namespace ccf::tasks
 
       while (request_opt.has_value())
       {
-        uv_queue_work(
-          uv_default_loop(), request_opt.value(), &do_uv_task, &after_uv_task);
+        queue_work_main_thread(request_opt.value());
 
         request_opt = pending_work.try_pop();
       }
@@ -65,32 +69,66 @@ namespace ccf::tasks
     {
       uv_stop(uv_default_loop());
     }
+
+    static void enqueue_delayed_task(uv_timer_t* handle)
+    {
+      uv_work_t* work_handle = (uv_work_t*)handle->data;
+      queue_work_main_thread(work_handle);
+      delete handle;
+    }
   }
 
   void TaskSystem::init()
   {
-    uv_async_init(uv_default_loop(), &async_handle, enqueue_pending_work);
+    uv_async_init(
+      uv_default_loop(),
+      &async_handle_enqueue_pending_work,
+      enqueue_pending_work);
   }
 
   TaskHandle TaskSystem::enqueue_task(std::unique_ptr<ccf::tasks::Task>&& task)
   {
     uv_work_t* request = new uv_work_t;
-
     request->data = task.release();
 
     if (std::this_thread::get_id() == main_thread_id)
     {
-      uv_queue_work(uv_default_loop(), request, &do_uv_task, &after_uv_task);
+      queue_work_main_thread(request);
     }
     else
     {
       // uv_queue_work cannot be called directly from the thread pool, so need
       // to queue and handle later with an async.
       pending_work.push_back(request);
-      uv_async_send(&async_handle);
+      uv_async_send(&async_handle_enqueue_pending_work);
     }
 
     return request;
+  }
+
+  TaskHandle TaskSystem::enqueue_task_after_delay(
+    std::unique_ptr<ccf::tasks::Task>&& task,
+    const std::chrono::milliseconds& delay)
+  {
+    // TODO: This is a dumb way of doing this, should just duplicate the
+    // async_send machinery?
+
+    uv_work_t* work_request = new uv_work_t;
+    work_request->data = task.release();
+
+    // Enqueue a new task (handling the dispatch to the main thread if required)
+    return enqueue_task(std::make_unique<SimpleTask>(
+      // Do nothing in the main body of that task
+      []() {},
+      // But in the completion callback, when we know we're on the main thread
+      // (so can access uv functions), start a timer
+      [work_request, delay](bool) {
+        uv_timer_t* delay_timer = new uv_timer_t;
+
+        uv_timer_init(uv_default_loop(), delay_timer);
+        delay_timer->data = work_request;
+        uv_timer_start(delay_timer, &enqueue_delayed_task, delay.count(), 0);
+      }));
   }
 
   bool TaskSystem::cancel_task(TaskHandle&& token)
