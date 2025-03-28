@@ -37,13 +37,6 @@ Overview
 
     Common terms used throughout the documentation and their definitions.
 
-    ---
-
-    :fa:`cogs` :doc:`maintenance`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Explains what maintenance is needed by which actor.
-
 .. toctree::
     :hidden:
     :maxdepth: 1
@@ -52,5 +45,4 @@ Overview
     governance
     performance
     faq
-    maintenance
     glossary
