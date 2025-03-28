@@ -185,6 +185,11 @@ class GitEnv:
             for branch in self.g.ls_remote(REMOTE_URL).split("\n")
             if "heads/release" in branch
         ]
+        repo = git.Repo(os.getcwd(), search_parent_directories=True)
+        current_commit = repo.head.commit
+        self.tags_for_current_commit = [
+            tag.name for tag in repo.tags if tag.commit == current_commit
+        ]
 
     def has_release_for_tag_name(self, tag_name):
         return (
@@ -448,7 +453,10 @@ class Repository:
                 (
                     tag
                     for tag in self.tags
-                    if get_version_from_tag_name(tag) >= Version("6.0.0.dev0")
+                    if (
+                        get_version_from_tag_name(tag) >= Version("6.0.0.dev0")
+                        and tag not in self.g.tags_for_current_commit
+                    )
                 ),
                 key=get_version_from_tag_name,
                 reverse=True,
