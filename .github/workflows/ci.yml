@@ -46,74 +46,7 @@ jobs:
         shell: bash
 
   build_and_test:
-    name: CI
-    needs: checks
-    strategy:
-      matrix:
-        platform:
-          - name: virtual
-            image: default
-            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-          - name: snp
-            image: default
-            nodes: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-    runs-on: ${{ matrix.platform.nodes }}
-    container:
-      image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-14-01-2025
-      options: ${{ matrix.platform.options }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: "Build Debug ${{ matrix.platform.name }}"
-        run: |
-          set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug ..
-          ninja
-        shell: bash
-
-      - name: "Platform SNP"
-        run: |
-          samples/scripts/snpinfo.sh
-        shell: bash
-        if: "${{ matrix.platform.name == 'snp' }}"
-
-      - name: "Test ${{ matrix.platform.name }}"
-        run: |
-          set -ex
-          cd build
-          rm -rf /github/home/.cache
-          mkdir -p /github/home/.cache
-          export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
-          # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          # All other acceptably fast tests, mostly end-to-end
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|protocolstest|suite|unit"
-          # Partitions tests
-          ./tests.sh --timeout 240 --output-on-failure -L partitions -C partitions
-        shell: bash
-        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
-
-      - name: "Upload logs for ${{ matrix.platform.name }}"
-        uses: actions/upload-artifact@v4
-        with:
-          name: logs-ubuntu-${{ matrix.platform.name }}
-          path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*.ledger/*
-          if-no-files-found: ignore
-        if: success() || failure()
-
-  build_and_test_azure_linux:
-    name: "Azure Linux CI"
+    name: "CI"
     needs: checks
     strategy:
       matrix:
@@ -182,7 +115,7 @@ jobs:
           if-no-files-found: ignore
         if: success() || failure()
 
-  build_caci:
+  build_and_test_caci:
     name: "Confidential Container (ACI) CI"
     runs-on: [self-hosted, 1ES.Pool=gha-caci-ne]
     needs: checks
