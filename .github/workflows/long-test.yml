@@ -92,7 +92,7 @@ jobs:
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-asan-al
+          name: logs-asan
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
@@ -112,6 +112,7 @@ jobs:
       - name: "Checkout dependencies"
         shell: bash
         run: |
+          set -ex
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
           tdnf -y install ca-certificates git
@@ -145,7 +146,7 @@ jobs:
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-tsan-al
+          name: logs-tsan
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
@@ -278,6 +279,7 @@ jobs:
       - name: "Checkout dependencies"
         shell: bash
         run: |
+          set -ex
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
           tdnf -y install ca-certificates git
@@ -310,7 +312,7 @@ jobs:
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-e2e-release-al
+          name: logs-e2e-release
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
@@ -331,6 +333,7 @@ jobs:
       - name: "Checkout dependencies"
         shell: bash
         run: |
+          set -ex
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
           tdnf -y install ca-certificates git
@@ -363,7 +366,7 @@ jobs:
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-e2e-shuffled-al
+          name: logs-e2e-shuffled
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
