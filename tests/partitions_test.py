@@ -779,7 +779,6 @@ def test_recovery_elections(orig_network, args):
         "--inject=lseek:delay_exit=10s",
         "-tt",
         "--trace=lseek,read,open,openat",
-        "--decode-fds=all",
         "--output=strace_output.txt",
     ]
     LOG.warning(f"About to run strace: {strace_command}")
