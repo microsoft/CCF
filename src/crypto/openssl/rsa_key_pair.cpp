@@ -8,7 +8,6 @@
 
 #include <openssl/core_names.h>
 
-
 namespace ccf::crypto
 {
   using namespace OpenSSL;
