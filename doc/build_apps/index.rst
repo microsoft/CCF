@@ -99,8 +99,18 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     ---
 
     :fa:`mail-forward ` :doc:`fwd_to_redirect`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     Migrate from forwarding (deprecated) to redirect (recommended) endpoints.
+
+    ---
+    
+    :fa:`arrow-right` :doc:`migration_5_x_to_6_0`
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    Migrate from CCF 5.x to 6.0.
+
+    ---
 
 
 .. toctree::
@@ -120,3 +130,4 @@ These endpoints can read or mutate the state of a unique :ref:`build_apps/kv/ind
     crypto
     release_policy
     fwd_to_redirect
+    migration_5_x_to_6_0
