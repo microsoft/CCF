@@ -91,6 +91,11 @@ void print_version(int64_t ignored)
   exit(0); // NOLINT(concurrency-mt-unsafe)
 }
 
+void foohaha(int xoring, int yoring)
+{
+  std::cout << (int8_t)xoring << std::endl;
+}
+
 static constexpr size_t max_time_us = 10'000;
 std::chrono::microseconds asynchost::TimeBoundLogger::default_max_time(
   max_time_us);
@@ -988,6 +993,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       "Failed to close uv loop cleanly: {}", uv_err_name(loop_close_rc));
   }
   ccf::crypto::openssl_sha256_shutdown();
+
+  foohaha(19294919, 12);
 
   return loop_close_rc;
 }
