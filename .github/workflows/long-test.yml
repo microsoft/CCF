@@ -363,7 +363,7 @@ jobs:
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-e2e-shuffled
+          name: logs-e2e-shuffled-al
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
