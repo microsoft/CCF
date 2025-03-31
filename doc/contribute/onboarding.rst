@@ -42,17 +42,11 @@ To run a locally built copy of this application in a sandbox, see :doc:`/build_a
 Have a look at the Continuous Integration jobs
 ----------------------------------------------
 
-The main CI job for CCF is defined in :ccf_repo:`a YAML file in the repo </.azure-pipelines.yml>` and runs are accessible `here <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=3&_a=summary>`__.
+The main CI job for CCF is defined in :ccf_repo:`a YAML file in the repo </.github/workflows/ci.yml>` and runs are accessible `here <https://github.com/microsoft/CCF/actions/workflows/ci.yml>`__.
 
 That job gates pull requests, and is also used with a different trigger (on tags like ``ccf-*``) to produce releases.
 
-Three more in-depth jobs are run every day:
-
-- The `Daily build <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=7>`_ (:ccf_repo:`.daily.yml </.daily.yml>`) is longer version of the CI, and makes use of instrumentation (ASAN, UBSAN...).
-- The `Threading build <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=13>`_ (:ccf_repo:`.multi-thread.yml </.multi-thread.yml>`) tests CCF with multiple worker threads.
-- The `Stress build <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=9>`_ (:ccf_repo:`.stress.yml </.stress.yml>`) runs long-lived tests against CCF networks.
-
-Documentation is built and published to GitHub Pages by `this job <https://dev.azure.com/MSRC-CCF/CCF/_build?definitionId=4>`_ (:ccf_repo:`YAML </.azure-pipelines-gh-pages.yml>`).
+:ccf_repo:`Several other jobs </.github/workflows/README.md>` are defined as GitHub Actions worflows and run more in-depth tests, publish documentation etc.
 
 Review the release and compatibility policy
 -------------------------------------------
