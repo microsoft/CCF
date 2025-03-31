@@ -10,12 +10,6 @@ Overview
 
     ---
 
-    :fa:`question` :doc:`faq`
-    ^^^^^^^^^^^^^^^^^^^^^^^^^
-
-    Frequently Asked Questions.
-
-    ---
     
     :fa:`scroll` :doc:`governance`
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -44,5 +38,4 @@ Overview
     what_is_ccf
     governance
     performance
-    faq
     glossary
