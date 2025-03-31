@@ -760,7 +760,7 @@ def test_recovery_elections(orig_network, args):
     with new_primary.client("user0") as c:
         previous_identity = network.save_service_identity(args)
 
-    member = network.consortium.get_active_recovery_participants()[0]
+    member = network.consortium.get_active_recovery_members()[0]
 
     # We need to delay a backup's private recovery process until:
     # - The primary has completed its private recovery, and fully opened the network
