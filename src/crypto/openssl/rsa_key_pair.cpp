@@ -6,9 +6,8 @@
 #include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/hash.h"
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-#  include <openssl/core_names.h>
-#endif
+#include <openssl/core_names.h>
+
 
 namespace ccf::crypto
 {
@@ -21,17 +20,11 @@ namespace ccf::crypto
     Unique_BIGNUM big_exp;
     CHECK1(BN_set_word(big_exp, public_exponent));
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     Unique_EVP_PKEY_CTX pctx("RSA");
     CHECK1(EVP_PKEY_keygen_init(pctx));
     CHECKPOSITIVE(EVP_PKEY_CTX_set_rsa_keygen_bits(pctx, public_key_size));
     CHECKPOSITIVE(EVP_PKEY_CTX_set1_rsa_keygen_pubexp(pctx, big_exp));
     CHECK1(EVP_PKEY_generate(pctx, &key));
-#else
-    Unique_RSA rsa;
-    CHECK1(RSA_generate_key_ex(rsa, public_key_size, big_exp, NULL));
-    CHECK1(EVP_PKEY_set1_RSA(key, rsa));
-#endif
   }
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(EVP_PKEY* k) :
@@ -67,7 +60,6 @@ namespace ccf::crypto
     CHECKNULL(BN_bin2bn(dq_raw.data(), dq_raw.size(), dq));
     CHECKNULL(BN_bin2bn(qi_raw.data(), qi_raw.size(), qi));
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     // Note: raw vectors are big endians while OSSL_PARAM_construct_BN expects
     // native endianness
     std::vector<uint8_t> d_raw_native(d_raw.size());
@@ -116,22 +108,6 @@ namespace ccf::crypto
     Unique_EVP_PKEY_CTX pctx("RSA");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_KEYPAIR, params));
-#else
-    auto rsa = RSAPublicKey_OpenSSL::rsa_public_from_jwk(jwk);
-    CHECK1(RSA_set0_key(rsa, nullptr, nullptr, d));
-    d.release();
-
-    CHECK1(RSA_set0_factors(rsa, p, q));
-    p.release();
-    q.release();
-
-    CHECK1(RSA_set0_crt_params(rsa, dp, dq, qi));
-    dp.release();
-    dq.release();
-    qi.release();
-
-    CHECK1(EVP_PKEY_set1_RSA(key, rsa));
-#endif
   }
 
   size_t RSAKeyPair_OpenSSL::key_size() const
@@ -239,27 +215,12 @@ namespace ccf::crypto
 
     Unique_BIGNUM d, p, q, dp, dq, qi;
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     d = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_D);
     p = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_FACTOR1);
     q = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_FACTOR2);
     dp = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_EXPONENT1);
     dq = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_EXPONENT2);
     qi = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_COEFFICIENT1);
-#else
-    const RSA* rsa = EVP_PKEY_get0_RSA(key);
-    if (!rsa)
-    {
-      throw std::logic_error("invalid RSA key");
-    }
-
-    d = RSA_get0_d(rsa);
-    p = RSA_get0_p(rsa);
-    q = RSA_get0_q(rsa);
-    dp = RSA_get0_dmp1(rsa);
-    dq = RSA_get0_dmq1(rsa);
-    qi = RSA_get0_iqmp(rsa);
-#endif
 
     jwk.d = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(d), false);
     jwk.p = b64url_from_raw(RSAPublicKey_OpenSSL::bn_bytes(p), false);
