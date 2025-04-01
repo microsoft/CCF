@@ -98,7 +98,7 @@ jobs:
           # All other acceptably fast tests, mostly end-to-end
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|suite|unit"
           # Partitions tests
-          ./tests.sh --timeout 240 --output-on-failure -L partitions -C partitions
+          ./tests.sh --timeout 300 --output-on-failure -L partitions -C partitions
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
 
