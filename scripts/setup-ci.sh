@@ -25,7 +25,8 @@ tdnf -y install  \
     curl-devel  \
     libarrow-devel  \
     parquet-libs-devel  \
-    doxygen
+    doxygen  \
+    clang-tools-extra-devel
 
 # To run standard tests
 tdnf -y install  \
