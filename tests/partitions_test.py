@@ -805,6 +805,16 @@ def test_recovery_elections(orig_network, args):
     )
     time.sleep(election_s)
 
+    # If strace failed to stall the node, the rest of the test is meaningless.
+    try:
+        strace_process.communicate(timeout=1)
+    except subprocess.TimeoutExpired:
+        assert strace_process.returncode is None, strace_process.returncode
+    else:
+        assert (
+            False
+        ), f"strace must not have been completed yet (retcode: {strace_process.returncode})"
+
     LOG.info("Ending strace, and terminating primary node")
     strace_process.terminate()
     strace_process.communicate()
