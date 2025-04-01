@@ -45,7 +45,7 @@ jobs:
           - name: sgx
             image: sgx
             nodes: [self-hosted, 1ES.Pool=gha-sgx-ccf-sub]
-            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
+            options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE --device /dev/sgx_enclave:/dev/sgx_enclave --device /dev/sgx_provision:/dev/sgx_provision -v /dev/sgx:/dev/sgx -v /lib/modules:/lib/modules:ro
     runs-on: ${{ matrix.platform.nodes }}
     container:
       image: ghcr.io/microsoft/ccf/ci/${{ matrix.platform.image }}:build-05-12-2024
@@ -80,6 +80,12 @@ jobs:
         shell: bash
         if: "${{ matrix.platform.name == 'snp' }}"
 
+      - name: "Install extra dependencies"
+        run: |
+          # For backported #6926.
+          sudo apt install strace -y
+        shell: bash
+
       - name: "Test ${{ matrix.platform.name }}"
         run: |
           set -ex
@@ -92,7 +98,7 @@ jobs:
           # All other acceptably fast tests, mostly end-to-end
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|perf|protocolstest|suite|unit"
           # Partitions tests
-          ./tests.sh --timeout 240 --output-on-failure -L partitions -C partitions
+          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
         if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
 

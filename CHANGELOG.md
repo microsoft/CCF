@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - Improved locking in indexing system, to remove race conditions which were possible when accessing historical state (#6886).
+- Fixed a bug which could produce an invalid secret chain (containing duplicate ledger secret sealing entries) in the ledger if an election occurred during private recovery (#6926). Comes with #6912 as a prerequisite.
 
 ## [5.0.14]
 

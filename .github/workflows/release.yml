@@ -114,6 +114,12 @@ jobs:
         shell: bash
         if: ${{ matrix.platform.name != 'snp' }}
 
+      - name: "Install extra dependencies"
+        run: |
+          # For backported #6926.
+          sudo apt install strace -y
+        shell: bash
+
       - name: "Test ${{ matrix.platform.name }}"
         run: |
           set -ex
