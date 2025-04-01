@@ -46,15 +46,12 @@ Afterwards, go to your VM and select a proper RAM and CPU profile. If you don't 
 How to install docker
 ~~~~~~~~~~~~~~~~~~~~~
 
-Via downloading binaries: https://docs.docker.com/engine/install/binaries/#install-daemon-and-client-binaries-on-linux.
-
 .. code-block:: bash
 
-    wget https://download.docker.com/linux/static/stable/x86_64/docker-28.0.1.tgz
-    tar xzvf docker-28.0.1.tgz
-    sudo cp docker/* /usr/bin/
-    sudo dockerd &
-    sudo docker run hello-world
+    sudo tdnf install moby-engine moby-cli ca-certificates -y  
+    sudo systemctl enable docker.service  
+    sudo systemctl daemon-reload  
+    sudo systemctl start docker.service
 
 How do I install an EXTENDED package
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
