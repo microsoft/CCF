@@ -56,6 +56,7 @@ jobs:
       - name: "Checkout dependencies"
         shell: bash
         run: |
+          set -ex
           gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
           tdnf -y update
           tdnf -y install ca-certificates git
