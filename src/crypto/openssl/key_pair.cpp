@@ -12,6 +12,7 @@
 #define FMT_HEADER_ONLY
 #include <fmt/format.h>
 #include <openssl/asn1.h>
+#include <openssl/core_names.h>
 #include <openssl/ec.h>
 #include <openssl/engine.h>
 #include <openssl/err.h>
@@ -21,10 +22,6 @@
 #include <openssl/x509v3.h>
 #include <stdexcept>
 #include <string>
-
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-#  include <openssl/core_names.h>
-#endif
 
 namespace ccf::crypto
 {
@@ -78,7 +75,6 @@ namespace ccf::crypto
     Unique_BIGNUM d;
     auto d_raw = raw_from_b64url(jwk.d);
     OpenSSL::CHECKNULL(BN_bin2bn(d_raw.data(), d_raw.size(), d));
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
     // Note: d_raw is big endian while OSSL_PARAM_construct_BN expects native
     // endianness
@@ -99,11 +95,6 @@ namespace ccf::crypto
     Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_KEYPAIR, params));
-#else
-    auto ec_key = PublicKey_OpenSSL::ec_key_public_from_jwk(jwk);
-    CHECK1(EC_KEY_set_private_key(ec_key, d));
-    CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key));
-#endif
   }
 
   Pem KeyPair_OpenSSL::private_key_pem() const
@@ -492,14 +483,9 @@ namespace ccf::crypto
     size_t size = EVP_PKEY_bits(key) / 8;
     std::vector<uint8_t> bytes(size);
     Unique_BIGNUM d;
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     BIGNUM* bn_d = NULL;
     CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_PRIV_KEY, &bn_d));
     d.reset(bn_d);
-#else
-    Unique_EC_KEY eckey(EVP_PKEY_get1_EC_KEY(key));
-    d = EC_KEY_get0_private_key(eckey);
-#endif
     auto rc = BN_bn2binpad(d, bytes.data(), size);
     if (rc != size)
     {
