@@ -144,10 +144,7 @@ jobs:
         with:
           name: logs-azurelinux-${{ matrix.platform.name }}
           path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*.ledger/*
+            build/*
           if-no-files-found: ignore
         if: success() || failure()
 
@@ -190,9 +187,6 @@ jobs:
         with:
           name: logs-caci-snp
           path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*.ledger/*
+            build/*
           if-no-files-found: ignore
         if: success() || failure()
