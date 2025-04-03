@@ -4,13 +4,11 @@ import subprocess
 import sys
 import tempfile
 import os
-import shlex
 
 
 def run(cert_test):
     def test(args, *substrs):
         with tempfile.NamedTemporaryFile() as ntf:
-            print(f"Running: {shlex.join([cert_test] + args)}")
             subprocess.run([cert_test] + args, stdout=ntf, check=True)
             ntf.flush()
             rv = subprocess.run(
@@ -29,7 +27,6 @@ def run(cert_test):
             try:
                 for substr in substrs:
                     assert substr in rv.stdout.decode()
-                print("All asserts passed")
             except AssertionError:
                 print(rv.stdout.decode(), file=sys.stderr)
                 raise
@@ -88,6 +85,16 @@ def run(cert_test):
     long_dnsname = "a" * MAX_DNSNAME_SAN_LENGTH
     test(
         ["--sn=CN=subject3", f"--san=dNSName:{long_dnsname}"],
+        "Subject: CN = subject3\n",
+        "X509v3 Subject Alternative Name: \n" + 16 * " ",
+        f"DNS:{long_dnsname}",
+    )
+
+    MAX_DNSNAME_SAN_LENGTH = 256
+    long_dnsname = "a" * MAX_DNSNAME_SAN_LENGTH
+    NUM_OF_SANS = 256
+    test(
+        ["--sn=CN=subject3"] + [f"--san=dNSName:{long_dnsname}"] * NUM_OF_SANS,
         "Subject: CN = subject3\n",
         "X509v3 Subject Alternative Name: \n" + 16 * " ",
         f"DNS:{long_dnsname}",
