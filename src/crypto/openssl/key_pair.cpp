@@ -231,10 +231,10 @@ namespace ccf::crypto
     {
       OpenSSL::CHECK1(X509_NAME_add_entry_by_txt(
         subj_name,
-        k.data(),
+        k.c_str(),
         MBSTRING_ASC,
         (const unsigned char*)v.data(),
-        -1,
+        v.size(),
         -1,
         0));
     }
