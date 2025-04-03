@@ -71,6 +71,16 @@ def run(cert_test):
         "IP Address:1.2.3.4",
     )
 
+    MAX_SUBJECT_LENGTH = 64
+    PREFIX = "CN="
+    long_subject = PREFIX + "a" * (MAX_SUBJECT_LENGTH - len(PREFIX))
+    test(
+        [f"--sn=CN={long_subject}", "--san=iPAddress:1.2.3.4"],
+        f"Subject: CN = {long_subject}\n",
+        "X509v3 Subject Alternative Name: \n" + 16 * " ",
+        "IP Address:1.2.3.4",
+    )
+
 
 if __name__ == "__main__":
     run(sys.argv[1])
