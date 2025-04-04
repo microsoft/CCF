@@ -154,7 +154,7 @@ jobs:
   build_and_test_caci:
     name: "Confidential Container (ACI) CI"
     runs-on: [self-hosted, 1ES.Pool=gha-caci-ne]
-    needs: checks
+    # needs: checks
 
     steps:
       - uses: actions/checkout@v4

@@ -320,12 +320,13 @@ namespace ccf
           ccf::crypto::Sha256Hash(security_policy);
         if (security_policy_digest != quoted_digest.value())
         {
-          throw std::logic_error(fmt::format(
-            "Digest of decoded security policy \"{}\" {} does not match "
-            "attestation host data {}",
-            security_policy,
-            security_policy_digest.hex_str(),
-            quoted_digest.value().hex_str()));
+          throw std::logic_error(
+            fmt::format(
+              "Digest of decoded security policy \"{}\" {} does not match "
+              "attestation host data {}",
+              security_policy,
+              security_policy_digest.hex_str(),
+              quoted_digest.value().hex_str()));
         }
         LOG_INFO_FMT(
           "Successfully verified attested security policy {}",
@@ -423,80 +424,83 @@ namespace ccf
 
         if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {
-          // Use endorsements retrieved from file, if available
-          if (config.attestation.environment.snp_endorsements.has_value())
-          {
-            try
-            {
-              const auto raw_data = ccf::crypto::raw_from_b64(
-                config.attestation.environment.snp_endorsements.value());
+          // // Use endorsements retrieved from file, if available
+          // if (config.attestation.environment.snp_endorsements.has_value())
+          // {
+          //   try
+          //   {
+          //     const auto raw_data = ccf::crypto::raw_from_b64(
+          //       config.attestation.environment.snp_endorsements.value());
 
-              const auto j = nlohmann::json::parse(raw_data);
-              const auto aci_endorsements =
-                j.get<ccf::pal::snp::ACIReportEndorsements>();
+          //     const auto j = nlohmann::json::parse(raw_data);
+          //     const auto aci_endorsements =
+          //       j.get<ccf::pal::snp::ACIReportEndorsements>();
 
-              // Check that tcbm in endorsement matches reported TCB in our
-              // retrieved attestation
-              auto* quote = reinterpret_cast<const ccf::pal::snp::Attestation*>(
-                quote_info.quote.data());
-              const auto reported_tcb = quote->reported_tcb;
+          //     // Check that tcbm in endorsement matches reported TCB in our
+          //     // retrieved attestation
+          //     auto* quote = reinterpret_cast<const
+          //     ccf::pal::snp::Attestation*>(
+          //       quote_info.quote.data());
+          //     const auto reported_tcb = quote->reported_tcb;
 
-              // tcbm is a single hex value, like DB18000000000004. To match
-              // that with a TcbVersion, reverse the bytes.
-              const uint8_t* tcb_begin =
-                reinterpret_cast<const uint8_t*>(&reported_tcb);
-              const std::span<const uint8_t> tcb_bytes{
-                tcb_begin, tcb_begin + sizeof(reported_tcb)};
-              auto tcb_as_hex = fmt::format(
-                "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
-              ccf::nonstd::to_upper(tcb_as_hex);
+          //     // tcbm is a single hex value, like DB18000000000004. To match
+          //     // that with a TcbVersion, reverse the bytes.
+          //     const uint8_t* tcb_begin =
+          //       reinterpret_cast<const uint8_t*>(&reported_tcb);
+          //     const std::span<const uint8_t> tcb_bytes{
+          //       tcb_begin, tcb_begin + sizeof(reported_tcb)};
+          //     auto tcb_as_hex = fmt::format(
+          //       "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(),
+          //       ""));
+          //     ccf::nonstd::to_upper(tcb_as_hex);
 
-              if (tcb_as_hex == aci_endorsements.tcbm)
-              {
-                LOG_INFO_FMT(
-                  "Using SNP endorsements loaded from file, endorsing TCB {}",
-                  tcb_as_hex);
+          //     if (tcb_as_hex == aci_endorsements.tcbm)
+          //     {
+          //       LOG_INFO_FMT(
+          //         "Using SNP endorsements loaded from file, endorsing TCB
+          //         {}", tcb_as_hex);
 
-                auto& endorsements_pem = quote_info.endorsements;
-                endorsements_pem.insert(
-                  endorsements_pem.end(),
-                  aci_endorsements.vcek_cert.begin(),
-                  aci_endorsements.vcek_cert.end());
-                endorsements_pem.insert(
-                  endorsements_pem.end(),
-                  aci_endorsements.certificate_chain.begin(),
-                  aci_endorsements.certificate_chain.end());
+          //       auto& endorsements_pem = quote_info.endorsements;
+          //       endorsements_pem.insert(
+          //         endorsements_pem.end(),
+          //         aci_endorsements.vcek_cert.begin(),
+          //         aci_endorsements.vcek_cert.end());
+          //       endorsements_pem.insert(
+          //         endorsements_pem.end(),
+          //         aci_endorsements.certificate_chain.begin(),
+          //         aci_endorsements.certificate_chain.end());
 
-                try
-                {
-                  launch_node();
-                  return;
-                }
-                catch (const std::exception& e)
-                {
-                  LOG_FAIL_FMT("Failed to launch node: {}", e.what());
-                  throw;
-                }
-              }
-              else
-              {
-                LOG_FAIL_FMT(
-                  "SNP endorsements loaded from disk ({}) contained tcbm {}, "
-                  "which does not match reported TCB of current attestation "
-                  "{}. "
-                  "Falling back to fetching fresh endorsements from server.",
-                  config.attestation.snp_endorsements_file.value(),
-                  aci_endorsements.tcbm,
-                  tcb_as_hex);
-              }
-            }
-            catch (const std::exception& e)
-            {
-              LOG_FAIL_FMT(
-                "Error attempting to use SNP endorsements from file: {}",
-                e.what());
-            }
-          }
+          //       try
+          //       {
+          //         launch_node();
+          //         return;
+          //       }
+          //       catch (const std::exception& e)
+          //       {
+          //         LOG_FAIL_FMT("Failed to launch node: {}", e.what());
+          //         throw;
+          //       }
+          //     }
+          //     else
+          //     {
+          //       LOG_FAIL_FMT(
+          //         "SNP endorsements loaded from disk ({}) contained tcbm {},
+          //         " "which does not match reported TCB of current attestation
+          //         "
+          //         "{}. "
+          //         "Falling back to fetching fresh endorsements from server.",
+          //         config.attestation.snp_endorsements_file.value(),
+          //         aci_endorsements.tcbm,
+          //         tcb_as_hex);
+          //     }
+          //   }
+          //   catch (const std::exception& e)
+          //   {
+          //     LOG_FAIL_FMT(
+          //       "Error attempting to use SNP endorsements from file: {}",
+          //       e.what());
+          //   }
+          // }
 
           if (config.attestation.snp_endorsements_servers.empty())
           {
@@ -969,9 +973,10 @@ namespace ccf
     {
       if (!sm.check(NodeStartupState::readingPublicLedger))
       {
-        throw std::logic_error(fmt::format(
-          "Node should be in state {} to start reading ledger",
-          NodeStartupState::readingPublicLedger));
+        throw std::logic_error(
+          fmt::format(
+            "Node should be in state {} to start reading ledger",
+            NodeStartupState::readingPublicLedger));
       }
 
       LOG_INFO_FMT("Starting to read public ledger");
@@ -1279,19 +1284,21 @@ namespace ccf
 
       if (recovery_v != recovery_store->current_version())
       {
-        throw std::logic_error(fmt::format(
-          "Private recovery did not reach public ledger seqno: {}/{}",
-          recovery_store->current_version(),
-          recovery_v));
+        throw std::logic_error(
+          fmt::format(
+            "Private recovery did not reach public ledger seqno: {}/{}",
+            recovery_store->current_version(),
+            recovery_v));
       }
 
       auto h =
         dynamic_cast<MerkleTxHistory*>(recovery_store->get_history().get());
       if (h->get_replicated_state_root() != recovery_root)
       {
-        throw std::logic_error(fmt::format(
-          "Root of public store does not match root of private store at {}",
-          recovery_v));
+        throw std::logic_error(
+          fmt::format(
+            "Root of public store does not match root of private store at {}",
+            recovery_v));
       }
 
       network.tables->swap_private_maps(*recovery_store.get());
@@ -1320,18 +1327,20 @@ namespace ccf
 
           if (!active_service.has_value())
           {
-            throw std::logic_error(fmt::format(
-              "Error in {}: no value in {}", __func__, Tables::SERVICE));
+            throw std::logic_error(
+              fmt::format(
+                "Error in {}: no value in {}", __func__, Tables::SERVICE));
           }
 
           if (
             active_service->status !=
             ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
           {
-            throw std::logic_error(fmt::format(
-              "Error in {}: current service status is {}",
-              __func__,
-              active_service->status));
+            throw std::logic_error(
+              fmt::format(
+                "Error in {}: current service status is {}",
+                __func__,
+                active_service->status));
           }
         }
 
@@ -1383,9 +1392,10 @@ namespace ccf
             -> ccf::kv::ConsensusHookPtr {
             if (!w.has_value())
             {
-              throw std::logic_error(fmt::format(
-                "Unexpected removal from {} table",
-                network.encrypted_ledger_secrets.get_name()));
+              throw std::logic_error(
+                fmt::format(
+                  "Unexpected removal from {} table",
+                  network.encrypted_ledger_secrets.get_name()));
             }
 
             network.ledger_secrets->adjust_previous_secret_stored_version(
@@ -1625,22 +1635,24 @@ namespace ccf
           identities.previous->data(), identities.previous->size());
         if (prev_ident.value() != from_proposal)
         {
-          throw std::logic_error(fmt::format(
-            "Previous service identity does not match.\nActual:\n{}\nIn "
-            "proposal:\n{}",
-            prev_ident->str(),
-            from_proposal.str()));
+          throw std::logic_error(
+            fmt::format(
+              "Previous service identity does not match.\nActual:\n{}\nIn "
+              "proposal:\n{}",
+              prev_ident->str(),
+              from_proposal.str()));
         }
       }
 
       if (identities.next != service_info->cert)
       {
-        throw std::logic_error(fmt::format(
-          "Service identity mismatch: the next service identity in the "
-          "transition_service_to_open proposal does not match the current "
-          "service identity:\nNext:\n{}\nCurrent:\n{}",
-          identities.next.str(),
-          service_info->cert.str()));
+        throw std::logic_error(
+          fmt::format(
+            "Service identity mismatch: the next service identity in the "
+            "transition_service_to_open proposal does not match the current "
+            "service identity:\nNext:\n{}\nCurrent:\n{}",
+            identities.next.str(),
+            service_info->cert.str()));
       }
 
       service_info->previous_service_identity_version =
@@ -1950,8 +1962,9 @@ namespace ccf
           .back();
       if (final_component.empty())
       {
-        throw std::runtime_error(fmt::format(
-          "{} has a trailing period, is not a valid hostname", hostname));
+        throw std::runtime_error(
+          fmt::format(
+            "{} has a trailing period, is not a valid hostname", hostname));
       }
       for (const auto c : final_component)
       {
@@ -2238,9 +2251,10 @@ namespace ccf
             const auto& ledger_secrets_for_nodes = w;
             if (!ledger_secrets_for_nodes.has_value())
             {
-              throw std::logic_error(fmt::format(
-                "Unexpected removal from {} table",
-                network.secrets.get_name()));
+              throw std::logic_error(
+                fmt::format(
+                  "Unexpected removal from {} table",
+                  network.secrets.get_name()));
             }
 
             for (const auto& [node_id, encrypted_ledger_secrets] :
@@ -2285,8 +2299,10 @@ namespace ccf
           const auto& ledger_secrets_for_nodes = w;
           if (!ledger_secrets_for_nodes.has_value())
           {
-            throw std::logic_error(fmt::format(
-              "Unexpected removal from {} table", network.secrets.get_name()));
+            throw std::logic_error(
+              fmt::format(
+                "Unexpected removal from {} table",
+                network.secrets.get_name()));
           }
 
           for (const auto& [node_id, encrypted_ledger_secrets] :
@@ -2306,11 +2322,12 @@ namespace ccf
               // version read from the write set.
               if (!encrypted_ledger_secret.version.has_value())
               {
-                throw std::logic_error(fmt::format(
-                  "Commit hook at seqno {} for table {}: no version for "
-                  "encrypted ledger secret",
-                  hook_version,
-                  network.secrets.get_name()));
+                throw std::logic_error(
+                  fmt::format(
+                    "Commit hook at seqno {} for table {}: no version for "
+                    "encrypted ledger secret",
+                    hook_version,
+                    network.secrets.get_name()));
               }
 
               auto plain_ledger_secret = LedgerSecretsBroadcast::decrypt(
@@ -2390,8 +2407,9 @@ namespace ccf
               {
                 LOG_FAIL_FMT(
                   "[local] Endorsed cert for self ({}) has been deleted", self);
-                throw std::logic_error(fmt::format(
-                  "Could not find endorsed node certificate for {}", self));
+                throw std::logic_error(
+                  fmt::format(
+                    "Could not find endorsed node certificate for {}", self));
               }
 
               std::lock_guard<pal::Mutex> guard(lock);
@@ -2440,8 +2458,9 @@ namespace ccf
                 LOG_FAIL_FMT(
                   "[global] Endorsed cert for self ({}) has been deleted",
                   self);
-                throw std::logic_error(fmt::format(
-                  "Could not find endorsed node certificate for {}", self));
+                throw std::logic_error(
+                  fmt::format(
+                    "Could not find endorsed node certificate for {}", self));
               }
 
               std::lock_guard<pal::Mutex> guard(lock);
@@ -2582,9 +2601,10 @@ namespace ccf
             auto encrypted_ledger_secret_info = w;
             if (!encrypted_ledger_secret_info.has_value())
             {
-              throw std::logic_error(fmt::format(
-                "Unexpected removal from {} table",
-                network.encrypted_ledger_secrets.get_name()));
+              throw std::logic_error(
+                fmt::format(
+                  "Unexpected removal from {} table",
+                  network.encrypted_ledger_secrets.get_name()));
             }
 
             // If the version of the next ledger secret is not set, deduce it
