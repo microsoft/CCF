@@ -781,6 +781,12 @@ def run(args):
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
+        args.subject_alt_names = [
+            "iPAddress:127.0.0.1",
+            "dNSName:ccf.dummy.com",
+            "dNSName:ccf-nihhgyhybjpiu-0-kbqphoikfrxrn-very-long-address.westeurope.azurecontainer.io",
+            "dNSName:lb-nw-ccf-nihhgyhybjpiu-kbqphoikfrxrn-very-long-address.westeurope.azurecontainer.io",
+        ]
         network.start_and_open(args)
 
         test_verify_quotes(network, args)
