@@ -118,7 +118,7 @@ extern "C"
     ccf::LoggerLevel enclave_log_level,
     size_t num_worker_thread,
     void* time_location,
-    const ccf::ds::WorkBeaconPtr& work_beacon)
+    void* work_beacon)
   {
     using create_node_func_t = CreateNodeStatus (*)(
       void*,
@@ -139,7 +139,7 @@ extern "C"
       ccf::LoggerLevel,
       size_t,
       void*,
-      const ccf::ds::WorkBeaconPtr&);
+      void*);
 
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>(

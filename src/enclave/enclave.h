@@ -45,7 +45,7 @@ namespace ccf
     std::unique_ptr<ringbuffer::Circuit> circuit;
     std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory;
     std::unique_ptr<oversized::WriterFactory> writer_factory;
-    ccf::ds::WorkBeaconPtr work_beacon;
+    ccf::ds::WorkBeacon* work_beacon = nullptr;
     RingbufferLogger* ringbuffer_logger = nullptr;
     ccf::NetworkState network;
     std::shared_ptr<RPCMap> rpc_map;
@@ -89,7 +89,7 @@ namespace ccf
       size_t sig_ms_interval,
       const ccf::consensus::Configuration& consensus_config,
       const ccf::crypto::CurveID& curve_id,
-      const ccf::ds::WorkBeaconPtr& work_beacon_) :
+      ccf::ds::WorkBeacon* work_beacon_) :
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),

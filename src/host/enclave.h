@@ -158,6 +158,7 @@ namespace host
       // Pad config and startup snapshot with NULLs to a multiple of 8, in an
       // 8-byte aligned allocation
       auto config_s = nlohmann::json(ccf_config).dump();
+      void* work_beacon_raw = work_beacon.get();
 
 #define CREATE_NODE_ARGS \
   &status, (void*)&enclave_config, (uint8_t*)config_s.data(), config_s.size(), \
@@ -165,7 +166,7 @@ namespace host
     node_cert.size(), &node_cert_len, service_cert.data(), \
     service_cert.size(), &service_cert_len, enclave_version_buf.data(), \
     enclave_version_buf.size(), &enclave_version_len, start_type, \
-    enclave_log_level, num_worker_thread, time_location, work_beacon
+    enclave_log_level, num_worker_thread, time_location, work_beacon_raw
 
       oe_result_t err = OE_FAILURE;
 

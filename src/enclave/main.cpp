@@ -48,7 +48,7 @@ extern "C"
     ccf::LoggerLevel enclave_log_level,
     size_t num_worker_threads,
     void* time_location,
-    const ccf::ds::WorkBeaconPtr& work_beacon)
+    void* work_beacon)
   {
     std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
@@ -159,7 +159,7 @@ extern "C"
         cc.ledger_signatures.delay.count_ms(),
         cc.consensus,
         cc.node_certificate.curve_id,
-        work_beacon);
+        reinterpret_cast<ccf::ds::WorkBeacon*>(work_beacon));
     }
     catch (const ccf::ccf_openssl_rdrand_init_error& e)
     {
