@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/crypto/pem.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/logger_level.h"
 #include "ccf/ds/nonstd.h"
@@ -11,6 +12,7 @@
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/platform.h"
+#include "ccf/pal/snp_ioctl.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/version.h"
 #include "common/configuration.h"
@@ -766,6 +768,9 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
         "member(s) required for recovery)",
         config.command.start.members.size(),
         recovery_threshold);
+
+      startup_config.sealed_service_secret =
+        config.command.sealed_service_secret;
     }
     else if (config.command.type == StartType::Join)
     {
@@ -794,6 +799,31 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       }
       LOG_INFO_FMT("Reading previous service identity from {}", idf);
       startup_config.recover.previous_service_identity = files::slurp(idf);
+
+      auto sealed_service_path =
+        config.command.sealed_service_secret;
+      if (!files::exists(sealed_service_path))
+      {
+        throw std::logic_error(fmt::format(
+          "Sealed previous service secret cannot be found: {}",
+          sealed_service_path));
+      }
+      LOG_INFO_FMT(
+        "Reading sealed previous service secret from {}", sealed_service_path);
+      auto sealed_previous_service_secret = files::slurp(sealed_service_path);
+      if (ccf::pal::snp::is_sev_snp())
+      {
+        LOG_INFO_FMT("Unsealing previous service identity");
+        auto derived_key = ccf::pal::snp::make_derived_key();
+        startup_config.recover.unsealed_service_secret =
+          ccf::crypto::aes_gcm_decrypt(
+            derived_key->get_raw(), sealed_previous_service_secret);
+      }
+      else
+      {
+        startup_config.recover.unsealed_service_secret =
+          sealed_previous_service_secret;
+      }
     }
     else
     {

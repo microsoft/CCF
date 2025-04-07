@@ -105,6 +105,8 @@ namespace ccf
     std::string service_subject_name = "CN=CCF Service";
     ccf::COSESignaturesConfig cose_signatures;
 
+    std::string sealed_service_secret;
+
     nlohmann::json service_data = nullptr;
 
     nlohmann::json node_data = nullptr;
@@ -131,6 +133,8 @@ namespace ccf
     struct Recover
     {
       std::optional<std::vector<uint8_t>> previous_service_identity =
+        std::nullopt;
+      std::optional<std::vector<uint8_t>> unsealed_service_secret =
         std::nullopt;
     };
     Recover recover = {};
