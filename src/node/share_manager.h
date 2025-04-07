@@ -353,12 +353,13 @@ namespace ccf
       encrypted_share.deserialise(encrypted_submitted_share);
       std::vector<uint8_t> decrypted_share;
 
-      current_ledger_secret->key->decrypt(
-        encrypted_share.hdr.get_iv(),
-        encrypted_share.hdr.tag,
-        encrypted_share.cipher,
-        {},
-        decrypted_share);
+      if (!current_ledger_secret->key->decrypt(
+            encrypted_share.hdr.get_iv(),
+            encrypted_share.hdr.tag,
+            encrypted_share.cipher,
+            {},
+            decrypted_share))
+        throw std::logic_error("Decrypting submitted shares failed");
 
       return decrypted_share;
     }

@@ -1338,16 +1338,15 @@ TEST_CASE("Decrypt should validate integrity")
 {
   auto key = get_entropy()->random(16);
   std::vector<uint8_t> expected_plaintext = {0xde, 0xad, 0xbe, 0xef};
-  auto ciphertext =
-    ccf::crypto::aes_gcm_encrypt(key, expected_plaintext);
-  auto decrypted_plaintext =
-    ccf::crypto::aes_gcm_decrypt(key, ciphertext);
+  auto ciphertext = ccf::crypto::aes_gcm_encrypt(key, expected_plaintext);
+  auto decrypted_plaintext = ccf::crypto::aes_gcm_decrypt(key, ciphertext);
 
   CHECK_EQ(expected_plaintext, decrypted_plaintext);
 
   // corrupt part of ciphertext
   auto broken_ciphertext = std::vector<uint8_t>(ciphertext);
-  broken_ciphertext[ciphertext.size() / 2] = ~ broken_ciphertext[ciphertext.size() / 2];
+  broken_ciphertext[ciphertext.size() / 2] =
+    ~broken_ciphertext[ciphertext.size() / 2];
 
   CHECK_THROWS(ccf::crypto::aes_gcm_decrypt(key, broken_ciphertext));
 }
