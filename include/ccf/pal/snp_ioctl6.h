@@ -38,7 +38,7 @@ namespace ccf::pal::snp::ioctl6
     uint32_t status;
     uint32_t report_size;
     uint8_t reserved[0x20 - 0x8];
-    struct Attestation report;
+    uint8_t attestation[4000];
     uint8_t padding[64];
     // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
   };
@@ -171,16 +171,16 @@ namespace ccf::pal::snp::ioctl6
       }
     }
 
-    const snp::Attestation& get() const override
-    {
-      return padded_resp.report;
-    }
+    // const snp::Attestation& get() const override
+    // {
+    //   return padded_resp.report;
+    // }
 
-    std::vector<uint8_t> get_raw() override
-    {
-      auto quote_bytes = reinterpret_cast<uint8_t*>(&padded_resp.report);
-      return {quote_bytes, quote_bytes + padded_resp.report_size};
-    }
+    // std::vector<uint8_t> get_raw() override
+    // {
+    //   auto quote_bytes = reinterpret_cast<uint8_t*>(&padded_resp.report);
+    //   return {quote_bytes, quote_bytes + padded_resp.report_size};
+    // }
   };
 
   class DerivedKey
