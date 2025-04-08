@@ -32,6 +32,7 @@ int main()
   // Documented at
   // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
   AttestationResp padded_resp = {};
+  std::cout << "Sizeof resp: " << sizeof(Attestation) << std::endl;
   GuestRequestAttestation payload = {
     .req_data = &req, .resp_wrapper = &padded_resp, .exit_info = {0}};
 
