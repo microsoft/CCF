@@ -344,7 +344,7 @@ class CCFRemote(object):
         snp_security_policy_file=None,
         snp_uvm_endorsements_file=None,
         snp_endorsements_file=None,
-        service_subject_name="CN=CCF Test Service",
+        service_subject_name="CN=CCF Test Service" + "A" * 2000,
         historical_cache_soft_limit=None,
         cose_signatures_issuer="service.example.com",
         cose_signatures_subject="ledger.signature",
