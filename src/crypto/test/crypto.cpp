@@ -35,6 +35,11 @@ int main()
   GuestRequestAttestation payload = {
     .req_data = &req, .resp_wrapper = &padded_resp, .exit_info = {0}};
 
+  std::cout << "payload.exit_info.errors.fw: " << payload.exit_info.errors.fw
+            << std::endl;
+  std::cout << "payload.exit_info.errors.vmm: " << payload.exit_info.errors.vmm
+            << std::endl;
+
   int rc = ioctl(fd, SEV_SNP_GUEST_MSG_REPORT, &payload);
   if (rc < 0)
   {
@@ -48,6 +53,11 @@ int main()
   }
 
   std::cout << "OK 3" << std::endl;
+
+  std::cout << "payload.exit_info.errors.fw: " << payload.exit_info.errors.fw
+            << std::endl;
+  std::cout << "payload.exit_info.errors.vmm: " << payload.exit_info.errors.vmm
+            << std::endl;
 
   if (!safety_padding_intact(padded_resp))
   {
