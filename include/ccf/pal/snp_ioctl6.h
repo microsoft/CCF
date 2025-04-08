@@ -107,7 +107,7 @@ namespace ccf::pal::snp::ioctl6
   struct GuestRequest
   {
     /* Message version number */
-    uint32_t msg_version = 1;
+    uint8_t msg_version = 1;
 
     /* Request and response structure address */
     Req* req_data;
