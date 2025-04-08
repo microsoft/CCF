@@ -201,10 +201,11 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   auto schema_error_msg = json::validate_json(config_json, schema_json);
   if (schema_error_msg.has_value())
   {
-    throw std::logic_error(fmt::format(
-      "Error validating JSON schema for configuration file {}: {}",
-      config_file_path,
-      schema_error_msg.value()));
+    throw std::logic_error(
+      fmt::format(
+        "Error validating JSON schema for configuration file {}: {}",
+        config_file_path,
+        schema_error_msg.value()));
   }
 
   host::CCHostConfig config = config_json;
@@ -219,6 +220,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   }
 
   LOG_INFO_FMT("CCF version: {}", ccf::ccf_version);
+
+  LOG_INFO_FMT("!!! Config string is {} bytes", config_str.size());
 
   LOG_INFO_FMT(
     "CLI args: \"{}\"",
@@ -258,9 +261,10 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
         files::exists(config.ledger.directory) &&
         !fs::is_empty(config.ledger.directory))
       {
-        throw std::logic_error(fmt::format(
-          "On start, ledger directory should not exist or be empty ({})",
-          config.ledger.directory));
+        throw std::logic_error(
+          fmt::format(
+            "On start, ledger directory should not exist or be empty ({})",
+            config.ledger.directory));
       }
 
       // Count members with public encryption key as only these members will be
@@ -315,22 +319,24 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
         {
           if (recovery_threshold > 1)
           {
-            throw std::logic_error(fmt::format(
-              "Recovery threshold ({}) cannot be greater than 1 when all "
-              "initial consortium members ({}) are of type recovery owner "
-              "(specified via --member-info options)",
-              recovery_threshold,
-              recovery_participants_count));
+            throw std::logic_error(
+              fmt::format(
+                "Recovery threshold ({}) cannot be greater than 1 when all "
+                "initial consortium members ({}) are of type recovery owner "
+                "(specified via --member-info options)",
+                recovery_threshold,
+                recovery_participants_count));
           }
         }
         else if (recovery_threshold > recovery_participants_count)
         {
-          throw std::logic_error(fmt::format(
-            "Recovery threshold ({}) cannot be greater than total number ({})"
-            "of initial consortium members with a public encryption "
-            "key (specified via --member-info options)",
-            recovery_threshold,
-            recovery_participants_count));
+          throw std::logic_error(
+            fmt::format(
+              "Recovery threshold ({}) cannot be greater than total number ({})"
+              "of initial consortium members with a public encryption "
+              "key (specified via --member-info options)",
+              recovery_threshold,
+              recovery_participants_count));
         }
       }
     }
@@ -787,10 +793,11 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       auto idf = config.command.recover.previous_service_identity_file;
       if (!files::exists(idf))
       {
-        throw std::logic_error(fmt::format(
-          "Recovery requires a previous service identity certificate; cannot "
-          "open '{}'",
-          idf));
+        throw std::logic_error(
+          fmt::format(
+            "Recovery requires a previous service identity certificate; cannot "
+            "open '{}'",
+            idf));
       }
       LOG_INFO_FMT("Reading previous service identity from {}", idf);
       startup_config.recover.previous_service_identity = files::slurp(idf);
