@@ -171,6 +171,8 @@ namespace ccf::pal::snp::ioctl6
           "User-defined report data is larger than available space");
       }
 
+      return;
+
       int fd = open(DEVICE, O_RDWR | O_CLOEXEC);
       if (fd < 0)
       {
