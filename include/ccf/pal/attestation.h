@@ -112,6 +112,13 @@ namespace ccf::pal
     auto sev_version_certificate = certificates[1];
     auto root_certificate = certificates[2];
 
+    LOG_INFO_FMT(
+      "!!! In verify_snp_attestation_report, I've split the following certs:");
+    LOG_INFO_FMT("!!! chip_certificate {}", chip_certificate.str());
+    LOG_INFO_FMT(
+      "!!! sev_version_certificate {}", sev_version_certificate.str());
+    LOG_INFO_FMT("!!! root_certificate {}", root_certificate.str());
+
     auto root_cert_verifier = ccf::crypto::make_verifier(root_certificate);
 
     if (
