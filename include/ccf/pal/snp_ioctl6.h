@@ -23,17 +23,16 @@ namespace ccf::pal::snp::ioctl6
   constexpr auto DEVICE = "/dev/sev-guest";
 
   // Table 22
-#pragma pack(push, 1)
+
   struct AttestationReq
   {
     uint8_t report_data[snp_attestation_report_data_size];
     uint32_t vmpl = 0;
     uint8_t reserved[28] = {0};
   }; // snp_report_req in (linux) include/uapi/linux/sev-guest.h
-#pragma pack(pop)
 
   // Table 25
-#pragma pack(push, 1)
+
   struct AttestationResp
   {
     uint32_t status;
@@ -43,9 +42,7 @@ namespace ccf::pal::snp::ioctl6
     uint8_t padding[64];
     // padding to the size of SEV_SNP_REPORT_RSP_BUF_SZ (i.e., 1280 bytes)
   };
-#pragma pack(pop)
 
-#pragma pack(push, 1)
   // Table 20
   // bit 0 is the first bit
   struct DerivedKeyGuestFieldSelect
@@ -78,17 +75,15 @@ namespace ccf::pal::snp::ioctl6
     uint32_t guest_svn;
     uint64_t tcb_version;
   }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
-#pragma pack(pop)
 
-// Table 21
-#pragma pack(push, 1)
+  // Table 21
+
   struct DerivedKeyResp
   {
     uint32_t status;
     uint8_t reserved[0x20 - 0x04];
     uint8_t data[32];
   }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
-#pragma pack(pop)
 
   struct ExitInfoErrors
   {
