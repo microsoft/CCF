@@ -54,6 +54,8 @@ int main()
 
   std::cout << "OK 3" << std::endl;
 
+  std::cout << "payload.exit_info.errors.fw: " << payload.exit_info.whole
+            << std::endl;
   std::cout << "payload.exit_info.errors.fw: " << payload.exit_info.errors.fw
             << std::endl;
   std::cout << "payload.exit_info.errors.vmm: " << payload.exit_info.errors.vmm
