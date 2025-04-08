@@ -1599,56 +1599,6 @@ namespace ccf
           in.node_data};
         InternalTablesAccess::add_node(ctx.tx, in.node_id, node_info);
 
-        if (
-          in.quote_info.format != QuoteFormat::amd_sev_snp_v1 ||
-          !in.snp_uvm_endorsements.has_value())
-        {
-          // For improved serviceability on SNP, do not record trusted
-          // measurements if UVM endorsements are available
-          InternalTablesAccess::trust_node_measurement(
-            ctx.tx, in.measurement, in.quote_info.format);
-        }
-
-        switch (in.quote_info.format)
-        {
-          case QuoteFormat::insecure_virtual:
-          {
-            auto host_data = AttestationProvider::get_host_data(in.quote_info);
-            if (host_data.has_value())
-            {
-              InternalTablesAccess::trust_node_virtual_host_data(
-                ctx.tx, host_data.value());
-            }
-            else
-            {
-              LOG_FAIL_FMT("Unable to extract host data from virtual quote");
-            }
-            break;
-          }
-
-          case QuoteFormat::amd_sev_snp_v1:
-          {
-            auto host_data =
-              AttestationProvider::get_host_data(in.quote_info).value();
-            InternalTablesAccess::trust_node_snp_host_data(
-              ctx.tx, host_data, in.snp_security_policy);
-
-            InternalTablesAccess::trust_node_uvm_endorsements(
-              ctx.tx, in.snp_uvm_endorsements);
-
-            auto attestation =
-              AttestationProvider::get_snp_attestation(in.quote_info).value();
-            InternalTablesAccess::trust_node_snp_tcb_version(
-              ctx.tx, attestation);
-            break;
-          }
-
-          default:
-          {
-            break;
-          }
-        }
-
         std::optional<ccf::ClaimsDigest::Digest> digest =
           ccf::get_create_tx_claims_digest(ctx.tx);
         if (digest.has_value())

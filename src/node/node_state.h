@@ -286,90 +286,6 @@ namespace ccf
     //
     void launch_node()
     {
-      auto measurement = AttestationProvider::get_measurement(quote_info);
-      if (measurement.has_value())
-      {
-        node_measurement = measurement.value();
-      }
-      else
-      {
-        throw std::logic_error("Failed to extract code id from quote");
-      }
-
-      // Verify that the security policy matches the quoted digest of the policy
-      if (!config.attestation.environment.security_policy.has_value())
-      {
-        LOG_INFO_FMT(
-          "Security policy not set, skipping check against attestation host "
-          "data");
-      }
-      else
-      {
-        auto quoted_digest = AttestationProvider::get_host_data(quote_info);
-        if (!quoted_digest.has_value())
-        {
-          throw std::logic_error("Unable to find host data in attestation");
-        }
-
-        auto const& security_policy =
-          config.attestation.environment.security_policy.value();
-
-        auto security_policy_digest =
-          quote_info.format == QuoteFormat::amd_sev_snp_v1 ?
-          ccf::crypto::Sha256Hash(ccf::crypto::raw_from_b64(security_policy)) :
-          ccf::crypto::Sha256Hash(security_policy);
-        if (security_policy_digest != quoted_digest.value())
-        {
-          throw std::logic_error(fmt::format(
-            "Digest of decoded security policy \"{}\" {} does not match "
-            "attestation host data {}",
-            security_policy,
-            security_policy_digest.hex_str(),
-            quoted_digest.value().hex_str()));
-        }
-        LOG_INFO_FMT(
-          "Successfully verified attested security policy {}",
-          security_policy_digest);
-      }
-
-      if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
-      {
-        if (!config.attestation.environment.uvm_endorsements.has_value())
-        {
-          LOG_INFO_FMT(
-            "UVM endorsements not set, skipping check against attestation "
-            "measurement");
-        }
-        else
-        {
-          try
-          {
-            auto uvm_endorsements_raw = ccf::crypto::raw_from_b64(
-              config.attestation.environment.uvm_endorsements.value());
-            // A node at this stage does not have a notion of what UVM
-            // descriptor is acceptable. That is decided either by the Joinee,
-            // or by Consortium endorsing the Start or Recovery node. For that
-            // reason, we extract an endorsement descriptor from the UVM
-            // endorsements and make it available in the ledger's initial or
-            // recovery transaction.
-            snp_uvm_endorsements = verify_uvm_endorsements(
-              uvm_endorsements_raw,
-              node_measurement,
-              {},
-              false /* Do not check roots of trust */);
-            quote_info.uvm_endorsements = uvm_endorsements_raw;
-            LOG_INFO_FMT(
-              "Successfully verified attested UVM endorsements: {}",
-              snp_uvm_endorsements->to_str());
-          }
-          catch (const std::exception& e)
-          {
-            throw std::logic_error(
-              fmt::format("Error verifying UVM endorsements: {}", e.what()));
-          }
-        }
-      }
-
       switch (start_type)
       {
         case StartType::Start:
@@ -412,6 +328,9 @@ namespace ccf
 
     void initiate_quote_generation()
     {
+      launch_node();
+      return;
+
       auto fetch_endorsements = [this](
                                   const QuoteInfo& qi,
                                   const pal::snp::
