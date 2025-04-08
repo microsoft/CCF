@@ -36,14 +36,13 @@ namespace host
         }
       }
       const auto suggested = fmt::format("{}{}", basename, expected_suffix);
-      throw std::logic_error(
-        fmt::format(
-          "Given enclave file '{}' does not have suffix expected for enclave "
-          "type "
-          "{}. Did you mean '{}'?",
-          file,
-          nlohmann::json(type).dump(),
-          suggested));
+      throw std::logic_error(fmt::format(
+        "Given enclave file '{}' does not have suffix expected for enclave "
+        "type "
+        "{}. Did you mean '{}'?",
+        file,
+        nlohmann::json(type).dump(),
+        suggested));
     }
   }
 
@@ -53,9 +52,8 @@ namespace host
     auto data = static_cast<uint8_t*>(std::aligned_alloc(8u, aligned_size));
     if (data == nullptr)
     {
-      throw std::runtime_error(
-        fmt::format(
-          "Unable to allocate {} bytes for aligned data", aligned_size));
+      throw std::runtime_error(fmt::format(
+        "Unable to allocate {} bytes for aligned data", aligned_size));
     }
     return std::make_pair(data, aligned_size);
   }
@@ -97,11 +95,10 @@ namespace host
           expect_enclave_file_suffix(path, ".snp.so", type);
           virtual_handle = load_virtual_enclave(path.c_str());
 #else
-          throw std::logic_error(
-            fmt::format(
-              "SNP enclaves are not supported in current build - cannot launch "
-              "{}",
-              path));
+          throw std::logic_error(fmt::format(
+            "SNP enclaves are not supported in current build - cannot launch "
+            "{}",
+            path));
 #endif // defined(PLATFORM_SNP)
           break;
         }
@@ -112,20 +109,18 @@ namespace host
           expect_enclave_file_suffix(path, ".virtual.so", type);
           virtual_handle = load_virtual_enclave(path.c_str());
 #else
-          throw std::logic_error(
-            fmt::format(
-              "Virtual enclaves are not supported in current build - cannot "
-              "launch {}",
-              path));
+          throw std::logic_error(fmt::format(
+            "Virtual enclaves are not supported in current build - cannot "
+            "launch {}",
+            path));
 #endif // defined(PLATFORM_VIRTUAL)
           break;
         }
 
         default:
         {
-          throw std::logic_error(
-            fmt::format(
-              "Unsupported enclave type: {}", nlohmann::json(type).dump()));
+          throw std::logic_error(fmt::format(
+            "Unsupported enclave type: {}", nlohmann::json(type).dump()));
         }
       }
     }
@@ -167,6 +162,10 @@ namespace host
       LOG_INFO_FMT(
         "!!! Dumped config, about to pass into enclave, is {} bytes",
         config_s.size());
+
+      LOG_INFO_FMT(
+        "!!! Here's that config, formatted:\n{}",
+        nlohmann::json(ccf_config).dump(2));
 
 #define CREATE_NODE_ARGS \
   &status, (void*)&enclave_config, (uint8_t*)config_s.data(), config_s.size(), \
