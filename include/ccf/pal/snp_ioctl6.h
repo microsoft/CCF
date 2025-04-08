@@ -22,24 +22,6 @@ namespace ccf::pal::snp::ioctl6
 {
   constexpr auto DEVICE = "/dev/sev-guest";
 
-#pragma pack(push, 1)
-  template <typename T>
-  struct SafetyPadding
-  {
-    T data;
-    uint8_t safety_padding[1024] = {0};
-  };
-
-  template <typename T>
-  bool safety_padding_intact(SafetyPadding<T> data)
-  {
-    return std::all_of(
-      std::begin(data.safety_padding),
-      std::end(data.safety_padding),
-      [](uint8_t e) { return e == 0; });
-  }
-#pragma pack(pop)
-
   // Table 22
 #pragma pack(push, 1)
   struct AttestationReq
@@ -135,10 +117,8 @@ namespace ccf::pal::snp::ioctl6
      * psp-sev.h) */
     ExitInfo exit_info;
   };
-  using GuestRequestAttestation =
-    GuestRequest<AttestationReq, SafetyPadding<AttestationResp>>;
-  using GuestRequestDerivedKey =
-    GuestRequest<DerivedKeyReq, SafetyPadding<DerivedKeyResp>>;
+  using GuestRequestAttestation = GuestRequest<AttestationReq, AttestationResp>;
+  using GuestRequestDerivedKey = GuestRequest<DerivedKeyReq, DerivedKeyResp>;
 
   // From linux/include/uapi/linux/sev-guest.h
   constexpr char SEV_GUEST_IOC_TYPE = 'S';
@@ -154,7 +134,7 @@ namespace ccf::pal::snp::ioctl6
 
   class Attestation : public AttestationInterface
   {
-    SafetyPadding<AttestationResp> padded_resp = {};
+    AttestationResp padded_resp = {};
 
   public:
     Attestation(const PlatformAttestationReportData& report_data)
@@ -194,33 +174,23 @@ namespace ccf::pal::snp::ioctl6
           payload.exit_info.errors.vmm);
         throw std::logic_error(msg);
       }
-
-      return;
-
-      if (!safety_padding_intact(padded_resp))
-      {
-        // This occurs if a kernel/firmware upgrade causes the response to
-        // overflow the struct so it is better to fail early than deal with
-        // memory corruption.
-        throw std::logic_error("IOCTL overwrote safety padding.");
-      }
     }
 
     const snp::Attestation& get() const override
     {
-      return padded_resp.data.report;
+      return padded_resp.report;
     }
 
     std::vector<uint8_t> get_raw() override
     {
-      auto quote_bytes = reinterpret_cast<uint8_t*>(&padded_resp.data.report);
-      return {quote_bytes, quote_bytes + padded_resp.data.report_size};
+      auto quote_bytes = reinterpret_cast<uint8_t*>(&padded_resp.report);
+      return {quote_bytes, quote_bytes + padded_resp.report_size};
     }
   };
 
   class DerivedKey
   {
-    SafetyPadding<DerivedKeyResp> padded_resp = {};
+    DerivedKeyResp padded_resp = {};
 
   public:
     DerivedKey()
@@ -250,31 +220,23 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(msg);
       }
 
-      if (!safety_padding_intact(padded_resp))
-      {
-        // This occurs if a kernel/firmware upgrade causes the response to
-        // overflow the struct so it is better to fail early than deal with
-        // memory corruption.
-        throw std::logic_error("IOCTL overwrote safety padding.");
-      }
-
-      if (padded_resp.data.status != 0)
+      if (padded_resp.status != 0)
       {
         const auto msg = fmt::format(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY: {}",
-          padded_resp.data.status);
+          padded_resp.status);
         throw std::logic_error(msg);
       }
     }
 
     ~DerivedKey()
     {
-      OPENSSL_cleanse(padded_resp.data.data, sizeof(padded_resp.data.data));
+      OPENSSL_cleanse(padded_resp.data, sizeof(padded_resp.data));
     }
 
     std::span<const uint8_t> get_raw()
     {
-      return std::span<const uint8_t>{padded_resp.data.data};
+      return std::span<const uint8_t>{padded_resp.data};
     }
   };
 }

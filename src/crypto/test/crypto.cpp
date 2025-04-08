@@ -31,7 +31,7 @@ int main()
 
   // Documented at
   // https://www.kernel.org/doc/html/latest/virt/coco/sev-guest.html
-  SafetyPadding<AttestationResp> padded_resp = {};
+  AttestationResp padded_resp = {};
   GuestRequestAttestation payload = {
     .req_data = &req, .resp_wrapper = &padded_resp, .exit_info = {0}};
 
@@ -62,14 +62,6 @@ int main()
             << std::endl;
   std::cout << "payload.exit_info.errors.vmm: " << payload.exit_info.errors.vmm
             << std::endl;
-
-  if (!safety_padding_intact(padded_resp))
-  {
-    // This occurs if a kernel/firmware upgrade causes the response to
-    // overflow the struct so it is better to fail early than deal with
-    // memory corruption.
-    throw std::logic_error("IOCTL overwrote safety padding.");
-  }
 
   std::cout << "OK 4" << std::endl;
 }
