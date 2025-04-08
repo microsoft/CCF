@@ -128,7 +128,7 @@ namespace host
     {
       StartType type = StartType::Start;
       std::string service_certificate_file = "service_cert.pem";
-      std::string sealed_service_secret = "sealed_service_secret";
+      std::string sealed_ledger_secret_location = "sealed_service_secret";
 
       struct Start
       {
@@ -219,7 +219,7 @@ namespace host
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command, service_certificate_file, sealed_service_secret, start, join, recover);
+    CCHostConfig::Command, service_certificate_file, sealed_ledger_secret_location, start, join, recover);
 
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, ccf::CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);

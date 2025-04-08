@@ -711,6 +711,9 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     startup_config.startup_host_time =
       ccf::ds::to_x509_time_string(startup_host_time);
 
+    startup_config.sealed_ledger_secret_location =
+      config.command.sealed_ledger_secret_location;
+
     if (config.command.type == StartType::Start)
     {
       for (auto const& member : config.command.start.members)
@@ -768,9 +771,6 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
         "member(s) required for recovery)",
         config.command.start.members.size(),
         recovery_threshold);
-
-      startup_config.sealed_service_secret =
-        config.command.sealed_service_secret;
     }
     else if (config.command.type == StartType::Join)
     {
@@ -800,29 +800,20 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       LOG_INFO_FMT("Reading previous service identity from {}", idf);
       startup_config.recover.previous_service_identity = files::slurp(idf);
 
-      auto sealed_service_path =
-        config.command.sealed_service_secret;
-      if (!files::exists(sealed_service_path))
+      if (startup_config.sealed_ledger_secret_location.has_value())
       {
-        throw std::logic_error(fmt::format(
-          "Sealed previous service secret cannot be found: {}",
-          sealed_service_path));
-      }
-      LOG_INFO_FMT(
-        "Reading sealed previous service secret from {}", sealed_service_path);
-      auto sealed_previous_service_secret = files::slurp(sealed_service_path);
-      if (ccf::pal::snp::is_sev_snp())
-      {
-        LOG_INFO_FMT("Unsealing previous service identity");
-        auto derived_key = ccf::pal::snp::make_derived_key();
-        startup_config.recover.unsealed_service_secret =
-          ccf::crypto::aes_gcm_decrypt(
-            derived_key->get_raw(), sealed_previous_service_secret);
-      }
-      else
-      {
-        startup_config.recover.unsealed_service_secret =
-          sealed_previous_service_secret;
+        auto ledger_secret_path =
+          startup_config.sealed_ledger_secret_location.value();
+        if (!files::exists(ledger_secret_path))
+        {
+          throw std::logic_error(fmt::format(
+            "Sealed previous service secret cannot be found: {}",
+            ledger_secret_path));
+        }
+        LOG_INFO_FMT(
+          "Reading sealed previous service secret from {}", ledger_secret_path);
+        startup_config.recover.sealed_ledger_secret =
+          files::slurp(ledger_secret_path);
       }
     }
     else
