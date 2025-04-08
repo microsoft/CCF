@@ -328,14 +328,14 @@ namespace ccf
 
     void initiate_quote_generation()
     {
-      launch_node();
-      return;
-
       auto fetch_endorsements = [this](
                                   const QuoteInfo& qi,
                                   const pal::snp::
                                     EndorsementEndpointsConfiguration&
                                       endpoint_config) {
+        launch_node();
+        return;
+                                  
         // Note: Node lock is already taken here as this is called back
         // synchronously with the call to pal::generate_quote
         this->quote_info = qi;
