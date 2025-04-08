@@ -35,6 +35,8 @@ int main()
   GuestRequestAttestation payload = {
     .req_data = &req, .resp_wrapper = &padded_resp, .exit_info = {0}};
 
+  std::cout << "payload.exit_info.errors.whole: " << payload.exit_info.whole
+            << std::endl;
   std::cout << "payload.exit_info.errors.fw: " << payload.exit_info.errors.fw
             << std::endl;
   std::cout << "payload.exit_info.errors.vmm: " << payload.exit_info.errors.vmm
@@ -54,7 +56,7 @@ int main()
 
   std::cout << "OK 3" << std::endl;
 
-  std::cout << "payload.exit_info.errors.fw: " << payload.exit_info.whole
+  std::cout << "payload.exit_info.errors.whole: " << payload.exit_info.whole
             << std::endl;
   std::cout << "payload.exit_info.errors.fw: " << payload.exit_info.errors.fw
             << std::endl;
