@@ -460,8 +460,8 @@ namespace ccf
         }
       };
 
-      pal::PlatformAttestationReportData report_data =
-        ccf::crypto::Sha256Hash((node_sign_kp->public_key_der()));
+      pal::PlatformAttestationReportData report_data = crypto::Sha256Hash();
+      // ccf::crypto::Sha256Hash((node_sign_kp->public_key_der()));
 
       pal::generate_quote(
         report_data,
