@@ -128,7 +128,7 @@ namespace host
     {
       StartType type = StartType::Start;
       std::string service_certificate_file = "service_cert.pem";
-      std::string sealed_ledger_secret_location = "sealed_service_secret";
+      std::optional<std::string> sealed_ledger_secret_location = std::nullopt;
 
       struct Start
       {
