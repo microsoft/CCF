@@ -12,6 +12,24 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 
+TEST_CASE("SNP request attestation")
+{
+  using namespace ccf::pal;
+
+  SnpAttestationReportData snp_report_data;
+  std::iota(
+    snp_report_data.report_data.begin(), snp_report_data.report_data.end(), 0);
+
+  PlatformAttestationReportData report_data(snp_report_data);
+  snp::ioctl6::Attestation ioctl_attestation(report_data);
+
+  const snp::Attestation& attestation = ioctl_attestation.get();
+
+  SnpAttestationReportData attested_report_data(attestation.report_data);
+
+  REQUIRE_EQ(snp_report_data.report_data, attested_report_data.report_data);
+}
+
 TEST_CASE("SNP derive key")
 {
   using namespace ccf::pal;
