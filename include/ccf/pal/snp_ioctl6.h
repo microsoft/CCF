@@ -23,21 +23,78 @@ namespace ccf::pal::snp::ioctl6
   constexpr auto DEVICE = "/dev/sev-guest";
 
 #pragma pack(push, 1)
-  template <typename T>
-  struct SafetyPadding
+  // Helper to add padding to a struct, so that the resulting struct has some
+  // minimum size. As a minor detail, the padding will be initialised to 0.
+  template <typename T, size_t N>
+  struct PaddedTo : public T
   {
-    T data;
-    uint8_t safety_padding[1024] = {0};
+    static_assert(
+      sizeof(T) < N, "No padding possible - struct is already N bytes");
+    static constexpr size_t num_padding_bytes = N - sizeof(T);
+    uint8_t padding[num_padding_bytes] = {0};
   };
 
+  // Helper which surrounds a struct with some sentinel bytes, to aid detection
+  // of out-of-bounds writes.
   template <typename T>
-  bool safety_padding_intact(SafetyPadding<T> data)
+  struct IoctlSentinel
   {
-    return std::all_of(
-      std::begin(data.safety_padding),
-      std::end(data.safety_padding),
-      [](uint8_t e) { return e == 0; });
-  }
+    static constexpr size_t num_sentinel_bytes = 1024;
+
+    static constexpr uint8_t default_sentinel = 0x42;
+
+    static constexpr uint8_t pre_sentinel_first = 0xAA;
+    static constexpr uint8_t pre_sentinel_last = 0xBB;
+
+    static constexpr uint8_t post_sentinel_first = 0xCC;
+    static constexpr uint8_t post_sentinel_last = 0xDD;
+
+    uint8_t pre_sentinels[num_sentinel_bytes] = {0};
+    T data;
+    uint8_t post_sentinels[num_sentinel_bytes] = {0};
+
+    IoctlSentinel()
+    {
+      memset(pre_sentinels, default_sentinel, num_sentinel_bytes);
+      pre_sentinels[0] = pre_sentinel_first;
+      pre_sentinels[num_sentinel_bytes - 1] = pre_sentinel_last;
+
+      memset(post_sentinels, default_sentinel, num_sentinel_bytes);
+      post_sentinels[0] = post_sentinel_first;
+      post_sentinels[num_sentinel_bytes - 1] = post_sentinel_last;
+    }
+
+    bool sentinels_intact() const
+    {
+      if (pre_sentinels[0] != pre_sentinel_first)
+      {
+        return false;
+      }
+      if (pre_sentinels[num_sentinel_bytes - 1] != pre_sentinel_last)
+      {
+        return false;
+      }
+
+      if (post_sentinels[0] != post_sentinel_first)
+      {
+        return false;
+      }
+      if (post_sentinels[num_sentinel_bytes - 1] != post_sentinel_last)
+      {
+        return false;
+      }
+
+      return std::all_of(
+               std::next(std::begin(pre_sentinels)),
+               std::prev(std::end(pre_sentinels)),
+               [](uint8_t e) { return e == default_sentinel; }) &&
+        std::all_of(
+               std::next(std::begin(post_sentinels)),
+               std::prev(std::end(post_sentinels)),
+
+               [](uint8_t e) { return e == default_sentinel; });
+    }
+  };
 #pragma pack(pop)
 
   // Table 22
@@ -135,10 +192,16 @@ namespace ccf::pal::snp::ioctl6
      * psp-sev.h) */
     ExitInfo exit_info;
   };
+
+  // This 4000 comes from the definition of snp_report_resp in
+  // https://github.com/torvalds/linux/blob/master/include/uapi/linux/sev-guest.h
+  using PaddedAttestationResp = PaddedTo<AttestationResp, 4000>;
+  using PaddedDerivedKeyResp = PaddedTo<DerivedKeyResp, 4000>;
+
   using GuestRequestAttestation =
-    GuestRequest<AttestationReq, SafetyPadding<AttestationResp>>;
+    GuestRequest<AttestationReq, PaddedAttestationResp>;
   using GuestRequestDerivedKey =
-    GuestRequest<DerivedKeyReq, SafetyPadding<DerivedKeyResp>>;
+    GuestRequest<DerivedKeyReq, PaddedDerivedKeyResp>;
 
   // From linux/include/uapi/linux/sev-guest.h
   constexpr char SEV_GUEST_IOC_TYPE = 'S';
@@ -154,7 +217,8 @@ namespace ccf::pal::snp::ioctl6
 
   class Attestation : public AttestationInterface
   {
-    SafetyPadding<AttestationResp> padded_resp = {};
+    IoctlSentinel<PaddedAttestationResp> resp_with_sentinel = {};
+    PaddedAttestationResp& padded_resp = resp_with_sentinel.data;
 
   public:
     Attestation(const PlatformAttestationReportData& report_data)
@@ -195,30 +259,32 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(msg);
       }
 
-      if (!safety_padding_intact(padded_resp))
+      if (!resp_with_sentinel.sentinels_intact())
       {
         // This occurs if a kernel/firmware upgrade causes the response to
-        // overflow the struct so it is better to fail early than deal with
-        // memory corruption.
-        throw std::logic_error("IOCTL overwrote safety padding.");
+        // overflow our struct. If that happens, it is better to fail early than
+        // deal with memory corruption.
+        throw std::logic_error(
+          "SEV_SNP_GUEST_MSG_REPORT IOCTL overwrote safety sentinels.");
       }
     }
 
     const snp::Attestation& get() const override
     {
-      return padded_resp.data.report;
+      return padded_resp.report;
     }
 
     std::vector<uint8_t> get_raw() override
     {
-      auto quote_bytes = reinterpret_cast<uint8_t*>(&padded_resp.data.report);
-      return {quote_bytes, quote_bytes + padded_resp.data.report_size};
+      auto quote_bytes = reinterpret_cast<uint8_t*>(&padded_resp.report);
+      return {quote_bytes, quote_bytes + padded_resp.report_size};
     }
   };
 
   class DerivedKey
   {
-    SafetyPadding<DerivedKeyResp> padded_resp = {};
+    IoctlSentinel<PaddedDerivedKeyResp> resp_with_sentinel = {};
+    PaddedDerivedKeyResp& padded_resp = resp_with_sentinel.data;
 
   public:
     DerivedKey()
@@ -248,31 +314,32 @@ namespace ccf::pal::snp::ioctl6
         throw std::logic_error(msg);
       }
 
-      if (!safety_padding_intact(padded_resp))
+      if (!resp_with_sentinel.sentinels_intact())
       {
         // This occurs if a kernel/firmware upgrade causes the response to
-        // overflow the struct so it is better to fail early than deal with
-        // memory corruption.
-        throw std::logic_error("IOCTL overwrote safety padding.");
+        // overflow our struct. If that happens, it is better to fail early than
+        // deal with memory corruption.
+        throw std::logic_error(
+          "SEV_SNP_GUEST_MSG_DERIVED_KEY IOCTL overwrote safety sentinels.");
       }
 
-      if (padded_resp.data.status != 0)
+      if (padded_resp.status != 0)
       {
         const auto msg = fmt::format(
           "Failed to issue ioctl SEV_SNP_GUEST_MSG_DERIVED_KEY: {}",
-          padded_resp.data.status);
+          padded_resp.status);
         throw std::logic_error(msg);
       }
     }
 
     ~DerivedKey()
     {
-      OPENSSL_cleanse(padded_resp.data.data, sizeof(padded_resp.data.data));
+      OPENSSL_cleanse(padded_resp.data, sizeof(padded_resp.data));
     }
 
     std::span<const uint8_t> get_raw()
     {
-      return std::span<const uint8_t>{padded_resp.data.data};
+      return std::span<const uint8_t>{padded_resp.data};
     }
   };
 }
