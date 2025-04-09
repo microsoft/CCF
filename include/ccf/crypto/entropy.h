@@ -2,30 +2,10 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
-#include "ccf/pal/hardware_info.h"
-
-#include <cassert>
 #include <cstdint>
 #include <cstring>
 #include <memory>
-#include <stdexcept>
-#include <utility>
 #include <vector>
-
-// Adapted from:
-// https://software.intel.com/en-us/articles/intel-digital-random-number-generator-drng-software-implementation-guide
-
-#define DRNG_NO_SUPPORT 0x0
-#define DRNG_HAS_RDRAND 0x1
-#define DRNG_HAS_RDSEED 0x2
-
-// `It is recommended that applications attempt 10 retries in a tight loop in
-// the unlikely event that the RDRAND instruction does not return a random
-// number. This number is based on a binomial probability argument: given
-// the design margins of the DRNG, the odds of ten failures in a row are
-// astronomically small and would in fact be an indication of a larger CPU
-// issue.`
-#define RDRAND_RETRIES 10
 
 namespace ccf::crypto
 {
