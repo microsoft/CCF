@@ -1113,7 +1113,9 @@ def run_initial_tcb_version_checks(args):
         assert False, "No TCB_version found in recovery ledger"
 
 
-def run_recovery_local_unsealing(args):
+def run_recovery_local_unsealing(const_args):
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
     with infra.network.network(
         args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
     ) as network:
@@ -1134,15 +1136,16 @@ def run_recovery_local_unsealing(args):
             args.perf_nodes,
             existing_network=network,
         )
+
         recovered_network.start_in_recovery(
             args,
             ledger_dir=current_ledger_dir,
             committed_ledger_dirs=committed_ledger_dirs,
         )
+
         recovered_network.recover(args, via_local_sealing=True)
 
-        return recovered_network
-
+        recovered_network.stop_all_nodes()
 
 def run(args):
     run_max_uncommitted_tx_count(args)
