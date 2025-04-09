@@ -41,6 +41,8 @@ namespace ccf::pal::snp::ioctl6
   {
     static constexpr size_t num_sentinel_bytes = 1024;
 
+    static constexpr uint8_t default_sentinel = 0x42;
+
     static constexpr uint8_t pre_sentinel_first = 0xAA;
     static constexpr uint8_t pre_sentinel_last = 0xBB;
 
@@ -53,9 +55,11 @@ namespace ccf::pal::snp::ioctl6
 
     IoctlSentinel()
     {
+      memset(pre_sentinels, default_sentinel, num_sentinel_bytes);
       pre_sentinels[0] = pre_sentinel_first;
       pre_sentinels[num_sentinel_bytes - 1] = pre_sentinel_last;
 
+      memset(post_sentinels, default_sentinel, num_sentinel_bytes);
       post_sentinels[0] = post_sentinel_first;
       post_sentinels[num_sentinel_bytes - 1] = post_sentinel_last;
     }
@@ -83,12 +87,12 @@ namespace ccf::pal::snp::ioctl6
       return std::all_of(
                std::next(std::begin(pre_sentinels)),
                std::prev(std::end(pre_sentinels)),
-               [](uint8_t e) { return e == 0; }) &&
+               [](uint8_t e) { return e == default_sentinel; }) &&
         std::all_of(
                std::next(std::begin(post_sentinels)),
                std::prev(std::end(post_sentinels)),
 
-               [](uint8_t e) { return e == 0; });
+               [](uint8_t e) { return e == default_sentinel; });
     }
   };
 #pragma pack(pop)
