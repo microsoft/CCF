@@ -197,7 +197,7 @@ namespace ccf::pal::snp::ioctl6
   // https://github.com/torvalds/linux/blob/master/include/uapi/linux/sev-guest.h
   // EDA: Temporarily decreased this, to confirm that tests now fail loudly. DO
   // NOT MERGE
-  using PaddedAttestationResp = PaddedTo<AttestationResp, 1500>;
+  using PaddedAttestationResp = PaddedTo<AttestationResp, 4000>;
   using PaddedDerivedKeyResp = PaddedTo<DerivedKeyResp, 4000>;
 
   using GuestRequestAttestation =
