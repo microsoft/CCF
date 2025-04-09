@@ -195,8 +195,6 @@ namespace ccf::pal::snp::ioctl6
 
   // This 4000 comes from the definition of snp_report_resp in
   // https://github.com/torvalds/linux/blob/master/include/uapi/linux/sev-guest.h
-  // EDA: Temporarily decreased this, to confirm that tests now fail loudly. DO
-  // NOT MERGE
   using PaddedAttestationResp = PaddedTo<AttestationResp, 4000>;
   using PaddedDerivedKeyResp = PaddedTo<DerivedKeyResp, 4000>;
 
