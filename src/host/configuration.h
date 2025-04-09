@@ -215,13 +215,17 @@ namespace host
   DECLARE_JSON_OPTIONAL_FIELDS(
     CCHostConfig::Command::Recover,
     initial_service_certificate_validity_days,
-    previous_service_identity_file
-  );
+    previous_service_identity_file);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command, service_certificate_file, sealed_ledger_secret_location, start, join, recover);
+    CCHostConfig::Command,
+    service_certificate_file,
+    sealed_ledger_secret_location,
+    start,
+    join,
+    recover);
 
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, ccf::CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);

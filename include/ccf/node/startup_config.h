@@ -134,8 +134,7 @@ namespace ccf
     {
       std::optional<std::vector<uint8_t>> previous_service_identity =
         std::nullopt;
-      std::optional<std::vector<uint8_t>> sealed_ledger_secret =
-        std::nullopt;
+      std::optional<std::vector<uint8_t>> sealed_ledger_secret = std::nullopt;
     };
     Recover recover = {};
   };

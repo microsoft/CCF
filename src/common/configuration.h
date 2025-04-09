@@ -136,6 +136,5 @@ namespace ccf
     start,
     join,
     recover,
-    sealed_ledger_secret_location
-  );
+    sealed_ledger_secret_location);
 }

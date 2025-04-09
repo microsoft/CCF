@@ -51,7 +51,8 @@ namespace ccf
     virtual ccf::kv::Version get_last_recovered_signed_idx() = 0;
     virtual void initiate_private_recovery(
       ccf::kv::Tx& tx,
-      const std::optional<LedgerSecretPtr>& unsealed_ledger_secret = std::nullopt) = 0;
+      const std::optional<LedgerSecretPtr>& unsealed_ledger_secret =
+        std::nullopt) = 0;
     virtual ExtendedState state() = 0;
     virtual QuoteVerificationResult verify_quote(
       ccf::kv::ReadOnlyTx& tx,

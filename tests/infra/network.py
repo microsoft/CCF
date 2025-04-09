@@ -206,7 +206,7 @@ class Network:
         "snp_endorsements_file",
         "subject_name",
         "idle_connection_timeout_s",
-        "sealed_ledger_secret_location"
+        "sealed_ledger_secret_location",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -719,7 +719,13 @@ class Network:
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
-    def recover(self, args, expected_recovery_count=None, via_recovery_owner=False, via_local_sealing=False):
+    def recover(
+        self,
+        args,
+        expected_recovery_count=None,
+        via_recovery_owner=False,
+        via_local_sealing=False,
+    ):
         """
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
