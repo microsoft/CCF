@@ -601,8 +601,7 @@ namespace ccf
             config.initial_service_certificate_validity_days);
 
           network.ledger_secrets->init();
-          seal_ledger_secret(
-            network.ledger_secrets->get_first().second);
+          seal_ledger_secret(network.ledger_secrets->get_first().second);
 
           history->set_service_signing_identity(
             network.identity->get_key_pair(), config.cose_signatures);
@@ -1663,8 +1662,10 @@ namespace ccf
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
         auto unsealed_ls = try_unseal_ledger_secret();
-        if (unsealed_ls.has_value()) {
-          initiate_private_recovery(tx, unsealed_ls);
+        if (unsealed_ls.has_value())
+        {
+          LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
+          initiate_private_recovery_unsafe(tx, unsealed_ls);
         }
         return;
       }
@@ -1700,12 +1701,11 @@ namespace ccf
     // Decrypts chain of ledger secrets, and writes those to the ledger
     // encrypted for each node. On a commit hook for this write, each node
     // (including this one!) will begin_private_recovery().
-    void initiate_private_recovery(
+    void initiate_private_recovery_unsafe(
       ccf::kv::Tx& tx,
       const std::optional<LedgerSecretPtr>& unsealed_ledger_secret =
-        std::nullopt) override
+        std::nullopt)
     {
-      std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfPublicNetwork);
       LedgerSecretsMap recovered_ledger_secrets =
         share_manager.restore_recovery_shares_info(
@@ -1717,6 +1717,15 @@ namespace ccf
         InternalTablesAccess::get_trusted_nodes(tx),
         tx.wo(network.secrets),
         std::move(recovered_ledger_secrets));
+    }
+
+    void initiate_private_recovery(
+      ccf::kv::Tx& tx,
+      const std::optional<LedgerSecretPtr>& unsealed_ledger_secret =
+        std::nullopt) override
+    {
+      std::lock_guard<pal::Mutex> guard(lock);
+      initiate_private_recovery_unsafe(tx, unsealed_ledger_secret);
     }
 
     //
@@ -2282,11 +2291,9 @@ namespace ccf
                 // onward (backups deserialise this transaction with the
                 // previous ledger secret)
                 auto ledger_secret = std::make_shared<LedgerSecret>(
-                    std::move(plain_ledger_secret), hook_version);
+                  std::move(plain_ledger_secret), hook_version);
                 network.ledger_secrets->set_secret(
-                  hook_version + 1,
-                  std::move(ledger_secret)
-                  );
+                  hook_version + 1, std::move(ledger_secret));
                 latest_secret = ledger_secret;
               }
 
@@ -2938,12 +2945,14 @@ namespace ccf
         return std::nullopt;
       }
 
-      auto derived_key = ccf::pal::snp::make_derived_key()->get_raw();
+      auto sealing_key = ccf::pal::snp::is_sev_snp() ?
+        ccf::pal::snp::make_derived_key()->get_raw() :
+        std::vector<uint8_t>(32, 0);
       LedgerSecret unsealed_ledger_secret;
       try
       {
         auto raw = crypto::aes_gcm_decrypt(
-          derived_key, config.recover.sealed_ledger_secret.value());
+          sealing_key, config.recover.sealed_ledger_secret.value());
         auto json = nlohmann::json::parse(raw);
         from_json(json, unsealed_ledger_secret);
       }
@@ -2956,7 +2965,8 @@ namespace ccf
       return std::make_shared<LedgerSecret>(unsealed_ledger_secret);
     }
 
-    void seal_ledger_secret(kv::ReadOnlyTx& tx) {
+    void seal_ledger_secret(kv::ReadOnlyTx& tx)
+    {
       seal_ledger_secret(network.ledger_secrets->get_latest(tx).second);
     }
 
@@ -2969,18 +2979,11 @@ namespace ccf
 
       std::string plaintext = nlohmann::json(ledger_secret).dump();
       std::vector<uint8_t> buf_plaintext(plaintext.begin(), plaintext.end());
-      std::vector<uint8_t> sealed_secret;
-      if (ccf::pal::snp::is_sev_snp())
-      {
-        sealed_secret = crypto::aes_gcm_encrypt(
-          ccf::pal::snp::make_derived_key()->get_raw(), buf_plaintext);
-      }
-      else
-      { // encrypt with magic number
-        const auto magic_number_size = 256;
-        sealed_secret = crypto::aes_gcm_encrypt(
-          std::vector<uint8_t>(magic_number_size, 0), buf_plaintext);
-      }
+      auto sealing_key = ccf::pal::snp::is_sev_snp() ?
+        ccf::pal::snp::make_derived_key()->get_raw() :
+        std::vector<uint8_t>(32, 0);
+      std::vector<uint8_t> sealed_secret =
+        crypto::aes_gcm_encrypt(sealing_key, buf_plaintext);
 
       LOG_INFO_FMT(
         "Sealing ledger secret {} to {}",

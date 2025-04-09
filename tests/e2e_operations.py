@@ -1112,6 +1112,32 @@ def run_initial_tcb_version_checks(args):
                     return
         assert False, "No TCB_version found in recovery ledger"
 
+def run_recovery_local_unsealing(args):
+    with infra.network.network(
+        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+    ) as network:
+      args.sealed_ledger_secret_location=os.path.join(infra.network.get_common_folder_name(args.workspace, args.label), "sealed_ledger_secret")
+      network.start_and_open(args)
+
+      network.save_service_identity(args)
+      primary, _ = network.find_primary()
+      network.stop_all_nodes()
+      current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+      recovered_network = infra.network.Network(
+          args.nodes,
+          args.binary_dir,
+          args.debug_nodes,
+          args.perf_nodes,
+          existing_network=network,
+      )
+      recovered_network.start_in_recovery(
+          args,
+          ledger_dir=current_ledger_dir,
+          committed_ledger_dirs=committed_ledger_dirs,
+      )
+      recovered_network.recover(args, via_local_sealing=True)
+
+      return recovered_network
 
 def run(args):
     run_max_uncommitted_tx_count(args)
@@ -1129,3 +1155,4 @@ def run(args):
     if infra.snp.is_snp():
         run_initial_uvm_descriptor_checks(args)
         run_initial_tcb_version_checks(args)
+    run_recovery_local_unsealing(args)
