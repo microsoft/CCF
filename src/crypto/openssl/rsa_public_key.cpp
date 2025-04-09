@@ -8,7 +8,6 @@
 #include <openssl/core_names.h>
 #include <openssl/encoder.h>
 
-
 namespace ccf::crypto
 {
   using namespace OpenSSL;
@@ -46,8 +45,9 @@ namespace ccf::crypto
       throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
     }
 
-    // As it's a common pattern to rely on successful key wrapper construction as a
-    // confirmation of a concrete key type, this must fail for non-RSA keys.
+    // As it's a common pattern to rely on successful key wrapper construction
+    // as a confirmation of a concrete key type, this must fail for non-RSA
+    // keys.
     if (!key || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
       throw std::logic_error("invalid RSA key");
