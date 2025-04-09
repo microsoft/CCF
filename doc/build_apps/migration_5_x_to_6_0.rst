@@ -25,6 +25,7 @@ Old networks which are migrating to 6.0 will need to populate this table manuall
 If they are not populated then new nodes may fail to join the network.
 
 For example to set the minimum TCB version on Milan CPUs the following proposal can be submitted:
+
 .. code-block:: json
 
     {
