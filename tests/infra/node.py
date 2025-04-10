@@ -207,6 +207,30 @@ class Node:
         self._start()
         self.network_state = NodeNetworkState.joined
 
+    def save_sealed_ledger_secret(self, destination=None):
+        if not self.sealed_ledger_secret_location:
+            raise RuntimeError("Sealed ledger secret not set")
+        sealed_ledger_secret_location = self.sealed_ledger_secret_location
+        if not os.path.isabs(sealed_ledger_secret_location):
+            sealed_ledger_secret_location = os.path.join(
+                self.remote.remote.root, sealed_ledger_secret_location
+            )
+
+        if not os.path.exists(sealed_ledger_secret_location):
+            raise RuntimeError(
+                f"Sealed ledger secret file {sealed_ledger_secret_location} does not exist"
+            )
+
+        if destination is None:
+            destination = os.path.join(
+                self.common_dir, f"{self.local_node_id}.sealed_ledger_secret"
+            )
+
+        infra.path.copy2(sealed_ledger_secret_location, destination)
+
+        return destination
+        
+
     def join(
         self,
         lib_name,
@@ -272,6 +296,8 @@ class Node:
         common_dir,
         members_info=None,
         enclave_platform="sgx",
+        sealed_ledger_secret_location=None,
+        previous_sealed_ledger_secret_location=None,
         **kwargs,
     ):
         """
@@ -285,6 +311,8 @@ class Node:
         members_info = members_info or []
         self.label = label
         self.enclave_platform = enclave_platform
+        self.sealed_ledger_secret_location = sealed_ledger_secret_location
+        self.previous_sealed_ledger_secret_location = previous_sealed_ledger_secret_location
 
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(
@@ -308,6 +336,8 @@ class Node:
             major_version=self.major_version,
             node_data_json_file=self.initial_node_data_json_file,
             enclave_platform=enclave_platform,
+            sealed_ledger_secret_location=sealed_ledger_secret_location,
+            previous_sealed_ledger_secret_location=previous_sealed_ledger_secret_location,
             **kwargs,
         )
         self.remote.setup()

@@ -59,6 +59,9 @@
     },
     "recover": {
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
+      {% if previous_sealed_ledger_secret_location %}
+        "previous_sealed_ledger_secret_location": "{{ previous_sealed_ledger_secret_location }}",
+      {% endif %}
       "previous_service_identity_file": "{{ previous_service_identity_file }}"
     }
   },

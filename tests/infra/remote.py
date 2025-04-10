@@ -349,6 +349,7 @@ class CCFRemote(object):
         cose_signatures_issuer="service.example.com",
         cose_signatures_subject="ledger.signature",
         sealed_ledger_secret_location=None,
+        previous_sealed_ledger_secret_location=None,
         **kwargs,
     ):
         """
@@ -552,6 +553,7 @@ class CCFRemote(object):
                 cose_signatures_issuer=cose_signatures_issuer,
                 cose_signatures_subject=cose_signatures_subject,
                 sealed_ledger_secret_location=sealed_ledger_secret_location,
+                previous_sealed_ledger_secret_location=previous_sealed_ledger_secret_location,
                 **kwargs,
             )
 

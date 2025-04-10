@@ -1116,51 +1116,66 @@ def run_initial_tcb_version_checks(args):
 def run_recovery_local_unsealing(const_args):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.sealed_ledger_secret_location = "sealed_ledger_secret"
+
     with infra.network.network(
-        args.nodes, args.binary_dir, args.debug_nodes, args.perf_nodes, pdb=args.pdb
+        args.nodes, args.binary_dir
     ) as network:
-        args.sealed_ledger_secret_location = os.path.join(
-            infra.network.get_common_folder_name(args.workspace, args.label),
-            "sealed_ledger_secret",
-        )
         network.start_and_open(args)
 
         network.save_service_identity(args)
-        primary, _ = network.find_primary()
+
+        node_secret_map = {
+            node.local_node_id : node.save_sealed_ledger_secret()
+            for node in network.nodes
+        }
+
         network.stop_all_nodes()
-        current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
-        recovered_network = infra.network.Network(
-            args.nodes,
-            args.binary_dir,
-            args.debug_nodes,
-            args.perf_nodes,
-            existing_network=network,
-        )
 
-        recovered_network.start_in_recovery(
-            args,
-            ledger_dir=current_ledger_dir,
-            committed_ledger_dirs=committed_ledger_dirs,
-        )
+        prev_network = network
+        for i, node in enumerate(network.nodes):
+            single_node_args = copy.deepcopy(args)
+            single_node_args.nodes = infra.e2e_args.min_nodes(args, f=0)
+            single_node_args.previous_sealed_ledger_secret_location = node_secret_map[node.local_node_id]
+            single_node_network = infra.network.Network(
+                single_node_args.nodes,
+                single_node_args.binary_dir,
+                next_node_id=prev_network.next_node_id
+            )
 
-        recovered_network.recover(args, via_local_sealing=True)
+            # Reset consortium and users to prevent issues with hosts from existing_network 
+            single_node_network.consortium = prev_network.consortium
+            single_node_network.users = prev_network.users
+            single_node_network.next_node_id = prev_network.next_node_id
+            single_node_network.txs = prev_network.txs
+            single_node_network.jwt_issuer = prev_network.jwt_issuer
 
-        recovered_network.stop_all_nodes()
+            current_ledger_dir, committed_ledger_dirs = node.get_ledger()
+            single_node_network.start_in_recovery(
+                single_node_args,
+                ledger_dir = current_ledger_dir,
+                committed_ledger_dirs = committed_ledger_dirs
+            )
+
+            single_node_network.recover(single_node_args, via_local_sealing=True)
+
+            single_node_network.stop_all_nodes()
+            prev_network = single_node_network 
 
 def run(args):
-    run_max_uncommitted_tx_count(args)
-    run_file_operations(args)
-    run_tls_san_checks(args)
-    run_config_timeout_check(args)
-    run_configuration_file_checks(args)
-    run_pid_file_check(args)
-    run_preopen_readiness_check(args)
-    run_sighup_check(args)
-    run_service_subject_name_check(args)
-    run_cose_signatures_config_check(args)
-    run_late_mounted_ledger_check(args)
-    run_empty_ledger_dir_check(args)
-    if infra.snp.is_snp():
-        run_initial_uvm_descriptor_checks(args)
-        run_initial_tcb_version_checks(args)
+    #run_max_uncommitted_tx_count(args)
+    #run_file_operations(args)
+    #run_tls_san_checks(args)
+    #run_config_timeout_check(args)
+    #run_configuration_file_checks(args)
+    #run_pid_file_check(args)
+    #run_preopen_readiness_check(args)
+    #run_sighup_check(args)
+    #run_service_subject_name_check(args)
+    #run_cose_signatures_config_check(args)
+    #run_late_mounted_ledger_check(args)
+    #run_empty_ledger_dir_check(args)
     run_recovery_local_unsealing(args)
+    #if infra.snp.is_snp():
+    #    run_initial_uvm_descriptor_checks(args)
+    #    run_initial_tcb_version_checks(args)

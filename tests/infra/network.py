@@ -207,6 +207,7 @@ class Network:
         "subject_name",
         "idle_connection_timeout_s",
         "sealed_ledger_secret_location",
+        "previous_sealed_ledger_secret_location",
     ]
 
     # Maximum delay (seconds) for updates to propagate from the primary to backups
@@ -226,6 +227,7 @@ class Network:
         version=None,
         service_load=None,
         node_data_json_file=None,
+        next_node_id=0,
     ):
         # Map of node id to dict of node arg to override value
         # for example, to set the election timeout to 2s for node 3:
@@ -236,7 +238,7 @@ class Network:
             self.consortium = None
             self.users = []
             self.hosts = hosts
-            self.next_node_id = 0
+            self.next_node_id = next_node_id
             self.txs = txs
             self.jwt_issuer = jwt_issuer
             self.service_load = service_load

@@ -800,21 +800,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       LOG_INFO_FMT("Reading previous service identity from {}", idf);
       startup_config.recover.previous_service_identity = files::slurp(idf);
 
-      if (startup_config.sealed_ledger_secret_location.has_value())
-      {
-        auto ledger_secret_path =
-          startup_config.sealed_ledger_secret_location.value();
-        if (!files::exists(ledger_secret_path))
-        {
-          throw std::logic_error(fmt::format(
-            "Sealed previous service secret cannot be found: {}",
-            ledger_secret_path));
-        }
-        LOG_INFO_FMT(
-          "Reading sealed previous service secret from {}", ledger_secret_path);
-        startup_config.recover.sealed_ledger_secret =
-          files::slurp(ledger_secret_path);
-      }
+      startup_config.recover.previous_sealed_ledger_secret_location =
+        config.command.recover.previous_sealed_ledger_secret_location;
     }
     else
     {
