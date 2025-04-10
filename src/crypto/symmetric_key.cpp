@@ -135,7 +135,9 @@ namespace ccf::crypto
           std::span<const uint8_t>(ciphertext.data(), ciphertext_length),
           aad,
           r))
+    {
       throw std::runtime_error("Failed to decrypt");
+    }
 
     return r;
   }
