@@ -133,7 +133,7 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
-            build/workspace/*.ledger/*
+            build/workspace/*/*.ledger/*
           if-no-files-found: ignore
 
       - name: "Make .rpm (devel) Package"
