@@ -53,9 +53,6 @@ namespace ccf
     std::unique_ptr<ccf::NodeState> node;
     ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::microseconds last_tick_time;
-#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
-    ENGINE* rdrand_engine = nullptr;
-#endif
 
     StartType start_type;
 
@@ -100,22 +97,6 @@ namespace ccf
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
     {
       ccf::crypto::openssl_sha256_init();
-
-#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
-      // From
-      // https://software.intel.com/content/www/us/en/develop/articles/how-to-use-the-rdrand-engine-in-openssl-for-random-number-generation.html
-      if (
-        ENGINE_load_rdrand() != 1 ||
-        (rdrand_engine = ENGINE_by_id("rdrand")) == nullptr ||
-        ENGINE_init(rdrand_engine) != 1 ||
-        ENGINE_set_default(rdrand_engine, ENGINE_METHOD_RAND) != 1)
-      {
-        LOG_FAIL_FMT("Error creating OpenSSL's RDRAND engine");
-        ENGINE_free(rdrand_engine);
-        throw ccf::ccf_openssl_rdrand_init_error(
-          "could not initialize RDRAND engine for OpenSSL");
-      }
-#endif
 
       to_host = writer_factory->create_writer_to_outside();
 
@@ -200,14 +181,6 @@ namespace ccf
 
     ~Enclave()
     {
-#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
-      if (rdrand_engine)
-      {
-        LOG_TRACE_FMT("Finishing RDRAND engine");
-        ENGINE_finish(rdrand_engine);
-        ENGINE_free(rdrand_engine);
-      }
-#endif
       LOG_TRACE_FMT("Shutting down enclave");
       ccf::crypto::openssl_sha256_shutdown();
     }
