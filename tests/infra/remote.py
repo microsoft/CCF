@@ -609,6 +609,10 @@ class CCFRemote(object):
                 self.enclave_file,
             ]
 
+        if v is None or v >= Version("6.0.0"):
+          if sealed_ledger_secret_location or previous_sealed_ledger_secret_location:
+            cmd += ["--enable-auto-dr"]
+        
         if start_type == StartType.start:
             members_info = kwargs.get("members_info")
             if not members_info:
