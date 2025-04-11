@@ -2949,7 +2949,7 @@ namespace ccf
       std::vector<uint8_t> sealing_key_vec;
       sealing_key_vec.assign(32, 0);
       std::span<const uint8_t> sealing_key = sealing_key_vec;
-      if (ccf::pal::snp::is_sev_snp()) {
+      if (ccf::pal::platform == ccf::pal::Platform::SNP) {
         sealing_key = ccf::pal::snp::make_derived_key()->get_raw();
       }
 
@@ -3009,7 +3009,7 @@ namespace ccf
       std::vector<uint8_t> sealing_key_vec;
       sealing_key_vec.assign(32, 0);
       std::span<const uint8_t> sealing_key = sealing_key_vec;
-      if (ccf::pal::snp::is_sev_snp()) {
+      if (ccf::pal::platform == ccf::pal::Platform::SNP) {
         sealing_key = ccf::pal::snp::make_derived_key()->get_raw();
       }
       std::vector<uint8_t> sealed_secret =
