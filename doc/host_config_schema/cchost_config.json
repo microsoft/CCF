@@ -262,6 +262,10 @@
           "type": "string",
           "default": "service_cert.pem",
           "description": "For ``Start`` and ``Recover`` nodes, path to which service certificate will be written to on startup. For ``Join`` nodes, path to the certificate of the existing service to join"
+        },
+        "sealed_ledger_secret_location": {
+          "type": "string",
+          "description": "Path to the sealed ledger secret file. This is used to recover the ledger secret from a previous service"
         }
       },
       "allOf": [
@@ -437,6 +441,10 @@
                   "previous_service_identity_file": {
                     "type": "string",
                     "description": "Path to the previous service certificate (PEM) file"
+                  },
+                  "previous_sealed_ledger_secret_location": {
+                    "type": ["string"],
+                    "description": "Path to the sealed ledger secret file, if set the unsealed ledger secret will be used instead of using recovery shares."
                   }
                 },
                 "required": ["previous_service_identity_file"],
