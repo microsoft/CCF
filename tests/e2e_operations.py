@@ -1113,7 +1113,7 @@ def run_initial_tcb_version_checks(args):
         assert False, "No TCB_version found in recovery ledger"
 
 
-def run_recovery_local_unsealing(const_args):
+def run_recovery_local_unsealing(const_args, rekey=False, recovery_shares_refresh=False):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.sealed_ledger_secret_location = "sealed_ledger_secret"
@@ -1130,10 +1130,16 @@ def run_recovery_local_unsealing(const_args):
             for node in network.nodes
         }
 
+        primary, _ = network.find_primary()
+        if rekey:
+            network.consortium.trigger_ledger_rekey(primary)
+        if recovery_shares_refresh:
+            network.consortium.trigger_recovery_shares_refresh(primary)
+
         network.stop_all_nodes()
 
         prev_network = network
-        for i, node in enumerate(network.nodes):
+        for node in network.nodes:
             single_node_args = copy.deepcopy(args)
             single_node_args.nodes = infra.e2e_args.min_nodes(args, f=0)
             single_node_args.previous_sealed_ledger_secret_location = node_secret_map[node.local_node_id]
@@ -1175,6 +1181,8 @@ def run(args):
     run_late_mounted_ledger_check(args)
     run_empty_ledger_dir_check(args)
     run_recovery_local_unsealing(args)
-    if infra.snp.is_snp():
+    run_recovery_local_unsealing(args, rekey=True)
+    run_recovery_local_unsealing(args, recovery_shares_refresh=True)
+    #if infra.snp.is_snp():
         run_initial_uvm_descriptor_checks(args)
         run_initial_tcb_version_checks(args)
