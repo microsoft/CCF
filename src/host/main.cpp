@@ -163,7 +163,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
   app.add_flag(
     "--enable-auto-dr",
     enable_auto_dr,
-    "Enable automatic disaster recovery (DR) features: local sealing (security critical)");
+    "Enable automatic disaster recovery (DR) features: local sealing (security "
+    "critical)");
 
   try
   {
@@ -717,7 +718,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     startup_config.startup_host_time =
       ccf::ds::to_x509_time_string(startup_host_time);
 
-    if (enable_auto_dr) {
+    if (enable_auto_dr)
+    {
       startup_config.sealed_ledger_secret_location =
         config.command.sealed_ledger_secret_location;
     }

@@ -758,7 +758,8 @@ namespace ccf
 
             network.identity = std::make_unique<ccf::NetworkIdentity>(
               resp.network_info->identity);
-            seal_ledger_secret(resp.network_info->ledger_secrets.rbegin()->second);
+            seal_ledger_secret(
+              resp.network_info->ledger_secrets.rbegin()->second);
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
 
@@ -2957,20 +2958,21 @@ namespace ccf
         auto buf_plaintext = crypto::aes_gcm_decrypt(
           ccf::pal::snp::make_derived_key()->get_raw(), ciphertext);
 
-        auto plaintext = std::string(
-          buf_plaintext.begin(), buf_plaintext.end());
+        auto plaintext =
+          std::string(buf_plaintext.begin(), buf_plaintext.end());
 
         auto json = nlohmann::json::parse(plaintext);
         LedgerSecret unsealed_ledger_secret;
         from_json(json, unsealed_ledger_secret);
 
-        return std::make_shared<LedgerSecret>(std::move(unsealed_ledger_secret));
+        return std::make_shared<LedgerSecret>(
+          std::move(unsealed_ledger_secret));
       }
       catch (const std::exception& e)
       {
-        throw std::logic_error(fmt::format("Failed to unseal the previous ledger secret: {}", e.what()));
+        throw std::logic_error(fmt::format(
+          "Failed to unseal the previous ledger secret: {}", e.what()));
       }
-
     }
 
     void seal_ledger_secret(kv::ReadOnlyTx& tx)
@@ -2988,8 +2990,8 @@ namespace ccf
       std::string plaintext = nlohmann::json(ledger_secret).dump();
       std::vector<uint8_t> buf_plaintext(plaintext.begin(), plaintext.end());
 
-      std::vector<uint8_t> sealed_secret =
-        crypto::aes_gcm_encrypt(ccf::pal::snp::make_derived_key()->get_raw(), buf_plaintext);
+      std::vector<uint8_t> sealed_secret = crypto::aes_gcm_encrypt(
+        ccf::pal::snp::make_derived_key()->get_raw(), buf_plaintext);
 
       files::dump(sealed_secret, config.sealed_ledger_secret_location.value());
     }

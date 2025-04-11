@@ -229,7 +229,6 @@ class Node:
         infra.path.copy2(sealed_ledger_secret_location, destination)
 
         return destination
-        
 
     def join(
         self,
@@ -312,7 +311,9 @@ class Node:
         self.label = label
         self.enclave_platform = enclave_platform
         self.sealed_ledger_secret_location = sealed_ledger_secret_location
-        self.previous_sealed_ledger_secret_location = previous_sealed_ledger_secret_location
+        self.previous_sealed_ledger_secret_location = (
+            previous_sealed_ledger_secret_location
+        )
 
         self.certificate_validity_days = kwargs.get("initial_node_cert_validity_days")
         self.remote = infra.remote.CCFRemote(
