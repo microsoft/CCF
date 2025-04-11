@@ -1919,8 +1919,9 @@ namespace ccf
       // once the local hook on the secrets table has been triggered.
 
       auto new_ledger_secret = make_ledger_secret();
+      LOG_INFO_FMT("Sealing after rekey");
+      seal_ledger_secret(new_ledger_secret);
       share_manager.issue_recovery_shares(tx, new_ledger_secret);
-      seal_ledger_secret(tx);
       LedgerSecretsBroadcast::broadcast_new(
         InternalTablesAccess::get_trusted_nodes(tx),
         tx.wo(network.secrets),
@@ -2281,7 +2282,6 @@ namespace ccf
                 continue;
               }
 
-              LedgerSecretPtr latest_secret = nullptr;
               for (const auto& encrypted_ledger_secret :
                    encrypted_ledger_secrets)
               {
@@ -2293,12 +2293,10 @@ namespace ccf
                 // previous ledger secret)
                 auto ledger_secret = std::make_shared<LedgerSecret>(
                   std::move(plain_ledger_secret), hook_version);
+                seal_ledger_secret(ledger_secret);
                 network.ledger_secrets->set_secret(
                   hook_version + 1, std::move(ledger_secret));
-                latest_secret = ledger_secret;
               }
-
-              seal_ledger_secret(latest_secret);
             }
 
             return ccf::kv::ConsensusHookPtr(nullptr);
