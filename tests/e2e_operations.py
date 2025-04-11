@@ -1146,7 +1146,6 @@ def run_recovery_local_unsealing(const_args):
             # Reset consortium and users to prevent issues with hosts from existing_network 
             single_node_network.consortium = prev_network.consortium
             single_node_network.users = prev_network.users
-            single_node_network.next_node_id = prev_network.next_node_id
             single_node_network.txs = prev_network.txs
             single_node_network.jwt_issuer = prev_network.jwt_issuer
 
@@ -1163,19 +1162,19 @@ def run_recovery_local_unsealing(const_args):
             prev_network = single_node_network 
 
 def run(args):
-    #run_max_uncommitted_tx_count(args)
-    #run_file_operations(args)
-    #run_tls_san_checks(args)
-    #run_config_timeout_check(args)
-    #run_configuration_file_checks(args)
-    #run_pid_file_check(args)
-    #run_preopen_readiness_check(args)
-    #run_sighup_check(args)
-    #run_service_subject_name_check(args)
-    #run_cose_signatures_config_check(args)
-    #run_late_mounted_ledger_check(args)
-    #run_empty_ledger_dir_check(args)
+    run_max_uncommitted_tx_count(args)
+    run_file_operations(args)
+    run_tls_san_checks(args)
+    run_config_timeout_check(args)
+    run_configuration_file_checks(args)
+    run_pid_file_check(args)
+    run_preopen_readiness_check(args)
+    run_sighup_check(args)
+    run_service_subject_name_check(args)
+    run_cose_signatures_config_check(args)
+    run_late_mounted_ledger_check(args)
+    run_empty_ledger_dir_check(args)
     run_recovery_local_unsealing(args)
-    #if infra.snp.is_snp():
-    #    run_initial_uvm_descriptor_checks(args)
-    #    run_initial_tcb_version_checks(args)
+    if infra.snp.is_snp():
+        run_initial_uvm_descriptor_checks(args)
+        run_initial_tcb_version_checks(args)

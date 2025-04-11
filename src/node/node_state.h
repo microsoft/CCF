@@ -758,9 +758,9 @@ namespace ccf
 
             network.identity = std::make_unique<ccf::NetworkIdentity>(
               resp.network_info->identity);
+            seal_ledger_secret(resp.network_info->ledger_secrets.rbegin()->second);
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
-            seal_ledger_secret(resp.network_info->ledger_secrets.begin()->second);
 
             history->set_service_signing_identity(
               network.identity->get_key_pair(),
