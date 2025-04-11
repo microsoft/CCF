@@ -360,7 +360,9 @@ namespace ccf
             encrypted_share.cipher,
             {},
             decrypted_share))
+      {
         throw std::logic_error("Decrypting submitted shares failed");
+      }
 
       return decrypted_share;
     }

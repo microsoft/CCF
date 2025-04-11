@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !contains(github.ref, 'main')}}
 
 permissions:
   contents: read
@@ -147,7 +147,7 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
-            build/workspace/*.ledger/*
+            build/workspace/*/*.ledger/*
           if-no-files-found: ignore
         if: success() || failure()
 
@@ -193,6 +193,6 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
-            build/workspace/*.ledger/*
+            build/workspace/*/*.ledger/*
           if-no-files-found: ignore
         if: success() || failure()
