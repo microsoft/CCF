@@ -12,6 +12,7 @@
 #include "http/http_builder.h"
 #include "http/http_parser.h"
 #include "kv/store.h"
+#include "node/ledger_secret.h"
 #include "node/rpc/gov_effects_interface.h"
 #include "node/rpc/node_operation_interface.h"
 #include "node/session_metrics.h"
@@ -48,7 +49,10 @@ namespace ccf
     virtual bool is_reading_private_ledger() const = 0;
     virtual bool is_part_of_network() const = 0;
     virtual ccf::kv::Version get_last_recovered_signed_idx() = 0;
-    virtual void initiate_private_recovery(ccf::kv::Tx& tx) = 0;
+    virtual void initiate_private_recovery(
+      ccf::kv::Tx& tx,
+      const std::optional<LedgerSecretPtr>& unsealed_ledger_secret =
+        std::nullopt) = 0;
     virtual ExtendedState state() = 0;
     virtual QuoteVerificationResult verify_quote(
       ccf::kv::ReadOnlyTx& tx,

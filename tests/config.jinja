@@ -29,6 +29,9 @@
   "command": {
     "type": "{{ start_type }}",
     "service_certificate_file": "{{ service_cert_file }}",
+    {% if sealed_ledger_secret_location %}
+      "sealed_ledger_secret_location": "{{ sealed_ledger_secret_location }}",
+    {% endif %}
     "start":
     {
       "members": {{ members_info|tojson }},
@@ -56,6 +59,9 @@
     },
     "recover": {
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},
+      {% if previous_sealed_ledger_secret_location %}
+        "previous_sealed_ledger_secret_location": "{{ previous_sealed_ledger_secret_location }}",
+      {% endif %}
       "previous_service_identity_file": "{{ previous_service_identity_file }}"
     }
   },

@@ -121,7 +121,9 @@ namespace ccf
 
   DECLARE_JSON_TYPE(StartupConfig::Recover);
   DECLARE_JSON_REQUIRED_FIELDS(
-    StartupConfig::Recover, previous_service_identity);
+    StartupConfig::Recover,
+    previous_service_identity,
+    previous_sealed_ledger_secret_location);
 
   DECLARE_JSON_TYPE_WITH_BASE(StartupConfig, CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(
@@ -135,5 +137,6 @@ namespace ccf
     node_data,
     start,
     join,
-    recover);
+    recover,
+    sealed_ledger_secret_location);
 }
