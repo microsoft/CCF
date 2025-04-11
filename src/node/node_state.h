@@ -1662,9 +1662,9 @@ namespace ccf
         ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
-        auto unsealed_ls = try_unseal_ledger_secret();
-        if (unsealed_ls.has_value())
+        if (!config.recover.previous_sealed_ledger_secret_location.has_value())
         {
+          auto unsealed_ls = unseal_ledger_secret();
           LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
           initiate_private_recovery_unsafe(tx, unsealed_ls);
         }
@@ -2937,21 +2937,8 @@ namespace ccf
       return writer_factory;
     }
 
-    std::optional<LedgerSecretPtr> try_unseal_ledger_secret()
+    LedgerSecretPtr unseal_ledger_secret()
     {
-      if (!config.recover.previous_sealed_ledger_secret_location.has_value())
-      {
-        return std::nullopt;
-      }
-
-      std::vector<uint8_t> sealing_key_vec;
-      sealing_key_vec.assign(32, 0);
-      std::span<const uint8_t> sealing_key = sealing_key_vec;
-      if (ccf::pal::platform == ccf::pal::Platform::SNP) {
-        sealing_key = ccf::pal::snp::make_derived_key()->get_raw();
-      }
-
-      LedgerSecret unsealed_ledger_secret;
       try
       {
         auto ledger_secret_path =
@@ -2966,25 +2953,24 @@ namespace ccf
           "Reading sealed previous service secret from {}", ledger_secret_path);
 
         std::vector<uint8_t> ciphertext = files::slurp(ledger_secret_path);
-        LOG_INFO_FMT("Sealed ciphertext: {}, {}", ds::to_hex(ciphertext), ds::to_hex(sealing_key));
 
         auto buf_plaintext = crypto::aes_gcm_decrypt(
-          sealing_key, ciphertext);
+          ccf::pal::snp::make_derived_key()->get_raw(), ciphertext);
 
         auto plaintext = std::string(
           buf_plaintext.begin(), buf_plaintext.end());
-        LOG_INFO_FMT("Unsealed text: {}, {}", plaintext, ds::to_hex(buf_plaintext));
 
         auto json = nlohmann::json::parse(plaintext);
+        LedgerSecret unsealed_ledger_secret;
         from_json(json, unsealed_ledger_secret);
+
+        return std::make_shared<LedgerSecret>(std::move(unsealed_ledger_secret));
       }
       catch (const std::exception& e)
       {
-        LOG_INFO_FMT("Failed to unseal full recovery share: {}", e.what());
-        return std::nullopt;
+        throw std::logic_error(fmt::format("Failed to unseal the previous ledger secret: {}", e.what()));
       }
 
-      return std::make_shared<LedgerSecret>(unsealed_ledger_secret);
     }
 
     void seal_ledger_secret(kv::ReadOnlyTx& tx)
@@ -3002,18 +2988,9 @@ namespace ccf
       std::string plaintext = nlohmann::json(ledger_secret).dump();
       std::vector<uint8_t> buf_plaintext(plaintext.begin(), plaintext.end());
 
-      LOG_INFO_FMT("Sealing plaintext: {}, {}", plaintext, ds::to_hex(buf_plaintext));
-
-      std::vector<uint8_t> sealing_key_vec;
-      sealing_key_vec.assign(32, 0);
-      std::span<const uint8_t> sealing_key = sealing_key_vec;
-      if (ccf::pal::platform == ccf::pal::Platform::SNP) {
-        sealing_key = ccf::pal::snp::make_derived_key()->get_raw();
-      }
       std::vector<uint8_t> sealed_secret =
-        crypto::aes_gcm_encrypt(sealing_key, buf_plaintext);
+        crypto::aes_gcm_encrypt(ccf::pal::snp::make_derived_key()->get_raw(), buf_plaintext);
 
-      LOG_INFO_FMT("Sealed ciphertext: {}, {}", ds::to_hex(sealed_secret), ds::to_hex(sealing_key));
       files::dump(sealed_secret, config.sealed_ledger_secret_location.value());
     }
   };
