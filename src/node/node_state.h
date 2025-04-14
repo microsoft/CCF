@@ -1663,7 +1663,7 @@ namespace ccf
         ShareManager::clear_submitted_recovery_shares(tx);
         service_info->status = ServiceStatus::WAITING_FOR_RECOVERY_SHARES;
         service->put(service_info.value());
-        if (!config.recover.previous_sealed_ledger_secret_location.has_value())
+        if (config.recover.previous_sealed_ledger_secret_location.has_value())
         {
           auto unsealed_ls = unseal_ledger_secret();
           LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
