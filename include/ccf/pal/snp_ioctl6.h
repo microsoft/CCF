@@ -151,7 +151,7 @@ namespace ccf::pal::snp::ioctl6
     DerivedKeyGuestFieldSelect guest_field_select;
     uint32_t vmpl = 0;
     uint32_t guest_svn;
-    uint64_t tcb_version;
+    TcbVersion tcb_version;
   }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
 #pragma pack(pop)
 
@@ -287,7 +287,7 @@ namespace ccf::pal::snp::ioctl6
     PaddedDerivedKeyResp& padded_resp = resp_with_sentinel.data;
 
   public:
-    DerivedKey()
+    DerivedKey(TcbVersion version = {})
     {
       int fd = open(DEVICE, O_RDWR | O_CLOEXEC);
       if (fd < 0)
@@ -298,8 +298,12 @@ namespace ccf::pal::snp::ioctl6
 
       // This req by default mixes in HostData and the CPU VCEK
       DerivedKeyReq req = {};
-      // We must also mix in the measurement
+
+      // We must also mix in the measurement and the TCB version
       req.guest_field_select.measurement = 1;
+      req.tcb_version = version;
+      req.guest_field_select.tcb_version = 1;
+
       GuestRequestDerivedKey payload = {
         .req_data = &req, .resp_wrapper = &padded_resp, .exit_info = {0}};
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_DERIVED_KEY, &payload);
