@@ -182,7 +182,7 @@ jobs:
           ./tests.sh --output-on-failure -L unit -j$(nproc --all) -E indexing
           # Minimal end to end test that exercises SNP attestation verification
           # but works within the current 4 core budget
-          ./tests.sh --timeout 360 --output-on-failure -R code_update
+          ./tests.sh --timeout 360 --output-on-failure -R "code_update|schema_test_cft"
         shell: bash
 
       - name: "Upload logs"
