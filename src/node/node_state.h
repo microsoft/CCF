@@ -2958,11 +2958,12 @@ namespace ccf
 
         // prevent unsealing if the TCB changes
         auto tcb_version = reinterpret_cast<const ccf::pal::snp::Attestation*>(
-          quote_info.quote.data())->reported_tcb;
+                             quote_info.quote.data())
+                             ->reported_tcb;
         auto sealing_key = ccf::pal::snp::make_derived_key(tcb_version);
 
-        auto buf_plaintext = crypto::aes_gcm_decrypt(
-          sealing_key->get_raw(), ciphertext);
+        auto buf_plaintext =
+          crypto::aes_gcm_decrypt(sealing_key->get_raw(), ciphertext);
 
         auto plaintext =
           std::string(buf_plaintext.begin(), buf_plaintext.end());
@@ -2998,11 +2999,12 @@ namespace ccf
 
       // prevent unsealing if the TCB changes
       auto tcb_version = reinterpret_cast<const ccf::pal::snp::Attestation*>(
-        quote_info.quote.data())->reported_tcb;
+                           quote_info.quote.data())
+                           ->reported_tcb;
       auto sealing_key = ccf::pal::snp::make_derived_key(tcb_version);
 
-      std::vector<uint8_t> sealed_secret = crypto::aes_gcm_encrypt(
-        sealing_key->get_raw(), buf_plaintext);
+      std::vector<uint8_t> sealed_secret =
+        crypto::aes_gcm_encrypt(sealing_key->get_raw(), buf_plaintext);
 
       files::dump(sealed_secret, config.sealed_ledger_secret_location.value());
     }
