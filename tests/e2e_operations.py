@@ -1169,9 +1169,8 @@ def run_recovery_local_unsealing(
             recovery_network.stop_all_nodes()
             prev_network = recovery_network
 
-def run_recovery_unsealing_corrupt(
-    const_args, recovery_f=0
-):
+
+def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.sealed_ledger_secret_location = "sealed_ledger_secret"
@@ -1231,23 +1230,26 @@ def run_recovery_unsealing_corrupt(
             recovery_network.jwt_issuer = prev_network.jwt_issuer
 
             current_ledger_dir, committed_ledger_dirs = node.get_ledger()
-            exception_thrown = None;
+            exception_thrown = None
             try:
-              recovery_network.start_in_recovery(
-                  recovery_network_args,
-                  ledger_dir=current_ledger_dir,
-                  committed_ledger_dirs=committed_ledger_dirs,
-              )
+                recovery_network.start_in_recovery(
+                    recovery_network_args,
+                    ledger_dir=current_ledger_dir,
+                    committed_ledger_dirs=committed_ledger_dirs,
+                )
 
-              recovery_network.recover(recovery_network_args, via_local_sealing=True)
+                recovery_network.recover(recovery_network_args, via_local_sealing=True)
             except Exception as e:
-              exception_thrown = e
-              pass
+                exception_thrown = e
+                pass
 
-            assert exception_thrown is not None, f"Expected exception to be thrown for {corruption.tag} corruption"
+            assert (
+                exception_thrown is not None
+            ), f"Expected exception to be thrown for {corruption.tag} corruption"
 
             recovery_network.stop_all_nodes()
             prev_network = recovery_network
+
 
 def run(args):
     run_max_uncommitted_tx_count(args)

@@ -29,9 +29,6 @@
   "command": {
     "type": "{{ start_type }}",
     "service_certificate_file": "{{ service_cert_file }}",
-    {% if sealed_ledger_secret_location %}
-      "sealed_ledger_secret_location": "{{ sealed_ledger_secret_location }}",
-    {% endif %}
     "start":
     {
       "members": {{ members_info|tojson }},
@@ -101,6 +98,9 @@
     "node_certificate_file": "{{ node_certificate_file or "node.pem" }}",
     "pid_file": "{{ node_pid_file or "node.pid" }}",
     "node_to_node_address_file": "{{ node_address_file }}",
+    {% if sealed_ledger_secret_location %}
+      "sealed_ledger_secret_location": "{{ sealed_ledger_secret_location }}",
+    {% endif %}
     "rpc_addresses_file" : "{{ rpc_addresses_file }}"
   },
   "tick_interval": "{{ tick_ms }}ms",
