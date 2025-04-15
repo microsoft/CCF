@@ -1205,7 +1205,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
         ]
 
         # corrupt one of the ledgers
-        node = list(node_secret_map.keys())[0]
+        node = network.nodes[0]
         ledger_secret = list(node_secret_map.values())[0]
 
         prev_network = network
