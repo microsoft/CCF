@@ -91,6 +91,8 @@ namespace host
       std::string node_to_node_address_file = "";
       std::string rpc_addresses_file = "";
 
+      std::optional<std::string> sealed_ledger_secret_location = std::nullopt;
+
       bool operator==(const OutputFiles&) const = default;
     };
     OutputFiles output_files = {};
@@ -128,7 +130,6 @@ namespace host
     {
       StartType type = StartType::Start;
       std::string service_certificate_file = "service_cert.pem";
-      std::optional<std::string> sealed_ledger_secret_location = std::nullopt;
 
       struct Start
       {
@@ -178,7 +179,8 @@ namespace host
     node_certificate_file,
     pid_file,
     node_to_node_address_file,
-    rpc_addresses_file);
+    rpc_addresses_file,
+    sealed_ledger_secret_location);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Ledger);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Ledger);
@@ -223,12 +225,7 @@ namespace host
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCHostConfig::Command);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig::Command, type);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCHostConfig::Command,
-    service_certificate_file,
-    sealed_ledger_secret_location,
-    start,
-    join,
-    recover);
+    CCHostConfig::Command, service_certificate_file, start, join, recover);
 
   DECLARE_JSON_TYPE_WITH_BASE_AND_OPTIONAL_FIELDS(CCHostConfig, ccf::CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCHostConfig, enclave, command);

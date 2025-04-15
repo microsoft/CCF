@@ -514,6 +514,11 @@ namespace ccf
       const RecoveredEncryptedLedgerSecrets& recovery_ledger_secrets,
       const std::optional<LedgerSecretPtr>& restored_ls_opt = std::nullopt)
     {
+      if (recovery_ledger_secrets.empty())
+      {
+        throw std::logic_error("No recovery ledger secrets");
+      }
+
       LedgerSecretPtr restored_ls;
       if (restored_ls_opt.has_value())
       {
@@ -524,11 +529,6 @@ namespace ccf
         // First, re-assemble the ledger secret wrapping key from the submitted
         // encrypted shares. Then, unwrap the latest ledger secret and use it to
         // decrypt the sequence of recovered ledger secrets, from the last one.
-
-        if (recovery_ledger_secrets.empty())
-        {
-          throw std::logic_error("No recovery ledger secrets");
-        }
 
         auto recovery_shares_info =
           tx.ro<ccf::RecoveryShares>(Tables::SHARES)->get();
