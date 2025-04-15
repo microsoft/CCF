@@ -22,6 +22,7 @@
 #include "consensus/aft/raft.h"
 #include "consensus/ledger_enclave.h"
 #include "crypto/certs.h"
+#include "ds/ccf_assert.h"
 #include "ds/files.h"
 #include "ds/state_machine.h"
 #include "enclave/rpc_sessions.h"
@@ -98,6 +99,7 @@ namespace ccf
     std::optional<ccf::crypto::Pem> endorsed_node_cert = std::nullopt;
     QuoteInfo quote_info;
     pal::PlatformAttestationMeasurement node_measurement;
+    std::optional<pal::snp::TcbVersion> snp_tcb_version = std::nullopt;
     ccf::StartupConfig config;
     std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
@@ -301,6 +303,13 @@ namespace ccf
       else
       {
         throw std::logic_error("Failed to extract code id from quote");
+      }
+
+      auto snp_attestation =
+        AttestationProvider::get_snp_attestation(quote_info);
+      if (snp_attestation.has_value())
+      {
+        snp_tcb_version = snp_attestation.value().reported_tcb;
       }
 
       // Verify that the security policy matches the quoted digest of the policy
@@ -602,6 +611,8 @@ namespace ccf
             config.initial_service_certificate_validity_days);
 
           network.ledger_secrets->init();
+          // Safe as initiate_quote_generation has previously set the
+          // snp_tcb_version
           seal_ledger_secret(network.ledger_secrets->get_first().second);
 
           history->set_service_signing_identity(
@@ -1352,7 +1363,6 @@ namespace ccf
         // Shares for the new ledger secret can only be issued now, once the
         // previous ledger secrets have been recovered
         share_manager.issue_recovery_shares(tx);
-        seal_ledger_secret(tx);
 
         if (
           !InternalTablesAccess::open_service(tx) ||
@@ -1680,7 +1690,6 @@ namespace ccf
         try
         {
           share_manager.issue_recovery_shares(tx);
-          seal_ledger_secret(tx);
         }
         catch (const std::logic_error& e)
         {
@@ -1921,8 +1930,6 @@ namespace ccf
       // once the local hook on the secrets table has been triggered.
 
       auto new_ledger_secret = make_ledger_secret();
-      LOG_INFO_FMT("Sealing after rekey");
-      seal_ledger_secret(new_ledger_secret);
       share_manager.issue_recovery_shares(tx, new_ledger_secret);
       LedgerSecretsBroadcast::broadcast_new(
         InternalTablesAccess::get_trusted_nodes(tx),
@@ -2956,14 +2963,14 @@ namespace ccf
 
         std::vector<uint8_t> ciphertext = files::slurp(ledger_secret_path);
 
-        // prevent unsealing if the TCB changes
-        auto tcb_version = reinterpret_cast<const ccf::pal::snp::Attestation*>(
-                             quote_info.quote.data())
-                             ->reported_tcb;
-        auto sealing_key = ccf::pal::snp::make_derived_key(tcb_version);
+        CCF_ASSERT(
+          snp_tcb_version.has_value(),
+          "TCB version must be set before unsealing");
+        //  prevent unsealing if the TCB changes
+        auto sealing_key =
+          ccf::pal::snp::make_derived_key(snp_tcb_version.value())->get_raw();
 
-        auto buf_plaintext =
-          crypto::aes_gcm_decrypt(sealing_key->get_raw(), ciphertext);
+        auto buf_plaintext = crypto::aes_gcm_decrypt(sealing_key, ciphertext);
 
         auto plaintext =
           std::string(buf_plaintext.begin(), buf_plaintext.end());
@@ -2994,17 +3001,17 @@ namespace ccf
         return;
       }
 
+      CCF_ASSERT(
+        snp_tcb_version.has_value(), "TCB version must be set when sealing");
+
       std::string plaintext = nlohmann::json(ledger_secret).dump();
       std::vector<uint8_t> buf_plaintext(plaintext.begin(), plaintext.end());
 
       // prevent unsealing if the TCB changes
-      auto tcb_version = reinterpret_cast<const ccf::pal::snp::Attestation*>(
-                           quote_info.quote.data())
-                           ->reported_tcb;
-      auto sealing_key = ccf::pal::snp::make_derived_key(tcb_version);
-
+      auto sealing_key =
+        ccf::pal::snp::make_derived_key(snp_tcb_version.value())->get_raw();
       std::vector<uint8_t> sealed_secret =
-        crypto::aes_gcm_encrypt(sealing_key->get_raw(), buf_plaintext);
+        crypto::aes_gcm_encrypt(sealing_key, buf_plaintext);
 
       files::dump(sealed_secret, config.sealed_ledger_secret_location.value());
     }
