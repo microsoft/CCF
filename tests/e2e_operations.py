@@ -1189,7 +1189,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
 
         class Corruption:
             def __init__(self, tag, l):
-                self.tag
+                self.tag = tag
                 self.lamb = l
 
             def run(self, src):
