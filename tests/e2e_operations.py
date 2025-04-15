@@ -1170,7 +1170,7 @@ def run_recovery_local_unsealing(
             prev_network = recovery_network
 
 def run_recovery_unsealing_corrupt(
-    const_args, recovery_f=0, rekey=False, recovery_shares_refresh=False
+    const_args, recovery_f=0
 ):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
@@ -1180,12 +1180,6 @@ def run_recovery_unsealing_corrupt(
         network.start_and_open(args)
 
         network.save_service_identity(args)
-
-        primary, _ = network.find_primary()
-        if rekey:
-            network.consortium.trigger_ledger_rekey(primary)
-        if recovery_shares_refresh:
-            network.consortium.trigger_recovery_shares_refresh(primary)
 
         node_secret_map = {
             node.local_node_id: node.save_sealed_ledger_secret()
@@ -1237,7 +1231,7 @@ def run_recovery_unsealing_corrupt(
             recovery_network.jwt_issuer = prev_network.jwt_issuer
 
             current_ledger_dir, committed_ledger_dirs = node.get_ledger()
-            exception_throw = None;
+            exception_thrown = None;
             try:
               recovery_network.start_in_recovery(
                   recovery_network_args,
@@ -1251,7 +1245,6 @@ def run_recovery_unsealing_corrupt(
               pass
 
             assert exception_thrown is not None, f"Expected exception to be thrown for {corruption.tag} corruption"
-
 
             recovery_network.stop_all_nodes()
             prev_network = recovery_network
@@ -1276,3 +1269,4 @@ def run(args):
         run_recovery_local_unsealing(args, rekey=True)
         run_recovery_local_unsealing(args, recovery_shares_refresh=True)
         run_recovery_local_unsealing(args, recovery_f=1)
+        run_recovery_unsealing_corrupt(args)
