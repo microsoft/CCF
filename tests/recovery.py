@@ -1214,7 +1214,7 @@ def run_recovery_with_election(args):
 
 def run_recovery_with_incomplete_ledger(args):
     """
-    Recover a service wuth incomplete ledger file on a primary which contains unsigned suffix.
+    Recover a service with incomplete ledger file on a primary which contains unsigned suffix.
     """
     if not args.with_unsigned_suffix:
         return
