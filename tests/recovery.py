@@ -1035,14 +1035,15 @@ def run(args):
         network.stop_all_nodes()
 
     # Verify that a new ledger chunk was created at the start of each recovery
+    validator = ccf.ledger.LedgerValidator(accept_deprecated_entry_types=False)
     ledger = ccf.ledger.Ledger(
         primary.remote.ledger_paths(),
         committed_only=False,
-        validator=ccf.ledger.LedgerValidator(accept_deprecated_entry_types=False),
     )
     for chunk in ledger:
         chunk_start_seqno, _ = chunk.get_seqnos()
         for tx in chunk:
+            validator.add_transaction(tx)
             tables = tx.get_public_domain().get_tables()
             seqno = tx.get_public_domain().get_seqno()
             if ccf.ledger.SERVICE_INFO_TABLE_NAME in tables:

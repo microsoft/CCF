@@ -707,10 +707,7 @@ class Entry:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
-
-    def close(self):
-        self._file.close()
+        pass
 
     def _read_header(self):
         # read the transaction header
@@ -1138,21 +1135,21 @@ class Ledger:
         # which discards the incomplete transaction on recovery.
 
         try:
-            last_chunk = self[-1]
-            tx = last_chunk[-1]
-            public_domain = tx.get_public_domain()
-            latest_seqno = public_domain.get_seqno()
-            for table_name, records in public_domain.get_tables().items():
-                if table_name in public_tables:
-                    public_tables[table_name].update(records)
-                    # Remove deleted keys
-                    public_tables[table_name] = {
-                        k: v
-                        for k, v in public_tables[table_name].items()
-                        if v is not None
-                    }
-                else:
-                    public_tables[table_name] = records
+            for chunk in self:
+                for tx in chunk:
+                    public_domain = tx.get_public_domain()
+                    latest_seqno = public_domain.get_seqno()
+                    for table_name, records in public_domain.get_tables().items():
+                        if table_name in public_tables:
+                            public_tables[table_name].update(records)
+                            # Remove deleted keys
+                            public_tables[table_name] = {
+                                k: v
+                                for k, v in public_tables[table_name].items()
+                                if v is not None
+                            }
+                        else:
+                            public_tables[table_name] = records
         except Exception as e:
             print(f"Error reading ledger entry. Latest read seqno: {latest_seqno}")
             print(f"Error: {e}")
