@@ -330,7 +330,8 @@ class PublicDomain:
 
 
 class SimpleBuffer:
-    def __init__(self, buffer: bytes, at_loc: int = 0):
+    def __init__(self, name: str, buffer: bytes, at_loc: int = 0):
+        self.name = name
         self._buffer = buffer
         self._loc = at_loc
         self._len = len(self._buffer)
@@ -354,12 +355,12 @@ class SimpleBuffer:
         return self._loc
 
     def clone(self, at_loc: int = 0):
-        sb = SimpleBuffer(self._buffer, at_loc)
+        sb = SimpleBuffer(self.name, self._buffer, at_loc)
         return sb
 
     @staticmethod
     def from_file(filename):
-        return SimpleBuffer(open(filename, "rb").read())
+        return SimpleBuffer(filename, open(filename, "rb").read())
 
 
 def _byte_read_safe(file: SimpleBuffer, num_of_bytes):
