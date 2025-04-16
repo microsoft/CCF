@@ -708,9 +708,7 @@ class Entry:
         :return: :py:class:`ccf.ledger.PublicDomain`
         """
         if self._public_domain is None:
-            current_pos = self._file.tell()
-            buffer = self._buffer[current_pos : current_pos + self._public_domain_size]
-            self._file.seek(self._public_domain_size, 1)
+            buffer = _byte_read_safe(self._file, self._public_domain_size)
             self._public_domain = PublicDomain(buffer)
         return self._public_domain
 
@@ -732,7 +730,6 @@ class Transaction(Entry):
     """
 
     _tx_offset: int = 0
-    _dgst = functools.partial(digest, hashes.SHA256())
     _ledger_validator: Optional[LedgerValidator] = None
 
     def __init__(self, file: BinaryIO):
