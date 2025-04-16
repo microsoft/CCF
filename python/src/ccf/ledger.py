@@ -1,12 +1,11 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 
-import io
 import struct
 import os
 from enum import Enum
 
-from typing import BinaryIO, NamedTuple, Optional, Tuple, Dict, List
+from typing import NamedTuple, Optional, Tuple, Dict, List
 
 import json
 import base64
@@ -368,7 +367,7 @@ def _byte_read_safe(file: SimpleBuffer, num_of_bytes):
     ret = file.read(num_of_bytes)
     if len(ret) != num_of_bytes:
         raise ValueError(
-            f"Failed to read precise number of bytes in {file.name} at offset {offset}: {len(ret)}/{num_of_bytes}"
+            f"Failed to read precise number of bytes at offset {offset}: {len(ret)}/{num_of_bytes}"
         )
     return ret
 
@@ -816,7 +815,7 @@ class Snapshot(Entry):
     _filename: str
 
     def __init__(self, filename: str):
-        super().__init__(open(filename, "rb"))
+        super().__init__(SimpleBuffer.from_file(filename))
         self._filename = filename
         self._file_size = os.path.getsize(filename)
 
@@ -886,7 +885,7 @@ class TransactionIterator:
             raise StopIteration
 
 
-def find_tx_positions(file: BinaryIO, file_size: int) -> List[int]:
+def find_tx_positions(file: SimpleBuffer, file_size: int) -> List[int]:
     pos = LEDGER_HEADER_SIZE
     ps = []
     while pos < file_size:
@@ -1113,7 +1112,7 @@ class Ledger:
 
         for filename in self._filenames:
             start, end = range_from_filename(filename)
-            if seqno >= start and end is None or seqno <= end:
+            if seqno >= start and (end is None or seqno <= end):
                 chunk = LedgerChunk(filename)
                 return chunk[seqno - start]
 
