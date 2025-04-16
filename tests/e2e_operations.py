@@ -1118,7 +1118,7 @@ def run_recovery_local_unsealing(
 ):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.sealed_ledger_secret_location = "sealed_ledger_secret"
+    args.enable_auto_dr = True
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
         network.start_and_open(args)
@@ -1173,7 +1173,7 @@ def run_recovery_local_unsealing(
 def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.sealed_ledger_secret_location = "sealed_ledger_secret"
+    args.enable_auto_dr = True
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
         network.start_and_open(args)
