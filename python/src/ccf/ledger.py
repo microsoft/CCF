@@ -730,7 +730,6 @@ class Transaction(Entry):
     """
 
     _tx_offset: int = 0
-    _ledger_validator: Optional[LedgerValidator] = None
 
     def __init__(self, file: BinaryIO):
         super().__init__(file)
