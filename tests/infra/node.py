@@ -310,6 +310,7 @@ class Node:
         members_info = members_info or []
         self.label = label
         self.enclave_platform = enclave_platform
+        self.enable_auto_dr = enable_auto_dr
         if enable_auto_dr:
             self.sealed_ledger_secret_location = "sealed_ledger_secret"
             self.previous_sealed_ledger_secret_location = (
