@@ -3014,7 +3014,9 @@ namespace ccf
         crypto::aes_gcm_encrypt(sealing_key, buf_plaintext);
 
       files::dump(sealed_secret, config.sealed_ledger_secret_location.value());
-      LOG_INFO_FMT("Sealing complete of ledger secret with previous_version: {}", ledger_secret->previous_secret_stored_version);
+      LOG_INFO_FMT(
+        "Sealing complete of ledger secret with previous_version: {}",
+        ledger_secret->previous_secret_stored_version);
     }
   };
 }
