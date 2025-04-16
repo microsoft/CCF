@@ -599,11 +599,8 @@ namespace ccf::kv
     virtual ~AbstractCommitter() = default;
 
     virtual bool has_writes() = 0;
-    virtual bool prepare(bool track_commits) = 0;
-    virtual void commit(
-      Version v,
-      bool track_read_versions,
-      bool track_deletes_on_missing_keys) = 0;
+    virtual bool prepare() = 0;
+    virtual void commit(Version v, bool track_deletes_on_missing_keys) = 0;
     virtual ConsensusHookPtr post_commit() = 0;
   };
 
@@ -800,7 +797,7 @@ struct formatter<ccf::kv::Configuration::Nodes>
     {
       node_ids.insert(nid);
     }
-    return format_to(ctx.out(), "{{{}}}", fmt::join(node_ids, " "));
+    return fmt::format_to(ctx.out(), "{{{}}}", fmt::join(node_ids, " "));
   }
 };
 

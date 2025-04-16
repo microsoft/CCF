@@ -1,9 +1,9 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/eddsa_key_pair.h"
 #include "crypto/openssl/hash.h"
-#include "openssl_wrappers.h"
 
 namespace ccf::crypto
 {

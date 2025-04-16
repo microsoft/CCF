@@ -1,14 +1,12 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/hash.h"
 #include "crypto/openssl/rsa_key_pair.h"
-#include "openssl_wrappers.h"
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-#  include <openssl/core_names.h>
-#  include <openssl/encoder.h>
-#endif
+#include <openssl/core_names.h>
+#include <openssl/encoder.h>
 
 namespace ccf::crypto
 {
@@ -16,11 +14,7 @@ namespace ccf::crypto
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(EVP_PKEY* c) : PublicKey_OpenSSL(c)
   {
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     if (EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
-#else
-    if (!EVP_PKEY_get0_RSA(key))
-#endif
     {
       throw std::logic_error("invalid RSA key");
     }
@@ -30,11 +24,7 @@ namespace ccf::crypto
   {
     Unique_BIO mem(pem);
     key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     if (!key || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
-#else
-    if (!key || !EVP_PKEY_get0_RSA(key))
-#endif
     {
       throw std::logic_error("invalid RSA key");
     }
@@ -53,6 +43,14 @@ namespace ccf::crypto
       unsigned long ec = ERR_get_error();
       auto msg = OpenSSL::error_string(ec);
       throw std::runtime_error(fmt::format("OpenSSL error: {}", msg));
+    }
+
+    // As it's a common pattern to rely on successful key wrapper construction
+    // as a confirmation of a concrete key type, this must fail for non-RSA
+    // keys.
+    if (!key || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+    {
+      throw std::logic_error("invalid RSA key");
     }
   }
 
@@ -73,7 +71,6 @@ namespace ccf::crypto
     return ne;
   }
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
   std::pair<std::vector<uint8_t>, std::vector<uint8_t>> RSAPublicKey_OpenSSL::
     rsa_public_raw_from_jwk(const JsonWebKeyRSAPublic& jwk)
   {
@@ -86,25 +83,10 @@ namespace ccf::crypto
 
     return r;
   }
-#else
-  OpenSSL::Unique_RSA RSAPublicKey_OpenSSL::rsa_public_from_jwk(
-    const JsonWebKeyRSAPublic& jwk)
-  {
-    auto [n, e] = get_modulus_and_exponent(jwk);
-
-    Unique_RSA rsa;
-    CHECK1(RSA_set0_key(rsa, n, e, nullptr));
-    n.release();
-    e.release();
-
-    return rsa;
-  }
-#endif
 
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk)
   {
     key = EVP_PKEY_new();
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     auto [n_raw, e_raw] = rsa_public_raw_from_jwk(jwk);
 
     OSSL_PARAM params[3];
@@ -117,9 +99,6 @@ namespace ccf::crypto
     Unique_EVP_PKEY_CTX pctx("RSA");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, params));
-#else
-    CHECK1(EVP_PKEY_set1_RSA(key, rsa_public_from_jwk(jwk)));
-#endif
   }
 
   size_t RSAPublicKey_OpenSSL::key_size() const
@@ -208,6 +187,22 @@ namespace ccf::crypto
              pctx, signature, signature_size, hash.data(), hash.size()) == 1;
   }
 
+  bool RSAPublicKey_OpenSSL::verify_pkcs1(
+    const uint8_t* contents,
+    size_t contents_size,
+    const uint8_t* signature,
+    size_t signature_size,
+    MDType md_type)
+  {
+    auto hash = OpenSSLHashProvider().Hash(contents, contents_size, md_type);
+    Unique_EVP_PKEY_CTX pctx(key);
+    CHECK1(EVP_PKEY_verify_init(pctx));
+    CHECK1(EVP_PKEY_CTX_set_rsa_padding(pctx, RSA_PKCS1_PADDING));
+    CHECK1(EVP_PKEY_CTX_set_signature_md(pctx, get_md_type(md_type)));
+    return EVP_PKEY_verify(
+             pctx, signature, signature_size, hash.data(), hash.size()) == 1;
+  }
+
   std::vector<uint8_t> RSAPublicKey_OpenSSL::bn_bytes(const BIGNUM* bn)
   {
     std::vector<uint8_t> r(BN_num_bytes(bn));
@@ -215,7 +210,6 @@ namespace ccf::crypto
     return r;
   }
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
   Unique_BIGNUM RSAPublicKey_OpenSSL::get_bn_param(const char* key_name) const
   {
     Unique_BIGNUM r;
@@ -224,24 +218,12 @@ namespace ccf::crypto
     r.reset(bn);
     return r;
   }
-#endif
 
   RSAPublicKey::Components RSAPublicKey_OpenSSL::components() const
   {
     Components r;
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     r.n = bn_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_N));
     r.e = bn_bytes(get_bn_param(OSSL_PKEY_PARAM_RSA_E));
-#else
-    const RSA* rsa = EVP_PKEY_get0_RSA(key);
-    if (!rsa)
-    {
-      throw std::logic_error("invalid RSA key");
-    }
-
-    r.n = bn_bytes(RSA_get0_n(rsa));
-    r.e = bn_bytes(RSA_get0_e(rsa));
-#endif
     return r;
   }
 

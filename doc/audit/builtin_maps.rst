@@ -138,10 +138,30 @@ DEPRECATED. Previously contained versions of the code allowed to join the curren
    * - ``cae46d1...bb908b64e``
      - ``ALLOWED_TO_JOIN``
 
+``nodes.virtual.host_data``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Map mimicking SNP host_data for virtual nodes, restricting which host_data values may be presented by new nodes joining the network.
+
+**Key** Host data: The host data.
+
+**Value** Metadata: The platform specific meaning of the host data.
+
+``nodes.virtual.measurements``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Trusted virtual measurements for new nodes allowed to join the network. Virtual measurements are constructed by CCF to test and debug code update flows on hardware without TEE protections.
+
+.. warning:: Since virtual nodes provide no protection, this should be empty on production instances.
+
+**Key** Measurement, represented as a base64 hex-encoded string (length: 64).
+
+**Value** Status represented as JSON.
+
 ``nodes.snp.host_data``
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Trusted attestation report host data field for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).
+Trusted attestation report host data field for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only). Only the presence of the joiner's host data key is checked, so the metadata is optional and may be empty for space-saving or privacy reasons.
 
 **Key** Host data: The host data.
 
@@ -150,7 +170,7 @@ Trusted attestation report host data field for new nodes allowed to join the net
 ``nodes.snp.measurements``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Trusted measurements for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).
+Trusted SNP measurements for new nodes allowed to join the network (:doc:`SNP <../operations/platforms/snp>` only).
 
 .. note:: For improved serviceability on confidential ACI deployments, see :ref:`audit/builtin_maps:``nodes.snp.uvm_endorsements``` map.
 
@@ -176,6 +196,27 @@ For Confidential Azure Container Instance (ACI) deployments, trusted endorsement
 **Key** Trusted endorser DID (did:x509 only for now: https://github.com/microsoft/did-x509/blob/main/specification.md).
 
 **Value** Map of issuer feed to Security Version Number (SVN) represented as JSON. See https://ietf-wg-scitt.github.io/draft-ietf-scitt-architecture/draft-ietf-scitt-architecture.html#name-issuer-identity.
+
+``nodes.snp.tcb_versions``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The minimum trusted TCB version for new nodes allowed to join the network (:doc`SNP <../operations/platforms/snp>` only).
+
+.. note:: For improved serviceability on confidential ACI deployments, see :ref:`audit/builtin_maps:``nodes.snp.tcb_versions``` map.
+
+**Key** AMD CPUID, represented as a lowercase hex string without an '0x' prefix.
+
+**Value** The minimum TCB version for that CPUID.
+
+**Example**
+
+.. list-table::
+   :header-rows: 1
+
+   * - CPUID
+     - TCB Version
+   * - ``00a00f11``
+     - ``{boot_loader: 4, tee: 0, snp: 24, microcode: 219}``
 
 ``service.info``
 ~~~~~~~~~~~~~~~~
@@ -356,9 +397,6 @@ JWT issuers.
    :project: CCF
    :members:
 
-.. doxygenenum:: ccf::JwtIssuerKeyFilter
-   :project: CCF
-
 ``jwt.public_signing_keys``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -380,11 +418,20 @@ JWT signing key to Issuer mapping, used until 5.0.
 ``jwt.public_signing_keys_metadata``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-JWT signing keys.
+JWT signing keys, used until 6.0.
 
 **Key** JWT Key ID, represented as a string.
 
-**Value** List of (DER-encoded key/certificate, issuer, constraint) used to validate the Issuer during authorization, represented as JSON.
+**Value** List of (DER-encoded certificate, issuer, constraint), represented as JSON.
+
+``jwt.public_signing_keys_metadata_v2``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+JWT signing keys, from 6.0.0 onwards.
+
+**Key** JWT Key ID, represented as a string.
+
+**Value** List of (DER-encoded public key, issuer, constraint), represented as JSON.
 
 ``constitution``
 ~~~~~~~~~~~~~~~~

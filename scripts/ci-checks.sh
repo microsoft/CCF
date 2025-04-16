@@ -33,7 +33,7 @@ function endgroup() {
 
 
 group "Shell scripts"
-git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -s bash -e SC2044,SC2002,SC1091,SC2181
+git ls-files | grep -e '\.sh$' | grep -E -v "^3rdparty" | xargs shellcheck -S warning -s bash
 endgroup
 
 # No inline TODOs in the codebase, use tickets, with a pointer to the code if necessary.
@@ -94,6 +94,7 @@ endgroup
 group "OpenAPI"
 npm install --loglevel=error --no-save @apidevtools/swagger-cli 1>/dev/null
 find doc/schemas/*.json -exec npx swagger-cli validate {} \;
+find doc/schemas/gov/*/*.json -exec npx swagger-cli validate {} \;
 endgroup
 
 group "Copyright notice headers"

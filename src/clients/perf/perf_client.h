@@ -31,19 +31,19 @@ namespace client
     int threads = std::thread::hardware_concurrency();
     if (core_id > threads || core_id < 0)
     {
-      LOG_FATAL_FMT("Invalid core id: {}", core_id);
+      CCF_APP_FATAL("Invalid core id: {}", core_id);
       abort();
       return false;
     }
 
     cpu_set_t set;
-    LOG_INFO_FMT("Pinning to core: {}", core_id);
+    CCF_APP_INFO("Pinning to core: {}", core_id);
     CPU_ZERO(&set);
     CPU_SET(core_id, &set);
 
     if (sched_setaffinity(0, sizeof(cpu_set_t), &set) < 0)
     {
-      LOG_FATAL_FMT("Unable to set affinity");
+      CCF_APP_FATAL("Unable to set affinity");
       abort();
       return false;
     }
@@ -319,7 +319,7 @@ namespace client
 
       if (options.sign && !force_unsigned)
       {
-        LOG_INFO_FMT("Creating key pair");
+        CCF_APP_INFO("Creating key pair");
         conn->create_key_pair(key);
       }
 
@@ -328,7 +328,7 @@ namespace client
       // Report ciphersuite of first client (assume it is the same for each)
       if (is_first_time)
       {
-        LOG_DEBUG_FMT(
+        CCF_APP_DEBUG(
           "Connected to server via TLS ({})", conn->get_ciphersuite_name());
       }
 
@@ -378,11 +378,11 @@ namespace client
       return r.status == HTTP_STATUS_OK;
     }
 
-    virtual void pre_creation_hook(){};
-    virtual void post_creation_hook(){};
+    virtual void pre_creation_hook() {};
+    virtual void post_creation_hook() {};
 
-    virtual void pre_timing_body_hook(){};
-    virtual void post_timing_body_hook(){};
+    virtual void pre_timing_body_hook() {};
+    virtual void post_timing_body_hook() {};
 
     virtual timing::Results call_raw_batch(
       std::shared_ptr<RpcTlsClient>& connection, const PreparedTxs& txs)
@@ -427,15 +427,15 @@ namespace client
       }
       const auto last_commit = last_response_tx_id.seqno;
       auto timing_results = end_timing(last_commit);
-      LOG_INFO_FMT("Timing ended");
+      CCF_APP_INFO("Timing ended");
       return timing_results;
     }
 
     void kick_off_timing()
     {
-      LOG_INFO_FMT("About to begin timing");
+      CCF_APP_INFO("About to begin timing");
       begin_timing();
-      LOG_INFO_FMT("Began timing");
+      CCF_APP_INFO("Began timing");
     }
 
     inline void write(
@@ -634,7 +634,7 @@ namespace client
         }
         catch (std::exception& e)
         {
-          LOG_FAIL_FMT("Exception during creation steps: {}", e.what());
+          CCF_APP_FAIL("Exception during creation steps: {}", e.what());
           throw e;
         }
       }
@@ -649,7 +649,7 @@ namespace client
       }
       catch (std::exception& e)
       {
-        LOG_FAIL_FMT("Preparation exception: {}", e.what());
+        CCF_APP_FAIL("Preparation exception: {}", e.what());
         throw e;
       }
     }
@@ -664,7 +664,7 @@ namespace client
       }
       catch (std::exception& e)
       {
-        LOG_FAIL_FMT("Transaction exception: {}", e.what());
+        CCF_APP_FAIL("Transaction exception: {}", e.what());
         throw e;
       }
     }
@@ -742,14 +742,14 @@ namespace client
       const auto duration = dur_ms / 1000.0;
       const auto tx_per_sec = total_txs / duration;
 
-      LOG_INFO_FMT(
+      CCF_APP_INFO(
         "{} transactions took {}ms.\n"
         "=> {}tx/s\n", //< This is grepped for by _get_perf in Python
         total_txs,
         dur_ms,
         tx_per_sec);
 
-      LOG_DEBUG_FMT(
+      CCF_APP_DEBUG(
         "  Sends: {}\n"
         "  Receives: {}\n"
         "  All txs (local_commit): {}\n"
@@ -763,7 +763,7 @@ namespace client
       {
         const auto& round_info = timing_results.per_round[round];
 
-        LOG_TRACE_FMT(
+        CCF_APP_TRACE(
           "  Round {} (req ids #{} to #{})\n"
           "    Local: {}\n"
           "    Global: {}\n",
@@ -821,7 +821,7 @@ namespace client
         options.generator_seed = std::random_device()();
       }
 
-      LOG_INFO_FMT(
+      CCF_APP_INFO(
         "Random choices determined by seed: {}", options.generator_seed);
       rand_generator.seed(options.generator_seed);
 
@@ -829,7 +829,7 @@ namespace client
       const auto target_core = 0;
       if (!pin_to_core(target_core))
       {
-        LOG_FAIL_FMT("Failed to pin to core: {}", target_core);
+        CCF_APP_FAIL("Failed to pin to core: {}", target_core);
       }
       */
 
@@ -855,7 +855,7 @@ namespace client
 
       pre_timing_body_hook();
 
-      LOG_TRACE_FMT(
+      CCF_APP_TRACE(
         "Sending {} transactions from {} clients {} times...",
         options.num_transactions,
         options.thread_count,
@@ -863,7 +863,7 @@ namespace client
 
       auto timing_results = send_all_prepared_transactions();
 
-      LOG_INFO_FMT("Done");
+      CCF_APP_INFO("Done");
 
       post_timing_body_hook();
 

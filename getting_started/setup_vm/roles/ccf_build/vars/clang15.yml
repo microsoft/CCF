@@ -5,8 +5,7 @@ debs:
   - apt-transport-https
   - ninja-build
   - libuv1-dev
-  - libc++-{{ clang_ver }}-dev
-  - libc++abi-{{ clang_ver }}-dev
+  - libstdc++-11-dev
   - python3.8-dev
   - python3.8-venv
   - llvm-{{ clang_ver }}
@@ -17,14 +16,15 @@ debs:
   - expect
   - git
   - ccache
-  - kmod # modinfo for sgxinfo.sh
   - cmake
   - libssl-dev
+  - libnghttp2-dev # experimental http2 support
   - jq # operation scripts
   - sudo
   - curl # client test infra
   - shellcheck # bash lint
   - iptables # partition test infra
+  - strace # partition test infra
   - rubygems # required to install cddl checker
 
 # Not installed on GitHub Actions environment because of conflicting package

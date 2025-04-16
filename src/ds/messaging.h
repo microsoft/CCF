@@ -204,7 +204,7 @@ namespace messaging
   using IdleBehaviour = std::function<void(size_t num_consecutive_idles)>;
   static inline void default_idle_behaviour(size_t)
   {
-    CCF_PAUSE();
+    std::this_thread::yield();
   }
 
   class BufferProcessor

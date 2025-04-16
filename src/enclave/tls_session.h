@@ -6,7 +6,6 @@
 #include "ds/messaging.h"
 #include "ds/ring_buffer.h"
 #include "ds/thread_messaging.h"
-#include "enclave/session.h"
 #include "tcp/msg_types.h"
 #include "tls/context.h"
 #include "tls/tls.h"
@@ -648,10 +647,7 @@ namespace ccf
         // WANTS_WRITE
         if (put == TLS_WRITING)
         {
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3 && \
-  defined(OPENSSL_VERSION_MINOR) && OPENSSL_VERSION_MINOR >= 3
           BIO_set_retry_write(b);
-#endif
           LOG_TRACE_FMT("TLS Session::send_cb() : WANTS_WRITE");
           *processed = 0;
           return -1;
@@ -701,10 +697,7 @@ namespace ccf
         // WANTS_READ
         if (got == TLS_READING)
         {
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3 && \
-  defined(OPENSSL_VERSION_MINOR) && OPENSSL_VERSION_MINOR >= 3
           BIO_set_retry_read(b);
-#endif
           LOG_TRACE_FMT("TLS Session::recv_cb() : WANTS_READ");
           *processed = 0;
           return -1;

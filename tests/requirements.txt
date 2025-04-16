@@ -7,7 +7,6 @@ docutils
 python-iptables
 py-spy
 GitPython
-docker
 better_exceptions
 pyasn1
 Jinja2
@@ -25,3 +24,4 @@ prettytable==3.*
 polars
 plotext
 boofuzz
+numpy<2

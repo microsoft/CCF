@@ -564,7 +564,7 @@ namespace aft
         become_retired(idx, ccf::kv::RetirementPhase::Ordered);
       }
 
-      if (conf != configurations.back().nodes)
+      if (configurations.empty() || conf != configurations.back().nodes)
       {
         Configuration new_config = {idx, std::move(conf), idx};
         configurations.push_back(new_config);
@@ -815,7 +815,8 @@ namespace aft
       }
       catch (const std::exception& e)
       {
-        LOG_FAIL_EXC(e.what());
+        LOG_FAIL_FMT("Exception in {}", __PRETTY_FUNCTION__);
+        LOG_DEBUG_FMT("Error: {}", e.what());
         return;
       }
     }

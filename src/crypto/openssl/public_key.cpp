@@ -3,25 +3,22 @@
 
 #include "crypto/openssl/public_key.h"
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/ds/logger.h"
 #include "crypto/openssl/hash.h"
-#include "openssl_wrappers.h"
 
+#include <openssl/core_names.h>
 #include <openssl/ec.h>
 #include <openssl/engine.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/ossl_typ.h>
+#include <openssl/param_build.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <stdexcept>
 #include <string>
-
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
-#  include <openssl/core_names.h>
-#  include <openssl/param_build.h>
-#endif
 
 namespace ccf::crypto
 {
@@ -66,7 +63,6 @@ namespace ccf::crypto
     return xy;
   }
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
   std::vector<uint8_t> PublicKey_OpenSSL::ec_point_public_from_jwk(
     const JsonWebKeyECPublic& jwk)
   {
@@ -84,23 +80,10 @@ namespace ccf::crypto
       group, p, POINT_CONVERSION_UNCOMPRESSED, buf.data(), buf.size(), bn_ctx));
     return buf;
   }
-#else
-  Unique_EC_KEY PublicKey_OpenSSL::ec_key_public_from_jwk(
-    const JsonWebKeyECPublic& jwk)
-  {
-    auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
-    auto [x, y] = get_components(jwk);
-
-    Unique_EC_KEY ec_key(nid);
-    CHECK1(EC_KEY_set_public_key_affine_coordinates(ec_key, x, y));
-    return ec_key;
-  }
-#endif
 
   PublicKey_OpenSSL::PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk)
   {
     key = EVP_PKEY_new();
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
     auto buf = ec_point_public_from_jwk(jwk);
 
@@ -114,9 +97,6 @@ namespace ccf::crypto
     Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
     CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, params));
-#else
-    CHECK1(EVP_PKEY_set1_EC_KEY(key, ec_key_public_from_jwk(jwk)));
-#endif
   }
 
   PublicKey_OpenSSL::PublicKey_OpenSSL(EVP_PKEY* key) : key(key) {}
@@ -146,7 +126,6 @@ namespace ccf::crypto
 
   int PublicKey_OpenSSL::get_openssl_group_id() const
   {
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     size_t gname_len = 0;
     CHECK1(EVP_PKEY_get_group_name(key, NULL, 0, &gname_len));
     std::string gname(gname_len + 1, 0);
@@ -165,10 +144,6 @@ namespace ccf::crypto
     {
       throw std::runtime_error(fmt::format("Unknown OpenSSL group {}", gname));
     }
-#else
-    return EC_GROUP_get_curve_name(
-      EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(key)));
-#endif
   }
 
   int PublicKey_OpenSSL::get_openssl_group_id(CurveID gid)
@@ -278,7 +253,6 @@ namespace ccf::crypto
 
   Unique_PKEY key_from_raw_ec_point(const std::vector<uint8_t>& raw, int nid)
   {
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     const auto curve_name = (char*)OSSL_EC_curve_nid2name(nid);
 
     OSSL_PARAM params[3];
@@ -288,7 +262,7 @@ namespace ccf::crypto
       OSSL_PKEY_PARAM_PUB_KEY, (void*)raw.data(), raw.size());
     params[2] = OSSL_PARAM_construct_end();
 
-    auto pctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL);
+    Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
 
     EVP_PKEY* pkey = NULL;
@@ -308,19 +282,6 @@ namespace ccf::crypto
     EVP_PKEY_up_ref(pk);
     EVP_PKEY_free(pkey);
     return pk;
-#else
-    Unique_BN_CTX bn_ctx;
-    Unique_EC_GROUP group(nid);
-    Unique_EC_POINT p(group);
-    CHECK1(EC_POINT_oct2point(group, p, raw.data(), raw.size(), bn_ctx));
-    Unique_EC_KEY ec_key(nid);
-
-    Unique_PKEY pk;
-    CHECK1(EC_KEY_set_public_key(ec_key, p));
-    CHECK1(EVP_PKEY_set1_EC_KEY(pk, ec_key));
-    EVP_PKEY_up_ref(pk);
-    return pk;
-#endif
   }
 
   PublicKey::Coordinates PublicKey_OpenSSL::coordinates() const
@@ -328,19 +289,12 @@ namespace ccf::crypto
     Coordinates r;
     Unique_BIGNUM x, y;
     Unique_EC_GROUP group(get_openssl_group_id());
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     BIGNUM* bn_x = NULL;
     BIGNUM* bn_y = NULL;
     CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_X, &bn_x));
     x.reset(bn_x);
     CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, &bn_y));
     y.reset(bn_y);
-#else
-    Unique_EC_KEY eckey(EVP_PKEY_get1_EC_KEY(key));
-    const EC_POINT* p = EC_KEY_get0_public_key(eckey);
-    Unique_BN_CTX bn_ctx;
-    CHECK1(EC_POINT_get_affine_coordinates(group, p, x, y, bn_ctx));
-#endif
     int sz = EC_GROUP_get_degree(group) / 8;
     r.x.resize(sz);
     r.y.resize(sz);

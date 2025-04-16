@@ -6,15 +6,14 @@
 #include "ccf/js/core/context.h"
 #include "ccf/node_context.h"
 #include "ccf/node_subsystem_interface.h"
-#include "ccf/pal/enclave.h"
 #include "ccf/pal/mem.h"
 #include "crypto/openssl/hash.h"
 #include "ds/oversized.h"
+#include "ds/work_beacon.h"
 #include "enclave_time.h"
 #include "indexing/enclave_lfs_access.h"
 #include "indexing/historical_transaction_fetcher.h"
 #include "interface.h"
-#include "js/ffi_plugins.h"
 #include "js/interpreter_cache.h"
 #include "node/acme_challenge_frontend.h"
 #include "node/historical_queries.h"
@@ -22,6 +21,7 @@
 #include "node/node_state.h"
 #include "node/node_types.h"
 #include "node/rpc/acme_subsystem.h"
+#include "node/rpc/cosesigconfig_subsystem.h"
 #include "node/rpc/custom_protocol_subsystem.h"
 #include "node/rpc/forwarder.h"
 #include "node/rpc/gov_effects.h"
@@ -34,7 +34,6 @@
 #include "ringbuffer_logger.h"
 #include "rpc_map.h"
 #include "rpc_sessions.h"
-#include "verify.h"
 
 #include <openssl/engine.h>
 
@@ -46,6 +45,7 @@ namespace ccf
     std::unique_ptr<ringbuffer::Circuit> circuit;
     std::unique_ptr<ringbuffer::WriterFactory> basic_writer_factory;
     std::unique_ptr<oversized::WriterFactory> writer_factory;
+    ccf::ds::WorkBeaconPtr work_beacon;
     RingbufferLogger* ringbuffer_logger = nullptr;
     ccf::NetworkState network;
     std::shared_ptr<RPCMap> rpc_map;
@@ -53,9 +53,6 @@ namespace ccf
     std::unique_ptr<ccf::NodeState> node;
     ringbuffer::WriterPtr to_host = nullptr;
     std::chrono::microseconds last_tick_time;
-#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
-    ENGINE* rdrand_engine = nullptr;
-#endif
 
     StartType start_type;
 
@@ -88,38 +85,18 @@ namespace ccf
       size_t sig_tx_interval,
       size_t sig_ms_interval,
       const ccf::consensus::Configuration& consensus_config,
-      const ccf::crypto::CurveID& curve_id) :
+      const ccf::crypto::CurveID& curve_id,
+      const ccf::ds::WorkBeaconPtr& work_beacon_) :
       circuit(std::move(circuit_)),
       basic_writer_factory(std::move(basic_writer_factory_)),
       writer_factory(std::move(writer_factory_)),
+      work_beacon(work_beacon_),
       ringbuffer_logger(ringbuffer_logger_),
       network(),
       rpc_map(std::make_shared<RPCMap>()),
       rpcsessions(std::make_shared<RPCSessions>(*writer_factory, rpc_map))
     {
-      ccf::pal::initialize_enclave();
-      ccf::initialize_verifiers();
       ccf::crypto::openssl_sha256_init();
-
-      // https://github.com/microsoft/CCF/issues/5569
-      // Open Enclave with OpenSSL 3.x (default for SGX) is built with RDCPU
-      // (https://github.com/openenclave/openenclave/blob/master/docs/OpenSSLSupport.md#how-to-use-rand-apis)
-      // and so does not need to make use of the (deprecated) ENGINE_x API.
-#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
-      // From
-      // https://software.intel.com/content/www/us/en/develop/articles/how-to-use-the-rdrand-engine-in-openssl-for-random-number-generation.html
-      if (
-        ENGINE_load_rdrand() != 1 ||
-        (rdrand_engine = ENGINE_by_id("rdrand")) == nullptr ||
-        ENGINE_init(rdrand_engine) != 1 ||
-        ENGINE_set_default(rdrand_engine, ENGINE_METHOD_RAND) != 1)
-      {
-        LOG_FAIL_FMT("Error creating OpenSSL's RDRAND engine");
-        ENGINE_free(rdrand_engine);
-        throw ccf::ccf_openssl_rdrand_init_error(
-          "could not initialize RDRAND engine for OpenSSL");
-      }
-#endif
 
       to_host = writer_factory->create_writer_to_outside();
 
@@ -172,6 +149,9 @@ namespace ccf
         std::make_shared<ccf::js::InterpreterCache>(max_interpreter_cache_size);
       context->install_subsystem(interpreter_cache);
 
+      context->install_subsystem(
+        std::make_shared<ccf::AbstractCOSESignaturesConfigSubsystem>(*node));
+
       LOG_TRACE_FMT("Creating RPC actors / ffi");
       rpc_map->register_frontend<ccf::ActorsType::members>(
         std::make_unique<ccf::MemberRpcFrontend>(network, *context));
@@ -189,8 +169,6 @@ namespace ccf
       rpc_map->register_frontend<ccf::ActorsType::acme_challenge>(
         std::make_unique<ccf::ACMERpcFrontend>(network, *context));
 
-      ccf::js::register_ffi_plugins(ccf::get_js_plugins());
-
       LOG_TRACE_FMT("Initialize node");
       node->initialize(
         consensus_config,
@@ -203,17 +181,7 @@ namespace ccf
 
     ~Enclave()
     {
-#if !(defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3)
-      if (rdrand_engine)
-      {
-        LOG_TRACE_FMT("Finishing RDRAND engine");
-        ENGINE_finish(rdrand_engine);
-        ENGINE_free(rdrand_engine);
-      }
-#endif
       LOG_TRACE_FMT("Shutting down enclave");
-      ccf::shutdown_verifiers();
-      ccf::pal::shutdown_enclave();
       ccf::crypto::openssl_sha256_shutdown();
     }
 
@@ -456,9 +424,13 @@ namespace ccf
         // processed in a single iteration
         static constexpr size_t max_messages = 256;
 
-        size_t consecutive_idles = 0u;
         while (!bp.get_finished())
         {
+          // Wait until the host indicates that some ringbuffer messages are
+          // available, but wake at least every 100ms to check thread messages
+          work_beacon->wait_for_work_with_timeout(
+            std::chrono::milliseconds(100));
+
           // First, read some messages from the ringbuffer
           auto read = bp.read_n(max_messages, circuit->read_from_outside());
 
@@ -474,31 +446,7 @@ namespace ccf
           // messages were executed, idle
           if (read == 0 && thread_msg == 0)
           {
-            const auto time_now = ccf::get_enclave_time();
-            static std::chrono::microseconds idling_start_time;
-
-            if (consecutive_idles == 0)
-            {
-              idling_start_time = time_now;
-            }
-
-            // Handle initial idles by pausing, eventually sleep (in host)
-            constexpr std::chrono::milliseconds timeout(5);
-            if ((time_now - idling_start_time) > timeout)
-            {
-              std::this_thread::sleep_for(timeout * 10);
-            }
-            else
-            {
-              CCF_PAUSE();
-            }
-
-            consecutive_idles++;
-          }
-          else
-          {
-            // If some messages were read, reset consecutive idles count
-            consecutive_idles = 0;
+            std::this_thread::yield();
           }
         }
 

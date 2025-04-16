@@ -138,7 +138,7 @@ std::vector<std::unique_ptr<Op<M>>> gen_ops(size_t n)
 {
   std::random_device rand_dev;
   auto seed = rand_dev();
-  LOG_INFO_FMT("Seed: {}", seed);
+  CCF_APP_INFO("Seed: {}", seed);
   std::mt19937 gen(seed);
   std::uniform_int_distribution<> gen_op(0, 3);
 
@@ -194,7 +194,7 @@ TEST_CASE_TEMPLATE("Persistent map operations", M, RBMap, ChampMap)
   auto ops = gen_ops<M>(500);
   for (auto& op : ops)
   {
-    LOG_DEBUG_FMT("{}", op->str());
+    CCF_APP_DEBUG("{}", op->str());
     auto r = op->apply(model, map);
     auto model_new = r.first;
     auto map_new = r.second;

@@ -73,7 +73,10 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Attestation::Environment);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation::Environment);
   DECLARE_JSON_OPTIONAL_FIELDS(
-    CCFConfig::Attestation::Environment, security_policy, uvm_endorsements);
+    CCFConfig::Attestation::Environment,
+    security_policy,
+    uvm_endorsements,
+    snp_endorsements);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Attestation);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Attestation);
@@ -82,7 +85,13 @@ namespace ccf
     snp_endorsements_servers,
     environment,
     snp_security_policy_file,
-    snp_uvm_endorsements_file);
+    snp_uvm_endorsements_file,
+    snp_endorsements_file);
+
+  DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig::Snapshots);
+  DECLARE_JSON_REQUIRED_FIELDS(CCFConfig::Snapshots);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    CCFConfig::Snapshots, directory, tx_count, read_only_directory);
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(CCFConfig);
   DECLARE_JSON_REQUIRED_FIELDS(CCFConfig, network);
@@ -94,6 +103,7 @@ namespace ccf
     ledger_signatures,
     jwt,
     attestation,
+    snapshots,
     node_to_node_message_limit,
     historical_cache_soft_limit);
 

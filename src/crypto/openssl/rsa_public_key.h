@@ -16,12 +16,8 @@ namespace ccf::crypto
   class RSAPublicKey_OpenSSL : public PublicKey_OpenSSL, public RSAPublicKey
   {
   protected:
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
     rsa_public_raw_from_jwk(const JsonWebKeyRSAPublic& jwk);
-#else
-    OpenSSL::Unique_RSA rsa_public_from_jwk(const JsonWebKeyRSAPublic& jwk);
-#endif
 
   public:
     RSAPublicKey_OpenSSL() = default;
@@ -55,13 +51,18 @@ namespace ccf::crypto
       MDType md_type = MDType::NONE,
       size_t salt_length = 0) override;
 
+    virtual bool verify_pkcs1(
+      const uint8_t* contents,
+      size_t contents_size,
+      const uint8_t* signature,
+      size_t signature_size,
+      MDType md_type = MDType::NONE) override;
+
     virtual Components components() const override;
 
     static std::vector<uint8_t> bn_bytes(const BIGNUM* bn);
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     OpenSSL::Unique_BIGNUM get_bn_param(const char* key_name) const;
-#endif
 
     virtual JsonWebKeyRSAPublic public_key_jwk_rsa(
       const std::optional<std::string>& kid = std::nullopt) const override;

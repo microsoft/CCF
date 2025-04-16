@@ -9,7 +9,9 @@
 #include "ccf/service/tables/members.h"
 #include "ccf/service/tables/nodes.h"
 #include "ccf/service/tables/snp_measurements.h"
+#include "ccf/service/tables/tcb_verification.h"
 #include "ccf/service/tables/users.h"
+#include "ccf/service/tables/virtual_measurements.h"
 #include "ccf/tx.h"
 #include "consensus/aft/raft_types.h"
 #include "crypto/openssl/cose_sign.h"
@@ -69,7 +71,7 @@ namespace ccf
       }
     }
 
-    static bool is_recovery_member(
+    static bool is_recovery_participant_or_owner(
       ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
     {
       auto member_encryption_public_keys =
@@ -77,6 +79,27 @@ namespace ccf
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
       return member_encryption_public_keys->get(member_id).has_value();
+    }
+
+    static bool is_recovery_participant(
+      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
+    {
+      return is_recovery_participant_or_owner(tx, member_id) &&
+        !is_recovery_owner(tx, member_id);
+    }
+
+    static bool is_recovery_owner(
+      ccf::kv::ReadOnlyTx& tx, const MemberId& member_id)
+    {
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto mi = member_info->get(member_id);
+      if (!mi.has_value())
+      {
+        return false;
+      }
+
+      return mi->recovery_role.has_value() &&
+        mi->recovery_role.value() == MemberRecoveryRole::Owner;
     }
 
     static bool is_active_member(
@@ -92,18 +115,18 @@ namespace ccf
       return mi->status == MemberStatus::ACTIVE;
     }
 
-    static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_members(
-      ccf::kv::ReadOnlyTx& tx)
+    static std::map<MemberId, ccf::crypto::Pem>
+    get_active_recovery_participants(ccf::kv::ReadOnlyTx& tx)
     {
       auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
       auto member_encryption_public_keys =
         tx.ro<ccf::MemberPublicEncryptionKeys>(
           Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
 
-      std::map<MemberId, ccf::crypto::Pem> active_recovery_members;
+      std::map<MemberId, ccf::crypto::Pem> active_recovery_participants;
 
       member_encryption_public_keys->foreach(
-        [&active_recovery_members,
+        [&active_recovery_participants,
          &member_info](const auto& mid, const auto& pem) {
           auto info = member_info->get(mid);
           if (!info.has_value())
@@ -112,13 +135,48 @@ namespace ccf
               fmt::format("Recovery member {} has no member info", mid));
           }
 
-          if (info->status == MemberStatus::ACTIVE)
+          if (
+            info->status == MemberStatus::ACTIVE &&
+            info->recovery_role.value_or(MemberRecoveryRole::Participant) ==
+              MemberRecoveryRole::Participant)
           {
-            active_recovery_members[mid] = pem;
+            active_recovery_participants[mid] = pem;
           }
           return true;
         });
-      return active_recovery_members;
+      return active_recovery_participants;
+    }
+
+    static std::map<MemberId, ccf::crypto::Pem> get_active_recovery_owners(
+      ccf::kv::ReadOnlyTx& tx)
+    {
+      auto member_info = tx.ro<ccf::MemberInfo>(Tables::MEMBER_INFO);
+      auto member_encryption_public_keys =
+        tx.ro<ccf::MemberPublicEncryptionKeys>(
+          Tables::MEMBER_ENCRYPTION_PUBLIC_KEYS);
+
+      std::map<MemberId, ccf::crypto::Pem> active_recovery_owners;
+
+      member_encryption_public_keys->foreach(
+        [&active_recovery_owners,
+         &member_info](const auto& mid, const auto& pem) {
+          auto info = member_info->get(mid);
+          if (!info.has_value())
+          {
+            throw std::logic_error(
+              fmt::format("Recovery member {} has no member info", mid));
+          }
+
+          if (
+            info->status == MemberStatus::ACTIVE &&
+            info->recovery_role.value_or(MemberRecoveryRole::Participant) ==
+              MemberRecoveryRole::Owner)
+          {
+            active_recovery_owners[mid] = pem;
+          }
+          return true;
+        });
+      return active_recovery_owners;
     }
 
     static MemberId add_member(
@@ -140,9 +198,42 @@ namespace ccf
         return id;
       }
 
+      if (member_pub_info.recovery_role.has_value())
+      {
+        auto member_recovery_role = member_pub_info.recovery_role.value();
+        if (!member_pub_info.encryption_pub_key.has_value())
+        {
+          if (member_recovery_role != ccf::MemberRecoveryRole::NonParticipant)
+          {
+            throw std::logic_error(fmt::format(
+              "Member {} cannot be added as recovery_role has a value set but "
+              "no "
+              "encryption public key is specified",
+              id));
+          }
+        }
+        else
+        {
+          if (
+            member_recovery_role != ccf::MemberRecoveryRole::Participant &&
+            member_recovery_role != ccf::MemberRecoveryRole::Owner)
+          {
+            throw std::logic_error(fmt::format(
+              "Recovery member {} cannot be added as with recovery role value "
+              "of "
+              "{}",
+              id,
+              member_recovery_role));
+          }
+        }
+      }
+
       member_certs->put(id, member_pub_info.cert);
       member_info->put(
-        id, {MemberStatus::ACCEPTED, member_pub_info.member_data});
+        id,
+        {MemberStatus::ACCEPTED,
+         member_pub_info.member_data,
+         member_pub_info.recovery_role});
 
       if (member_pub_info.encryption_pub_key.has_value())
       {
@@ -179,16 +270,6 @@ namespace ccf
       const auto newly_active = member->status != MemberStatus::ACTIVE;
 
       member->status = MemberStatus::ACTIVE;
-      if (
-        is_recovery_member(tx, member_id) &&
-        (get_active_recovery_members(tx).size() >= max_active_recovery_members))
-      {
-        throw std::logic_error(fmt::format(
-          "Cannot activate new recovery member {}: no more than {} active "
-          "recovery members are allowed",
-          member_id,
-          max_active_recovery_members));
-      }
       member_info->put(member_id, member.value());
 
       return newly_active;
@@ -218,24 +299,76 @@ namespace ccf
       // If the member was active and had a recovery share, check that
       // the new number of active members is still sufficient for
       // recovery
-      if (
-        member_to_remove->status == MemberStatus::ACTIVE &&
-        is_recovery_member(tx, member_id))
+      if (member_to_remove->status == MemberStatus::ACTIVE)
       {
-        // Because the member to remove is active, there is at least one active
-        // member (i.e. get_active_recovery_members_count_after >= 0)
-        size_t get_active_recovery_members_count_after =
-          get_active_recovery_members(tx).size() - 1;
-        auto recovery_threshold = get_recovery_threshold(tx);
-        if (get_active_recovery_members_count_after < recovery_threshold)
+        if (is_recovery_participant(tx, member_id))
         {
-          LOG_FAIL_FMT(
-            "Failed to remove recovery member {}: number of active recovery "
-            "members ({}) would be less than recovery threshold ({})",
-            member_id,
-            get_active_recovery_members_count_after,
-            recovery_threshold);
-          return false;
+          size_t active_recovery_participants_count_after =
+            get_active_recovery_participants(tx).size() - 1;
+          auto recovery_threshold = get_recovery_threshold(tx);
+          auto active_recovery_owners_count =
+            get_active_recovery_owners(tx).size();
+          if (
+            active_recovery_participants_count_after == 0 &&
+            active_recovery_owners_count > 0 && recovery_threshold == 1)
+          {
+            // Its fine to remove all active recovery particiants as long as
+            // recover owner(s) exist with a threshold of 1.
+            LOG_INFO_FMT(
+              "Allowing last active recovery participant member {}: to "
+              "be removed as active recovery owner members ({}) are present "
+              "with recovery threshold ({}).",
+              member_id,
+              active_recovery_owners_count,
+              recovery_threshold);
+          }
+          else if (
+            active_recovery_participants_count_after < recovery_threshold)
+          {
+            // Because the member to remove is active, there is at least one
+            // active member (i.e. active_recovery_participants_count_after >=
+            // 0)
+            LOG_FAIL_FMT(
+              "Failed to remove recovery member {}: number of active recovery "
+              "participant members ({}) would be less than recovery threshold "
+              "({})",
+              member_id,
+              active_recovery_participants_count_after,
+              recovery_threshold);
+            return false;
+          }
+        }
+        else if (is_recovery_owner(tx, member_id))
+        {
+          size_t active_recovery_owners_count_after =
+            get_active_recovery_owners(tx).size() - 1;
+          auto recovery_threshold = get_recovery_threshold(tx);
+          auto active_recovery_participants_count =
+            get_active_recovery_participants(tx).size();
+          if (active_recovery_owners_count_after == 0)
+          {
+            if (active_recovery_participants_count > 0)
+            {
+              LOG_INFO_FMT(
+                "Allowing last active recovery owner member {}: to "
+                "be removed as active recovery owner participants ({}) are "
+                "present with recovery threshold ({}).",
+                member_id,
+                active_recovery_participants_count,
+                recovery_threshold);
+            }
+            else
+            {
+              LOG_FAIL_FMT(
+                "Failed to remove last active recovery owner member {}: number "
+                "of active recovery participant members ({}) would be less "
+                "than recovery threshold ({})",
+                member_id,
+                active_recovery_participants_count,
+                recovery_threshold);
+              return false;
+            }
+          }
         }
       }
 
@@ -298,36 +431,30 @@ namespace ccf
       node->put(id, node_info);
     }
 
-    static auto get_trusted_nodes(
-      ccf::kv::ReadOnlyTx& tx,
-      std::optional<NodeId> self_to_exclude = std::nullopt)
+    static std::map<NodeId, NodeInfo> get_trusted_nodes(ccf::kv::ReadOnlyTx& tx)
     {
-      // Returns the list of trusted nodes. If self_to_exclude is set,
-      // self_to_exclude is not included in the list of returned nodes.
       std::map<NodeId, NodeInfo> active_nodes;
 
       auto nodes = tx.ro<ccf::Nodes>(Tables::NODES);
 
-      nodes->foreach([&active_nodes, &nodes, self_to_exclude](
-                       const NodeId& nid, const NodeInfo& ni) {
-        if (
-          ni.status == ccf::NodeStatus::TRUSTED &&
-          (!self_to_exclude.has_value() || self_to_exclude.value() != nid))
-        {
-          active_nodes[nid] = ni;
-        }
-        else if (ni.status == ccf::NodeStatus::RETIRED)
-        {
-          // If a node is retired, but knowledge of their retirement has not yet
-          // been globally committed, they are still considered active.
-          auto cni = nodes->get_globally_committed(nid);
-          if (cni.has_value() && !cni->retired_committed)
+      nodes->foreach(
+        [&active_nodes, &nodes](const NodeId& nid, const NodeInfo& ni) {
+          if (ni.status == ccf::NodeStatus::TRUSTED)
           {
             active_nodes[nid] = ni;
           }
-        }
-        return true;
-      });
+          else if (ni.status == ccf::NodeStatus::RETIRED)
+          {
+            // If a node is retired, but knowledge of their retirement has not
+            // yet been globally committed, they are still considered active.
+            auto cni = nodes->get_globally_committed(nid);
+            if (cni.has_value() && !cni->retired_committed)
+            {
+              active_nodes[nid] = ni;
+            }
+          }
+          return true;
+        });
 
       return active_nodes;
     }
@@ -502,14 +629,30 @@ namespace ccf
     {
       auto service = tx.rw<ccf::Service>(Tables::SERVICE);
 
-      auto active_recovery_members_count =
-        get_active_recovery_members(tx).size();
-      if (active_recovery_members_count < get_recovery_threshold(tx))
+      auto active_recovery_participants_count =
+        get_active_recovery_participants(tx).size();
+      auto active_recovery_owners_count = get_active_recovery_owners(tx).size();
+      if (
+        active_recovery_participants_count == 0 &&
+        active_recovery_owners_count != 0)
+      {
+        if (get_recovery_threshold(tx) > 1)
+        {
+          LOG_FAIL_FMT(
+            "Cannot open network as a network with only active recovery owners "
+            "({}) can have "
+            "a recovery threshold of 1 but current recovery threshold value is "
+            "({})",
+            active_recovery_owners_count,
+            get_recovery_threshold(tx));
+        }
+      }
+      else if (active_recovery_participants_count < get_recovery_threshold(tx))
       {
         LOG_FAIL_FMT(
           "Cannot open network as number of active recovery members ({}) is "
           "less than recovery threshold ({})",
-          active_recovery_members_count,
+          active_recovery_participants_count,
           get_recovery_threshold(tx));
         return false;
       }
@@ -597,12 +740,18 @@ namespace ccf
     {
       switch (platform)
       {
-        // For now, record null code id for virtual platform in SGX code id
-        // table
         case QuoteFormat::insecure_virtual:
+        {
+          tx.wo<VirtualMeasurements>(Tables::NODE_VIRTUAL_MEASUREMENTS)
+            ->put(
+              pal::VirtualAttestationMeasurement(
+                node_measurement.data.begin(), node_measurement.data.end()),
+              CodeStatus::ALLOWED_TO_JOIN);
+          break;
+        }
         case QuoteFormat::oe_sgx_v1:
         {
-          tx.rw<CodeIDs>(Tables::NODE_CODE_IDS)
+          tx.wo<CodeIDs>(Tables::NODE_CODE_IDS)
             ->put(
               pal::SgxAttestationMeasurement(node_measurement),
               CodeStatus::ALLOWED_TO_JOIN);
@@ -610,7 +759,7 @@ namespace ccf
         }
         case QuoteFormat::amd_sev_snp_v1:
         {
-          tx.rw<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
+          tx.wo<SnpMeasurements>(Tables::NODE_SNP_MEASUREMENTS)
             ->put(
               pal::SnpAttestationMeasurement(node_measurement),
               CodeStatus::ALLOWED_TO_JOIN);
@@ -624,12 +773,20 @@ namespace ccf
       }
     }
 
-    static void trust_node_host_data(
+    static void trust_node_virtual_host_data(
+      ccf::kv::Tx& tx, const HostData& host_data)
+    {
+      auto host_data_table =
+        tx.wo<ccf::VirtualHostDataMap>(Tables::VIRTUAL_HOST_DATA);
+      host_data_table->insert(host_data);
+    }
+
+    static void trust_node_snp_host_data(
       ccf::kv::Tx& tx,
       const HostData& host_data,
       const std::optional<HostDataMetadata>& security_policy = std::nullopt)
     {
-      auto host_data_table = tx.rw<ccf::SnpHostDataMap>(Tables::HOST_DATA);
+      auto host_data_table = tx.wo<ccf::SnpHostDataMap>(Tables::HOST_DATA);
       if (security_policy.has_value())
       {
         auto raw_security_policy =
@@ -658,6 +815,112 @@ namespace ccf
       uvme->put(
         uvm_endorsements->did,
         {{uvm_endorsements->feed, {uvm_endorsements->svn}}});
+    }
+
+    static void trust_static_snp_tcb_version(ccf::kv::Tx& tx)
+    {
+      auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+
+      constexpr pal::snp::CPUID milan_chip_id{
+        .stepping = 0x1,
+        .base_model = 0x1,
+        .base_family = 0xF,
+        .reserved = 0,
+        .extended_model = 0x0,
+        .extended_family = 0x0A,
+        .reserved2 = 0};
+      constexpr pal::snp::TcbVersion milan_tcb_version = {
+        .boot_loader = 0,
+        .tee = 0,
+        .reserved = {0},
+        .snp = 0x18,
+        .microcode = 0xDB};
+      h->put(milan_chip_id.hex_str(), milan_tcb_version);
+
+      constexpr pal::snp::CPUID milan_x_chip_id{
+        .stepping = 0x2,
+        .base_model = 0x1,
+        .base_family = 0xF,
+        .reserved = 0,
+        .extended_model = 0x0,
+        .extended_family = 0x0A,
+        .reserved2 = 0};
+      constexpr pal::snp::TcbVersion milan_x_tcb_version = {
+        .boot_loader = 0,
+        .tee = 0,
+        .reserved = {0},
+        .snp = 0x18,
+        .microcode = 0x44};
+      h->put(milan_x_chip_id.hex_str(), milan_x_tcb_version);
+
+      constexpr pal::snp::CPUID genoa_chip_id{
+        .stepping = 0x1,
+        .base_model = 0x1,
+        .base_family = 0xF,
+        .reserved = 0,
+        .extended_model = 0x1,
+        .extended_family = 0x0A,
+        .reserved2 = 0};
+      constexpr pal::snp::TcbVersion genoa_tcb_version = {
+        .boot_loader = 0,
+        .tee = 0,
+        .reserved = {0},
+        .snp = 0x17,
+        .microcode = 0x54};
+      h->put(genoa_chip_id.hex_str(), genoa_tcb_version);
+
+      constexpr pal::snp::CPUID genoa_x_chip_id{
+        .stepping = 0x2,
+        .base_model = 0x1,
+        .base_family = 0xF,
+        .reserved = 0,
+        .extended_model = 0x1,
+        .extended_family = 0x0A,
+        .reserved2 = 0};
+      constexpr pal::snp::TcbVersion genoa_x_tcb_version = {
+        .boot_loader = 0,
+        .tee = 0,
+        .reserved = {0},
+        .snp = 0x17,
+        .microcode = 0x4F};
+      h->put(genoa_x_chip_id.hex_str(), genoa_x_tcb_version);
+    }
+
+    static void trust_node_snp_tcb_version(
+      ccf::kv::Tx& tx, pal::snp::Attestation& attestation)
+    {
+      // Fall back to statically configured tcb versions
+      if (attestation.version < pal::snp::MIN_TCB_VERIF_VERSION)
+      {
+        LOG_FAIL_FMT(
+          "SNP attestation version {} older than {}, falling back to static "
+          "minimum TCB values",
+          attestation.version,
+          pal::snp::MIN_TCB_VERIF_VERSION);
+        trust_static_snp_tcb_version(tx);
+        return;
+      }
+
+      // As cpuid -> attestation cpuid is surjective, we must use the local
+      // cpuid and validate it against the attestation's cpuid
+      auto cpuid = pal::snp::get_cpuid_untrusted();
+      if (
+        cpuid.get_family_id() != attestation.cpuid_fam_id ||
+        cpuid.get_model_id() != attestation.cpuid_mod_id ||
+        cpuid.stepping != attestation.cpuid_step)
+      {
+        LOG_FAIL_FMT(
+          "CPU-sourced cpuid does not match attestation cpuid ({} != {}, {}, "
+          "{})",
+          cpuid.hex_str(),
+          attestation.cpuid_fam_id,
+          attestation.cpuid_mod_id,
+          attestation.cpuid_step);
+        trust_static_snp_tcb_version(tx);
+        return;
+      }
+      auto h = tx.wo<ccf::SnpTcbVersionMap>(Tables::SNP_TCB_VERSIONS);
+      h->put(cpuid.hex_str(), attestation.reported_tcb);
     }
 
     static void init_configuration(
@@ -703,15 +966,33 @@ namespace ccf
       }
       else if (service_status.value() == ServiceStatus::OPEN)
       {
-        auto get_active_recovery_members_count =
-          get_active_recovery_members(tx).size();
-        if (threshold > get_active_recovery_members_count)
+        auto active_recovery_participants_count =
+          get_active_recovery_participants(tx).size();
+        auto active_recovery_owners_count =
+          get_active_recovery_owners(tx).size();
+
+        if (
+          active_recovery_owners_count != 0 &&
+          active_recovery_participants_count == 0)
+        {
+          if (threshold > 1)
+          {
+            LOG_FAIL_FMT(
+              "Cannot set recovery threshold to {} when only "
+              "active consortium members ({}) that are of type recovery owner "
+              "exist.",
+              threshold,
+              active_recovery_owners_count);
+            return false;
+          }
+        }
+        else if (threshold > active_recovery_participants_count)
         {
           LOG_FAIL_FMT(
             "Cannot set recovery threshold to {} as it is greater than the "
-            "number of active recovery members ({})",
+            "number of active recovery participant members ({})",
             threshold,
-            get_active_recovery_members_count);
+            active_recovery_participants_count);
           return false;
         }
       }

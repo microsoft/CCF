@@ -63,9 +63,9 @@
 
 #include <rapidjson/document.h>
 
-#include <valijson/adapters/adapter.hpp>
-#include <valijson/adapters/basic_adapter.hpp>
-#include <valijson/adapters/frozen_value.hpp>
+#include <valijson/internal/adapter.hpp>
+#include <valijson/internal/basic_adapter.hpp>
+#include <valijson/internal/frozen_value.hpp>
 #include <valijson/exceptions.hpp>
 
 namespace valijson {
@@ -723,7 +723,7 @@ public:
 
     std::ptrdiff_t difference(const GenericRapidJsonArrayValueIterator<ValueType> &other)
     {
-        return std::distance(m_itr, other.itr);
+        return std::distance(m_itr, other.m_itr);
     }
 
 private:
@@ -820,7 +820,7 @@ public:
 
     std::ptrdiff_t difference(const GenericRapidJsonObjectMemberIterator &other)
     {
-        return std::distance(m_itr, other.itr);
+        return std::distance(m_itr, other.m_itr);
     }
 
 private:

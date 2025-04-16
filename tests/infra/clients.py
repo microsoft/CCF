@@ -162,7 +162,13 @@ class Request:
         if self.headers:
             string += f" <blue>{truncate(str(self.headers), max_len=25)}</>"
         if self.body is not None:
-            string += escape_loguru_tags(f' {truncate(f"{self.body}")}')
+            if (
+                "content-type" in self.headers
+                and self.headers["content-type"] == "application/octet-stream"
+            ):
+                string += f"<binary: {len(self.body)} bytes>"
+            else:
+                string += escape_loguru_tags(f' {truncate(f"{self.body}")}')
 
         return string
 
@@ -267,7 +273,15 @@ class Response:
         status_color = (
             "red" if status_category in (4, 5) else "yellow" if redirect else "green"
         )
-        body_s = escape_loguru_tags(truncate(str(self.body)))
+
+        if (
+            "content-type" in self.headers
+            and self.headers["content-type"] == "application/octet-stream"
+        ):
+            body_s = f"<binary: {len(self.body)} bytes>"
+        else:
+            body_s = escape_loguru_tags(truncate(str(self.body)))
+
         # Body can't end with a \, or it will escape the loguru closing tag
         if len(body_s) > 0 and body_s[-1] == "\\":
             body_s += " "
@@ -384,7 +398,7 @@ def cose_protected_headers_api_v1(request_path, created_at=None):
     phdr = {"ccf.gov.msg.created_at": created_at or get_clock().moment()}
 
     hex_id = "([a-f0-9]+)"
-    opt_query = "(\?.*)?"
+    opt_query = r"(\?.*)?"
 
     if match := re.match(
         f"^/gov/members/state-digests/{hex_id}:update{opt_query}$",

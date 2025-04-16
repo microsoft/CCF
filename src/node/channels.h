@@ -145,9 +145,6 @@ namespace ccf
     }
   }
 
-  class KeyExchangeProtocol
-  {};
-
   // Key exchange states are:
   // - Have nothing
   // - Initiated (have my own share)
@@ -251,6 +248,8 @@ namespace ccf
 
         send_key = nullptr;
         recv_key = nullptr;
+        reset_key_exchange();
+        initiate();
       }
     }
 
@@ -542,6 +541,8 @@ namespace ccf
       // shares back to the initiator
       send_key_exchange_response();
 
+      flush_pending_outgoing();
+
       return true;
     }
 
@@ -632,6 +633,8 @@ namespace ccf
       update_send_key();
 
       send_key_exchange_final();
+
+      flush_pending_outgoing();
 
       update_recv_key();
 
@@ -804,7 +807,10 @@ namespace ccf
         "Node certificate serial numbers: node={} peer={}",
         node_cv->serial_number(),
         peer_cv->serial_number());
+    }
 
+    void flush_pending_outgoing()
+    {
       if (outgoing_consensus_msg.has_value())
       {
         send_unsafe(
@@ -1150,7 +1156,8 @@ namespace ccf
       }
       catch (const std::exception& e)
       {
-        LOG_FAIL_EXC(e.what());
+        LOG_FAIL_FMT("Exception in {}", __PRETTY_FUNCTION__);
+        LOG_DEBUG_FMT("Error: {}", e.what());
         return false;
       }
     }

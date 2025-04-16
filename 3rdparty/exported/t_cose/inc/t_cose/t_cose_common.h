@@ -1,7 +1,7 @@
 /*
  * t_cose_common.h
  *
- * Copyright 2019-2022, Laurence Lundblade
+ * Copyright 2019-2024, Laurence Lundblade
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -59,6 +59,14 @@ extern "C" {
  */
 
 
+/**
+ * Semantic versioning for t_cose x.y.z. Note that these were not defined
+ * for some releases of t_cose 1.x so !defined(T_COSE_VERSION_MAJOR)
+ * indicates t_cose 1.x.
+ */
+#define T_COSE_VERSION_MAJOR 1
+#define T_COSE_VERSION_MINOR 1
+#define T_COSE_VERSION_PATCH 3
 
 
 /**

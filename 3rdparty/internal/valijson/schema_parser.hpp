@@ -6,8 +6,8 @@
 #include <memory>
 #include <functional>
 
-#include <valijson/adapters/adapter.hpp>
 #include <valijson/constraints/concrete_constraints.hpp>
+#include <valijson/internal/adapter.hpp>
 #include <valijson/internal/debug.hpp>
 #include <valijson/internal/json_pointer.hpp>
 #include <valijson/internal/json_reference.hpp>
@@ -338,24 +338,24 @@ private:
      * those $ref nodes in the schema cache. An entry will be added to the
      * schema cache for each node visited on the path to the concrete node.
      *
-     * @param  rootSchema    The Schema instance, and root subschema, through
-     *                       which other subschemas can be created and
-     *                       modified
-     * @param  rootNode      Reference to the node from which JSON References
-     *                       will be resolved when they refer to the current
-     *                       document
-     * @param  node          Reference to the node to parse
-     * @param  currentScope  URI for current resolution scope
-     * @param  nodePath      JSON Pointer representing path to current node
-     * @param  fetchDoc      Function to fetch remote JSON documents (optional)
-     * @param  parentSchema  Optional pointer to the parent schema, used to
-     *                       support required keyword in Draft 3
-     * @param  ownName       Optional pointer to a node name, used to support
-     *                       the 'required' keyword in Draft 3
-     * @param  docCache      Cache of resolved and fetched remote documents
-     * @param  schemaCache   Cache of populated schemas
-     * @param  newCacheKeys  A list of keys that should be added to the cache
-     *                       when recursion terminates
+     * @param  rootSchema      The Schema instance, and root subschema, through
+     *                         which other subschemas can be created and
+     *                         modified
+     * @param  rootNode        Reference to the node from which JSON References
+     *                         will be resolved when they refer to the current
+     *                         document
+     * @param  node            Reference to the node to parse
+     * @param  currentScope    URI for current resolution scope
+     * @param  nodePath        JSON Pointer representing path to current node
+     * @param  fetchDoc        Function to fetch remote JSON documents (optional)
+     * @param  parentSubschema Optional pointer to the parent schema, used to
+     *                         support required keyword in Draft 3
+     * @param  ownName         Optional pointer to a node name, used to support
+     *                         the 'required' keyword in Draft 3
+     * @param  docCache        Cache of resolved and fetched remote documents
+     * @param  schemaCache     Cache of populated schemas
+     * @param  newCacheKeys    A list of keys that should be added to the cache
+     *                         when recursion terminates
      */
     template<typename AdapterType>
     const Subschema * makeOrReuseSchema(
@@ -504,22 +504,22 @@ private:
      * a concrete node, an entry will be added to the schema cache for each of
      * the nodes in that path.
      *
-     * @param  rootSchema    The Schema instance, and root subschema, through
-     *                       which other subschemas can be created and
-     *                       modified
-     * @param  rootNode      Reference to the node from which JSON References
-     *                       will be resolved when they refer to the current
-     *                       document
-     * @param  node          Reference to the node to parse
-     * @param  currentScope  URI for current resolution scope
-     * @param  nodePath      JSON Pointer representing path to current node
-     * @param  fetchDoc      Function to fetch remote JSON documents (optional)
-     * @param  parentSchema  Optional pointer to the parent schema, used to
-     *                       support required keyword in Draft 3
-     * @param  ownName       Optional pointer to a node name, used to support
-     *                       the 'required' keyword in Draft 3
-     * @param  docCache      Cache of resolved and fetched remote documents
-     * @param  schemaCache   Cache of populated schemas
+     * @param  rootSchema      The Schema instance, and root subschema, through
+     *                         which other subschemas can be created and
+     *                         modified
+     * @param  rootNode        Reference to the node from which JSON References
+     *                         will be resolved when they refer to the current
+     *                         document
+     * @param  node            Reference to the node to parse
+     * @param  currentScope    URI for current resolution scope
+     * @param  nodePath        JSON Pointer representing path to current node
+     * @param  fetchDoc        Function to fetch remote JSON documents (optional)
+     * @param  parentSubschema Optional pointer to the parent schema, used to
+     *                         support required keyword in Draft 3
+     * @param  ownName         Optional pointer to a node name, used to support
+     *                         the 'required' keyword in Draft 3
+     * @param  docCache        Cache of resolved and fetched remote documents
+     * @param  schemaCache     Cache of populated schemas
      */
     template<typename AdapterType>
     const Subschema * makeOrReuseSchema(
@@ -556,7 +556,7 @@ private:
      *                          will be resolved when they refer to the current
      *                          document
      * @param  node             Reference to node to parse
-     * @param  schema           Reference to Schema to populate
+     * @param  subschema        Reference to Schema to populate
      * @param  currentScope     URI for current resolution scope
      * @param  nodePath         JSON Pointer representing path to current node
      * @param  fetchDoc         Optional function to fetch remote JSON documents
@@ -622,6 +622,14 @@ private:
             }
         } else {
             updatedScope = currentScope;
+        }
+
+        // Add the type constraint first to be the first one to check because other constraints may rely on it
+        if ((itr = object.find("type")) != object.end()) {
+            rootSchema.addConstraintToSubschema(
+                    makeTypeConstraint(rootSchema, rootNode, itr->second, updatedScope, nodePath + "/type", fetchDoc,
+                            docCache, schemaCache),
+                    &subschema);
         }
 
         if ((itr = object.find("allOf")) != object.end()) {
@@ -692,6 +700,10 @@ private:
 
         if ((itr = object.find("enum")) != object.end()) {
             rootSchema.addConstraintToSubschema(makeEnumConstraint(itr->second), &subschema);
+        }
+
+        if ((itr = object.find("format")) != object.end()) {
+            rootSchema.addConstraintToSubschema(makeFormatConstraint(itr->second), &subschema);
         }
 
         {
@@ -919,13 +931,6 @@ private:
             } else {
                 throwRuntimeError("'title' attribute should have a string value");
             }
-        }
-
-        if ((itr = object.find("type")) != object.end()) {
-            rootSchema.addConstraintToSubschema(
-                    makeTypeConstraint(rootSchema, rootNode, itr->second, updatedScope, nodePath + "/type", fetchDoc,
-                            docCache, schemaCache),
-                    &subschema);
         }
 
         if ((itr = object.find("uniqueItems")) != object.end()) {
@@ -1168,7 +1173,7 @@ private:
      *                               a schema that will be used when the conditional
      *                               evaluates to false.
      * @param   currentScope         URI for current resolution scope
-     * @param   containsPath         JSON Pointer representing the path to
+     * @param   nodePath             JSON Pointer representing the path to
      *                               the 'contains' node
      * @param   fetchDoc             Function to fetch remote JSON documents
      *                               (optional)
@@ -1422,6 +1427,29 @@ private:
     }
 
     /**
+     * @brief   Make a new FormatConstraint object
+     *
+     * @param   node  JSON node containing the configuration for this constraint
+     *
+     * @return  pointer to a new FormatConstraint that belongs to the caller
+     */
+    template<typename AdapterType>
+    constraints::FormatConstraint makeFormatConstraint(
+        const AdapterType &node)
+    {
+        if (node.isString()) {
+            const std::string value = node.asString();
+            if (!value.empty()) {
+                constraints::FormatConstraint constraint;
+                constraint.setFormat(value);
+                return constraint;
+            }
+        }
+
+        throwRuntimeError("Expected a string value for 'format' constraint.");
+    }
+
+    /**
      * @brief   Make a new ItemsConstraint object.
      *
      * @param   rootSchema           The Schema instance, and root subschema,
@@ -1536,14 +1564,9 @@ private:
      * @param   items                Optional pointer to a JSON node containing
      *                               an object mapping property names to
      *                               schemas.
-     * @param   additionalItems      Optional pointer to a JSON node containing
-     *                               an additional properties schema or a
-     *                               boolean value.
      * @param   currentScope         URI for current resolution scope
      * @param   itemsPath            JSON Pointer representing the path to
      *                               the 'items' node
-     * @param   additionalItemsPath  JSON Pointer representing the path to
-     *                               the 'additionalItems' node
      * @param   fetchDoc             Function to fetch remote JSON documents
      *                               (optional)
      * @param   docCache             Cache of resolved and fetched remote
@@ -1595,13 +1618,6 @@ private:
     /**
      * @brief   Make a new MaximumConstraint object (draft 3 and 4).
      *
-     * @param   rootSchema        The Schema instance, and root subschema,
-     *                            through which other subschemas can be
-     *                            created and modified
-     * @param   rootNode          Reference to the node from which JSON
-     *                            References will be resolved when they refer
-     *                            to the current document; used for recursive
-     *                            parsing of schemas
      * @param   node              JSON node containing the maximum value.
      * @param   exclusiveMaximum  Optional pointer to a JSON boolean value that
      *                            indicates whether maximum value is excluded
@@ -1636,9 +1652,6 @@ private:
      * @brief   Make a new MaximumConstraint object that is always exclusive (draft 7).
      *
      * @param   node       JSON node containing an integer, representing the maximum value.
-     *
-     * @param   exclusive  Optional pointer to a JSON boolean value that indicates whether the
-     *                     maximum value is excluded from the range of permitted values.
      *
      * @return  pointer to a new Maximum that belongs to the caller
      */
@@ -1735,7 +1748,7 @@ private:
      * @param  node              JSON node containing an integer, representing
      *                           the minimum value.
      *
-     * @param  exclusiveMaximum  Optional pointer to a JSON boolean value that
+     * @param  exclusiveMinimum  Optional pointer to a JSON boolean value that
      *                           indicates whether the minimum value is
      *                           excluded from the range of permitted values.
      *
@@ -1768,9 +1781,6 @@ private:
      * @brief   Make a new MinimumConstraint object that is always exclusive (draft 7).
      *
      * @param   node       JSON node containing an integer, representing the minimum value.
-     *
-     * @param   exclusive  Optional pointer to a JSON boolean value that indicates whether the
-     *                     minimum value is excluded from the range of permitted values.
      *
      * @return  pointer to a new MinimumConstraint that belongs to the caller
      */
@@ -2291,7 +2301,7 @@ private:
 private:
 
     /// Version of JSON Schema that should be expected when parsing
-    const Version m_version;
+    Version m_version;
 };
 
 }  // namespace valijson

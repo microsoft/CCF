@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/pem.h"
-#include "crypto/openssl/openssl_wrappers.h"
 
 #include <exception>
 
@@ -45,6 +45,15 @@ namespace tls
       for (const auto& ca_string : ca_strings)
       {
         append_cert(ca_string);
+      }
+    }
+
+    CA(const std::vector<ccf::crypto::Pem>& ca_pems, bool partial_ok_ = false) :
+      partial_ok(partial_ok_)
+    {
+      for (const auto& ca_pem : ca_pems)
+      {
+        append_cert(ca_pem.str());
       }
     }
 

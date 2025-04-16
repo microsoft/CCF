@@ -50,6 +50,7 @@ def run(args):
             pass
 
         with open(openapi_target_file, "a+", encoding="utf-8") as f:
+            prefix, ext = os.path.splitext(openapi_target_file)
             f.seek(0)
             previous = f.read().strip()
             if previous != formatted_schema:
@@ -81,7 +82,6 @@ def run(args):
                     LOG.error(
                         f"Found differences in {openapi_target_file}, but not overwriting as retrieved version is not newer ({fetched_version} <= {file_version})"
                     )
-                    prefix, ext = os.path.splitext(openapi_target_file)
                     alt_file = f"{prefix}_{fetched_version}{ext}"
                     LOG.error(f"Writing to {alt_file} for comparison")
                     with open(alt_file, "w", encoding="utf-8") as f2:
@@ -165,8 +165,7 @@ def run(args):
         for method in sorted(set(all_methods)):
             LOG.info(f"  {method}")
 
-    if made_changes or not documents_valid:
-        assert False
+    assert not (made_changes or not documents_valid)
 
 
 def run_nobuiltins(args):
@@ -198,12 +197,6 @@ if __name__ == "__main__":
         parser.add_argument(
             "--config-samples-dir",
             help="Configuration samples directory",
-            type=str,
-            default=None,
-        )
-        parser.add_argument(
-            "--config-file-1x",
-            help="Path to 1.x configuration file",
             type=str,
             default=None,
         )

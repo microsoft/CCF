@@ -6,6 +6,7 @@
 #include "ccf/http_status.h"
 #include "ccf/node_context.h"
 #include "ccf/pal/locking.h"
+#include "ccf/rpc_exception.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/signed_req.h"
 #include "ccf/service/tables/jwt.h"
@@ -20,7 +21,6 @@
 #include "kv/store.h"
 #include "node/endpoint_context_impl.h"
 #include "node/node_configuration_subsystem.h"
-#include "rpc_exception.h"
 #include "service/internal_tables_access.h"
 
 #define FMT_HEADER_ONLY
@@ -777,7 +777,7 @@ namespace ccf
           // else args owns a valid Tx relating to a non-pending response, which
           // should be applied
           ccf::kv::CommittableTx& tx = *args.owned_tx;
-          ccf::kv::CommitResult result = tx.commit(ctx->claims, false);
+          ccf::kv::CommitResult result = tx.commit(ctx->claims);
 
           switch (result)
           {

@@ -22,7 +22,8 @@
   {
     "snp_endorsements_servers": {{ snp_endorsements_servers|tojson }},
     "snp_security_policy_file": "{{ snp_security_policy_file }}",
-    "snp_uvm_endorsements_file": "{{ snp_uvm_endorsements_file }}"
+    "snp_uvm_endorsements_file": "{{ snp_uvm_endorsements_file }}",
+    "snp_endorsements_file": "{{ snp_endorsements_file }}"
   },
   "service_data_json_file": {{ service_data_json_file|tojson }},
   "command": {
@@ -50,7 +51,8 @@
     {
       "retry_timeout": "{{ join_timer }}",
       "target_rpc_address": "{{ target_rpc_address }}",
-      "follow_redirect": {{ follow_redirect|tojson }}
+      "follow_redirect": {{ follow_redirect|tojson }},
+      "fetch_recent_snapshot": {{ fetch_recent_snapshot|tojson }}
     },
     "recover": {
       "initial_service_certificate_validity_days": {{ initial_service_cert_validity_days }},

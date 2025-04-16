@@ -6,6 +6,7 @@ import time
 from contextlib import contextmanager
 from enum import Enum, IntEnum, auto
 from infra.clients import flush_info
+import infra.member
 import infra.path
 import infra.proc
 import infra.service_load
@@ -67,7 +68,11 @@ class PrimaryNotFound(Exception):
     pass
 
 
-class CodeIdNotFound(Exception):
+class MeasurementNotFound(Exception):
+    pass
+
+
+class HostDataNotFound(Exception):
     pass
 
 
@@ -154,14 +159,6 @@ def log_errors(
     except IOError:
         LOG.exception("Could not read err output {}".format(err_path))
 
-    # See https://github.com/microsoft/CCF/issues/1701
-    ignore_fatal_errors = False
-    for line in fatal_error_lines:
-        if line.startswith("Tracer caught signal 11"):
-            ignore_fatal_errors = True
-    if ignore_fatal_errors:
-        fatal_error_lines = []
-
     return error_lines, fatal_error_lines
 
 
@@ -206,6 +203,7 @@ class Network:
         "max_msg_size_bytes",
         "snp_security_policy_file",
         "snp_uvm_endorsements_file",
+        "snp_endorsements_file",
         "subject_name",
         "idle_connection_timeout_s",
     ]
@@ -227,7 +225,6 @@ class Network:
         version=None,
         service_load=None,
         node_data_json_file=None,
-        nodes_in_container=False,
     ):
         # Map of node id to dict of node arg to override value
         # for example, to set the election timeout to 2s for node 3:
@@ -279,7 +276,6 @@ class Network:
         self.args = None
         self.service_certificate_valid_from = None
         self.service_certificate_validity_days = None
-        self.nodes_in_container = nodes_in_container
 
         # Requires admin privileges
         self.partitioner = (
@@ -324,7 +320,6 @@ class Network:
             library_dir or self.library_dir,
             debug,
             perf,
-            nodes_in_container=self.nodes_in_container,
             **kwargs,
         )
         self.nodes.append(node)
@@ -471,6 +466,7 @@ class Network:
                             workspace=args.workspace,
                             label=args.label,
                             common_dir=self.common_dir,
+                            ledger_dir=ledger_dir,
                             members_info=self.consortium.get_members_info(),
                             **forwarded_args_with_overrides,
                             **kwargs,
@@ -565,6 +561,13 @@ class Network:
             mc >= args.initial_operator_provisioner_count + args.initial_operator_count
         ), f"Not enough members ({mc}) for the set amount of operator provisioners and operators"
 
+        if args.initial_recovery_owner_count > 0:
+            assert (
+                mc
+                >= args.initial_recovery_participant_count
+                + args.initial_recovery_owner_count
+            ), f"Not enough members ({mc}) for the set amount of recovery participants and owners ({args.initial_recovery_participant_count + args.initial_recovery_owner_count})"
+
         initial_members_info = []
         for i in range(mc):
             member_data = None
@@ -575,10 +578,20 @@ class Network:
                 < args.initial_operator_provisioner_count + args.initial_operator_count
             ):
                 member_data = {"is_operator": True}
+            recovery_role = infra.member.RecoveryRole.NonParticipant
+            if i < args.initial_recovery_participant_count:
+                recovery_role = infra.member.RecoveryRole.Participant
+            elif (
+                i
+                < args.initial_recovery_participant_count
+                + args.initial_recovery_owner_count
+            ):
+                recovery_role = infra.member.RecoveryRole.Owner
+
             initial_members_info += [
                 (
                     i,
-                    (i < args.initial_recovery_member_count),
+                    recovery_role,
                     member_data,
                 )
             ]
@@ -705,7 +718,7 @@ class Network:
         self.wait_for_all_nodes_to_commit(primary=primary, timeout=20)
         LOG.success("All nodes joined public network")
 
-    def recover(self, args, expected_recovery_count=None):
+    def recover(self, args, expected_recovery_count=None, via_recovery_owner=False):
         """
         Recovers a CCF network previously started in recovery mode.
         :param args: command line arguments to configure the CCF nodes.
@@ -734,7 +747,11 @@ class Network:
             self.find_random_node(),
             previous_service_identity=prev_service_identity,
         )
-        self.consortium.recover_with_shares(self.find_random_node())
+
+        if via_recovery_owner:
+            self.consortium.recover_with_owner_share(self.find_random_node())
+        else:
+            self.consortium.recover_with_shares(self.find_random_node())
 
         for node in self.get_joined_nodes():
             self.wait_for_state(
@@ -887,7 +904,8 @@ class Network:
             arg: getattr(args, arg, None)
             for arg in infra.network.Network.node_args_to_forward
         }
-        self._setup_node(node, lib_name, args, target_node, **forwarded_args, **kwargs)
+        forwarded_args.update(kwargs)
+        self._setup_node(node, lib_name, args, target_node, **forwarded_args)
 
     def run_join_node(
         self,
@@ -924,12 +942,14 @@ class Network:
                 self.nodes.remove(node)
                 if errors:
                     giving_up_fetching = re.compile(
-                        "Giving up retrying fetching attestation endorsements from .* after (\d+) attempts"
+                        r"Giving up retrying fetching attestation endorsements from .* after (\d+) attempts"
                     )
                     # Throw accurate exceptions if known errors found in
                     for error in errors:
                         if "Quote does not contain known enclave measurement" in error:
-                            raise CodeIdNotFound from e
+                            raise MeasurementNotFound from e
+                        if "Quote host data is not authorised" in error:
+                            raise HostDataNotFound from e
                         if "UVM endorsements are not authorised" in error:
                             raise UVMEndorsementsNotAuthorised from e
                         if "StartupSeqnoIsOld" in error:
@@ -1678,7 +1698,7 @@ class Network:
         with open(previous_identity, "w", encoding="utf-8") as f:
             f.write(current_ident)
         args.previous_service_identity_file = previous_identity
-        return args
+        return current_ident
 
     def identity(self, name=None):
         if name is not None:
@@ -1703,7 +1723,6 @@ def network(
     version=None,
     service_load=None,
     node_data_json_file=None,
-    nodes_in_container=False,
 ):
     """
     Context manager for Network class.
@@ -1734,7 +1753,6 @@ def network(
         version=version,
         service_load=service_load,
         node_data_json_file=node_data_json_file,
-        nodes_in_container=nodes_in_container,
     )
     try:
         yield net

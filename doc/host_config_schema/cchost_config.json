@@ -13,15 +13,15 @@
         },
         "platform": {
           "type": "string",
-          "enum": ["SGX", "SNP", "Virtual"],
-          "default": "SGX",
+          "enum": ["SNP", "Virtual"],
+          "default": "SNP",
           "description": "Trusted Execution Environment platform"
         },
         "type": {
           "type": "string",
           "enum": ["Release", "Debug", "Virtual"],
           "default": "Release",
-          "description": "Type of enclave application (only if platform is SGX). \"Virtual\" is deprecated (use ``platform`` instead)"
+          "description": "Type of enclave application (only if platform is SGX, now deprecated). \"Virtual\" is deprecated (use ``platform`` instead)"
         }
       },
       "description": "This section includes configuration for the enclave application launched by this node",
@@ -325,6 +325,11 @@
                         "data_json_file": {
                           "type": ["string", "null"],
                           "description": "Path to member data file (JSON)"
+                        },
+                        "recovery_role": {
+                          "type": "string",
+                          "enum": ["NonParticipant", "Participant", "Owner"],
+                          "description": "Whether the member acts as a recovery participant and gets assigned a share that can contribute towards a recovery threshold or as an owner and gets assigned a full recovery key"
                         }
                       },
                       "required": ["certificate_file"],
@@ -396,6 +401,11 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Whether to follow redirects to the primary node of the existing service to join"
+                  },
+                  "fetch_recent_snapshot": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether to ask the target for a newer snapshot before joining. The node will ask the target what their latest snapshot is, and if that is later than what the node has locally, will fetch it via RPC before launching. Should generally only be turned off for specific test cases"
                   }
                 },
                 "required": ["target_rpc_address"],
@@ -485,6 +495,10 @@
           "type": ["string", "null"],
           "description": "Path to file containing UVM endorsements as a base64-encoded COSE Sign1 (SEV-SNP only). Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR"
         },
+        "snp_endorsements_file": {
+          "type": ["string", "null"],
+          "description": "Path to file containing AMD VCEK hardware endorsements (a PEM certificate chain), base-64 encoded. Can contain environment variables, such as $UVM_SECURITY_CONTEXT_DIR. Will be used in preference to snp_endorsements_servers if the tcbm in this file matches that of the attestation"
+        },
         "snp_endorsements_servers": {
           "type": "array",
           "items": {
@@ -512,7 +526,7 @@
           "description": "List of servers used to retrieve attestation report endorsement certificates (SEV-SNP only). The first server in the list is always used and other servers are only specified as fallback. If set, attestation endorsements from ``--snp-security-context-dir-var`` are ignored, but uvm endorsements from that directory are still used."
         }
       },
-      "description": "This section includes configuration for the attestation for AMD SEV-SNP platform (ignored for SGX)",
+      "description": "This section includes configuration for the attestation for AMD SEV-SNP platform.",
       "additionalProperties": false
     },
     "service_data_json_file": {

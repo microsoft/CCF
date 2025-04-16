@@ -18,8 +18,10 @@
 #include "ccf/service/tables/proposals.h"
 #include "ccf/service/tables/service.h"
 #include "ccf/service/tables/snp_measurements.h"
+#include "ccf/service/tables/tcb_verification.h"
 #include "ccf/service/tables/users.h"
 #include "ccf/service/tables/uvm_endorsements.h"
+#include "ccf/service/tables/virtual_measurements.h"
 #include "kv/store.h"
 #include "tables/config.h"
 #include "tables/governance_history.h"
@@ -86,10 +88,16 @@ namespace ccf
     const NodeEndorsedCertificates node_endorsed_certificates = {
       Tables::NODE_ENDORSED_CERTIFICATES};
     const ACMECertificates acme_certificates = {Tables::ACME_CERTIFICATES};
+
+    const VirtualHostDataMap virtual_host_data = {Tables::VIRTUAL_HOST_DATA};
+    const VirtualMeasurements virtual_measurements = {
+      Tables::NODE_VIRTUAL_MEASUREMENTS};
+
     const SnpHostDataMap host_data = {Tables::HOST_DATA};
     const SnpMeasurements snp_measurements = {Tables::NODE_SNP_MEASUREMENTS};
     const SNPUVMEndorsements snp_uvm_endorsements = {
       Tables::NODE_SNP_UVM_ENDORSEMENTS};
+    const SnpTcbVersionMap snp_tcb_versions = {Tables::SNP_TCB_VERSIONS};
 
     inline auto get_all_node_tables() const
     {
@@ -98,9 +106,12 @@ namespace ccf
         nodes,
         node_endorsed_certificates,
         acme_certificates,
+        virtual_host_data,
+        virtual_measurements,
         host_data,
         snp_measurements,
-        snp_uvm_endorsements);
+        snp_uvm_endorsements,
+        snp_tcb_versions);
     }
 
     //
@@ -154,8 +165,11 @@ namespace ccf
     //
     const CACertBundlePEMs ca_cert_bundles = {Tables::CA_CERT_BUNDLE_PEMS};
     const JwtIssuers jwt_issuers = {Tables::JWT_ISSUERS};
-    const JwtPublicSigningKeys jwt_public_signing_keys_metadata = {
+    const JwtPublicSigningKeysMetadata jwt_public_signing_keys_metadata = {
       Tables::JWT_PUBLIC_SIGNING_KEYS_METADATA};
+    const JwtPublicSigningKeysMetadataLegacy
+      legacy_jwt_public_signing_keys_metadata = {
+        Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS_METADATA};
     const Tables::Legacy::JwtPublicSigningKeys legacy_jwt_public_signing_keys =
       {Tables::Legacy::JWT_PUBLIC_SIGNING_KEYS};
     const Tables::Legacy::JwtPublicSigningKeyIssuer
@@ -168,6 +182,7 @@ namespace ccf
         ca_cert_bundles,
         jwt_issuers,
         jwt_public_signing_keys_metadata,
+        legacy_jwt_public_signing_keys_metadata,
         legacy_jwt_public_signing_keys,
         legacy_jwt_public_signing_key_issuer);
     }
@@ -221,6 +236,7 @@ namespace ccf
     // the same time so that the root of the tree in the signatures table
     // matches the serialised Merkle tree.
     const Signatures signatures = {Tables::SIGNATURES};
+    const CoseSignatures cose_signatures = {Tables::COSE_SIGNATURES};
     const SerialisedMerkleTree serialise_tree = {
       Tables::SERIALISED_MERKLE_TREE};
 

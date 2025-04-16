@@ -117,7 +117,8 @@ extern "C"
     StartType start_type,
     ccf::LoggerLevel enclave_log_level,
     size_t num_worker_thread,
-    void* time_location)
+    void* time_location,
+    const ccf::ds::WorkBeaconPtr& work_beacon)
   {
     using create_node_func_t = CreateNodeStatus (*)(
       void*,
@@ -137,7 +138,8 @@ extern "C"
       StartType,
       ccf::LoggerLevel,
       size_t,
-      void*);
+      void*,
+      const ccf::ds::WorkBeaconPtr&);
 
     static create_node_func_t create_node_func =
       get_enclave_exported_function<create_node_func_t>(
@@ -161,13 +163,12 @@ extern "C"
       start_type,
       enclave_log_level,
       num_worker_thread,
-      time_location);
+      time_location,
+      work_beacon);
 
     // Only return OE_OK when the error isn't OE related
     switch (*status)
     {
-      case CreateNodeStatus::OEAttesterInitFailed:
-      case CreateNodeStatus::OEVerifierInitFailed:
       case CreateNodeStatus::EnclaveInitFailed:
       case CreateNodeStatus::MemoryNotOutsideEnclave:
         return OE_FAILURE;

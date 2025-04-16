@@ -3,6 +3,8 @@ name: "Containers GHCR"
 on:
   release:
     types: [published]
+    tags:
+      - "ccf-[5].*"
 
 env:
   REGISTRY: ghcr.io
@@ -16,6 +18,7 @@ permissions:
 jobs:
   build_and_publish:
     name: "Release (GHCR)"
+    if: startsWith(github.event.release.tag_name, 'ccf-5.')
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -68,7 +71,7 @@ jobs:
         if: ${{ steps.tref.outputs.major_release >= '5'}}
 
       - name: Attest container
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v2
         with:
           subject-name: ${{ steps.tref.outputs.img_name }}
           subject-digest: ${{ steps.push.outputs.digest }}

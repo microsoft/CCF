@@ -3,7 +3,6 @@
 #include "ccf/ds/ccf_exception.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/logger.h"
-#include "ccf/pal/enclave.h"
 #include "ccf/pal/locking.h"
 #include "ccf/version.h"
 #include "common/enclave_interface_types.h"
@@ -28,34 +27,8 @@ std::unique_ptr<threading::ThreadMessaging>
 std::chrono::microseconds ccf::Channel::min_gap_between_initiation_attempts(
   2'000'000);
 
-static bool is_aligned(void* p, size_t align, size_t count = 0)
-{
-  const auto start = reinterpret_cast<std::uintptr_t>(p);
-  const auto end = start + count;
-  return (start % align == 0) && (end % align == 0);
-}
-
 extern "C"
 {
-  // Confirming in-enclave behaviour in separate unit tests is tricky, so we
-  // do final sanity checks on some basic behaviour here, on every enclave
-  // launch.
-  void enclave_sanity_checks()
-  {
-    {
-      ccf::pal::Mutex m;
-      m.lock();
-      if (m.try_lock())
-      {
-        LOG_FATAL_FMT("Able to lock mutex multiple times");
-        abort();
-      }
-      m.unlock();
-    }
-
-    LOG_DEBUG_FMT("All sanity check tests passed");
-  }
-
   CreateNodeStatus enclave_create_node(
     void* enclave_config,
     uint8_t* ccf_config,
@@ -74,25 +47,14 @@ extern "C"
     StartType start_type,
     ccf::LoggerLevel enclave_log_level,
     size_t num_worker_threads,
-    void* time_location)
+    void* time_location,
+    const ccf::ds::WorkBeaconPtr& work_beacon)
   {
     std::lock_guard<ccf::pal::Mutex> guard(create_lock);
 
     if (e != nullptr)
     {
       return CreateNodeStatus::NodeAlreadyCreated;
-    }
-
-    if (!ccf::pal::is_outside_enclave(enclave_config, sizeof(EnclaveConfig)))
-    {
-      LOG_FAIL_FMT("Memory outside enclave: enclave_config");
-      return CreateNodeStatus::MemoryNotOutsideEnclave;
-    }
-
-    if (!is_aligned(enclave_config, 8, sizeof(EnclaveConfig)))
-    {
-      LOG_FAIL_FMT("Read source memory not aligned: enclave_config");
-      return CreateNodeStatus::UnalignedArguments;
     }
 
     EnclaveConfig ec = *static_cast<EnclaveConfig*>(enclave_config);
@@ -113,30 +75,11 @@ extern "C"
     auto writer_factory = std::make_unique<oversized::WriterFactory>(
       *basic_writer_factory, ec.writer_config);
 
-    // Check that ringbuffer memory ranges are entirely outside of the enclave
-    if (
-      !ccf::pal::is_outside_enclave(
-        ec.from_enclave_buffer_start, ec.from_enclave_buffer_size) ||
-      !ccf::pal::is_outside_enclave(
-        ec.to_enclave_buffer_start, ec.to_enclave_buffer_size) ||
-      !ccf::pal::is_outside_enclave(
-        ec.to_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)) ||
-      !ccf::pal::is_outside_enclave(
-        ec.from_enclave_buffer_offsets, sizeof(ringbuffer::Offsets)))
-    {
-      return CreateNodeStatus::MemoryNotOutsideEnclave;
-    }
-
     // Note: because logger uses ringbuffer, logger can only be initialised once
     // ringbuffer memory has been verified
-    auto new_logger = std::make_unique<ccf::RingbufferLogger>(
-      writer_factory->create_writer_to_outside());
+    auto new_logger = std::make_unique<ccf::RingbufferLogger>(*writer_factory);
     auto ringbuffer_logger = new_logger.get();
     ccf::logger::config::loggers().push_back(std::move(new_logger));
-
-    ccf::pal::redirect_platform_logging();
-
-    enclave_sanity_checks();
 
     {
       auto ccf_version_string = std::string(ccf::ccf_version);
@@ -165,55 +108,9 @@ extern "C"
       // threads are known
       threading::ThreadMessaging::init(num_pending_threads);
 
-      // Check that where we expect arguments to be in host-memory, they
-      // really are. lfence after these checks to prevent speculative
-      // execution
-      if (!ccf::pal::is_outside_enclave(
-            time_location, sizeof(*ccf::enclavetime::host_time_us)))
-      {
-        LOG_FAIL_FMT("Memory outside enclave: time_location");
-        return CreateNodeStatus::MemoryNotOutsideEnclave;
-      }
-
-      if (!is_aligned(
-            time_location, 8, sizeof(*ccf::enclavetime::host_time_us)))
-      {
-        LOG_FAIL_FMT("Read source memory not aligned: time_location");
-        return CreateNodeStatus::UnalignedArguments;
-      }
-
       ccf::enclavetime::host_time_us =
         static_cast<decltype(ccf::enclavetime::host_time_us)>(time_location);
-
-      ccf::pal::speculation_barrier();
     }
-
-    if (!ccf::pal::is_outside_enclave(ccf_config, ccf_config_size))
-    {
-      LOG_FAIL_FMT("Memory outside enclave: ccf_config");
-      return CreateNodeStatus::MemoryNotOutsideEnclave;
-    }
-
-    if (!is_aligned(ccf_config, 8, ccf_config_size))
-    {
-      LOG_FAIL_FMT("Read source memory not aligned: ccf_config");
-      return CreateNodeStatus::UnalignedArguments;
-    }
-
-    if (!ccf::pal::is_outside_enclave(
-          startup_snapshot_data, startup_snapshot_size))
-    {
-      LOG_FAIL_FMT("Memory outside enclave: startup snapshot");
-      return CreateNodeStatus::MemoryNotOutsideEnclave;
-    }
-
-    if (!is_aligned(startup_snapshot_data, 8, startup_snapshot_size))
-    {
-      LOG_FAIL_FMT("Read source memory not aligned: startup snapshot");
-      return CreateNodeStatus::UnalignedArguments;
-    }
-
-    ccf::pal::speculation_barrier();
 
     ccf::StartupConfig cc =
       nlohmann::json::parse(ccf_config, ccf_config + ccf_config_size);
@@ -261,19 +158,8 @@ extern "C"
         cc.ledger_signatures.tx_count,
         cc.ledger_signatures.delay.count_ms(),
         cc.consensus,
-        cc.node_certificate.curve_id);
-    }
-    catch (const ccf::ccf_oe_attester_init_error& e)
-    {
-      LOG_FAIL_FMT(
-        "ccf_oe_attester_init_error during enclave init: {}", e.what());
-      return CreateNodeStatus::OEAttesterInitFailed;
-    }
-    catch (const ccf::ccf_oe_verifier_init_error& e)
-    {
-      LOG_FAIL_FMT(
-        "ccf_oe_verifier_init_error during enclave init: {}", e.what());
-      return CreateNodeStatus::OEVerifierInitFailed;
+        cc.node_certificate.curve_id,
+        work_beacon);
     }
     catch (const ccf::ccf_openssl_rdrand_init_error& e)
     {
@@ -352,7 +238,8 @@ extern "C"
       }
 
       while (num_pending_threads != 0)
-      {}
+      {
+      }
 
       LOG_INFO_FMT("All threads are ready!");
 
@@ -361,7 +248,8 @@ extern "C"
         auto s = e.load()->run_main();
         while (num_complete_threads !=
                threading::ThreadMessaging::instance().thread_count() - 1)
-        {}
+        {
+        }
         threading::ThreadMessaging::shutdown();
         return s;
       }

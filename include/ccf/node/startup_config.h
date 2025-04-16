@@ -63,11 +63,15 @@ namespace ccf
       ccf::pal::snp::EndorsementsServers snp_endorsements_servers = {};
       std::optional<std::string> snp_security_policy_file = std::nullopt;
       std::optional<std::string> snp_uvm_endorsements_file = std::nullopt;
+      std::optional<std::string> snp_endorsements_file = std::nullopt;
 
       struct Environment
       {
+        // Each of these contains the string read from the relevant file. It is
+        // expected to be a base-64 string.
         std::optional<std::string> security_policy = std::nullopt;
         std::optional<std::string> uvm_endorsements = std::nullopt;
+        std::optional<std::string> snp_endorsements = std::nullopt;
 
         bool operator==(const Environment&) const = default;
       };
@@ -76,6 +80,16 @@ namespace ccf
       bool operator==(const Attestation&) const = default;
     };
     Attestation attestation = {};
+
+    struct Snapshots
+    {
+      std::string directory = "snapshots";
+      size_t tx_count = 10'000;
+      std::optional<std::string> read_only_directory = std::nullopt;
+
+      bool operator==(const Snapshots&) const = default;
+    };
+    Snapshots snapshots = {};
   };
 
   struct StartupConfig : CCFConfig

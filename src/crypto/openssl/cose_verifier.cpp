@@ -3,10 +3,10 @@
 
 #include "crypto/openssl/cose_verifier.h"
 
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "ccf/crypto/public_key.h"
 #include "ccf/ds/logger.h"
 #include "crypto/openssl/cose_sign.h"
-#include "crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/rsa_key_pair.h"
 #include "x509_time.h"
 
@@ -122,11 +122,7 @@ namespace ccf::crypto
 
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
-#if defined(OPENSSL_VERSION_MAJOR) && OPENSSL_VERSION_MAJOR >= 3
     if (EVP_PKEY_get_base_id(pk) == EVP_PKEY_EC)
-#else
-    if (EVP_PKEY_get0_EC_KEY(pk))
-#endif
     {
       public_key = std::make_shared<PublicKey_OpenSSL>(pk);
     }

@@ -26,13 +26,7 @@ function(add_unit_test name)
              "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
 
-  # https://github.com/microsoft/CCF/issues/5198
-  set_property(
-    TEST ${name}
-    APPEND
-    PROPERTY ENVIRONMENT "ASAN_OPTIONS=alloc_dealloc_mismatch=0"
-  )
-
+  target_compile_definitions(${name} PRIVATE CCF_LOGGER_NO_DEPRECATE)
 endfunction()
 
 # Test binary wrapper
@@ -68,7 +62,7 @@ function(add_e2e_test)
   cmake_parse_arguments(
     PARSE_ARGV 0 PARSED_ARGS ""
     "NAME;PYTHON_SCRIPT;LABEL;CURL_CLIENT;PERF_LABEL"
-    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS;CONTAINER_NODES"
+    "CONSTITUTION;ADDITIONAL_ARGS;CONFIGURATIONS"
   )
 
   if(NOT PARSED_ARGS_CONSTITUTION)
@@ -161,14 +155,6 @@ function(add_e2e_test)
         PROPERTY ENVIRONMENT "CURL_CLIENT=ON"
       )
     endif()
-    if((${PARSED_ARGS_CONTAINER_NODES}) AND (LONG_TESTS))
-      # Containerised nodes are only enabled with long tests
-      set_property(
-        TEST ${PARSED_ARGS_NAME}
-        APPEND
-        PROPERTY ENVIRONMENT "CONTAINER_NODES=ON"
-      )
-    endif()
 
     if(DEFINED DEFAULT_ENCLAVE_TYPE)
       set_property(
@@ -230,6 +216,7 @@ function(add_perf_test)
       ${VERIFICATION_ARG} --label ${TEST_NAME} --snapshot-tx-interval 10000
       --perf-label ${PARSED_ARGS_PERF_LABEL} ${PARSED_ARGS_ADDITIONAL_ARGS} -e
       ${ENCLAVE_TYPE} -t ${ENCLAVE_PLATFORM} ${NODES}
+    CONFIGURATIONS perf
   )
 
   # Make python test client framework importable
@@ -372,4 +359,5 @@ function(add_picobench name)
     PROPERTY ENVIRONMENT
              "TSAN_OPTIONS=suppressions=${CCF_DIR}/tsan_env_suppressions"
   )
+  target_compile_definitions(${name} PRIVATE CCF_LOGGER_NO_DEPRECATE)
 endfunction()

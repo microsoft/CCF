@@ -9,7 +9,6 @@
 #include "ccf/ds/logger.h"
 #include "ccf/js/core/context.h"
 #include "ccf/node/cose_signatures_config.h"
-#include "ccf/pal/attestation.h"
 #include "ccf/pal/locking.h"
 #include "ccf/pal/platform.h"
 #include "ccf/service/node_info_network.h"
@@ -34,6 +33,7 @@
 #include "node/node_to_node_channel_manager.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
+#include "pal/quote_generation.h"
 #include "quote_endorsements_client.h"
 #include "rpc/frontend.h"
 #include "rpc/serialization.h"
@@ -148,7 +148,6 @@ namespace ccf
     std::vector<ccf::kv::Version> view_history;
     ::consensus::Index last_recovered_signed_idx = 0;
     RecoveredEncryptedLedgerSecrets recovered_encrypted_ledger_secrets = {};
-    LedgerSecretsMap recovered_ledger_secrets = {};
     ::consensus::Index last_recovered_idx = 0;
     static const size_t recovery_batch_size = 100;
 
@@ -298,41 +297,43 @@ namespace ccf
       }
 
       // Verify that the security policy matches the quoted digest of the policy
+      if (!config.attestation.environment.security_policy.has_value())
+      {
+        LOG_INFO_FMT(
+          "Security policy not set, skipping check against attestation host "
+          "data");
+      }
+      else
+      {
+        auto quoted_digest = AttestationProvider::get_host_data(quote_info);
+        if (!quoted_digest.has_value())
+        {
+          throw std::logic_error("Unable to find host data in attestation");
+        }
+
+        auto const& security_policy =
+          config.attestation.environment.security_policy.value();
+
+        auto security_policy_digest =
+          quote_info.format == QuoteFormat::amd_sev_snp_v1 ?
+          ccf::crypto::Sha256Hash(ccf::crypto::raw_from_b64(security_policy)) :
+          ccf::crypto::Sha256Hash(security_policy);
+        if (security_policy_digest != quoted_digest.value())
+        {
+          throw std::logic_error(fmt::format(
+            "Digest of decoded security policy \"{}\" {} does not match "
+            "attestation host data {}",
+            security_policy,
+            security_policy_digest.hex_str(),
+            quoted_digest.value().hex_str()));
+        }
+        LOG_INFO_FMT(
+          "Successfully verified attested security policy {}",
+          security_policy_digest);
+      }
+
       if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
       {
-        if (!config.attestation.environment.security_policy.has_value())
-        {
-          LOG_INFO_FMT(
-            "Security policy not set, skipping check against attestation host "
-            "data");
-        }
-        else
-        {
-          auto quoted_digest = AttestationProvider::get_host_data(quote_info);
-          if (!quoted_digest.has_value())
-          {
-            throw std::logic_error("Unable to find host data in attestation");
-          }
-
-          auto const& security_policy =
-            config.attestation.environment.security_policy.value();
-
-          auto security_policy_digest =
-            ccf::crypto::Sha256Hash(ccf::crypto::raw_from_b64(security_policy));
-          if (security_policy_digest != quoted_digest.value())
-          {
-            throw std::logic_error(fmt::format(
-              "Digest of decoded security policy \"{}\" {} does not match "
-              "attestation host data {}",
-              security_policy,
-              security_policy_digest.hex_str(),
-              quoted_digest.value().hex_str()));
-          }
-          LOG_INFO_FMT(
-            "Successfully verified attested security policy {}",
-            security_policy_digest);
-        }
-
         if (!config.attestation.environment.uvm_endorsements.has_value())
         {
           LOG_INFO_FMT(
@@ -345,9 +346,21 @@ namespace ccf
           {
             auto uvm_endorsements_raw = ccf::crypto::raw_from_b64(
               config.attestation.environment.uvm_endorsements.value());
-            snp_uvm_endorsements =
-              verify_uvm_endorsements(uvm_endorsements_raw, node_measurement);
+            // A node at this stage does not have a notion of what UVM
+            // descriptor is acceptable. That is decided either by the Joinee,
+            // or by Consortium endorsing the Start or Recovery node. For that
+            // reason, we extract an endorsement descriptor from the UVM
+            // endorsements and make it available in the ledger's initial or
+            // recovery transaction.
+            snp_uvm_endorsements = verify_uvm_endorsements(
+              uvm_endorsements_raw,
+              node_measurement,
+              {},
+              false /* Do not check roots of trust */);
             quote_info.uvm_endorsements = uvm_endorsements_raw;
+            LOG_INFO_FMT(
+              "Successfully verified attested UVM endorsements: {}",
+              snp_uvm_endorsements->to_str());
           }
           catch (const std::exception& e)
           {
@@ -406,9 +419,85 @@ namespace ccf
                                       endpoint_config) {
         // Note: Node lock is already taken here as this is called back
         // synchronously with the call to pal::generate_quote
+        this->quote_info = qi;
 
-        if (qi.format == QuoteFormat::amd_sev_snp_v1)
+        if (quote_info.format == QuoteFormat::amd_sev_snp_v1)
         {
+          // Use endorsements retrieved from file, if available
+          if (config.attestation.environment.snp_endorsements.has_value())
+          {
+            try
+            {
+              const auto raw_data = ccf::crypto::raw_from_b64(
+                config.attestation.environment.snp_endorsements.value());
+
+              const auto j = nlohmann::json::parse(raw_data);
+              const auto aci_endorsements =
+                j.get<ccf::pal::snp::ACIReportEndorsements>();
+
+              // Check that tcbm in endorsement matches reported TCB in our
+              // retrieved attestation
+              auto* quote = reinterpret_cast<const ccf::pal::snp::Attestation*>(
+                quote_info.quote.data());
+              const auto reported_tcb = quote->reported_tcb;
+
+              // tcbm is a single hex value, like DB18000000000004. To match
+              // that with a TcbVersion, reverse the bytes.
+              const uint8_t* tcb_begin =
+                reinterpret_cast<const uint8_t*>(&reported_tcb);
+              const std::span<const uint8_t> tcb_bytes{
+                tcb_begin, tcb_begin + sizeof(reported_tcb)};
+              auto tcb_as_hex = fmt::format(
+                "{:02x}", fmt::join(tcb_bytes.rbegin(), tcb_bytes.rend(), ""));
+              ccf::nonstd::to_upper(tcb_as_hex);
+
+              if (tcb_as_hex == aci_endorsements.tcbm)
+              {
+                LOG_INFO_FMT(
+                  "Using SNP endorsements loaded from file, endorsing TCB {}",
+                  tcb_as_hex);
+
+                auto& endorsements_pem = quote_info.endorsements;
+                endorsements_pem.insert(
+                  endorsements_pem.end(),
+                  aci_endorsements.vcek_cert.begin(),
+                  aci_endorsements.vcek_cert.end());
+                endorsements_pem.insert(
+                  endorsements_pem.end(),
+                  aci_endorsements.certificate_chain.begin(),
+                  aci_endorsements.certificate_chain.end());
+
+                try
+                {
+                  launch_node();
+                  return;
+                }
+                catch (const std::exception& e)
+                {
+                  LOG_FAIL_FMT("Failed to launch node: {}", e.what());
+                  throw;
+                }
+              }
+              else
+              {
+                LOG_FAIL_FMT(
+                  "SNP endorsements loaded from disk ({}) contained tcbm {}, "
+                  "which does not match reported TCB of current attestation "
+                  "{}. "
+                  "Falling back to fetching fresh endorsements from server.",
+                  config.attestation.snp_endorsements_file.value(),
+                  aci_endorsements.tcbm,
+                  tcb_as_hex);
+              }
+            }
+            catch (const std::exception& e)
+            {
+              LOG_FAIL_FMT(
+                "Error attempting to use SNP endorsements from file: {}",
+                e.what());
+            }
+          }
+
           if (config.attestation.snp_endorsements_servers.empty())
           {
             throw std::runtime_error(
@@ -419,9 +508,8 @@ namespace ccf
           quote_endorsements_client = std::make_shared<QuoteEndorsementsClient>(
             rpcsessions,
             endpoint_config,
-            [this, qi](std::vector<uint8_t>&& endorsements) {
+            [this](std::vector<uint8_t>&& endorsements) {
               std::lock_guard<pal::Mutex> guard(lock);
-              quote_info = qi;
               quote_info.endorsements = std::move(endorsements);
               try
               {
@@ -438,17 +526,19 @@ namespace ccf
           quote_endorsements_client->fetch_endorsements();
           return;
         }
-
-        if (!((qi.format == QuoteFormat::oe_sgx_v1 &&
-               !qi.endorsements.empty()) ||
-              (qi.format != QuoteFormat::oe_sgx_v1 && qi.endorsements.empty())))
+        else // Non-SNP
         {
-          throw std::runtime_error(
-            "SGX quote generation should have already fetched endorsements");
-        }
+          if (!((quote_info.format == QuoteFormat::oe_sgx_v1 &&
+                 !quote_info.endorsements.empty()) ||
+                (quote_info.format != QuoteFormat::oe_sgx_v1 &&
+                 quote_info.endorsements.empty())))
+          {
+            throw std::runtime_error(
+              "SGX quote generation should have already fetched endorsements");
+          }
 
-        quote_info = qi;
-        launch_node();
+          launch_node();
+        }
       };
 
       pal::PlatformAttestationReportData report_data =
@@ -543,9 +633,6 @@ namespace ccf
             curve_id,
             config.startup_host_time,
             config.initial_service_certificate_validity_days);
-
-          history->set_service_signing_identity(
-            network.identity->get_key_pair(), config.cose_signatures);
 
           LOG_INFO_FMT("Created recovery node {}", self);
           return {self_signed_node_cert, network.identity->cert};
@@ -1049,6 +1136,37 @@ namespace ccf
         index = s.seqno;
         view = s.view;
       }
+      else
+      {
+        throw std::logic_error("No signature found after recovery");
+      }
+
+      ccf::COSESignaturesConfig cs_cfg{};
+      auto lcs = tx.ro(network.cose_signatures)->get();
+      if (lcs.has_value())
+      {
+        CoseSignature cs = lcs.value();
+        LOG_INFO_FMT("COSE signature found after recovery");
+        try
+        {
+          auto [issuer, subject] = cose::extract_iss_sub_from_sig(cs);
+          LOG_INFO_FMT(
+            "COSE signature issuer: {}, subject: {}", issuer, subject);
+          cs_cfg = ccf::COSESignaturesConfig{issuer, subject};
+        }
+        catch (const cose::COSEDecodeError& e)
+        {
+          LOG_FAIL_FMT("COSE signature decode error: {}", e.what());
+          throw;
+        }
+      }
+      else
+      {
+        LOG_INFO_FMT("No COSE signature found after recovery");
+      }
+
+      history->set_service_signing_identity(
+        network.identity->get_key_pair(), cs_cfg);
 
       auto h = dynamic_cast<MerkleTxHistory*>(history.get());
       if (h)
@@ -1098,7 +1216,10 @@ namespace ccf
       {
         auto entry = ::consensus::LedgerEnclave::get_entry(data, size);
 
-        LOG_INFO_FMT("Deserialising private ledger entry [{}]", entry.size());
+        LOG_INFO_FMT(
+          "Deserialising private ledger entry {} [{}]",
+          last_recovered_idx + 1,
+          entry.size());
 
         // When reading the private ledger, deserialise in the recovery store
         ccf::kv::ApplyResult result = ccf::kv::ApplyResult::FAIL;
@@ -1151,6 +1272,11 @@ namespace ccf
 
       sm.expect(NodeStartupState::readingPrivateLedger);
 
+      LOG_INFO_FMT(
+        "Try end private recovery at {}. Is primary: {}",
+        recovery_v,
+        consensus->is_primary());
+
       if (recovery_v != recovery_store->current_version())
       {
         throw std::logic_error(fmt::format(
@@ -1180,8 +1306,34 @@ namespace ccf
       // Open the service
       if (consensus->can_replicate())
       {
-        setup_one_off_secret_hook();
+        LOG_INFO_FMT(
+          "Try end private recovery at {}. Trigger service opening",
+          recovery_v);
+
         auto tx = network.tables->create_tx();
+
+        {
+          // Ensure this transition happens at-most-once, by checking that no
+          // other node has already advanced the state
+          auto service = tx.ro<ccf::Service>(Tables::SERVICE);
+          auto active_service = service->get();
+
+          if (!active_service.has_value())
+          {
+            throw std::logic_error(fmt::format(
+              "Error in {}: no value in {}", __func__, Tables::SERVICE));
+          }
+
+          if (
+            active_service->status !=
+            ServiceStatus::WAITING_FOR_RECOVERY_SHARES)
+          {
+            throw std::logic_error(fmt::format(
+              "Error in {}: current service status is {}",
+              __func__,
+              active_service->status));
+          }
+        }
 
         // Clear recovery shares that were submitted to initiate the recovery
         // procedure
@@ -1531,18 +1683,24 @@ namespace ccf
       }
     }
 
+    // Decrypts chain of ledger secrets, and writes those to the ledger
+    // encrypted for each node. On a commit hook for this write, each node
+    // (including this one!) will begin_private_recovery().
     void initiate_private_recovery(ccf::kv::Tx& tx) override
     {
       std::lock_guard<pal::Mutex> guard(lock);
       sm.expect(NodeStartupState::partOfPublicNetwork);
 
-      recovered_ledger_secrets = share_manager.restore_recovery_shares_info(
-        tx, recovered_encrypted_ledger_secrets);
+      LedgerSecretsMap recovered_ledger_secrets =
+        share_manager.restore_recovery_shares_info(
+          tx, recovered_encrypted_ledger_secrets);
 
       // Broadcast decrypted ledger secrets to other nodes for them to
       // initiate private recovery too
       LedgerSecretsBroadcast::broadcast_some(
-        network, self, tx, recovered_ledger_secrets);
+        InternalTablesAccess::get_trusted_nodes(tx),
+        tx.wo(network.secrets),
+        std::move(recovered_ledger_secrets));
     }
 
     //
@@ -1737,7 +1895,9 @@ namespace ccf
       auto new_ledger_secret = make_ledger_secret();
       share_manager.issue_recovery_shares(tx, new_ledger_secret);
       LedgerSecretsBroadcast::broadcast_new(
-        network, tx, std::move(new_ledger_secret));
+        InternalTablesAccess::get_trusted_nodes(tx),
+        tx.wo(network.secrets),
+        std::move(new_ledger_secret));
 
       return true;
     }
@@ -2043,14 +2203,11 @@ namespace ccf
         threading::get_current_thread_id(), std::move(msg));
     }
 
-    void backup_initiate_private_recovery()
+    void begin_private_recovery()
     {
-      if (!consensus->is_backup())
-        return;
-
       sm.expect(NodeStartupState::partOfPublicNetwork);
 
-      LOG_INFO_FMT("Initiating end of recovery (backup)");
+      LOG_INFO_FMT("Beginning private recovery");
 
       setup_private_recovery_store();
 
@@ -2058,11 +2215,10 @@ namespace ccf
       setup_one_off_secret_hook();
 
       // Start reading private security domain of ledger
+      sm.advance(NodeStartupState::readingPrivateLedger);
       last_recovered_idx = recovery_store->current_version();
       read_ledger_entries(
         last_recovered_idx + 1, last_recovered_idx + recovery_batch_size);
-
-      sm.advance(NodeStartupState::readingPrivateLedger);
     }
 
     void setup_basic_hooks()
@@ -2173,42 +2329,18 @@ namespace ccf
               // recovery protocol (backup only)
               network.ledger_secrets->restore_historical(
                 std::move(restored_ledger_secrets));
-              backup_initiate_private_recovery();
+              begin_private_recovery();
               return;
             }
           }
+
+          LOG_INFO_FMT(
+            "Found no ledger secrets for this node ({}) in global commit hook "
+            "for {} @ {}",
+            self,
+            network.secrets.get_name(),
+            hook_version);
         }));
-
-      network.tables->set_global_hook(
-        network.encrypted_submitted_shares.get_name(),
-        network.encrypted_submitted_shares.wrap_commit_hook(
-          [this](
-            ccf::kv::Version hook_version,
-            const EncryptedSubmittedShares::Write& w) {
-            // Initiate recovery procedure from global hook, once all recovery
-            // shares have been submitted (i.e. recovered_ledger_secrets is
-            // set)
-            if (!recovered_ledger_secrets.empty())
-            {
-              network.ledger_secrets->restore_historical(
-                std::move(recovered_ledger_secrets));
-
-              LOG_INFO_FMT("Initiating end of recovery (primary)");
-
-              setup_private_recovery_store();
-              reset_recovery_hook();
-
-              // Start reading private security domain of ledger
-              last_recovered_idx = recovery_store->current_version();
-              read_ledger_entries(
-                last_recovered_idx + 1,
-                last_recovered_idx + recovery_batch_size);
-
-              sm.advance(NodeStartupState::readingPrivateLedger);
-            }
-
-            return;
-          }));
 
       network.tables->set_global_hook(
         network.nodes.get_name(),
@@ -2619,7 +2751,7 @@ namespace ccf
         throw std::logic_error("Snapshotter already initialised");
       }
       snapshotter = std::make_shared<Snapshotter>(
-        writer_factory, network.tables, config.snapshot_tx_interval);
+        writer_factory, network.tables, config.snapshots.tx_count);
     }
 
     void read_ledger_entries(::consensus::Index from, ::consensus::Index to)

@@ -2,7 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #include "ccf/crypto/ecdsa.h"
 
-#include "crypto/openssl/openssl_wrappers.h"
+#include "ccf/crypto/openssl/openssl_wrappers.h"
 #include "crypto/openssl/public_key.h"
 
 #include <openssl/bn.h>
@@ -45,7 +45,7 @@ namespace ccf::crypto
   }
 
   std::vector<uint8_t> ecdsa_sig_p1363_to_der(
-    const std::vector<uint8_t>& signature)
+    std::span<const uint8_t> signature)
   {
     auto half_size = signature.size() / 2;
     return ecdsa_sig_from_r_s(

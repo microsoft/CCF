@@ -17,13 +17,15 @@ int main()
 
 // Specify type of allocator
 #  define SNMALLOC_PROVIDE_OWN_CONFIG
+
 namespace snmalloc
 {
   class CustomConfig : public CommonConfig
   {
   public:
     using Pal = DefaultPal;
-    using PagemapEntry = DefaultPagemapEntry;
+    using PagemapEntry = DefaultPagemapEntry<NoClientMetaDataProvider>;
+    using ClientMeta = NoClientMetaDataProvider;
 
   private:
     using ConcretePagemap =
@@ -62,14 +64,12 @@ namespace snmalloc
      * C++, and not just its initializer fragment, to initialize a non-prefix
      * subset of the flags (in any order, at that).
      */
-    static constexpr Flags Options = []() constexpr
-    {
+    static constexpr Flags Options = []() constexpr {
       Flags opts = {};
       opts.QueueHeadsAreTame = false;
       opts.HasDomesticate = true;
       return opts;
-    }
-    ();
+    }();
 
     static GlobalPoolState& pool()
     {
@@ -138,7 +138,8 @@ int main()
 
   LocalEntropy entropy;
   entropy.init<DefaultPal>();
-  RemoteAllocator::key_global = FreeListKey(entropy.get_free_list_key());
+  entropy.make_free_list_key(RemoteAllocator::key_global);
+  entropy.make_free_list_key(freelist::Object::key_root);
 
   auto alloc1 = new Alloc();
 

@@ -227,6 +227,9 @@ class LocalRemote(CmdMixin):
     def sigterm(self):
         self.proc.terminate()
 
+    def sigkill(self):
+        self.proc.send_signal(signal.SIGKILL)
+
     def stop(self):
         """
         Disconnect the client, and therefore shut down the command as well.
@@ -336,9 +339,11 @@ class CCFRemote(object):
         ignore_first_sigterm=False,
         node_container_image=None,
         follow_redirect=True,
+        fetch_recent_snapshot=True,
         max_uncommitted_tx_count=0,
         snp_security_policy_file=None,
         snp_uvm_endorsements_file=None,
+        snp_endorsements_file=None,
         service_subject_name="CN=CCF Test Service",
         historical_cache_soft_limit=None,
         cose_signatures_issuer="service.example.com",
@@ -351,32 +356,28 @@ class CCFRemote(object):
 
         snp_security_context_directory_envvar = None
 
-        if "env" in kwargs:
-            env = kwargs["env"]
-        else:
-            env = {}
-            if enclave_platform == "virtual":
-                env["UBSAN_OPTIONS"] = "print_stacktrace=1"
-                ubsan_opts = kwargs.get("ubsan_options")
-                if ubsan_opts:
-                    env["UBSAN_OPTIONS"] += ":" + ubsan_opts
-                env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
-                # https://github.com/microsoft/CCF/issues/5198
-                env["ASAN_OPTIONS"] = os.environ.get(
-                    "ASAN_OPTIONS", "alloc_dealloc_mismatch=0"
+        env = kwargs.get("env", {})
+        if enclave_platform == "snp":
+            env.update(snp.get_aci_env())
+
+        if enclave_platform == "virtual":
+            env["UBSAN_OPTIONS"] = "print_stacktrace=1"
+            ubsan_opts = kwargs.get("ubsan_options")
+            if ubsan_opts:
+                env["UBSAN_OPTIONS"] += ":" + ubsan_opts
+            env["TSAN_OPTIONS"] = os.environ.get("TSAN_OPTIONS", "")
+            env["ASAN_OPTIONS"] = os.environ.get("ASAN_OPTIONS", "")
+        elif enclave_platform == "snp":
+            snp_security_context_directory_envvar = (
+                snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
+                if set_snp_uvm_security_context_dir_envvar
+                and snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR in env
+                else None
+            )
+            if snp_uvm_security_context_dir is not None:
+                env[snp_security_context_directory_envvar] = (
+                    snp_uvm_security_context_dir
                 )
-            elif enclave_platform == "snp":
-                env = snp.get_aci_env()
-                snp_security_context_directory_envvar = (
-                    snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR
-                    if set_snp_uvm_security_context_dir_envvar
-                    and snp.ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR in env
-                    else None
-                )
-                if snp_uvm_security_context_dir is not None:
-                    env[snp_security_context_directory_envvar] = (
-                        snp_uvm_security_context_dir
-                    )
 
         oe_log_level = CCF_TO_OE_LOG_LEVEL.get(kwargs.get("host_log_level"))
         if oe_log_level:
@@ -437,6 +438,9 @@ class CCFRemote(object):
 
         # Constitution
         constitution = [os.path.basename(f) for f in constitution]
+        assert len(set(constitution)) == len(
+            constitution
+        ), f"Constitution contains files with duplicate names, which is not going to do what you want. Recommend renaming one of them, or improving this infra to copy them to unique names. {constitution=}"
 
         # ACME
         if "acme" in kwargs and host.acme_challenge_server_interface:
@@ -471,6 +475,10 @@ class CCFRemote(object):
             snp_uvm_endorsements_file = (
                 "$UVM_SECURITY_CONTEXT_DIR/reference-info-base64"
             )
+
+        # Default snp_endorsements_file if not set
+        if snp_endorsements_file is None:
+            snp_endorsements_file = "$UVM_SECURITY_CONTEXT_DIR/host-amd-cert-base64"
 
         # Validate consensus timers
         if (
@@ -533,9 +541,11 @@ class CCFRemote(object):
                 ignore_first_sigterm=ignore_first_sigterm,
                 node_address=remote_class.get_node_address(node_address),
                 follow_redirect=follow_redirect,
+                fetch_recent_snapshot=fetch_recent_snapshot,
                 max_uncommitted_tx_count=max_uncommitted_tx_count,
                 snp_security_policy_file=snp_security_policy_file,
                 snp_uvm_endorsements_file=snp_uvm_endorsements_file,
+                snp_endorsements_file=snp_endorsements_file,
                 service_subject_name=service_subject_name,
                 historical_cache_soft_limit=historical_cache_soft_limit,
                 cose_signatures_issuer=cose_signatures_issuer,
@@ -658,6 +668,9 @@ class CCFRemote(object):
 
     def sigterm(self):
         self.remote.sigterm()
+
+    def sigkill(self):
+        self.remote.sigkill()
 
     def stop(self):
         try:

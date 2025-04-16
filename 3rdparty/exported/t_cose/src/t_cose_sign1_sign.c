@@ -1,7 +1,7 @@
 /*
  * t_cose_sign1_sign.c
  *
- * Copyright (c) 2018-2021, Laurence Lundblade. All rights reserved.
+ * Copyright (c) 2018-2024, Laurence Lundblade. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -15,10 +15,12 @@
 #include "t_cose_util.h"
 #include "t_cose_short_circuit.h"
 
-#ifndef QCBOR_1_1
-// The OpenBytes API we use was only added in 1.1.
+
+#if !(defined(QCBOR_1_1) || QCBOR_VERSION_MAJOR >= 2 || (QCBOR_VERSION_MAJOR == 1 && QCBOR_VERSION_MINOR >= 1))
+/* The OpenBytes API we use was only added in 1.1. */
 #error t_cose requires QCBOR 1.1 or greater
 #endif
+
 
 /**
  * \file t_cose_sign1_sign.c

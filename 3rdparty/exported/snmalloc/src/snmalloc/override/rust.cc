@@ -1,5 +1,5 @@
 #define SNMALLOC_NAME_MANGLE(a) sn_##a
-#include "malloc.cc"
+#include "snmalloc/snmalloc.h"
 
 #include <cstring>
 
@@ -10,19 +10,19 @@
 using namespace snmalloc;
 
 extern "C" SNMALLOC_EXPORT void*
-  SNMALLOC_NAME_MANGLE(rust_alloc)(size_t alignment, size_t size)
+SNMALLOC_NAME_MANGLE(rust_alloc)(size_t alignment, size_t size)
 {
   return ThreadAlloc::get().alloc(aligned_size(alignment, size));
 }
 
 extern "C" SNMALLOC_EXPORT void*
-  SNMALLOC_NAME_MANGLE(rust_alloc_zeroed)(size_t alignment, size_t size)
+SNMALLOC_NAME_MANGLE(rust_alloc_zeroed)(size_t alignment, size_t size)
 {
   return ThreadAlloc::get().alloc<YesZero>(aligned_size(alignment, size));
 }
 
 extern "C" SNMALLOC_EXPORT void
-  SNMALLOC_NAME_MANGLE(rust_dealloc)(void* ptr, size_t alignment, size_t size)
+SNMALLOC_NAME_MANGLE(rust_dealloc)(void* ptr, size_t alignment, size_t size)
 {
   ThreadAlloc::get().dealloc(ptr, aligned_size(alignment, size));
 }
@@ -48,6 +48,12 @@ extern "C" SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_realloc)(
 extern "C" SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(rust_statistics)(
   size_t* current_memory_usage, size_t* peak_memory_usage)
 {
-  *current_memory_usage = StandardConfig::Backend::get_current_usage();
-  *peak_memory_usage = StandardConfig::Backend::get_peak_usage();
+  *current_memory_usage = Alloc::Config::Backend::get_current_usage();
+  *peak_memory_usage = Alloc::Config::Backend::get_peak_usage();
+}
+
+extern "C" SNMALLOC_EXPORT size_t
+SNMALLOC_NAME_MANGLE(rust_usable_size)(const void* ptr)
+{
+  return ThreadAlloc::get().alloc_size(ptr);
 }

@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the Apache 2.0 License.
 import infra.e2e_args
+import infra.member
 import infra.network
 import infra.node
 import infra.logging_app as app
@@ -16,7 +17,7 @@ from distutils.dir_util import copy_tree
 from infra.consortium import slurp_file
 import infra.health_watcher
 import time
-from e2e_logging import verify_receipt
+from e2e_logging import verify_receipt, test_cose_receipt_schema
 import infra.service_load
 import ccf.tx_id
 import tempfile
@@ -28,7 +29,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from ccf.cose import validate_cose_sign1
 from pycose.messages import Sign1Message  # type: ignore
-
+import random
 from loguru import logger as LOG
 
 
@@ -106,9 +107,78 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
         pubkey = serialization.load_der_public_key(next_key_bytes, default_backend())
 
 
+def recover_with_primary_dying(args, recovered_network):
+    # Minimal copy-paste from network.recover() with primary shut down.
+    recovered_network.consortium.activate(recovered_network.find_random_node())
+    recovered_network.consortium.check_for_service(
+        recovered_network.find_random_node(),
+        status=infra.network.ServiceStatus.RECOVERING,
+    )
+    recovered_network.wait_for_all_nodes_to_be_trusted(
+        recovered_network.find_random_node()
+    )
+
+    prev_service_identity = None
+    if args.previous_service_identity_file:
+        prev_service_identity = slurp_file(args.previous_service_identity_file)
+    LOG.info(f"Prev identity: {prev_service_identity}")
+
+    recovered_network.consortium.transition_service_to_open(
+        recovered_network.find_random_node(),
+        previous_service_identity=prev_service_identity,
+    )
+
+    recovered_network.consortium.recover_with_shares(
+        recovered_network.find_random_node()
+    )
+    for node in recovered_network.get_joined_nodes():
+        recovered_network.wait_for_state(
+            node,
+            infra.node.State.READING_PRIVATE_LEDGER.value,
+            timeout=args.ledger_recovery_timeout,
+        )
+
+    retired_primary, _ = recovered_network.find_primary()
+    retired_id = retired_primary.node_id
+
+    LOG.info(f"Force-kill primary {retired_id}")
+    retired_primary.sigkill()
+    recovered_network.nodes.remove(retired_primary)
+
+    primary, _ = recovered_network.find_primary()
+    while not primary or primary.node_id == retired_id:
+        LOG.info("Keep looking for new primary")
+        time.sleep(0.1)
+        primary, _ = recovered_network.find_primary()
+
+    # Ensure new primary has been elected while all nodes are still reading private entries.
+    for node in recovered_network.get_joined_nodes():
+        LOG.info(f"Check state for node id {node.node_id}")
+        with node.client(connection_timeout=1) as c:
+            assert (
+                infra.node.State.READING_PRIVATE_LEDGER.value
+                == c.get("/node/state").body.json()["state"]
+            )
+
+    # Wait for recovery to complete.
+    for node in recovered_network.get_joined_nodes():
+        recovered_network.wait_for_state(
+            node,
+            infra.node.State.PART_OF_NETWORK.value,
+            timeout=args.ledger_recovery_timeout,
+        )
+
+
 @reqs.description("Recover a service")
 @reqs.recover(number_txs=2)
-def test_recover_service(network, args, from_snapshot=True, no_ledger=False):
+def test_recover_service(
+    network,
+    args,
+    from_snapshot=True,
+    no_ledger=False,
+    via_recovery_owner=False,
+    force_election=False,
+):
     network.save_service_identity(args)
     old_primary, _ = network.find_primary()
 
@@ -123,6 +193,16 @@ def test_recover_service(network, args, from_snapshot=True, no_ledger=False):
     snapshots_dir = None
     if from_snapshot:
         snapshots_dir = network.get_committed_snapshots(old_primary)
+
+    if force_election:
+        # Necessary to make recovering private entries taking long enough time
+        # to allow election to happen if primary gets killed. These later get verified post-recovery (logging app verify_tx() thing).
+        network.txs.issue(
+            network,
+            number_txs=10000,
+            send_public=False,
+            msg=str(bytes(random.getrandbits(8) for _ in range(512))),
+        )
 
     # Start health watcher and stop nodes one by one until a recovery has to be staged
     watcher = infra.health_watcher.NetworkHealthWatcher(network, args, verbose=True)
@@ -199,7 +279,10 @@ def test_recover_service(network, args, from_snapshot=True, no_ledger=False):
             r = c.get("/node/ready/app")
             assert r.status_code == http.HTTPStatus.SERVICE_UNAVAILABLE.value, r
 
-    recovered_network.recover(args)
+    if force_election:
+        recover_with_primary_dying(args, recovered_network)
+    else:
+        recovered_network.recover(args, via_recovery_owner=via_recovery_owner)
 
     LOG.info("Check that new service view is as expected")
     new_primary, _ = recovered_network.find_primary()
@@ -213,6 +296,16 @@ def test_recover_service(network, args, from_snapshot=True, no_ledger=False):
         r = c.get("/node/ready/gov")
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
         r = c.get("/node/ready/app")
+
+        # Service opening may be slightly delayed due to forced election (if option enabled).
+        app_ready_attempts = 10 if force_election else 0
+        while (
+            r.status_code != http.HTTPStatus.NO_CONTENT.value and app_ready_attempts > 0
+        ):
+            time.sleep(0.1)
+            app_ready_attempts -= 1
+            r = c.get("/node/ready/app")
+
         assert r.status_code == http.HTTPStatus.NO_CONTENT.value, r
 
     return recovered_network
@@ -220,6 +313,7 @@ def test_recover_service(network, args, from_snapshot=True, no_ledger=False):
 
 @reqs.description("Recover a service with wrong service identity")
 @reqs.recover(number_txs=2)
+@reqs.sufficient_network_recovery_count(required_count=1)
 def test_recover_service_with_wrong_identity(network, args):
     old_primary, _ = network.find_primary()
 
@@ -934,6 +1028,8 @@ def run(args):
             ref_msg = get_and_verify_historical_receipt(network, ref_msg)
 
             LOG.success("Recovery complete on all nodes")
+            # Verify COSE receipt schema and issuer/subject have remained the same
+            test_cose_receipt_schema(network, args)
 
         primary, _ = network.find_primary()
         network.stop_all_nodes()
@@ -964,12 +1060,12 @@ def run(args):
                     ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
     test_recover_service_from_files(
-        args, "expired_service", expected_recovery_count=1, test_receipt=True
+        args, "expired_service", expected_recovery_count=2, test_receipt=True
     )
-    # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> main.
+    # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
     # This is used to test recovery from SGX to SNP.
     test_recover_service_from_files(
-        args, "sgx_service", expected_recovery_count=3, test_receipt=False
+        args, "sgx_service", expected_recovery_count=4, test_receipt=False
     )
 
 
@@ -993,6 +1089,88 @@ def run_recover_snapshot_alone(args):
         return network
 
 
+def run_recovery_with_election(args):
+    """
+    Recover a service but force election during recovery.
+    """
+    if not args.with_election:
+        return
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        test_recover_service(network, args, force_election=True)
+        return network
+
+
+def run_recover_via_initial_recovery_owner(args):
+    """
+    Recover a service using the recovery owner added as part of service creation, without requiring any other recovery members to participate.
+    """
+    txs = app.LoggingTxs("user0")
+    args.initial_member_count = 4
+    args.initial_recovery_participant_count = 3
+    args.initial_recovery_owner_count = 1
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        # Recover service using recovery owner and participants
+        network = test_recover_service(
+            network, args, from_snapshot=True, via_recovery_owner=True
+        )
+        network = test_recover_service(network, args, from_snapshot=True)
+        return network
+
+
+def run_recover_via_added_recovery_owner(args):
+    """
+    Recover a service using the recovery owner added after opening the service, without requiring any other recovery members to participate.
+    """
+    txs = app.LoggingTxs("user0")
+    args.initial_recovery_participant_count = 2
+    args.initial_recovery_owner_count = 0
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        primary, _ = network.find_primary()
+
+        # Add a recovery owner after opening the network
+        recovery_owner = network.consortium.generate_and_add_new_member(
+            primary,
+            curve=args.participants_curve,
+            recovery_role=infra.member.RecoveryRole.Owner,
+        )
+        r = recovery_owner.ack(primary)
+        with primary.client() as nc:
+            nc.wait_for_commit(r)
+
+        # Recover service using recovery owner and participants
+        network = test_recover_service(
+            network, args, from_snapshot=True, via_recovery_owner=True
+        )
+        network = test_recover_service(network, args, from_snapshot=True)
+        return network
+
+
 if __name__ == "__main__":
 
     def add(parser):
@@ -1012,6 +1190,12 @@ checked. Note that the key for each logging message is unique (per table).
         parser.add_argument(
             "--with-load",
             help="If set, the service is loaded before being recovered",
+            action="store_true",
+            default=False,
+        )
+        parser.add_argument(
+            "--with-election",
+            help="If set, the primary gets killed to force election mid-recovery",
             action="store_true",
             default=False,
         )
@@ -1047,6 +1231,29 @@ checked. Note that the key for each logging message is unique (per table).
         run_recover_snapshot_alone,
         package="samples/apps/logging/liblogging",
         nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_via_initial_recovery_owner",
+        run_recover_via_initial_recovery_owner,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_via_added_recovery_owner",
+        run_recover_via_added_recovery_owner,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=0),  # 1 node suffices for recovery
+    )
+
+    cr.add(
+        "recovery_with_election",
+        run_recovery_with_election,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=30,
     )
 
     cr.run()

@@ -124,7 +124,13 @@ def test_add_node(network, args, from_snapshot=True):
             }
         )
     )
-    network.join_node(new_node, args.package, args, from_snapshot=from_snapshot)
+    network.join_node(
+        new_node,
+        args.package,
+        args,
+        from_snapshot=from_snapshot,
+        fetch_recent_snapshot=from_snapshot,
+    )
 
     # Verify self-signed node certificate validity period
     new_node.verify_certificate_validity_period(interface_name=operator_rpc_interface)
@@ -138,9 +144,10 @@ def test_add_node(network, args, from_snapshot=True):
     if not from_snapshot:
         with new_node.client() as c:
             s = c.get("/node/state")
-            assert s.body.json()["node_id"] == new_node.node_id
+            body = s.body.json()
+            assert body["node_id"] == new_node.node_id
             assert (
-                s.body.json()["startup_seqno"] == 0
+                body["startup_seqno"] == 0
             ), "Node started without snapshot but reports startup seqno != 0"
 
     # Now that the node is trusted, verify endorsed certificate validity period
@@ -271,6 +278,8 @@ def test_add_node_endorsements_endpoints(network, args):
         )
         new_node = network.create_node("local://localhost")
         args_copy.snp_endorsements_servers = servers
+        # Ensure these nodes go to the specified server, and do not get their endorsements from file
+        args_copy.snp_endorsements_file = "/dev/null"
         try:
             network.join_node(
                 new_node,
@@ -569,40 +578,38 @@ def test_issue_fake_join(network, args):
                 == "Quote report data does not contain node's public key hash"
             )
 
-        LOG.info("Join with AMD SEV-SNP quote")
-        req["quote_info"] = {
-            "format": "AMD_SEV_SNP_v1",
-            "quote": own_quote["raw"],
-            "endorsements": own_quote["endorsements"],
-        }
-        if args.enclave_platform == "snp":
-            req["quote_info"]["uvm_endorsements"] = own_quote["uvm_endorsements"]
-        r = c.post("/node/join", body=req)
-        if args.enclave_platform != "snp":
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
-            assert r.body.json()["error"]["code"] == "InvalidQuote"
-            assert r.body.json()["error"]["message"] == "Quote could not be verified"
-        else:
-            assert (
-                r.body.json()["error"]["message"]
-                == "Quote report data does not contain node's public key hash"
-            )
-
-        LOG.info("Join with virtual quote")
-        req["quote_info"] = {
-            "format": "Insecure_Virtual",
-            "quote": "",
-            "endorsements": "",
-        }
-        r = c.post("/node/join", body=req)
-        if args.enclave_platform == "virtual":
-            assert r.status_code == http.HTTPStatus.OK
-            assert r.body.json()["node_status"] == ccf.ledger.NodeStatus.PENDING.value
-        else:
-            assert r.status_code == http.HTTPStatus.UNAUTHORIZED
-            assert (
-                r.body.json()["error"]["code"] == "InvalidQuote"
-            ), "Virtual node must never join non-virtual network"
+        for platform, info, format in (
+            (
+                "snp",
+                "Join with AMD SEV-SNP quote",
+                "AMD_SEV_SNP_v1",
+            ),
+            (
+                "virtual",
+                "Join with virtual quote",
+                "Insecure_Virtual",
+            ),
+        ):
+            LOG.info(info)
+            req["quote_info"] = {
+                "format": format,
+                "quote": own_quote["raw"],
+                "endorsements": own_quote["endorsements"],
+            }
+            if args.enclave_platform == "snp":
+                req["quote_info"]["uvm_endorsements"] = own_quote["uvm_endorsements"]
+            r = c.post("/node/join", body=req)
+            if args.enclave_platform != platform:
+                assert r.status_code == http.HTTPStatus.UNAUTHORIZED
+                assert r.body.json()["error"]["code"] == "InvalidQuote"
+                assert (
+                    r.body.json()["error"]["message"] == "Quote could not be verified"
+                )
+            else:
+                assert (
+                    r.body.json()["error"]["message"]
+                    == "Quote report data does not contain node's public key hash"
+                )
 
     return network
 
@@ -868,6 +875,7 @@ def run_join_old_snapshot(args):
                     args.package,
                     args,
                     from_snapshot=True,
+                    fetch_recent_snapshot=False,
                     snapshots_dir=tmp_dir,
                     timeout=3,
                 )
@@ -891,6 +899,7 @@ def run_join_old_snapshot(args):
                     args.package,
                     args,
                     from_snapshot=False,
+                    fetch_recent_snapshot=False,
                     timeout=3,
                 )
             except infra.network.StartupSeqnoIsOld as e:
@@ -904,6 +913,17 @@ def run_join_old_snapshot(args):
                 raise RuntimeError(
                     f"Node {new_node.local_node_id} started without snapshot unexpectedly joined the service successfully"
                 )
+
+            # Start new node with no snapshot dir, but fetching recent snapshot on startup - this should only pass if snapshot fetch works correctly
+            new_node = network.create_node("local://localhost")
+            network.join_node(
+                new_node,
+                args.package,
+                args,
+                from_snapshot=False,
+                fetch_recent_snapshot=True,
+                timeout=3,
+            )
 
 
 if __name__ == "__main__":

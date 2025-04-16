@@ -3,12 +3,12 @@
 #include "ccf/json_handler.h"
 
 #include "ccf/ds/logger.h"
+#include "ccf/http_accept.h"
 #include "ccf/http_consts.h"
 #include "ccf/odata_error.h"
 #include "ccf/redirect.h"
 #include "ccf/rpc_context.h"
-#include "http/http_accept.h"
-#include "node/rpc/rpc_exception.h"
+#include "ccf/rpc_exception.h"
 
 #include <llhttp/llhttp.h>
 
@@ -64,7 +64,7 @@ namespace ccf
             if (accept_it.has_value())
             {
               const auto accept_options =
-                ::http::parse_accept_header(accept_it.value());
+                ccf::http::parse_accept_header(accept_it.value());
               bool matched = false;
               for (const auto& option : accept_options)
               {

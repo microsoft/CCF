@@ -271,12 +271,6 @@
         },
         "type": "object"
       },
-      "JwtIssuerKeyFilter": {
-        "enum": [
-          "all"
-        ],
-        "type": "string"
-      },
       "JwtIssuerMetadata": {
         "properties": {
           "auto_refresh": {
@@ -284,9 +278,6 @@
           },
           "ca_cert_bundle_name": {
             "$ref": "#/components/schemas/string"
-          },
-          "key_filter": {
-            "$ref": "#/components/schemas/JwtIssuerKeyFilter"
           }
         },
         "type": "object"
@@ -343,6 +334,9 @@
         "properties": {
           "member_data": {
             "$ref": "#/components/schemas/json"
+          },
+          "recovery_role": {
+            "$ref": "#/components/schemas/MemberRecoveryRole"
           },
           "status": {
             "$ref": "#/components/schemas/MemberStatus"
@@ -411,6 +405,14 @@
           "$ref": "#/components/schemas/string"
         },
         "type": "object"
+      },
+      "MemberRecoveryRole": {
+        "enum": [
+          "NonParticipant",
+          "Participant",
+          "Owner"
+        ],
+        "type": "string"
       },
       "MemberStatus": {
         "enum": [
@@ -800,6 +802,24 @@
       },
       "OpenIDJWKMetadata": {
         "properties": {
+          "constraint": {
+            "$ref": "#/components/schemas/string"
+          },
+          "issuer": {
+            "$ref": "#/components/schemas/string"
+          },
+          "public_key": {
+            "$ref": "#/components/schemas/base64string"
+          }
+        },
+        "required": [
+          "issuer",
+          "public_key"
+        ],
+        "type": "object"
+      },
+      "OpenIDJWKMetadataLegacy": {
+        "properties": {
           "cert": {
             "$ref": "#/components/schemas/base64string"
           },
@@ -811,10 +831,16 @@
           }
         },
         "required": [
-          "cert",
-          "issuer"
+          "issuer",
+          "cert"
         ],
         "type": "object"
+      },
+      "OpenIDJWKMetadataLegacy_array": {
+        "items": {
+          "$ref": "#/components/schemas/OpenIDJWKMetadataLegacy"
+        },
+        "type": "array"
       },
       "OpenIDJWKMetadata_array": {
         "items": {
@@ -1146,6 +1172,29 @@
         ],
         "type": "object"
       },
+      "TcbVersion": {
+        "properties": {
+          "boot_loader": {
+            "$ref": "#/components/schemas/uint8"
+          },
+          "microcode": {
+            "$ref": "#/components/schemas/uint8"
+          },
+          "snp": {
+            "$ref": "#/components/schemas/uint8"
+          },
+          "tee": {
+            "$ref": "#/components/schemas/uint8"
+          }
+        },
+        "required": [
+          "boot_loader",
+          "tee",
+          "snp",
+          "microcode"
+        ],
+        "type": "object"
+      },
       "TransactionId": {
         "pattern": "^[0-9]+\\.[0-9]+$",
         "type": "string"
@@ -1216,6 +1265,12 @@
       "string": {
         "type": "string"
       },
+      "string_to_CodeStatus": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/CodeStatus"
+        },
+        "type": "object"
+      },
       "string_to_JwtIssuerMetadata": {
         "additionalProperties": {
           "$ref": "#/components/schemas/JwtIssuerMetadata"
@@ -1225,6 +1280,12 @@
       "string_to_KeyIdInfo_array": {
         "additionalProperties": {
           "$ref": "#/components/schemas/KeyIdInfo_array"
+        },
+        "type": "object"
+      },
+      "string_to_OpenIDJWKMetadataLegacy_array": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/OpenIDJWKMetadataLegacy_array"
         },
         "type": "object"
       },
@@ -1243,6 +1304,12 @@
       "string_to_ProposalInfo": {
         "additionalProperties": {
           "$ref": "#/components/schemas/ProposalInfo"
+        },
+        "type": "object"
+      },
+      "string_to_TcbVersion": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/TcbVersion"
         },
         "type": "object"
       },
@@ -1274,6 +1341,11 @@
         "maximum": 18446744073709551615,
         "minimum": 0,
         "type": "integer"
+      },
+      "uint8": {
+        "maximum": 255,
+        "minimum": 0,
+        "type": "integer"
       }
     },
     "securitySchemes": {
@@ -1301,7 +1373,7 @@
   "info": {
     "description": "This API is used to submit and query proposals which affect CCF's public governance tables.",
     "title": "CCF Governance API",
-    "version": "4.5.0"
+    "version": "4.7.2"
   },
   "openapi": "3.0.0",
   "paths": {
@@ -1757,6 +1829,31 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "$ref": "#/components/schemas/string_to_OpenIDJWKMetadataLegacy_array"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/jwt/public_signing_keys_metadata_v2": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvJwtPublicSigningKeysMetadataV2",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
                   "$ref": "#/components/schemas/string_to_OpenIDJWKMetadata_array"
                 }
               }
@@ -2073,6 +2170,31 @@
         }
       }
     },
+    "/gov/kv/nodes/snp/tcb_versions": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvNodesSnpTcbVersions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_TcbVersion"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
     "/gov/kv/nodes/snp/uvm_endorsements": {
       "get": {
         "deprecated": true,
@@ -2083,6 +2205,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/string_to_string_to_UVMEndorsementsData"
+                }
+              }
+            },
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/virtual/host_data": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvNodesVirtualHostData",
+        "responses": {
+          "200": {
+            "description": "Default response description"
+          },
+          "default": {
+            "$ref": "#/components/responses/default"
+          }
+        },
+        "summary": "This route is auto-generated from the KV schema.",
+        "x-ccf-forwarding": {
+          "$ref": "#/components/x-ccf-forwarding/sometimes"
+        }
+      }
+    },
+    "/gov/kv/nodes/virtual/measurements": {
+      "get": {
+        "deprecated": true,
+        "operationId": "GetGovKvNodesVirtualMeasurements",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/string_to_CodeStatus"
                 }
               }
             },

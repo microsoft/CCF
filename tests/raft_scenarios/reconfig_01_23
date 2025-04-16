@@ -42,13 +42,14 @@ assert_commit_idx,0,8
 assert_detail,0,leadership_state,None
 assert_detail,0,retirement_phase,RetiredCommitted
 
-# 2 becomes leader
-assert_detail,2,leadership_state,Leader
+# One of the continuing nodes has become leader
 emit_signature,3
 periodic_all,10
 dispatch_all
+periodic_all,10
 dispatch_all
 assert_commit_idx,2,9
+assert_commit_idx,3,9
 
 # 0 becomes a follower again, because it receives messages
 # from 2 before 2 realises 0 is retired committed.
@@ -65,5 +66,7 @@ replicate,3,some_tx
 emit_signature,3
 periodic_all,10
 dispatch_all
+periodic_all,10
 dispatch_all
 assert_commit_idx,2,11
+assert_commit_idx,3,11
