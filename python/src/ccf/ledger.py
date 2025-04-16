@@ -330,7 +330,40 @@ class PublicDomain:
         )
 
 
-def _byte_read_safe(file, num_of_bytes):
+class SimpleBuffer:
+    def __init__(self, buffer: bytes, at_loc: int = 0):
+        self._buffer = buffer
+        self._loc = at_loc
+        self._len = len(self._buffer)
+
+    def _safe_loc(self, loc):
+        return min(loc, self._len)
+
+    def tell(self):
+        return self._loc
+
+    def read(self, size: Optional[int] = None):
+        start = self._loc
+        end = self._len
+        if size is not None:
+            end = self._safe_loc(start + size)
+        self._loc = end
+        return self._buffer[start:end]
+
+    def seek(self, loc):
+        self._loc = self._safe_loc(loc)
+        return self._loc
+
+    def clone(self, at_loc: int = 0):
+        sb = SimpleBuffer(self._buffer, at_loc)
+        return sb
+
+    @staticmethod
+    def from_file(filename):
+        return SimpleBuffer(open(filename, "rb").read())
+
+
+def _byte_read_safe(file: SimpleBuffer, num_of_bytes):
     offset = file.tell()
     ret = file.read(num_of_bytes)
     if len(ret) != num_of_bytes:
@@ -340,7 +373,7 @@ def _byte_read_safe(file, num_of_bytes):
     return ret
 
 
-def _peek(file, num_bytes, pos=None):
+def _peek(file: SimpleBuffer, num_bytes, pos=None):
     save_pos = file.tell()
     if pos is not None:
         file.seek(pos)
@@ -349,7 +382,7 @@ def _peek(file, num_bytes, pos=None):
     return buffer
 
 
-def _peek_all(file, pos=None):
+def _peek_all(file: SimpleBuffer, pos=None):
     save_pos = file.tell()
     if pos is not None:
         file.seek(pos)
@@ -657,14 +690,14 @@ class TransactionHeader:
 
 
 class Entry:
-    _file: BinaryIO
+    _file: SimpleBuffer
     _header: TransactionHeader
     _public_domain_size: int = 0
     _public_domain: Optional[PublicDomain] = None
     _file_size: int = 0
     gcm_header: Optional[GcmHeader] = None
 
-    def __init__(self, file: BinaryIO):
+    def __init__(self, file: SimpleBuffer):
         if type(self) is Entry:
             raise TypeError("Entry is not instantiable")
 
@@ -731,7 +764,7 @@ class Transaction(Entry):
 
     _tx_offset: int = 0
 
-    def __init__(self, file: BinaryIO):
+    def __init__(self, file: SimpleBuffer):
         super().__init__(file)
         self._tx_offset = self._file.tell()
         super()._read_header()
@@ -832,26 +865,23 @@ class Snapshot(Entry):
 
 
 class TransactionIterator:
-    _positions = List[int]
-    _filename = str
+    _positions: List[int]
+    _buffer: SimpleBuffer
     _idx: int = -1
 
     def __init__(
         self,
         positions: List[int],
-        filename: str,
+        buffer: SimpleBuffer,
     ):
         self._positions = positions
-        self._filename = filename
+        self._buffer = buffer
 
     def __next__(self):
         self._idx += 1
         if len(self._positions) > self._idx:
-            f = open(self._filename, mode="rb")
-            f.seek(self._positions[self._idx])
-            tx = Transaction(f)
-
-            return tx
+            pos = self._positions[self._idx]
+            return Transaction(self._buffer.clone(at_loc=pos))
         else:
             raise StopIteration
 
@@ -887,12 +917,14 @@ class LedgerChunk:
     """
 
     _filename: str
+    _file: SimpleBuffer
 
     def __init__(self, name: str):
-        file = open(name, "rb")
+        self._filename = name
+        self._file = SimpleBuffer.from_file(name)
 
         self._pos_offset = int.from_bytes(
-            _byte_read_safe(file, LEDGER_HEADER_SIZE), byteorder="little"
+            _byte_read_safe(self._file, LEDGER_HEADER_SIZE), byteorder="little"
         )
 
         # If the ledger chunk is not yet committed, the ledger header will be empty.
@@ -900,7 +932,7 @@ class LedgerChunk:
         if self._pos_offset > 0:
             self._file_size = self._pos_offset
 
-            positions_buffer = _peek_all(file, self._pos_offset)
+            positions_buffer = _peek_all(self._file, self._pos_offset)
             buf_len = len(positions_buffer)
             assert (
                 buf_len % 4 == 0
@@ -915,24 +947,19 @@ class LedgerChunk:
             ]
         else:
             self._file_size = os.path.getsize(name)
-            self._positions = find_tx_positions(file, self._file_size)
+            self._positions = find_tx_positions(self._file, self._file_size)
 
-        self._filename = name
         self.start_seqno, self.end_seqno = range_from_filename(name)
 
     def __getitem__(self, key):
         if isinstance(key, int):
             position = self._positions[key]
-            f = open(self._filename, mode="rb")
-            f.seek(position)
-            return Transaction(f)
+            return Transaction(self._file.clone(at_loc=position))
         elif isinstance(key, slice):
             positions = self._positions[key]
             transactions = []
             for p in positions:
-                f = open(self._filename, mode="rb")
-                f.seek(p)
-                transactions.append(Transaction(f))
+                transactions.append(Transaction(self._file.clone(at_loc=p)))
             return transactions
         else:
             raise KeyError(f"Unsupported type ({type(key)}) passed to LedgerChunk[]")
@@ -940,7 +967,7 @@ class LedgerChunk:
     def __iter__(self):
         return TransactionIterator(
             self._positions,
-            self._filename,
+            self._file,
         )
 
     def __len__(self):
