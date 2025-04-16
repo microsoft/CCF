@@ -1122,7 +1122,7 @@ def test_incomplete_ledger_recovery(network, args):
 
         network.stop_all_nodes(skip_verification=True)
 
-        # Calling .get_ledger() after shuwdown because it lazy-copies the files.
+        # Calling .get_ledger() after shutdown because it lazy-copies the files.
         current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
         ledger = ccf.ledger.Ledger(
