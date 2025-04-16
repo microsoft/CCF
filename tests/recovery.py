@@ -1138,7 +1138,7 @@ def test_incomplete_ledger_recovery(network, args):
             )
             continue
 
-        # We've got a sufffux with extra payload with no following signature.
+        # We've got a suffix with extra payload with no following signature.
         break
     else:
         raise RuntimeError(
