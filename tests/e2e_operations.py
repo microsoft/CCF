@@ -357,7 +357,9 @@ def split_all_ledger_files_in_dir(input_dir, output_dir):
             continue
 
         ledger_file_path = os.path.join(input_dir, ledger_file)
-        ledger_chunk = ccf.ledger.LedgerChunk(ledger_file_path, ledger_validator=None)
+        ledger_chunk = ccf.ledger.LedgerChunk(
+            ledger_file_path,
+        )
         for transaction in ledger_chunk:
             public_domain = transaction.get_public_domain()
             if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public_domain.get_tables().keys():
