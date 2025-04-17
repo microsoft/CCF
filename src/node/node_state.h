@@ -3008,8 +3008,11 @@ namespace ccf
       std::vector<uint8_t> buf_plaintext(plaintext.begin(), plaintext.end());
 
       // prevent unsealing if the TCB changes
+      auto tcb_version = snp_tcb_version.value();
+      LOG_INFO_FMT("SEALING WITH TCB version {},{},{},{}", tcb_version.boot_loader, 
+                   tcb_version.tee, tcb_version.snp, tcb_version.microcode);
       auto sealing_key =
-        ccf::pal::snp::make_derived_key(snp_tcb_version.value())->get_raw();
+        ccf::pal::snp::make_derived_key(tcb_version)->get_raw();
       std::vector<uint8_t> sealed_secret =
         crypto::aes_gcm_encrypt(sealing_key, buf_plaintext);
 
