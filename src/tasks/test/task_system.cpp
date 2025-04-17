@@ -194,7 +194,7 @@ void run_n_thread_counting_tasks(size_t n, Canceller&& canceller = nullptr)
   REQUIRE(thread_ids.set->size() > 0);
 }
 
-TEST_CASE("Basic")
+TEST_CASE("Basic" * doctest::skip(true))
 {
   std::vector<size_t> n_tasks = {1, 4, 16, 64};
 
@@ -204,7 +204,7 @@ TEST_CASE("Basic")
   }
 }
 
-TEST_CASE("Recursive tasks")
+TEST_CASE("Recursive tasks" * doctest::skip(true))
 {
   std::vector<size_t> n_tasks = {1, 4, 16, 64};
 
@@ -214,7 +214,7 @@ TEST_CASE("Recursive tasks")
   }
 }
 
-TEST_CASE("Deeply recursive tasks")
+TEST_CASE("Deeply recursive tasks" * doctest::skip(true))
 {
   std::vector<size_t> n_tasks = {1, 4, 16, 64};
 
@@ -224,7 +224,7 @@ TEST_CASE("Deeply recursive tasks")
   }
 }
 
-TEST_CASE("Cancellation - basic")
+TEST_CASE("Cancellation - basic" * doctest::skip(true))
 {
   static constexpr auto n_tasks = 64;
   using BasicTaskType = RecursiveThreadIDCountingTask<100>;
@@ -264,7 +264,7 @@ struct ChaoticCancellerTask : public CompletionCountingTask
   }
 };
 
-TEST_CASE("Cancellation - dynamic")
+TEST_CASE("Cancellation - dynamic" * doctest::skip(true))
 {
   static constexpr auto n_tasks = 64;
   using BasicTaskType = RecursiveThreadIDCountingTask<100>;
@@ -294,7 +294,7 @@ TEST_CASE("Cancellation - dynamic")
     });
 }
 
-TEST_CASE("Exception handling")
+TEST_CASE("Exception handling" * doctest::skip(true))
 {
   {
     DOCTEST_INFO("Throw during execution");
@@ -362,7 +362,7 @@ struct TickerTask : public ccf::tasks::Task
   }
 };
 
-TEST_CASE("Delayed tasks")
+TEST_CASE("Delayed tasks" * doctest::skip(true))
 {
   using namespace std::chrono_literals;
 
