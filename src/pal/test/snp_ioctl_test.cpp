@@ -53,17 +53,10 @@ TEST_CASE("SNP derive key")
 TEST_CASE("SNP derived keys with different TCBs should be different")
 {
   using namespace ccf::pal;
-  ccf::pal::snp::TcbVersion tcb1 = {.boot_loader = 0x00,
-                                   .tee = 0x00,
-                                   .reserved = {0x00, 0x00, 0x00, 0x00},
-                                   .snp = 0x00,
-                                   .microcode = 0x00};
+  ccf::pal::snp::TcbVersion tcb1;
   auto key1 = snp::make_derived_key(tcb1);
-  ccf::pal::snp::TcbVersion tcb2 = {.boot_loader = 0x01,
-                                   .tee = 0x01,
-                                   .reserved = {0x00, 0x00, 0x00, 0x00},
-                                   .snp = 0x01,
-                                   .microcode = 0x01};
+  ccf::pal::snp::TcbVersion tcb2;
+  tcb2.snp = 0x01;
   auto key2 = snp::make_derived_key(tcb2);
 
   CHECK_NE(
