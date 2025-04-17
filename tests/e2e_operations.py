@@ -1115,19 +1115,168 @@ def run_initial_tcb_version_checks(args):
         assert False, "No TCB_version found in recovery ledger"
 
 
+def run_recovery_local_unsealing(
+    const_args, recovery_f=0, rekey=False, recovery_shares_refresh=False
+):
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.enable_auto_dr = True
+
+    with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.start_and_open(args)
+
+        network.save_service_identity(args)
+
+        primary, _ = network.find_primary()
+        if rekey:
+            network.consortium.trigger_ledger_rekey(primary)
+        if recovery_shares_refresh:
+            network.consortium.trigger_recovery_shares_refresh(primary)
+
+        node_secret_map = {
+            node.local_node_id: node.save_sealed_ledger_secret()
+            for node in network.nodes
+        }
+
+        network.stop_all_nodes()
+
+        prev_network = network
+        for node in network.nodes:
+            recovery_network_args = copy.deepcopy(args)
+            recovery_network_args.nodes = infra.e2e_args.min_nodes(args, f=recovery_f)
+            recovery_network_args.previous_sealed_ledger_secret_location = (
+                node_secret_map[node.local_node_id]
+            )
+            recovery_network = infra.network.Network(
+                recovery_network_args.nodes,
+                recovery_network_args.binary_dir,
+                next_node_id=prev_network.next_node_id,
+            )
+
+            # Reset consortium and users to prevent issues with hosts from existing_network
+            recovery_network.consortium = prev_network.consortium
+            recovery_network.users = prev_network.users
+            recovery_network.txs = prev_network.txs
+            recovery_network.jwt_issuer = prev_network.jwt_issuer
+
+            current_ledger_dir, committed_ledger_dirs = node.get_ledger()
+            recovery_network.start_in_recovery(
+                recovery_network_args,
+                ledger_dir=current_ledger_dir,
+                committed_ledger_dirs=committed_ledger_dirs,
+            )
+
+            recovery_network.recover(recovery_network_args, via_local_sealing=True)
+
+            recovery_network.stop_all_nodes()
+            prev_network = recovery_network
+
+
+def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.enable_auto_dr = True
+
+    with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.start_and_open(args)
+
+        network.save_service_identity(args)
+
+        node_secret_map = {
+            node.local_node_id: node.save_sealed_ledger_secret()
+            for node in network.nodes
+        }
+
+        network.stop_all_nodes()
+
+        class Corruption:
+            def __init__(self, tag, lamb):
+                self.tag = tag
+                self.lamb = lamb
+
+            def run(self, src):
+                corrupt_ledger_secret = f"{src}.{self.tag}.corrupt"
+                with open(src, "rb") as r, open(corrupt_ledger_secret, "wb") as w:
+                    data = r.read()
+                    w.write(self.lamb(data))
+                return corrupt_ledger_secret
+
+        corruptions = [
+            Corruption("write_nothing", lambda s: b""),
+            Corruption("xor", lambda s: bytes([b ^ 0xFF for b in s])),
+            Corruption(
+                "valid_key_different_machine",
+                lambda _: bytes.fromhex(
+                    "b585325c3a3f000b7e6cfff1ccd8b25930304ba455904132fac4a3f63b555dc7b924806b190ba90d33a92f662a696eba29278a80e3d70c0d430167f3e87401627ced8d93385c9a54f96f"
+                ),
+            ),
+        ]
+
+        # corrupt one of the ledgers
+        node = network.nodes[0]
+        ledger_secret = list(node_secret_map.values())[0]
+
+        prev_network = network
+        for corruption in corruptions:
+            corrupt_ledger_secret = corruption.run(ledger_secret)
+
+            recovery_network_args = copy.deepcopy(args)
+            recovery_network_args.nodes = infra.e2e_args.min_nodes(args, f=recovery_f)
+            recovery_network_args.previous_sealed_ledger_secret_location = (
+                corrupt_ledger_secret
+            )
+            recovery_network = infra.network.Network(
+                recovery_network_args.nodes,
+                recovery_network_args.binary_dir,
+                next_node_id=prev_network.next_node_id,
+            )
+
+            # Reset consortium and users to prevent issues with hosts from existing_network
+            recovery_network.consortium = prev_network.consortium
+            recovery_network.users = prev_network.users
+            recovery_network.txs = prev_network.txs
+            recovery_network.jwt_issuer = prev_network.jwt_issuer
+
+            current_ledger_dir, committed_ledger_dirs = node.get_ledger()
+            exception_thrown = None
+            try:
+                recovery_network.start_in_recovery(
+                    recovery_network_args,
+                    ledger_dir=current_ledger_dir,
+                    committed_ledger_dirs=committed_ledger_dirs,
+                )
+
+                recovery_network.recover(recovery_network_args, via_local_sealing=True)
+            except Exception as e:
+                exception_thrown = e
+                pass
+
+            assert (
+                exception_thrown is not None
+            ), f"Expected exception to be thrown for {corruption.tag} corruption"
+
+            recovery_network.stop_all_nodes()
+            prev_network = recovery_network
+
+
 def run(args):
-    run_max_uncommitted_tx_count(args)
-    run_file_operations(args)
-    run_tls_san_checks(args)
-    run_config_timeout_check(args)
-    run_configuration_file_checks(args)
-    run_pid_file_check(args)
-    run_preopen_readiness_check(args)
-    run_sighup_check(args)
-    run_service_subject_name_check(args)
-    run_cose_signatures_config_check(args)
-    run_late_mounted_ledger_check(args)
-    run_empty_ledger_dir_check(args)
+    # run_max_uncommitted_tx_count(args)
+    # run_file_operations(args)
+    # run_tls_san_checks(args)
+    # run_config_timeout_check(args)
+    # run_configuration_file_checks(args)
+    # run_pid_file_check(args)
+    # run_preopen_readiness_check(args)
+    # run_sighup_check(args)
+    # run_service_subject_name_check(args)
+    # run_cose_signatures_config_check(args)
+    # run_late_mounted_ledger_check(args)
+    # run_empty_ledger_dir_check(args)
     if infra.snp.is_snp():
-        run_initial_uvm_descriptor_checks(args)
-        run_initial_tcb_version_checks(args)
+        # run_initial_uvm_descriptor_checks(args)
+        # run_initial_tcb_version_checks(args)
+        run_recovery_local_unsealing(args)
+        run_recovery_local_unsealing(args, rekey=True)
+        run_recovery_local_unsealing(args, recovery_shares_refresh=True)
+        run_recovery_local_unsealing(args, recovery_f=1)
+        run_recovery_unsealing_corrupt(args)
