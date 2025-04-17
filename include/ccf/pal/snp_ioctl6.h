@@ -120,13 +120,13 @@ namespace ccf::pal::snp::ioctl6
   };
 #pragma pack(pop)
 
-// Table 20 ABI
-constexpr uint8_t GUEST_FIELD_SELECT_GUEST_POLICY = 0b00000001;
-constexpr uint8_t GUEST_FIELD_SELECT_IMAGE_ID     = 0b00000010;
-constexpr uint8_t GUEST_FIELD_SELECT_FAMILY_ID    = 0b00000100;
-constexpr uint8_t GUEST_FIELD_SELECT_MEASUREMENT  = 0b00001000;
-constexpr uint8_t GUEST_FIELD_SELECT_GUEST_SVN    = 0b00010000;
-constexpr uint8_t GUEST_FIELD_SELECT_TCB_VERSION  = 0b00100000;
+  // Table 20 ABI
+  constexpr uint8_t GUEST_FIELD_SELECT_GUEST_POLICY = 0b00000001;
+  constexpr uint8_t GUEST_FIELD_SELECT_IMAGE_ID = 0b00000010;
+  constexpr uint8_t GUEST_FIELD_SELECT_FAMILY_ID = 0b00000100;
+  constexpr uint8_t GUEST_FIELD_SELECT_MEASUREMENT = 0b00001000;
+  constexpr uint8_t GUEST_FIELD_SELECT_GUEST_SVN = 0b00010000;
+  constexpr uint8_t GUEST_FIELD_SELECT_TCB_VERSION = 0b00100000;
 
 #pragma pack(push, 1)
   struct DerivedKeyReq
@@ -285,7 +285,8 @@ constexpr uint8_t GUEST_FIELD_SELECT_TCB_VERSION  = 0b00100000;
       // This req by default mixes in HostData and the CPU VCEK
       DerivedKeyReq req = {};
 
-      req.guest_field_select = GUEST_FIELD_SELECT_MEASUREMENT | GUEST_FIELD_SELECT_TCB_VERSION;
+      req.guest_field_select =
+        GUEST_FIELD_SELECT_MEASUREMENT | GUEST_FIELD_SELECT_TCB_VERSION;
       req.tcb_version = tcb;
 
       GuestRequestDerivedKey payload = {
