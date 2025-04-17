@@ -377,3 +377,9 @@ TEST_CASE("OrderedTasks")
 
   flush_board(jb, 8);
 }
+
+// TODO: What about when a task goes async mid-execution? I want to defer
+// execution of all pending things in this OrderedTask! So does the pop visitor
+// need a response bool, and a return value meaning "stop here"? And a new task
+// to splice onto the front!? This seems like coroutine problem, of the stack
+// _knowing_ that it's mid-task execution...
