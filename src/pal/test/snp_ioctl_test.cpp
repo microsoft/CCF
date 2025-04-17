@@ -53,14 +53,13 @@ TEST_CASE("SNP derive key")
 TEST_CASE("SNP derived keys with different TCBs should be different")
 {
   using namespace ccf::pal;
-  ccf::pal::snp::TcbVersion tcb1;
+  ccf::pal::snp::TcbVersion tcb1{};
   auto key1 = snp::make_derived_key(tcb1);
-  ccf::pal::snp::TcbVersion tcb2;
+  ccf::pal::snp::TcbVersion tcb2{};
   tcb2.snp = 0x01;
   auto key2 = snp::make_derived_key(tcb2);
 
-  CHECK_NE(
-    ccf::ds::to_hex(key1->get_raw()), ccf::ds::to_hex(key2->get_raw()));
+  CHECK_NE(ccf::ds::to_hex(key1->get_raw()), ccf::ds::to_hex(key2->get_raw()));
 }
 
 int main(int argc, char** argv)
