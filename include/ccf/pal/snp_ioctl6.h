@@ -148,7 +148,7 @@ namespace ccf::pal::snp::ioctl6
   {
     KeySelect key_select;
     uint32_t reserved = 0;
-    DerivedKeyGuestFieldSelect guest_field_select;
+    uint64_t guest_field_select;
     uint32_t vmpl = 0;
     uint32_t guest_svn;
     TcbVersion tcb_version;
@@ -299,10 +299,9 @@ namespace ccf::pal::snp::ioctl6
       // This req by default mixes in HostData and the CPU VCEK
       DerivedKeyReq req = {};
 
-      // We must also mix in the measurement and the TCB version
-      req.guest_field_select.measurement = 1;
-      req.tcb_version = version;
-      req.guest_field_select.tcb_version = 1;
+      req.guest_field_select = 0;
+      req.guest_field_select = req.guest_field_select | (0x1 << 3); // measurement
+      req.guest_field_select = req.guest_field_select | (0x1 << 5); // tcb version
 
       GuestRequestDerivedKey payload = {
         .req_data = &req, .resp_wrapper = &padded_resp, .exit_info = {0}};
