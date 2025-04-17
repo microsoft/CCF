@@ -40,11 +40,11 @@ QPHfbkH0CyPfhl1jWhJFZasCAwEAAQ==
   // Table 3
   struct TcbVersion
   {
-    uint8_t boot_loader;
-    uint8_t tee;
+    uint8_t boot_loader = 0;
+    uint8_t tee = 0;
     uint8_t reserved[4];
-    uint8_t snp;
-    uint8_t microcode;
+    uint8_t snp = 0;
+    uint8_t microcode = 0;
 
     bool operator==(const TcbVersion&) const = default;
   };
