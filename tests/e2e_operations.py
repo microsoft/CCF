@@ -1200,10 +1200,10 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 return corrupt_ledger_secret
 
         corruptions = [
-            Corruption("write nothing", lambda s: b""),
+            Corruption("write_nothing", lambda s: b""),
             Corruption("xor", lambda s: bytes([b ^ 0xFF for b in s])),
             Corruption(
-                "valid key different machine",
+                "valid_key_different_machine",
                 lambda _: bytes.fromhex(
                     "b585325c3a3f000b7e6cfff1ee8ad5623f34349243d04b37b2f3a6b8463f7ad49a3de358286197392f920d5e1f496cd80e14ae82e0de260d43018b7db98c52a5945399a1ddea6afa0fa7"
                 ),
