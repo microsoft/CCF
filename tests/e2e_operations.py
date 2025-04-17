@@ -1207,7 +1207,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             Corruption(
                 "valid_key_different_machine",
                 lambda _: bytes.fromhex(
-                    "b585325c3a3f000b7e6cfff1dec5c429243a48ad0091613f9494c2d9003461e9b002d961387a962832a5090f094550990a02be84f4fe0c0d4301453498a4e203b3cf93c0060cf6a3a1a8"
+                    "b585325c3a3f000b7e6cfff1ccd8b25930304ba455904132fac4a3f63b555dc7b924806b190ba90d33a92f662a696eba29278a80e3d70c0d430167f3e87401627ced8d93385c9a54f96f"
                 ),
             ),
         ]

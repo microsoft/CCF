@@ -60,6 +60,20 @@ TEST_CASE("SNP derived keys with different TCBs should be different")
   auto key2 = snp::make_derived_key(tcb2);
 
   CHECK_NE(ccf::ds::to_hex(key1->get_raw()), ccf::ds::to_hex(key2->get_raw()));
+
+  std::vector<uint8_t> expected_plaintext = {0xde, 0xad, 0xbe, 0xef};
+  bool threw = false;
+  try
+  {
+    auto ciphertext = 
+      ccf::crypto::aes_gcm_encrypt(key1->get_raw(), expected_plaintext);
+    auto decrypted_plaintext =
+      ccf::crypto::aes_gcm_decrypt(key2->get_raw(), ciphertext);
+  } catch (...) {
+    threw = true;
+  }
+
+  CHECK(threw == true);
 }
 
 int main(int argc, char** argv)
