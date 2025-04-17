@@ -185,7 +185,6 @@ def run(
             ledger_paths,
             committed_only=not uncommitted,
             read_recovery_files=read_recovery_files,
-            validator=validator,
         )
 
         LOG.info(f"Reading ledger from {ledger_paths}")
@@ -205,6 +204,9 @@ def run(
                         )
                     elif print_mode == PrintMode.Contents:
                         dump_entry(transaction, table_filter, tables_format_rules)
+
+                    if validator:
+                        validator.add_transaction(transaction)
         except Exception as e:
             LOG.exception(f"Error parsing ledger: {e}")
             has_error = True

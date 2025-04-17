@@ -1596,12 +1596,12 @@ class Network:
 
         return node.get_committed_snapshots(wait_for_snapshots_to_be_committed)
 
-    def _get_ledger_public_view_at(self, node, call, seqno, timeout, insecure=False):
+    def _get_ledger_public_view_at(self, node, call, seqno, timeout):
         end_time = time.time() + timeout
         self.consortium.force_ledger_chunk(node)
         while time.time() < end_time:
             try:
-                return call(seqno, insecure=insecure)
+                return call(seqno)
             except Exception as ex:
                 LOG.info(f"Exception: {ex}")
                 time.sleep(0.1)
@@ -1609,20 +1609,20 @@ class Network:
             f"Could not read transaction at seqno {seqno} from ledger {node.remote.ledger_paths()} after {timeout}s"
         )
 
-    def get_ledger_public_state_at(self, seqno, timeout=5, insecure=False):
+    def get_ledger_public_state_at(self, seqno, timeout=5):
         primary, _ = self.find_primary()
         return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_tables_at, seqno, timeout, insecure
+            primary, primary.get_ledger_public_tables_at, seqno, timeout
         )
 
-    def get_latest_ledger_public_state(self, insecure=False, timeout=5):
+    def get_latest_ledger_public_state(self, timeout=5):
         primary, _ = self.find_primary()
         with primary.client() as nc:
             resp = nc.get("/node/commit")
             body = resp.body.json()
             tx_id = TxID.from_str(body["transaction_id"])
         return self._get_ledger_public_view_at(
-            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout, insecure
+            primary, primary.get_ledger_public_state_at, tx_id.seqno, timeout
         )
 
     @functools.cached_property
