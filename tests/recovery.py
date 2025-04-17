@@ -107,6 +107,23 @@ def verify_endorsements_chain(primary, endorsements, pubkey):
         pubkey = serialization.load_der_public_key(next_key_bytes, default_backend())
 
 
+def restart_network(old_network, args, current_ledger_dir, committed_ledger_dirs):
+    network = infra.network.Network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        existing_network=old_network,
+    )
+    network.start_in_recovery(
+        args,
+        ledger_dir=current_ledger_dir,
+        committed_ledger_dirs=committed_ledger_dirs,
+    )
+    network.recover(args)
+    return network
+
+
 def recover_with_primary_dying(args, recovered_network):
     # Minimal copy-paste from network.recover() with primary shut down.
     recovered_network.consortium.activate(recovered_network.find_random_node())
@@ -1069,6 +1086,91 @@ def run(args):
     )
 
 
+def test_incomplete_ledger_recovery(network, args):
+    # Try to get incomplete pre-recovery ledger files with at least one
+    # signature and some unsigned payload following.
+    ATTEMPTS = 5
+
+    network.save_service_identity(args)
+    primary, _ = network.find_primary()
+    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+    network.stop_all_nodes(skip_verification=True)
+
+    for attempt in range(0, ATTEMPTS):
+        LOG.info(
+            f"Try get incomplete pre-recovery ledger files on primary, attempt=#{attempt}/{ATTEMPTS}"
+        )
+
+        network = restart_network(
+            network, args, current_ledger_dir, committed_ledger_dirs
+        )
+        network.save_service_identity(args)
+
+        primary, _ = network.find_primary()
+        current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+
+        with primary.client("user0") as c:
+            for _ in range(100 + 100 * attempt):
+                r = c.post(
+                    "/app/log/public",
+                    {
+                        "id": 42,
+                        "msg": "Boring recoverable transactions",
+                    },
+                )
+                assert r.status_code == 200, r
+
+        network.stop_all_nodes(skip_verification=True)
+
+        # Calling .get_ledger() after shutdown because it lazy-copies the files.
+        current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+
+        ledger = ccf.ledger.Ledger(
+            primary.remote.ledger_paths(), committed_only=False, validator=None
+        )
+
+        _, last_seqno = ledger.get_latest_public_state()
+        last_tx = ledger.get_transaction(last_seqno)
+
+        if "ccf.internal.signatures" in last_tx.get_raw_tx().decode(errors="ignore"):
+            LOG.info(
+                f"Found signature in last tx {last_tx.get_tx_digest()}, not a suitable candidate for this test"
+            )
+            continue
+
+        # We've got a suffix with extra payload with no following signature.
+        break
+    else:
+        raise RuntimeError(
+            f"Failed to get incomplete pre-recovery ledger files after {ATTEMPTS} attempts"
+        )
+
+    network = restart_network(network, args, current_ledger_dir, committed_ledger_dirs)
+
+    primary, _ = network.find_nodes()
+    with primary.client("user0") as c:
+        for _ in range(10):
+            r = c.post(
+                "/app/log/public",
+                {
+                    "id": 42,
+                    "msg": "Less boring recoverable transactions",
+                },
+            )
+            assert r.status_code == 200, r
+
+    network.wait_for_all_nodes_to_commit(primary=primary)
+    network.save_service_identity(args)
+    primary, _ = network.find_primary()
+    current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
+    network.stop_all_nodes(skip_verification=True)
+
+    network.check_ledger_files_identical()
+
+    network = restart_network(network, args, current_ledger_dir, committed_ledger_dirs)
+    return network
+
+
 def run_recover_snapshot_alone(args):
     """
     Recover a service from a snapshot alone, without any ledger files from a previous service.
@@ -1107,6 +1209,27 @@ def run_recovery_with_election(args):
     ) as network:
         network.start_and_open(args)
         test_recover_service(network, args, force_election=True)
+        return network
+
+
+def run_recovery_with_incomplete_ledger(args):
+    """
+    Recover a service with incomplete ledger file on a primary which contains unsigned suffix.
+    """
+    if not args.with_unsigned_suffix:
+        return
+
+    txs = app.LoggingTxs("user0")
+    with infra.network.network(
+        args.nodes,
+        args.binary_dir,
+        args.debug_nodes,
+        args.perf_nodes,
+        pdb=args.pdb,
+        txs=txs,
+    ) as network:
+        network.start_and_open(args)
+        test_incomplete_ledger_recovery(network, args)
         return network
 
 
@@ -1199,6 +1322,12 @@ checked. Note that the key for each logging message is unique (per table).
             action="store_true",
             default=False,
         )
+        parser.add_argument(
+            "--with-unsigned-suffix",
+            help="If set, recover with open-ranged ledger file with unsigned suffix",
+            action="store_true",
+            default=False,
+        )
 
     cr = ConcurrentRunner(add)
 
@@ -1254,6 +1383,15 @@ checked. Note that the key for each logging message is unique (per table).
         nodes=infra.e2e_args.min_nodes(cr.args, f=1),
         ledger_chunk_bytes="50KB",
         snapshot_tx_interval=30,
+    )
+
+    cr.add(
+        "recovery_with_incomplete_ledger",
+        run_recovery_with_incomplete_ledger,
+        package="samples/apps/logging/liblogging",
+        nodes=infra.e2e_args.min_nodes(cr.args, f=1),
+        ledger_chunk_bytes="50KB",
+        snapshot_tx_interval=10000,
     )
 
     cr.run()
