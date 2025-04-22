@@ -94,7 +94,7 @@ TEST_CASE("Expected fail junk decryption key")
 
   std::vector<uint8_t> decrypted_plaintext;
 
-  rc = junk_key->decrypt(
+  auto rc = junk_key->decrypt(
     iv,
     tag.data(),
     std::span<const uint8_t>(ciphertext),
