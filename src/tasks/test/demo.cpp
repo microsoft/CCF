@@ -32,6 +32,8 @@ struct Action
   {
     Sleep,
     Echo,
+    // TODO: Add some kind of "WaitUntil" Action, triggered by something else?
+    // TODO: Add something explicitly going async?
   } kind;
 
   union
@@ -86,7 +88,9 @@ struct Response
   } result;
 };
 
-Response server_enact(const Action& action)
+using ResponseHandler = std::function<void(Response&&)>;
+
+void server_enact(const Action& action, const ResponseHandler& handle_response)
 {
   Response response;
   response.id = action.id;
@@ -99,6 +103,7 @@ Response server_enact(const Action& action)
       response.result.sleep.started = TClock::now();
       std::this_thread::sleep_for(action.args.sleep.duration);
       response.result.sleep.ended = TClock::now();
+      handle_response(std::move(response));
       break;
     }
 
@@ -114,6 +119,7 @@ Response server_enact(const Action& action)
           std::begin(response.result.echo.value),
           std::end(response.result.echo.value));
       }
+      handle_response(std::move(response));
       break;
     }
 
@@ -122,8 +128,6 @@ Response server_enact(const Action& action)
       throw std::logic_error("Unhandled action kind in enact()");
     }
   }
-
-  return response;
 }
 
 void client_verify(const Action& action, const Response& response)
@@ -264,6 +268,8 @@ void dispatcher_thread(DispatcherParams& params)
       while (action.has_value())
       {
         // Take any work they give us, and push it onto the task system's queue
+        // TODO: Doing this naively like this leads to out-of-order execution,
+        // and the test fails!
         params.client_requests.push_back(std::make_pair(i, action.value()));
         // ...and check for further work
         action = client_params.outgoing.try_pop();
@@ -294,11 +300,14 @@ void worker_thread(WorkerParams& params)
     auto client_request = params.dispatcher.client_requests.try_pop();
     while (client_request.has_value())
     {
-      // Do the task
-      auto response = server_enact(client_request->second);
+      auto [client_id, action] = client_request.value();
 
-      // Write response
-      params.clients[client_request->first].incoming.push_back(response);
+      // Do the task
+      // TODO: Some fraction of jobs should fail, some via timeout
+      server_enact(action, [&params, client_id](Response&& response) {
+        // Write response
+        params.clients[client_id].incoming.push_back(response);
+      });
 
       // ...and check for next task
       client_request = params.dispatcher.client_requests.try_pop();
