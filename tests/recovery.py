@@ -1127,7 +1127,8 @@ def test_incomplete_ledger_recovery(network, args):
         current_ledger_dir, committed_ledger_dirs = primary.get_ledger()
 
         ledger = ccf.ledger.Ledger(
-            primary.remote.ledger_paths(), committed_only=False, validator=None
+            primary.remote.ledger_paths(),
+            committed_only=False,
         )
 
         _, last_seqno = ledger.get_latest_public_state()

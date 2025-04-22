@@ -20,8 +20,8 @@ dependencies = [
     "cryptography == 44.*",
     "string-color >= 1.2.1, == 1.*",
     "pycose >= 1.0.1, == 1.*",
-    "setuptools >= 74,< 79",
-    "packaging == 24.*"
+    "setuptools >= 74,< 80",
+    "packaging >= 24,< 26"
 ]
 
 [tool.setuptools]
