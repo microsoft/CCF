@@ -2948,7 +2948,6 @@ namespace ccf
       std::span<const uint8_t> raw_key, std::span<const uint8_t> plaintext)
     {
       ccf::crypto::check_supported_aes_key_size(raw_key.size() * 8);
-      // TODO ensure key is uniform
       auto key = ccf::crypto::make_key_aes_gcm(raw_key);
 
       crypto::GcmCipher cipher(plaintext.size());
@@ -2962,14 +2961,15 @@ namespace ccf
       std::span<const uint8_t> raw_key, const std::vector<uint8_t>& sealed_text)
     {
       ccf::crypto::check_supported_aes_key_size(raw_key.size() * 8);
-      // TODO ensure key is uniform
       auto key = ccf::crypto::make_key_aes_gcm(raw_key);
 
       crypto::GcmCipher cipher;
       cipher.deserialise(sealed_text);
 
       std::vector<uint8_t> plaintext;
-      if(!key->decrypt(cipher.hdr.get_iv(), cipher.hdr.tag, cipher.cipher, {}, plaintext)){
+      if (!key->decrypt(
+            cipher.hdr.get_iv(), cipher.hdr.tag, cipher.cipher, {}, plaintext))
+      {
         throw std::logic_error("Failed to decrypt sealed text");
       }
 
@@ -3046,7 +3046,9 @@ namespace ccf
       crypto::GcmCipher sealed_secret =
         aes_gcm_sealing(sealing_key->get_raw(), buf_plaintext);
 
-      files::dump(sealed_secret.serialise(), config.sealed_ledger_secret_location.value());
+      files::dump(
+        sealed_secret.serialise(),
+        config.sealed_ledger_secret_location.value());
       LOG_INFO_FMT(
         "Sealing complete of ledger secret with previous_version: {}",
         ledger_secret->previous_secret_stored_version);
