@@ -2968,9 +2968,10 @@ namespace ccf
       crypto::GcmCipher cipher;
       cipher.deserialise(sealed_text);
 
-      std::vector<uint8_t> plaintext(cipher.cipher.size());
-
-      key->decrypt(cipher.hdr.iv, cipher.hdr.tag, cipher.cipher, {}, plaintext);
+      std::vector<uint8_t> plaintext;
+      if(!key->decrypt(cipher.hdr.get_iv(), cipher.hdr.tag, cipher.cipher, {}, plaintext)){
+        throw std::logic_error("Failed to decrypt sealed text");
+      }
 
       return plaintext;
     }
