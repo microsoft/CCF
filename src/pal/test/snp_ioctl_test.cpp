@@ -79,7 +79,6 @@ TEST_CASE("SNP derived keys with different TCBs should be different")
   CHECK(threw == true);
 }
 
-
 int main(int argc, char** argv)
 {
   ccf::crypto::openssl_sha256_init();
