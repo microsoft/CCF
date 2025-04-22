@@ -1118,6 +1118,7 @@ def run_initial_tcb_version_checks(args):
 def run_recovery_local_unsealing(
     const_args, recovery_f=0, rekey=False, recovery_shares_refresh=False
 ):
+    LOG.info("Running recovery local unsealing")
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.enable_auto_dr = True
@@ -1173,6 +1174,7 @@ def run_recovery_local_unsealing(
 
 
 def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
+    LOG.info("Running recovery local unsealing corrupted secret")
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
     args.enable_auto_dr = True
@@ -1218,6 +1220,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
 
         prev_network = network
         for corruption in corruptions:
+            LOG.info("Corruption: " + corruption.tag)
             corrupt_ledger_secret = corruption.run(ledger_secret)
 
             recovery_network_args = copy.deepcopy(args)
