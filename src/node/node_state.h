@@ -2946,6 +2946,37 @@ namespace ccf
       return writer_factory;
     }
 
+    crypto::GcmCipher aes_gcm_sealing(
+      std::span<const uint8_t> raw_key, std::span<const uint8_t> plaintext)
+    {
+      ccf::crypto::check_supported_aes_key_size(raw_key.size() * 8);
+      // TODO ensure key is uniform
+      auto key = ccf::crypto::make_key_aes_gcm(raw_key);
+
+      crypto::GcmCipher cipher(plaintext.size());
+      cipher.hdr.set_random_iv();
+
+      key->encrypt(cipher.hdr.iv, plaintext, {}, cipher.cipher, cipher.hdr.tag);
+      return cipher;
+    }
+
+    std::vector<uint8_t> aes_gcm_unsealing(
+      std::span<const uint8_t> raw_key, const std::vector<uint8_t>& sealed_text)
+    {
+      ccf::crypto::check_supported_aes_key_size(raw_key.size() * 8);
+      // TODO ensure key is uniform
+      auto key = ccf::crypto::make_key_aes_gcm(raw_key);
+
+      crypto::GcmCipher cipher;
+      cipher.deserialise(sealed_text);
+
+      std::vector<uint8_t> plaintext(cipher.cipher.size());
+
+      key->decrypt(cipher.hdr.iv, cipher.hdr.tag, cipher.cipher, {}, plaintext);
+
+      return plaintext;
+    }
+
     LedgerSecretPtr unseal_ledger_secret()
     {
       try
@@ -2971,7 +3002,7 @@ namespace ccf
         auto sealing_key =
           ccf::pal::snp::make_derived_key(snp_tcb_version.value());
         auto buf_plaintext =
-          crypto::aes_gcm_decrypt(sealing_key->get_raw(), ciphertext);
+          aes_gcm_unsealing(sealing_key->get_raw(), ciphertext);
         auto json = nlohmann::json::parse(
           std::string(buf_plaintext.begin(), buf_plaintext.end()));
         LedgerSecret unsealed_ledger_secret;
@@ -3014,7 +3045,7 @@ namespace ccf
       auto tcb_version = snp_tcb_version.value();
       auto sealing_key = ccf::pal::snp::make_derived_key(tcb_version);
       std::vector<uint8_t> sealed_secret =
-        crypto::aes_gcm_encrypt(sealing_key->get_raw(), buf_plaintext);
+        aes_gcm_sealing(sealing_key->get_raw(), buf_plaintext);
 
       files::dump(sealed_secret, config.sealed_ledger_secret_location.value());
       LOG_INFO_FMT(
