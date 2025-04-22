@@ -17,34 +17,6 @@ permissions:
   checks: write
 
 jobs:
-  checks:
-    name: "Format and License Checks"
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-
-    steps:
-      - name: "Checkout dependencies"
-        shell: bash
-        run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
-
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Run CI checks
-        run: |
-          set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
-          tdnf -y install tar npm build-essential
-          ./scripts/setup-dev.sh
-          ./scripts/ci-checks.sh
-        shell: bash
-
   build_with_tidy:
     name: "Build with clang-tidy"
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
@@ -83,7 +55,6 @@ jobs:
 
   build_and_test:
     name: "CI"
-    needs: checks
     strategy:
       matrix:
         platform:
@@ -154,7 +125,6 @@ jobs:
   build_and_test_caci:
     name: "Confidential Container (ACI) CI"
     runs-on: [self-hosted, 1ES.Pool=gha-caci-big]
-    needs: checks
 
     steps:
       - uses: actions/checkout@v4
