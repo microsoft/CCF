@@ -19,7 +19,7 @@ permissions:
 jobs:
   checks:
     name: "Format and License Checks"
-    runs-on: [self-hosted, 1ES.Pool=gha-caci-big]
+    runs-on: [self-hosted, 1ES.Pool=gha-caci-big2]
 
     steps:
       - name: "Checkout dependencies"
