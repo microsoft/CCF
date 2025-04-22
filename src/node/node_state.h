@@ -2225,12 +2225,10 @@ namespace ccf
           }
           if (msg->data.create_consortium)
           {
-            // Is in start => no need to wait
             msg->data.self.advance_part_of_network();
           }
           else
           {
-            // Is in recovery => wait for recovery shares
             msg->data.self.advance_part_of_public_network();
           }
         },
@@ -3044,10 +3042,10 @@ namespace ccf
       // prevent unsealing if the TCB changes
       auto tcb_version = snp_tcb_version.value();
       auto sealing_key = ccf::pal::snp::make_derived_key(tcb_version);
-      std::vector<uint8_t> sealed_secret =
+      crypto::GcmCipher sealed_secret =
         aes_gcm_sealing(sealing_key->get_raw(), buf_plaintext);
 
-      files::dump(sealed_secret, config.sealed_ledger_secret_location.value());
+      files::dump(sealed_secret.serialise(), config.sealed_ledger_secret_location.value());
       LOG_INFO_FMT(
         "Sealing complete of ledger secret with previous_version: {}",
         ledger_secret->previous_secret_stored_version);
