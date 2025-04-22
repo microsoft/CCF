@@ -2955,7 +2955,9 @@ namespace ccf
           "Previous sealed ledger secret location must be set");
         auto ledger_secret_path =
           config.recover.previous_sealed_ledger_secret_location.value();
-        CCF_ASSERT(files::exists(ledger_secret_path), "Sealed previous ledger secret cannot be found");
+        CCF_ASSERT(
+          files::exists(ledger_secret_path),
+          "Sealed previous ledger secret cannot be found");
 
         CCF_ASSERT(
           snp_tcb_version.has_value(),
@@ -2968,8 +2970,10 @@ namespace ccf
         //  prevent unsealing if the TCB changes
         auto sealing_key =
           ccf::pal::snp::make_derived_key(snp_tcb_version.value());
-        auto buf_plaintext = crypto::aes_gcm_decrypt(sealing_key->get_raw(), ciphertext);
-        auto json = nlohmann::json::parse(std::string(buf_plaintext.begin(), buf_plaintext.end()));
+        auto buf_plaintext =
+          crypto::aes_gcm_decrypt(sealing_key->get_raw(), ciphertext);
+        auto json = nlohmann::json::parse(
+          std::string(buf_plaintext.begin(), buf_plaintext.end()));
         LedgerSecret unsealed_ledger_secret;
         from_json(json, unsealed_ledger_secret);
 
@@ -2996,7 +3000,9 @@ namespace ccf
       {
         return;
       }
-      LOG_INFO_FMT("Sealing ledger secret to {}", config.sealed_ledger_secret_location.value());
+      LOG_INFO_FMT(
+        "Sealing ledger secret to {}",
+        config.sealed_ledger_secret_location.value());
 
       CCF_ASSERT(
         snp_tcb_version.has_value(), "TCB version must be set when sealing");
@@ -3006,8 +3012,7 @@ namespace ccf
 
       // prevent unsealing if the TCB changes
       auto tcb_version = snp_tcb_version.value();
-      auto sealing_key =
-        ccf::pal::snp::make_derived_key(tcb_version);
+      auto sealing_key = ccf::pal::snp::make_derived_key(tcb_version);
       std::vector<uint8_t> sealed_secret =
         crypto::aes_gcm_encrypt(sealing_key->get_raw(), buf_plaintext);
 

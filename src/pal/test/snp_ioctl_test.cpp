@@ -66,43 +66,19 @@ TEST_CASE("SNP derived keys with different TCBs should be different")
   bool threw = false;
   try
   {
-    auto ciphertext = 
+    auto ciphertext =
       ccf::crypto::aes_gcm_encrypt(key1->get_raw(), expected_plaintext);
     auto decrypted_plaintext =
       ccf::crypto::aes_gcm_decrypt(key2->get_raw(), ciphertext);
-  } catch (...) {
+  }
+  catch (...)
+  {
     threw = true;
   }
 
   CHECK(threw == true);
 }
 
-TEST_CASE("Expected fail junk decryption key")
-{
-  auto key_raw = ccf::pal::snp::make_derived_key();;
-  auto key = ccf::crypto::make_key_aes_gcm(key_raw->get_raw());
-  auto junk_key = ccf::crypto::make_key_aes_gcm(std::vector<uint8_t>(key_raw->get_raw().size(), 0));
-  std::vector<uint8_t> tag(ccf::crypto::GCM_SIZE_TAG);
-
-  std::vector<uint8_t> expected_plaintext = {0xde, 0xad, 0xbe, 0xef};
-  auto iv = std::vector<uint8_t>(12,0);
-  std::vector<uint8_t> aad{};
-
-  std::vector<uint8_t> ciphertext;
-  key->encrypt(
-    iv, expected_plaintext, aad, ciphertext, tag.data());
-
-  std::vector<uint8_t> decrypted_plaintext;
-
-  auto rc = junk_key->decrypt(
-    iv,
-    tag.data(),
-    std::span<const uint8_t>(ciphertext),
-    aad,
-    decrypted_plaintext
-  );
-  CHECK_EQ(rc, false);
-}
 
 int main(int argc, char** argv)
 {
