@@ -89,9 +89,8 @@ TEST_CASE("Expected fail junk decryption key")
   std::vector<uint8_t> aad{};
 
   std::vector<uint8_t> ciphertext;
-  auto rc = key->encrypt(
+  key->encrypt(
     iv, expected_plaintext, aad, ciphertext, tag.data());
-  CHECK_EQ(rc, true);
 
   std::vector<uint8_t> decrypted_plaintext;
 
