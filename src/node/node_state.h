@@ -2976,6 +2976,41 @@ namespace ccf
       return plaintext;
     }
 
+    void seal_ledger_secret(kv::ReadOnlyTx& tx)
+    {
+      seal_ledger_secret(network.ledger_secrets->get_latest(tx).second);
+    }
+
+    void seal_ledger_secret(const LedgerSecretPtr& ledger_secret)
+    {
+      if (!config.sealed_ledger_secret_location.has_value())
+      {
+        return;
+      }
+      LOG_INFO_FMT(
+        "Sealing ledger secret to {}",
+        config.sealed_ledger_secret_location.value());
+
+      CCF_ASSERT(
+        snp_tcb_version.has_value(), "TCB version must be set when sealing");
+
+      std::string plaintext = nlohmann::json(ledger_secret).dump();
+      std::vector<uint8_t> buf_plaintext(plaintext.begin(), plaintext.end());
+
+      // prevent unsealing if the TCB changes
+      auto tcb_version = snp_tcb_version.value();
+      auto sealing_key = ccf::pal::snp::make_derived_key(tcb_version);
+      crypto::GcmCipher sealed_secret =
+        aes_gcm_sealing(sealing_key->get_raw(), buf_plaintext);
+
+      files::dump(
+        sealed_secret.serialise(),
+        config.sealed_ledger_secret_location.value());
+      LOG_INFO_FMT(
+        "Sealing complete of ledger secret with previous_version: {}",
+        ledger_secret->previous_secret_stored_version);
+    }
+
     LedgerSecretPtr unseal_ledger_secret()
     {
       try
@@ -3019,39 +3054,5 @@ namespace ccf
       }
     }
 
-    void seal_ledger_secret(kv::ReadOnlyTx& tx)
-    {
-      seal_ledger_secret(network.ledger_secrets->get_latest(tx).second);
-    }
-
-    void seal_ledger_secret(const LedgerSecretPtr& ledger_secret)
-    {
-      if (!config.sealed_ledger_secret_location.has_value())
-      {
-        return;
-      }
-      LOG_INFO_FMT(
-        "Sealing ledger secret to {}",
-        config.sealed_ledger_secret_location.value());
-
-      CCF_ASSERT(
-        snp_tcb_version.has_value(), "TCB version must be set when sealing");
-
-      std::string plaintext = nlohmann::json(ledger_secret).dump();
-      std::vector<uint8_t> buf_plaintext(plaintext.begin(), plaintext.end());
-
-      // prevent unsealing if the TCB changes
-      auto tcb_version = snp_tcb_version.value();
-      auto sealing_key = ccf::pal::snp::make_derived_key(tcb_version);
-      crypto::GcmCipher sealed_secret =
-        aes_gcm_sealing(sealing_key->get_raw(), buf_plaintext);
-
-      files::dump(
-        sealed_secret.serialise(),
-        config.sealed_ledger_secret_location.value());
-      LOG_INFO_FMT(
-        "Sealing complete of ledger secret with previous_version: {}",
-        ledger_secret->previous_secret_stored_version);
-    }
   };
 }
