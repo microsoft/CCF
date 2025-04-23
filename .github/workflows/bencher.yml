@@ -57,7 +57,7 @@ jobs:
           --project ccf \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
           --branch main \
-          --testbed gha-virtual-ccf-sub \
+          --testbed gha-vmss-d16av5-ci \
           --adapter json \
           --err \
           --file build/bencher.json
