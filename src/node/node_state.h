@@ -6,6 +6,7 @@
 #include "ccf/crypto/pem.h"
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/crypto/verifier.h"
+#include "ccf/ds/json.h"
 #include "ccf/ds/logger.h"
 #include "ccf/js/core/context.h"
 #include "ccf/node/cose_signatures_config.h"
@@ -36,6 +37,7 @@
 #include "node/http_node_client.h"
 #include "node/jwt_key_auto_refresh.h"
 #include "node/ledger_secret.h"
+#include "node/ledger_secrets.h"
 #include "node/node_to_node_channel_manager.h"
 #include "node/snapshotter.h"
 #include "node_to_node.h"
@@ -613,7 +615,7 @@ namespace ccf
           network.ledger_secrets->init();
           // Safe as initiate_quote_generation has previously set the
           // snp_tcb_version
-          seal_ledger_secret(network.ledger_secrets->get_first().second);
+          seal_ledger_secret(network.ledger_secrets->get_first());
 
           history->set_service_signing_identity(
             network.identity->get_key_pair(), config.cose_signatures);
@@ -770,8 +772,7 @@ namespace ccf
 
             network.identity = std::make_unique<ccf::NetworkIdentity>(
               resp.network_info->identity);
-            seal_ledger_secret(
-              resp.network_info->ledger_secrets.rbegin()->second);
+            seal_ledger_secret(*resp.network_info->ledger_secrets.rbegin());
             network.ledger_secrets->init_from_map(
               std::move(resp.network_info->ledger_secrets));
 
@@ -2300,7 +2301,7 @@ namespace ccf
                 // previous ledger secret)
                 auto ledger_secret = std::make_shared<LedgerSecret>(
                   std::move(plain_ledger_secret), hook_version);
-                seal_ledger_secret(ledger_secret);
+                seal_ledger_secret(hook_version + 1, ledger_secret);
                 network.ledger_secrets->set_secret(
                   hook_version + 1, std::move(ledger_secret));
               }
@@ -2945,7 +2946,9 @@ namespace ccf
     }
 
     crypto::GcmCipher aes_gcm_sealing(
-      std::span<const uint8_t> raw_key, std::span<const uint8_t> plaintext)
+      std::span<const uint8_t> raw_key,
+      std::span<const uint8_t> plaintext,
+      const std::span<uint8_t>& aad)
     {
       ccf::crypto::check_supported_aes_key_size(raw_key.size() * 8);
       auto key = ccf::crypto::make_key_aes_gcm(raw_key);
@@ -2953,12 +2956,15 @@ namespace ccf
       crypto::GcmCipher cipher(plaintext.size());
       cipher.hdr.set_random_iv();
 
-      key->encrypt(cipher.hdr.iv, plaintext, {}, cipher.cipher, cipher.hdr.tag);
+      key->encrypt(
+        cipher.hdr.iv, plaintext, aad, cipher.cipher, cipher.hdr.tag);
       return cipher;
     }
 
     std::vector<uint8_t> aes_gcm_unsealing(
-      std::span<const uint8_t> raw_key, const std::vector<uint8_t>& sealed_text)
+      std::span<const uint8_t> raw_key,
+      const std::vector<uint8_t>& sealed_text,
+      const std::span<uint8_t>& aad)
     {
       ccf::crypto::check_supported_aes_key_size(raw_key.size() * 8);
       auto key = ccf::crypto::make_key_aes_gcm(raw_key);
@@ -2968,7 +2974,7 @@ namespace ccf
 
       std::vector<uint8_t> plaintext;
       if (!key->decrypt(
-            cipher.hdr.get_iv(), cipher.hdr.tag, cipher.cipher, {}, plaintext))
+            cipher.hdr.get_iv(), cipher.hdr.tag, cipher.cipher, aad, plaintext))
       {
         throw std::logic_error("Failed to decrypt sealed text");
       }
@@ -2976,12 +2982,21 @@ namespace ccf
       return plaintext;
     }
 
-    void seal_ledger_secret(kv::ReadOnlyTx& tx)
+    struct SealedLedgerSecretAAD
     {
-      seal_ledger_secret(network.ledger_secrets->get_latest(tx).second);
+      ccf::kv::Version version = 0;
+    };
+
+    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SealedLedgerSecretAAD);
+    DECLARE_JSON_OPTIONAL_FIELDS(SealedLedgerSecretAAD, version)
+
+    void seal_ledger_secret(const VersionedLedgerSecret& ledger_secret)
+    {
+      seal_ledger_secret(ledger_secret.first, ledger_secret.second);
     }
 
-    void seal_ledger_secret(const LedgerSecretPtr& ledger_secret)
+    void seal_ledger_secret(
+      const kv::Version& version, const LedgerSecretPtr& ledger_secret)
     {
       if (!config.sealed_ledger_secret_location.has_value())
       {
@@ -2997,18 +3012,24 @@ namespace ccf
       std::string plaintext = nlohmann::json(ledger_secret).dump();
       std::vector<uint8_t> buf_plaintext(plaintext.begin(), plaintext.end());
 
+      std::string plainaad =
+        nlohmann::json(SealedLedgerSecretAAD{.version = version}).dump();
+      std::vector<uint8_t> buf_aad(plainaad.begin(), plainaad.end());
+
       // prevent unsealing if the TCB changes
       auto tcb_version = snp_tcb_version.value();
       auto sealing_key = ccf::pal::snp::make_derived_key(tcb_version);
       crypto::GcmCipher sealed_secret =
-        aes_gcm_sealing(sealing_key->get_raw(), buf_plaintext);
+        aes_gcm_sealing(sealing_key->get_raw(), buf_plaintext, buf_aad);
 
       files::dump(
         sealed_secret.serialise(),
         config.sealed_ledger_secret_location.value());
+      files::dump(
+        sealed_secret.serialise(),
+        config.sealed_ledger_secret_location.value() + ".aad");
       LOG_INFO_FMT(
-        "Sealing complete of ledger secret with previous_version: {}",
-        ledger_secret->previous_secret_stored_version);
+        "Sealing complete of ledger secret with version: {}", version);
     }
 
     LedgerSecretPtr unseal_ledger_secret()
@@ -3023,6 +3044,9 @@ namespace ccf
         CCF_ASSERT(
           files::exists(ledger_secret_path),
           "Sealed previous ledger secret cannot be found");
+        CCF_ASSERT(
+          files::exists(ledger_secret_path + ".aad"),
+          "Sealed previous ledger secret's AAD cannot be found");
 
         CCF_ASSERT(
           snp_tcb_version.has_value(),
@@ -3031,12 +3055,13 @@ namespace ccf
         LOG_INFO_FMT(
           "Reading sealed previous service secret from {}", ledger_secret_path);
         std::vector<uint8_t> ciphertext = files::slurp(ledger_secret_path);
+        std::vector<uint8_t> aad = files::slurp(ledger_secret_path);
 
         //  prevent unsealing if the TCB changes
         auto sealing_key =
           ccf::pal::snp::make_derived_key(snp_tcb_version.value());
         auto buf_plaintext =
-          aes_gcm_unsealing(sealing_key->get_raw(), ciphertext);
+          aes_gcm_unsealing(sealing_key->get_raw(), ciphertext, aad);
         auto json = nlohmann::json::parse(
           std::string(buf_plaintext.begin(), buf_plaintext.end()));
         LedgerSecret unsealed_ledger_secret;
@@ -3053,6 +3078,5 @@ namespace ccf
           "Failed to unseal the previous ledger secret: {}", e.what()));
       }
     }
-
   };
 }
