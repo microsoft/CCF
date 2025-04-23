@@ -12,45 +12,37 @@ on:
   workflow_dispatch:
 
 jobs:
-  scan_build:
-    name: "Scan build"
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-    container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: "Run scan"
-        run: |
-          set -x
-          mkdir build
-          cd build
-          ../scripts/scan-build.sh
-
   long-asan:
-    name: ASAN
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    name: "ASAN"
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: "Install deps"
-        run: |
-          sudo apt-get -y update
-          sudo apt install ansible -y
-          cd getting_started/setup_vm
-          ansible-playbook ccf-extended-testing.yml
 
-      - name: "Build"
+      - name: "Install dependencies"
+        shell: bash
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          set -ex
+          ./scripts/setup-ci.sh
+
+      - name: "Build Debug (Long Test)"
+        run: |
+          set -ex
+          git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
           cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSAN=ON ..
@@ -71,23 +63,39 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
-            build/workspace/*.ledger/*
+            build/workspace/*/*.ledger/*
           if-no-files-found: ignore
 
   long-tsan:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
-    name: TSAN
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
+    name: "TSAN"
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: "Build"
+      - name: "Install dependencies"
+        shell: bash
         run: |
+          set -ex
+          ./scripts/setup-ci.sh
+
+      - name: "Build Debug (Long Test)"
+        run: |
+          set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
@@ -109,20 +117,35 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
-            build/workspace/*.ledger/*
+            build/workspace/*/*.ledger/*
           if-no-files-found: ignore
 
   long-lts:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
-    name: LTS
+    name: Long LTS
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-14-01-2025
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
 
       - name: "Build"
         run: |
@@ -147,7 +170,7 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
-            build/workspace/*.ledger/*
+            build/workspace/*/*.ledger/*
           if-no-files-found: ignore
 
   # All e2e tests without sanitizers in debug mode; needed because:
@@ -155,22 +178,32 @@ jobs:
   # - Test durations may also differ, which is important for -L "suite" because they have fixed timeouts.
   long-e2e-debug:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
-    name: Long E2E - all (Debug)
+    name: Long e2e - Debug
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-08-01-2025-2
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: "Install deps"
+      - name: "Install dependencies"
+        shell: bash
         run: |
-          sudo apt-get -y update
-          sudo apt install ansible -y
-          cd getting_started/setup_vm
-          ansible-playbook ccf-extended-testing.yml
+          set -ex
+          ./scripts/setup-ci.sh
+          # This run requires libc++ to run with hardening mode
+          tdnf -y install libcxx-devel libunwind-devel
 
       - name: "Build"
         run: |
@@ -196,28 +229,43 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
-            build/workspace/*.ledger/*
+            build/workspace/*/*.ledger/*
           if-no-files-found: ignore
 
   # All e2e tests in release mode (same as release build).
   long-e2e-release:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
-    name: Long E2E - all (Release)
+    name: Long e2e - Release
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-08-01-2025-2
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
 
       - name: "Build"
         run: |
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Release -DCLIENT_PROTOCOLS_TEST=ON ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Release -DCLIENT_PROTOCOLS_TEST=ON -DLONG_TESTS=ON ..
           ninja
 
       - name: "Test"
@@ -235,21 +283,36 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
-            build/workspace/*.ledger/*
+            build/workspace/*/*.ledger/*
           if-no-files-found: ignore
 
   # End-to-end test suites with shuffling enabled.
   e2e-suite-shuffled:
     if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
-    name: Long E2E suite (Shuffled)
+    name: Long e2e - Shuffled
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-08-01-2025-2
+      image: mcr.microsoft.com/azurelinux/base/core:3.0
+      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
 
     steps:
+      - name: "Checkout dependencies"
+        shell: bash
+        run: |
+          set -ex
+          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
+          tdnf -y update
+          tdnf -y install ca-certificates git
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: "Install dependencies"
+        shell: bash
+        run: |
+          set -ex
+          ./scripts/setup-ci.sh
 
       - name: "Build"
         run: |
@@ -274,161 +337,5 @@ jobs:
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
-            build/workspace/*.ledger/*
-          if-no-files-found: ignore
-
-  # All end-to-end tests in debug mode on Azure Linux (except benchmarks and tests which are not supported yet).
-  # The main purpose of these is to keep the Azure Linux build/run up-to-date to facilitate an easy migration in the future.
-  long-azure-linux:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
-    name: "Azure Linux Long Test"
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-
-    steps:
-      - name: "Checkout dependencies"
-        shell: bash
-        run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
-
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
-
-      - name: "Build Debug (Long Test)"
-        run: |
-          set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON ..
-          ninja
-        shell: bash
-
-      - name: "Test virtual (Long Test)"
-        run: |
-          set -ex
-          cd build
-          rm -rf /github/home/.cache
-          mkdir -p /github/home/.cache
-          # Unit tests
-          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          # All e2e tests, which are now supported on Mariner.
-          ./tests.sh --timeout 1600 --output-on-failure -LE "benchmark"
-        shell: bash
-
-  long-asan-azure-linux:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
-    name: "Azure Linux ASAN"
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-
-    steps:
-      - name: "Checkout dependencies"
-        shell: bash
-        run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
-
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
-
-      - name: "Build Debug (Long Test)"
-        run: |
-          set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DSAN=ON ..
-          ninja
-
-      - name: "Test"
-        run: |
-          set +x
-          cd build
-          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
-
-      - name: "Upload logs"
-        if: success() || failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: logs-asan-al
-          path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*.ledger/*
-          if-no-files-found: ignore
-
-  long-tsan-azure-linux:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-long-test') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'}}
-    name: "Azure Linux TSAN"
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
-
-    steps:
-      - name: "Checkout dependencies"
-        shell: bash
-        run: |
-          gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY
-          tdnf -y update
-          tdnf -y install ca-certificates git
-
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: "Install dependencies"
-        shell: bash
-        run: |
-          set -ex
-          ./scripts/setup-ci.sh
-
-      - name: "Build Debug (Long Test)"
-        run: |
-          set -ex
-          git config --global --add safe.directory /__w/CCF/CCF
-          mkdir build
-          cd build
-          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug -DLONG_TESTS=ON -DTSAN=ON -DWORKER_THREADS=2 ..
-          ninja
-
-      - name: "Test"
-        run: |
-          set +x
-          cd build
-          ./tests.sh --output-on-failure --timeout 1600 -LE "benchmark"
-
-      - name: "Upload logs"
-        if: success() || failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: logs-tsan-al
-          path: |
-            build/workspace/*/*.config.json
-            build/workspace/*/out
-            build/workspace/*/err
-            build/workspace/*.ledger/*
+            build/workspace/*/*.ledger/*
           if-no-files-found: ignore

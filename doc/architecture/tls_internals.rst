@@ -4,7 +4,7 @@ TLS Internals
 Overview
 ~~~~~~~~
 
-In CCF, the :term:`TLS` layer is implemented using OpenSSL 1.1.1 or 3.1. However, the original implementation was using OE's MbedTLS library, which the current implementation replaced. During the transition period, the OpenSSL implementation had to emulate the previous MbedTLS one and the remaining code isn't particularly suited to OpenSSL.
+In CCF, the :term:`TLS` layer is implemented using OpenSSL 3.3. However, the original implementation was using OE's MbedTLS library, which the current implementation replaced. During the transition period, the OpenSSL implementation had to emulate the previous MbedTLS one and the remaining code isn't particularly suited to OpenSSL.
 
 This document is an attempt to describe how that works, to faciliate further changes.
 
