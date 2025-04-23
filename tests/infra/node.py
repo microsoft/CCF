@@ -220,6 +220,10 @@ class Node:
             raise RuntimeError(
                 f"Sealed ledger secret file {sealed_ledger_secret_location} does not exist"
             )
+        if not os.path.exists(sealed_ledger_secret_location + ".aad"):
+            raise RuntimeError(
+                f"Sealed ledger secret file {sealed_ledger_secret_location + ".aad"} does not exist"
+            )
 
         if destination is None:
             destination = os.path.join(
@@ -227,6 +231,7 @@ class Node:
             )
 
         infra.path.copy2(sealed_ledger_secret_location, destination)
+        infra.path.copy2(sealed_ledger_secret_location + ".aad", destination + ".aad")
 
         return destination
 

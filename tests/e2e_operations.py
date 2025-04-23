@@ -1198,18 +1198,25 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
 
             def run(self, src):
                 corrupt_ledger_secret = f"{src}.{self.tag}.corrupt"
-                with open(src, "rb") as r, open(corrupt_ledger_secret, "wb") as w:
-                    data = r.read()
-                    w.write(self.lamb(data))
+                with open(src, "rb") as r, open(src, "rb") as aad, open(corrupt_ledger_secret, "wb") as w, open(corrupt_ledger_secret + ".aad", "wb") as aad_w:
+                    sealed = r.read()
+                    aad_data = aad.read()
+                    sealed_n, aad_data_n = self.lamb(sealed, aad_data)
+                    w.write(sealed_n)
+                    aad_w.write(aad_data_n)
                 return corrupt_ledger_secret
 
         corruptions = [
-            Corruption("write_nothing", lambda s: b""),
-            Corruption("xor", lambda s: bytes([b ^ 0xFF for b in s])),
+            Corruption("write_nothing", lambda s,aad: (b"", b"")),
+            Corruption("xor", lambda s, aad: (bytes([b ^ 0xFF for b in s]), aad)),
+            Corruption(
+                "Change tcb",
+                lambda s, aad: (s, {**aad, "tcb_version": {}})),
             Corruption(
                 "valid_key_different_machine",
-                lambda _: bytes.fromhex(
-                    "da23ff28d3ad59a764e5041c1f08515447c7c20bcec3bd1b0d2e36edd56d90a5fc97d3382923dd49868139bb9a34fb7e8ea706397bc7ad409bcd88adcdf0a95e87e651c697d54c967cc7ec6a22a1762befde694d36c8"
+                lambda _, aad: bytes.fromhex(
+                    "da23ff28d3ad59a764e5041c1f08515447c7c20bcec3bd1b0d2e36edd56d90a5fc97d3382923dd49868139bb9a34fb7e8ea706397bc7ad409bcd88adcdf0a95e87e651c697d54c967cc7ec6a22a1762befde694d36c8",
+                    aad
                 ),
             ),
         ]

@@ -32,6 +32,7 @@
 #include "http/http_parser.h"
 #include "indexing/indexer.h"
 #include "js/global_class_ids.h"
+#include "local_sealing.h"
 #include "network_state.h"
 #include "node/hooks.h"
 #include "node/http_node_client.h"
@@ -2866,6 +2867,46 @@ namespace ccf
       }
     }
 
+    void seal_ledger_secret(const VersionedLedgerSecret& ledger_secret)
+    {
+      seal_ledger_secret(ledger_secret.first, ledger_secret.second);
+    }
+
+    void seal_ledger_secret(
+      const kv::Version& version, const LedgerSecretPtr& ledger_secret)
+    {
+      if (!config.sealed_ledger_secret_location.has_value())
+      {
+        return;
+      }
+
+      CCF_ASSERT(
+        snp_tcb_version.has_value(),
+        "TCB version must be set before unsealing");
+
+      seal_ledger_secret_to_disk(
+        config.sealed_ledger_secret_location.value(),
+        snp_tcb_version.value(),
+        version,
+        ledger_secret);
+    }
+
+    LedgerSecretPtr unseal_ledger_secret()
+    {
+      CCF_ASSERT(
+        snp_tcb_version.has_value(),
+        "TCB version must be set when unsealing ledger secret");
+
+      CCF_ASSERT(
+        config.recover.previous_sealed_ledger_secret_location.has_value(),
+        "Previous sealed ledger secret location must be set");
+      auto ledger_secret_path =
+        config.recover.previous_sealed_ledger_secret_location.value();
+
+      return unseal_ledger_secret_from_disk(
+        config.recover.previous_sealed_ledger_secret_location.value());
+    }
+
   public:
     void set_n2n_message_limit(size_t message_limit)
     {
@@ -2944,139 +2985,6 @@ namespace ccf
     {
       return writer_factory;
     }
-
-    crypto::GcmCipher aes_gcm_sealing(
-      std::span<const uint8_t> raw_key,
-      std::span<const uint8_t> plaintext,
-      const std::span<uint8_t>& aad)
-    {
-      ccf::crypto::check_supported_aes_key_size(raw_key.size() * 8);
-      auto key = ccf::crypto::make_key_aes_gcm(raw_key);
-
-      crypto::GcmCipher cipher(plaintext.size());
-      cipher.hdr.set_random_iv();
-
-      key->encrypt(
-        cipher.hdr.iv, plaintext, aad, cipher.cipher, cipher.hdr.tag);
-      return cipher;
-    }
-
-    std::vector<uint8_t> aes_gcm_unsealing(
-      std::span<const uint8_t> raw_key,
-      const std::vector<uint8_t>& sealed_text,
-      const std::span<uint8_t>& aad)
-    {
-      ccf::crypto::check_supported_aes_key_size(raw_key.size() * 8);
-      auto key = ccf::crypto::make_key_aes_gcm(raw_key);
-
-      crypto::GcmCipher cipher;
-      cipher.deserialise(sealed_text);
-
-      std::vector<uint8_t> plaintext;
-      if (!key->decrypt(
-            cipher.hdr.get_iv(), cipher.hdr.tag, cipher.cipher, aad, plaintext))
-      {
-        throw std::logic_error("Failed to decrypt sealed text");
-      }
-
-      return plaintext;
-    }
-
-    struct SealedLedgerSecretAAD
-    {
-      ccf::kv::Version version = 0;
-    };
-
-    DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(SealedLedgerSecretAAD);
-    DECLARE_JSON_OPTIONAL_FIELDS(SealedLedgerSecretAAD, version)
-
-    void seal_ledger_secret(const VersionedLedgerSecret& ledger_secret)
-    {
-      seal_ledger_secret(ledger_secret.first, ledger_secret.second);
-    }
-
-    void seal_ledger_secret(
-      const kv::Version& version, const LedgerSecretPtr& ledger_secret)
-    {
-      if (!config.sealed_ledger_secret_location.has_value())
-      {
-        return;
-      }
-      LOG_INFO_FMT(
-        "Sealing ledger secret to {}",
-        config.sealed_ledger_secret_location.value());
-
-      CCF_ASSERT(
-        snp_tcb_version.has_value(), "TCB version must be set when sealing");
-
-      std::string plaintext = nlohmann::json(ledger_secret).dump();
-      std::vector<uint8_t> buf_plaintext(plaintext.begin(), plaintext.end());
-
-      std::string plainaad =
-        nlohmann::json(SealedLedgerSecretAAD{.version = version}).dump();
-      std::vector<uint8_t> buf_aad(plainaad.begin(), plainaad.end());
-
-      // prevent unsealing if the TCB changes
-      auto tcb_version = snp_tcb_version.value();
-      auto sealing_key = ccf::pal::snp::make_derived_key(tcb_version);
-      crypto::GcmCipher sealed_secret =
-        aes_gcm_sealing(sealing_key->get_raw(), buf_plaintext, buf_aad);
-
-      files::dump(
-        sealed_secret.serialise(),
-        config.sealed_ledger_secret_location.value());
-      files::dump(
-        sealed_secret.serialise(),
-        config.sealed_ledger_secret_location.value() + ".aad");
-      LOG_INFO_FMT(
-        "Sealing complete of ledger secret with version: {}", version);
-    }
-
-    LedgerSecretPtr unseal_ledger_secret()
-    {
-      try
-      {
-        CCF_ASSERT(
-          config.recover.previous_sealed_ledger_secret_location.has_value(),
-          "Previous sealed ledger secret location must be set");
-        auto ledger_secret_path =
-          config.recover.previous_sealed_ledger_secret_location.value();
-        CCF_ASSERT(
-          files::exists(ledger_secret_path),
-          "Sealed previous ledger secret cannot be found");
-        CCF_ASSERT(
-          files::exists(ledger_secret_path + ".aad"),
-          "Sealed previous ledger secret's AAD cannot be found");
-
-        CCF_ASSERT(
-          snp_tcb_version.has_value(),
-          "TCB version must be set before unsealing");
-
-        LOG_INFO_FMT(
-          "Reading sealed previous service secret from {}", ledger_secret_path);
-        std::vector<uint8_t> ciphertext = files::slurp(ledger_secret_path);
-        std::vector<uint8_t> aad = files::slurp(ledger_secret_path);
-
-        //  prevent unsealing if the TCB changes
-        auto sealing_key =
-          ccf::pal::snp::make_derived_key(snp_tcb_version.value());
-        auto buf_plaintext =
-          aes_gcm_unsealing(sealing_key->get_raw(), ciphertext, aad);
-        auto json = nlohmann::json::parse(
-          std::string(buf_plaintext.begin(), buf_plaintext.end()));
-        LedgerSecret unsealed_ledger_secret;
-        from_json(json, unsealed_ledger_secret);
-
-        LOG_INFO_FMT("Successfully unsealed secret");
-
-        return std::make_shared<LedgerSecret>(
-          std::move(unsealed_ledger_secret));
-      }
-      catch (const std::exception& e)
-      {
-        throw std::logic_error(fmt::format(
-          "Failed to unseal the previous ledger secret: {}", e.what()));
-      }
-    }
   };
+
 }
