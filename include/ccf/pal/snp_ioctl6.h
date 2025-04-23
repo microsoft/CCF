@@ -132,7 +132,7 @@ namespace ccf::pal::snp::ioctl6
   struct DerivedKeyReq
   {
     uint32_t key_select = 0;
-    uint32_t reserved2 = 0;
+    uint32_t reserved = 0;
     uint64_t guest_field_select = 0;
     uint32_t vmpl = 0;
     uint32_t guest_svn = 0;
