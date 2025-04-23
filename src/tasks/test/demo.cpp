@@ -8,6 +8,7 @@
 #include <cstring>
 #include <doctest/doctest.h>
 #include <functional>
+#include <iostream>
 #include <queue>
 #include <string>
 #include <thread>
@@ -16,7 +17,7 @@
 // between them) we need to support
 
 static constexpr size_t NUM_CLIENTS = 3;
-static constexpr size_t NUM_WORKERS = 2;
+static constexpr size_t NUM_WORKERS = 1;
 
 using TClock = std::chrono::system_clock;
 
@@ -30,7 +31,8 @@ struct Action
 
   enum class Kind
   {
-    Sleep,
+    Sleep, // TODO: Replace this with some crypto. Want to simulate expensive
+           // _blocking_ work, sleep could be done non-blocking
     Echo,
     // TODO: Add some kind of "WaitUntil" Action, triggered by something else?
     // TODO: Add something explicitly going async?
@@ -95,6 +97,8 @@ void server_enact(const Action& action, const ResponseHandler& handle_response)
   Response response;
   response.id = action.id;
   response.kind = action.kind;
+
+  std::cout << "Doing action " << action.id << std::endl;
 
   switch (action.kind)
   {
@@ -169,14 +173,14 @@ void client_verify(const Action& action, const Response& response)
 struct ClientParams
 {
   std::chrono::milliseconds submission_duration =
-    std::chrono::milliseconds(1'000);
+    std::chrono::milliseconds(100);
 
   std::function<void()> submission_delay = []() { std::this_thread::yield(); };
 
   std::function<Action()> generate_next_action = []() {
     if (rand() % 4 == 0)
     {
-      return make_sleep_action(std::chrono::milliseconds(rand() % 50));
+      return make_sleep_action(std::chrono::milliseconds(rand() % 5));
     }
     else
     {
@@ -213,6 +217,7 @@ void client_thread(ClientParams& params)
     {
       // Generate and submit new work
       Action a = params.generate_next_action();
+      std::cout << "Generated action " << a.id << std::endl;
       pending_actions.push(a);
       params.outgoing.push_back(a);
     }
@@ -359,4 +364,8 @@ TEST_CASE("Demo")
   {
     worker.join();
   }
+
+  dispatcher_params.stop_signal = true;
+
+  dispatcher.join();
 }
