@@ -65,9 +65,6 @@ jobs:
   benchmark_snp:
     name: Benchmark SNP
     runs-on: [self-hosted, 1ES.Pool=gha-c-aci-ci]
-    container:
-      image: mcr.microsoft.com/azurelinux/base/core:3.0
-      options: --user root
     steps:
       - uses: actions/checkout@v4
         with:
