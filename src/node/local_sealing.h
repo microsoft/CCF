@@ -78,7 +78,7 @@ namespace ccf
       aes_gcm_sealing(sealing_key->get_raw(), buf_plaintext, buf_aad);
 
     files::dump(sealed_secret.serialise(), sealed_secret_location);
-    files::dump(sealed_secret.serialise(), sealed_secret_location + ".aad");
+    files::dump(plainaad, sealed_secret_location + ".aad");
     LOG_INFO_FMT("Sealing complete of ledger secret with version: {}", version);
   }
 
