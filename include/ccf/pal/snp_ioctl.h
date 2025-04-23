@@ -29,12 +29,11 @@ namespace ccf::pal::snp
     }
   }
 
-  static std::unique_ptr<ioctl6::DerivedKey> make_derived_key(
-    TcbVersion version = {})
+  static std::unique_ptr<ioctl6::DerivedKey> make_derived_key()
   {
     if (ioctl6::is_sev_snp())
     {
-      return std::make_unique<ioctl6::DerivedKey>(version);
+      return std::make_unique<ioctl6::DerivedKey>();
     }
     else
     {

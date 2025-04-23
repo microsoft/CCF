@@ -9,7 +9,6 @@
 #include "ccf/ds/logger.h"
 #include "ccf/js/core/context.h"
 #include "ccf/node/cose_signatures_config.h"
-#include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/locking.h"
 #include "ccf/pal/platform.h"
 #include "ccf/service/node_info_network.h"

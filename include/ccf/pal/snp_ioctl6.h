@@ -120,19 +120,18 @@ namespace ccf::pal::snp::ioctl6
   };
 #pragma pack(pop)
 
-  // Table 20 ABI
-  constexpr uint8_t GUEST_FIELD_SELECT_GUEST_POLICY = 0b00000001;
-  constexpr uint8_t GUEST_FIELD_SELECT_IMAGE_ID = 0b00000010;
-  constexpr uint8_t GUEST_FIELD_SELECT_FAMILY_ID = 0b00000100;
-  constexpr uint8_t GUEST_FIELD_SELECT_MEASUREMENT = 0b00001000;
-  constexpr uint8_t GUEST_FIELD_SELECT_GUEST_SVN = 0b00010000;
-  constexpr uint8_t GUEST_FIELD_SELECT_TCB_VERSION = 0b00100000;
+// Table 20 of the SEVSNP ABI
+constexpr uint8_t GUEST_FIELD_SELECT_GUEST_POLICY = 0b00000001;
+constexpr uint8_t GUEST_FIELD_SELECT_IMAGE_ID     = 0b00000010;
+constexpr uint8_t GUEST_FIELD_SELECT_FAMILY_ID    = 0b00000100;
+constexpr uint8_t GUEST_FIELD_SELECT_MEASUREMENT  = 0b00001000;
+constexpr uint8_t GUEST_FIELD_SELECT_GUEST_SVN    = 0b00010000;
+constexpr uint8_t GUEST_FIELD_SELECT_TCB_VERSION  = 0b00100000;
 
 #pragma pack(push, 1)
   struct DerivedKeyReq
   {
-    uint8_t reserved[3] = {0}; // top 3 bits of key select are reserved
-    uint8_t key_select = 0;
+    uint32_t key_select = 0;
     uint32_t reserved2 = 0;
     uint64_t guest_field_select = 0;
     uint32_t vmpl = 0;
@@ -140,6 +139,9 @@ namespace ccf::pal::snp::ioctl6
     TcbVersion tcb_version = TcbVersion();
   }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
 #pragma pack(pop)
+  static_assert(
+    sizeof(DerivedKeyReq) == 0x20,
+    "DerivedKeyReq struct size does not match expected size of 32 bytes");
 
 // Table 21
 #pragma pack(push, 1)
@@ -273,7 +275,7 @@ namespace ccf::pal::snp::ioctl6
     PaddedDerivedKeyResp& padded_resp = resp_with_sentinel.data;
 
   public:
-    DerivedKey(TcbVersion tcb = {})
+    DerivedKey()
     {
       int fd = open(DEVICE, O_RDWR | O_CLOEXEC);
       if (fd < 0)
@@ -285,9 +287,7 @@ namespace ccf::pal::snp::ioctl6
       // This req by default mixes in HostData and the CPU VCEK
       DerivedKeyReq req = {};
 
-      req.guest_field_select =
-        GUEST_FIELD_SELECT_MEASUREMENT | GUEST_FIELD_SELECT_TCB_VERSION;
-      req.tcb_version = tcb;
+      req.guest_field_select = GUEST_FIELD_SELECT_MEASUREMENT;
 
       GuestRequestDerivedKey payload = {
         .req_data = &req, .resp_wrapper = &padded_resp, .exit_info = {0}};
