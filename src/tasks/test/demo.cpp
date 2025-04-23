@@ -169,14 +169,14 @@ void client_verify(const Action& action, const Response& response)
 struct ClientParams
 {
   std::chrono::milliseconds submission_duration =
-    std::chrono::milliseconds(5'000);
+    std::chrono::milliseconds(1'000);
 
   std::function<void()> submission_delay = []() { std::this_thread::yield(); };
 
   std::function<Action()> generate_next_action = []() {
     if (rand() % 4 == 0)
     {
-      return make_sleep_action(std::chrono::milliseconds(rand() % 500));
+      return make_sleep_action(std::chrono::milliseconds(rand() % 50));
     }
     else
     {
