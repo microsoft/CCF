@@ -97,7 +97,7 @@ namespace ccf
       LOG_INFO_FMT(
         "Reading sealed previous service secret from {}", ledger_secret_path);
       std::vector<uint8_t> ciphertext = files::slurp(ledger_secret_path);
-      std::vector<uint8_t> aad_raw = files::slurp(ledger_secret_path);
+      std::vector<uint8_t> aad_raw = files::slurp(ledger_secret_path + ".aad");
       SealedLedgerSecretAAD aad =
         nlohmann::json::parse(std::string(aad_raw.begin(), aad_raw.end()));
 
