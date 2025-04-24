@@ -120,40 +120,28 @@ namespace ccf::pal::snp::ioctl6
   };
 #pragma pack(pop)
 
+  // Table 20 of the SEVSNP ABI
+  constexpr uint8_t GUEST_FIELD_SELECT_GUEST_POLICY = 0b00000001;
+  constexpr uint8_t GUEST_FIELD_SELECT_IMAGE_ID = 0b00000010;
+  constexpr uint8_t GUEST_FIELD_SELECT_FAMILY_ID = 0b00000100;
+  constexpr uint8_t GUEST_FIELD_SELECT_MEASUREMENT = 0b00001000;
+  constexpr uint8_t GUEST_FIELD_SELECT_GUEST_SVN = 0b00010000;
+  constexpr uint8_t GUEST_FIELD_SELECT_TCB_VERSION = 0b00100000;
+
 #pragma pack(push, 1)
-  // Table 20
-  // bit 0 is the first bit
-  struct DerivedKeyGuestFieldSelect
-  {
-    uint32_t guest_policy : 1;
-    uint32_t image_id : 1;
-    uint32_t family_id : 1;
-    uint32_t measurement : 1;
-    uint32_t guest_svn : 1;
-    uint32_t tcb_version : 1;
-    uint64_t reserved : 58;
-  };
-  static_assert(sizeof(DerivedKeyGuestFieldSelect) == 8);
-
-  // Table 19
-  struct KeySelect
-  {
-    uint8_t root_key_sel : 1;
-    uint8_t key_sel : 2;
-    uint32_t reserved : 29;
-  };
-  static_assert(sizeof(KeySelect) == 4);
-
   struct DerivedKeyReq
   {
-    KeySelect key_select;
+    uint32_t key_select = 0;
     uint32_t reserved = 0;
-    DerivedKeyGuestFieldSelect guest_field_select;
+    uint64_t guest_field_select = 0;
     uint32_t vmpl = 0;
-    uint32_t guest_svn;
-    uint64_t tcb_version;
+    uint32_t guest_svn = 0;
+    TcbVersion tcb_version = TcbVersion();
   }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
 #pragma pack(pop)
+  static_assert(
+    sizeof(DerivedKeyReq) == 0x20,
+    "DerivedKeyReq struct size does not match expected size of 32 bytes");
 
 // Table 21
 #pragma pack(push, 1)
@@ -298,8 +286,9 @@ namespace ccf::pal::snp::ioctl6
 
       // This req by default mixes in HostData and the CPU VCEK
       DerivedKeyReq req = {};
-      // We must also mix in the measurement
-      req.guest_field_select.measurement = 1;
+
+      req.guest_field_select = GUEST_FIELD_SELECT_MEASUREMENT;
+
       GuestRequestDerivedKey payload = {
         .req_data = &req, .resp_wrapper = &padded_resp, .exit_info = {0}};
       int rc = ioctl(fd, SEV_SNP_GUEST_MSG_DERIVED_KEY, &payload);
