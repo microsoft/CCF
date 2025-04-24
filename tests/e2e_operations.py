@@ -981,7 +981,7 @@ def run_initial_uvm_descriptor_checks(args):
         ledger_dirs = primary.remote.ledger_paths()
         ledger = ccf.ledger.Ledger(ledger_dirs)
         first_chunk = next(iter(ledger))
-        first_tx = next(first_chunk)
+        first_tx = next(iter(first_chunk))
         tables = first_tx.get_public_domain().get_tables()
         endorsements = tables["public:ccf.gov.nodes.snp.uvm_endorsements"]
         assert len(endorsements) == 1, endorsements
@@ -1061,7 +1061,7 @@ def run_initial_tcb_version_checks(args):
         ledger_dirs = primary.remote.ledger_paths()
         ledger = ccf.ledger.Ledger(ledger_dirs)
         first_chunk = next(iter(ledger))
-        first_tx = next(first_chunk)
+        first_tx = next(iter(first_chunk))
         tables = first_tx.get_public_domain().get_tables()
         tcb_versions = tables["public:ccf.gov.nodes.snp.tcb_versions"]
         assert len(tcb_versions) == 1, tcb_versions
