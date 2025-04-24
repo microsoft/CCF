@@ -104,7 +104,6 @@ jobs:
       - name: "cpuinfo"
         run: |
           cat /proc/cpuinfo
-          cat /proc/1/environ
         shell: bash
 
       - name: "Install dependencies"
@@ -162,6 +161,8 @@ jobs:
 
       - name: "cpuinfo"
         run: |
+          cat /proc/1/environ
+          echo "--------------------------------"
           cat /proc/cpuinfo
         shell: bash
 
