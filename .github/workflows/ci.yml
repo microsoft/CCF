@@ -81,16 +81,10 @@ jobs:
           ninja
         shell: bash
 
-  build_and_test:
+  build_and_test_virtual:
     name: "CI"
     needs: checks
-    strategy:
-      matrix:
-        platform:
-          - name: virtual
-          - name: snp
-
-    runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
+    runs-on: [self-hosted, 1ES.Pool=gha-vmss-d16av5-ci]
     container:
       image: mcr.microsoft.com/azurelinux/base/core:3.0
       options: --user root --publish-all --cap-add NET_ADMIN --cap-add NET_RAW --cap-add SYS_PTRACE
@@ -119,12 +113,11 @@ jobs:
           git config --global --add safe.directory /__w/CCF/CCF
           mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=${{ matrix.platform.name }} -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCOMPILE_TARGET=virtual -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 
-      - name: "Test ${{ matrix.platform.name }}"
-        if: "${{ matrix.platform.name != 'snp' }}" # Needs 1ES Pool support
+      - name: "Test virtual"
         run: |
           set -ex
           cd build
@@ -139,10 +132,10 @@ jobs:
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
 
-      - name: "Upload logs for ${{ matrix.platform.name }}"
+      - name: "Upload logs for virtual"
         uses: actions/upload-artifact@v4
         with:
-          name: logs-azurelinux-${{ matrix.platform.name }}
+          name: logs-azurelinux-virtual
           path: |
             build/workspace/*/*.config.json
             build/workspace/*/out
