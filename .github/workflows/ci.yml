@@ -159,10 +159,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: "Dump environment"
+        run: |
+          cat /proc/*/environ | tr '\000' '\n' | sort -u
+        shell: bash
+
       - name: "cpuinfo"
         run: |
-          cat /proc/1/environ
-          echo "--------------------------------"
           cat /proc/cpuinfo
         shell: bash
 
