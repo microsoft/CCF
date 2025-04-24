@@ -63,13 +63,13 @@ def close_ledger_file(
 
 def run(args_):
     parser = argparse.ArgumentParser(
-        description="Split a CCF ledger file around an input sequenece number into two new files",
+        description="Split a CCF ledger file around an input sequence number into two new files",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("path", help="Path to ledger file to split", type=str)
     parser.add_argument(
         "seqno",
-        help="Transaction seqno at which the ledger file will be split (must be a signature transaction)",
+        help="Transaction seqno at which the ledger file will be split",
         type=int,
     )
     parser.add_argument(
@@ -77,6 +77,12 @@ def run(args_):
         help="Output directory",
         type=str,
         default=DEFAULT_OUTPUT_DIR_NAME,
+    )
+    parser.add_argument(
+        "--allow-non-signature",
+        help="Allow file to be split at a non-signature transaction",
+        action="store_true",
+        default=False,
     )
     args = parser.parse_args(args_)
 
@@ -91,40 +97,43 @@ def run(args_):
     )
     LOG.info(f"Output directory: {args.output_dir}")
 
-    require_new_file = True
+    output_file = None
     found_target_seqno = False
     first_seqno = None
-    is_target_seqno_signature = True
+    looking_for_following_signature = False
     next_signature_seqno = None
 
     for entry in ledger_file_input:
         public_entry = entry.get_public_domain()
         entry_seqno = public_entry.get_seqno()
+
+        if looking_for_following_signature:
+            if ccf.ledger.SIGNATURE_TX_TABLE_NAME in public_entry.get_tables():
+                next_signature_seqno = entry_seqno
+                break
+            else:
+                continue
+
         first_seqno = first_seqno or entry_seqno
-        if require_new_file:
-            ledger_file_output = create_new_ledger_file(args.output_dir)
+        if output_file is None:
+            output_file = create_new_ledger_file(args.output_dir)
             entry_positions = []
-            require_new_file = False
 
-        entry_positions.append(ledger_file_output.tell())
-        ledger_file_output.write(entry.get_raw_tx())
-
-        if (
-            not is_target_seqno_signature
-            and ccf.ledger.SIGNATURE_TX_TABLE_NAME in public_entry.get_tables()
-        ):
-            next_signature_seqno = entry_seqno
-            break
+        entry_positions.append(output_file.tell())
+        output_file.write(entry.get_raw_tx())
 
         if entry_seqno == args.seqno:
-            if ccf.ledger.SIGNATURE_TX_TABLE_NAME not in public_entry.get_tables():
-                is_target_seqno_signature = False
+            if (
+                ccf.ledger.SIGNATURE_TX_TABLE_NAME not in public_entry.get_tables()
+                and not args.allow_non_signature
+            ):
+                looking_for_following_signature = True
                 continue
 
             LOG.debug(f"Found target seqno {args.seqno}")
             found_target_seqno = True
             close_ledger_file(
-                ledger_file_output,
+                output_file,
                 entry_positions,
                 make_final_ledger_file_name(
                     first_seqno,
@@ -134,24 +143,24 @@ def run(args_):
                 ),
                 complete_file=True,
             )
-            require_new_file = True
+            output_file = None
 
     if next_signature_seqno is not None:
-        os.remove(ledger_file_output.name)
+        os.remove(output_file.name)
         raise ValueError(
             f"Ledger entry at target seqno {args.seqno} must be a signature. Next signature is at seqno {next_signature_seqno}."
         )
 
     if not found_target_seqno:
-        os.remove(ledger_file_output.name)
+        os.remove(output_file.name)
         raise ValueError(
             f"Could not find seqno {args.seqno} in ledger file {args.path}"
         )
 
     # Only if entries were written to file
-    if not require_new_file:
+    if output_file is not None:
         close_ledger_file(
-            ledger_file_output,
+            output_file,
             entry_positions,
             make_final_ledger_file_name(
                 args.seqno + 1,

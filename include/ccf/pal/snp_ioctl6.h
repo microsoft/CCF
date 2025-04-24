@@ -120,7 +120,7 @@ namespace ccf::pal::snp::ioctl6
   };
 #pragma pack(pop)
 
-  // Table 20 ABI
+  // Table 20 of the SEVSNP ABI
   constexpr uint8_t GUEST_FIELD_SELECT_GUEST_POLICY = 0b00000001;
   constexpr uint8_t GUEST_FIELD_SELECT_IMAGE_ID = 0b00000010;
   constexpr uint8_t GUEST_FIELD_SELECT_FAMILY_ID = 0b00000100;
@@ -131,15 +131,17 @@ namespace ccf::pal::snp::ioctl6
 #pragma pack(push, 1)
   struct DerivedKeyReq
   {
-    uint8_t reserved[3] = {0}; // top 3 bits of key select are reserved
-    uint8_t key_select = 0;
-    uint32_t reserved2 = 0;
+    uint32_t key_select = 0;
+    uint32_t reserved = 0;
     uint64_t guest_field_select = 0;
     uint32_t vmpl = 0;
     uint32_t guest_svn = 0;
     TcbVersion tcb_version = TcbVersion();
   }; // snp_derived_key_req in (linux) include/uapi/linux/sev-guest.h
 #pragma pack(pop)
+  static_assert(
+    sizeof(DerivedKeyReq) == 0x20,
+    "DerivedKeyReq struct size does not match expected size of 32 bytes");
 
 // Table 21
 #pragma pack(push, 1)
