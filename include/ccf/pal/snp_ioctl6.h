@@ -275,7 +275,7 @@ namespace ccf::pal::snp::ioctl6
     PaddedDerivedKeyResp& padded_resp = resp_with_sentinel.data;
 
   public:
-    DerivedKey()
+    DerivedKey(TcbVersion tcb = {})
     {
       int fd = open(DEVICE, O_RDWR | O_CLOEXEC);
       if (fd < 0)
@@ -287,7 +287,9 @@ namespace ccf::pal::snp::ioctl6
       // This req by default mixes in HostData and the CPU VCEK
       DerivedKeyReq req = {};
 
-      req.guest_field_select = GUEST_FIELD_SELECT_MEASUREMENT;
+      req.guest_field_select =
+        GUEST_FIELD_SELECT_MEASUREMENT | GUEST_FIELD_SELECT_TCB_VERSION;
+      req.tcb_version = tcb;
 
       GuestRequestDerivedKey payload = {
         .req_data = &req, .resp_wrapper = &padded_resp, .exit_info = {0}};
