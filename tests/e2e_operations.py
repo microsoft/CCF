@@ -1211,7 +1211,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             Corruption("xor", lambda s, aad: (bytes([b ^ 0xFF for b in s]), aad)),
             Corruption(
                 "Change tcb",
-                lambda s, aad: (s, {**json.loads(aad), "tcb_version": {}})),
+                lambda s, _: (s, bytes('{"tcb_version":{"boot_loader":0,"microcode":0,"snp":0,"tee":0},"version":1}'))),
             Corruption(
                 "valid_key_different_machine",
                 lambda _, aad: bytes.fromhex(
