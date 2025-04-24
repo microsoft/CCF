@@ -6,13 +6,17 @@ import base64
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
+import json
 
 
 def make_host_amd_blob(tcbm, leaf, chain):
-    return (
-        "{"
-        + f'tcbm={tcbm}, leaf="{leaf.encode("unicode_escape").decode("utf-8")}", chain="{chain.encode("unicode_escape").decode("utf-8")}"'
-        + "}"
+    return json.dumps(
+        {
+            "cacheControl": "0",
+            "tcbm": tcbm.upper(),
+            "vcekCert": leaf,
+            "certificateChain": chain,
+        }
     )
 
 
