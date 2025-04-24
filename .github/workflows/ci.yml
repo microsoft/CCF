@@ -161,7 +161,7 @@ jobs:
 
       - name: "Dump environment"
         run: |
-          cat /proc/*/environ | tr '\000' '\n' | sort -u
+          cat /proc/*/environ | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
         shell: bash
 
       - name: "cpuinfo"
@@ -189,6 +189,7 @@ jobs:
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
           # All other acceptably fast tests, which are now supported on Azure Linux.
+          source /Fabric_NodeIPOrFQDN
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
           # Partitions tests
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
