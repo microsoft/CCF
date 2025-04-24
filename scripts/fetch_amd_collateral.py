@@ -125,4 +125,4 @@ if __name__ == "__main__":
         output_stream.write(base64.b64encode(blob.encode("utf-8")).decode("utf-8"))
     else:
         logging.error(f"Unknown output format {args.output_format}")
-        sys.exit1
+        sys.exit(1)
