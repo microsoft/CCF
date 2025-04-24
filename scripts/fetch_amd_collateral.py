@@ -39,7 +39,7 @@ if __name__ == "__main__":
         "-u",
         "--base-url",
         type=str,
-        default="https://kdsintf.amd.com:443",
+        default="https://kdsintf.amd.com",
         help="URL to fetch the AMD collateral data from.",
     )
     parser.add_argument(
