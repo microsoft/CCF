@@ -9,7 +9,11 @@ from cryptography.hazmat.backends import default_backend
 
 
 def make_host_amd_blob(tcbm, leaf, chain):
-    return "{" + f"tcbm={tcbm}, leaf=\"{leaf.encode("unicode_escape").decode("utf-8")}\", chain=\"{chain.encode("unicode_escape").decode("utf-8")}\"" + "}"
+    return (
+        "{"
+        + f'tcbm={tcbm}, leaf="{leaf.encode("unicode_escape").decode("utf-8")}", chain="{chain.encode("unicode_escape").decode("utf-8")}"'
+        + "}"
+    )
 
 
 def make_leaf_url(base_url, product_family, chip_id, tcbm):
@@ -86,10 +90,16 @@ if __name__ == "__main__":
 
     logging.info(f"Fetching AMD leaf cert from {leaf_url}")
     with httpx.Client() as client:
-        leaf_response = client.get(leaf_url, )
+        leaf_response = client.get(
+            leaf_url,
+        )
         leaf_response.raise_for_status()
         der = leaf_response.content
-        leaf = x509.load_der_x509_certificate(der, default_backend()).public_bytes(serialization.Encoding.PEM).decode("utf-8")
+        leaf = (
+            x509.load_der_x509_certificate(der, default_backend())
+            .public_bytes(serialization.Encoding.PEM)
+            .decode("utf-8")
+        )
         logging.info(f"AMD leaf cert response: {leaf}")
 
     chain_url = make_chain_url(args.base_url, args.product_family)
