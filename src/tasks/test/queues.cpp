@@ -139,9 +139,10 @@ TEST_CASE("JobBoard")
   fmt::print("Done\n");
 }
 
-TEST_CASE("FunQueue")
+// Confirm expected semantics of SubTaskQueue type
+TEST_CASE("SubTaskQueue")
 {
-  FunQueue<size_t> fq;
+  SubTaskQueue<size_t> fq;
 
   // push returns true iff queue was previously empty and inactive
   REQUIRE(fq.push(1));
@@ -155,7 +156,7 @@ TEST_CASE("FunQueue")
   // Visits an empty queue, leaves an empty queue
   REQUIRE_FALSE(fq.pop_and_visit([](size_t&& n) { fmt::print("{}\n", n); }));
 
-  // Not the first push, but the first on an empty queue, so gets a true
+  // Not the first push _ever_, but the first on an empty queue, so gets a true
   // response
   REQUIRE(fq.push(5));
 

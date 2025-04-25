@@ -29,13 +29,13 @@ TEST_CASE("Run")
   {
     // Create a node
     JobBoard job_board;
-    Node node(2, job_board);
+    Node node(4, job_board);
 
     {
       // Create some clients
       ClientParams client_params;
       std::vector<std::unique_ptr<Client>> clients;
-      for (auto i = 0u; i < 4; ++i)
+      for (auto i = 0u; i < 14; ++i)
       {
         clients.push_back(
           std::make_unique<Client>(node.add_client(), client_params, i));
@@ -54,7 +54,7 @@ TEST_CASE("Run")
 int main(int argc, char** argv)
 {
   // ccf::tasks::TaskSystem::init();
-  ccf::logger::config::default_init();
+  // ccf::logger::config::default_init();
 
   doctest::Context context;
   context.applyCommandLine(argc, argv);

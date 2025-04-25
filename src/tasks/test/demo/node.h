@@ -84,11 +84,6 @@ struct Node
                   io->from_node.push_back(std::move(result));
                 },
                 fmt::format("[do {}]", idx));
-              LOG_INFO_FMT(
-                "Got incoming action '{}', which I packaged in a task called "
-                "{}",
-                incoming.value(),
-                task->get_name());
               tasks.add_task(std::move(task));
 
               incoming = io->to_node.try_pop();

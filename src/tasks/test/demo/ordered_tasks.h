@@ -7,71 +7,63 @@
 
 #include <mutex>
 
-template <typename T>
-class FunQueue
+namespace
 {
-protected:
-  std::mutex mutex;
-  std::deque<T> queue;
-  bool active;
-
-  std::string describe_queue()
+  // Helper type for OrderedTasks, containing a list of sub-tasks to be
+  // performed in-order. Modifiers return bools indicating whether the caller is
+  // responsible for scheduling a future flush of this queue.
+  template <typename T>
+  class SubTaskQueue
   {
-    std::string s;
-    for (auto& e : queue)
-    {
-      s += fmt::format("{}, ", e->get_name());
-    }
-    return s;
-  }
+  protected:
+    std::mutex mutex;
+    std::deque<Task> queue;
+    bool active;
 
-public:
-  bool push(T&& t)
-  {
-    std::lock_guard<std::mutex> lock(mutex);
-    const bool ret = queue.empty() && !active;
-    queue.emplace_back(std::forward<T>(t));
-    LOG_DEBUG_FMT("After push, queue contains: {}", describe_queue());
-    return ret;
-  }
-
-  using Visitor = std::function<void(T&&)>;
-  bool pop_and_visit(Visitor&& visitor)
-  {
-    std::deque<T> local;
+  public:
+    bool push(T&& t)
     {
       std::lock_guard<std::mutex> lock(mutex);
-      // assert(!active);
-      active = true;
-
-      LOG_DEBUG_FMT("At start of pop, queue contains: {}", describe_queue());
-
-      std::swap(local, queue);
+      const bool ret = queue.empty() && !active;
+      queue.emplace_back(std::forward<T>(t));
+      return ret;
     }
 
-    for (auto&& entry : local)
+    using Visitor = std::function<void(T&&)>;
+    bool pop_and_visit(Visitor&& visitor)
     {
-      visitor(std::forward<T>(entry));
+      decltype(queue) local;
+      {
+        std::lock_guard<std::mutex> lock(mutex);
+        active = true;
+
+        std::swap(local, queue);
+      }
+
+      for (auto&& entry : local)
+      {
+        visitor(std::forward<T>(entry));
+      }
+
+      {
+        std::lock_guard<std::mutex> lock(mutex);
+        active = false;
+        return !queue.empty();
+      }
     }
+  };
+}
 
-    {
-      std::lock_guard<std::mutex> lock(mutex);
-      // assert(active);
-      active = false;
-
-      LOG_DEBUG_FMT("At end of pop, queue contains: {}", describe_queue());
-
-      return !queue.empty();
-    }
-  }
-};
-
+// Self-scheduling collection of in-order tasks. Tasks will be executed in the
+// order they are added. To self-schedule, this instance will ensure that it is
+// posted to the given JobBoard whenever more sub-tasks are available for
+// execution.
 class OrderedTasks : public ITask, public std::enable_shared_from_this<ITask>
 {
 protected:
   std::string name;
   IJobBoard& job_board;
-  FunQueue<Task> sub_tasks;
+  SubTaskQueue<Task> sub_tasks;
 
   void enqueue_on_board()
   {
@@ -86,14 +78,8 @@ public:
 
   void do_task() override
   {
-    LOG_DEBUG_FMT("Doing {}", get_name());
-    if (sub_tasks.pop_and_visit([this](Task&& task) {
-          LOG_DEBUG_FMT("Inside {}, doing {}", get_name(), task->get_name());
-          task->do_task();
-        }))
+    if (sub_tasks.pop_and_visit([this](Task&& task) { task->do_task(); }))
     {
-      LOG_DEBUG_FMT(
-        " queue was non-empty after popping, so enqueuing {}", get_name());
       enqueue_on_board();
     }
   }
@@ -105,10 +91,8 @@ public:
 
   void add_task(Task&& task)
   {
-    LOG_DEBUG_FMT("Adding task {} to {}", task->get_name(), get_name());
     if (sub_tasks.push(std::move(task)))
     {
-      LOG_DEBUG_FMT(" queue was empty, so enqueuing {}", get_name());
       enqueue_on_board();
     }
   }
