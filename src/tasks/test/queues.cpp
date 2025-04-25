@@ -4,6 +4,7 @@
 #include "./demo/job_board.h"
 #include "./demo/ordered_tasks.h"
 
+#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 #define FMT_HEADER_ONLY
 #include <deque>

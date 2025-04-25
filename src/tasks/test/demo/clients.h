@@ -3,6 +3,7 @@
 #pragma once
 
 #include "./actions.h"
+#include "./looping_thread.h"
 #include "./node.h"
 
 #include <atomic>
@@ -41,68 +42,57 @@ struct ClientParams
   };
 };
 
-struct Client
+struct Client : public LoopingThread
 {
-  std::atomic<bool> stop_signal = false;
-  std::thread thread;
+  Node::IO& io;
+  const ClientParams& params;
 
-  Client(Node::IO& io, const ClientParams& params, size_t idx)
+  std::queue<ActionPtr> pending_actions;
+
+  using TClock = std::chrono::system_clock;
+  TClock::time_point submission_end;
+
+  Client(Node::IO& _io, const ClientParams& _params, size_t idx) :
+    LoopingThread(fmt::format("c{}", idx)),
+    io(_io),
+    params(_params)
   {
-    using TClock = std::chrono::system_clock;
-
-    thread = std::thread([&, idx]() {
-      ccf::threading::set_current_thread_name(fmt::format("c{}", idx));
-
-      const auto start = TClock::now();
-      const auto submission_end = start + params.submission_duration;
-
-      std::queue<ActionPtr> pending_actions;
-
-      while (!stop_signal)
-      {
-        // For some period of time...
-        const bool still_submitting = TClock::now() < submission_end;
-        if (still_submitting)
-        {
-          // ...generate and submit new work
-          auto action = params.generate_next_action();
-          // std::cout << "Generated action " << a << std::endl;
-          io.to_node.emplace_back(action->serialise());
-          pending_actions.push(std::move(action));
-        }
-
-        // If we have any responses
-        auto response = io.from_node.try_pop();
-        while (response.has_value())
-        {
-          // Verify them (check that the first response matches the first
-          // pending action)
-          REQUIRE(!pending_actions.empty());
-          pending_actions.front()->verify_serialised_response(response.value());
-          pending_actions.pop();
-
-          // ...and check for further responses
-          response = io.from_node.try_pop();
-        }
-
-        // If we're finished submitting and have processed all responses...
-        if (pending_actions.empty() && !still_submitting)
-        {
-          // ...then exit
-          break;
-        }
-        else
-        {
-          // ...else pause and repeat
-          params.submission_delay();
-        }
-      }
-    });
+    const auto start = TClock::now();
+    this->submission_end = start + params.submission_duration;
   }
 
-  ~Client()
+  bool loop_behaviour() override
   {
-    stop_signal = true;
-    thread.join();
+    const bool still_submitting = TClock::now() < submission_end;
+    if (still_submitting)
+    {
+      // Generate and submit new work
+      auto action = params.generate_next_action();
+      io.to_node.emplace_back(action->serialise());
+      pending_actions.push(std::move(action));
+    }
+
+    // If we have any responses
+    auto response = io.from_node.try_pop();
+    while (response.has_value())
+    {
+      // Verify them (check that the first response matches the first
+      // pending action)
+      REQUIRE(!pending_actions.empty());
+      pending_actions.front()->verify_serialised_response(response.value());
+      pending_actions.pop();
+
+      // ...and check for further responses
+      response = io.from_node.try_pop();
+    }
+
+    // End loop if this client has submitted and verified everything
+    return pending_actions.empty() && !still_submitting;
+  }
+
+  bool idle_behaviour() override
+  {
+    params.submission_delay();
+    return true;
   }
 };
