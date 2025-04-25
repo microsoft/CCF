@@ -5,13 +5,52 @@
 #include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/json.h"
 #include "ccf/ds/logger.h"
+#include "ccf/kv/version.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/snp_ioctl.h"
 #include "ds/files.h"
+#include "node/ledger_secret.h"
 #include "node/ledger_secrets.h"
+
+#include <algorithm>
+#include <filesystem>
+#include <fmt/format.h>
 
 namespace ccf
 {
+
+  inline std::string get_sealing_filename(const kv::Version& version)
+  {
+    return fmt::format("{}.sealed", version);
+  }
+
+  inline bool is_sealed_path(const std::string& path)
+  {
+    return path.ends_with(".sealed");
+  }
+
+  inline std::string get_aad_filename(const kv::Version& version)
+  {
+    return fmt::format("{}.aad", version);
+  }
+
+  inline bool is_aad_path(const std::string& path)
+  {
+    return path.ends_with(".aad");
+  }
+
+  inline kv::Version version_of_filename(const std::string& path)
+  {
+    auto pos = path.find_first_of('.');
+    if (pos == std::string::npos)
+    {
+      throw std::logic_error(
+        fmt::format("Ledger file name {} does not contain a version", path));
+    }
+
+    return std::stol(path.substr(pos + 1));
+  }
+
   inline crypto::GcmCipher aes_gcm_sealing(
     std::span<const uint8_t> raw_key,
     std::span<const uint8_t> plaintext,
@@ -59,12 +98,12 @@ namespace ccf
   DECLARE_JSON_OPTIONAL_FIELDS(SealedLedgerSecretAAD, version, tcb_version)
 
   inline void seal_ledger_secret_to_disk(
-    const std::string& sealed_secret_location,
+    const std::string& sealed_secret_dir,
     const ccf::pal::snp::TcbVersion& tcb_version,
     const kv::Version& version,
     const LedgerSecretPtr& ledger_secret)
   {
-    LOG_INFO_FMT("Sealing ledger secret to {}", sealed_secret_location);
+    LOG_INFO_FMT("Sealing ledger secret to {}", sealed_secret_dir);
 
     std::string plaintext = nlohmann::json(ledger_secret).dump();
     std::vector<uint8_t> buf_plaintext(plaintext.begin(), plaintext.end());
@@ -80,13 +119,16 @@ namespace ccf
     crypto::GcmCipher sealed_secret =
       aes_gcm_sealing(sealing_key->get_raw(), buf_plaintext, buf_aad);
 
-    files::dump(sealed_secret.serialise(), sealed_secret_location);
-    files::dump(plainaad, sealed_secret_location + ".aad");
-    LOG_INFO_FMT("Sealing complete of ledger secret with version: {}", version);
+    auto dir_path = files::fs::path(sealed_secret_dir);
+    auto sealing_path = dir_path / get_sealing_filename(version);
+    files::dump(sealed_secret.serialise(), sealing_path);
+    auto aad_path = dir_path / get_aad_filename(version);
+    files::dump(plainaad, aad_path);
+    LOG_INFO_FMT("Sealing complete of ledger secret to {} and {}", sealing_path, aad_path);
   }
 
   inline LedgerSecretPtr unseal_ledger_secret_from_disk(
-    std::string ledger_secret_path)
+    const files::fs::path& ledger_secret_path, const files::fs::path& aad_path)
   {
     try
     {
@@ -94,13 +136,13 @@ namespace ccf
         files::exists(ledger_secret_path),
         "Sealed previous ledger secret cannot be found");
       CCF_ASSERT(
-        files::exists(ledger_secret_path + ".aad"),
+        files::exists(aad_path),
         "Sealed previous ledger secret's AAD cannot be found");
 
       LOG_INFO_FMT(
         "Reading sealed previous service secret from {}", ledger_secret_path);
       std::vector<uint8_t> ciphertext = files::slurp(ledger_secret_path);
-      std::vector<uint8_t> aad_raw = files::slurp(ledger_secret_path + ".aad");
+      std::vector<uint8_t> aad_raw = files::slurp(aad_path);
       SealedLedgerSecretAAD aad =
         nlohmann::json::parse(std::string(aad_raw.begin(), aad_raw.end()));
 
@@ -122,6 +164,87 @@ namespace ccf
     {
       throw std::logic_error(fmt::format(
         "Failed to unseal the previous ledger secret: {}", e.what()));
+    }
+  }
+
+  inline LedgerSecretPtr find_and_unseal_ledger_secret_from_disk(
+    const std::string& sealed_secret_dir, kv::Version max_version)
+  {
+    std::vector<std::filesystem::path> files;
+    for (auto f : files::fs::directory_iterator(sealed_secret_dir))
+    {
+      if (
+        is_aad_path(f.path().filename()) ||
+        version_of_filename(f.path().filename()) < max_version)
+      {
+        continue;
+      }
+
+      files.push_back(f.path());
+    }
+    // Sort from highest version first
+    std::sort(
+      files.begin(),
+      files.end(),
+      [](const std::filesystem::path& a, const std::filesystem::path& b) {
+        return version_of_filename(a.filename()) >
+          version_of_filename(b.filename());
+      });
+
+    std::optional<LedgerSecretPtr> match = std::nullopt;
+    for (auto const& sealed_path : files)
+    {
+      auto version = version_of_filename(sealed_path.filename());
+      auto aad_path = sealed_path.parent_path() / get_aad_filename(version);
+      if (!files::exists(aad_path))
+      {
+        LOG_INFO_FMT(
+          "AAD file {} does not exist for sealed ledger secret {}",
+          aad_path,
+          sealed_path);
+        continue;
+      }
+      auto aad_raw = files::slurp(aad_path);
+      SealedLedgerSecretAAD aad =
+        nlohmann::json::parse(std::string(aad_raw.begin(), aad_raw.end()));
+      if (aad.version != version)
+      {
+        LOG_INFO_FMT(
+          "AAD version {} does not match sealed ledger secret version {}",
+          aad.version,
+          version);
+        continue;
+      }
+
+      try
+      {
+        auto unsealed = unseal_ledger_secret_from_disk(sealed_path, aad_path);
+        if (unsealed != nullptr)
+        {
+          LOG_INFO_FMT(
+            "Successfully unsealed ledger secret from {}",
+            sealed_path.string());
+          match = unsealed;
+          break;
+        }
+      }
+      catch (const std::exception& e)
+      {
+        LOG_FAIL_FMT(
+          "Failed to unseal ledger secret from {}: {}",
+          sealed_path.string(),
+          e.what());
+      }
+    }
+
+    if (match.has_value())
+    {
+      return match.value();
+    }
+    else
+    {
+      throw std::logic_error(fmt::format(
+        "Failed to unseal any ledger secret from {}", sealed_secret_dir));
     }
   }
 }
