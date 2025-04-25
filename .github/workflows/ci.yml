@@ -188,12 +188,10 @@ jobs:
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          ./tests.sh --timeout 360 --output-on-failure -R e2e_logging_cft
-          # Uncomment when the tests are fixed
-          # # All other acceptably fast tests, which are now supported on Azure Linux.
-          # ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
-          # # Partitions tests
-          # ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+          # All other acceptably fast tests, which are now supported on Azure Linux.
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          # Partitions tests
+          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
 
       - name: "Capture dmesg"

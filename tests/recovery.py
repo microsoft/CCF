@@ -1396,4 +1396,4 @@ checked. Note that the key for each logging message is unique (per table).
         snapshot_tx_interval=10000,
     )
 
-    cr.run()
+    cr.run(2)
