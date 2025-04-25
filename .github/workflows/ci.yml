@@ -196,11 +196,19 @@ jobs:
           # ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
 
+      - name: "Capture dmesg"
+        run: |
+          set -ex
+          dmesg > dmesg.log
+        shell: bash
+        if: success() || failure()
+
       - name: "Upload logs"
         uses: actions/upload-artifact@v4
         with:
           name: logs-caci-snp
           path: |
+            dmesg.log
             build/workspace/*/*.config.json
             build/workspace/*/out
             build/workspace/*/err
