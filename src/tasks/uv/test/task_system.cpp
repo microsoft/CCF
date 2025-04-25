@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
-#include "tasks/task_system.h"
+#include "tasks/uv/task_system.h"
 
 #include "ccf/ds/logger.h"
 
@@ -51,7 +51,7 @@ static std::atomic<size_t> cancelled_tasks = {};
 std::random_device random_device;
 std::mt19937 random_generator(random_device());
 
-struct CompletionCountingTask : public ccf::tasks::Task
+struct CompletionCountingTask : public ccf::uv::tasks::Task
 {
   CompletionCountingTask()
   {
@@ -99,12 +99,12 @@ struct RecursiveThreadIDCountingTask : public ThreadIDCountingTask
     // Confirm that inside a task, we can queue other tasks
     if constexpr (N == 0)
     {
-      ccf::tasks::TaskSystem::enqueue_task(
+      ccf::uv::tasks::TaskSystem::enqueue_task(
         std::make_unique<ThreadIDCountingTask>(thread_ids));
     }
     else
     {
-      ccf::tasks::TaskSystem::enqueue_task(
+      ccf::uv::tasks::TaskSystem::enqueue_task(
         std::make_unique<RecursiveThreadIDCountingTask<N - 1>>(thread_ids));
     }
 
@@ -114,8 +114,8 @@ struct RecursiveThreadIDCountingTask : public ThreadIDCountingTask
   }
 };
 
-using Tasks = std::vector<std::unique_ptr<ccf::tasks::Task>>;
-using TaskHandles = std::vector<ccf::tasks::TaskHandle>;
+using Tasks = std::vector<std::unique_ptr<ccf::uv::tasks::Task>>;
+using TaskHandles = std::vector<ccf::uv::tasks::TaskHandle>;
 
 TaskHandles shuffle_and_submit(Tasks&& tasks)
 {
@@ -124,7 +124,8 @@ TaskHandles shuffle_and_submit(Tasks&& tasks)
 
   for (auto&& task : tasks)
   {
-    handles.emplace_back(ccf::tasks::TaskSystem::enqueue_task(std::move(task)));
+    handles.emplace_back(
+      ccf::uv::tasks::TaskSystem::enqueue_task(std::move(task)));
   }
 
   return handles;
@@ -132,7 +133,7 @@ TaskHandles shuffle_and_submit(Tasks&& tasks)
 
 void run(size_t milliseconds_to_run = 100)
 {
-  ccf::tasks::TaskSystem::run_for(
+  ccf::uv::tasks::TaskSystem::run_for(
     std::chrono::milliseconds(milliseconds_to_run));
 }
 
@@ -240,7 +241,7 @@ TEST_CASE("Cancellation - basic" * doctest::skip(true))
       for (size_t i = 0; i < to_cancel; ++i)
       {
         // TODO: Why do some of these cancellations fail?
-        ccf::tasks::TaskSystem::cancel_task(std::move(handles[i]));
+        ccf::uv::tasks::TaskSystem::cancel_task(std::move(handles[i]));
       }
     });
 }
@@ -258,7 +259,7 @@ struct ChaoticCancellerTask : public CompletionCountingTask
     {
       if (rand() % 2 == 0)
       {
-        ccf::tasks::TaskSystem::cancel_task(std::move(handle));
+        ccf::uv::tasks::TaskSystem::cancel_task(std::move(handle));
       }
     }
   }
@@ -285,7 +286,7 @@ TEST_CASE("Cancellation - dynamic" * doctest::skip(true))
       for (size_t i = 0; i < num_cancellation_tasks; ++i)
       {
         TaskHandles candidates(range_start, range_end);
-        ccf::tasks::TaskSystem::enqueue_task(
+        ccf::uv::tasks::TaskSystem::enqueue_task(
           std::make_unique<ChaoticCancellerTask>(std::move(candidates)));
 
         range_start = range_end;
@@ -303,8 +304,8 @@ TEST_CASE("Exception handling" * doctest::skip(true))
     std::atomic<bool> finished_exec = false;
     std::atomic<bool> completion_callback = false;
 
-    ccf::tasks::TaskSystem::enqueue_task(
-      std::make_unique<ccf::tasks::SimpleTask>(
+    ccf::uv::tasks::TaskSystem::enqueue_task(
+      std::make_unique<ccf::uv::tasks::SimpleTask>(
         [&]() {
           started_exec.store(true);
           throw std::logic_error("This task was an unmitigated disaster");
@@ -326,8 +327,8 @@ TEST_CASE("Exception handling" * doctest::skip(true))
     std::atomic<bool> started_callback = false;
     std::atomic<bool> finished_callback = false;
 
-    ccf::tasks::TaskSystem::enqueue_task(
-      std::make_unique<ccf::tasks::SimpleTask>(
+    ccf::uv::tasks::TaskSystem::enqueue_task(
+      std::make_unique<ccf::uv::tasks::SimpleTask>(
         [&]() { exec.store(true); },
         [&](bool) {
           started_callback.store(true);
@@ -343,7 +344,7 @@ TEST_CASE("Exception handling" * doctest::skip(true))
   }
 }
 
-struct TickerTask : public ccf::tasks::Task
+struct TickerTask : public ccf::uv::tasks::Task
 {
   std::string name;
   std::chrono::milliseconds delay;
@@ -357,7 +358,7 @@ struct TickerTask : public ccf::tasks::Task
   {
     LOG_INFO_FMT("I'm {}, and I tick every {}ms", name, delay.count());
 
-    ccf::tasks::TaskSystem::enqueue_task_after_delay(
+    ccf::uv::tasks::TaskSystem::enqueue_task_after_delay(
       std::make_unique<TickerTask>(name, delay), delay);
   }
 };
@@ -371,11 +372,11 @@ TEST_CASE("Delayed tasks" * doctest::skip(true))
   // manually schedule another delayed task
 
   fmt::print("About to enqueue\n");
-  ccf::tasks::TaskSystem::enqueue_task_after_delay(
+  ccf::uv::tasks::TaskSystem::enqueue_task_after_delay(
     std::make_unique<TickerTask>("Alice", 500ms), 500ms);
-  ccf::tasks::TaskSystem::enqueue_task_after_delay(
+  ccf::uv::tasks::TaskSystem::enqueue_task_after_delay(
     std::make_unique<TickerTask>("Bob", 1000ms), 1000ms);
-  ccf::tasks::TaskSystem::enqueue_task_after_delay(
+  ccf::uv::tasks::TaskSystem::enqueue_task_after_delay(
     std::make_unique<TickerTask>("Charlie", 2000ms), 2000ms);
   fmt::print("Finished enqueue\n");
 
@@ -386,7 +387,7 @@ TEST_CASE("Delayed tasks" * doctest::skip(true))
 
 int main(int argc, char** argv)
 {
-  ccf::tasks::TaskSystem::init();
+  ccf::uv::tasks::TaskSystem::init();
   ccf::logger::config::default_init();
 
   doctest::Context context;

@@ -6,7 +6,7 @@
 #include <functional>
 #include <memory>
 
-namespace ccf::tasks
+namespace ccf::uv::tasks
 {
   class Task
   {

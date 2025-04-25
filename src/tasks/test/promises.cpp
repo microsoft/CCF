@@ -9,6 +9,9 @@
 #include <string>
 #include <vector>
 
+// NB: Not currently built, just a sketch of using variants + promise types to
+// report a (potentially cancelled or erroring) async result
+
 struct Cancelled
 {
   std::string reason;

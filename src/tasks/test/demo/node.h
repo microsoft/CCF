@@ -5,7 +5,7 @@
 #include "./actions.h"
 #include "./job_board.h"
 #include "./ordered_tasks.h"
-#include "tasks/queues/locking_concurrent_queue.h"
+#include "tasks/types/locking_concurrent_queue.h"
 
 #include <atomic>
 #include <string>

@@ -17,7 +17,7 @@ namespace
   {
   protected:
     std::mutex mutex;
-    std::deque<Task> queue;
+    std::deque<T> queue;
     bool active;
 
   public:

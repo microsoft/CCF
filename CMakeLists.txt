@@ -768,19 +768,22 @@ if(BUILD_TESTS)
     target_link_libraries(ds_test PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 
     add_library(
-      ccf_task_system ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/task_system.cpp
+      ccf_uv_task_system ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/uv/task_system.cpp
     )
-    set_property(TARGET ccf_task_system PROPERTY POSITION_INDEPENDENT_CODE ON)
-    target_compile_definitions(ccf_task_system PRIVATE CCF_LOGGER_NO_DEPRECATE)
-    target_link_libraries(ccf_task_system PUBLIC uv)
+    set_property(TARGET ccf_uv_task_system PROPERTY POSITION_INDEPENDENT_CODE ON)
+    target_compile_definitions(ccf_uv_task_system PRIVATE CCF_LOGGER_NO_DEPRECATE)
+    target_link_libraries(ccf_uv_task_system PUBLIC uv)
+    add_unit_test(
+      uv_task_system_test
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/uv/test/task_system.cpp
+    )
+    target_link_libraries(uv_task_system_test PRIVATE ccf_uv_task_system)
 
     add_unit_test(
       task_system_test
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/task_system.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/queues.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks/test/demo.cpp
     )
-    target_link_libraries(task_system_test PRIVATE ccf_task_system)
 
     add_unit_test(
       task_system_demo
