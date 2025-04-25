@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "./actions.h"
 #include "./node.h"
 
 #include <atomic>
@@ -18,8 +19,9 @@ struct ClientParams
 
   std::function<void()> submission_delay = []() { std::this_thread::yield(); };
 
-  std::function<std::string()> generate_next_action = []() {
-    return std::string("TODO");
+  std::function<ActionPtr()> generate_next_action = []() {
+    return std::make_unique<SignAction>();
+    // TODO: Add other actions, randomly chosen?
     // if (rand() % 4 == 0)
     // {
     //   return make_sleep_action(std::chrono::milliseconds(rand() % 5));
@@ -44,15 +46,17 @@ struct Client
   std::atomic<bool> stop_signal = false;
   std::thread thread;
 
-  Client(Node::IO& io, const ClientParams& params)
+  Client(Node::IO& io, const ClientParams& params, size_t idx)
   {
     using TClock = std::chrono::system_clock;
 
-    thread = std::thread([&]() {
+    thread = std::thread([&, idx]() {
+      ccf::threading::set_current_thread_name(fmt::format("c{}", idx));
+
       const auto start = TClock::now();
       const auto submission_end = start + params.submission_duration;
 
-      std::queue<std::string> pending_actions;
+      std::queue<ActionPtr> pending_actions;
 
       while (!stop_signal)
       {
@@ -61,11 +65,10 @@ struct Client
         if (still_submitting)
         {
           // ...generate and submit new work
-          // TODO: Separate Action (a) from SerialisedAction
-          auto a = params.generate_next_action();
+          auto action = params.generate_next_action();
           // std::cout << "Generated action " << a << std::endl;
-          pending_actions.push(a);
-          io.to_node.push_back(a);
+          io.to_node.emplace_back(action->serialise());
+          pending_actions.push(std::move(action));
         }
 
         // If we have any responses
@@ -74,8 +77,8 @@ struct Client
         {
           // Verify them (check that the first response matches the first
           // pending action)
-          // TODO: REQUIRE(!pending_actions.empty());
-          pending_actions.front().verify_response(response.value());
+          REQUIRE(!pending_actions.empty());
+          pending_actions.front()->verify_serialised_response(response.value());
           pending_actions.pop();
 
           // ...and check for further responses

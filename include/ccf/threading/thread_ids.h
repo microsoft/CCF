@@ -21,4 +21,7 @@ namespace ccf::threading
 
   uint16_t get_current_thread_id();
   void reset_thread_id_generator();
+
+  std::string get_current_thread_name();
+  void set_current_thread_name(std::string_view sv);
 }

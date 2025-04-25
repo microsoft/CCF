@@ -1,81 +1,19 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the Apache 2.0 License.
 
+#include "./demo/job_board.h"
+#include "./demo/ordered_tasks.h"
+
 #include <doctest/doctest.h>
 #define FMT_HEADER_ONLY
 #include <deque>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
-#include <functional>
 #include <optional>
 #include <queue>
 #include <random>
 #include <set>
 #include <thread>
-
-struct ITask
-{
-  virtual void do_task() = 0;
-};
-
-using Task = std::shared_ptr<ITask>;
-
-struct BasicTask : public ITask
-{
-  using Fn = std::function<void()>;
-
-  Fn fn;
-
-  BasicTask(const Fn& _fn) : fn(_fn) {}
-
-  void do_task() override
-  {
-    fn();
-  }
-};
-
-Task make_task(std::function<void()>&& func)
-{
-  return std::make_shared<BasicTask>(std::move(func));
-}
-
-struct IJobBoard
-{
-  virtual void add_task(Task&& t) = 0;
-  virtual Task get_task() = 0;
-  virtual bool empty() = 0;
-};
-
-struct JobBoard : public IJobBoard
-{
-  std::mutex mutex;
-  std::queue<Task> queue;
-
-  void add_task(Task&& t) override
-  {
-    std::lock_guard<std::mutex> lock(mutex);
-    queue.emplace(std::move(t));
-  }
-
-  Task get_task() override
-  {
-    std::lock_guard<std::mutex> lock(mutex);
-    if (queue.empty())
-    {
-      return nullptr;
-    }
-
-    Task t = queue.front();
-    queue.pop();
-    return t;
-  }
-
-  bool empty() override
-  {
-    std::lock_guard<std::mutex> lock(mutex);
-    return queue.empty();
-  }
-};
 
 void worker(IJobBoard& job_board, std::atomic<bool>& stop)
 {
@@ -201,50 +139,6 @@ TEST_CASE("JobBoard")
   fmt::print("Done\n");
 }
 
-template <typename T>
-class FunQueue
-{
-protected:
-  std::mutex mutex;
-  std::deque<T> queue;
-  bool active;
-
-public:
-  bool push(T&& t)
-  {
-    std::lock_guard<std::mutex> lock(mutex);
-    const bool ret = queue.empty() && !active;
-    queue.emplace_back(std::forward<T>(t));
-    return ret;
-  }
-
-  using Visitor = std::function<void(T&&)>;
-  bool pop_and_visit(Visitor&& visitor)
-  {
-    std::deque<T> local;
-    {
-      std::lock_guard<std::mutex> lock(mutex);
-      // assert(!active);
-      active = true;
-
-      std::swap(local, queue);
-    }
-
-    for (auto&& entry : local)
-    {
-      visitor(std::forward<T>(entry));
-    }
-
-    {
-      std::lock_guard<std::mutex> lock(mutex);
-      // assert(active);
-      active = false;
-
-      return !queue.empty();
-    }
-  }
-};
-
 TEST_CASE("FunQueue")
 {
   FunQueue<size_t> fq;
@@ -283,48 +177,6 @@ TEST_CASE("FunQueue")
 
   REQUIRE_FALSE(fq.pop_and_visit([&](size_t&& n) { fmt::print("{}\n", n); }));
 }
-
-class OrderedTasks : public ITask, public std::enable_shared_from_this<ITask>
-{
-protected:
-  IJobBoard& job_board;
-  FunQueue<Task> sub_tasks;
-
-  void enqueue_on_board()
-  {
-    job_board.add_task(shared_from_this());
-  }
-
-public:
-  OrderedTasks(IJobBoard& jb) : job_board(jb) {}
-
-  void do_task() override
-  {
-    thread_debug_print(fmt::format("doing {}", (void*)this));
-    if (sub_tasks.pop_and_visit([this](Task&& task) {
-          thread_debug_print(fmt::format(
-            "   inside {}, doing {}", (void*)this, (void*)task.get()));
-          task->do_task();
-        }))
-    {
-      thread_debug_print(fmt::format(
-        "queue was non-empty after popping, so enqueuing {}", (void*)this));
-      enqueue_on_board();
-    }
-  }
-
-  void add_task(Task&& task)
-  {
-    thread_debug_print(
-      fmt::format("adding task {} to {}", (void*)task.get(), (void*)this));
-    if (sub_tasks.push(std::move(task)))
-    {
-      thread_debug_print(
-        fmt::format("queue was empty, so enqueuing {}", (void*)this));
-      enqueue_on_board();
-    }
-  }
-};
 
 // TODO: Add some assertions that dependency order is preserved, and test across
 // different counts of worker threads

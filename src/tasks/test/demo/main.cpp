@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 License.
 
 #include "./actions.h"
-// #include "./clients.h"
-// #include "./node.h"
+#include "./clients.h"
+#include "./node.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
@@ -24,25 +24,31 @@ TEST_CASE("SignAction")
   }
 }
 
-TEST_CASE("Run" * doctest::skip())
+TEST_CASE("Run")
 {
-  /*
-  // Create a node
-  Node node(4);
-
-  // Create some clients
-  std::vector<Client> clients;
-  for (auto i = 0u; i < 12; ++i)
   {
-    clients.push_back(node.add_client());
+    // Create a node
+    JobBoard job_board;
+    Node node(2, job_board);
+
+    {
+      // Create some clients
+      ClientParams client_params;
+      std::vector<std::unique_ptr<Client>> clients;
+      for (auto i = 0u; i < 4; ++i)
+      {
+        clients.push_back(
+          std::make_unique<Client>(node.add_client(), client_params, i));
+      }
+
+      // Run everything
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+
+    // Validate results?
+    // Validate clean shutdown?
+    // Print some metrics?
   }
-
-  // Run everything
-
-  // Validate results?
-  // Validate clean shutdown?
-  // Print some metrics?
-  */
 }
 
 int main(int argc, char** argv)

@@ -44,7 +44,7 @@ namespace ccf::logger
     std::string tag;
     std::string file_name;
     size_t line_number;
-    uint16_t thread_id;
+    std::string thread_id;
 
     std::ostringstream ss;
     std::string msg;
@@ -54,7 +54,7 @@ namespace ccf::logger
       std::string_view tag_,
       std::string_view file_name_,
       size_t line_number_,
-      std::optional<uint16_t> thread_id_ = std::nullopt) :
+      std::optional<std::string> thread_id_ = std::nullopt) :
       log_level(level_),
       tag(tag_),
       file_name(file_name_),
@@ -66,11 +66,11 @@ namespace ccf::logger
       }
       else
       {
-#ifdef INSIDE_ENCLAVE
-        thread_id = ccf::threading::get_current_thread_id();
-#else
-        thread_id = 100;
-#endif
+        // #ifdef INSIDE_ENCLAVE
+        thread_id = ccf::threading::get_current_thread_name();
+        // #else
+        //         thread_id = 100;
+        // #endif
       }
     }
 
