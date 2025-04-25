@@ -2,9 +2,41 @@
 // Licensed under the Apache 2.0 License.
 #pragma once
 
+#include "./actions.h"
 #include "./job_board.h"
 #include "./looping_thread.h"
 #include "./ordered_tasks.h"
+
+struct Task_ProcessClientAction : public ITask
+{
+  const SerialisedAction input_action;
+  Session& client_session;
+
+  Task_ProcessClientAction(const SerialisedAction& action, Session& cs) :
+    input_action(action),
+    client_session(cs)
+  {}
+
+  void do_task()
+  {
+    // Separate into parse, exec, and respond tasks, to show it is
+    // possible?
+    auto received_action = deserialise_action(input_action);
+    auto result = received_action->do_action();
+
+    // TODO: Add some CallObligation type to ensure this is
+    // eventually done?
+    client_session.from_node.push_back(std::move(result));
+  }
+
+  std::string get_name() const
+  {
+    return fmt::format(
+      "Processing action '{}' from session {}",
+      input_action,
+      (void*)&client_session);
+  }
+};
 
 struct Dispatcher : public LoopingThread
 {
@@ -43,22 +75,8 @@ struct Dispatcher : public LoopingThread
       auto incoming = session->to_node.try_pop();
       while (incoming.has_value())
       {
-        auto [idx, remainder] = ccf::nonstd::split_1(incoming.value(), "|");
-        auto task = make_task(
-          [incoming = incoming, session = session.get()]() {
-            // TODO: This is where the real work happens! Make it a custom
-            // Task type to clarify?
-            // Separate into parse, exec, and respond tasks, to show it is
-            // possible?
-            auto received_action = deserialise_action(incoming.value());
-            auto result = received_action->do_action();
-
-            // TODO: Add some CallObligation type to ensure this is
-            // eventually done?
-            session->from_node.push_back(std::move(result));
-          },
-          fmt::format("[do {}]", idx));
-        tasks.add_task(std::move(task));
+        tasks.add_task(std::make_shared<Task_ProcessClientAction>(
+          incoming.value(), *session));
 
         incoming = session->to_node.try_pop();
       }
