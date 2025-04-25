@@ -56,6 +56,9 @@ def get_aci_env():
     else:
         (security_context_dir,) = glob.glob("/security-context-*")
         env[ACI_SEV_SNP_ENVVAR_UVM_SECURITY_CONTEXT_DIR] = security_context_dir
+    # If Fabric_NodeIPOrFQDN is set, pick it up
+    if "Fabric_NodeIPOrFQDN" in os.environ:
+        env["Fabric_NodeIPOrFQDN"] = os.environ["Fabric_NodeIPOrFQDN"]
     return env
 
 
