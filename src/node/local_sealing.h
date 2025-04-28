@@ -8,6 +8,7 @@
 #include "ccf/kv/version.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/snp_ioctl.h"
+#include "ds/ccf_assert.h"
 #include "ds/files.h"
 #include "node/ledger_secret.h"
 #include "node/ledger_secrets.h"
@@ -105,6 +106,8 @@ namespace ccf
   {
     LOG_INFO_FMT("Sealing ledger secret to {}", sealed_secret_dir);
 
+    files::create_directory(sealed_secret_dir);
+
     std::string plaintext = nlohmann::json(ledger_secret).dump();
     std::vector<uint8_t> buf_plaintext(plaintext.begin(), plaintext.end());
 
@@ -124,7 +127,8 @@ namespace ccf
     files::dump(sealed_secret.serialise(), sealing_path);
     auto aad_path = dir_path / get_aad_filename(version);
     files::dump(plainaad, aad_path);
-    LOG_INFO_FMT("Sealing complete of ledger secret to {} and {}", sealing_path, aad_path);
+    LOG_INFO_FMT(
+      "Sealing complete of ledger secret to {} and {}", sealing_path, aad_path);
   }
 
   inline LedgerSecretPtr unseal_ledger_secret_from_disk(
