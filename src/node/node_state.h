@@ -2903,8 +2903,10 @@ namespace ccf
       auto ledger_secret_path =
         config.recover.previous_sealed_ledger_secret_location.value();
 
-      return unseal_ledger_secret_from_disk(
-        config.recover.previous_sealed_ledger_secret_location.value());
+      auto max_version = network.tables->current_version();
+
+      return find_and_unseal_ledger_secret_from_disk(
+        config.recover.previous_sealed_ledger_secret_location.value(), max_version);
     }
 
   public:
