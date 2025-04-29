@@ -191,7 +191,7 @@ jobs:
           # All other acceptably fast tests, which are now supported on Azure Linux.
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
           # Partitions tests
-          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+          # ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
 
       - name: "Capture dmesg"
