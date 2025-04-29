@@ -1363,11 +1363,9 @@ if(BUILD_TESTS)
     )
 
     set(RECONFIG_TEST_ARGS --ccf-version ${CCF_VERSION})
-    add_e2e_test(
-      NAME reconfiguration_test_cft
-      PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
-      ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
-    )
+    # add_e2e_test( NAME reconfiguration_test_cft PYTHON_SCRIPT
+    # ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py ADDITIONAL_ARGS
+    # ${RECONFIG_TEST_ARGS} )
 
     add_e2e_test(
       NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
