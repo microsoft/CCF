@@ -178,10 +178,10 @@ jobs:
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
           whoami
-          mkdir build
-          sudo mount -t tmpfs -o size=20G tmpfs build/
+          mkdir /dev/shm/build
+          ln -sf /dev/shm/build/ build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
+          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug `dirname $PWD`
           ninja
         shell: bash
 
