@@ -231,7 +231,6 @@ class Node:
             )
 
         infra.path.copy2(sealed_ledger_secret_location, destination)
-        infra.path.copy2(sealed_ledger_secret_location + ".aad", destination + ".aad")
 
         return destination
 
