@@ -23,6 +23,12 @@ namespace ccf::tasks
       return deque.empty();
     }
 
+    size_t size()
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      return deque.size();
+    }
+
     void push_back(const T& t) override
     {
       std::lock_guard<std::mutex> lock(mutex);

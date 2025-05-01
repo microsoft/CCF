@@ -71,9 +71,9 @@ protected:
   }
 
 public:
-  OrderedTasks(IJobBoard& jb, std::string_view sv = "[Ordered]") :
+  OrderedTasks(IJobBoard& jb, const std::string& s = "[Ordered]") :
     job_board(jb),
-    name(sv)
+    name(s)
   {}
 
   void do_task() override

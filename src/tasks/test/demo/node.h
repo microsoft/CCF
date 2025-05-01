@@ -17,12 +17,12 @@
 
 struct Node
 {
+  SessionManager session_manager;
+
   IJobBoard& job_board;
 
   Dispatcher dispatcher;
   std::vector<std::unique_ptr<Worker>> workers;
-
-  SessionManager session_manager;
 
   Node(size_t num_workers, IJobBoard& jb) :
     job_board(jb),
@@ -34,8 +34,8 @@ struct Node
     }
   }
 
-  Session& new_session(std::string_view sv)
+  Session& new_session(const std::string& s)
   {
-    return session_manager.new_session(sv);
+    return session_manager.new_session(s);
   }
 };

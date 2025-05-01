@@ -21,7 +21,7 @@ struct BasicTask : public ITask
   const std::string name;
   Fn fn;
 
-  BasicTask(std::string_view sv, const Fn& _fn) : name(sv), fn(_fn) {}
+  BasicTask(const std::string& s, const Fn& _fn) : name(s), fn(_fn) {}
 
   void do_task() override
   {
@@ -34,7 +34,7 @@ struct BasicTask : public ITask
   }
 };
 
-Task make_task(std::function<void()>&& func, std::string_view sv = "[Anon]")
+Task make_task(std::function<void()>&& func, const std::string& s = "[Anon]")
 {
-  return std::make_shared<BasicTask>(sv, std::move(func));
+  return std::make_shared<BasicTask>(s, std::move(func));
 }

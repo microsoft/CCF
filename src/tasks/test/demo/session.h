@@ -14,7 +14,7 @@ struct Session
   ccf::tasks::LockingConcurrentQueue<std::string> to_node;
   ccf::tasks::LockingConcurrentQueue<std::string> from_node;
 
-  Session(std::string_view sv) : name(sv) {}
+  Session(const std::string& s) : name(s) {}
 };
 
 struct SessionManager
@@ -24,9 +24,14 @@ struct SessionManager
   std::mutex sessions_mutex;
   std::vector<SessionPtr> all_sessions;
 
-  Session& new_session(std::string_view sv)
+  ~SessionManager()
+  {
+    LOG_DEBUG_FMT("Destroying SessionManager");
+  }
+
+  Session& new_session(const std::string& s)
   {
     std::lock_guard<std::mutex> lock(sessions_mutex);
-    return *all_sessions.emplace_back(std::make_unique<Session>(sv));
+    return *all_sessions.emplace_back(std::make_unique<Session>(s));
   }
 };

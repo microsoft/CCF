@@ -38,18 +38,19 @@ struct Task_ProcessClientAction : public ITask
   }
 };
 
-struct Dispatcher : public LoopingThread
+struct DispatcherState
 {
   IJobBoard& job_board;
   SessionManager& session_manager;
 
   std::unordered_map<Session*, std::shared_ptr<OrderedTasks>>
     ordered_tasks_per_client;
+};
 
+struct Dispatcher : public LoopingThread<DispatcherState>
+{
   Dispatcher(IJobBoard& jb, SessionManager& sm) :
-    LoopingThread(fmt::format("dsp")),
-    job_board(jb),
-    session_manager(sm)
+    LoopingThread<DispatcherState>(fmt::format("dsp"), jb, sm)
   {}
 
   bool loop_behaviour() override
@@ -57,17 +58,17 @@ struct Dispatcher : public LoopingThread
     // Handle incoming IO, producing tasks to process each item
     // TODO: Ideally some kind of "session_manager.foreach", to avoid directly
     // taking their mutex?
-    std::lock_guard<std::mutex> lock(session_manager.sessions_mutex);
-    for (auto& session : session_manager.all_sessions)
+    std::lock_guard<std::mutex> lock(state.session_manager.sessions_mutex);
+    for (auto& session : state.session_manager.all_sessions)
     {
-      auto it = ordered_tasks_per_client.find(session.get());
-      if (it == ordered_tasks_per_client.end())
+      auto it = state.ordered_tasks_per_client.find(session.get());
+      if (it == state.ordered_tasks_per_client.end())
       {
-        it = ordered_tasks_per_client.emplace_hint(
+        it = state.ordered_tasks_per_client.emplace_hint(
           it,
           session.get(),
           std::make_shared<OrderedTasks>(
-            job_board, fmt::format("Tasks for {}", session->name)));
+            state.job_board, fmt::format("Tasks for {}", session->name)));
       }
 
       auto& tasks = *it->second;

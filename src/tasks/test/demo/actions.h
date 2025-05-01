@@ -20,7 +20,7 @@
 using SerialisedAction = std::string;
 using SerialisedResponse = std::string;
 
-size_t id_from_string(std::string_view sv)
+size_t id_from_string(const std::string_view& sv)
 {
   size_t n_id;
   const auto [p, ec] = std::from_chars(sv.begin(), sv.end(), n_id);
@@ -75,7 +75,7 @@ struct SignAction : public OrderedAction
 
   static std::vector<uint8_t> generate_random_data()
   {
-    auto len = 4; // rand() % 100;
+    auto len = rand() % 100;
     std::vector<uint8_t> data(len);
     for (auto& n : data)
     {

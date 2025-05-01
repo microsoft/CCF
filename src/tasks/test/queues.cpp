@@ -75,12 +75,12 @@ uint8_t thread_name()
   return std::hash<std::thread::id>{}(std::this_thread::get_id());
 }
 
-void thread_print(const std::string_view& s)
+void thread_print(const std::string& s)
 {
   fmt::print("[{:0x}] {}\n", thread_name(), s);
 }
 
-void thread_debug_print(const std::string_view& s)
+void thread_debug_print(const std::string& s)
 {
 #if false
   fmt::print("[{:0x}]   {}\n", thread_name(), s);

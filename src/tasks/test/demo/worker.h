@@ -4,19 +4,21 @@
 
 #include "./looping_thread.h"
 
-struct Worker : public LoopingThread
+struct WorkerState
 {
   IJobBoard& job_board;
+};
 
+struct Worker : public LoopingThread<WorkerState>
+{
   Worker(IJobBoard& jb, size_t idx) :
-    LoopingThread(fmt::format("w{}", idx)),
-    job_board(jb)
+    LoopingThread<WorkerState>(fmt::format("w{}", idx), jb)
   {}
 
   bool loop_behaviour() override
   {
-    // Wait at-most 100ms for a task
-    auto task = job_board.wait_for_task(std::chrono::milliseconds(100));
+    // Wait (with timeout) for a task
+    auto task = state.job_board.wait_for_task(std::chrono::milliseconds(10));
     if (task != nullptr)
     {
       task->do_task();
