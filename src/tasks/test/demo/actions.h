@@ -86,7 +86,7 @@ struct SignAction : public OrderedAction
 
   SignAction() : OrderedAction(), tbs(generate_random_data())
   {
-    LOG_INFO_FMT("Created a new SignAction id={}", id);
+    LOG_DEBUG_FMT("Created a new SignAction id={}", id);
   }
   SignAction(size_t _id, const std::vector<uint8_t>& _tbs) :
     OrderedAction(_id),
@@ -101,7 +101,7 @@ struct SignAction : public OrderedAction
 
   void verify_serialised_response(SerialisedResponse& response) const override
   {
-    LOG_INFO_FMT("Verifying a signature, for action id={}", id);
+    LOG_DEBUG_FMT("Verifying a signature, for action id={}", id);
     OrderedAction::verify_serialised_response(response);
 
     auto [key_s, signature_s] = ccf::nonstd::split_1(response, "|");
@@ -115,7 +115,7 @@ struct SignAction : public OrderedAction
 
   SerialisedResponse do_action() const override
   {
-    LOG_INFO_FMT("Signing something a client gave me, id={}", id);
+    LOG_DEBUG_FMT("Signing something a client gave me, id={}", id);
     auto key_pair = ccf::crypto::make_key_pair();
     auto signature = key_pair->sign(tbs);
     return fmt::format(

@@ -16,15 +16,16 @@ namespace
   class SubTaskQueue
   {
   protected:
+  public: // TODO: Bit weird
     std::mutex mutex;
     std::deque<T> queue;
-    bool active;
+    std::atomic<bool> active;
 
   public:
     bool push(T&& t)
     {
       std::lock_guard<std::mutex> lock(mutex);
-      const bool ret = queue.empty() && !active;
+      const bool ret = queue.empty() && !active.load();
       queue.emplace_back(std::forward<T>(t));
       return ret;
     }
@@ -35,7 +36,7 @@ namespace
       decltype(queue) local;
       {
         std::lock_guard<std::mutex> lock(mutex);
-        active = true;
+        active.store(true);
 
         std::swap(local, queue);
       }
@@ -47,7 +48,7 @@ namespace
 
       {
         std::lock_guard<std::mutex> lock(mutex);
-        active = false;
+        active.store(false);
         return !queue.empty();
       }
     }
@@ -61,6 +62,7 @@ namespace
 class OrderedTasks : public ITask, public std::enable_shared_from_this<ITask>
 {
 protected:
+public: // TODO: Bit weird
   std::string name;
   IJobBoard& job_board;
   SubTaskQueue<Task> sub_tasks;

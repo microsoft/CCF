@@ -58,7 +58,7 @@ struct Dispatcher : public LoopingThread<DispatcherState>
     shutdown();
   }
 
-  bool loop_behaviour() override
+  Stage loop_behaviour() override
   {
     // Handle incoming IO, producing tasks to process each item
     // TODO: Ideally some kind of "session_manager.foreach", to avoid directly
@@ -88,6 +88,6 @@ struct Dispatcher : public LoopingThread<DispatcherState>
       }
     }
 
-    return false;
+    return Stage::Running;
   }
 };

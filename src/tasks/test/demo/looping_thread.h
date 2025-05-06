@@ -8,6 +8,13 @@
 #include <string>
 #include <thread>
 
+enum class Stage
+{
+  PreInit,
+  Running,
+  ShuttingDown,
+  Terminated,
+};
 template <typename TState>
 struct LoopingThread
 {
@@ -24,10 +31,13 @@ struct LoopingThread
 
   const std::string name;
 
+  std::atomic<Stage> lifetime_stage;
+
   template <typename... Ts>
   LoopingThread(const std::string& _name, Ts&&... args) :
     state(std::forward<Ts>(args)...),
-    name(_name)
+    name(_name),
+    lifetime_stage(Stage::PreInit)
   {}
 
   virtual ~LoopingThread() = 0;
@@ -37,6 +47,8 @@ struct LoopingThread
     LOG_DEBUG_FMT("Stopping {}", name);
     stop_signal = true;
     thread.join();
+
+    lifetime_stage.store(Stage::Terminated);
   }
 
   virtual void start()
@@ -44,16 +56,26 @@ struct LoopingThread
     thread = std::thread([this]() {
       ccf::threading::set_current_thread_name(name);
 
+      lifetime_stage.store(Stage::PreInit);
+
       this->init_behaviour();
+
+      lifetime_stage.store(Stage::Running);
 
       while (!stop_signal)
       {
-        if (this->loop_behaviour())
+        auto loop_behaviour_target_stage = this->loop_behaviour();
+        REQUIRE(loop_behaviour_target_stage >= lifetime_stage);
+        lifetime_stage.store(loop_behaviour_target_stage);
+        if (lifetime_stage.load() == Stage::Terminated)
         {
           break;
         }
 
-        if (this->idle_behaviour())
+        auto idle_behaviour_target_stage = this->idle_behaviour();
+        REQUIRE(idle_behaviour_target_stage >= lifetime_stage);
+        lifetime_stage.store(idle_behaviour_target_stage);
+        if (lifetime_stage.load() == Stage::Terminated)
         {
           break;
         }
@@ -65,15 +87,16 @@ struct LoopingThread
 
   virtual void init_behaviour() {}
 
-  virtual bool loop_behaviour()
+  virtual Stage loop_behaviour()
   {
-    return true;
+    // Base loop_behaviour is to terminate immediately
+    return Stage::Terminated;
   }
 
-  virtual bool idle_behaviour()
+  virtual Stage idle_behaviour()
   {
     std::this_thread::yield();
-    return false;
+    return lifetime_stage.load();
   }
 };
 

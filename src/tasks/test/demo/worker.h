@@ -7,6 +7,8 @@
 struct WorkerState
 {
   IJobBoard& job_board;
+
+  size_t tasks_done;
 };
 
 struct Worker : public LoopingThread<WorkerState>
@@ -18,17 +20,21 @@ struct Worker : public LoopingThread<WorkerState>
   ~Worker() override
   {
     shutdown();
+
+    LOG_INFO_FMT(
+      "Shutting down {}, processed {} tasks", name, state.tasks_done);
   }
 
-  bool loop_behaviour() override
+  Stage loop_behaviour() override
   {
     // Wait (with timeout) for a task
     auto task = state.job_board.wait_for_task(std::chrono::milliseconds(10));
     if (task != nullptr)
     {
       task->do_task();
+      ++state.tasks_done;
     }
 
-    return false;
+    return Stage::Running;
   }
 };
