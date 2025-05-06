@@ -53,6 +53,11 @@ struct Dispatcher : public LoopingThread<DispatcherState>
     LoopingThread<DispatcherState>(fmt::format("dsp"), jb, sm)
   {}
 
+  ~Dispatcher() override
+  {
+    shutdown();
+  }
+
   bool loop_behaviour() override
   {
     // Handle incoming IO, producing tasks to process each item

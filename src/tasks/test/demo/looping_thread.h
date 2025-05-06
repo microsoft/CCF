@@ -22,12 +22,30 @@ struct LoopingThread
   std::atomic<bool> stop_signal = false;
   std::thread thread;
 
+  const std::string name;
+
   template <typename... Ts>
-  LoopingThread(const std::string& name, Ts&&... args) :
-    state(std::forward<Ts>(args)...)
+  LoopingThread(const std::string& _name, Ts&&... args) :
+    state(std::forward<Ts>(args)...),
+    name(_name)
+  {}
+
+  virtual ~LoopingThread() = 0;
+
+  virtual void shutdown()
   {
-    thread = std::thread([this, name]() {
+    LOG_DEBUG_FMT("Stopping {}", name);
+    stop_signal = true;
+    thread.join();
+  }
+
+  virtual void start()
+  {
+    thread = std::thread([this]() {
       ccf::threading::set_current_thread_name(name);
+
+      this->init_behaviour();
+
       while (!stop_signal)
       {
         if (this->loop_behaviour())
@@ -40,16 +58,12 @@ struct LoopingThread
           break;
         }
       }
+
+      LOG_DEBUG_FMT("Terminating thread");
     });
   }
 
-  virtual ~LoopingThread()
-  {
-    LOG_DEBUG_FMT("Exiting");
-    stop_signal = true;
-    thread.join();
-    LOG_DEBUG_FMT("Exited");
-  }
+  virtual void init_behaviour() {}
 
   virtual bool loop_behaviour()
   {
@@ -62,3 +76,7 @@ struct LoopingThread
     return false;
   }
 };
+
+template <typename T>
+inline LoopingThread<T>::~LoopingThread<T>()
+{}

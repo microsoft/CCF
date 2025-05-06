@@ -40,6 +40,14 @@ struct Client : public LoopingThread<ClientState>
 {
   Client(Session& _session, const ClientParams& _params, size_t idx) :
     LoopingThread<ClientState>(fmt::format("c{}", idx), _session, _params)
+  {}
+
+  ~Client() override
+  {
+    shutdown();
+  }
+
+  void init_behaviour() override
   {
     const auto start = State::TClock::now();
     state.submission_end = start + state.params.submission_duration;
@@ -74,13 +82,12 @@ struct Client : public LoopingThread<ClientState>
 
     // End loop if this client has submitted and verified everything
     const auto ret = state.pending_actions.empty() && !still_submitting;
-    LOG_INFO_FMT("Returning {}", ret);
     return ret;
   }
 
   bool idle_behaviour() override
   {
     state.params.submission_delay();
-    return true;
+    return false;
   }
 };

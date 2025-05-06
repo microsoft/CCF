@@ -34,6 +34,15 @@ struct Node
     }
   }
 
+  void start()
+  {
+    dispatcher.start();
+    for (auto& worker : workers)
+    {
+      worker->start();
+    }
+  }
+
   Session& new_session(const std::string& s)
   {
     return session_manager.new_session(s);

@@ -43,16 +43,18 @@ TEST_CASE("Run")
   {
     // Create a node
     JobBoard job_board;
-    Node node(1, job_board);
+    Node node(4, job_board);
+    node.start();
 
     {
       // Create some clients
       ClientParams client_params;
       std::vector<std::unique_ptr<Client>> clients;
-      for (auto i = 0u; i < 1; ++i)
+      for (auto i = 0u; i < 12; ++i)
       {
         clients.push_back(std::make_unique<Client>(
           node.new_session(std::to_string(i)), client_params, i));
+        clients.back()->start();
       }
 
       // Run everything

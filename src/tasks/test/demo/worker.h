@@ -15,6 +15,11 @@ struct Worker : public LoopingThread<WorkerState>
     LoopingThread<WorkerState>(fmt::format("w{}", idx), jb)
   {}
 
+  ~Worker() override
+  {
+    shutdown();
+  }
+
   bool loop_behaviour() override
   {
     // Wait (with timeout) for a task
