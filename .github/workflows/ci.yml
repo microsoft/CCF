@@ -198,7 +198,7 @@ jobs:
           echo "::endgroup::"
 
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit" -R reconfiguration_test
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
           # Partitions tests
           # ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
@@ -206,6 +206,9 @@ jobs:
       - name: "Capture dmesg"
         run: |
           set -ex
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
           dmesg > dmesg.log
         shell: bash
         if: success() || failure()
