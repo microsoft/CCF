@@ -720,6 +720,9 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 
     if (enable_auto_dr)
     {
+      CCF_ASSERT_FMT(
+        ccf::pal::platform == ccf::pal::Platform::SNP,
+        "Local sealing is only supported on SEV-SNP platforms");
       startup_config.sealed_ledger_secret_location =
         config.output_files.sealed_ledger_secret_location;
     }
@@ -812,6 +815,9 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
 
       if (enable_auto_dr)
       {
+        CCF_ASSERT_FMT(
+          ccf::pal::platform == ccf::pal::Platform::SNP,
+          "Local unsealing is only supported on SEV-SNP platforms");
         startup_config.recover.previous_sealed_ledger_secret_location =
           config.command.recover.previous_sealed_ledger_secret_location;
       }
