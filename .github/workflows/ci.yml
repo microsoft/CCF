@@ -192,8 +192,13 @@ jobs:
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
+
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit" -R reconfiguration_test
           # Partitions tests
           # ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
