@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import os
 from contextlib import contextmanager
-from shutil import copy2, rmtree
+from shutil import copy2, rmtree, copytree
 import hashlib
 
 from loguru import logger as LOG
@@ -89,6 +89,8 @@ def create_dir(dir_path):
 def copy_dir(src_path, dst_path):
     copy2(src_path, dst_path)
 
+def copy_tree(src_path, dst_path):
+    copytree(src_path, dst_path)
 
 def compute_file_checksum(file_name):
     h = hashlib.sha256()

@@ -226,7 +226,7 @@ class Node:
                 self.common_dir, f"{self.local_node_id}.sealed_ledger_secret"
             )
 
-        infra.path.copy_dir(sealed_ledger_secret_location, destination)
+        infra.path.copy_tree(sealed_ledger_secret_location, destination)
 
         return destination
 
