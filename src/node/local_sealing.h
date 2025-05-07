@@ -45,8 +45,8 @@ namespace ccf
     auto pos = path.find_first_of('.');
     if (pos == std::string::npos)
     {
-      throw std::logic_error(
-        fmt::format("Sealed ledger secret file name {} does not contain a version", path));
+      throw std::logic_error(fmt::format(
+        "Sealed ledger secret file name {} does not contain a version", path));
     }
 
     return std::stol(path.substr(0, pos));
