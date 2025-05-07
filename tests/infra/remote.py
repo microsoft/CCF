@@ -260,9 +260,6 @@ class LocalRemote(CmdMixin):
         Empty the temporary directory if it exists,
         and populate it with the initial set of files.
         """
-        # SNP Testing currently runs on a fileshare which does not support symlinks
-        if snp.IS_SNP:
-            use_links = False
         self._setup_files(use_links)
 
     def get_cmd(self, include_dir=True):
