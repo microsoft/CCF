@@ -162,26 +162,24 @@ jobs:
       - name: "Dump environment"
         run: |
           set -ex
+          # Dump environment variables, extract Fabric_NodeIPOrFQDN
+          # and save it to a file for reconfiguration test using THIM.
           cat /proc/*/environ | tr '\000' '\n' | sort -u | grep Fabric_NodeIPOrFQDN > /Fabric_NodeIPOrFQDN
+          echo "::group::Disk usage"
           df -kh
-          lsblk -f; mount
-
-        shell: bash
-
-      - name: "cpuinfo"
-        run: |
+          echo "::endgroup::"
+          echo "::group::CPU Info"
           cat /proc/cpuinfo
+          echo "::endgroup::"
         shell: bash
 
       - name: "Build Debug"
         run: |
           set -ex
           git config --global --add safe.directory /__w/CCF/CCF
-          whoami
-          mkdir /dev/shm/build
-          ln -sf /dev/shm/build/ build
+          mkdir build
           cd build
-          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug `dirname $PWD`
+          cmake -GNinja -DCOMPILE_TARGET=snp -DCMAKE_BUILD_TYPE=Debug ..
           ninja
         shell: bash
 
