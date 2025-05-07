@@ -46,10 +46,10 @@ namespace ccf
     if (pos == std::string::npos)
     {
       throw std::logic_error(
-        fmt::format("Ledger file name {} does not contain a version", path));
+        fmt::format("Sealed ledger secret file name {} does not contain a version", path));
     }
 
-    return std::stol(path.substr(pos + 1));
+    return std::stol(path.substr(0, pos));
   }
 
   inline crypto::GcmCipher aes_gcm_sealing(
