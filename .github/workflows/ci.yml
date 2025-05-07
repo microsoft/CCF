@@ -131,7 +131,7 @@ jobs:
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
           ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          # All other acceptably fast tests, which are now supported on Azure Linux.
+          # End to end tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
           # Partitions tests
           ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
@@ -191,8 +191,8 @@ jobs:
           mkdir -p /github/home/.cache
           export ASAN_SYMBOLIZER_PATH=$(realpath /usr/bin/llvm-symbolizer-15)
           # Unit tests
-          # ./tests.sh --output-on-failure -L unit -j$(nproc --all)
-          # All other acceptably fast tests, which are now supported on Azure Linux.
+          ./tests.sh --output-on-failure -L unit -j$(nproc --all)
+          # End to end tests
           ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
           # Partitions tests
           # ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
