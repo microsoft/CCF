@@ -1223,6 +1223,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 corrupted_secrets = self.lamb(secrets)
 
                 corrupt_ledger_secret_directory = f"{src}.{self.tag}.corrupt"
+                os.mkdir(corrupt_ledger_secret_directory, exist_ok=True)
                 for version, data in corrupted_secrets.items():
                     secret_path = os.path.join(
                         corrupt_ledger_secret_directory, f"{version}.sealed"
@@ -1279,13 +1280,13 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             }
 
         corruptions = [
-            Corruption("delete everything", lambda _: {}),
+            Corruption("delete_everything", lambda _: {}),
             Corruption("Max_version_ignored", max_version_ignored_corruption),
             Corruption(
                 "xor_ciphertext",
                 xor_corruption,
             ),
-            Corruption("Change tcb", change_tcb_corruption),
+            Corruption("Change_tcb", change_tcb_corruption),
             # Corruption(
             #    "valid_key_different_machine",
             #    lambda _, aad: (
