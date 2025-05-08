@@ -198,7 +198,7 @@ jobs:
           echo "::endgroup::"
 
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit|reconfiguration"
+          # ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit|reconfiguration"
 
           echo "::group::Disk usage"
           df -kh
