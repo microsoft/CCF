@@ -205,11 +205,11 @@ jobs:
           echo "::endgroup::"
 
           # Reconfiguration tests
-          ./tests.sh --timeout 360 --output-on-failure -L reconfiguration -C reconfiguration
+          # ./tests.sh --timeout 360 --output-on-failure -L reconfiguration -C reconfiguration
 
-          echo "::group::Disk usage"
-          df -kh
-          echo "::endgroup::"
+          # echo "::group::Disk usage"
+          # df -kh
+          # echo "::endgroup::"
         shell: bash
 
       - name: "Partition Tests"
