@@ -28,6 +28,7 @@ import infra.snp as snp
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from pycose.messages import Sign1Message
+import sys
 
 from loguru import logger as LOG
 
@@ -1196,39 +1197,100 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 self.tag = tag
                 self.lamb = lamb
 
-            def run(self, src):
-                corrupt_ledger_secret = f"{src}.{self.tag}.corrupt"
-                with open(src, "rb") as r, open(src, "rb") as aad, open(
-                    corrupt_ledger_secret, "wb"
-                ) as w, open(corrupt_ledger_secret + ".aad", "wb") as aad_w:
-                    sealed = r.read()
-                    aad_data = aad.read()
-                    sealed_n, aad_data_n = self.lamb(sealed, aad_data)
-                    w.write(sealed_n)
-                    aad_w.write(aad_data_n)
-                return corrupt_ledger_secret
+            def run(self, src_dir):
+
+                versions = set()
+                for file in os.listdir(src_dir):
+                    version = file.split(".")[0]
+                    versions.add(version)
+
+                def read_in(version):
+                    secret_path = os.path.join(src_dir, f"{version}.sealed")
+                    secret_data = None
+                    if os.path.exists(secret_path):
+                        with open(secret_path, "rb") as r:
+                            secret_data = r.read()
+
+                    aad_path = os.path.join(src_dir, f"{version}.aad")
+                    aad_data = None
+                    if os.path.exists(aad_path):
+                        with open(aad_path, "rb") as aad:
+                            aad_data = aad.read()
+                    return {"secret": secret_data, "aad": aad_data}
+
+                secrets = {version: read_in(version) for version in versions}
+
+                corrupted_secrets = self.lamb(secrets)
+
+                corrupt_ledger_secret_directory = f"{src}.{self.tag}.corrupt"
+                for version, data in corrupted_secrets.items():
+                    secret_path = os.path.join(
+                        corrupt_ledger_secret_directory, f"{version}.sealed"
+                    )
+                    aad_path = os.path.join(
+                        corrupt_ledger_secret_directory, f"{version}.aad"
+                    )
+
+                    if data["secret"] is not None:
+                        with open(secret_path, "wb") as w:
+                            w.write(data["secret"])
+
+                    if data["aad"] is not None:
+                        with open(aad_path, "wb") as w:
+                            w.write(data["aad"])
+
+                return corrupt_ledger_secret_directory
+
+        def xor_corruption(s):
+            return {
+                v: {
+                    "secret": bytes([b ^ 0xFF for b in s[v]["secret"]]),
+                    "aad": s[v]["aad"],
+                }
+                for v in s
+            }
+        def change_tcb_corruption(s):
+          def update(aad):
+            aad = json.loads(aad)
+            aad.update({"tcb_version" : {
+                "boot_loader": 0,
+                "microcode": 0,
+                "snp": 0,
+                "tee": 0,
+            }})
+            
+            return json.dumps(aad).encode("utf-8")
+          return {
+              v : {
+                  "secret": s[v]["secret"],
+                  "aad": update(s[v]["aad"]),
+              } for v in s.keys()
+          }
 
         corruptions = [
-            Corruption("write_nothing", lambda s, aad: (b"", b"")),
-            Corruption("xor", lambda s, aad: (bytes([b ^ 0xFF for b in s]), aad)),
+            Corruption("delete everything", lambda _: {}),
+            Corruption(
+                "Max_version_ignored",
+                lambda s: s.update(
+                    {"MaxVersion": {"secret": b"some data", "aad": b"some aad"}}
+                ),
+            ),
+            Corruption(
+                "xor_ciphertext",
+                xor_corruption,
+            ),
             Corruption(
                 "Change tcb",
-                lambda s, _: (
-                    s,
-                    '{"tcb_version":{"boot_loader":0,"microcode":0,"snp":0,"tee":0},"version":1}'.encode(
-                        "utf-8"
-                    ),
-                ),
-            ),
-            Corruption(
-                "valid_key_different_machine",
-                lambda _, aad: (
-                    bytes.fromhex(
-                        "da23ff28d3ad59a764e5041c1f08515447c7c20bcec3bd1b0d2e36edd56d90a5fc97d3382923dd49868139bb9a34fb7e8ea706397bc7ad409bcd88adcdf0a95e87e651c697d54c967cc7ec6a22a1762befde694d36c8"
-                    ),
-                    aad,
-                ),
-            ),
+                change_tcb_corruption),
+            #Corruption(
+            #    "valid_key_different_machine",
+            #    lambda _, aad: (
+            #        bytes.fromhex(
+            #            "da23ff28d3ad59a764e5041c1f08515447c7c20bcec3bd1b0d2e36edd56d90a5fc97d3382923dd49868139bb9a34fb7e8ea706397bc7ad409bcd88adcdf0a95e87e651c697d54c967cc7ec6a22a1762befde694d36c8"
+            #        ),
+            #        aad,
+            #    ),
+            #),
         ]
 
         # corrupt one of the ledgers
@@ -1299,4 +1361,4 @@ def run(args):
         run_recovery_local_unsealing(args, rekey=True)
         run_recovery_local_unsealing(args, recovery_shares_refresh=True)
         run_recovery_local_unsealing(args, recovery_f=1)
-        # run_recovery_unsealing_corrupt(args)
+        run_recovery_unsealing_corrupt(args)
