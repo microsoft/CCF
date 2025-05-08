@@ -164,10 +164,13 @@ namespace ccf
 
       return std::make_shared<LedgerSecret>(std::move(unsealed_ledger_secret));
     }
-    catch (const std::exception& e)
+    catch (const std::logic_error& e)
     {
-      throw std::logic_error(fmt::format(
-        "Failed to unseal the previous ledger secret: {}", e.what()));
+      LOG_INFO_FMT(
+        "Failed to unseal previous ledger secret from {}: {}",
+        ledger_secret_path,
+        e.what());
+      return nullptr;
     }
   }
 
@@ -220,35 +223,17 @@ namespace ccf
         continue;
       }
 
-      try
+      auto unsealed = unseal_ledger_secret_from_disk(sealed_path, aad_path);
+      if (unsealed != nullptr)
       {
-        auto unsealed = unseal_ledger_secret_from_disk(sealed_path, aad_path);
-        if (unsealed != nullptr)
-        {
-          LOG_INFO_FMT(
-            "Successfully unsealed ledger secret from {}",
-            sealed_path.string());
-          match = unsealed;
-          break;
-        }
-      }
-      catch (const std::exception& e)
-      {
-        LOG_FAIL_FMT(
-          "Failed to unseal ledger secret from {}: {}",
-          sealed_path.string(),
-          e.what());
+        LOG_INFO_FMT(
+          "Successfully unsealed ledger secret from {}", sealed_path.string());
+        return unsealed;
       }
     }
 
-    if (match.has_value())
-    {
-      return match.value();
-    }
-    else
-    {
-      throw std::logic_error(fmt::format(
-        "Failed to unseal any ledger secret from {}", sealed_secret_dir));
-    }
+    // No valid ledger secret has been unsealed
+    throw std::logic_error(fmt::format(
+      "Failed to unseal any ledger secret from {}", sealed_secret_dir));
   }
 }
