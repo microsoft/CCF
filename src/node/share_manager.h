@@ -576,7 +576,7 @@ namespace ccf
           restored_ledger_secrets.end())
         {
           // Already decrypted this ledger secret
-          LOG_DEBUG_FMT(
+          LOG_INFO_FMT(
             "Skipping, already decrypted ledger secret with version {}",
             it->previous_ledger_secret->version);
           continue;
