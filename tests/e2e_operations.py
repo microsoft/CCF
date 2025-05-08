@@ -1194,9 +1194,10 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
         network.stop_all_nodes()
 
         class Corruption:
-            def __init__(self, tag, lamb):
+            def __init__(self, tag, lamb, expected_exception):
                 self.tag = tag
                 self.lamb = lamb
+                self.expected_exception = expected_exception
 
             def run(self, src_dir):
 
@@ -1223,8 +1224,12 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
 
                 corrupted_secrets = self.lamb(secrets)
 
-                corrupt_ledger_secret_directory = os.path.join(os.path.dirname(src_dir), f"{self.tag}.corrupt")
-                pathlib.Path(corrupt_ledger_secret_directory).mkdir(parents=True, exist_ok=True)
+                corrupt_ledger_secret_directory = os.path.join(
+                    os.path.dirname(src_dir), f"{self.tag}.corrupt"
+                )
+                pathlib.Path(corrupt_ledger_secret_directory).mkdir(
+                    parents=True, exist_ok=True
+                )
                 for version, data in corrupted_secrets.items():
                     secret_path = os.path.join(
                         corrupt_ledger_secret_directory, f"{version}.sealed"
@@ -1281,13 +1286,10 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             }
 
         corruptions = [
-            Corruption("delete_everything", lambda _: {}),
-            Corruption("Max_version_ignored", max_version_ignored_corruption),
-            Corruption(
-                "xor_ciphertext",
-                xor_corruption,
-            ),
-            Corruption("Change_tcb", change_tcb_corruption),
+            Corruption("delete_everything", lambda _: {}, True),
+            Corruption("Max_version_ignored", max_version_ignored_corruption, False),
+            Corruption("xor_ciphertext", xor_corruption, True),
+            Corruption("Change_tcb", change_tcb_corruption, True),
             # Corruption(
             #    "valid_key_different_machine",
             #    lambda _, aad: (
@@ -1340,7 +1342,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 pass
 
             assert (
-                exception_thrown is not None
+                (exception_thrown is not None) == corruption.expected_exception
             ), f"Expected exception to be thrown for {corruption.tag} corruption"
 
             recovery_network.stop_all_nodes()
