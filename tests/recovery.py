@@ -1086,6 +1086,10 @@ def run(args):
         args, "sgx_service", expected_recovery_count=4, test_receipt=False
     )
 
+    test_recover_service_from_files(
+        args, "double_sealed_service", expected_recovery_count=2, test_receipt=False
+    )
+
 
 def test_incomplete_ledger_recovery(network, args):
     # Try to get incomplete pre-recovery ledger files with at least one
