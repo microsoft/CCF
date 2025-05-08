@@ -1341,9 +1341,12 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 exception_thrown = e
                 pass
 
-            assert (
-                (exception_thrown is not None) == corruption.expected_exception
-            ), f"Expected exception to be thrown for {corruption.tag} corruption"
+            if corruption.expected_exception:
+                assert (exception_thrown is not None) == True, f"Expected exception to be thrown for {corruption.tag} corruption"
+            else:
+                assert (
+                    exception_thrown is None
+                ), f"Expected no exception to be thrown for {corruption.tag} corruption"
 
             recovery_network.stop_all_nodes()
             prev_network = recovery_network
