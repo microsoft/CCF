@@ -210,9 +210,14 @@ jobs:
           echo "::group::Disk usage"
           df -kh
           echo "::endgroup::"
+        shell: bash
 
+      - name: "Partition Tests"
+        run: |
+          set -ex
+          cd build
           # Partitions tests
-          # ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
+          ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash
 
       - name: "Capture dmesg"
