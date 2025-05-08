@@ -1249,7 +1249,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 return corrupt_ledger_secret_directory
 
         def max_version_ignored_corruption(s):
-            s.update({"MaxVersion": {"secret": b"some data", "aad": b"some aad"}})
+            s.update({int(sys.maxsize): {"secret": b"some data", "aad": b"some aad"}})
             return s
 
         def xor_corruption(s):

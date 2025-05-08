@@ -16,6 +16,9 @@
 #include <algorithm>
 #include <filesystem>
 #include <fmt/format.h>
+#include <map>
+#include <optional>
+#include <ranges>
 
 namespace ccf
 {
@@ -40,7 +43,7 @@ namespace ccf
     return path.ends_with(".aad");
   }
 
-  inline kv::Version version_of_filename(const std::string& path)
+  inline std::optional<kv::Version> version_of_filename(const std::string& path)
   {
     auto pos = path.find_first_of('.');
     if (pos == std::string::npos)
@@ -49,7 +52,16 @@ namespace ccf
         "Sealed ledger secret file name {} does not contain a version", path));
     }
 
-    return std::stol(path.substr(0, pos));
+    try
+    {
+      return std::stol(path.substr(0, pos));
+    }
+    catch (const std::invalid_argument& e)
+    {
+      LOG_FAIL_FMT(
+        "Unable to parse version from file name {}, {}", path, e.what());
+      return std::nullopt;
+    }
   }
 
   inline crypto::GcmCipher aes_gcm_sealing(
@@ -177,31 +189,22 @@ namespace ccf
   inline LedgerSecretPtr find_and_unseal_ledger_secret_from_disk(
     const std::string& sealed_secret_dir, kv::Version max_version)
   {
-    std::vector<std::filesystem::path> files;
+    std::vector<std::pair<kv::Version, std::filesystem::path>> files;
+    std::map<kv::Version, std::filesystem::path> files_map;
     for (auto f : files::fs::directory_iterator(sealed_secret_dir))
     {
+      auto filename = f.path().filename();
+      std::optional<kv::Version> ledger_version = version_of_filename(filename.string());
       if (
-        is_aad_path(f.path().filename()) ||
-        version_of_filename(f.path().filename()) > max_version)
+        is_sealed_path(filename) && ledger_version.has_value() &&
+        ledger_version.value() <= max_version)
       {
-        continue;
+        files_map[ledger_version.value()] = f.path();
       }
-
-      files.push_back(f.path());
     }
-    // Sort from highest version first
-    std::sort(
-      files.begin(),
-      files.end(),
-      [](const std::filesystem::path& a, const std::filesystem::path& b) {
-        return version_of_filename(a.filename()) >
-          version_of_filename(b.filename());
-      });
 
-    std::optional<LedgerSecretPtr> match = std::nullopt;
-    for (auto const& sealed_path : files)
+    for (auto & [version, sealed_path] : std::ranges::reverse_view(files_map))
     {
-      auto version = version_of_filename(sealed_path.filename());
       auto aad_path = sealed_path.parent_path() / get_aad_filename(version);
       if (!files::exists(aad_path))
       {
