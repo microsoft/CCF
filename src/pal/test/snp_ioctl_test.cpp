@@ -71,8 +71,9 @@ TEST_CASE("SNP derived keys with different TCBs should be different")
     auto decrypted_plaintext =
       ccf::crypto::aes_gcm_decrypt(key2->get_raw(), ciphertext);
   }
-  catch (...)
+  catch (std::runtime_error& e)
   {
+    CHECK(std::string(e.what()) == "Failed to decrypt");
     threw = true;
   }
 
