@@ -2881,8 +2881,7 @@ namespace ccf
       }
 
       CCF_ASSERT(
-        snp_tcb_version.has_value(),
-        "TCB version must be set before sealing");
+        snp_tcb_version.has_value(), "TCB version must be set before sealing");
 
       seal_ledger_secret_to_disk(
         config.sealed_ledger_secret_location.value(),
