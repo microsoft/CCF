@@ -1248,9 +1248,21 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
 
                 return corrupt_ledger_secret_directory
 
+        corruptions = [Corruption("delete_everything", lambda _: {}, True)]
+
         def max_version_ignored_corruption(s):
             s.update({int(sys.maxsize): {"secret": b"some data", "aad": b"some aad"}})
             return s
+
+        corruptions.append(
+            Corruption("max_version_ignored", max_version_ignored_corruption, False)
+        )
+
+        def invalid_file_corruption(s):
+            s.update({"asdf": {"secret": b"some data", "aad": b"some aad"}})
+            return s
+
+        corruptions.append(Corruption("invalid_file", invalid_file_corruption, False))
 
         def xor_corruption(s):
             return {
@@ -1260,6 +1272,8 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 }
                 for v in s
             }
+
+        corruptions.append(Corruption("xor_ciphertext", xor_corruption, True))
 
         def change_tcb_corruption(s):
             def update(aad):
@@ -1285,21 +1299,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 for v in s.keys()
             }
 
-        corruptions = [
-            Corruption("delete_everything", lambda _: {}, True),
-            Corruption("Max_version_ignored", max_version_ignored_corruption, False),
-            Corruption("xor_ciphertext", xor_corruption, True),
-            Corruption("Change_tcb", change_tcb_corruption, True),
-            # Corruption(
-            #    "valid_key_different_machine",
-            #    lambda _, aad: (
-            #        bytes.fromhex(
-            #            "da23ff28d3ad59a764e5041c1f08515447c7c20bcec3bd1b0d2e36edd56d90a5fc97d3382923dd49868139bb9a34fb7e8ea706397bc7ad409bcd88adcdf0a95e87e651c697d54c967cc7ec6a22a1762befde694d36c8"
-            #        ),
-            #        aad,
-            #    ),
-            # ),
-        ]
+        corruptions.append(Corruption("change_tcb", change_tcb_corruption, True))
 
         # corrupt one of the ledgers
         node = network.nodes[0]
@@ -1342,7 +1342,11 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 pass
 
             if corruption.expected_exception:
-                assert (exception_thrown is not None) == True, f"Expected exception to be thrown for {corruption.tag} corruption"
+                assert (
+                    exception_thrown is not None
+                ) == True, (
+                    f"Expected exception to be thrown for {corruption.tag} corruption"
+                )
             else:
                 assert (
                     exception_thrown is None
