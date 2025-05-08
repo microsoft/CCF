@@ -153,7 +153,7 @@ def main():
     current_service_identity = None
 
     validator = (
-        (ccf.ledger.LedgerValidator() if not args.insecure_skip_verification else None),
+        ccf.ledger.LedgerValidator() if not args.insecure_skip_verification else None
     )
 
     for chunk in ledger:
