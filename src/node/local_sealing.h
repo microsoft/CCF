@@ -194,7 +194,8 @@ namespace ccf
     for (auto f : files::fs::directory_iterator(sealed_secret_dir))
     {
       auto filename = f.path().filename();
-      std::optional<kv::Version> ledger_version = version_of_filename(filename.string());
+      std::optional<kv::Version> ledger_version =
+        version_of_filename(filename.string());
       if (
         is_sealed_path(filename) && ledger_version.has_value() &&
         ledger_version.value() <= max_version)
@@ -203,7 +204,7 @@ namespace ccf
       }
     }
 
-    for (auto & [version, sealed_path] : std::ranges::reverse_view(files_map))
+    for (auto& [version, sealed_path] : std::ranges::reverse_view(files_map))
     {
       auto aad_path = sealed_path.parent_path() / get_aad_filename(version);
       if (!files::exists(aad_path))
