@@ -182,7 +182,7 @@ namespace ccf
     {
       if (
         is_aad_path(f.path().filename()) ||
-        version_of_filename(f.path().filename()) < max_version)
+        version_of_filename(f.path().filename()) > max_version)
       {
         continue;
       }
