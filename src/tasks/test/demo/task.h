@@ -18,10 +18,11 @@ struct BasicTask : public ITask
 {
   using Fn = std::function<void()>;
 
-  const std::string name;
   Fn fn;
+  const std::string name;
 
-  BasicTask(const std::string& s, const Fn& _fn) : name(s), fn(_fn) {}
+  BasicTask(const Fn& _fn, const std::string& s = "[Anon]") : name(s), fn(_fn)
+  {}
 
   void do_task() override
   {
@@ -34,7 +35,14 @@ struct BasicTask : public ITask
   }
 };
 
-Task make_task(std::function<void()>&& func, const std::string& s = "[Anon]")
+template <typename T, typename... Ts>
+Task make_task(Ts&&... ts)
 {
-  return std::make_shared<BasicTask>(s, std::move(func));
+  return std::make_shared<T>(std::forward<Ts>(ts)...);
+}
+
+template <typename... Ts>
+Task make_basic_task(Ts&&... ts)
+{
+  return make_task<BasicTask>(std::forward<Ts>(ts)...);
 }
