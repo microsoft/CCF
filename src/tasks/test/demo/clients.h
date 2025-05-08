@@ -83,15 +83,15 @@ struct Client : public LoopingThread<ClientState>
     while (response.has_value())
     {
       // Verification is expensive, so we end up spending a long tail time in
-      // this tail verifying every response (longer than we spent doing real
+      // this test verifying every response (longer than we spent doing real
       // work). Mitigate this by only checking some responses, randomly
       // determined, estimating how far 'behind' we are (and thus how likely we
       // should be to skip verification) by the length of pending messages.
       const auto n = rand() % 100;
-      if (n >= state.pending_actions.size())
+      if (n >= state.pending_actions.size() || n == 0)
       {
-        // Verify them (check that the first response matches the first
-        // pending action)
+        // Verify (check that the first response matches the first pending
+        // action)
         REQUIRE(!state.pending_actions.empty());
         state.pending_actions.front()->verify_serialised_response(
           response.value());

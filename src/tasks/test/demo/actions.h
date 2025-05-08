@@ -104,25 +104,45 @@ struct SignAction : public OrderedAction
     LOG_DEBUG_FMT("Verifying a signature, for action id={}", id);
     OrderedAction::verify_serialised_response(response);
 
-    auto [key_s, signature_s] = ccf::nonstd::split_1(response, "|");
+    auto [a, b] = ccf::nonstd::split_1(response, "|");
 
-    ccf::crypto::Pem pem{std::string(key_s)};
-    auto pubk = ccf::crypto::make_public_key(pem);
+    if (a == "FAILED")
+    {
+      // auto reason = b;
+    }
+    else
+    {
+      auto key_s = a;
+      auto signature_s = b;
 
-    auto signature = ccf::ds::from_hex(std::string(signature_s));
-    REQUIRE(pubk->verify(tbs, signature));
+      ccf::crypto::Pem pem{std::string(key_s)};
+      auto pubk = ccf::crypto::make_public_key(pem);
+
+      auto signature = ccf::ds::from_hex(std::string(signature_s));
+      REQUIRE(pubk->verify(tbs, signature));
+    }
   }
 
   SerialisedResponse do_action() const override
   {
     LOG_DEBUG_FMT("Signing something a client gave me, id={}", id);
-    auto key_pair = ccf::crypto::make_key_pair();
-    auto signature = key_pair->sign(tbs);
-    return fmt::format(
-      "{}{}|{}",
-      OrderedAction::do_action(),
-      key_pair->public_key_pem().str(),
-      ccf::ds::to_hex(signature));
+
+    // Randomly fail some small fraction of requests
+    if (rand() % 50 == 0)
+    {
+      return fmt::format(
+        "{}FAILED|Randomly unlucky", OrderedAction::do_action());
+    }
+    else
+    {
+      auto key_pair = ccf::crypto::make_key_pair();
+      auto signature = key_pair->sign(tbs);
+      return fmt::format(
+        "{}{}|{}",
+        OrderedAction::do_action(),
+        key_pair->public_key_pem().str(),
+        ccf::ds::to_hex(signature));
+    }
   }
 };
 
