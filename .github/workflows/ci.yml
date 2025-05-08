@@ -198,7 +198,19 @@ jobs:
           echo "::endgroup::"
 
           # End to end tests
-          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit"
+          ./tests.sh --timeout 360 --output-on-failure -LE "benchmark|suite|unit|reconfiguration"
+
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
+
+          # Reconfiguration tests
+          ./tests.sh --timeout 360 --output-on-failure -L reconfiguration -C reconfiguration
+
+          echo "::group::Disk usage"
+          df -kh
+          echo "::endgroup::"
+
           # Partitions tests
           # ./tests.sh --timeout 360 --output-on-failure -L partitions -C partitions
         shell: bash

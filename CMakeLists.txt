@@ -1067,6 +1067,9 @@ if(BUILD_TESTS)
         --test-duration 300 --test-suite reconfiguration --jinja-templates-path
         ${CMAKE_SOURCE_DIR}/samples/templates
     )
+    set_property(
+      TEST reconfiguration_test_suite PROPERTY LABELS reconfiguration
+    )
 
     if(LONG_TESTS)
       add_e2e_test(
@@ -1368,6 +1371,7 @@ if(BUILD_TESTS)
       PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/reconfiguration.py
       ADDITIONAL_ARGS ${RECONFIG_TEST_ARGS}
     )
+    set_property(TEST reconfiguration_test_cft PROPERTY LABELS reconfiguration)
 
     add_e2e_test(
       NAME election_test PYTHON_SCRIPT ${CMAKE_SOURCE_DIR}/tests/election.py
