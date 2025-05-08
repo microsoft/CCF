@@ -39,6 +39,8 @@ struct ClientState
 
   size_t requests_sent;
   size_t responses_seen;
+
+  bool terminated_early = false;
 };
 
 struct Client : public LoopingThread<ClientState>
@@ -56,7 +58,11 @@ struct Client : public LoopingThread<ClientState>
       name,
       state.requests_sent,
       state.responses_seen);
-    REQUIRE(state.requests_sent == state.responses_seen);
+
+    if (!state.terminated_early)
+    {
+      REQUIRE(state.requests_sent == state.responses_seen);
+    }
   }
 
   void init_behaviour() override
@@ -67,6 +73,13 @@ struct Client : public LoopingThread<ClientState>
 
   Stage loop_behaviour() override
   {
+    if (rand() % 4000 == 0)
+    {
+      state.terminated_early = true;
+      state.session.abandoned.store(true);
+      return Stage::Terminated;
+    }
+
     const bool still_submitting = State::TClock::now() < state.submission_end;
     if (still_submitting)
     {

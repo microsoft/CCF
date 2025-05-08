@@ -78,12 +78,15 @@ public:
     name(s)
   {}
 
-  void do_task() override
+  size_t do_task() override
   {
-    if (sub_tasks.pop_and_visit([this](Task&& task) { task->do_task(); }))
+    size_t n = 0;
+    if (sub_tasks.pop_and_visit(
+          [this, &n](Task&& task) { n += task->do_task(); }))
     {
       enqueue_on_board();
     }
+    return n;
   }
 
   std::string get_name() const override

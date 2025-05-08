@@ -7,7 +7,8 @@
 
 struct ITask
 {
-  virtual void do_task() = 0;
+  // Return some value indicating how much work was done.
+  virtual size_t do_task() = 0;
 
   virtual std::string get_name() const = 0;
 };
@@ -24,9 +25,10 @@ struct BasicTask : public ITask
   BasicTask(const Fn& _fn, const std::string& s = "[Anon]") : name(s), fn(_fn)
   {}
 
-  void do_task() override
+  size_t do_task() override
   {
     fn();
+    return 1;
   }
 
   std::string get_name() const override

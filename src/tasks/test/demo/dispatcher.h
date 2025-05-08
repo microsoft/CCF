@@ -17,7 +17,7 @@ struct Task_ProcessClientAction : public ITask
     client_session(cs)
   {}
 
-  void do_task()
+  size_t do_task()
   {
     // Separate into parse, exec, and respond tasks, to show it is
     // possible?
@@ -27,6 +27,8 @@ struct Task_ProcessClientAction : public ITask
     // TODO: Add some CallObligation type to ensure this is
     // eventually done?
     client_session.from_node.push_back(std::move(result));
+
+    return 1;
   }
 
   std::string get_name() const
@@ -45,6 +47,8 @@ struct DispatcherState
 
   std::unordered_map<Session*, std::shared_ptr<OrderedTasks>>
     ordered_tasks_per_client;
+
+  std::atomic<bool> consider_ternination = false;
 };
 
 struct Dispatcher : public LoopingThread<DispatcherState>
@@ -63,6 +67,12 @@ struct Dispatcher : public LoopingThread<DispatcherState>
     // Handle incoming IO, producing tasks to process each item
     // TODO: Ideally some kind of "session_manager.foreach", to avoid directly
     // taking their mutex?
+
+    // Produce a return value of Terminated if consider_ternination has been
+    // set, and we pop nothing off incoming in this iteration
+    Stage ret_val =
+      state.consider_ternination.load() ? Stage::Terminated : Stage::Running;
+
     std::lock_guard<std::mutex> lock(state.session_manager.sessions_mutex);
     for (auto& session : state.session_manager.all_sessions)
     {
@@ -81,6 +91,8 @@ struct Dispatcher : public LoopingThread<DispatcherState>
       auto incoming = session->to_node.try_pop();
       while (incoming.has_value())
       {
+        ret_val = Stage::Running;
+
         tasks.add_task(std::make_shared<Task_ProcessClientAction>(
           incoming.value(), *session));
 
@@ -88,6 +100,6 @@ struct Dispatcher : public LoopingThread<DispatcherState>
       }
     }
 
-    return Stage::Running;
+    return ret_val;
   }
 };

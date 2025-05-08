@@ -45,8 +45,12 @@ struct LoopingThread
   virtual void shutdown()
   {
     LOG_DEBUG_FMT("Stopping {}", name);
-    stop_signal = true;
-    thread.join();
+    stop_signal.store(true);
+
+    if (thread.joinable())
+    {
+      thread.join();
+    }
 
     lifetime_stage.store(Stage::Terminated);
   }

@@ -21,12 +21,14 @@ struct ICancellableTask : public BaseT
     return cancelled.load();
   }
 
-  void do_task() override
+  size_t do_task() override
   {
     if (!cancelled.load())
     {
-      BaseT::do_task();
+      return BaseT::do_task();
     }
+
+    return 0;
   }
 };
 

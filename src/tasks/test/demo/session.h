@@ -14,6 +14,8 @@ struct Session
   ccf::tasks::LockingConcurrentQueue<std::string> to_node;
   ccf::tasks::LockingConcurrentQueue<std::string> from_node;
 
+  std::atomic<bool> abandoned = false;
+
   Session(const std::string& s) : name(s) {}
 };
 

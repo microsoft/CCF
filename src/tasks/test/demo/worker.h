@@ -8,7 +8,9 @@ struct WorkerState
 {
   IJobBoard& job_board;
 
-  size_t tasks_done;
+  size_t work_completed;
+
+  std::atomic<bool> consider_termination = false;
 };
 
 struct Worker : public LoopingThread<WorkerState>
@@ -22,7 +24,7 @@ struct Worker : public LoopingThread<WorkerState>
     shutdown();
 
     LOG_INFO_FMT(
-      "Shutting down {}, processed {} tasks", name, state.tasks_done);
+      "Shutting down {}, processed {} tasks", name, state.work_completed);
   }
 
   Stage loop_behaviour() override
@@ -31,8 +33,11 @@ struct Worker : public LoopingThread<WorkerState>
     auto task = state.job_board.wait_for_task(std::chrono::milliseconds(10));
     if (task != nullptr)
     {
-      task->do_task();
-      ++state.tasks_done;
+      state.work_completed += task->do_task();
+    }
+    else if (state.consider_termination.load())
+    {
+      return Stage::Terminated;
     }
 
     return Stage::Running;

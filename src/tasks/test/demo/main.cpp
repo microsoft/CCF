@@ -109,6 +109,10 @@ void describe_dispatcher(Dispatcher& d)
 
 TEST_CASE("Run")
 {
+  size_t total_requests_sent = 0;
+  size_t total_responses_seen = 0;
+  size_t total_tasks_processed = 0;
+
   {
     // Create a node
     JobBoard job_board;
@@ -162,15 +166,40 @@ TEST_CASE("Run")
         }
       }
 
-      LOG_INFO_FMT("Shutting down clients");
+      for (auto& client : clients)
+      {
+        total_requests_sent += client->state.requests_sent;
+        total_responses_seen += client->state.responses_seen;
+      }
+
+      LOG_INFO_FMT(
+        "Shutting down clients, total sent: {}, total seen: {}",
+        total_requests_sent,
+        total_responses_seen);
     }
 
+    node.dispatcher.state.consider_ternination.store(true);
+    node.dispatcher.shutdown();
+
     describe_dispatcher(node.dispatcher);
+
+    for (auto& worker : node.workers)
+    {
+      worker->state.consider_termination.store(true);
+      worker->shutdown();
+      total_tasks_processed += worker->state.work_completed;
+    }
 
     // Validate results?
     // Validate clean shutdown?
     // Print some metrics?
   }
+
+  LOG_INFO_FMT(
+    "{} vs {} vs {}",
+    total_requests_sent,
+    total_responses_seen,
+    total_tasks_processed);
 }
 
 int main(int argc, char** argv)
