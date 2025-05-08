@@ -1241,6 +1241,10 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
 
                 return corrupt_ledger_secret_directory
 
+        def max_version_ignored_corruption(s):
+            s.update({"MaxVersion": {"secret": b"some data", "aad": b"some aad"}})
+            return s
+
         def xor_corruption(s):
             return {
                 v: {
@@ -1249,40 +1253,40 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 }
                 for v in s
             }
+
         def change_tcb_corruption(s):
-          def update(aad):
-            aad = json.loads(aad)
-            aad.update({"tcb_version" : {
-                "boot_loader": 0,
-                "microcode": 0,
-                "snp": 0,
-                "tee": 0,
-            }})
-            
-            return json.dumps(aad).encode("utf-8")
-          return {
-              v : {
-                  "secret": s[v]["secret"],
-                  "aad": update(s[v]["aad"]),
-              } for v in s.keys()
-          }
+            def update(aad):
+                aad = json.loads(aad)
+                aad.update(
+                    {
+                        "tcb_version": {
+                            "boot_loader": 0,
+                            "microcode": 0,
+                            "snp": 0,
+                            "tee": 0,
+                        }
+                    }
+                )
+
+                return json.dumps(aad).encode("utf-8")
+
+            return {
+                v: {
+                    "secret": s[v]["secret"],
+                    "aad": update(s[v]["aad"]),
+                }
+                for v in s.keys()
+            }
 
         corruptions = [
             Corruption("delete everything", lambda _: {}),
-            Corruption(
-                "Max_version_ignored",
-                lambda s: s.update(
-                    {"MaxVersion": {"secret": b"some data", "aad": b"some aad"}}
-                ),
-            ),
+            Corruption("Max_version_ignored", max_version_ignored_corruption),
             Corruption(
                 "xor_ciphertext",
                 xor_corruption,
             ),
-            Corruption(
-                "Change tcb",
-                change_tcb_corruption),
-            #Corruption(
+            Corruption("Change tcb", change_tcb_corruption),
+            # Corruption(
             #    "valid_key_different_machine",
             #    lambda _, aad: (
             #        bytes.fromhex(
@@ -1290,7 +1294,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             #        ),
             #        aad,
             #    ),
-            #),
+            # ),
         ]
 
         # corrupt one of the ledgers
