@@ -166,7 +166,7 @@ namespace ccf
     }
     catch (const std::logic_error& e)
     {
-      LOG_INFO_FMT(
+      LOG_FAIL_FMT(
         "Failed to unseal previous ledger secret from {}: {}",
         ledger_secret_path,
         e.what());
@@ -205,7 +205,7 @@ namespace ccf
       auto aad_path = sealed_path.parent_path() / get_aad_filename(version);
       if (!files::exists(aad_path))
       {
-        LOG_INFO_FMT(
+        LOG_FAIL_FMT(
           "AAD file {} does not exist for sealed ledger secret {}",
           aad_path,
           sealed_path);
@@ -216,7 +216,7 @@ namespace ccf
         nlohmann::json::parse(std::string(aad_raw.begin(), aad_raw.end()));
       if (aad.version != version)
       {
-        LOG_INFO_FMT(
+        LOG_FAIL_FMT(
           "AAD version {} does not match sealed ledger secret version {}",
           aad.version,
           version);
