@@ -1222,7 +1222,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
 
                 corrupted_secrets = self.lamb(secrets)
 
-                corrupt_ledger_secret_directory = f"{src}.{self.tag}.corrupt"
+                corrupt_ledger_secret_directory = f"{src_dir}.{self.tag}.corrupt"
                 os.mkdir(corrupt_ledger_secret_directory, exist_ok=True)
                 for version, data in corrupted_secrets.items():
                     secret_path = os.path.join(
