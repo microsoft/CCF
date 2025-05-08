@@ -29,6 +29,7 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from pycose.messages import Sign1Message
 import sys
+import pathlib
 
 from loguru import logger as LOG
 
@@ -1222,8 +1223,8 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
 
                 corrupted_secrets = self.lamb(secrets)
 
-                corrupt_ledger_secret_directory = f"{src_dir}.{self.tag}.corrupt"
-                os.mkdir(corrupt_ledger_secret_directory, exist_ok=True)
+                corrupt_ledger_secret_directory = os.path.join(os.path.dirname(src_dir), f"{self.tag}.corrupt")
+                pathlib.Path(corrupt_ledger_secret_directory).mkdir(parents=True, exist_ok=True)
                 for version, data in corrupted_secrets.items():
                     secret_path = os.path.join(
                         corrupt_ledger_secret_directory, f"{version}.sealed"
