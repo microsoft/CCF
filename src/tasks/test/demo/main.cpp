@@ -178,7 +178,7 @@ TEST_CASE("Run")
         total_responses_seen);
     }
 
-    node.dispatcher.state.consider_ternination.store(true);
+    node.dispatcher.state.consider_termination.store(true);
     node.dispatcher.shutdown();
 
     describe_dispatcher(node.dispatcher);
@@ -198,8 +198,11 @@ TEST_CASE("Run")
   LOG_INFO_FMT(
     "{} vs {} vs {}",
     total_requests_sent,
-    total_responses_seen,
-    total_tasks_processed);
+    total_tasks_processed,
+    total_responses_seen);
+
+  REQUIRE(total_requests_sent >= total_tasks_processed);
+  REQUIRE(total_tasks_processed >= total_responses_seen);
 }
 
 int main(int argc, char** argv)

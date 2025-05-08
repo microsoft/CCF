@@ -5,7 +5,7 @@
 #include "./task.h"
 
 template <typename BaseT>
-struct ICancellableTask : public BaseT
+struct Cancellable : public BaseT
 {
   std::atomic<bool> cancelled = false;
 
@@ -33,10 +33,10 @@ struct ICancellableTask : public BaseT
 };
 
 template <typename T>
-using CancellableTask = std::shared_ptr<ICancellableTask<T>>;
+using CancellableTask = std::shared_ptr<Cancellable<T>>;
 
 template <typename T, typename... Ts>
 CancellableTask<T> make_cancellable_task(Ts&&... ts)
 {
-  return std::make_shared<ICancellableTask<T>>(std::forward<Ts>(ts)...);
+  return std::make_shared<Cancellable<T>>(std::forward<Ts>(ts)...);
 }
