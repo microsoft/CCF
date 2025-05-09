@@ -571,10 +571,25 @@ namespace ccf
            it != recovery_ledger_secrets.rend();
            it++)
       {
+        LOG_DEBUG_FMT(
+          "Recovering encrypted ledger secret valid at seqno {}",
+          it->previous_ledger_secret->version);
+
         if (!it->previous_ledger_secret.has_value())
         {
           // Very first entry does not encrypt any other ledger secret
           break;
+        }
+
+        if (
+          restored_ledger_secrets.find(it->previous_ledger_secret->version) !=
+          restored_ledger_secrets.end())
+        {
+          // Already decrypted this ledger secret
+          LOG_INFO_FMT(
+            "Skipping, already decrypted ledger secret with version {}",
+            it->previous_ledger_secret->version);
+          continue;
         }
 
         auto decrypted_ls_raw = decrypt_previous_ledger_secret_raw(
