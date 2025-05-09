@@ -36,6 +36,13 @@ struct Task_ProcessClientAction : public ITask
     This is not so flexible (task dependencies need to be known in advance), but
     may be sufficient?
 
+    Technically we could have 2 task queues here, for processing and requests
+    (you can process A, B, and C before responding to A. But you can't respond
+    to B before responding to A). But this just leaves a weird hole where you've
+    "processed" something, but never get around to responding. Responding
+    immediately after processing is not a critical dependency, but helpful
+    expectation in-practice?
+
     Tasks::current_task()
       .then(
         () { return deserialise_action(input_action); }
