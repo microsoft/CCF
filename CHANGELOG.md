@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - SymCrypt backend is pinned to 1.7.0 until https://github.com/microsoft/SymCrypt-OpenSSL/issues/115 gets shipped (#6995).
+- Disaster recovery process is now robust to services which have sealed the same secret multiple times (#6999).
 
 ## [6.0.1]
 
