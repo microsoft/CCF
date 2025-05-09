@@ -1,20 +1,21 @@
 ---- MODULE autoopen ----
 
-EXTENDS Integers, Sequences, FiniteSets
+EXTENDS Integers, Sequences, FiniteSets, TLC
 
 CONSTANTS
   NID
 
-MAJ_QUORUM_LIMIT == (Cardinality(NID) + 1) \div 2
+MAJ_QUORUM_LIMIT == (Cardinality(NID)) \div 2 + 1
 
 VARIABLES 
   next_step,
   txids,
   gossip_msgs,
+  recv_gossips,
   vote_msgs,
   open_msgs
 
-vars == <<next_step, txids, gossip_msgs, vote_msgs, open_msgs>>
+vars == <<next_step, txids, gossip_msgs, recv_gossips, vote_msgs, open_msgs>>
 
 TypeOk ==
   /\ next_step \in [NID -> {"gossip", "vote", "open/join", "open", "join"}]
@@ -23,49 +24,62 @@ TypeOk ==
     src : NID,
     txid : Nat
     ]
+  /\ recv_gossips \in [NID -> SUBSET gossip_msgs]
   /\ vote_msgs \subseteq [
     src : NID,
     vote : NID,
-    kind : {"quorum", "timeout"}
+    recv : SUBSET NID
     ]
   /\ open_msgs \subseteq [
     src : NID
     ]
 
+TXID == 
+  CHOOSE F \in [NID -> 1..Cardinality(NID)]:
+  \A k1, k2 \in DOMAIN F: F[k1] = F[k2] => k1 = k2
+
 Init ==
     /\ next_step = [n \in NID |-> "gossip"]
-    /\ txids = [n \in NID |-> n]
+    /\ txids = [n \in NID|-> TXID[n]]
     /\ gossip_msgs = {}
+    /\ recv_gossips = [n \in NID |-> {}]
     /\ vote_msgs = {}
     /\ open_msgs = {}
 
 ActionSendGossip(n) ==
+  LET msg == [src |-> n, txid |-> txids[n]] IN
   /\ next_step[n] = "gossip"
   /\ next_step' = [next_step EXCEPT ![n] = "vote"]
-  /\ gossip_msgs' = gossip_msgs \cup {[src |-> n, txid |-> txids[n]]}
+  /\ recv_gossips' = [recv_gossips EXCEPT ![n] = recv_gossips[n] \cup {msg}]
+  /\ gossip_msgs' = gossip_msgs \cup {msg}
   /\ UNCHANGED << txids, vote_msgs, open_msgs >>
 
-Vote(n, gossips, kind) ==
-  LET max_txid_gossip == 
-       CHOOSE g \in gossips:
-       \A g1 \in gossips: g.txid >= g1.txid
-      vote == [src |-> n, vote |-> max_txid_gossip.src, kind |-> kind]
+ActionRecvGossip(n) ==
+  \E m \in gossip_msgs:
+  /\ m \notin recv_gossips[n]
+  /\ recv_gossips' = [recv_gossips EXCEPT ![n] = recv_gossips[n] \cup {m}]
+  /\ UNCHANGED << next_step, txids, gossip_msgs, vote_msgs, open_msgs >>
+
+Vote(n) ==
+  LET recv_nodes == {g.src : g \in recv_gossips[n]} 
+      max_txid_gossip == 
+       CHOOSE g \in recv_gossips[n]:
+       \A g1 \in recv_gossips[n]: g.txid >= g1.txid
+      vote == [src |-> n, vote |-> max_txid_gossip.src, recv |-> recv_nodes]
   IN 
   /\ next_step[n] = "vote"
   /\ next_step' = [next_step EXCEPT ![n] = "open/join"]
   /\ vote_msgs' = vote_msgs \cup {vote}
-  /\ UNCHANGED << txids, gossip_msgs, open_msgs >>
+  /\ UNCHANGED << txids, gossip_msgs, recv_gossips, open_msgs >>
 
 ActionVoteQuorum(n) ==
-  \E gossips \in SUBSET gossip_msgs:
   \* Non-Unanimous gossips can cause deadlocks
-  /\ {g.src : g \in gossips} = NID
-  /\ Vote(n, gossips \cup {[src |-> n, txid |-> txids[n]]}, "quorum")
+  /\ {g.src : g \in recv_gossips[n]} = NID
+  /\ Vote(n)
 
 ActionVoteTimeout(n) ==
-  \E gossips \in SUBSET gossip_msgs:
-  /\ Cardinality({g.src : g \in gossips}) >= MAJ_QUORUM_LIMIT
-  /\ Vote(n, gossips \cup {[src |-> n, txid |-> txids[n]]}, "timeout")
+  /\ Cardinality({g.src : g \in recv_gossips[n]}) >= MAJ_QUORUM_LIMIT
+  /\ Vote(n)
 
 ActionOpen(n) ==
   \E Vs \in SUBSET {v \in vote_msgs: v.vote = n}:
@@ -73,18 +87,19 @@ ActionOpen(n) ==
   /\ next_step[n] = "open/join"
   /\ next_step' = [next_step EXCEPT ![n] = "open"]
   /\ open_msgs' = open_msgs \cup {[src |-> n]}
-  /\ UNCHANGED << txids, gossip_msgs, vote_msgs >>
+  /\ UNCHANGED << txids, gossip_msgs, recv_gossips, vote_msgs >>
 
 ActionJoin(n) ==
   \E o \in open_msgs:
   /\ next_step[n] = "open/join"
   /\ next_step' = [next_step EXCEPT ![n] = "join"]
-  /\ UNCHANGED << txids, gossip_msgs, vote_msgs, open_msgs >>
+  /\ UNCHANGED << txids, gossip_msgs, recv_gossips, vote_msgs, open_msgs >>
 
 
 Next ==
     \E n \in NID:
     \/ ActionSendGossip(n)
+    \/ ActionRecvGossip(n)
     \/ ActionVoteQuorum(n)
     \/ ActionVoteTimeout(n)
     \/ ActionOpen(n)
@@ -92,15 +107,13 @@ Next ==
 
 Spec == Init /\ [][Next]_vars
 
-InvNoTimeoutNoFork == 
-  (\A m \in vote_msgs: m.kind = "quorum")
-  => 
+InvNoFork == 
   (Cardinality({n \in NID: next_step[n] = "open"}) <= 1)
 
 InvCorrectState == ~\A n \in NID: next_step[n] \in {"open", "join"}
 
 \* We optimally should be unable to reach a deadlock state
-\* where every node is blocked but it may be impossible with timeouts
+\* where every node is blocked but it may be impossible due to timeouts
 InvNoDeadlockStates == 
     (\A n \in NID: next_step[n] = "open/join")
     =>
@@ -110,8 +123,17 @@ InvNoDeadlockStates ==
         \/ ENABLED ActionJoin(n)
     )
 
-InvNoTimeoutNoDeadlock ==
-  (\A m \in vote_msgs: m.kind = "quorum")
-  => InvNoDeadlockStates
+InvUnanimousLiveVotesNoDeadlock ==
+  LET live_nid == {n \in NID: next_step[n] /= "gossip"} IN
+  (\A m \in vote_msgs: m.recv = live_nid) => InvNoDeadlockStates
+
+InvNonUnanimousOpen == 
+LET live_nid == {n \in NID: next_step[n] /= "gossip"} IN
+  ~ /\ \E n \in NID: next_step[n] = "gossip"
+    /\ \E n \in NID: next_step[n] = "open"
+    /\ \A m \in vote_msgs: m.recv = live_nid
+    /\ \A n \in NID: next_step[n] \in {"gossip", "open", "join"}
+
+Symmetry == Permutations(NID)
 
 ====
