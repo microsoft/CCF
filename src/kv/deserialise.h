@@ -123,6 +123,8 @@ namespace ccf::kv
       auto search = changes.find(ccf::Tables::SIGNATURES);
       if (search != changes.end())
       {
+        bool has_cose = false;
+
         switch (changes.size())
         {
           case 2:
@@ -138,6 +140,7 @@ namespace ccf::kv
                 changes.end() &&
               changes.find(ccf::Tables::COSE_SIGNATURES) != changes.end())
             {
+              has_cose = true;
               break;
             }
           default:
@@ -148,7 +151,7 @@ namespace ccf::kv
 
         if (history)
         {
-          if (!history->verify_root_signatures())
+          if (!history->verify_root_signatures(has_cose))
           {
             LOG_FAIL_FMT("Failed to deserialise");
             LOG_DEBUG_FMT(

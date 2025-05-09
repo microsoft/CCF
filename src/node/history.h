@@ -146,15 +146,7 @@ namespace ccf
       version++;
     }
 
-    ccf::kv::TxHistory::Result verify_and_sign(
-      PrimarySignature&,
-      ccf::kv::Term*,
-      ccf::kv::Configuration::Nodes&) override
-    {
-      return ccf::kv::TxHistory::Result::OK;
-    }
-
-    bool verify_root_signatures() override
+    bool verify_root_signatures(bool has_cose) override
     {
       return true;
     }
@@ -661,25 +653,7 @@ namespace ccf
         term_of_next_version};
     }
 
-    ccf::kv::TxHistory::Result verify_and_sign(
-      PrimarySignature& sig,
-      ccf::kv::Term* term,
-      ccf::kv::Configuration::Nodes& config) override
-    {
-      if (!verify_root_signatures())
-      {
-        return ccf::kv::TxHistory::Result::FAIL;
-      }
-
-      ccf::kv::TxHistory::Result result = ccf::kv::TxHistory::Result::OK;
-
-      sig.node = id;
-      sig.sig = kp.sign_hash(sig.root.h.data(), sig.root.h.size());
-
-      return result;
-    }
-
-    bool verify_root_signatures() override
+    bool verify_root_signatures(bool has_cose) override
     {
       auto tx = store.create_read_only_tx();
 
@@ -697,6 +671,11 @@ namespace ccf
       if (!verify_node_signature(tx, sig->node, sig->sig, root))
       {
         return false;
+      }
+
+      if (!has_cose)
+      {
+        return true;
       }
 
       auto cose_signatures =
