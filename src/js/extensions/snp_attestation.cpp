@@ -197,12 +197,12 @@ namespace ccf::js::extensions
       jsctx.new_array_buffer_copy(attestation.author_key_digest);
     JS_CHECK_EXC(attestation_author_key_digest);
     JS_CHECK_SET(
-      a.set("author_key_digest", std::move(attestation_id_key_digest)));
+      a.set("author_key_digest", std::move(attestation_author_key_digest)));
 
     auto attestation_report_id =
       jsctx.new_array_buffer_copy(attestation.report_id);
     JS_CHECK_EXC(attestation_report_id);
-    JS_CHECK_SET(a.set("report_id", std::move(attestation_id_key_digest)));
+    JS_CHECK_SET(a.set("report_id", std::move(attestation_report_id)));
 
     auto attestation_report_id_ma =
       jsctx.new_array_buffer_copy(attestation.report_id_ma);
