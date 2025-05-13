@@ -1059,9 +1059,9 @@ NoConflictAppendEntriesRequest(i, j, m) ==
         \* extended configurations with any new configurations
         new_configs == 
             configurations[i] @@ [idx \in reconfig_indexes |-> new_log_entries[idx].configuration]
-        new_commmitted_configs == {c \in DOMAIN new_configs : c <= new_commit_index}
-        new_conf_index == IF new_commmitted_configs = {} THEN 0 ELSE
-            Max(new_commmitted_configs)
+        new_committed_configs == {c \in DOMAIN new_configs : c <= new_commit_index}
+        new_conf_index == IF new_committed_configs = {} THEN 0 ELSE
+            Max(new_committed_configs)
         new_retirement_index == RetirementIndexLog(log'[i],i)
         IN
         /\ commitIndex' = [commitIndex EXCEPT ![i] = new_commit_index]
