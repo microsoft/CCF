@@ -60,8 +60,10 @@ namespace ccf::kv
         pimpl->store->current_txid_and_commit_term();
     }
 
-    auto abstract_map =
-      pimpl->store->get_map(pimpl->read_txid->version, map_name);
+    auto abstract_map = pimpl->store->get_map(
+      pimpl // NOLINT(bugprone-unchecked-optional-access) line 59
+        ->read_txid->version,
+      map_name);
     if (abstract_map == nullptr)
     {
       // Store doesn't know this map yet - create it dynamically
@@ -93,7 +95,10 @@ namespace ccf::kv
     return {
       abstract_map,
       untyped_map->create_change_set(
-        pimpl->read_txid->version, track_deletes_on_missing_keys)};
+        pimpl
+          ->read_txid // NOLINT(bugprone-unchecked-optional-access) line 59
+          ->version,
+        track_deletes_on_missing_keys)};
   }
 
   std::list<AbstractHandle*> BaseTx::get_possible_handles(
@@ -113,12 +118,16 @@ namespace ccf::kv
 
   void BaseTx::compacted_version_conflict(const std::string& map_name)
   {
-    CCF_ASSERT_FMT(
-      pimpl->read_txid.has_value(), "read_txid should have already been set");
+    if (!pimpl->read_txid.has_value())
+    {
+      throw std::logic_error(
+        fmt::format("read_txid should have already been set"));
+    }
     throw CompactedVersionConflict(fmt::format(
       "Unable to retrieve state over map {} at {}",
       map_name,
-      pimpl->read_txid->version));
+      pimpl // NOLINT(bugprone-unchecked-optional-access) line 116
+        ->read_txid->version));
   }
 
   BaseTx::BaseTx(AbstractStore* store_)
