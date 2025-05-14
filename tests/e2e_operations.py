@@ -1204,7 +1204,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 for file in os.listdir(src_dir):
                     version = file.split(".")[0]
                     try:
-                        data = json.loads(open(file, "rb").read())
+                        data = json.loads(open(os.path.join(src_dir, file), "rb").read())
                     except json.JSONDecodeError:
                         continue
 
