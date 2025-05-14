@@ -95,9 +95,8 @@ namespace ccf::kv
     return {
       abstract_map,
       untyped_map->create_change_set(
-        pimpl
-          ->read_txid // NOLINT(bugprone-unchecked-optional-access) line 59
-          ->version,
+        pimpl // NOLINT(bugprone-unchecked-optional-access) line 59
+          ->read_txid->version,
         track_deletes_on_missing_keys)};
   }
 
