@@ -188,9 +188,14 @@ class GitEnv:
         ]
 
     def has_release_for_tag_name(self, tag_name):
+        try:
+            package_url = get_package_url_from_tag_name(tag_name)
+        except ValueError:
+            return False
+
         return (
             requests.head(
-                get_package_url_from_tag_name(tag_name),
+                package_url,
                 allow_redirects=True,
                 timeout=30,
             ).status_code
