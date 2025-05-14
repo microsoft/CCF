@@ -152,7 +152,8 @@ namespace ccf
       std::vector<uint8_t> sealed_secret_raw = files::slurp(ledger_secret_path);
       SealedLedgerSecret sealed_ledger_secret = nlohmann::json::parse(
         std::string(sealed_secret_raw.begin(), sealed_secret_raw.end()));
-      SealedLedgerSecretAAD aad = nlohmann::json::parse(sealed_ledger_secret.aad_text);
+      SealedLedgerSecretAAD aad =
+        nlohmann::json::parse(sealed_ledger_secret.aad_text);
 
       CCF_ASSERT_FMT(
         aad.version == expected_version,
@@ -163,11 +164,12 @@ namespace ccf
       // make_derived_key will fail if the CPU's TCB version is rolled back
       // below aad.tcb_version
       auto sealing_key = ccf::pal::snp::make_derived_key(aad.tcb_version);
+      std::vector<uint8_t> buf_aad(
+        sealed_ledger_secret.aad_text.begin(),
+        sealed_ledger_secret.aad_text.end());
 
       auto buf_plaintext = aes_gcm_unsealing(
-        sealing_key->get_raw(),
-        sealed_ledger_secret.ciphertext,
-        sealed_ledger_secret.aad_text);
+        sealing_key->get_raw(), sealed_ledger_secret.ciphertext, buf_aad);
 
       LedgerSecret unsealed_ledger_secret = nlohmann::json::parse(
         std::string(buf_plaintext.begin(), buf_plaintext.end()));
