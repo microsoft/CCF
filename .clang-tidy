@@ -18,7 +18,8 @@ Checks: >
   readability-*,
   -readability-function-cognitive-complexity,
   -misc-const-correctness,
-  -misc-include-cleaner
+  -misc-include-cleaner,
+  -readability-identifier-length
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '.*/3rdparty/.*'

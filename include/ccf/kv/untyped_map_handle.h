@@ -45,7 +45,7 @@ namespace ccf::kv::untyped
       const ElementVisitorWithEarlyOut& fn, bool always_consider_writes);
 
   public:
-    MapHandle(ccf::kv::untyped::ChangeSet& cs, const std::string& map_name);
+    MapHandle(ccf::kv::untyped::ChangeSet& cs, std::string map_name);
 
     std::string get_name_of_map() const;
 
