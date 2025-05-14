@@ -206,7 +206,7 @@ class Network:
         "snp_endorsements_file",
         "subject_name",
         "idle_connection_timeout_s",
-        "enable_auto_dr",
+        "enable_local_sealing",
         "previous_sealed_ledger_secret_location",
     ]
 

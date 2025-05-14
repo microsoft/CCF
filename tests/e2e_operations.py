@@ -1123,7 +1123,7 @@ def run_recovery_local_unsealing(
     LOG.info("Running recovery local unsealing")
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.enable_auto_dr = True
+    args.enable_local_sealing = True
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
         network.start_and_open(args)
@@ -1179,7 +1179,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
     LOG.info("Running recovery local unsealing corrupted secret")
     args = copy.deepcopy(const_args)
     args.nodes = infra.e2e_args.min_nodes(args, f=1)
-    args.enable_auto_dr = True
+    args.enable_local_sealing = True
 
     with infra.network.network(args.nodes, args.binary_dir) as network:
         network.start_and_open(args)
@@ -1264,7 +1264,8 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
         prev_network = network
         for corruption in corruptions:
             LOG.info("Corruption: " + corruption.tag)
-            corrupt_ledger_secret = corruption.run(ledger_secret, ledger_secret + ".corrupt")
+            corrupt_ledger_secret = ledger_secret + ".corrupt"
+            corruption.run(ledger_secret, corrupt_ledger_secret)
 
             recovery_network_args = copy.deepcopy(args)
             recovery_network_args.nodes = infra.e2e_args.min_nodes(args, f=recovery_f)
