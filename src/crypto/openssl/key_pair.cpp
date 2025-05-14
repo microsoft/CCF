@@ -459,7 +459,7 @@ namespace ccf::crypto
     Unique_EVP_PKEY_CTX ctx(key);
     CHECK1(EVP_PKEY_derive_init(ctx));
     CHECK1(EVP_PKEY_derive_set_peer(ctx, pk));
-    CHECK1(EVP_PKEY_derive(ctx, NULL, &shared_secret_length));
+    CHECK1(EVP_PKEY_derive(ctx, nullptr, &shared_secret_length));
     shared_secret.resize(shared_secret_length);
     CHECK1(EVP_PKEY_derive(ctx, shared_secret.data(), &shared_secret_length));
 
@@ -483,7 +483,7 @@ namespace ccf::crypto
     size_t size = EVP_PKEY_bits(key) / 8;
     std::vector<uint8_t> bytes(size);
     Unique_BIGNUM d;
-    BIGNUM* bn_d = NULL;
+    BIGNUM* bn_d = nullptr;
     CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_PRIV_KEY, &bn_d));
     d.reset(bn_d);
     auto rc = BN_bn2binpad(d, bytes.data(), size);

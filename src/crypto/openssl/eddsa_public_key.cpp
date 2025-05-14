@@ -12,7 +12,7 @@ namespace ccf::crypto
   EdDSAPublicKey_OpenSSL::EdDSAPublicKey_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
+    key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
     if (!key)
     {
       throw std::runtime_error("could not parse PEM");
@@ -81,7 +81,7 @@ namespace ccf::crypto
     Unique_EVP_MD_CTX ctx;
     EVP_PKEY_CTX* pkctx = nullptr;
 
-    OpenSSL::CHECK1(EVP_DigestVerifyInit(ctx, &pkctx, NULL, NULL, key));
+    OpenSSL::CHECK1(EVP_DigestVerifyInit(ctx, &pkctx, nullptr, nullptr, key));
 
     return 1 ==
       EVP_DigestVerify(ctx, signature, signature_size, contents, contents_size);

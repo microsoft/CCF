@@ -22,7 +22,9 @@ namespace ccf::crypto
   Sha256Hash::Sha256Hash(const std::string& str)
   {
     std::span<const uint8_t> cb(
-      reinterpret_cast<const uint8_t*>(str.data()), str.size());
+      reinterpret_cast<const uint8_t*>(
+        str.data()), // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+      str.size());
     default_sha256(cb, h.data());
   }
 

@@ -19,7 +19,7 @@ namespace ccf::crypto
   EdDSAKeyPair_OpenSSL::EdDSAKeyPair_OpenSSL(const Pem& pem)
   {
     OpenSSL::Unique_BIO mem(pem);
-    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, NULL);
+    key = PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr);
     if (!key)
     {
       throw std::runtime_error("could not parse PEM");
@@ -60,8 +60,8 @@ namespace ccf::crypto
   {
     OpenSSL::Unique_BIO buf;
 
-    OpenSSL::CHECK1(
-      PEM_write_bio_PrivateKey(buf, key, NULL, NULL, 0, NULL, NULL));
+    OpenSSL::CHECK1(PEM_write_bio_PrivateKey(
+      buf, key, nullptr, nullptr, 0, nullptr, nullptr));
 
     BUF_MEM* bptr;
     BIO_get_mem_ptr(buf, &bptr);
@@ -79,7 +79,7 @@ namespace ccf::crypto
     EVP_PKEY_CTX* pkctx = nullptr;
     OpenSSL::Unique_EVP_MD_CTX ctx;
 
-    OpenSSL::CHECK1(EVP_DigestSignInit(ctx, &pkctx, NULL, NULL, key));
+    OpenSSL::CHECK1(EVP_DigestSignInit(ctx, &pkctx, nullptr, nullptr, key));
 
     std::vector<uint8_t> sigret(EVP_PKEY_size(key));
     size_t siglen = sigret.size();

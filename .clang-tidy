@@ -19,8 +19,9 @@ Checks: >
   -readability-function-cognitive-complexity,
   -misc-const-correctness,
   -misc-include-cleaner,
-  -readability-identifier-length
+  -readability-identifier-length,
+  -cppcoreguidelines-pro-type-union-access
 
 WarningsAsErrors: '*'
-ExcludeHeaderFilterRegex: '.*/3rdparty/.*'
+HeaderFilterRegex: '?!(3rdparty)'
 FormatStyle:     'file'
