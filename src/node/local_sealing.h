@@ -123,7 +123,7 @@ namespace ccf
         .dump();
     std::vector<uint8_t> buf_aad(plainaad.begin(), plainaad.end());
 
-    // prevent unsealing if the TCB changes
+    // seal with the current TCB to prevent unsealing if the TCB rolls back
     auto sealing_key = ccf::pal::snp::make_derived_key(tcb_version);
     crypto::GcmCipher sealed_secret =
       aes_gcm_sealing(sealing_key->get_raw(), buf_plaintext, buf_aad);
