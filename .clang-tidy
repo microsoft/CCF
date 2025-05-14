@@ -22,5 +22,5 @@ Checks: >
   -readability-identifier-length
 
 WarningsAsErrors: '*'
-HeaderFilterRegex: '.*/3rdparty/.*'
+ExcludeHeaderFilterRegex: '.*/3rdparty/.*'
 FormatStyle:     'file'
