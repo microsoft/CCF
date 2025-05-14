@@ -807,7 +807,8 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       LOG_INFO_FMT("Reading previous service identity from {}", idf);
       startup_config.recover.previous_service_identity = files::slurp(idf);
 
-      if (config.command.recover.previous_sealed_ledger_secret_location.has_value())
+      if (config.command.recover.previous_sealed_ledger_secret_location
+            .has_value())
       {
         CCF_ASSERT_FMT(
           ccf::pal::platform == ccf::pal::Platform::SNP,
