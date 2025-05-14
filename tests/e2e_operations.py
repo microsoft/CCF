@@ -1199,107 +1199,63 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 self.lamb = lamb
                 self.expected_exception = expected_exception
 
-            def run(self, src_dir):
-
-                versions = set()
+            def run(self, src_dir, dst_dir):
+                secrets = {}
                 for file in os.listdir(src_dir):
                     version = file.split(".")[0]
-                    versions.add(version)
+                    try:
+                        data = json.loads(open(file, "rb").read())
+                    except json.JSONDecodeError:
+                        continue
 
-                def read_in(version):
-                    secret_path = os.path.join(src_dir, f"{version}.sealed")
-                    secret_data = None
-                    if os.path.exists(secret_path):
-                        with open(secret_path, "rb") as r:
-                            secret_data = r.read()
-
-                    aad_path = os.path.join(src_dir, f"{version}.aad")
-                    aad_data = None
-                    if os.path.exists(aad_path):
-                        with open(aad_path, "rb") as aad:
-                            aad_data = aad.read()
-                    return {"secret": secret_data, "aad": aad_data}
-
-                secrets = {version: read_in(version) for version in versions}
+                    secrets[int(version)] = data
 
                 corrupted_secrets = self.lamb(secrets)
 
-                corrupt_ledger_secret_directory = os.path.join(
-                    os.path.dirname(src_dir), f"{self.tag}.corrupt"
-                )
-                pathlib.Path(corrupt_ledger_secret_directory).mkdir(
-                    parents=True, exist_ok=True
-                )
+                pathlib.Path(dst_dir).mkdir(parents=True, exist_ok=True)
                 for version, data in corrupted_secrets.items():
-                    secret_path = os.path.join(
-                        corrupt_ledger_secret_directory, f"{version}.sealed"
-                    )
-                    aad_path = os.path.join(
-                        corrupt_ledger_secret_directory, f"{version}.aad"
-                    )
-
-                    if data["secret"] is not None:
-                        with open(secret_path, "wb") as w:
-                            w.write(data["secret"])
-
-                    if data["aad"] is not None:
-                        with open(aad_path, "wb") as w:
-                            w.write(data["aad"])
-
-                return corrupt_ledger_secret_directory
+                    secret_path = os.path.join(dst_dir, f"{version}.sealed.json")
+                    with open(secret_path, "wb") as w:
+                        w.write(json.dumps(data))
 
         corruptions = [Corruption("delete_everything", lambda _: {}, True)]
 
-        def max_version_ignored_corruption(s):
-            s.update({int(sys.maxsize): {"secret": b"some data", "aad": b"some aad"}})
-            return s
-
         corruptions.append(
-            Corruption("max_version_ignored", max_version_ignored_corruption, False)
+            Corruption(
+                "max_version_ignored",
+                lambda s: s
+                | {
+                    int(sys.maxsize): {
+                        "ciphertext": b"some data",
+                        "aad_text": b"some aad",
+                    }
+                },
+                False,
+            )
         )
 
-        def invalid_file_corruption(s):
-            s.update({"asdf": {"secret": b"some data", "aad": b"some aad"}})
-            return s
+        corruptions.append(
+            Corruption(
+                "invalid_file",
+                lambda s: s
+                | {"asdf": {"ciphertext": b"some data", "aad_text": b"some aad"}},
+                False,
+            )
+        )
 
-        corruptions.append(Corruption("invalid_file", invalid_file_corruption, False))
-
-        def xor_corruption(s):
-            return {
-                v: {
-                    "secret": bytes([b ^ 0xFF for b in s[v]["secret"]]),
-                    "aad": s[v]["aad"],
-                }
-                for v in s
-            }
-
-        corruptions.append(Corruption("xor_ciphertext", xor_corruption, True))
-
-        def change_tcb_corruption(s):
-            def update(aad):
-                aad = json.loads(aad)
-                aad.update(
-                    {
-                        "tcb_version": {
-                            "boot_loader": 0,
-                            "microcode": 0,
-                            "snp": 0,
-                            "tee": 0,
-                        }
+        corruptions.append(
+            Corruption(
+                "xor_ciphertext",
+                lambda s: {
+                    v: {
+                        "ciphertext": bytes([b ^ 0xFF for b in s[v]["secret"]]),
+                        "aad": s[v]["aad"],
                     }
-                )
-
-                return json.dumps(aad).encode("utf-8")
-
-            return {
-                v: {
-                    "secret": s[v]["secret"],
-                    "aad": update(s[v]["aad"]),
-                }
-                for v in s.keys()
-            }
-
-        corruptions.append(Corruption("change_tcb", change_tcb_corruption, True))
+                    for v in s.keys()
+                },
+                True,
+            )
+        )
 
         # corrupt one of the ledgers
         node = network.nodes[0]
@@ -1308,7 +1264,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
         prev_network = network
         for corruption in corruptions:
             LOG.info("Corruption: " + corruption.tag)
-            corrupt_ledger_secret = corruption.run(ledger_secret)
+            corrupt_ledger_secret = corruption.run(ledger_secret, ledger_secret + ".corrupt")
 
             recovery_network_args = copy.deepcopy(args)
             recovery_network_args.nodes = infra.e2e_args.min_nodes(args, f=recovery_f)
@@ -1374,4 +1330,4 @@ def run(args):
         run_recovery_local_unsealing(args, rekey=True)
         run_recovery_local_unsealing(args, recovery_shares_refresh=True)
         run_recovery_local_unsealing(args, recovery_f=1)
-        #run_recovery_unsealing_corrupt(args)
+        run_recovery_unsealing_corrupt(args)
