@@ -506,9 +506,13 @@ class CCFRemote(object):
             t = t_env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
             auto_dr_args = {}
             if sealed_ledger_secret_location is not None:
-              auto_dr_args["sealed_ledger_secret_location"] = sealed_ledger_secret_location
+                auto_dr_args["sealed_ledger_secret_location"] = (
+                    sealed_ledger_secret_location
+                )
             if previous_sealed_ledger_secret_location is not None:
-              auto_dr_args["previous_sealed_ledger_secret_location"] = previous_sealed_ledger_secret_location
+                auto_dr_args["previous_sealed_ledger_secret_location"] = (
+                    previous_sealed_ledger_secret_location
+                )
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat

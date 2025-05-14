@@ -1204,7 +1204,9 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 for file in os.listdir(src_dir):
                     version = file.split(".")[0]
                     try:
-                        data = json.loads(open(os.path.join(src_dir, file), "rb").read())
+                        data = json.loads(
+                            open(os.path.join(src_dir, file), "rb").read()
+                        )
                     except json.JSONDecodeError:
                         continue
 
@@ -1248,7 +1250,11 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 "xor_ciphertext",
                 lambda s: {
                     v: {
-                        "ciphertext": base64.b64encode(bytes([b ^ 0xFF for b in base64.b64decode(s[v]["ciphertext"])])).decode('utf-8'),
+                        "ciphertext": base64.b64encode(
+                            bytes(
+                                [b ^ 0xFF for b in base64.b64decode(s[v]["ciphertext"])]
+                            )
+                        ).decode("utf-8"),
                         "aad_text": s[v]["aad_text"],
                     }
                     for v in s.keys()

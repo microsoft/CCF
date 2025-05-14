@@ -18,7 +18,6 @@
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/service/tables/acme_certificates.h"
 #include "ccf/service/tables/service.h"
-#include "service/tables/recovery_type.h"
 #include "ccf/tx.h"
 #include "ccf_acme_client.h"
 #include "consensus/aft/raft.h"
@@ -49,6 +48,7 @@
 #include "rpc/serialization.h"
 #include "secret_broadcast.h"
 #include "service/internal_tables_access.h"
+#include "service/tables/recovery_type.h"
 #include "share_manager.h"
 #include "uvm_endorsements.h"
 
@@ -1684,7 +1684,9 @@ namespace ccf
           auto unsealed_ls = unseal_ledger_secret();
           LOG_INFO_FMT("Unsealed ledger secret, initiating private recovery");
           initiate_private_recovery_unsafe(tx, unsealed_ls);
-        } else {
+        }
+        else
+        {
           tx.wo<LastRecoveryType>(Tables::LAST_RECOVERY_TYPE)
             ->put(RecoveryType::RECOVERY_SHARES);
         }

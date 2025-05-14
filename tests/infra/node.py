@@ -209,7 +209,9 @@ class Node:
 
     def save_sealed_ledger_secret(self, destination=None):
         if self.sealed_ledger_secret_location is None:
-            raise RuntimeError("Sealed secret location was not set so no secrets were sealed.")
+            raise RuntimeError(
+                "Sealed secret location was not set so no secrets were sealed."
+            )
         sealed_ledger_secret_location = self.sealed_ledger_secret_location
         if not os.path.isabs(sealed_ledger_secret_location):
             sealed_ledger_secret_location = os.path.join(
