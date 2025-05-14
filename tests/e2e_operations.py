@@ -1248,8 +1248,8 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 "xor_ciphertext",
                 lambda s: {
                     v: {
-                        "ciphertext": ([b ^ 0xFF for b in s[v]["secret"]]),
-                        "aad": s[v]["aad"],
+                        "ciphertext": ([b ^ 0xFF for b in s[v]["ciphertext"]]),
+                        "aad_text": s[v]["aad_text"],
                     }
                     for v in s.keys()
                 },
