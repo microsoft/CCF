@@ -25,7 +25,7 @@ namespace ccf::crypto
     PublicKey_OpenSSL(PublicKey_OpenSSL&& key) = default;
     PublicKey_OpenSSL(EVP_PKEY* key);
     PublicKey_OpenSSL(const Pem& pem);
-    PublicKey_OpenSSL(const std::vector<uint8_t>& der);
+    PublicKey_OpenSSL(std::span<const uint8_t> der);
     PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk);
     virtual ~PublicKey_OpenSSL();
 

@@ -22,9 +22,7 @@ namespace ccf::crypto
   Sha256Hash::Sha256Hash(const std::string& str)
   {
     std::span<const uint8_t> cb(
-      reinterpret_cast<const uint8_t*>(
-        str.data()),
-      str.size());
+      reinterpret_cast<const uint8_t*>(str.data()), str.size());
     default_sha256(cb, h.data());
   }
 
@@ -32,8 +30,7 @@ namespace ccf::crypto
   {
     std::vector<uint8_t> data(left.h.size() + right.h.size());
     std::copy(left.h.begin(), left.h.end(), data.begin());
-    ssize_t offset = left.h.size();
-    std::copy(right.h.begin(), right.h.end(), data.begin() + offset);
+    std::copy(right.h.begin(), right.h.end(), data.begin() + left.h.size());
     default_sha256(data, h.data());
   }
 
@@ -108,13 +105,15 @@ namespace ccf::crypto
     }
   }
 
-  std::string schema_name(const Sha256Hash*)
+  std::string schema_name(const Sha256Hash* hash)
   {
+    (void)hash;
     return "Sha256Digest";
   }
 
-  void fill_json_schema(nlohmann::json& schema, const Sha256Hash*)
+  void fill_json_schema(nlohmann::json& schema, const Sha256Hash* hash)
   {
+    (void)hash;
     schema["type"] = "string";
 
     // According to the spec, "format is an open value, so you can use any

@@ -55,7 +55,7 @@ namespace ccf::crypto
 
   static thread_local EVP_MD_CTX* mdctx = nullptr;
   static thread_local EVP_MD_CTX* basectx = nullptr;
-  
+
   void openssl_sha256_init()
   {
     if (mdctx != nullptr || basectx != nullptr)
@@ -127,10 +127,13 @@ namespace ccf::crypto
     }
   }
 
-  ISha256OpenSSL::ISha256OpenSSL()
+  ISha256OpenSSL::ISha256OpenSSL() : ctx(EVP_MD_CTX_new())
   {
+    if (ctx == nullptr)
+    {
+      throw std::logic_error("ISha256OpenSSL: failed to create ctx");
+    }
     const EVP_MD* md = EVP_sha256();
-    ctx = EVP_MD_CTX_new();
     int rc = EVP_DigestInit(ctx, md);
     if (rc != 1)
     {

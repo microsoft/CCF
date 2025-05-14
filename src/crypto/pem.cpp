@@ -25,10 +25,7 @@ namespace ccf::crypto
       throw std::logic_error("Got PEM of size 0");
     }
 
-    s.assign(
-      reinterpret_cast<const char*>(
-        data),
-      size);
+    s.assign(reinterpret_cast<const char*>(data), size);
     if (s.back() == '\0')
     {
       s.pop_back();

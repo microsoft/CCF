@@ -166,9 +166,9 @@ namespace ccf::crypto
         Unique_SSL_OBJECT(
           BIO_new_mem_buf(buf, len), [](auto x) { BIO_free(x); })
       {}
-      Unique_BIO(const std::vector<uint8_t>& d) :
+      Unique_BIO(std::span<const uint8_t> s) :
         Unique_SSL_OBJECT(
-          BIO_new_mem_buf(d.data(), d.size()), [](auto x) { BIO_free(x); })
+          BIO_new_mem_buf(s.data(), s.size()), [](auto x) { BIO_free(x); })
       {}
       Unique_BIO(const Pem& pem) :
         Unique_SSL_OBJECT(

@@ -7,6 +7,7 @@
 #include "ccf/ds/logger.h"
 #include "crypto/openssl/hash.h"
 
+#include <climits>
 #include <openssl/core_names.h>
 #include <openssl/ec.h>
 #include <openssl/engine.h>
@@ -24,23 +25,23 @@ namespace ccf::crypto
 {
   using namespace OpenSSL;
 
-  PublicKey_OpenSSL::PublicKey_OpenSSL() {}
+  PublicKey_OpenSSL::PublicKey_OpenSSL() = default;
 
   PublicKey_OpenSSL::PublicKey_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
-    if (!key)
+    key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
+    if (key == nullptr)
     {
       throw std::runtime_error("could not parse PEM");
     }
   }
 
-  PublicKey_OpenSSL::PublicKey_OpenSSL(const std::vector<uint8_t>& der)
+  PublicKey_OpenSSL::PublicKey_OpenSSL(std::span<const uint8_t> der)
   {
     Unique_BIO buf(der);
     key = d2i_PUBKEY_bio(buf, &key);
-    if (!key)
+    if (key == nullptr)
     {
       throw std::runtime_error("Could not read DER");
     }
@@ -127,7 +128,7 @@ namespace ccf::crypto
   int PublicKey_OpenSSL::get_openssl_group_id() const
   {
     size_t gname_len = 0;
-    CHECK1(EVP_PKEY_get_group_name(key, NULL, 0, &gname_len));
+    CHECK1(EVP_PKEY_get_group_name(key, nullptr, 0, &gname_len));
     std::string gname(gname_len + 1, 0);
     CHECK1(EVP_PKEY_get_group_name(
       key, (char*)gname.data(), gname.size(), &gname_len));
@@ -219,7 +220,7 @@ namespace ccf::crypto
 
     OpenSSL::CHECK1(PEM_write_bio_PUBKEY(buf, key));
 
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(buf, &bptr);
     return Pem((uint8_t*)bptr->data, bptr->length);
   }
@@ -239,7 +240,7 @@ namespace ccf::crypto
   {
     Unique_BIO buf;
 
-    unsigned char* p = NULL;
+    unsigned char* p = nullptr;
     size_t n = i2d_PublicKey(key, &p);
 
     std::vector<uint8_t> r;
@@ -265,10 +266,10 @@ namespace ccf::crypto
     Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
 
-    EVP_PKEY* pkey = NULL;
+    EVP_PKEY* pkey = nullptr;
     CHECK1(EVP_PKEY_fromdata(pctx, &pkey, EVP_PKEY_PUBLIC_KEY, params));
 
-    if (pkey == NULL)
+    if (pkey == nullptr)
     {
       EVP_PKEY_free(pkey);
 
@@ -287,15 +288,16 @@ namespace ccf::crypto
   PublicKey::Coordinates PublicKey_OpenSSL::coordinates() const
   {
     Coordinates r;
-    Unique_BIGNUM x, y;
+    Unique_BIGNUM x;
+    Unique_BIGNUM y;
     Unique_EC_GROUP group(get_openssl_group_id());
-    BIGNUM* bn_x = NULL;
-    BIGNUM* bn_y = NULL;
+    BIGNUM* bn_x = nullptr;
+    BIGNUM* bn_y = nullptr;
     CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_X, &bn_x));
     x.reset(bn_x);
     CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, &bn_y));
     y.reset(bn_y);
-    int sz = EC_GROUP_get_degree(group) / 8;
+    int sz = EC_GROUP_get_degree(group) / CHAR_BIT;
     r.x.resize(sz);
     r.y.resize(sz);
     BN_bn2binpad(x, r.x.data(), sz);

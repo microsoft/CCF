@@ -30,7 +30,7 @@ namespace ccf::crypto
     }
   }
 
-  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const std::vector<uint8_t>& der)
+  RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(std::span<const uint8_t> der)
   {
     const unsigned char* pp = der.data();
     key = EVP_PKEY_new();
