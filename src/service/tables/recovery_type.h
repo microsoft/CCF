@@ -13,7 +13,7 @@ namespace ccf
     NONE = 0,
     RECOVERY_SHARES = 1,
     LOCAL_UNSEALING = 2
-  }
+  };
 
   DECLARE_JSON_ENUM(
     RecoveryType,
