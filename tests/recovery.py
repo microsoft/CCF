@@ -1078,16 +1078,26 @@ def run(args):
                     ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
     test_recover_service_from_files(
-        args, "expired_service", expected_recovery_count=2, test_receipt=True
+        args, directory="expired_service", expected_recovery_count=2, test_receipt=True
     )
     # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
     # This is used to test recovery from SGX to SNP.
     test_recover_service_from_files(
-        args, "sgx_service", expected_recovery_count=4, test_receipt=False
+        args, directory="sgx_service", expected_recovery_count=4, test_receipt=False
     )
 
     test_recover_service_from_files(
-        args, "double_sealed_service", expected_recovery_count=2, test_receipt=False
+        args,
+        directory="double_sealed_service",
+        expected_recovery_count=2,
+        test_receipt=False,
+    )
+
+    test_recover_service_from_files(
+        args,
+        directory="cose_flipflop_service",
+        expected_recovery_count=0,
+        test_receipt=False,
     )
 
 
