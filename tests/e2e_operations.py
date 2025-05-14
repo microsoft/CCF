@@ -1226,8 +1226,8 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 lambda s: s
                 | {
                     int(sys.maxsize): {
-                        "ciphertext": b"some data",
-                        "aad_text": b"some aad",
+                        "ciphertext": "some data",
+                        "aad_text": "some aad",
                     }
                 },
                 False,
@@ -1238,7 +1238,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
             Corruption(
                 "invalid_file",
                 lambda s: s
-                | {"asdf": {"ciphertext": b"some data", "aad_text": b"some aad"}},
+                | {"asdf": {"ciphertext": "some data", "aad_text": "some aad"}},
                 False,
             )
         )
@@ -1248,7 +1248,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 "xor_ciphertext",
                 lambda s: {
                     v: {
-                        "ciphertext": bytes([b ^ 0xFF for b in s[v]["secret"]]),
+                        "ciphertext": ([b ^ 0xFF for b in s[v]["secret"]]),
                         "aad": s[v]["aad"],
                     }
                     for v in s.keys()
