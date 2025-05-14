@@ -27,7 +27,7 @@ namespace ccf::crypto
 
     s.assign(
       reinterpret_cast<const char*>(
-        data), // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+        data),
       size);
     if (s.back() == '\0')
     {

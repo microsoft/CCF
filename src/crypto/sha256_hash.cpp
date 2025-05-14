@@ -23,7 +23,7 @@ namespace ccf::crypto
   {
     std::span<const uint8_t> cb(
       reinterpret_cast<const uint8_t*>(
-        str.data()), // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+        str.data()),
       str.size());
     default_sha256(cb, h.data());
   }
@@ -32,7 +32,8 @@ namespace ccf::crypto
   {
     std::vector<uint8_t> data(left.h.size() + right.h.size());
     std::copy(left.h.begin(), left.h.end(), data.begin());
-    std::copy(right.h.begin(), right.h.end(), data.begin() + left.h.size());
+    ssize_t offset = left.h.size();
+    std::copy(right.h.begin(), right.h.end(), data.begin() + offset);
     default_sha256(data, h.data());
   }
 

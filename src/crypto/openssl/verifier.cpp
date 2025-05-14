@@ -38,13 +38,15 @@ namespace ccf::crypto
     return MDType::NONE;
   }
 
-  Verifier_OpenSSL::Verifier_OpenSSL(const std::vector<uint8_t>& c) : Verifier()
+  Verifier_OpenSSL::Verifier_OpenSSL(const std::vector<uint8_t>& c)
   {
     Unique_BIO certbio(c);
-    if (!(cert = Unique_X509(certbio, true)))
+    cert = Unique_X509(certbio, true);
+    if (cert == nullptr)
     {
       BIO_reset(certbio);
-      if (!(cert = Unique_X509(certbio, false)))
+      cert = Unique_X509(certbio, false);
+      if (cert == nullptr)
       {
         throw std::invalid_argument(fmt::format(
           "OpenSSL error: {}", OpenSSL::error_string(ERR_get_error())));
@@ -88,7 +90,7 @@ namespace ccf::crypto
     Unique_BIO mem;
     CHECK1(PEM_write_bio_X509(mem, cert));
 
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(mem, &bptr);
     return Pem((uint8_t*)bptr->data, bptr->length);
   }
@@ -115,7 +117,7 @@ namespace ccf::crypto
     }
 
     Unique_STACK_OF_X509 chain_stack;
-    for (auto& pem : chain)
+    for (const auto& pem : chain)
     {
       Unique_BIO certbio(*pem);
       Unique_X509 cert(certbio, true);
@@ -146,14 +148,14 @@ namespace ccf::crypto
     if (!valid)
     {
       auto error = X509_STORE_CTX_get_error(store_ctx);
-      auto msg = X509_verify_cert_error_string(error);
+      const auto* msg = X509_verify_cert_error_string(error);
       LOG_DEBUG_FMT("Failed to verify certificate: {}", msg);
       LOG_DEBUG_FMT("Target: {}", cert_pem().str());
       for (auto pem : chain)
       {
         LOG_DEBUG_FMT("Chain: {}", pem->str());
       }
-      for (auto pem : trusted_certs)
+      for (const auto* pem : trusted_certs)
       {
         LOG_DEBUG_FMT("Trusted: {}", pem->str());
       }
@@ -171,7 +173,7 @@ namespace ccf::crypto
     const ASN1_INTEGER* sn = X509_get0_serialNumber(cert);
     Unique_BIO mem;
     i2a_ASN1_INTEGER(mem, sn);
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(mem, &bptr);
     return std::string(bptr->data, bptr->length);
   }
@@ -190,7 +192,7 @@ namespace ccf::crypto
     X509_NAME_print_ex(mem, name, 0, 0);
     BUF_MEM* bptr;
     BIO_get_mem_ptr(mem, &bptr);
-    return std::string(bptr->data, bptr->length);
+    return {bptr->data, bptr->length};
   }
 
   size_t Verifier_OpenSSL::remaining_seconds(

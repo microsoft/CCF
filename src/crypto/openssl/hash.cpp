@@ -53,11 +53,9 @@ namespace ccf::crypto
 
   using namespace OpenSSL;
 
-  static thread_local EVP_MD_CTX* mdctx =
-    nullptr; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,readability-static-definition-in-anonymous-namespace,misc-use-anonymous-namespace)
-  static thread_local EVP_MD_CTX* basectx =
-    nullptr; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,readability-static-definition-in-anonymous-namespace,misc-use-anonymous-namespace)
-
+  static thread_local EVP_MD_CTX* mdctx = nullptr;
+  static thread_local EVP_MD_CTX* basectx = nullptr;
+  
   void openssl_sha256_init()
   {
     if (mdctx != nullptr || basectx != nullptr)

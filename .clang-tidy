@@ -20,7 +20,10 @@ Checks: >
   -misc-const-correctness,
   -misc-include-cleaner,
   -readability-identifier-length,
-  -cppcoreguidelines-pro-type-union-access
+  -cppcoreguidelines-pro-type-union-access,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -misc-use-anonymous-namespace
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '?!(3rdparty)'

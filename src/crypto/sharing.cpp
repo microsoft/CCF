@@ -6,10 +6,8 @@
 
 #include <stdexcept>
 
-namespace ccf::crypto
+namespace ccf::crypto::sharing
 {
-  namespace sharing
-  {
     /* PRIME FIELD
 
       For simplicity, we use a finite field F[prime] where all operations
@@ -20,7 +18,7 @@ namespace ccf::crypto
     */
 
     using element = uint64_t;
-    constexpr element prime = (1ul << 31) - 1ul; // a notorious Mersenne prime
+    constexpr element prime = (1UL << 31) - 1UL; // a notorious Mersenne prime
     /*
     Constant time version of:
       static element reduce(element x)
@@ -38,7 +36,7 @@ namespace ccf::crypto
     {
       // initially, x < 2^64
       // we compute under-approximations  x/(2^31) of x/prime
-      uint64_t d;
+      uint64_t d = 0;
       d = x >> 31;
       x -= d * prime;
       // after this first reduction, x <= 5*prime + 3
@@ -208,5 +206,4 @@ namespace ccf::crypto
         raw_secret.y[limb] = y;
       }
     }
-  }
 }
