@@ -9,9 +9,9 @@ namespace ccf::kv::untyped
 {
   void MapDiff::foreach_(const MapDiff::ElementVisitorWithEarlyOut& f)
   {
-    for (auto write = writes.begin(); write != writes.end(); ++write)
+    for (auto& write : writes)
     {
-      bool should_continue = f(write->first, write->second);
+      bool should_continue = f(write.first, write.second);
 
       if (!should_continue)
       {
@@ -20,10 +20,9 @@ namespace ccf::kv::untyped
     }
   }
 
-  MapDiff::MapDiff(
-    ccf::kv::untyped::ChangeSet& cs, const std::string& map_name) :
+  MapDiff::MapDiff(ccf::kv::untyped::ChangeSet& cs, std::string map_name) :
     writes(cs.writes),
-    map_name(map_name)
+    map_name(std::move(map_name))
   {}
 
   std::optional<std::optional<MapDiff::ValueType>> MapDiff::get(
@@ -132,7 +131,8 @@ namespace ccf::kv::untyped
         // Start of range is not yet found.
         return true;
       }
-      else if (to.has_value() && (k == to.value() || to.value() < k))
+
+      if (to.has_value() && (k == to.value() || to.value() < k))
       {
         // End of range. Note: `to` is excluded.
         return continue_past_range_to;
