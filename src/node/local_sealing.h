@@ -25,22 +25,7 @@ namespace ccf
 
   inline std::string get_sealing_filename(const kv::Version& version)
   {
-    return fmt::format("{}.sealed", version);
-  }
-
-  inline bool is_sealed_path(const std::string& path)
-  {
-    return path.ends_with(".sealed");
-  }
-
-  inline std::string get_aad_filename(const kv::Version& version)
-  {
-    return fmt::format("{}.aad", version);
-  }
-
-  inline bool is_aad_path(const std::string& path)
-  {
-    return path.ends_with(".aad");
+    return fmt::format("{}.sealed.json", version);
   }
 
   inline std::optional<kv::Version> version_of_filename(const std::string& path)
@@ -110,6 +95,15 @@ namespace ccf
   DECLARE_JSON_REQUIRED_FIELDS(SealedLedgerSecretAAD);
   DECLARE_JSON_OPTIONAL_FIELDS(SealedLedgerSecretAAD, version, tcb_version)
 
+  struct SealedLedgerSecret
+  {
+    std::vector<uint8_t> ciphertext;
+    std::vector<uint8_t> aad_text;
+  };
+
+  DECLARE_JSON_TYPE(SealedLedgerSecret);
+  DECLARE_JSON_REQUIRED_FIELDS(SealedLedgerSecret, ciphertext, aad_text);
+
   inline void seal_ledger_secret_to_disk(
     const std::string& sealed_secret_dir,
     const ccf::pal::snp::TcbVersion& tcb_version,
@@ -136,41 +130,49 @@ namespace ccf
 
     auto dir_path = files::fs::path(sealed_secret_dir);
     auto sealing_path = dir_path / get_sealing_filename(version);
-    files::dump(sealed_secret.serialise(), sealing_path);
-    auto aad_path = dir_path / get_aad_filename(version);
-    files::dump(plainaad, aad_path);
-    LOG_INFO_FMT(
-      "Sealing complete of ledger secret to {} and {}", sealing_path, aad_path);
+    SealedLedgerSecret sealed_secret_for_store = {
+      .ciphertext = sealed_secret.serialise(), .aad_text = buf_aad};
+
+    files::dump(nlohmann::json(sealed_secret_for_store).dump(), sealing_path);
+    LOG_INFO_FMT("Sealing complete of ledger secret to {}", sealing_path);
   }
 
-  inline LedgerSecretPtr unseal_ledger_secret_from_disk(
-    const files::fs::path& ledger_secret_path, const files::fs::path& aad_path)
+  inline std::optional<LedgerSecretPtr> unseal_ledger_secret_from_disk(
+    ccf::kv::Version expected_version,
+    const files::fs::path& ledger_secret_path)
   {
     try
     {
       CCF_ASSERT(
         files::exists(ledger_secret_path),
         "Sealed previous ledger secret cannot be found");
-      CCF_ASSERT(
-        files::exists(aad_path),
-        "Sealed previous ledger secret's AAD cannot be found");
 
       LOG_INFO_FMT(
         "Reading sealed previous service secret from {}", ledger_secret_path);
-      std::vector<uint8_t> ciphertext = files::slurp(ledger_secret_path);
-      std::vector<uint8_t> aad_raw = files::slurp(aad_path);
-      SealedLedgerSecretAAD aad =
-        nlohmann::json::parse(std::string(aad_raw.begin(), aad_raw.end()));
+      std::vector<uint8_t> sealed_secret_raw = files::slurp(ledger_secret_path);
+      SealedLedgerSecret sealed_ledger_secret = nlohmann::json::parse(
+        std::string(sealed_secret_raw.begin(), sealed_secret_raw.end()));
+      SealedLedgerSecretAAD aad = nlohmann::json::parse(std::string(
+        sealed_ledger_secret.aad_text.begin(),
+        sealed_ledger_secret.aad_text.end()));
 
-      // This call will fail if the CPU's TCB version is rolled back below the
-      // sealed tcb_version
+      CCF_ASSERT_FMT(
+        aad.version == expected_version,
+        "Sealed ledger secret version {} does not match expected version {}",
+        aad.version,
+        expected_version);
+
+      // make_derived_key will fail if the CPU's TCB version is rolled back
+      // below aad.tcb_version
       auto sealing_key = ccf::pal::snp::make_derived_key(aad.tcb_version);
-      auto buf_plaintext =
-        aes_gcm_unsealing(sealing_key->get_raw(), ciphertext, aad_raw);
-      auto json = nlohmann::json::parse(
+
+      auto buf_plaintext = aes_gcm_unsealing(
+        sealing_key->get_raw(),
+        sealed_ledger_secret.ciphertext,
+        sealed_ledger_secret.aad_text);
+
+      LedgerSecret unsealed_ledger_secret = nlohmann::json::parse(
         std::string(buf_plaintext.begin(), buf_plaintext.end()));
-      LedgerSecret unsealed_ledger_secret;
-      from_json(json, unsealed_ledger_secret);
 
       LOG_INFO_FMT("Successfully unsealed secret");
 
@@ -182,7 +184,7 @@ namespace ccf
         "Failed to unseal previous ledger secret from {}: {}",
         ledger_secret_path,
         e.what());
-      return nullptr;
+      return std::nullopt;
     }
   }
 
@@ -196,9 +198,7 @@ namespace ccf
       auto filename = f.path().filename();
       std::optional<kv::Version> ledger_version =
         version_of_filename(filename.string());
-      if (
-        is_sealed_path(filename) && ledger_version.has_value() &&
-        ledger_version.value() <= max_version)
+      if (ledger_version.has_value() && ledger_version.value() <= max_version)
       {
         files_map[ledger_version.value()] = f.path();
       }
@@ -206,33 +206,12 @@ namespace ccf
 
     for (auto& [version, sealed_path] : std::ranges::reverse_view(files_map))
     {
-      auto aad_path = sealed_path.parent_path() / get_aad_filename(version);
-      if (!files::exists(aad_path))
-      {
-        LOG_FAIL_FMT(
-          "AAD file {} does not exist for sealed ledger secret {}",
-          aad_path,
-          sealed_path);
-        continue;
-      }
-      auto aad_raw = files::slurp(aad_path);
-      SealedLedgerSecretAAD aad =
-        nlohmann::json::parse(std::string(aad_raw.begin(), aad_raw.end()));
-      if (aad.version != version)
-      {
-        LOG_FAIL_FMT(
-          "AAD version {} does not match sealed ledger secret version {}",
-          aad.version,
-          version);
-        continue;
-      }
-
-      auto unsealed = unseal_ledger_secret_from_disk(sealed_path, aad_path);
-      if (unsealed != nullptr)
+      auto unsealed = unseal_ledger_secret_from_disk(version, sealed_path);
+      if (unsealed.has_value())
       {
         LOG_INFO_FMT(
           "Successfully unsealed ledger secret from {}", sealed_path.string());
-        return unsealed;
+        return unsealed.value();
       }
     }
 
