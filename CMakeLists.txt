@@ -399,6 +399,7 @@ if(COMPILE_TARGET STREQUAL "snp")
                              ccf_kv.snp
   )
   add_san(ccf_endpoints.snp)
+  add_tidy(ccf_endpoints.snp)
   add_warning_checks(ccf_endpoints.snp)
   target_compile_definitions(ccf_endpoints.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
   if(CCF_DEVEL)
@@ -417,6 +418,7 @@ target_link_libraries(
                             ccfcrypto.host ccf_kv.host
 )
 add_san(ccf_endpoints.host)
+add_tidy(ccf_endpoints.host)
 add_warning_checks(ccf_endpoints.host)
 target_compile_definitions(ccf_endpoints.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
 if(INSTALL_VIRTUAL_LIBRARIES)
