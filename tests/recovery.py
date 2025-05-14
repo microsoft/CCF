@@ -13,7 +13,7 @@ import os
 import subprocess
 import json
 from infra.runner import ConcurrentRunner
-from distutils.dir_util import copy_tree
+from distutils.dir_util import remove_tree, copy_tree
 from infra.consortium import slurp_file
 import infra.health_watcher
 import time
@@ -536,8 +536,9 @@ def test_recover_service_from_files(
         os.path.dirname(os.path.realpath(__file__)), "testdata", directory
     )
 
-    old_common = os.path.join(service_dir, "common")
     new_common = infra.network.get_common_folder_name(args.workspace, args.label)
+    remove_tree(new_common)
+    old_common = os.path.join(service_dir, "common")
     copy_tree(old_common, new_common)
 
     network = infra.network.Network(args.nodes, args.binary_dir)
