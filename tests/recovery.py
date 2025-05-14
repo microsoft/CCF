@@ -13,7 +13,7 @@ import os
 import subprocess
 import json
 from infra.runner import ConcurrentRunner
-from distutils.dir_util import copy_tree
+from distutils.dir_util import remove_tree, copy_tree
 from infra.consortium import slurp_file
 import infra.health_watcher
 import time
@@ -536,8 +536,9 @@ def test_recover_service_from_files(
         os.path.dirname(os.path.realpath(__file__)), "testdata", directory
     )
 
-    old_common = os.path.join(service_dir, "common")
     new_common = infra.network.get_common_folder_name(args.workspace, args.label)
+    remove_tree(new_common)
+    old_common = os.path.join(service_dir, "common")
     copy_tree(old_common, new_common)
 
     network = infra.network.Network(args.nodes, args.binary_dir)
@@ -1078,16 +1079,26 @@ def run(args):
                     ), f"{service_status} service at seqno {seqno} did not start a new ledger chunk (started at {chunk_start_seqno})"
 
     test_recover_service_from_files(
-        args, "expired_service", expected_recovery_count=2, test_receipt=True
+        args, directory="expired_service", expected_recovery_count=2, test_receipt=True
     )
     # sgx_service is historical ledger, from 1.x -> 2.x -> 3.x -> 5.x -> main.
     # This is used to test recovery from SGX to SNP.
     test_recover_service_from_files(
-        args, "sgx_service", expected_recovery_count=4, test_receipt=False
+        args, directory="sgx_service", expected_recovery_count=4, test_receipt=False
     )
 
     test_recover_service_from_files(
-        args, "double_sealed_service", expected_recovery_count=2, test_receipt=False
+        args,
+        directory="double_sealed_service",
+        expected_recovery_count=2,
+        test_receipt=False,
+    )
+
+    test_recover_service_from_files(
+        args,
+        directory="cose_flipflop_service",
+        expected_recovery_count=0,
+        test_receipt=False,
     )
 
 
