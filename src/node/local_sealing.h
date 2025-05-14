@@ -94,7 +94,7 @@ namespace ccf
     if (!key->decrypt(
           cipher.hdr.get_iv(), cipher.hdr.tag, cipher.cipher, aad, plaintext))
     {
-      throw std::logic_error("Failed to decrypt sealed text");
+      throw std::logic_error("Failed to decrypt sealed data");
     }
 
     return plaintext;
