@@ -98,7 +98,7 @@ namespace ccf
   struct SealedLedgerSecret
   {
     std::vector<uint8_t> ciphertext;
-    std::vector<uint8_t> aad_text;
+    std::string aad_text;
   };
 
   DECLARE_JSON_TYPE(SealedLedgerSecret);
@@ -131,7 +131,7 @@ namespace ccf
     auto dir_path = files::fs::path(sealed_secret_dir);
     auto sealing_path = dir_path / get_sealing_filename(version);
     SealedLedgerSecret sealed_secret_for_store = {
-      .ciphertext = sealed_secret.serialise(), .aad_text = buf_aad};
+      .ciphertext = sealed_secret.serialise(), .aad_text = plainaad};
 
     files::dump(nlohmann::json(sealed_secret_for_store).dump(), sealing_path);
     LOG_INFO_FMT("Sealing complete of ledger secret to {}", sealing_path);
@@ -152,9 +152,7 @@ namespace ccf
       std::vector<uint8_t> sealed_secret_raw = files::slurp(ledger_secret_path);
       SealedLedgerSecret sealed_ledger_secret = nlohmann::json::parse(
         std::string(sealed_secret_raw.begin(), sealed_secret_raw.end()));
-      SealedLedgerSecretAAD aad = nlohmann::json::parse(std::string(
-        sealed_ledger_secret.aad_text.begin(),
-        sealed_ledger_secret.aad_text.end()));
+      SealedLedgerSecretAAD aad = nlohmann::json::parse(sealed_ledger_secret.aad_text);
 
       CCF_ASSERT_FMT(
         aad.version == expected_version,
