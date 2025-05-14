@@ -1248,7 +1248,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 "xor_ciphertext",
                 lambda s: {
                     v: {
-                        "ciphertext": base64.b64encode(bytes([b ^ 0xFF for b in base64.b64decode(s[v]["ciphertext"])])),
+                        "ciphertext": base64.b64encode(bytes([b ^ 0xFF for b in base64.b64decode(s[v]["ciphertext"])])).decode('utf-8'),
                         "aad_text": s[v]["aad_text"],
                     }
                     for v in s.keys()
@@ -1264,7 +1264,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
         prev_network = network
         for corruption in corruptions:
             LOG.info("Corruption: " + corruption.tag)
-            corrupt_ledger_secret = ledger_secret + ".corrupt"
+            corrupt_ledger_secret = ledger_secret + f"{corruption.tag}.corrupt"
             corruption.run(ledger_secret, corrupt_ledger_secret)
 
             recovery_network_args = copy.deepcopy(args)
