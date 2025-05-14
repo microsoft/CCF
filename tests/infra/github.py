@@ -190,7 +190,7 @@ class GitEnv:
     def has_release_for_tag_name(self, tag_name):
         try:
             package_url = get_package_url_from_tag_name(tag_name)
-        except ValueError as v:
+        except ValueError:
             return False
 
         return (
