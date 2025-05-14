@@ -440,7 +440,7 @@
                   },
                   "previous_sealed_ledger_secret_location": {
                     "type": ["string"],
-                    "description": "Path to the sealed ledger secret file, if set alongside the --enable-auto-dr command line argument the unsealed ledger secret will be used instead of using recovery shares."
+                    "description": "Path to the sealed ledger secret folder, the ledger secrets will be unsealed and used instead of requring recovery shares."
                   }
                 },
                 "required": ["previous_service_identity_file"],

@@ -159,13 +159,6 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     enclave_file_path,
     "Path to enclave application (security critical)");
 
-  bool enable_auto_dr = false;
-  app.add_flag(
-    "--enable-auto-dr",
-    enable_auto_dr,
-    "Enable automatic disaster recovery (DR) features: local sealing (security "
-    "critical)");
-
   try
   {
     app.parse(argc, argv);
@@ -718,11 +711,12 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     startup_config.startup_host_time =
       ccf::ds::to_x509_time_string(startup_host_time);
 
-    if (enable_auto_dr)
+    if (config.output_files.sealed_ledger_secret_location.has_value())
     {
       CCF_ASSERT_FMT(
         ccf::pal::platform == ccf::pal::Platform::SNP,
         "Local sealing is only supported on SEV-SNP platforms");
+      startup_config.network.will_locally_seal_ledger_secrets = true;
       startup_config.sealed_ledger_secret_location =
         config.output_files.sealed_ledger_secret_location;
     }
