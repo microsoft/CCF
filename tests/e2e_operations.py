@@ -1216,7 +1216,7 @@ def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
                 for version, data in corrupted_secrets.items():
                     secret_path = os.path.join(dst_dir, f"{version}.sealed.json")
                     with open(secret_path, "wb") as w:
-                        w.write(json.dumps(data))
+                        w.write(json.dumps(data).encode("utf-8"))
 
         corruptions = [Corruption("delete_everything", lambda _: {}, True)]
 
