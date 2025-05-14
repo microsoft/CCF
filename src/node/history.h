@@ -153,7 +153,7 @@ namespace ccf
       version++;
     }
 
-    bool verify_root_signatures() override
+    bool verify_root_signatures(ccf::kv::Version v) override
     {
       return true;
     }
@@ -772,7 +772,7 @@ namespace ccf
         term_of_next_version};
     }
 
-    bool verify_root_signatures() override
+    bool verify_root_signatures(ccf::kv::Version version) override
     {
       auto tx = store.create_read_only_tx();
 
@@ -798,6 +798,23 @@ namespace ccf
 
       if (!cose_sig.has_value())
       {
+        return true;
+      }
+
+      // Since COSE signatures have not always been emitted, it is possible in a
+      // mixed-service to see an _old_ COSE signature (by reading from the KV)
+      // that does not refer to the _current root_. When this occurs
+      // version_of_previous_write will not match the version at which we're
+      // verifying.
+      const auto cose_sig_version =
+        cose_signatures->get_version_of_previous_write();
+      if (cose_sig_version.has_value() && cose_sig_version.value() != version)
+      {
+        LOG_INFO_FMT(
+          "Non-monotonic presence of COSE signatures - had one at {} but none "
+          "at {}",
+          cose_sig_version.value(),
+          version);
         return true;
       }
 
