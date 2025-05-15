@@ -17,7 +17,7 @@ namespace ccf::crypto
   {
   protected:
     std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
-    rsa_public_raw_from_jwk(const JsonWebKeyRSAPublic& jwk);
+    static rsa_public_raw_from_jwk(const JsonWebKeyRSAPublic& jwk);
 
   public:
     RSAPublicKey_OpenSSL() = default;

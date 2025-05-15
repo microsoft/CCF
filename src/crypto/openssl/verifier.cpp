@@ -18,7 +18,7 @@ namespace ccf::crypto
 {
   using namespace OpenSSL;
 
-  MDType Verifier_OpenSSL::get_md_type(int mdt) const
+  MDType Verifier_OpenSSL::get_md_type(int mdt)
   {
     switch (mdt)
     {
@@ -53,7 +53,9 @@ namespace ccf::crypto
       }
     }
 
-    int mdnid, pknid, secbits;
+    int mdnid = 0;
+    int pknid = 0;
+    int secbits = 0;
     X509_get_signature_info(cert, &mdnid, &pknid, &secbits, 0);
 
     EVP_PKEY* pk = X509_get_pubkey(cert);

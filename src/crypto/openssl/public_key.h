@@ -18,7 +18,7 @@ namespace ccf::crypto
     EVP_PKEY* key = nullptr;
     PublicKey_OpenSSL();
 
-    std::vector<uint8_t> ec_point_public_from_jwk(
+    static std::vector<uint8_t> ec_point_public_from_jwk(
       const JsonWebKeyECPublic& jwk);
 
   public:

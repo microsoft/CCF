@@ -27,14 +27,14 @@ namespace ccf::crypto
   }
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(EVP_PKEY* k) :
-    RSAPublicKey_OpenSSL(std::move(k))
+    RSAPublicKey_OpenSSL(k)
   {}
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PrivateKey(mem, NULL, NULL, nullptr);
-    if (!key)
+    key = PEM_read_bio_PrivateKey(mem, nullptr, nullptr, nullptr);
+    if (key == nullptr)
     {
       throw std::runtime_error("could not parse PEM");
     }
@@ -44,7 +44,12 @@ namespace ccf::crypto
   {
     key = EVP_PKEY_new();
 
-    Unique_BIGNUM d, p, q, dp, dq, qi;
+    Unique_BIGNUM d;
+    Unique_BIGNUM p;
+    Unique_BIGNUM q;
+    Unique_BIGNUM dp;
+    Unique_BIGNUM dq;
+    Unique_BIGNUM qi;
     auto d_raw = raw_from_b64url(jwk.d);
     auto p_raw = raw_from_b64url(jwk.p);
     auto q_raw = raw_from_b64url(jwk.q);
@@ -79,6 +84,7 @@ namespace ccf::crypto
 
     auto [n_raw, e_raw] = RSAPublicKey_OpenSSL::rsa_public_raw_from_jwk(jwk);
 
+    // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
     OSSL_PARAM params[9];
     params[0] = OSSL_PARAM_construct_BN(
       OSSL_PKEY_PARAM_RSA_N, n_raw.data(), n_raw.size());
@@ -103,10 +109,11 @@ namespace ccf::crypto
       qi_raw_native.data(),
       qi_raw_native.size());
     params[8] = OSSL_PARAM_construct_end();
+    // NOLINTEND(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
 
     Unique_EVP_PKEY_CTX pctx("RSA");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_KEYPAIR, params));
+    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_KEYPAIR, static_cast<OSSL_PARAM*>(params)));
   }
 
   size_t RSAKeyPair_OpenSSL::key_size() const
@@ -118,7 +125,7 @@ namespace ccf::crypto
     const std::vector<uint8_t>& input,
     const std::optional<std::vector<std::uint8_t>>& label)
   {
-    const unsigned char* label_ = NULL;
+    const unsigned char* label_ = nullptr;
     size_t label_size = 0;
     if (label.has_value())
     {
@@ -136,19 +143,19 @@ namespace ccf::crypto
     EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256());
     EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256());
 
-    if (label_)
+    if (label_ != nullptr)
     {
-      unsigned char* openssl_label = (unsigned char*)OPENSSL_malloc(label_size);
+      auto* openssl_label = static_cast<unsigned char*>(OPENSSL_malloc(label_size));
       std::copy(label_, label_ + label_size, openssl_label);
       EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size);
     }
     else
     {
-      EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, NULL, 0);
+      EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, nullptr, 0);
     }
 
-    size_t olen;
-    CHECK1(EVP_PKEY_decrypt(ctx, NULL, &olen, input.data(), input.size()));
+    size_t olen = 0;
+    CHECK1(EVP_PKEY_decrypt(ctx, nullptr, &olen, input.data(), input.size()));
 
     std::vector<uint8_t> output(olen);
     CHECK1(
@@ -162,27 +169,29 @@ namespace ccf::crypto
   {
     Unique_BIO buf;
 
-    CHECK1(PEM_write_bio_PrivateKey(buf, key, NULL, NULL, 0, NULL, NULL));
+    CHECK1(PEM_write_bio_PrivateKey(buf, key, nullptr, nullptr, 0, nullptr, nullptr));
 
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(buf, &bptr);
-    return Pem((uint8_t*)bptr->data, bptr->length);
+    return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 
   Pem RSAKeyPair_OpenSSL::public_key_pem() const
   {
-    return PublicKey_OpenSSL::public_key_pem();
+    return RSAPublicKey_OpenSSL::public_key_pem();
   }
 
   std::vector<uint8_t> RSAKeyPair_OpenSSL::public_key_der() const
   {
-    return PublicKey_OpenSSL::public_key_der();
+    return RSAPublicKey_OpenSSL::public_key_der();
   }
 
   std::vector<uint8_t> RSAKeyPair_OpenSSL::sign(
     std::span<const uint8_t> d, MDType md_type, size_t salt_length) const
   {
-    std::vector<uint8_t> r(2048);
+    constexpr size_t MAX_SIG_SIZE = 2048;
+
+    std::vector<uint8_t> r(MAX_SIG_SIZE);
     auto hash = OpenSSLHashProvider().Hash(d.data(), d.size(), md_type);
     Unique_EVP_PKEY_CTX pctx(key);
     CHECK1(EVP_PKEY_sign_init(pctx));
@@ -212,7 +221,12 @@ namespace ccf::crypto
   {
     JsonWebKeyRSAPrivate jwk = {RSAPublicKey_OpenSSL::public_key_jwk_rsa(kid)};
 
-    Unique_BIGNUM d, p, q, dp, dq, qi;
+    Unique_BIGNUM d;
+    Unique_BIGNUM p;
+    Unique_BIGNUM q;
+    Unique_BIGNUM dp;
+    Unique_BIGNUM dq;
+    Unique_BIGNUM qi;
 
     d = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_D);
     p = RSAPublicKey_OpenSSL::get_bn_param(OSSL_PKEY_PARAM_RSA_FACTOR1);

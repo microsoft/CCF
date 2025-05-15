@@ -24,7 +24,7 @@ namespace ccf::crypto
   {
     Unique_BIO mem(pem);
     key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
-    if (!key || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+    if (key == nullptr || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
       throw std::logic_error("invalid RSA key");
     }
@@ -48,7 +48,7 @@ namespace ccf::crypto
     // As it's a common pattern to rely on successful key wrapper construction
     // as a confirmation of a concrete key type, this must fail for non-RSA
     // keys.
-    if (!key || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
+    if (key == nullptr || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
       throw std::logic_error("invalid RSA key");
     }
@@ -98,7 +98,7 @@ namespace ccf::crypto
 
     Unique_EVP_PKEY_CTX pctx("RSA");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, params));
+    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
   }
 
   size_t RSAPublicKey_OpenSSL::key_size() const
@@ -118,9 +118,9 @@ namespace ccf::crypto
     EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256());
     EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256());
 
-    if (label)
+    if (label != nullptr && label_size > 0)
     {
-      unsigned char* openssl_label = (unsigned char*)OPENSSL_malloc(label_size);
+      auto* openssl_label = static_cast<unsigned char*>(OPENSSL_malloc(label_size));
       std::copy(label, label + label_size, openssl_label);
       EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size);
     }
@@ -129,7 +129,7 @@ namespace ccf::crypto
       EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, nullptr, 0);
     }
 
-    size_t olen;
+    size_t olen = 0;
     OpenSSL::CHECK1(EVP_PKEY_encrypt(ctx, nullptr, &olen, input, input_size));
 
     std::vector<uint8_t> output(olen);
