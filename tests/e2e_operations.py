@@ -1175,6 +1175,76 @@ def run_recovery_local_unsealing(
             prev_network = recovery_network
 
 
+def run_recovery_unsealing_validate_audit(const_args):
+    LOG.info("Running recovery local unsealing")
+    args = copy.deepcopy(const_args)
+    args.nodes = infra.e2e_args.min_nodes(args, f=1)
+    args.enable_local_sealing = True
+
+    with infra.network.network(args.nodes, args.binary_dir) as network:
+        network.start_and_open(args)
+
+        network.save_service_identity(args)
+        node0_secrets = network.nodes[0].save_sealed_ledger_secret()
+
+        latest_public_tables, _ = network.get_latest_ledger_public_state()
+        node_info = latest_public_tables["public:ccf.gov.nodes.info"]
+        for info in node_info.values():
+            node_info = json.loads(info.decode("utf-8"))
+            assert node_info["will_locally_seal_ledger_secrets"]
+        assert (
+            "public:ccf.internal.last_recovery_type" not in latest_public_tables
+        ), "last_recovery_type was set when no recovery was performed."
+
+        network.stop_all_nodes()
+
+        prev_network = network
+        for via_local_unsealing in [True, False]:
+            recovery_network_args = copy.deepcopy(args)
+            recovery_network_args.nodes = infra.e2e_args.min_nodes(args, f=0)
+            if via_local_unsealing:
+                recovery_network_args.previous_sealed_ledger_secret_location = (
+                    node0_secrets
+                )
+            recovery_network = infra.network.Network(
+                recovery_network_args.nodes,
+                recovery_network_args.binary_dir,
+                next_node_id=prev_network.next_node_id,
+            )
+
+            # Reset consortium and users to prevent issues with hosts from existing_network
+            recovery_network.consortium = prev_network.consortium
+            recovery_network.users = prev_network.users
+            recovery_network.txs = prev_network.txs
+            recovery_network.jwt_issuer = prev_network.jwt_issuer
+
+            current_ledger_dir, committed_ledger_dirs = network.nodes[0].get_ledger()
+            recovery_network.start_in_recovery(
+                recovery_network_args,
+                ledger_dir=current_ledger_dir,
+                committed_ledger_dirs=committed_ledger_dirs,
+            )
+
+            recovery_network.recover(
+                recovery_network_args, via_local_sealing=via_local_unsealing
+            )
+
+            latest_public_tables, _ = recovery_network.get_latest_ledger_public_state()
+            recovery_type = latest_public_tables[
+                "public:ccf.internal.last_recovery_type"
+            ][b"\x00\x00\x00\x00\x00\x00\x00\x00"].decode("utf-8")
+            expected_recovery_type = (
+                '"LOCAL_UNSEALING"' if via_local_unsealing else '"RECOVERY_SHARES"'
+            )
+            assert (
+                recovery_type == expected_recovery_type
+            ), f"Network recovery type was {recovery_type} instead of {expected_recovery_type}"
+
+            recovery_network.stop_all_nodes()
+
+            prev_network = recovery_network
+
+
 def run_recovery_unsealing_corrupt(const_args, recovery_f=0):
     LOG.info("Running recovery local unsealing corrupted secret")
     args = copy.deepcopy(const_args)
@@ -1338,3 +1408,4 @@ def run(args):
         run_recovery_local_unsealing(args, recovery_shares_refresh=True)
         run_recovery_local_unsealing(args, recovery_f=1)
         run_recovery_unsealing_corrupt(args)
+        run_recovery_unsealing_validate_audit(args)

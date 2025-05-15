@@ -113,6 +113,38 @@ Summary Diagram
 
 Once operators have established a recovered crash-fault tolerant public network, the existing members of the consortium :ref:`must vote to accept the recovery of the network and submit their recovery shares <governance/accept_recovery:Accepting Recovery and Submitting Shares>`.
 
+Local Sealing Recovery
+----------------------
+
+SNP provides the `DERIVED_KEY` guest message which derives a key from the CPU's VCEK (or VLEK), TCB version and the guest's measurement and host_data (policy), thus any change to the CPU, measurement or policy, or a rolled-back TCB version, will prevent the key from being reconstructed.
+Local sealing uses a derived key to skip waiting for recovery shares from members after `transition_to_open` is triggered and instead unseal previously sealed ledger secrets.
+
+If, in config.json, `output_files.sealed_ledger_secret_location` is set, the node will derive a key and seal versioned ledger secrets to that directory.
+This capability is noted in `public:ccf.gov.node.info[node].will_locally_seal_ledger_secrets`, to allow it to be audited.
+
+Then if `command.recover.previous_sealed_ledger_secret_location` is set in the config.json, when the node recovers and receives the `transition_to_open` transaction, the node will try to unseal the latest ledger secret and use that to recover the ledger.
+If this is unsuccessful, it will fall back to waiting for recovery shares.
+Which of these two paths is taken is noted in the `public:ccf.internal.last_recovery_type`.
+
+.. code-block:: bash
+
+    $ cat /path/to/config/file
+      ...
+      "command": {
+        "type": "Recover",
+        ...
+        "recover": {
+          ...
+          "previous_sealed_ledger_secret_location": "/path/to/previous/secret"
+        }
+      }
+      "output_files": {
+        ...
+        "sealed_ledger_secret_location": "/path/to/new/secret"
+      }
+      ...
+    $ cchost --config /path/to/config/file
+
 Notes
 -----
 
