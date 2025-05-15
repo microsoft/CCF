@@ -23,7 +23,7 @@ namespace ccf::crypto
   RSAPublicKey_OpenSSL::RSAPublicKey_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
+    key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
     if (!key || EVP_PKEY_get_base_id(key) != EVP_PKEY_RSA)
     {
       throw std::logic_error("invalid RSA key");
@@ -36,9 +36,9 @@ namespace ccf::crypto
     key = EVP_PKEY_new();
     if (
       ((key = d2i_PUBKEY(&key, &pp, der.size())) ==
-       NULL) && // "SubjectPublicKeyInfo structure" format
+       nullptr) && // "SubjectPublicKeyInfo structure" format
       ((key = d2i_PublicKey(EVP_PKEY_RSA, &key, &pp, der.size())) ==
-       NULL)) // PKCS#1 structure format
+       nullptr)) // PKCS#1 structure format
     {
       unsigned long ec = ERR_get_error();
       auto msg = OpenSSL::error_string(ec);
@@ -126,11 +126,11 @@ namespace ccf::crypto
     }
     else
     {
-      EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, NULL, 0);
+      EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, nullptr, 0);
     }
 
     size_t olen;
-    OpenSSL::CHECK1(EVP_PKEY_encrypt(ctx, NULL, &olen, input, input_size));
+    OpenSSL::CHECK1(EVP_PKEY_encrypt(ctx, nullptr, &olen, input, input_size));
 
     std::vector<uint8_t> output(olen);
     OpenSSL::CHECK1(
@@ -144,7 +144,7 @@ namespace ccf::crypto
     const std::vector<uint8_t>& input,
     const std::optional<std::vector<std::uint8_t>>& label)
   {
-    const unsigned char* label_ = NULL;
+    const unsigned char* label_ = nullptr;
     size_t label_size = 0;
     if (label.has_value())
     {
@@ -213,7 +213,7 @@ namespace ccf::crypto
   Unique_BIGNUM RSAPublicKey_OpenSSL::get_bn_param(const char* key_name) const
   {
     Unique_BIGNUM r;
-    BIGNUM* bn = NULL;
+    BIGNUM* bn = nullptr;
     CHECK1(EVP_PKEY_get_bn_param(key, key_name, &bn));
     r.reset(bn);
     return r;

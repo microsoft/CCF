@@ -18,7 +18,9 @@ namespace ccf::crypto::sharing
   */
 
   using element = uint64_t;
-  constexpr element prime = (1UL << 31) - 1UL; // a notorious Mersenne prime
+  constexpr size_t SHIFT_OFFSET = 31;
+  constexpr element prime =
+    (1UL << SHIFT_OFFSET) - 1UL; // a notorious Mersenne prime
   /*
   Constant time version of:
     static element reduce(element x)
@@ -37,13 +39,13 @@ namespace ccf::crypto::sharing
     // initially, x < 2^64
     // we compute under-approximations  x/(2^31) of x/prime
     uint64_t d = 0;
-    d = x >> 31;
+    d = x >> SHIFT_OFFSET;
     x -= d * prime;
     // after this first reduction, x <= 5*prime + 3
-    d = x >> 31;
+    d = x >> SHIFT_OFFSET;
     x -= d * prime;
     // after this second reduction, x <= prime + 3
-    d = (x + 1) >> 31;
+    d = (x + 1) >> SHIFT_OFFSET;
     x -= d * prime;
     // d is correct for every x in this range
     return x;
@@ -71,8 +73,10 @@ namespace ccf::crypto::sharing
     element y = 1;
     while (n > 0)
     {
-      if (n & 1)
+      if ((n & 1UL) != 0UL)
+      {
         y = mul(y, x);
+      }
       x = mul(x, x);
       n >>= 1;
     }
@@ -115,7 +119,8 @@ namespace ccf::crypto::sharing
 
   static element eval(element p[], size_t degree, element x)
   {
-    element y = 0, x_i = 1;
+    element y = 0;
+    element x_i = 1;
     for (size_t i = 0; i <= degree; i++)
     {
       // x_i == x^i
@@ -128,7 +133,7 @@ namespace ccf::crypto::sharing
   void sample_secret_and_shares(
     Share& raw_secret, const std::span<Share>& shares, size_t threshold)
   {
-    if (shares.size() < 1)
+    if (shares.empty())
     {
       throw std::invalid_argument("insufficient number of shares");
     }
@@ -151,11 +156,11 @@ namespace ccf::crypto::sharing
     for (size_t limb = 0; limb < LIMBS; limb++)
     {
       element p[degree + 1]; /*SECRET*/
-      sample_polynomial(p, degree, entropy);
+      sample_polynomial(static_cast<element*>(p), degree, entropy);
       raw_secret.y[limb] = p[0];
-      for (size_t s = 0; s < shares.size(); s++)
+      for (auto& share : shares)
       {
-        shares[s].y[limb] = eval(p, degree, shares[s].x);
+        share.y[limb] = eval(static_cast<element*>(p), degree, share.x);
       }
     }
   }
@@ -177,7 +182,8 @@ namespace ccf::crypto::sharing
     element lagrange[degree + 1];
     for (size_t i = 0; i <= degree; i++)
     {
-      element numerator = 1, denominator = 1;
+      element numerator = 1;
+      element denominator = 1;
       for (size_t j = 0; j <= degree; j++)
       {
         if (i != j)

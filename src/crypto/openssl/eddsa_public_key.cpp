@@ -13,7 +13,7 @@ namespace ccf::crypto
   {
     Unique_BIO mem(pem);
     key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
-    if (!key)
+    if (key == nullptr)
     {
       throw std::runtime_error("could not parse PEM");
     }
@@ -55,7 +55,7 @@ namespace ccf::crypto
 
   EdDSAPublicKey_OpenSSL::~EdDSAPublicKey_OpenSSL()
   {
-    if (key)
+    if (key != nullptr)
     {
       EVP_PKEY_free(key);
     }
@@ -67,9 +67,9 @@ namespace ccf::crypto
 
     OpenSSL::CHECK1(PEM_write_bio_PUBKEY(buf, key));
 
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(buf, &bptr);
-    return Pem((uint8_t*)bptr->data, bptr->length);
+    return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 
   bool EdDSAPublicKey_OpenSSL::verify(
