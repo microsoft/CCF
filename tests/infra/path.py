@@ -90,10 +90,6 @@ def copy_dir(src_path, dst_path):
     copy2(src_path, dst_path)
 
 
-def copy_tree(src_path, dst_path):
-    copytree(src_path, dst_path)
-
-
 def compute_file_checksum(file_name):
     h = hashlib.sha256()
     with open(file_name, "rb") as f:

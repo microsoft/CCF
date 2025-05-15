@@ -20,6 +20,7 @@ import copy
 import json
 import time
 import http
+from shutil import copytree
 
 import ccf._versionifier
 
@@ -228,7 +229,7 @@ class Node:
                 self.common_dir, f"{self.local_node_id}.sealed_ledger_secret"
             )
 
-        infra.path.copy_tree(sealed_ledger_secret_location, destination)
+        copytree(sealed_ledger_secret_location, destination)
 
         return destination
 
