@@ -2,7 +2,7 @@
 # Licensed under the Apache 2.0 License.
 import os
 from contextlib import contextmanager
-from shutil import copy2, rmtree, copytree
+from shutil import copy2, rmtree
 import hashlib
 
 from loguru import logger as LOG
