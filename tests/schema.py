@@ -12,7 +12,6 @@ from packaging import version
 from infra.runner import ConcurrentRunner
 import nobuiltins
 import packaging.version
-
 import e2e_tutorial
 import e2e_operations
 
