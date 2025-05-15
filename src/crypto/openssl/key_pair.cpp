@@ -10,6 +10,7 @@
 #include "x509_time.h"
 
 #define FMT_HEADER_ONLY
+#include <climits>
 #include <fmt/format.h>
 #include <openssl/asn1.h>
 #include <openssl/core_names.h>
@@ -22,7 +23,6 @@
 #include <openssl/x509v3.h>
 #include <stdexcept>
 #include <string>
-#include <climits>
 
 namespace ccf::crypto
 {
@@ -88,7 +88,9 @@ namespace ccf::crypto
 
     OSSL_PARAM params[4];
     params[0] = OSSL_PARAM_construct_utf8_string(
-      OSSL_PKEY_PARAM_GROUP_NAME, (char*)OSSL_EC_curve_nid2name(nid), 0);
+      OSSL_PKEY_PARAM_GROUP_NAME,
+      const_cast<char*>(OSSL_EC_curve_nid2name(nid)),
+      0);
     params[1] = OSSL_PARAM_construct_octet_string(
       OSSL_PKEY_PARAM_PUB_KEY, pub_buf.data(), pub_buf.size());
     params[2] = OSSL_PARAM_construct_BN(
@@ -97,19 +99,21 @@ namespace ccf::crypto
 
     Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_KEYPAIR, params));
+    CHECK1(EVP_PKEY_fromdata(
+      pctx, &key, EVP_PKEY_KEYPAIR, static_cast<OSSL_PARAM*>(params)));
   }
 
   Pem KeyPair_OpenSSL::private_key_pem() const
   {
     Unique_BIO buf;
 
-    OpenSSL::CHECK1(
-      PEM_write_bio_PrivateKey(buf, key, nullptr, nullptr, 0, nullptr, nullptr));
+    OpenSSL::CHECK1(PEM_write_bio_PrivateKey(
+      buf, key, nullptr, nullptr, 0, nullptr, nullptr));
 
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(buf, &bptr);
-    return Pem((uint8_t*)bptr->data, bptr->length);
+
+    return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 
   Pem KeyPair_OpenSSL::public_key_pem() const
@@ -128,7 +132,7 @@ namespace ccf::crypto
 
     OpenSSL::CHECK1(i2d_PrivateKey_bio(buf, key));
 
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(buf, &bptr);
     return {bptr->data, bptr->data + bptr->length};
   }
@@ -227,7 +231,7 @@ namespace ccf::crypto
         subj_name,
         k.c_str(),
         MBSTRING_ASC,
-        (const unsigned char*)v.data(),
+        reinterpret_cast<const unsigned char*>(v.data()),
         v.size(),
         -1,
         0));
@@ -289,8 +293,9 @@ namespace ccf::crypto
     BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(mem, &bptr);
 
-    return {reinterpret_cast<uint8_t*>(bptr->data),
-            reinterpret_cast<uint8_t*>(bptr->data) + bptr->length};
+    return {
+      reinterpret_cast<uint8_t*>(bptr->data),
+      reinterpret_cast<uint8_t*>(bptr->data) + bptr->length};
   }
 
   Pem KeyPair_OpenSSL::sign_csr_impl(
@@ -320,10 +325,12 @@ namespace ccf::crypto
     // Add serial number
     constexpr size_t SERIAL_NUMBER_SIZE = 16;
     unsigned char rndbytes[SERIAL_NUMBER_SIZE];
-    OpenSSL::CHECK1(RAND_bytes(static_cast<unsigned char*>(rndbytes), sizeof(rndbytes)));
+    OpenSSL::CHECK1(
+      RAND_bytes(static_cast<unsigned char*>(rndbytes), sizeof(rndbytes)));
     BIGNUM* bn = nullptr;
     OpenSSL::CHECKNULL(bn = BN_new());
-    OpenSSL::CHECKNULL(BN_bin2bn(static_cast<unsigned char*>(rndbytes), sizeof(rndbytes), bn));
+    OpenSSL::CHECKNULL(
+      BN_bin2bn(static_cast<unsigned char*>(rndbytes), sizeof(rndbytes), bn));
     ASN1_INTEGER* serial = ASN1_INTEGER_new();
     BN_to_ASN1_INTEGER(bn, serial);
     OpenSSL::CHECK1(X509_set_serialNumber(crt, serial));
@@ -334,14 +341,15 @@ namespace ccf::crypto
     if (issuer_cert.has_value())
     {
       Unique_BIO imem(*issuer_cert);
-      OpenSSL::CHECKNULL(icrt = PEM_read_bio_X509(imem, nullptr, nullptr, nullptr));
+      OpenSSL::CHECKNULL(
+        icrt = PEM_read_bio_X509(imem, nullptr, nullptr, nullptr));
       OpenSSL::CHECK1(X509_set_issuer_name(crt, X509_get_subject_name(icrt)));
 
       if (signer == Signer::ISSUER)
       {
         // Verify issuer-signed CSR
         req_pubkey = X509_REQ_get0_pubkey(csr);
-        auto * issuer_pubkey = X509_get0_pubkey(icrt);
+        auto* issuer_pubkey = X509_get0_pubkey(icrt);
         OpenSSL::CHECK1(X509_REQ_verify(csr, issuer_pubkey));
       }
     }
@@ -371,7 +379,8 @@ namespace ccf::crypto
     // Extensions
     X509V3_CTX v3ctx;
     X509V3_set_ctx_nodb(&v3ctx);
-    X509V3_set_ctx(&v3ctx, icrt != nullptr ? icrt : crt, nullptr, csr, nullptr, 0);
+    X509V3_set_ctx(
+      &v3ctx, icrt != nullptr ? icrt : crt, nullptr, csr, nullptr, 0);
 
     std::string constraints = "critical,CA:FALSE";
     if (ca)
@@ -391,8 +400,8 @@ namespace ccf::crypto
 
     // Add subject key identifier
     OpenSSL::CHECKNULL(
-      ext =
-        X509V3_EXT_conf_nid(nullptr, &v3ctx, NID_subject_key_identifier, "hash"));
+      ext = X509V3_EXT_conf_nid(
+        nullptr, &v3ctx, NID_subject_key_identifier, "hash"));
     OpenSSL::CHECK1(X509_add_ext(crt, ext, -1));
     X509_EXTENSION_free(ext);
 
@@ -421,7 +430,7 @@ namespace ccf::crypto
     }
 
     // Sign
-    const auto * md = get_md_type(get_md_for_ec(get_curve_id()));
+    const auto* md = get_md_type(get_md_for_ec(get_curve_id()));
     int size = X509_sign(crt, key, md);
     if (size <= 0)
     {

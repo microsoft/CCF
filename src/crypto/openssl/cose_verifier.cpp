@@ -120,7 +120,7 @@ namespace ccf::crypto
     int mdnid = 0;
     int pknid = 0;
     int secbits = 0;
-    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, 0);
+    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, nullptr);
 
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
@@ -165,7 +165,9 @@ namespace ccf::crypto
       t_cose_sign1_verify(&verify_ctx, buf_, &authned_content_, nullptr);
     if (error == T_COSE_SUCCESS)
     {
-      authned_content = {reinterpret_cast<uint8_t*>(const_cast<void*>(authned_content_.ptr)), authned_content_.len};
+      authned_content = {
+        reinterpret_cast<uint8_t*>(const_cast<void*>(authned_content_.ptr)),
+        authned_content_.len};
       return true;
     }
     LOG_DEBUG_FMT("COSE Sign1 verification failed with error {}", error);
@@ -231,7 +233,7 @@ namespace ccf::crypto
     std::span<const uint8_t> cose_msg)
   {
     UsefulBufC msg{cose_msg.data(), cose_msg.size()};
-    QCBORError qcbor_result;
+    QCBORError qcbor_result = QCBOR_SUCCESS;
 
     QCBORDecodeContext ctx;
     QCBORDecode_Init(&ctx, msg, QCBOR_DECODE_MODE_NORMAL);

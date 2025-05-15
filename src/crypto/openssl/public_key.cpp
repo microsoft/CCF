@@ -82,21 +82,25 @@ namespace ccf::crypto
     return buf;
   }
 
-  PublicKey_OpenSSL::PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk) : key(EVP_PKEY_new())
+  PublicKey_OpenSSL::PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk) :
+    key(EVP_PKEY_new())
   {
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
     auto buf = ec_point_public_from_jwk(jwk);
 
     OSSL_PARAM params[3];
     params[0] = OSSL_PARAM_construct_utf8_string(
-      OSSL_PKEY_PARAM_GROUP_NAME, const_cast<char*>(OSSL_EC_curve_nid2name(nid)), 0);
+      OSSL_PKEY_PARAM_GROUP_NAME,
+      const_cast<char*>(OSSL_EC_curve_nid2name(nid)),
+      0);
     params[1] = OSSL_PARAM_construct_octet_string(
       OSSL_PKEY_PARAM_PUB_KEY, buf.data(), buf.size());
     params[2] = OSSL_PARAM_construct_end();
 
     Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
+    CHECK1(EVP_PKEY_fromdata(
+      pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
   }
 
   PublicKey_OpenSSL::PublicKey_OpenSSL(EVP_PKEY* key) : key(key) {}
@@ -136,12 +140,12 @@ namespace ccf::crypto
     {
       return NID_secp384r1;
     }
-    
+
     if (gname == SN_X9_62_prime256v1)
     {
       return NID_X9_62_prime256v1;
     }
-    
+
     throw std::runtime_error(fmt::format("Unknown OpenSSL group {}", gname));
   }
 
@@ -254,7 +258,7 @@ namespace ccf::crypto
 
   Unique_PKEY key_from_raw_ec_point(const std::vector<uint8_t>& raw, int nid)
   {
-    auto * curve_name = const_cast<char*>(OSSL_EC_curve_nid2name(nid));
+    auto* curve_name = const_cast<char*>(OSSL_EC_curve_nid2name(nid));
 
     OSSL_PARAM params[3];
     params[0] = OSSL_PARAM_construct_utf8_string(
@@ -267,7 +271,8 @@ namespace ccf::crypto
     CHECK1(EVP_PKEY_fromdata_init(pctx));
 
     EVP_PKEY* pkey = nullptr;
-    CHECK1(EVP_PKEY_fromdata(pctx, &pkey, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
+    CHECK1(EVP_PKEY_fromdata(
+      pctx, &pkey, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
 
     if (pkey == nullptr)
     {

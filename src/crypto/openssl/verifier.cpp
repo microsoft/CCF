@@ -56,7 +56,7 @@ namespace ccf::crypto
     int mdnid = 0;
     int pknid = 0;
     int secbits = 0;
-    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, 0);
+    X509_get_signature_info(cert, &mdnid, &pknid, &secbits, nullptr);
 
     EVP_PKEY* pk = X509_get_pubkey(cert);
 
@@ -75,16 +75,18 @@ namespace ccf::crypto
     }
   }
 
-  Verifier_OpenSSL::~Verifier_OpenSSL() {}
+  Verifier_OpenSSL::~Verifier_OpenSSL() = default;
 
   std::vector<uint8_t> Verifier_OpenSSL::cert_der()
   {
     Unique_BIO mem;
     CHECK1(i2d_X509_bio(mem, cert));
 
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(mem, &bptr);
-    return {(uint8_t*)bptr->data, (uint8_t*)bptr->data + bptr->length};
+    return {
+      reinterpret_cast<uint8_t*>(bptr->data),
+      reinterpret_cast<uint8_t*>(bptr->data) + bptr->length};
   }
 
   Pem Verifier_OpenSSL::cert_pem()
@@ -94,7 +96,7 @@ namespace ccf::crypto
 
     BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(mem, &bptr);
-    return Pem((uint8_t*)bptr->data, bptr->length);
+    return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 
   bool Verifier_OpenSSL::verify_certificate(
@@ -105,7 +107,7 @@ namespace ccf::crypto
     Unique_X509_STORE store;
     Unique_X509_STORE_CTX store_ctx;
 
-    for (auto& pem : trusted_certs)
+    for (const auto& pem : trusted_certs)
     {
       Unique_BIO tcbio(*pem);
       Unique_X509 tc(tcbio, true);
@@ -153,7 +155,7 @@ namespace ccf::crypto
       const auto* msg = X509_verify_cert_error_string(error);
       LOG_DEBUG_FMT("Failed to verify certificate: {}", msg);
       LOG_DEBUG_FMT("Target: {}", cert_pem().str());
-      for (auto pem : chain)
+      for (const auto* pem : chain)
       {
         LOG_DEBUG_FMT("Chain: {}", pem->str());
       }
@@ -167,7 +169,7 @@ namespace ccf::crypto
 
   bool Verifier_OpenSSL::is_self_signed() const
   {
-    return X509_get_extension_flags(cert) & EXFLAG_SS;
+    return (X509_get_extension_flags(cert) & EXFLAG_SS) != 0U;
   }
 
   std::string Verifier_OpenSSL::serial_number() const
@@ -177,7 +179,7 @@ namespace ccf::crypto
     i2a_ASN1_INTEGER(mem, sn);
     BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(mem, &bptr);
-    return std::string(bptr->data, bptr->length);
+    return {bptr->data, bptr->length};
   }
 
   std::pair<std::string, std::string> Verifier_OpenSSL::validity_period() const
@@ -192,7 +194,7 @@ namespace ccf::crypto
     X509_NAME* name = X509_get_subject_name(cert);
     Unique_BIO mem;
     X509_NAME_print_ex(mem, name, 0, 0);
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(mem, &bptr);
     return {bptr->data, bptr->length};
   }

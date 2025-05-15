@@ -98,7 +98,8 @@ namespace ccf::crypto
 
     Unique_EVP_PKEY_CTX pctx("RSA");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
+    CHECK1(EVP_PKEY_fromdata(
+      pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
   }
 
   size_t RSAPublicKey_OpenSSL::key_size() const
@@ -120,7 +121,8 @@ namespace ccf::crypto
 
     if (label != nullptr && label_size > 0)
     {
-      auto* openssl_label = static_cast<unsigned char*>(OPENSSL_malloc(label_size));
+      auto* openssl_label =
+        static_cast<unsigned char*>(OPENSSL_malloc(label_size));
       std::copy(label, label + label_size, openssl_label);
       EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size);
     }

@@ -34,7 +34,8 @@ Checks: >
   -modernize-avoid-c-arrays,
   -cppcoreguidelines-pro-type-const-cast,
   -bugprone-assignment-in-if-condition,
-  -performance-enum-size
+  -performance-enum-size,
+  -bugprone-casting-through-void
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '?!(3rdparty)'

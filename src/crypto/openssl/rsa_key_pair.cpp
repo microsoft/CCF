@@ -26,8 +26,7 @@ namespace ccf::crypto
     CHECK1(EVP_PKEY_generate(pctx, &key));
   }
 
-  RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(EVP_PKEY* k) :
-    RSAPublicKey_OpenSSL(k)
+  RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(EVP_PKEY* k) : RSAPublicKey_OpenSSL(k)
   {}
 
   RSAKeyPair_OpenSSL::RSAKeyPair_OpenSSL(const Pem& pem)
@@ -113,7 +112,8 @@ namespace ccf::crypto
 
     Unique_EVP_PKEY_CTX pctx("RSA");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_KEYPAIR, static_cast<OSSL_PARAM*>(params)));
+    CHECK1(EVP_PKEY_fromdata(
+      pctx, &key, EVP_PKEY_KEYPAIR, static_cast<OSSL_PARAM*>(params)));
   }
 
   size_t RSAKeyPair_OpenSSL::key_size() const
@@ -145,7 +145,8 @@ namespace ccf::crypto
 
     if (label_ != nullptr)
     {
-      auto* openssl_label = static_cast<unsigned char*>(OPENSSL_malloc(label_size));
+      auto* openssl_label =
+        static_cast<unsigned char*>(OPENSSL_malloc(label_size));
       std::copy(label_, label_ + label_size, openssl_label);
       EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, openssl_label, label_size);
     }
@@ -169,7 +170,8 @@ namespace ccf::crypto
   {
     Unique_BIO buf;
 
-    CHECK1(PEM_write_bio_PrivateKey(buf, key, nullptr, nullptr, 0, nullptr, nullptr));
+    CHECK1(PEM_write_bio_PrivateKey(
+      buf, key, nullptr, nullptr, 0, nullptr, nullptr));
 
     BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(buf, &bptr);
