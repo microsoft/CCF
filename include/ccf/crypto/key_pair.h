@@ -183,7 +183,7 @@ namespace ccf::crypto
    * @param pkey PEM key to load
    * @return Key pair
    */
-  KeyPairPtr make_key_pair(const Pem& pkey);
+  KeyPairPtr make_key_pair(const Pem& pem);
 
   /**
    * Construct a new public / private ECDSA key pair from a JsonWebKeyECPrivate
