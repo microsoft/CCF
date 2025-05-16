@@ -3,6 +3,7 @@
 
 set(CPACK_PACKAGE_NAME "${CCF_PROJECT}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Confidential Consortium Framework")
+set(CPACK_PACKAGE_DESCRIPTION ${PROJECT_DESCRIPTION})
 set(CPACK_PACKAGE_CONTACT "https://github.com/Microsoft/CCF")
 set(CPACK_RESOURCE_FILE_LICENSE "${CCF_DIR}/LICENSE")
 set(CPACK_PACKAGE_VERSION ${CCF_RELEASE_VERSION})
@@ -23,6 +24,9 @@ message(STATUS "RPM package version: ${CPACK_RPM_PACKAGE_VERSION}")
 set(OPENSSL_MINIMAL_VERSION "3.3.0")
 set(NGHTTP2_MINIMAL_VERSION "1.40.0")
 
+set(CPACK_RPM_PACKAGE_LICENSE "Apache-2.0")
+set(CPACK_RPM_PACKAGE_DESCRIPTION "${PROJECT_DESCRIPTION}")
+
 if(CCF_DEVEL)
   set(CCF_RPM_BASE_DEPENDENCIES
       "openssl-devel >= ${OPENSSL_MINIMAL_VERSION}, nghttp2-devel >= ${NGHTTP2_MINIMAL_VERSION}"
@@ -33,16 +37,18 @@ if(CCF_DEVEL)
   )
   # + alter name
   set(CPACK_PACKAGE_NAME "${CPACK_PACKAGE_NAME}_devel")
+  # + alter summary
+  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+      "${CPACK_PACKAGE_DESCRIPTION_SUMMARY} (development)"
+  )
 else()
   set(CCF_RPM_BASE_DEPENDENCIES
       "openssl >= ${OPENSSL_MINIMAL_VERSION}, nghttp2 >= ${NGHTTP2_MINIMAL_VERSION}"
   )
 endif()
 
-# SymCrypt backend is pinned to 1.7.0 for the time being until
-# https://github.com/microsoft/SymCrypt-OpenSSL/issues/115 is shipped.
 set(CCF_RPM_DEPENDENCIES
-    "${CCF_RPM_BASE_DEPENDENCIES}, libuv >= 1.34.2, curl >= 7.68.0, libcxxabi >= 18.1.2, SymCrypt-OpenSSL == 1.7.0"
+    "${CCF_RPM_BASE_DEPENDENCIES}, libuv >= 1.34.2, curl >= 7.68.0, libcxxabi >= 18.1.2"
 )
 
 message(STATUS "RPM package dependencies: ${CCF_RPM_DEPENDENCIES}")

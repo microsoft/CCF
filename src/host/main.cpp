@@ -2,6 +2,7 @@
 // Licensed under the Apache 2.0 License.
 
 #include "ccf/crypto/pem.h"
+#include "ccf/crypto/symmetric_key.h"
 #include "ccf/ds/logger.h"
 #include "ccf/ds/logger_level.h"
 #include "ccf/ds/nonstd.h"
@@ -11,6 +12,7 @@
 #include "ccf/pal/attestation.h"
 #include "ccf/pal/attestation_sev_snp.h"
 #include "ccf/pal/platform.h"
+#include "ccf/pal/snp_ioctl.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/version.h"
 #include "common/configuration.h"
@@ -170,7 +172,9 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     config_file_path,
     true /* return an empty string if the file does not exist */);
   nlohmann::json config_json;
-  const auto config_timeout_end = std::chrono::high_resolution_clock::now() +
+  const auto
+    config_timeout_end = // NOLINT(clang-analyzer-deadcode.DeadStores) line 195
+    std::chrono::high_resolution_clock::now() +
     std::chrono::microseconds(config_timeout);
   std::string config_parsing_error;
   do
@@ -709,6 +713,16 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
     startup_config.startup_host_time =
       ccf::ds::to_x509_time_string(startup_host_time);
 
+    if (config.output_files.sealed_ledger_secret_location.has_value())
+    {
+      CCF_ASSERT_FMT(
+        ccf::pal::platform == ccf::pal::Platform::SNP,
+        "Local sealing is only supported on SEV-SNP platforms");
+      startup_config.network.will_locally_seal_ledger_secrets = true;
+      startup_config.sealed_ledger_secret_location =
+        config.output_files.sealed_ledger_secret_location;
+    }
+
     if (config.command.type == StartType::Start)
     {
       for (auto const& member : config.command.start.members)
@@ -794,6 +808,16 @@ int main(int argc, char** argv) // NOLINT(bugprone-exception-escape)
       }
       LOG_INFO_FMT("Reading previous service identity from {}", idf);
       startup_config.recover.previous_service_identity = files::slurp(idf);
+
+      if (config.command.recover.previous_sealed_ledger_secret_location
+            .has_value())
+      {
+        CCF_ASSERT_FMT(
+          ccf::pal::platform == ccf::pal::Platform::SNP,
+          "Local unsealing is only supported on SEV-SNP platforms");
+        startup_config.recover.previous_sealed_ledger_secret_location =
+          config.command.recover.previous_sealed_ledger_secret_location;
+      }
     }
     else
     {
