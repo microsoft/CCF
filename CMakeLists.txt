@@ -23,6 +23,9 @@ include(${CCF_DIR}/cmake/version.cmake)
 project(
   ${CCF_PROJECT}
   VERSION ${CCF_RELEASE_VERSION}
+  DESCRIPTION
+    "Build confidential, highly-available distributed systems on top of secure hardware"
+  HOMEPAGE_URL "https://github.com/Microsoft/CCF"
   LANGUAGES C CXX
 )
 
@@ -122,6 +125,13 @@ option(USE_SNMALLOC "Link against snmalloc" ON)
 option(USE_LIBCXX "Use libc++ instead of libstdc++" OFF)
 
 option(CLANG_TIDY "Run clang-tidy on the codebase" OFF)
+# Must happen before tools.cmake is included
+if(CLANG_TIDY)
+  find_program(
+    CLANG_TIDY_EXE NAMES "clang-tidy" "clang-tidy-18" "clang-tidy-15"
+  )
+  message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
+endif()
 
 enable_language(ASM)
 
@@ -245,6 +255,7 @@ add_executable(cchost ${CCHOST_SOURCES})
 
 add_warning_checks(cchost)
 add_san(cchost)
+add_tidy(cchost)
 
 target_compile_options(
   cchost PRIVATE ${COMPILE_LIBCXX} ${SNMALLOC_COMPILE_OPTIONS}
@@ -358,6 +369,7 @@ if(COMPILE_TARGET STREQUAL "snp")
   add_host_library(ccf_kv.snp "${CCF_KV_SOURCES}")
   add_san(ccf_kv.snp)
   add_warning_checks(ccf_kv.snp)
+  add_tidy(ccf_kv.snp)
   target_compile_definitions(ccf_kv.snp PRIVATE CCF_LOGGER_NO_DEPRECATE)
   if(CCF_DEVEL)
     install(
@@ -371,6 +383,7 @@ endif()
 add_host_library(ccf_kv.host "${CCF_KV_SOURCES}")
 add_san(ccf_kv.host)
 add_warning_checks(ccf_kv.host)
+add_tidy(ccf_kv.host)
 target_compile_definitions(ccf_kv.host PRIVATE CCF_LOGGER_NO_DEPRECATE)
 if(INSTALL_VIRTUAL_LIBRARIES)
   install(
@@ -414,18 +427,6 @@ if(INSTALL_VIRTUAL_LIBRARIES)
     TARGETS ccf_endpoints.host
     EXPORT ccf
     DESTINATION lib
-  )
-endif()
-
-if(CLANG_TIDY)
-  find_program(
-    CLANG_TIDY_EXE NAMES "clang-tidy" "clang-tidy-18" "clang-tidy-15"
-  )
-  message(STATUS "Using clang-tidy from: ${CLANG_TIDY_EXE}")
-  # Start with cchost
-  set_target_properties(
-    cchost PROPERTIES C_CLANG_TIDY "${CLANG_TIDY_EXE}" CXX_CLANG_TIDY
-                                                       "${CLANG_TIDY_EXE}"
   )
 endif()
 
