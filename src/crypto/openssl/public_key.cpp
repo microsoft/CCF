@@ -7,6 +7,7 @@
 #include "ccf/ds/logger.h"
 #include "crypto/openssl/hash.h"
 
+#include <climits>
 #include <openssl/core_names.h>
 #include <openssl/ec.h>
 #include <openssl/engine.h>
@@ -24,23 +25,23 @@ namespace ccf::crypto
 {
   using namespace OpenSSL;
 
-  PublicKey_OpenSSL::PublicKey_OpenSSL() {}
+  PublicKey_OpenSSL::PublicKey_OpenSSL() = default;
 
   PublicKey_OpenSSL::PublicKey_OpenSSL(const Pem& pem)
   {
     Unique_BIO mem(pem);
-    key = PEM_read_bio_PUBKEY(mem, NULL, NULL, NULL);
-    if (!key)
+    key = PEM_read_bio_PUBKEY(mem, nullptr, nullptr, nullptr);
+    if (key == nullptr)
     {
       throw std::runtime_error("could not parse PEM");
     }
   }
 
-  PublicKey_OpenSSL::PublicKey_OpenSSL(const std::vector<uint8_t>& der)
+  PublicKey_OpenSSL::PublicKey_OpenSSL(std::span<const uint8_t> der)
   {
     Unique_BIO buf(der);
     key = d2i_PUBKEY_bio(buf, &key);
-    if (!key)
+    if (key == nullptr)
     {
       throw std::runtime_error("Could not read DER");
     }
@@ -81,29 +82,32 @@ namespace ccf::crypto
     return buf;
   }
 
-  PublicKey_OpenSSL::PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk)
+  PublicKey_OpenSSL::PublicKey_OpenSSL(const JsonWebKeyECPublic& jwk) :
+    key(EVP_PKEY_new())
   {
-    key = EVP_PKEY_new();
     auto nid = get_openssl_group_id(jwk_curve_to_curve_id(jwk.crv));
     auto buf = ec_point_public_from_jwk(jwk);
 
     OSSL_PARAM params[3];
     params[0] = OSSL_PARAM_construct_utf8_string(
-      OSSL_PKEY_PARAM_GROUP_NAME, (char*)OSSL_EC_curve_nid2name(nid), 0);
+      OSSL_PKEY_PARAM_GROUP_NAME,
+      const_cast<char*>(OSSL_EC_curve_nid2name(nid)),
+      0);
     params[1] = OSSL_PARAM_construct_octet_string(
       OSSL_PKEY_PARAM_PUB_KEY, buf.data(), buf.size());
     params[2] = OSSL_PARAM_construct_end();
 
     Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
-    CHECK1(EVP_PKEY_fromdata(pctx, &key, EVP_PKEY_PUBLIC_KEY, params));
+    CHECK1(EVP_PKEY_fromdata(
+      pctx, &key, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
   }
 
   PublicKey_OpenSSL::PublicKey_OpenSSL(EVP_PKEY* key) : key(key) {}
 
   PublicKey_OpenSSL::~PublicKey_OpenSSL()
   {
-    if (key)
+    if (key != nullptr)
     {
       EVP_PKEY_free(key);
     }
@@ -127,7 +131,7 @@ namespace ccf::crypto
   int PublicKey_OpenSSL::get_openssl_group_id() const
   {
     size_t gname_len = 0;
-    CHECK1(EVP_PKEY_get_group_name(key, NULL, 0, &gname_len));
+    CHECK1(EVP_PKEY_get_group_name(key, nullptr, 0, &gname_len));
     std::string gname(gname_len + 1, 0);
     CHECK1(EVP_PKEY_get_group_name(
       key, (char*)gname.data(), gname.size(), &gname_len));
@@ -136,14 +140,13 @@ namespace ccf::crypto
     {
       return NID_secp384r1;
     }
-    else if (gname == SN_X9_62_prime256v1)
+
+    if (gname == SN_X9_62_prime256v1)
     {
       return NID_X9_62_prime256v1;
     }
-    else
-    {
-      throw std::runtime_error(fmt::format("Unknown OpenSSL group {}", gname));
-    }
+
+    throw std::runtime_error(fmt::format("Unknown OpenSSL group {}", gname));
   }
 
   int PublicKey_OpenSSL::get_openssl_group_id(CurveID gid)
@@ -219,9 +222,9 @@ namespace ccf::crypto
 
     OpenSSL::CHECK1(PEM_write_bio_PUBKEY(buf, key));
 
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(buf, &bptr);
-    return Pem((uint8_t*)bptr->data, bptr->length);
+    return {reinterpret_cast<uint8_t*>(bptr->data), bptr->length};
   }
 
   std::vector<uint8_t> PublicKey_OpenSSL::public_key_der() const
@@ -230,7 +233,7 @@ namespace ccf::crypto
 
     OpenSSL::CHECK1(i2d_PUBKEY_bio(buf, key));
 
-    BUF_MEM* bptr;
+    BUF_MEM* bptr = nullptr;
     BIO_get_mem_ptr(buf, &bptr);
     return {bptr->data, bptr->data + bptr->length};
   }
@@ -239,21 +242,23 @@ namespace ccf::crypto
   {
     Unique_BIO buf;
 
-    unsigned char* p = NULL;
+    unsigned char* p = nullptr;
+    // NOLINTBEGIN(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
     size_t n = i2d_PublicKey(key, &p);
 
     std::vector<uint8_t> r;
-    if (p)
+    if (p != nullptr)
     {
       r = {p, p + n};
     }
     free(p);
+    // NOLINTEND(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
     return r;
   }
 
   Unique_PKEY key_from_raw_ec_point(const std::vector<uint8_t>& raw, int nid)
   {
-    const auto curve_name = (char*)OSSL_EC_curve_nid2name(nid);
+    auto* curve_name = const_cast<char*>(OSSL_EC_curve_nid2name(nid));
 
     OSSL_PARAM params[3];
     params[0] = OSSL_PARAM_construct_utf8_string(
@@ -265,10 +270,11 @@ namespace ccf::crypto
     Unique_EVP_PKEY_CTX pctx("EC");
     CHECK1(EVP_PKEY_fromdata_init(pctx));
 
-    EVP_PKEY* pkey = NULL;
-    CHECK1(EVP_PKEY_fromdata(pctx, &pkey, EVP_PKEY_PUBLIC_KEY, params));
+    EVP_PKEY* pkey = nullptr;
+    CHECK1(EVP_PKEY_fromdata(
+      pctx, &pkey, EVP_PKEY_PUBLIC_KEY, static_cast<OSSL_PARAM*>(params)));
 
-    if (pkey == NULL)
+    if (pkey == nullptr)
     {
       EVP_PKEY_free(pkey);
 
@@ -287,15 +293,16 @@ namespace ccf::crypto
   PublicKey::Coordinates PublicKey_OpenSSL::coordinates() const
   {
     Coordinates r;
-    Unique_BIGNUM x, y;
+    Unique_BIGNUM x;
+    Unique_BIGNUM y;
     Unique_EC_GROUP group(get_openssl_group_id());
-    BIGNUM* bn_x = NULL;
-    BIGNUM* bn_y = NULL;
+    BIGNUM* bn_x = nullptr;
+    BIGNUM* bn_y = nullptr;
     CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_X, &bn_x));
     x.reset(bn_x);
     CHECK1(EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_EC_PUB_Y, &bn_y));
     y.reset(bn_y);
-    int sz = EC_GROUP_get_degree(group) / 8;
+    int sz = EC_GROUP_get_degree(group) / CHAR_BIT;
     r.x.resize(sz);
     r.y.resize(sz);
     BN_bn2binpad(x, r.x.data(), sz);
