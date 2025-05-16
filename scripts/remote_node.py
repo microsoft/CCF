@@ -36,12 +36,12 @@ MINIMAL_CONFIG = """{
   },
   "network": {
     "node_to_node_interface": {
-      "bind_address": "127.0.0.1:8081",
+      "bind_address": "0.0.0.0:8081",
       "published_address": "<NODE_FQDN>:8081"
     },
     "rpc_interfaces": {
       "interface_name": {
-        "bind_address": "127.0.0.1:443",
+        "bind_address": "0.0.0.0:443",
         "published_address": "<NODE_FQDN>:443"
       }
     }
