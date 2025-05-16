@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 [6.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.2
 
+### Added
+
+- Add support for [recovery from locally sealed secrets](https://microsoft.github.io/CCF/main/operations/recovery.html#local-sealing-recovery). (#6966)
+
 ### Changed
 
 - SymCrypt backend is pinned to 1.7.0 until https://github.com/microsoft/SymCrypt-OpenSSL/issues/115 gets shipped (#6995).

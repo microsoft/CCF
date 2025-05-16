@@ -612,7 +612,7 @@ namespace ccf
       openapi_info.description =
         "This API is used to submit and query proposals which affect CCF's "
         "public governance tables.";
-      openapi_info.document_version = "4.7.2";
+      openapi_info.document_version = "4.7.3";
     }
 
     static std::optional<MemberId> get_caller_member_id(

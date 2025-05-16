@@ -160,6 +160,9 @@ namespace ccf
 
     /// ACME configuration
     std::optional<ACME> acme = std::nullopt;
+
+    // Denote whether this node will locally seal the ledger secret
+    bool will_locally_seal_ledger_secrets = false;
   };
 
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(
@@ -186,7 +189,8 @@ namespace ccf
   DECLARE_JSON_TYPE_WITH_OPTIONAL_FIELDS(NodeInfoNetwork_v2);
   DECLARE_JSON_REQUIRED_FIELDS(
     NodeInfoNetwork_v2, node_to_node_interface, rpc_interfaces);
-  DECLARE_JSON_OPTIONAL_FIELDS(NodeInfoNetwork_v2, acme);
+  DECLARE_JSON_OPTIONAL_FIELDS(
+    NodeInfoNetwork_v2, acme, will_locally_seal_ledger_secrets);
 
   struct NodeInfoNetwork : public NodeInfoNetwork_v2
   {
