@@ -47,10 +47,8 @@ else()
   )
 endif()
 
-# SymCrypt backend is pinned to 1.7.0 for the time being until
-# https://github.com/microsoft/SymCrypt-OpenSSL/issues/115 is shipped.
 set(CCF_RPM_DEPENDENCIES
-    "${CCF_RPM_BASE_DEPENDENCIES}, libuv >= 1.34.2, curl >= 7.68.0, libcxxabi >= 18.1.2, SymCrypt-OpenSSL == 1.7.0"
+    "${CCF_RPM_BASE_DEPENDENCIES}, libuv >= 1.34.2, curl >= 7.68.0, libcxxabi >= 18.1.2"
 )
 
 message(STATUS "RPM package dependencies: ${CCF_RPM_DEPENDENCIES}")
