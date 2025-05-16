@@ -15,7 +15,7 @@ namespace ccf::crypto
   protected:
     mutable OpenSSL::Unique_X509 cert;
 
-    MDType get_md_type(int mdt) const;
+    static MDType get_md_type(int mdt);
 
   public:
     Verifier_OpenSSL(const std::vector<uint8_t>& c);

@@ -16,14 +16,14 @@ namespace ccf::crypto
   class RSAPublicKey_OpenSSL : public PublicKey_OpenSSL, public RSAPublicKey
   {
   protected:
-    std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
+    static std::pair<std::vector<uint8_t>, std::vector<uint8_t>>
     rsa_public_raw_from_jwk(const JsonWebKeyRSAPublic& jwk);
 
   public:
     RSAPublicKey_OpenSSL() = default;
     RSAPublicKey_OpenSSL(EVP_PKEY* c);
     RSAPublicKey_OpenSSL(const Pem& pem);
-    RSAPublicKey_OpenSSL(const std::vector<uint8_t>& der);
+    RSAPublicKey_OpenSSL(std::span<const uint8_t> der);
     RSAPublicKey_OpenSSL(const JsonWebKeyRSAPublic& jwk);
     virtual ~RSAPublicKey_OpenSSL() = default;
 

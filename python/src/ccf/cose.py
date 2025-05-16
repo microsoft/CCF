@@ -312,11 +312,13 @@ def _common_parser(description):
         required=True,
     )
     parser.add_argument(
+        "--ccf-gov-msg-proposal-id",
         "--ccf-gov-msg-proposal_id",
         help="ccf.gov.msg.proposal_id protected header",
         type=str,
     )
     parser.add_argument(
+        "--ccf-gov-msg-created-at",
         "--ccf-gov-msg-created_at",
         help="ccf.gov.msg.created_at protected header",
         required=True,
