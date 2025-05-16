@@ -117,7 +117,7 @@ Local Sealing Recovery
 ----------------------
 
 SNP provides the `DERIVED_KEY` guest message which derives a key from the CPU's VCEK (or VLEK), TCB version and the guest's measurement and host_data (policy), thus any change to the CPU, measurement or policy, or a rolled-back TCB version, will prevent the key from being reconstructed.
-Local sealing uses a derived key to skip waiting for recovery shares from members after `transition_to_open` is triggered and instead unseal previously sealed ledger secrets.
+If configured, the node will unseal the secrets it previously sealed instead of waiting for recovery shares from members after `transition_to_open` is triggered.
 
 If, in config.json, `output_files.sealed_ledger_secret_location` is set, the node will derive a key and seal versioned ledger secrets to that directory.
 This capability is noted in `public:ccf.gov.node.info[node].will_locally_seal_ledger_secrets`, to allow it to be audited.
