@@ -677,7 +677,7 @@
         },
         "sealed_ledger_secret_location": {
           "type": "string",
-          "description": "Path to the sealed ledger secret file. This is used to recover the ledger secret from a previous service. It is disabled unless the --enable-auto-dr command line flag is passed"
+          "description": "Path to the folder where the node will seal its ledger secrets."
         }
       },
       "description": "This section includes configuration for additional files output by the node",
