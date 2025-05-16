@@ -4,6 +4,7 @@
 
 #include "crypto/openssl/hash.h"
 
+#include <limits>
 #include <openssl/hmac.h>
 
 namespace ccf::crypto
@@ -15,18 +16,23 @@ namespace ccf::crypto
       const std::vector<uint8_t>& key,
       const std::vector<uint8_t>& data)
     {
-      auto o_md_type = OpenSSL::get_md_type(type);
+      const auto* o_md_type = OpenSSL::get_md_type(type);
       HashBytes r(EVP_MD_size(o_md_type));
       unsigned int len = 0;
-      auto rc = HMAC(
+      if (key.size() > std::numeric_limits<int>::max())
+      {
+        throw std::logic_error("Key size is too large");
+      }
+      int key_size = static_cast<int>(key.size());
+      auto* rc = HMAC(
         o_md_type,
         key.data(),
-        key.size(),
+        key_size,
         data.data(),
         data.size(),
         r.data(),
         &len);
-      if (rc == 0)
+      if (rc == nullptr)
       {
         throw std::logic_error("HMAC Failed");
       }

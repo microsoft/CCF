@@ -64,8 +64,3 @@ tdnf -y install strace
 
 # For packaging
 tdnf -y install rpm-build
-
-# SymCrypt backend is pinned to 1.7.0 for the time being until
-# https://github.com/microsoft/SymCrypt-OpenSSL/issues/115 is shipped.
-tdnf -y remove SymCrypt-OpenSSL
-tdnf -y install SymCrypt-OpenSSL-1.7.0-1.azl3

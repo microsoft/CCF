@@ -3,6 +3,7 @@
 
 #include "crypto/openssl/hash.h"
 
+#include <limits>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 #include <stdexcept>
@@ -18,15 +19,30 @@ namespace ccf::crypto
       const std::span<const uint8_t>& salt,
       const std::span<const uint8_t>& info)
     {
-      auto md = get_md_type(md_type);
-      EVP_PKEY_CTX* pctx;
+      const auto* md = get_md_type(md_type);
+      EVP_PKEY_CTX* pctx = nullptr;
       std::vector<uint8_t> r(length);
-      pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+      pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, nullptr);
       CHECK1(EVP_PKEY_derive_init(pctx));
       CHECK1(EVP_PKEY_CTX_set_hkdf_md(pctx, md));
-      CHECK1(EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt.data(), salt.size()));
-      CHECK1(EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm.data(), ikm.size()));
-      CHECK1(EVP_PKEY_CTX_add1_hkdf_info(pctx, info.data(), info.size()));
+      if (salt.size() > std::numeric_limits<int>::max())
+      {
+        throw std::logic_error("Salt size is too large");
+      }
+      int salt_size = static_cast<int>(salt.size());
+      CHECK1(EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt.data(), salt_size));
+      if (ikm.size() > std::numeric_limits<int>::max())
+      {
+        throw std::logic_error("IKM size is too large");
+      }
+      int ikm_size = static_cast<int>(ikm.size());
+      CHECK1(EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm.data(), ikm_size));
+      if (info.size() > std::numeric_limits<int>::max())
+      {
+        throw std::logic_error("Info size is too large");
+      }
+      int info_size = static_cast<int>(info.size());
+      CHECK1(EVP_PKEY_CTX_add1_hkdf_info(pctx, info.data(), info_size));
       size_t outlen = length;
       CHECK1(EVP_PKEY_derive(pctx, r.data(), &outlen));
       EVP_PKEY_CTX_free(pctx);
@@ -42,7 +58,7 @@ namespace ccf::crypto
 
   void openssl_sha256_init()
   {
-    if (mdctx || basectx)
+    if (mdctx != nullptr || basectx != nullptr)
     {
       return; // Already initialised
     }
@@ -68,12 +84,12 @@ namespace ccf::crypto
 
   void openssl_sha256_shutdown()
   {
-    if (mdctx)
+    if (mdctx != nullptr)
     {
       EVP_MD_CTX_free(mdctx);
       mdctx = nullptr;
     }
-    if (basectx)
+    if (basectx != nullptr)
     {
       EVP_MD_CTX_free(basectx);
       basectx = nullptr;
@@ -111,10 +127,13 @@ namespace ccf::crypto
     }
   }
 
-  ISha256OpenSSL::ISha256OpenSSL()
+  ISha256OpenSSL::ISha256OpenSSL() : ctx(EVP_MD_CTX_new())
   {
+    if (ctx == nullptr)
+    {
+      throw std::logic_error("ISha256OpenSSL: failed to create ctx");
+    }
     const EVP_MD* md = EVP_sha256();
-    ctx = EVP_MD_CTX_new();
     int rc = EVP_DigestInit(ctx, md);
     if (rc != 1)
     {
@@ -124,7 +143,7 @@ namespace ccf::crypto
 
   ISha256OpenSSL::~ISha256OpenSSL()
   {
-    if (ctx)
+    if (ctx != nullptr)
     {
       EVP_MD_CTX_free(ctx);
     }
@@ -132,7 +151,7 @@ namespace ccf::crypto
 
   void ISha256OpenSSL::update_hash(std::span<const uint8_t> data)
   {
-    if (!ctx)
+    if (ctx == nullptr)
     {
       throw std::logic_error("Attempting to use hash after it was finalised");
     }
@@ -146,7 +165,7 @@ namespace ccf::crypto
 
   Sha256Hash ISha256OpenSSL::finalise()
   {
-    if (!ctx)
+    if (ctx == nullptr)
     {
       throw std::logic_error("Attempting to use hash after it was finalised");
     }

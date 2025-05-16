@@ -105,13 +105,15 @@ namespace ccf::crypto
     }
   }
 
-  std::string schema_name(const Sha256Hash*)
+  std::string schema_name(const Sha256Hash* hash)
   {
+    (void)hash;
     return "Sha256Digest";
   }
 
-  void fill_json_schema(nlohmann::json& schema, const Sha256Hash*)
+  void fill_json_schema(nlohmann::json& schema, const Sha256Hash* hash)
   {
+    (void)hash;
     schema["type"] = "string";
 
     // According to the spec, "format is an open value, so you can use any
