@@ -23,7 +23,8 @@ include(${CCF_DIR}/cmake/version.cmake)
 project(
   ${CCF_PROJECT}
   VERSION ${CCF_RELEASE_VERSION}
-  DESCRIPTION "Build confidential, highly-available distributed systems on top of secure hardware"
+  DESCRIPTION
+    "Build confidential, highly-available distributed systems on top of secure hardware"
   HOMEPAGE_URL "https://github.com/Microsoft/CCF"
   LANGUAGES C CXX
 )
