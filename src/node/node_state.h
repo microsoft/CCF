@@ -2996,5 +2996,4 @@ namespace ccf
       return writer_factory;
     }
   };
-
 }
