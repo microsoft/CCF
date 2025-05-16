@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- SymCrypt backend pinning reverted after 1.8.0 memleak got fixed (#?).
+- SymCrypt backend pinning reverted after 1.8.0 memleak got fixed (#7016).
 
 ## [6.0.2]
 
