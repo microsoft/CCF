@@ -1,0 +1,44 @@
+{
+  "enclave": {
+    "platform": "Virtual",
+    "type": "Release"
+  },
+  "network": {
+    "node_to_node_interface": {
+      "bind_address": "0.0.0.0:8081",
+      "published_address": "{{ fqdn }}:8081"
+    },
+    "rpc_interfaces": {
+      "primary_interface": {
+        "bind_address": "0.0.0.0:443",
+        "published_address": "{{ fqdn }}:443"
+      }
+    }
+  },
+  "command": {
+    "service_certificate_file": "/mnt/ccf/service_cert.pem",
+    {% if command == "start" -%}
+    "type": "Start",
+    "start": {
+      "constitution_files": [
+        "/opt/ccf_virtual/bin/validate.js",
+        "/opt/ccf_virtual/bin/apply.js",
+        "/opt/ccf_virtual/bin/resolve.js",
+        "/opt/ccf_virtual/bin/actions.js"
+      ],
+      "members": [
+        {
+          "certificate_file": "/mnt/ccf/member0_cert.pem",
+          "encryption_public_key_file": "/mnt/ccf/member0_enc_pubk.pem"
+        }
+      ]
+    }
+    {% elif command == "join" -%}
+    "type": "Join",
+    "join": {
+      "retry_timeout": "1s",
+      "target_rpc_address": "{{ target_rpc_address }}"
+    }
+    {% endif %}
+  }
+}

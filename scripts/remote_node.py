@@ -11,6 +11,7 @@ from datetime import datetime
 from packaging.version import Version  # type: ignore
 from jinja2 import Environment, FileSystemLoader, select_autoescape, StrictUndefined
 import json
+import time
 
 from loguru import logger as LOG
 
@@ -37,64 +38,28 @@ def remove_suffix(s: str, suffix: str):
     return s
 
 
-COMMON_CONFIG = """{
-  "enclave": {
-    "platform": "Virtual",
-    "type": "Release"
-  },
-  "network": {
-    "node_to_node_interface": {
-      "bind_address": "0.0.0.0:8081",
-      "published_address": "<NODE_FQDN>:8081"
-    },
-    "rpc_interfaces": {
-      "primary_interface": {
-        "bind_address": "0.0.0.0:443",
-        "published_address": "<NODE_FQDN>:443"
-      }
-    }
-  },"""
+def render_jinja_json(template_name, args, **kwargs):
+    loader = FileSystemLoader(args.jinja_templates)
+    t_env = Environment(
+        loader=loader,
+        autoescape=select_autoescape(),
+        undefined=StrictUndefined,
+    )
+    t = t_env.get_template(template_name)
+    output = t.render(**kwargs)
 
-START_CONFIG = (
-    COMMON_CONFIG
-    + """
-  "command": {
-    "type": "Start",
-    "service_certificate_file": "service_cert.pem",
-    "start": {
-      "constitution_files": [
-        "/opt/ccf_virtual/bin/validate.js",
-        "/opt/ccf_virtual/bin/apply.js",
-        "/opt/ccf_virtual/bin/resolve.js",
-        "/opt/ccf_virtual/bin/actions.js"
-      ],
-      "members": [
-        {
-          "certificate_file": "/mnt/ccf/member0_cert.pem",
-          "encryption_public_key_file": "/mnt/ccf/member0_enc_pubk.pem"
-        }
-      ]
-    }
-  }
-}
-"""
-)
+    basename, _ = os.path.splitext(os.path.basename(template_name))
+    output_name = os.path.join(args.output_dir, f"{basename}.json")
 
-# TOOD: Copy the service_cert out of a previous started node?
-JOIN_CONFIG = (
-    COMMON_CONFIG
-    + """
-  "command": {
-    "type": "Join",
-    "service_certificate_file": "/mnt/ccf/service_cert.pem",
-    "join": {
-      "retry_timeout": "1s",
-      "target_rpc_address": "<TARGET_RPC_ADDRESS>"
-    }
-  }
-}
-"""
-)
+    LOG.info(
+        f"Writing rendered {os.path.join(args.jinja_templates, template_name)} to {output_name}"
+    )
+    with open(output_name, "w", encoding="utf-8") as f:
+        # Re-parse to confirm this is valid JSON
+        obj = json.loads(output)
+        json.dump(obj, f, indent=2)
+
+    return output_name, obj
 
 
 class CCFRelease:
@@ -125,27 +90,38 @@ class CCFRelease:
 
     def ccf_setup_commands(self, args, node_fqdn):
         if self.version.major >= 6:
-            if args.command == "start":
-                config = START_CONFIG
-            elif args.command == "join":
-                config = JOIN_CONFIG.replace("<TARGET_RPC_ADDRESS>", args.target)
-            else:
-                raise ValueError(f"Unhandled command: {args.command}")
+            kwargs = {
+                "fqdn": node_fqdn,
+                "command": args.command,
+            }
 
-            materialised_config = config.replace("<NODE_FQDN>", node_fqdn)
-            ccf_dir = f"/opt/ccf_{self.platform}"
-            return [
+            if args.command == "join":
+                kwargs["target_rpc_address"] = args.target
+
+            _, config = render_jinja_json(
+                "ccf_minimal_config.jinja",
+                args,
+                **kwargs,
+            )
+
+            install = [
                 f"curl -kL {self.binary_url()} -o ./ccf.rpm",
                 "tdnf install -y ./ccf.rpm",
+            ]
+
+            write_config = [
+                # TODO: Sorry for the crimes
+                f"echo '{json.dumps(json.dumps(config))[1:-1]}' >> /mnt/ccf/config.json"
+            ]
+
+            ccf_dir = f"/opt/ccf_{self.platform}"
+            start_node = [
                 "cd /mnt/ccf",
-                # TODO: Crimes, simplify this escaping
-                f"echo '{json.dumps(json.dumps(json.loads(materialised_config)))[1:-1]}' >> startup_config.json",
-                f"{ccf_dir}/bin/keygenerator.sh --name member0 --gen-enc-key",
-                " ".join(
+                shlex.join(
                     [
                         f"{ccf_dir}/bin/cchost",
                         "--config",
-                        "startup_config.json",
+                        "/mnt/ccf/config.json",
                         "--enclave-file",
                         f"{ccf_dir}/lib/libjs_generic.virtual.so",
                         "--enclave-log-level",
@@ -153,6 +129,7 @@ class CCFRelease:
                     ]
                 ),
             ]
+            return install + write_config + start_node
         else:
             return ["TODO"]
 
@@ -229,24 +206,26 @@ def create_aci(args):
 
     LOG.info(f"This C-ACI deployment will be called {name}")
 
-    loader = FileSystemLoader(".")
-    t_env = Environment(
-        loader=loader, autoescape=select_autoescape(), undefined=StrictUndefined
+    kwargs = {
+        "command": args.command,
+        "name": name,
+        "location": args.location,
+        "image": args.version.base_image(),
+        "container_command": cmd,
+        "ssh_key": get_ssh_key(),
+    }
+
+    if args.command == "start":
+        kwargs["member_cert"] = open(args.member_cert.cert_path).read()
+        kwargs["member_enc_pubk"] = open(args.member_cert.encryption_key_path).read()
+    elif args.command == "join":
+        kwargs["service_cert"] = open(args.service_cert).read()
+
+    arm_template_path, _ = render_jinja_json(
+        "arm_start_ccf_node.jinja",
+        args,
+        **kwargs,
     )
-    t = t_env.get_template("arm_start.jinja")
-    output = t.render(
-        name=name,
-        location=args.location,
-        image=args.version.base_image(),
-        member_cert=open(args.member_cert.cert_path).read(),
-        member_enc_pubk=open(args.member_cert.encryption_key_path).read(),
-        container_command=cmd,
-        ssh_key=get_ssh_key(),
-    )
-    with open("arm_start.json", "w", encoding="utf-8") as f:
-        # Re-parse to confirm this is valid JSON
-        j = json.loads(output)
-        json.dump(j, f, indent=2)
 
     az_create_cmd = [
         "az",
@@ -259,7 +238,7 @@ def create_aci(args):
         "--name",
         name,
         "--template-file",
-        "arm_start.json",
+        arm_template_path,
     ]
     assert (
         ccall(*az_create_cmd, capture_output=False).returncode == 0
@@ -274,29 +253,39 @@ def create_aci(args):
         "--name",
         name,
         "--query",
-        "{state:provisioningState,ip:ipAddress.ip}",
+        "{provisioningState:provisioningState,ip:ipAddress.ip,fqdn:ipAddress.fqdn,resourceGroup:resourceGroup,location:location,name:name}",
     ]
-    assert (
-        ccall(*az_show_cmd, capture_output=False).returncode == 0
-    ), "Error showing C-ACI container info"
+    ret = ccall(*az_show_cmd, capture_output=True)
+    assert ret.returncode == 0, "Error showing C-ACI info"
 
-    # TODO: Parse IP address
-    # TODO: If no IP address (but "successfully" provisioned), show logs
-    az_logs_cmd = [
-        "az",
-        "container",
-        "logs",
-        "--follow",
-        "--resource-group",
-        args.resource_group,
-        "--name",
-        name,
-    ]
-    assert (
-        ccall(*az_logs_cmd, capture_output=False).returncode == 0
-    ), "Error fetching container logs"
+    LOG.success(
+        f"Deployed new C-ACI instance (a CCF {args.command} node):\n{ret.stdout.decode()}"
+    )
 
-    # TODO: Delete the deployed instances on shutdown?
+    if args.no_delete:
+        LOG.info("Exiting")
+    else:
+        LOG.info(f"Spinning...")
+        try:
+            while True:
+                time.sleep(60)
+        except KeyboardInterrupt:
+            LOG.info("Loop exited: attempting automatic cleanup")
+
+        az_delete_cmd = [
+            "az",
+            "container",
+            "delete",
+            "--yes",
+            "--verbose",
+            "--resource-group",
+            args.resource_group,
+            "--name",
+            name,
+        ]
+        assert (
+            ccall(*az_delete_cmd, capture_output=False).returncode == 0
+        ), "Error deleting container group"
 
 
 def run():
@@ -317,6 +306,21 @@ def run():
         required=True,
         type=CCFRelease,
     )
+    parser.add_argument(
+        "--jinja-templates",
+        help="Path to directory where jinja templates are stored",
+        default=".",
+    )
+    parser.add_argument(
+        "--output-dir",
+        help="Path to directory where files created by this tool will be stored",
+        default=".",
+    )
+    parser.add_argument(
+        "--no-delete",
+        help="By default, this script will clean up resources on shutdown. If this is passed, it will instead leave created resources running",
+        action="store_true",
+    )
 
     commands = parser.add_subparsers(
         help="Kind of node to start",
@@ -336,6 +340,11 @@ def run():
     join_parser.add_argument(
         "--target",
         help="Target address of node to join",
+        required=True,
+    )
+    join_parser.add_argument(
+        "--service-cert",
+        help="Path to cert of target service",
         required=True,
     )
 

@@ -54,13 +54,17 @@
             }
           },
           {
-            "name": "{{ name }}-write-member",
+            "name": "{{ name }}-dump-files",
             "properties": {
               "image": "{{ image }}",
               "command": [
                 "/bin/sh",
                 "-c",
-                "echo '{{ member_cert|replace("\n", "") }}' > /mnt/ccf/member0_cert.pem && echo '{{ member_enc_pubk|replace("\n", "") }}' > /mnt/ccf/member0_enc_pubk.pem"
+                {% if command == "start" -%}
+                "echo '{{ member_cert|replace("\n", "\\n") }}' > /mnt/ccf/member0_cert.pem && echo '{{ member_enc_pubk|replace("\n", "\\n") }}' > /mnt/ccf/member0_enc_pubk.pem"
+                {% elif command == "join" -%}
+                "echo '{{ service_cert|replace("\n", "\\n") }}' > /mnt/ccf/service_cert.pem"
+                {% endif %}
               ],
               "volumeMounts": [
                 {
