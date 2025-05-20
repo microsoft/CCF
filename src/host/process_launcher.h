@@ -49,7 +49,6 @@ namespace asynchost
       if (rc < 0)
       {
         LOG_FAIL_FMT("uv_read_start failed: {}", uv_strerror(rc));
-        close();
       }
     }
 
@@ -92,7 +91,6 @@ namespace asynchost
         {
           LOG_INFO_FMT("{} from process {}: {}", name, pid, buffer);
         }
-        close();
       }
       else if (nread > 0)
       {
@@ -165,7 +163,6 @@ namespace asynchost
       if (rc < 0)
       {
         LOG_FAIL_FMT("uv_write failed: {}", uv_strerror(rc));
-        close();
       }
     }
 
@@ -179,7 +176,6 @@ namespace asynchost
     {
       LOG_DEBUG_FMT(
         "Write to host process completed: status={} pid={}", status, pid);
-      close();
     }
 
     uv_write_t request;
@@ -205,6 +201,9 @@ namespace asynchost
     {
       std::vector<std::string> args;
       std::chrono::steady_clock::time_point started_at;
+      std::unique_ptr<close_ptr<ProcessReader>> stdout_reader = nullptr;
+      std::unique_ptr<close_ptr<ProcessReader>> stderr_reader = nullptr;
+      std::unique_ptr<close_ptr<ProcessWriter>> stdin_writer = nullptr;
     };
 
     std::unordered_map<pid_t, ProcessEntry> running;
@@ -237,22 +236,26 @@ namespace asynchost
       }
       argv.push_back(nullptr);
 
-      close_ptr<ProcessReader> stdout_reader("stdout");
-      close_ptr<ProcessReader> stderr_reader("stderr");
-      close_ptr<ProcessWriter> stdin_writer(std::move(entry.input));
+      ProcessEntry process_entry;
+      process_entry.stdout_reader =
+        std::make_unique<close_ptr<ProcessReader>>("stdout");
+      process_entry.stderr_reader =
+        std::make_unique<close_ptr<ProcessReader>>("stderr");
+      process_entry.stdin_writer =
+        std::make_unique<close_ptr<ProcessWriter>>(std::move(entry.input));
 
       auto handle = new uv_process_t;
       handle->data = this;
 
       uv_stdio_container_t stdio[3];
       stdio[0].flags = (uv_stdio_flags)(UV_CREATE_PIPE | UV_READABLE_PIPE);
-      stdio[0].data.stream = stdin_writer->stream();
+      stdio[0].data.stream = (*process_entry.stdin_writer)->stream();
 
       stdio[1].flags = (uv_stdio_flags)(UV_CREATE_PIPE | UV_WRITABLE_PIPE);
-      stdio[1].data.stream = stdout_reader->stream();
+      stdio[1].data.stream = (*process_entry.stdout_reader)->stream();
 
       stdio[2].flags = (uv_stdio_flags)(UV_CREATE_PIPE | UV_WRITABLE_PIPE);
-      stdio[2].data.stream = stderr_reader->stream();
+      stdio[2].data.stream = (*process_entry.stderr_reader)->stream();
 
       uv_process_options_t options = {};
       options.file = argv.at(0);
@@ -274,12 +277,13 @@ namespace asynchost
         queue_time_ms,
         fmt::join(args, " "));
 
-      stdin_writer.release()->start(handle->pid);
-      stdout_reader.release()->start(handle->pid);
-      stderr_reader.release()->start(handle->pid);
+      (*process_entry.stdin_writer.get())->start(handle->pid);
+      (*process_entry.stdout_reader.get())->start(handle->pid);
+      (*process_entry.stderr_reader.get())->start(handle->pid);
 
       auto started_at = std::chrono::steady_clock::now();
-      ProcessEntry process_entry{std::move(entry.args), started_at};
+      process_entry.args = std::move(entry.args);
+      process_entry.started_at = started_at;
       running.insert({handle->pid, std::move(process_entry)});
     }
 
