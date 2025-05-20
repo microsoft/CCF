@@ -31,6 +31,18 @@
       "metadata": {
         "description": "Azure region to deploy into"
       }
+    },
+    "member_cert": {
+      "type": "string",
+      "metadata": {
+        "description": "Cert of initial governing member"
+      }
+    },
+    "member_enc_pubk": {
+      "type": "string",
+      "metadata": {
+        "description": "Encryption public key (for recovery) of initial governing member"
+      }
     }
   },
   "variables": {},
@@ -83,6 +95,33 @@
                 "/bin/sh",
                 "-c",
                 "echo Fabric_NodeIPOrFQDN=$Fabric_NodeIPOrFQDN | tee -a /aci_env; echo UVM_SECURITY_CONTEXT_DIR=$UVM_SECURITY_CONTEXT_DIR | tee -a /aci_env; gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY; tdnf update -y"
+              ]
+            }
+          },
+          {
+            "name": "[format('{0}-populate', parameters('name'))]",
+            "properties": {
+              "image": "[parameters('image')]",
+              "command": [
+                "/bin/sh",
+                "-c",
+                "echo $MEMBER_CERT > /mnt/ccf/member0_cert.pem && echo $MEMBER_ENC_PUBK > /mnt/ccf/member0_enc_pubk.pem"
+              ],
+              "environmentVariables": [
+                {
+                  "name": "MEMBER_CERT",
+                  "value": "[parameters('member_cert')]"
+                },
+                {
+                  "name": "MEMBER_ENC_PUBK",
+                  "value": "[parameters('member_enc_pubk')]"
+                }
+              ],
+              "volumeMounts": [
+                {
+                  "name": "emptydirvolume",
+                  "mountPath": "/mnt/ccf"
+                }
               ]
             }
           }

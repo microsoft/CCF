@@ -29,7 +29,13 @@ def remove_prefix(s: str, prefix: str):
     return s
 
 
-MINIMAL_CONFIG = """{
+def remove_suffix(s: str, suffix: str):
+    if s.endswith(suffix):
+        return s[0 : -len(suffix)]
+    return s
+
+
+COMMON_CONFIG = """{
   "enclave": {
     "platform": "Virtual",
     "type": "Release"
@@ -40,12 +46,16 @@ MINIMAL_CONFIG = """{
       "published_address": "<NODE_FQDN>:8081"
     },
     "rpc_interfaces": {
-      "interface_name": {
+      "primary_interface": {
         "bind_address": "0.0.0.0:443",
         "published_address": "<NODE_FQDN>:443"
       }
     }
-  },
+  },"""
+
+START_CONFIG = (
+    COMMON_CONFIG
+    + """
   "command": {
     "type": "Start",
     "service_certificate_file": "service_cert.pem",
@@ -58,22 +68,34 @@ MINIMAL_CONFIG = """{
       ],
       "members": [
         {
-          "certificate_file": "member0_cert.pem",
-          "encryption_public_key_file": "member0_enc_pubk.pem"
+          "certificate_file": "/mnt/ccf/member0_cert.pem",
+          "encryption_public_key_file": "/mnt/ccf/member0_enc_pubk.pem"
         }
       ]
     }
   }
 }
 """
+)
+
+# TOOD: Copy the service_cert out of a previous started node?
+JOIN_CONFIG = (
+    COMMON_CONFIG
+    + """
+  "command": {
+    "type": "Join",
+    "service_certificate_file": "/mnt/ccf/service_cert.pem",
+    "join": {
+      "retry_timeout": "1s",
+      "target_rpc_address": "<TARGET_RPC_ADDRESS>"
+    }
+  }
+}
+"""
+)
 
 
 class CCFRelease:
-    version: Version
-    platform: str
-    version_s: str
-    base_url: str
-
     def __init__(self, v: str, platform: str = "virtual"):
         v = remove_prefix(v, "ccf-")
         self.version = Version(v)
@@ -99,9 +121,16 @@ class CCFRelease:
         else:
             return "mcr.microsoft.com/mirror/docker/library/ubuntu:20.04"
 
-    def ccf_setup_commands(self, node_fqdn):
+    def ccf_setup_commands(self, args, node_fqdn):
         if self.version.major >= 6:
-            materialised_config = MINIMAL_CONFIG.replace("<NODE_FQDN>", node_fqdn)
+            if args.command == "start":
+                config = START_CONFIG
+            elif args.command == "join":
+                config = JOIN_CONFIG.replace("<TARGET_RPC_ADDRESS>", args.target)
+            else:
+                raise ValueError(f"Unhandled command: {args.command}")
+
+            materialised_config = config.replace("<NODE_FQDN>", node_fqdn)
             ccf_dir = f"/opt/ccf_{self.platform}"
             return [
                 f"curl -kL {self.binary_url()} -o ./ccf.rpm",
@@ -123,6 +152,21 @@ class CCFRelease:
             ]
         else:
             return ["TODO"]
+
+
+class MemberCertPath:
+    def __init__(self, path: str):
+        if not os.path.exists(path):
+            raise ValueError(f"No member cert found at {path}")
+        self.cert_path = path
+
+        dirname, filename = os.path.split(path)
+        fileroot = remove_suffix(filename, "_cert.pem")
+
+        encryption_key_path = os.path.join(dirname, f"{fileroot}_enc_pubk.pem")
+        if not os.path.exists(encryption_key_path):
+            raise ValueError(f"No member encryption public key found at {path}")
+        self.encryption_key_path = encryption_key_path
 
 
 def ccall(*args, capture_output=True):
@@ -173,16 +217,10 @@ def create_aci(args):
     fqdn = f"{name}.{args.location}.azurecontainer.io"
 
     # Install and start CCF node
-    bash_cmd.extend(args.version.ccf_setup_commands(fqdn))
+    bash_cmd.extend(args.version.ccf_setup_commands(args, fqdn))
 
     # Spin waiting
     bash_cmd.append("tail -f /dev/null")
-
-    # TODO: Commands to run a CCF node:
-    # - Download CCF release
-    # - Install it
-    # - Copy a config file to the node (provide it in deployment config?)
-    # - Run /opt/ccf_{platform}/bin/cchost
 
     cmd = " && ".join(bash_cmd)
 
@@ -208,6 +246,16 @@ def create_aci(args):
         f"command={cmd}",
         f"location={args.location}",
     ]
+    if args.command == "start":
+        az_create_cmd += [
+            f"member_cert={open(args.member_cert.cert_path).read()}",
+            f"member_enc_pubk={open(args.member_cert.encryption_key_path).read()}",
+        ]
+    else:
+        az_create_cmd += [
+            f"member_cert=UNUSED",
+            f"member_enc_pubk=UNUSED",
+        ]
     assert (
         ccall(*az_create_cmd, capture_output=False).returncode == 0
     ), "Error creating C-ACI deployment"
@@ -263,6 +311,27 @@ def run():
         help="The CCF version of the node to be launched",
         required=True,
         type=CCFRelease,
+    )
+
+    commands = parser.add_subparsers(
+        help="Kind of node to start",
+        dest="command",
+        required=True,
+    )
+
+    start_parser = commands.add_parser("start", help="Start a new service")
+    start_parser.add_argument(
+        "--member-cert",
+        help="Path to member cert which will be sole governor of the new service",
+        default="member0_cert.pem",
+        type=MemberCertPath,
+    )
+
+    join_parser = commands.add_parser("join", help="Join an existing service")
+    join_parser.add_argument(
+        "--target",
+        help="Target address of node to join",
+        required=True,
     )
 
     args = parser.parse_args()
