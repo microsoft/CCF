@@ -5,6 +5,7 @@
 #include "ccf/ds/logger.h"
 #include "ccf/ds/nonstd.h"
 #include "ccf/rest_verb.h"
+#include "http/http_builder.h"
 #include "http/curl.h"
 
 #include <charconv>
