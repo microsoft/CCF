@@ -9,6 +9,8 @@ import os
 import shlex
 from datetime import datetime
 from packaging.version import Version  # type: ignore
+from jinja2 import Environment, FileSystemLoader, select_autoescape, StrictUndefined
+import json
 
 from loguru import logger as LOG
 
@@ -136,7 +138,8 @@ class CCFRelease:
                 f"curl -kL {self.binary_url()} -o ./ccf.rpm",
                 "tdnf install -y ./ccf.rpm",
                 "cd /mnt/ccf",
-                f"echo '{materialised_config}' >> startup_config.json",
+                # TODO: Crimes, simplify this escaping
+                f"echo '{json.dumps(json.dumps(json.loads(materialised_config)))[1:-1]}' >> startup_config.json",
                 f"{ccf_dir}/bin/keygenerator.sh --name member0 --gen-enc-key",
                 " ".join(
                     [
@@ -226,6 +229,25 @@ def create_aci(args):
 
     LOG.info(f"This C-ACI deployment will be called {name}")
 
+    loader = FileSystemLoader(".")
+    t_env = Environment(
+        loader=loader, autoescape=select_autoescape(), undefined=StrictUndefined
+    )
+    t = t_env.get_template("arm_start.jinja")
+    output = t.render(
+        name=name,
+        location=args.location,
+        image=args.version.base_image(),
+        member_cert=open(args.member_cert.cert_path).read(),
+        member_enc_pubk=open(args.member_cert.encryption_key_path).read(),
+        container_command=cmd,
+        ssh_key=get_ssh_key(),
+    )
+    with open("arm_start.json", "w", encoding="utf-8") as f:
+        # Re-parse to confirm this is valid JSON
+        j = json.loads(output)
+        json.dump(j, f, indent=2)
+
     az_create_cmd = [
         "az",
         "deployment",
@@ -237,25 +259,8 @@ def create_aci(args):
         "--name",
         name,
         "--template-file",
-        "c-aci-template.json",
-        "--parameters",
-        f"image={args.version.base_image()}",
-        "--parameters",
-        f"ssh={get_ssh_key()}",
-        f"name={name}",
-        f"command={cmd}",
-        f"location={args.location}",
+        "arm_start.json",
     ]
-    if args.command == "start":
-        az_create_cmd += [
-            f"member_cert={open(args.member_cert.cert_path).read()}",
-            f"member_enc_pubk={open(args.member_cert.encryption_key_path).read()}",
-        ]
-    else:
-        az_create_cmd += [
-            f"member_cert=UNUSED",
-            f"member_enc_pubk=UNUSED",
-        ]
     assert (
         ccall(*az_create_cmd, capture_output=False).returncode == 0
     ), "Error creating C-ACI deployment"
