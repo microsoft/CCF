@@ -101,7 +101,7 @@ namespace snapshots
   static inline SimpleHTTPResponse make_curl_request(
     const SimpleHTTPRequest& request)
   {
-    UniqueCURL curl;
+    ccf::curl::UniqueCURL curl;
 
     CHECK_CURL_EASY_SETOPT(curl, CURLOPT_URL, request.url.c_str());
     if (request.method == HTTP_HEAD)
@@ -124,7 +124,7 @@ namespace snapshots
 
     curl_easy_setopt(curl, CURLOPT_CAINFO, request.ca_path.c_str());
 
-    UniqueSlist list;
+    ccf::curl::UniqueSlist list;
     for (const auto& [k, v] : request.headers)
     {
       list.append(fmt::format("{}: {}", k, v).c_str());
