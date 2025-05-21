@@ -40,13 +40,14 @@ def remove_suffix(s: str, suffix: str):
 
 def render_jinja_json(template_name, args, **kwargs):
     loader = FileSystemLoader(args.jinja_templates)
-    t_env = Environment(
+    environment = Environment(
         loader=loader,
         autoescape=select_autoescape(),
         undefined=StrictUndefined,
     )
-    t = t_env.get_template(template_name)
-    output = t.render(**kwargs)
+    environment.filters["shlex_quote"] = shlex.quote
+    template = environment.get_template(template_name)
+    output = template.render(**kwargs)
 
     basename, _ = os.path.splitext(os.path.basename(template_name))
     output_name = os.path.join(args.output_dir, f"{basename}.json")
@@ -206,25 +207,26 @@ def create_aci(args):
 
     LOG.info(f"This C-ACI deployment will be called {name}")
 
-    kwargs = {
-        "command": args.command,
-        "name": name,
-        "location": args.location,
-        "image": args.version.base_image(),
-        "container_command": cmd,
-        "ssh_key": get_ssh_key(),
-    }
+    files_to_copy = {}
 
     if args.command == "start":
-        kwargs["member_cert"] = open(args.member_cert.cert_path).read()
-        kwargs["member_enc_pubk"] = open(args.member_cert.encryption_key_path).read()
+        files_to_copy[args.member_cert.cert_path] = "/mnt/ccf/member0_cert.pem"
+        files_to_copy[args.member_cert.encryption_key_path] = (
+            "/mnt/ccf/member0_enc_pubk.pem"
+        )
     elif args.command == "join":
-        kwargs["service_cert"] = open(args.service_cert).read()
+        files_to_copy[args.service_cert] = "/mnt/ccf/service_cert.pem"
 
     arm_template_path, _ = render_jinja_json(
         "arm_start_ccf_node.jinja",
         args,
-        **kwargs,
+        command=args.command,
+        name=name,
+        location=args.location,
+        image=args.version.base_image(),
+        container_command=cmd,
+        ssh_key=get_ssh_key(),
+        files_to_copy=files_to_copy,
     )
 
     az_create_cmd = [

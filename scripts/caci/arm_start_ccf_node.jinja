@@ -60,11 +60,7 @@
               "command": [
                 "/bin/sh",
                 "-c",
-                {% if command == "start" -%}
-                "echo '{{ member_cert|replace("\n", "\\n") }}' > /mnt/ccf/member0_cert.pem && echo '{{ member_enc_pubk|replace("\n", "\\n") }}' > /mnt/ccf/member0_enc_pubk.pem"
-                {% elif command == "join" -%}
-                "echo '{{ service_cert|replace("\n", "\\n") }}' > /mnt/ccf/service_cert.pem"
-                {% endif %}
+                "{% for src_path, dst_path in files_to_copy.items() %}echo '{% filter tojson | trim("\"") %}{% include(src_path) %}{% endfilter %}' > {{ dst_path }}; {% endfor %}"
               ],
               "volumeMounts": [
                 {
@@ -118,6 +114,12 @@
                 {
                   "protocol": "TCP",
                   "port": "22"
+                }
+              ],
+              "volumeMounts": [
+                {
+                  "name": "emptydirvolume",
+                  "mountPath": "/mnt/ccf"
                 }
               ],
               "resources": {
