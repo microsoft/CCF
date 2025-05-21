@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [5.0.17]
+
+[5.0.17]: https://github.com/microsoft/CCF/releases/tag/5.0.17
+
+### Dependencies
+
+- Updated Open Enclave from 0.19.8 to 0.19.11 (#7024).
+
 ## [5.0.16]
 
 [5.0.16]: https://github.com/microsoft/CCF/releases/tag/5.0.16

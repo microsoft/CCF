@@ -25,7 +25,7 @@ jobs:
     # Insufficient space to run on public runner, so use custom pool
     runs-on: [self-hosted, 1ES.Pool=gha-virtual-ccf-sub]
     container:
-      image: ghcr.io/microsoft/ccf/ci/default:build-05-12-2024
+      image: ghcr.io/microsoft/ccf/ci/default:build-21-05-2025
       options: --user root
 
     permissions:
