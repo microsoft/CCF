@@ -23,7 +23,7 @@ namespace ccf::pal
   DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsements, did, feed, svn);
 
   /**
-   * @brief Verifies the UVM (Universal Verification Methodology) endorsements
+   * @brief Verifies the UVM (Utility Virtual Machine) endorsements
    * descriptor.
    *
    * This function processes raw UVM endorsements data and validates it against
