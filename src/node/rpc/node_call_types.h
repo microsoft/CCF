@@ -66,7 +66,7 @@ namespace ccf
       pal::PlatformAttestationMeasurement measurement;
       std::optional<HostDataMetadata> snp_security_policy =
         std::nullopt; // base64-encoded
-      std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;
+      std::optional<pal::UVMEndorsements> snp_uvm_endorsements = std::nullopt;
       NodeInfoNetwork node_info_network;
       nlohmann::json node_data;
       nlohmann::json service_data;

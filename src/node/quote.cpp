@@ -20,7 +20,7 @@ namespace ccf
   {
     // Uses KV-defined roots of trust (did -> (feed, svn)) to verify the
     // UVM measurement against endorsements in the quote.
-    std::vector<UVMEndorsements> uvm_roots_of_trust_from_kv;
+    std::vector<pal::UVMEndorsements> uvm_roots_of_trust_from_kv;
     auto uvmes = tx.ro<SNPUVMEndorsements>(Tables::NODE_SNP_UVM_ENDORSEMENTS);
     if (uvmes)
     {
@@ -30,7 +30,7 @@ namespace ccf
           for (const auto& [feed, data] : endorsements_map)
           {
             uvm_roots_of_trust_from_kv.push_back(
-              UVMEndorsements{did, feed, data.svn});
+              pal::UVMEndorsements{did, feed, data.svn});
           }
           return true;
         });
@@ -38,8 +38,9 @@ namespace ccf
 
     try
     {
-      auto uvm_endorsements_data = verify_uvm_endorsements_against_roots_of_trust(
-        uvm_endorsements, quote_measurement, uvm_roots_of_trust_from_kv);
+      auto uvm_endorsements_data =
+        verify_uvm_endorsements_against_roots_of_trust(
+          uvm_endorsements, quote_measurement, uvm_roots_of_trust_from_kv);
       return true;
     }
     catch (const std::logic_error& e)

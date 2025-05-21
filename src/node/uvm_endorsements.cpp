@@ -6,8 +6,8 @@
 namespace ccf
 {
   bool inline matches_uvm_roots_of_trust(
-    const UVMEndorsements& endorsements,
-    const std::vector<UVMEndorsements>& uvm_roots_of_trust)
+    const pal::UVMEndorsements& endorsements,
+    const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust)
   {
     for (const auto& uvm_root_of_trust : uvm_roots_of_trust)
     {
@@ -205,10 +205,10 @@ namespace ccf
     return payload;
   }
 
-  UVMEndorsements verify_uvm_endorsements(
+  pal::UVMEndorsements verify_uvm_endorsements(
     const std::vector<uint8_t>& uvm_endorsements_raw,
     const pal::PlatformAttestationMeasurement& uvm_measurement,
-    const std::vector<UVMEndorsements>& uvm_roots_of_trust,
+    const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust,
     bool enforce_uvm_roots_of_trust)
   {
     auto phdr = cose::decode_protected_header(uvm_endorsements_raw);
@@ -306,7 +306,7 @@ namespace ccf
       phdr.feed,
       payload.sevsnpvm_guest_svn);
 
-    UVMEndorsements end{did, phdr.feed, payload.sevsnpvm_guest_svn};
+    pal::UVMEndorsements end{did, phdr.feed, payload.sevsnpvm_guest_svn};
 
     if (
       enforce_uvm_roots_of_trust &&
@@ -323,26 +323,29 @@ namespace ccf
     return end;
   }
 
-  UVMEndorsements verify_uvm_endorsements_descriptor(
-    const std::vector<uint8_t>& uvm_endorsements_raw,
-    const pal::PlatformAttestationMeasurement& uvm_measurement)
+  namespace pal
   {
-    return verify_uvm_endorsements(
-      uvm_endorsements_raw,
-      uvm_measurement,
-      {}, // No roots of trust
-      false); // Do not check against roots of trust
+    UVMEndorsements verify_uvm_endorsements_descriptor(
+      const std::vector<uint8_t>& uvm_endorsements_raw,
+      const pal::PlatformAttestationMeasurement& uvm_measurement)
+    {
+      return verify_uvm_endorsements(
+        uvm_endorsements_raw,
+        uvm_measurement,
+        {}, // No roots of trust
+        false); // Do not check against roots of trust
+    }
   }
 
-  UVMEndorsements verify_uvm_endorsements_against_roots_of_trust(
+  pal::UVMEndorsements verify_uvm_endorsements_against_roots_of_trust(
     const std::vector<uint8_t>& uvm_endorsements_raw,
     const pal::PlatformAttestationMeasurement& uvm_measurement,
-    const std::vector<UVMEndorsements>& uvm_roots_of_trust)
-    {
+    const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust)
+  {
     return verify_uvm_endorsements(
       uvm_endorsements_raw,
       uvm_measurement,
       uvm_roots_of_trust,
       true); // Check against roots of trust
-    }
+  }
 }

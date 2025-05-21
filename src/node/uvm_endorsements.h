@@ -5,6 +5,7 @@
 #include "ccf/crypto/base64.h"
 #include "ccf/ds/json.h"
 #include "ccf/pal/measurement.h"
+#include "ccf/pal/uvm_endorsements.h"
 #include "ccf/service/tables/uvm_endorsements.h"
 #include "crypto/openssl/cose_verifier.h"
 #include "node/cose_common.h"
@@ -19,22 +20,6 @@
 
 namespace ccf
 {
-  struct UVMEndorsements
-  {
-    DID did;
-    Feed feed;
-    std::string svn;
-
-    bool operator==(const UVMEndorsements&) const = default;
-
-    inline std::string to_str()
-    {
-      return fmt::format("did: {}, feed: {}, svn: {}", did, feed, svn);
-    }
-  };
-  DECLARE_JSON_TYPE(UVMEndorsements);
-  DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsements, did, feed, svn);
-
   struct UVMEndorsementsPayload
   {
     std::string sevsnpvm_guest_svn;
@@ -58,7 +43,7 @@ namespace ccf
   };
 
   // Roots of trust for UVM endorsements/measurement in AMD SEV-SNP attestations
-  static std::vector<UVMEndorsements> default_uvm_roots_of_trust = {
+  static std::vector<pal::UVMEndorsements> default_uvm_roots_of_trust = {
     // Confidential Azure Kubertnetes Service (AKS)
     {"did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
      "1.4.1.311.76.59.1.2",
@@ -70,12 +55,8 @@ namespace ccf
      "ConfAKS-AMD-UVM",
      "1"}};
 
-  UVMEndorsements verify_uvm_endorsements_descriptor(
-    const std::vector<uint8_t>& uvm_endorsements_raw,
-    const pal::PlatformAttestationMeasurement& uvm_measurement);
-
-  UVMEndorsements verify_uvm_endorsements_against_roots_of_trust(
+  pal::UVMEndorsements verify_uvm_endorsements_against_roots_of_trust(
     const std::vector<uint8_t>& uvm_endorsements_raw,
     const pal::PlatformAttestationMeasurement& uvm_measurement,
-    const std::vector<UVMEndorsements>& uvm_roots_of_trust);
+    const std::vector<pal::UVMEndorsements>& uvm_roots_of_trust);
 }

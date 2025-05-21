@@ -11,6 +11,7 @@
 #include "ccf/node/cose_signatures_config.h"
 #include "ccf/pal/locking.h"
 #include "ccf/pal/platform.h"
+#include "ccf/pal/uvm_endorsements.h"
 #include "ccf/service/node_info_network.h"
 #include "ccf/service/reconfiguration_type.h"
 #include "ccf/service/tables/acme_certificates.h"
@@ -92,7 +93,7 @@ namespace ccf
     QuoteInfo quote_info;
     pal::PlatformAttestationMeasurement node_measurement;
     ccf::StartupConfig config;
-    std::optional<UVMEndorsements> snp_uvm_endorsements = std::nullopt;
+    std::optional<pal::UVMEndorsements> snp_uvm_endorsements = std::nullopt;
     std::vector<uint8_t> startup_snapshot;
     std::shared_ptr<QuoteEndorsementsClient> quote_endorsements_client =
       nullptr;
@@ -352,9 +353,8 @@ namespace ccf
             // reason, we extract an endorsement descriptor from the UVM
             // endorsements and make it available in the ledger's initial or
             // recovery transaction.
-            snp_uvm_endorsements = verify_uvm_endorsements_descriptor(
-              uvm_endorsements_raw,
-              node_measurement);
+            snp_uvm_endorsements = pal::verify_uvm_endorsements_descriptor(
+              uvm_endorsements_raw, node_measurement);
             quote_info.uvm_endorsements = uvm_endorsements_raw;
             LOG_INFO_FMT(
               "Successfully verified attested UVM endorsements: {}",
