@@ -64,7 +64,7 @@ def render_jinja_json(template_name, args, **kwargs):
 
 
 class CCFRelease:
-    def __init__(self, v: str, platform: str = "virtual"):
+    def __init__(self, v: str, platform: str = "snp"):
         v = remove_prefix(v, "ccf-")
         self.version = Version(v)
         self.version_s = v  # Trust the caller to separate this correctly, ignore Version's stringifier
@@ -72,6 +72,9 @@ class CCFRelease:
             f"https://github.com/microsoft/CCF/releases/download/ccf-{self.version_s}"
         )
         self.platform = platform
+
+        self.is_azure_linux = self.version.major >= 6
+        self.installer_tool = "tdnf" if self.is_azure_linux else "apt"
 
     def binary_url(self):
         if self.version.major == 5:
@@ -90,53 +93,79 @@ class CCFRelease:
             return "mcr.microsoft.com/mirror/docker/library/ubuntu:20.04"
 
     def ccf_setup_commands(self, args, node_fqdn):
-        if self.version.major >= 6:
-            kwargs = {
-                "fqdn": node_fqdn,
-                "command": args.command,
-            }
+        kwargs = {
+            "fqdn": node_fqdn,
+            "command": args.command,
+            "platform": self.platform,
+        }
 
-            if args.command == "join":
-                kwargs["target_rpc_address"] = args.target
+        if self.platform == "virtual":
+            kwargs["platform_title_case"] = "Virtual"
+        elif self.platform == "snp":
+            kwargs["platform_title_case"] = "SNP"
+        else:
+            raise ValueError(f"Unhandled platform: {self.platform}")
 
-            _, config = render_jinja_json(
-                "ccf_minimal_config.jinja",
-                args,
-                **kwargs,
-            )
+        if args.command == "join":
+            kwargs["target_rpc_address"] = args.target
 
+        _, config = render_jinja_json(
+            "ccf_minimal_config.jinja",
+            args,
+            **kwargs,
+        )
+
+        if self.is_azure_linux:
             install = [
                 f"curl -kL {self.binary_url()} -o ./ccf.rpm",
                 "tdnf install -y ./ccf.rpm",
             ]
-
-            # Overwrite installed sample constitution with one that accepts all proposals
-            write_auto_accept = [
-                f"""echo 'export function resolve() {{ return "Accepted"; }}' > /opt/ccf_{self.platform}/bin/resolve.js'"""
-            ]
-
-            write_config = [
-                f"echo '{json.dumps(json.dumps(config)).strip('"')}' >> /mnt/ccf/config.json"
-            ]
-
-            ccf_dir = f"/opt/ccf_{self.platform}"
-            start_node = [
-                "cd /mnt/ccf",
-                shlex.join(
-                    [
-                        f"{ccf_dir}/bin/cchost",
-                        "--config",
-                        "/mnt/ccf/config.json",
-                        "--enclave-file",
-                        f"{ccf_dir}/lib/libjs_generic.virtual.so",
-                        "--enclave-log-level",
-                        "trace",
-                    ]
-                ),
-            ]
-            return install + write_auto_accept + write_config + start_node
         else:
-            return ["TODO"]
+            install = [
+                "apt update -y",
+                "apt install -y curl gnupg software-properties-common",
+                # Add LLVM repo (with key first)
+                "curl https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -",
+                "add-apt-repository 'deb http://apt.llvm.org/focal/ llvm-toolchain-focal-15 main'",
+                # Manually install az-dcap-client, via Microsoft repo
+                "curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -",
+                "add-apt-repository 'deb [arch=amd64] https://packages.microsoft.com/ubuntu/20.04/prod focal main'",
+                "apt update -y",
+                "apt install -y az-dcap-client",
+                # Manually install OE host-verify
+                "curl -kL https://github.com/openenclave/openenclave/releases/download/v0.19.8/Ubuntu_2004_open-enclave-hostverify_0.19.8_amd64.deb -o oe.deb",
+                "apt install -y ./oe.deb",
+                # Manually install CCF
+                f"curl -kL {self.binary_url()} -o ./ccf.deb",
+                "apt install -y ./ccf.deb",
+            ]
+
+        # Overwrite installed sample constitution with one that accepts all proposals
+        write_auto_accept = [
+            f"""echo 'export function resolve() {{ return \\"Accepted\\"; }}' > /opt/ccf_{self.platform}/bin/resolve.js"""
+        ]
+
+        write_config = [
+            f"echo '{json.dumps(json.dumps(config)).strip('"')}' > /mnt/ccf/config.json"
+        ]
+
+        ccf_dir = f"/opt/ccf_{self.platform}"
+        start_node = [
+            "cd /mnt/ccf",
+            "source /mnt/ccf/aci_env",
+            shlex.join(
+                [
+                    f"{ccf_dir}/bin/cchost",
+                    "--config",
+                    "/mnt/ccf/config.json",
+                    "--enclave-file",
+                    f"{ccf_dir}/lib/libjs_generic.{self.platform}.so",
+                    "--enclave-log-level",
+                    "trace",
+                ]
+            ),
+        ]
+        return install + write_auto_accept + write_config + start_node
 
 
 class MemberCertPath:
@@ -204,9 +233,6 @@ def create_aci(args):
     # Install and start CCF node
     bash_cmd.extend(args.version.ccf_setup_commands(args, fqdn))
 
-    # Spin waiting
-    bash_cmd.append("tail -f /dev/null")
-
     cmd = " && ".join(bash_cmd)
 
     LOG.info(f"This C-ACI deployment will be called {name}")
@@ -214,12 +240,21 @@ def create_aci(args):
     files_to_copy = {}
 
     if args.command == "start":
-        files_to_copy[args.member_cert.cert_path] = "/mnt/ccf/member0_cert.pem"
-        files_to_copy[args.member_cert.encryption_key_path] = (
-            "/mnt/ccf/member0_enc_pubk.pem"
-        )
+        files_to_copy["/mnt/ccf/member0_cert.pem"] = open(
+            args.member_cert.cert_path
+        ).read()
+        files_to_copy["/mnt/ccf/member0_enc_pubk.pem"] = open(
+            args.member_cert.encryption_key_path
+        ).read()
+
     elif args.command == "join":
-        files_to_copy[args.service_cert] = "/mnt/ccf/service_cert.pem"
+        r = requests.get(f"https://{args.target}/node/network", verify=False)
+        assert (
+            r.status_code == 200
+        ), f"Unable to fetch service info from target node: {r}"
+        body = r.json()
+        service_cert = body["service_certificate"]
+        files_to_copy["/mnt/ccf/service_cert.pem"] = service_cert
 
     arm_template_path, _ = render_jinja_json(
         "arm_start_ccf_node.jinja",
@@ -231,6 +266,8 @@ def create_aci(args):
         container_command=cmd,
         ssh_key=get_ssh_key(),
         files_to_copy=files_to_copy,
+        is_azure_linux=args.version.is_azure_linux,
+        installer_tool=args.version.installer_tool,
     )
 
     az_create_cmd = [
@@ -346,11 +383,6 @@ def run():
     join_parser.add_argument(
         "--target",
         help="Target address of node to join",
-        required=True,
-    )
-    join_parser.add_argument(
-        "--service-cert",
-        help="Path to cert of target service",
         required=True,
     )
 

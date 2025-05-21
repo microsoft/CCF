@@ -1,6 +1,6 @@
 {
   "enclave": {
-    "platform": "Virtual",
+    "platform": "{{ platform_title_case }}",
     "type": "Release"
   },
   "network": {
@@ -21,10 +21,10 @@
     "type": "Start",
     "start": {
       "constitution_files": [
-        "/opt/ccf_virtual/bin/validate.js",
-        "/opt/ccf_virtual/bin/apply.js",
-        "/opt/ccf_virtual/bin/resolve.js",
-        "/opt/ccf_virtual/bin/actions.js"
+        "/opt/ccf_{{ platform }}/bin/validate.js",
+        "/opt/ccf_{{ platform }}/bin/apply.js",
+        "/opt/ccf_{{ platform }}/bin/resolve.js",
+        "/opt/ccf_{{ platform }}/bin/actions.js"
       ],
       "members": [
         {
@@ -41,4 +41,18 @@
     }
     {% endif %}
   }
+  {% if platform == "snp" %}
+  ,
+  "attestation": {
+    "snp_endorsements_servers": [
+      {
+        "type": "THIM",
+        "url": "$Fabric_NodeIPOrFQDN:2377"
+      }
+    ],
+    "snp_security_policy_file": "$UVM_SECURITY_CONTEXT_DIR/security-policy-base64",
+    "snp_uvm_endorsements_file": "$UVM_SECURITY_CONTEXT_DIR/reference-info-base64",
+    "snp_endorsements_file": "$UVM_SECURITY_CONTEXT_DIR/host-amd-cert-base64"
+  }
+  {% endif %}
 }

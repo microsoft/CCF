@@ -49,7 +49,13 @@
               "command": [
                 "/bin/sh",
                 "-c",
-                "echo Fabric_NodeIPOrFQDN=$Fabric_NodeIPOrFQDN | tee -a /aci_env; echo UVM_SECURITY_CONTEXT_DIR=$UVM_SECURITY_CONTEXT_DIR | tee -a /aci_env; gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY; tdnf update -y"
+                "echo Fabric_NodeIPOrFQDN=$Fabric_NodeIPOrFQDN | tee -a /mnt/ccf/aci_env; echo UVM_SECURITY_CONTEXT_DIR=$UVM_SECURITY_CONTEXT_DIR | tee -a /mnt/ccf/aci_env; gpg --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY; {{ installer_tool }} update -y"
+              ],
+              "volumeMounts": [
+                {
+                  "name": "emptydirvolume",
+                  "mountPath": "/mnt/ccf"
+                }
               ]
             }
           },
@@ -60,7 +66,7 @@
               "command": [
                 "/bin/sh",
                 "-c",
-                "{% for src_path, dst_path in files_to_copy.items() %}echo '{% filter tojson | trim("\"") %}{% include(src_path) %}{% endfilter %}' > {{ dst_path }}; {% endfor %}"
+                "{% for dst_path, content in files_to_copy.items() %}echo '{% filter tojson | trim("\"") %}{{ content }}{% endfilter %}' > {{ dst_path }}; {% endfor %}"
               ],
               "volumeMounts": [
                 {
@@ -108,7 +114,7 @@
               "command": [
                 "/bin/sh",
                 "-c",
-                "mkdir -p /root/.ssh/; echo '{{ ssh_key|replace("\n", "") }}' >> /root/.ssh/authorized_keys; tdnf install -y openssh-server; ssh-keygen -A; sed -i 's/PermitRootLogin no/PermitRootLogin yes/' /etc/ssh/sshd_config; sed -i 's/# PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config; /usr/sbin/sshd -D"
+                "mkdir -p /root/.ssh/; echo '{{ ssh_key|replace("\n", "") }}' >> /root/.ssh/authorized_keys; {% if is_azure_linux %}tdnf update -y; tdnf install -y openssh-server; ssh-keygen -A; sed -i 's/PermitRootLogin no/PermitRootLogin yes/' /etc/ssh/sshd_config; sed -i 's/# PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config; /usr/sbin/sshd -D{% else %}apt update -y; apt install -y openssh-server; service ssh start; tail -f /dev/null{% endif %}"
               ],
               "ports": [
                 {
