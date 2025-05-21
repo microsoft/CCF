@@ -51,8 +51,8 @@
       }
     ],
     "snp_security_policy_file": "$UVM_SECURITY_CONTEXT_DIR/security-policy-base64",
-    "snp_uvm_endorsements_file": "$UVM_SECURITY_CONTEXT_DIR/reference-info-base64",
-    "snp_endorsements_file": "$UVM_SECURITY_CONTEXT_DIR/host-amd-cert-base64"
+    "snp_uvm_endorsements_file": "$UVM_SECURITY_CONTEXT_DIR/reference-info-base64"{% if version >= 6 %},
+    "snp_endorsements_file": "$UVM_SECURITY_CONTEXT_DIR/host-amd-cert-base64"{% endif %}
   }
   {% endif %}
 }

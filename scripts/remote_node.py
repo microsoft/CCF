@@ -97,6 +97,7 @@ class CCFRelease:
             "fqdn": node_fqdn,
             "command": args.command,
             "platform": self.platform,
+            "version": args.version.version.major,
         }
 
         if self.platform == "virtual":
