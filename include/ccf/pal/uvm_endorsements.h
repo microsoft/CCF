@@ -23,15 +23,19 @@ namespace ccf::pal
   DECLARE_JSON_REQUIRED_FIELDS(UVMEndorsements, did, feed, svn);
 
   /**
-   * @brief Verifies the UVM (Universal Verification Methodology) endorsements descriptor.
+   * @brief Verifies the UVM (Universal Verification Methodology) endorsements
+   * descriptor.
    *
    * This function processes raw UVM endorsements data and validates it against
-   * the provided platform attestation measurement. It ensures that the endorsements
-   * are authentic and match the expected measurement.
+   * the provided platform attestation measurement. It ensures that the
+   * endorsements are authentic and match the expected measurement.
    *
-   * @param uvm_endorsements_raw A vector of raw bytes representing the UVM endorsements.
-   * @param uvm_measurement The platform attestation measurement to validate against.
-   * @return A UVMEndorsements object containing the parsed and verified endorsements.
+   * @param uvm_endorsements_raw A vector of raw bytes representing the UVM
+   * endorsements.
+   * @param uvm_measurement The platform attestation measurement to validate
+   * against.
+   * @return A UVMEndorsements object containing the parsed and verified
+   * endorsements.
    * @throws std::runtime_error if the endorsements cannot be verified.
    */
   UVMEndorsements verify_uvm_endorsements_descriptor(
