@@ -38,7 +38,7 @@ namespace ccf
 
     try
     {
-      auto uvm_endorsements_data = verify_uvm_endorsements(
+      auto uvm_endorsements_data = verify_uvm_endorsements_against_roots_of_trust(
         uvm_endorsements, quote_measurement, uvm_roots_of_trust_from_kv);
       return true;
     }

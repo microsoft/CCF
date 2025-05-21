@@ -322,4 +322,27 @@ namespace ccf
 
     return end;
   }
+
+  UVMEndorsements verify_uvm_endorsements_descriptor(
+    const std::vector<uint8_t>& uvm_endorsements_raw,
+    const pal::PlatformAttestationMeasurement& uvm_measurement)
+  {
+    return verify_uvm_endorsements(
+      uvm_endorsements_raw,
+      uvm_measurement,
+      {}, // No roots of trust
+      false); // Do not check against roots of trust
+  }
+
+  UVMEndorsements verify_uvm_endorsements_against_roots_of_trust(
+    const std::vector<uint8_t>& uvm_endorsements_raw,
+    const pal::PlatformAttestationMeasurement& uvm_measurement,
+    const std::vector<UVMEndorsements>& uvm_roots_of_trust)
+    {
+    return verify_uvm_endorsements(
+      uvm_endorsements_raw,
+      uvm_measurement,
+      uvm_roots_of_trust,
+      true); // Check against roots of trust
+    }
 }

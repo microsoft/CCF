@@ -70,10 +70,12 @@ namespace ccf
      "ConfAKS-AMD-UVM",
      "1"}};
 
-  UVMEndorsements verify_uvm_endorsements(
+  UVMEndorsements verify_uvm_endorsements_descriptor(
+    const std::vector<uint8_t>& uvm_endorsements_raw,
+    const pal::PlatformAttestationMeasurement& uvm_measurement);
+
+  UVMEndorsements verify_uvm_endorsements_against_roots_of_trust(
     const std::vector<uint8_t>& uvm_endorsements_raw,
     const pal::PlatformAttestationMeasurement& uvm_measurement,
-    const std::vector<UVMEndorsements>& uvm_roots_of_trust =
-      default_uvm_roots_of_trust,
-    bool enforce_uvm_roots_of_trust = true);
+    const std::vector<UVMEndorsements>& uvm_roots_of_trust);
 }

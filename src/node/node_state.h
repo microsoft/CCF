@@ -352,11 +352,9 @@ namespace ccf
             // reason, we extract an endorsement descriptor from the UVM
             // endorsements and make it available in the ledger's initial or
             // recovery transaction.
-            snp_uvm_endorsements = verify_uvm_endorsements(
+            snp_uvm_endorsements = verify_uvm_endorsements_descriptor(
               uvm_endorsements_raw,
-              node_measurement,
-              {},
-              false /* Do not check roots of trust */);
+              node_measurement);
             quote_info.uvm_endorsements = uvm_endorsements_raw;
             LOG_INFO_FMT(
               "Successfully verified attested UVM endorsements: {}",

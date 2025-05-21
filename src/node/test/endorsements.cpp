@@ -23,7 +23,7 @@ TEST_CASE("Check RSA Production endorsement")
     "b2c03a0536b1c0c193af47");
   ccf::pal::PlatformAttestationMeasurement uvm_measurement(measurement);
   auto endorsements =
-    ccf::verify_uvm_endorsements(endorsement, uvm_measurement);
+    ccf::verify_uvm_endorsements_against_roots_of_trust(endorsement, uvm_measurement, ccf::default_uvm_roots_of_trust);
   REQUIRE(endorsements == ccf::default_uvm_roots_of_trust[0]);
 }
 
@@ -47,7 +47,7 @@ TEST_CASE("Check ECDSA Test endorsement")
       "Malicious-ConfAKS-AMD-UVM",
       "1"}};
   REQUIRE_THROWS_WITH_AS(
-    ccf::verify_uvm_endorsements(
+    ccf::verify_uvm_endorsements_against_roots_of_trust(
       endorsement, uvm_measurement, custom_roots_of_trust),
     "UVM endorsements did "
     "did:x509:0:sha256:I__iuL25oXEVFdTP_aBLx_eT1RPHbCQ_ECBQfYZpt9s::eku:1.3.6."
@@ -56,7 +56,7 @@ TEST_CASE("Check ECDSA Test endorsement")
     std::logic_error);
 
   auto endorsements =
-    ccf::verify_uvm_endorsements(endorsement, uvm_measurement);
+    ccf::verify_uvm_endorsements_against_roots_of_trust(endorsement, uvm_measurement, ccf::default_uvm_roots_of_trust);
   REQUIRE(endorsements == ccf::default_uvm_roots_of_trust[1]);
 }
 
