@@ -24,5 +24,5 @@ namespace ccf::pal
 
   UVMEndorsements verify_uvm_endorsements_descriptor(
     const std::vector<uint8_t>& uvm_endorsements_raw,
-    const pal::PlatformAttestationMeasurement& uvm_measurement);    
+    const pal::PlatformAttestationMeasurement& uvm_measurement);
 }

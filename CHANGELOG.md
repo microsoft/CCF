@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [6.0.3]
+
+[6.0.3]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.3
+
+### Changed
+
+- Added `ccf::pal::verify_uvm_endorsements_descriptor()`, which verifies endorsements for a UVM measurement, and returns a descriptor capturing a did, feed, svn triplet that can be used for authorization.
+
 ## [6.0.2]
 
 [6.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.2
