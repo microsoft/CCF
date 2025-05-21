@@ -148,7 +148,7 @@ namespace ccf::kv
 
         if (history)
         {
-          if (!history->verify_root_signatures())
+          if (!history->verify_root_signatures(version))
           {
             LOG_FAIL_FMT("Failed to deserialise");
             LOG_DEBUG_FMT(

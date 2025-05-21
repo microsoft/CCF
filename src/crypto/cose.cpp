@@ -16,7 +16,7 @@ namespace ccf::cose::edit
   {
     UsefulBufC buf{cose_input.data(), cose_input.size()};
 
-    QCBORError err;
+    QCBORError err = QCBOR_SUCCESS;
     QCBORDecodeContext ctx;
     QCBORDecode_Init(&ctx, buf, QCBOR_DECODE_MODE_NORMAL);
 
@@ -88,7 +88,7 @@ namespace ccf::cose::edit
     }
     else if (std::holds_alternative<desc::Value>(descriptor))
     {
-      auto& [pos, key, value] = std::get<desc::Value>(descriptor);
+      const auto& [pos, key, value] = std::get<desc::Value>(descriptor);
 
       // Maximum expected size of the additional map, sub-map is the
       // worst-case scenario
@@ -126,7 +126,7 @@ namespace ccf::cose::edit
     }
     else if (std::holds_alternative<desc::Value>(descriptor))
     {
-      auto& [pos, key, value] = std::get<desc::Value>(descriptor);
+      const auto& [pos, key, value] = std::get<desc::Value>(descriptor);
 
       if (std::holds_alternative<pos::InArray>(pos))
       {

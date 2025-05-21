@@ -36,6 +36,13 @@ function(add_san name)
   endif()
 endfunction()
 
+function(add_tidy name)
+  set_target_properties(
+    ${name} PROPERTIES C_CLANG_TIDY "${CLANG_TIDY_EXE}" CXX_CLANG_TIDY
+                                                        "${CLANG_TIDY_EXE}"
+  )
+endfunction()
+
 separate_arguments(
   COVERAGE_FLAGS UNIX_COMMAND "-fprofile-instr-generate -fcoverage-mapping"
 )

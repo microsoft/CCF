@@ -32,7 +32,7 @@ namespace ccf::crypto
      */
 
     /// Returns the error string from an error code
-    inline std::string error_string(int ec)
+    inline std::string error_string(unsigned long ec)
     {
       // ERR_error_string doesn't really expect the code could actually be zero
       // and uses the `static char buf[256]` which is NOT cleaned nor checked
@@ -42,7 +42,7 @@ namespace ccf::crypto
         std::string err(256, '\0');
         ERR_load_crypto_strings();
         SSL_load_error_strings();
-        ERR_error_string_n((unsigned long)ec, err.data(), err.size());
+        ERR_error_string_n(ec, err.data(), err.size());
         ERR_free_strings();
         // Remove any trailing NULs before returning
         err.resize(std::strlen(err.c_str()));
@@ -166,9 +166,9 @@ namespace ccf::crypto
         Unique_SSL_OBJECT(
           BIO_new_mem_buf(buf, len), [](auto x) { BIO_free(x); })
       {}
-      Unique_BIO(const std::vector<uint8_t>& d) :
+      Unique_BIO(std::span<const uint8_t> s) :
         Unique_SSL_OBJECT(
-          BIO_new_mem_buf(d.data(), d.size()), [](auto x) { BIO_free(x); })
+          BIO_new_mem_buf(s.data(), s.size()), [](auto x) { BIO_free(x); })
       {}
       Unique_BIO(const Pem& pem) :
         Unique_SSL_OBJECT(

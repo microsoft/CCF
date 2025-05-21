@@ -8,12 +8,12 @@
 namespace ccf::js::core
 {
   JSWrappedValue::JSWrappedValue() :
-    ctx(NULL),
+    ctx(nullptr),
     val(ccf::js::core::constants::Null)
   {}
   JSWrappedValue::JSWrappedValue(JSContext* ctx, JSValue&& val) :
     ctx(ctx),
-    val(std::move(val))
+    val(val)
   {}
 
   JSWrappedValue::JSWrappedValue(JSContext* ctx, const JSValue& value) :

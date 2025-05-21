@@ -12,10 +12,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - Added `ccf::pal::verify_uvm_endorsements_descriptor()`, which verifies endorsements for a UVM measurement, and returns a descriptor capturing a did, feed, svn triplet that can be used for authorization.
+- SymCrypt backend pinning reverted after 1.8.0 memleak got fixed (#7016).
 
 ## [6.0.2]
 
 [6.0.2]: https://github.com/microsoft/CCF/releases/tag/ccf-6.0.2
+
+### Added
+
+- Add support for [recovery from locally sealed secrets](https://microsoft.github.io/CCF/main/operations/recovery.html#local-sealing-recovery). (#6966)
 
 ### Changed
 
