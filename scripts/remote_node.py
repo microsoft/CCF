@@ -110,9 +110,13 @@ class CCFRelease:
                 "tdnf install -y ./ccf.rpm",
             ]
 
+            # Overwrite installed sample constitution with one that accepts all proposals
+            write_auto_accept = [
+                f"""echo 'export function resolve() {{ return "Accepted"; }}' > /opt/ccf_{self.platform}/bin/resolve.js'"""
+            ]
+
             write_config = [
-                # TODO: Sorry for the crimes
-                f"echo '{json.dumps(json.dumps(config))[1:-1]}' >> /mnt/ccf/config.json"
+                f"echo '{json.dumps(json.dumps(config)).strip('"')}' >> /mnt/ccf/config.json"
             ]
 
             ccf_dir = f"/opt/ccf_{self.platform}"
@@ -130,7 +134,7 @@ class CCFRelease:
                     ]
                 ),
             ]
-            return install + write_config + start_node
+            return install + write_auto_accept + write_config + start_node
         else:
             return ["TODO"]
 
