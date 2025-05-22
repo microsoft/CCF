@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Added `ccf::pal::verify_uvm_endorsements_descriptor()`, which verifies endorsements for a UVM measurement, and returns a descriptor capturing a did, feed, svn triplet that can be used for authorization.
 - SymCrypt backend pinning reverted after 1.8.0 memleak got fixed (#7016).
 
 ## [6.0.2]
