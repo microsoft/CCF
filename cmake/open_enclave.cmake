@@ -13,7 +13,7 @@ if(REQUIRE_OPENENCLAVE)
   endif()
 
   # Find OpenEnclave package
-  find_package(OpenEnclave 0.19.8 CONFIG REQUIRED)
+  find_package(OpenEnclave 0.19.11 CONFIG REQUIRED)
 
   option(USE_OPENSSL_3 "Use OpenSSL 3.x for Open Enclave builds" ON)
   if(USE_OPENSSL_3)
