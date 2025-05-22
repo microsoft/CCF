@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 - SymCrypt backend pinning reverted after 1.8.0 memleak got fixed (#7016).
+- Templated URL parsing will no longer allow `:` within regex matched components, since `:` is already used to delimit actions. Concretely, a call to `GET .../state-digests/abcd:update` should now correctly return a 404, rather than dispatching to `GET .../state-digests/{memberId}` and returning `No ACK record exists for member m[abcd:update]`.
 
 ## [6.0.2]
 
