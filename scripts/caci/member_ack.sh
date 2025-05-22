@@ -58,7 +58,7 @@ ccf_cose_sign1 \
   --signing-key $member_privk \
   --signing-cert $member_cert \
   --ccf-gov-msg-type state_digest \
-  --ccf-gov-msg-created_at $(date -Is) \
+  --ccf-gov-msg-created_at "$(date -Is)" \
   --content empty_file \
   | curl -k \
     "${node_rpc_address}/gov/members/state-digests/${member_id}:update?api-version=2024-07-01" \
@@ -72,7 +72,7 @@ ccf_cose_sign1 \
   --signing-key $member_privk \
   --signing-cert $member_cert  \
   --ccf-gov-msg-type ack \
-  --ccf-gov-msg-created_at $(date -Is) \
+  --ccf-gov-msg-created_at "$(date -Is)" \
   --content ./digest.json \
   | curl -k \
     "${node_rpc_address}/gov/members/state-digests/${member_id}:ack?api-version=2024-07-01" \

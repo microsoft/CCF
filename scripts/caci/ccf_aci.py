@@ -228,7 +228,7 @@ def create_aci(args):
 
     bash_cmd = []
 
-    name = f"ccf-tmp-caci-{datetime_string()}"
+    name = f"ccf-tmp-caci-{args.name}"
     fqdn = f"{name}.{args.location}.azurecontainer.io"
 
     # Install and start CCF node
@@ -309,7 +309,7 @@ def create_aci(args):
     if args.no_delete:
         LOG.info("Exiting")
     else:
-        LOG.info(f"Spinning...")
+        LOG.info("Spinning...")
         try:
             while True:
                 time.sleep(60)
@@ -333,7 +333,10 @@ def create_aci(args):
 
 
 def run():
-    parser = argparse.ArgumentParser(description="TODO")
+    parser = argparse.ArgumentParser(
+        description="Deploy a CCF node in a fresh C-ACI instance",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
     parser.add_argument(
         "--resource-group",
@@ -365,6 +368,11 @@ def run():
         help="By default, this script will clean up resources on shutdown. If this is passed, it will instead leave created resources running",
         action="store_true",
     )
+    parser.add_argument(
+        "--name",
+        help="Suffix added to names of created resources. Default is auto-generated from current datetime",
+        default=datetime_string(),
+    )
 
     commands = parser.add_subparsers(
         help="Kind of node to start",
@@ -393,7 +401,7 @@ def run():
     check_release(args.version)
 
     if args.resource_group is None:
-        args.resource_group = f"ccf-tmp-rg-{datetime_string()}"
+        args.resource_group = f"ccf-tmp-rg-{args.name}"
         LOG.warning(
             f"Will create new resource group {args.resource_group} (in {args.location})"
         )

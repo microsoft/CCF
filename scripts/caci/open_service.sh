@@ -38,9 +38,6 @@ while [ "$1" != "" ]; do
     shift
 done
 
-member_cert="${member}_cert.pem"
-member_privk="${member}_privk.pem"
-
 function get_service_status()
 {
   curl -k "${node_rpc_address}/node/network" --silent | jq .service_status

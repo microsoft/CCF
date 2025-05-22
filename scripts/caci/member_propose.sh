@@ -55,7 +55,7 @@ ccf_cose_sign1 \
   --signing-key $member_privk \
   --signing-cert $member_cert \
   --ccf-gov-msg-type proposal \
-  --ccf-gov-msg-created_at $(date -Is) \
+  --ccf-gov-msg-created_at "$(date -Is)" \
   --content ${proposal} \
   | curl -k \
     "${node_rpc_address}/gov/members/proposals:create?api-version=2024-07-01" \
