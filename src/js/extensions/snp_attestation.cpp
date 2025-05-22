@@ -96,7 +96,7 @@ namespace ccf::js::extensions
 
     pal::PlatformAttestationMeasurement measurement = {};
     pal::PlatformAttestationReportData report_data = {};
-    std::optional<UVMEndorsements> parsed_uvm_endorsements;
+    std::optional<pal::UVMEndorsements> parsed_uvm_endorsements;
 
     try
     {
@@ -104,7 +104,8 @@ namespace ccf::js::extensions
       if (uvm_endorsements.has_value())
       {
         parsed_uvm_endorsements =
-          verify_uvm_endorsements(uvm_endorsements.value(), measurement);
+          verify_uvm_endorsements_against_roots_of_trust(
+            uvm_endorsements.value(), measurement, default_uvm_roots_of_trust);
       }
     }
     catch (const std::exception& e)
