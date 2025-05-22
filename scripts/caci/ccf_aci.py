@@ -50,7 +50,7 @@ def render_jinja_json(template_name, args, **kwargs):
     output = template.render(**kwargs)
 
     basename, _ = os.path.splitext(os.path.basename(template_name))
-    output_name = os.path.join(args.output_dir, f"{basename}.json")
+    output_name = os.path.join(args.output_dir, remove_suffix(basename, ".jinja"))
 
     LOG.info(
         f"Writing rendered {os.path.join(args.jinja_templates, template_name)} to {output_name}"
@@ -111,7 +111,7 @@ class CCFRelease:
             kwargs["target_rpc_address"] = args.target
 
         _, config = render_jinja_json(
-            "ccf_minimal_config.jinja",
+            "ccf_minimal_config.json.jinja",
             args,
             **kwargs,
         )
@@ -258,7 +258,7 @@ def create_aci(args):
         files_to_copy["/mnt/ccf/service_cert.pem"] = service_cert
 
     arm_template_path, _ = render_jinja_json(
-        "arm_start_ccf_node.jinja",
+        "arm_start_ccf_node.json.jinja",
         args,
         command=args.command,
         name=name,

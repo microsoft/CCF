@@ -1,17 +1,15 @@
 {
   "enclave": {
-    "platform": "Virtual",
+    "file": "libjs_generic.enclave.so.signed",
+    "platform": "SNP",
     "type": "Release"
   },
   "network": {
-    "node_to_node_interface": {
-      "bind_address": "127.0.0.1:8081",
-      "published_address": "<NODE_FQDN>:8081"
-    },
+    "node_to_node_interface": { "bind_address": "127.0.0.1:8081" },
     "rpc_interfaces": {
       "interface_name": {
-        "bind_address": "127.0.0.1:443",
-        "published_address": "<NODE_FQDN>:443"
+        "bind_address": "127.0.0.1:8080",
+        "published_address": "ccf.dummy.com:12345"
       }
     }
   },
@@ -20,10 +18,10 @@
     "service_certificate_file": "service_cert.pem",
     "start": {
       "constitution_files": [
-        "/opt/ccf_virtual/bin/validate.js",
-        "/opt/ccf_virtual/bin/apply.js",
-        "/opt/ccf_virtual/bin/resolve.js",
-        "/opt/ccf_virtual/bin/actions.js"
+        "validate.js",
+        "apply.js",
+        "resolve.js",
+        "actions.js"
       ],
       "members": [
         {
