@@ -249,7 +249,7 @@ def create_aci(args):
         ).read()
 
     elif args.command == "join":
-        r = requests.get(f"https://{args.target}/node/network", verify=False)
+        r = requests.get(f"https://{args.target}/node/network", verify=False, timeout=3)
         assert (
             r.status_code == 200
         ), f"Unable to fetch service info from target node: {r}"
