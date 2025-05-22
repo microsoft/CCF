@@ -23,6 +23,9 @@ include(${CCF_DIR}/cmake/version.cmake)
 project(
   ${CCF_PROJECT}
   VERSION ${CCF_RELEASE_VERSION}
+  DESCRIPTION
+    "Build confidential, highly-available distributed systems on top of secure hardware"
+  HOMEPAGE_URL "https://github.com/Microsoft/CCF"
   LANGUAGES C CXX
 )
 
@@ -532,6 +535,7 @@ add_custom_target(ccf ALL)
 set(CCF_IMPL_SOURCE
     ${CCF_DIR}/src/enclave/main.cpp ${CCF_DIR}/src/enclave/enclave_time.cpp
     ${CCF_DIR}/src/enclave/thread_local.cpp ${CCF_DIR}/src/node/quote.cpp
+    ${CCF_DIR}/src/node/uvm_endorsements.cpp
 )
 
 # Same as virtual for the time being but will diverge soon
@@ -824,6 +828,7 @@ if(BUILD_TESTS)
     add_unit_test(
       endorsements_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/test/endorsements.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/node/uvm_endorsements.cpp
     )
     set_property(
       TEST endorsements_test
@@ -911,6 +916,7 @@ if(BUILD_TESTS)
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/frontend_test.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/src/enclave/enclave_time.cpp
       ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
       frontend_test
@@ -941,7 +947,7 @@ if(BUILD_TESTS)
     add_unit_test(
       node_frontend_test
       ${CMAKE_CURRENT_SOURCE_DIR}/src/node/rpc/test/node_frontend_test.cpp
-      ${CCF_DIR}/src/node/quote.cpp
+      ${CCF_DIR}/src/node/quote.cpp ${CCF_DIR}/src/node/uvm_endorsements.cpp
     )
     target_link_libraries(
       node_frontend_test

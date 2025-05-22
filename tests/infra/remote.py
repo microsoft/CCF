@@ -345,6 +345,8 @@ class CCFRemote(object):
         historical_cache_soft_limit=None,
         cose_signatures_issuer="service.example.com",
         cose_signatures_subject="ledger.signature",
+        sealed_ledger_secret_location=None,
+        previous_sealed_ledger_secret_location=None,
         **kwargs,
     ):
         """
@@ -502,6 +504,15 @@ class CCFRemote(object):
             loader = FileSystemLoader(binary_dir)
             t_env = Environment(loader=loader, autoescape=select_autoescape())
             t = t_env.get_template(self.TEMPLATE_CONFIGURATION_FILE)
+            auto_dr_args = {}
+            if sealed_ledger_secret_location is not None:
+                auto_dr_args["sealed_ledger_secret_location"] = (
+                    sealed_ledger_secret_location
+                )
+            if previous_sealed_ledger_secret_location is not None:
+                auto_dr_args["previous_sealed_ledger_secret_location"] = (
+                    previous_sealed_ledger_secret_location
+                )
             output = t.render(
                 start_type=start_type.name.title(),
                 enclave_file=self.enclave_file,  # Ignored by current jinja, but passed for LTS compat
@@ -547,6 +558,7 @@ class CCFRemote(object):
                 historical_cache_soft_limit=historical_cache_soft_limit,
                 cose_signatures_issuer=cose_signatures_issuer,
                 cose_signatures_subject=cose_signatures_subject,
+                **auto_dr_args,
                 **kwargs,
             )
 

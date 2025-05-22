@@ -80,7 +80,7 @@ namespace ccf::crypto
   class COSEMapStringKey : public COSEMapKey
   {
   public:
-    COSEMapStringKey(const std::string& key_);
+    COSEMapStringKey(std::string key_);
     ~COSEMapStringKey() override = default;
 
     void apply(QCBOREncodeContext* ctx) const override;

@@ -11,6 +11,7 @@
 #include "kv/encryptor.h"
 #include "ledger_secrets.h"
 #include "network_state.h"
+#include "node/ledger_secret.h"
 #include "service/internal_tables_access.h"
 
 #include <openssl/crypto.h>
@@ -510,27 +511,36 @@ namespace ccf
 
     LedgerSecretsMap restore_recovery_shares_info(
       ccf::kv::Tx& tx,
-      const RecoveredEncryptedLedgerSecrets& recovery_ledger_secrets)
+      const RecoveredEncryptedLedgerSecrets& recovery_ledger_secrets,
+      const std::optional<LedgerSecretPtr>& restored_ls_opt = std::nullopt)
     {
-      // First, re-assemble the ledger secret wrapping key from the submitted
-      // encrypted shares. Then, unwrap the latest ledger secret and use it to
-      // decrypt the sequence of recovered ledger secrets, from the last one.
-
       if (recovery_ledger_secrets.empty())
       {
         throw std::logic_error("No recovery ledger secrets");
       }
 
-      auto recovery_shares_info =
-        tx.ro<ccf::RecoveryShares>(Tables::SHARES)->get();
-      if (!recovery_shares_info.has_value())
+      LedgerSecretPtr restored_ls;
+      if (restored_ls_opt.has_value())
       {
-        throw std::logic_error(
-          "Failed to retrieve current recovery shares info");
+        restored_ls = restored_ls_opt.value();
       }
+      else
+      {
+        // First, re-assemble the ledger secret wrapping key from the submitted
+        // encrypted shares. Then, unwrap the latest ledger secret and use it to
+        // decrypt the sequence of recovered ledger secrets, from the last one.
 
-      auto restored_ls = combine_from_encrypted_submitted_shares(tx).unwrap(
-        recovery_shares_info->wrapped_latest_ledger_secret);
+        auto recovery_shares_info =
+          tx.ro<ccf::RecoveryShares>(Tables::SHARES)->get();
+        if (!recovery_shares_info.has_value())
+        {
+          throw std::logic_error(
+            "Failed to retrieve current recovery shares info");
+        }
+
+        restored_ls = combine_from_encrypted_submitted_shares(tx).unwrap(
+          recovery_shares_info->wrapped_latest_ledger_secret);
+      }
 
       LOG_DEBUG_FMT(
         "Recovering {} encrypted ledger secrets",

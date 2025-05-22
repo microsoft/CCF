@@ -802,7 +802,8 @@ namespace ccf
     }
 
     static void trust_node_uvm_endorsements(
-      ccf::kv::Tx& tx, const std::optional<UVMEndorsements>& uvm_endorsements)
+      ccf::kv::Tx& tx,
+      const std::optional<pal::UVMEndorsements>& uvm_endorsements)
     {
       if (!uvm_endorsements.has_value())
       {

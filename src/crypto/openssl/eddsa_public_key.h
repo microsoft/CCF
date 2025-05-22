@@ -30,7 +30,7 @@ namespace ccf::crypto
       const uint8_t* contents,
       size_t contents_size,
       const uint8_t* sig,
-      size_t sig_size) override;
+      size_t signature_size) override;
 
     static int get_openssl_group_id(CurveID gid);
 
