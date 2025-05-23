@@ -3,22 +3,23 @@
 #pragma once
 
 #include "./actions.h"
-#include "./cancellable_task.h"
 #include "./job_board.h"
 #include "./looping_thread.h"
 #include "./ordered_tasks.h"
 
-struct Task_ProcessClientAction : public ITask
+#include <future>
+
+struct Action_ProcessClientAction : public ITaskAction
 {
   const SerialisedAction input_action;
   Session& client_session;
 
-  Task_ProcessClientAction(const SerialisedAction& action, Session& cs) :
+  Action_ProcessClientAction(const SerialisedAction& action, Session& cs) :
     input_action(action),
     client_session(cs)
   {}
 
-  size_t do_task()
+  size_t do_action() override
   {
     // Separate into parse, exec, and respond tasks, to show it is
     // possible?
@@ -69,14 +70,33 @@ struct Task_ProcessClientAction : public ITask
     auto received_action = deserialise_action(input_action);
     auto result = received_action->do_action();
 
-    // TODO: Add some CallObligation type to ensure this is
-    // eventually done?
-    client_session.from_node.push_back(std::move(result));
+    if (rand() % 50 == 0)
+    {
+      auto paused_task = ccf::tasks::pause_current_task();
 
-    return 1;
+      // Rough hack to simulate "something async" happening
+      auto _ = std::async(
+        std::launch::async,
+        [paused_task = std::move(paused_task),
+         result = std::move(result),
+         client_session = &client_session]() {
+          std::this_thread::sleep_for(std::chrono::milliseconds(100));
+          client_session->from_node.push_back(std::move(result));
+          paused_task->resume();
+        });
+      return 0;
+    }
+    else
+    {
+      // TODO: Add some CallObligation type to ensure this is
+      // eventually done?
+      client_session.from_node.push_back(std::move(result));
+
+      return 1;
+    }
   }
 
-  std::string get_name() const
+  std::string get_name() const override
   {
     return fmt::format(
       "Processing action '{}' from session {}",
@@ -90,7 +110,7 @@ struct DispatcherState
   IJobBoard& job_board;
   SessionManager& session_manager;
 
-  std::unordered_map<Session*, std::shared_ptr<Cancellable<OrderedTasks>>>
+  std::unordered_map<Session*, std::shared_ptr<OrderedTasks>>
     ordered_tasks_per_client;
 
   std::atomic<bool> consider_termination = false;
@@ -127,7 +147,7 @@ struct Dispatcher : public LoopingThread<DispatcherState>
         it = state.ordered_tasks_per_client.emplace_hint(
           it,
           session.get(),
-          make_cancellable_task<OrderedTasks>(
+          std::make_shared<OrderedTasks>(
             state.job_board, fmt::format("Tasks for {}", session->name)));
       }
 
@@ -150,7 +170,7 @@ struct Dispatcher : public LoopingThread<DispatcherState>
         {
           ret_val = Stage::Running;
 
-          tasks.add_task(std::make_shared<Task_ProcessClientAction>(
+          tasks.add_action(std::make_shared<Action_ProcessClientAction>(
             incoming.value(), *session));
 
           incoming = session->to_node.try_pop();

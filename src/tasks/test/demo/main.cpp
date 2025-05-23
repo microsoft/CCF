@@ -2,7 +2,6 @@
 // Licensed under the Apache 2.0 License.
 
 #include "./actions.h"
-#include "./cancellable_task.h"
 #include "./clients.h"
 #include "./node.h"
 
@@ -39,7 +38,7 @@ TEST_CASE("Tasks")
 
   // Cancelling pre-execution
   const std::string name_2 = "Set x to 2";
-  auto set_2 = make_cancellable_task<BasicTask>([&x]() { x = 2; }, name_2);
+  auto set_2 = make_basic_task([&x]() { x = 2; }, name_2);
   REQUIRE(set_2->get_name() == name_2);
   REQUIRE(x == 1);
   REQUIRE_FALSE(set_2->is_cancelled());
@@ -51,7 +50,7 @@ TEST_CASE("Tasks")
 
   // Cancelling post-execution
   const std::string name_3 = "Set x to 3";
-  auto set_3 = make_cancellable_task<BasicTask>([&x]() { x = 3; }, name_3);
+  auto set_3 = make_basic_task([&x]() { x = 3; }, name_3);
   REQUIRE(set_3->get_name() == name_3);
   REQUIRE(x == 1);
   REQUIRE_FALSE(set_3->is_cancelled());
@@ -102,8 +101,8 @@ void describe_dispatcher(Dispatcher& d)
       "  {}: {} (active: {}, queue.size: {})\n",
       session->name,
       tasks->get_name(),
-      tasks->sub_tasks.active,
-      tasks->sub_tasks.queue.size());
+      tasks->actions.active,
+      tasks->actions.queue.size());
   }
 }
 

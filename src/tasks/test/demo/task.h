@@ -4,16 +4,87 @@
 
 #include <functional>
 #include <memory>
+#include <string>
+
+struct ITask;
+
+namespace ccf::tasks
+{
+  static thread_local ITask* current_task = nullptr;
+
+  struct IResumable
+  {
+    virtual ~IResumable() = default;
+    virtual void resume() = 0;
+  };
+
+  using Resumable = std::unique_ptr<IResumable>;
+}
 
 struct ITask
 {
+  virtual ~ITask() = default;
+
+  size_t do_task()
+  {
+    if (cancelled.load())
+    {
+      return 0;
+    }
+
+    ccf::tasks::current_task = this;
+
+    const auto n = do_task_implementation();
+
+    ccf::tasks::current_task = nullptr;
+
+    return n;
+  }
+
+  virtual ccf::tasks::Resumable pause()
+  {
+    return nullptr;
+  }
+
   // Return some value indicating how much work was done.
-  virtual size_t do_task() = 0;
+  virtual size_t do_task_implementation() = 0;
 
   virtual std::string get_name() const = 0;
+
+  // Cancellation
+  std::atomic<bool> cancelled = false;
+
+  void cancel_task()
+  {
+    cancelled.store(true);
+  }
+
+  bool is_cancelled()
+  {
+    return cancelled.load();
+  }
 };
 
 using Task = std::shared_ptr<ITask>;
+
+namespace ccf::tasks
+{
+  Resumable pause_current_task()
+  {
+    if (current_task == nullptr)
+    {
+      throw std::logic_error("Cannot pause: No task currently running");
+    }
+
+    auto handle = current_task->pause();
+    if (handle == nullptr)
+    {
+      throw std::logic_error("Cannot pause: Current task is not pausable");
+    }
+
+    return handle;
+  }
+}
 
 struct BasicTask : public ITask
 {
@@ -25,7 +96,7 @@ struct BasicTask : public ITask
   BasicTask(const Fn& _fn, const std::string& s = "[Anon]") : name(s), fn(_fn)
   {}
 
-  size_t do_task() override
+  size_t do_task_implementation() override
   {
     fn();
     return 1;
@@ -48,3 +119,11 @@ Task make_basic_task(Ts&&... ts)
 {
   return make_task<BasicTask>(std::forward<Ts>(ts)...);
 }
+
+struct IPausedTask
+{
+  virtual ~IPausedTask() = default;
+
+  // TODO: Optionally takes an action to execute first?
+  virtual void resume();
+};
