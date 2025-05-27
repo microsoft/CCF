@@ -75,39 +75,39 @@ TEST_CASE("OrderedTasks")
 
   JobBoard job_board;
   {
-    std::vector<std::unique_ptr<Worker>> workers;
-    for (auto i = 0; i < num_workers; ++i)
+    // Record next x to send for each session
+    std::vector<std::pair<std::shared_ptr<OrderedTasks>, size_t>> all_tasks;
+    for (auto i = 0; i < num_sessions; ++i)
     {
-      workers.emplace_back(std::make_unique<Worker>(job_board, i));
+      all_tasks.emplace_back(
+        std::make_shared<OrderedTasks>(job_board, std::to_string(i)), 0);
+    }
+
+    auto add_action = [&](size_t idx, size_t sleep_time_ms) {
+      auto& [tasks, n] = all_tasks[idx];
+      tasks->add_action(make_basic_action([=, &n, &results]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time_ms));
+        const auto x = ++n;
+        LOG_TRACE_FMT("{} {}", tasks->get_name(), x);
+        REQUIRE(++results[idx] == x);
+      }));
+    };
+
+    // Add some initial tasks on each session
+    const auto spacing = 3;
+    const auto period = spacing * num_sessions + 1;
+    for (auto i = 0; i < num_sessions; ++i)
+    {
+      add_action(i, spacing * i);
+      add_action(i, period);
+      add_action(i, period);
     }
 
     {
-      // Record next x to send for each session
-      std::vector<std::pair<std::shared_ptr<OrderedTasks>, size_t>> all_tasks;
-      for (auto i = 0; i < num_sessions; ++i)
+      std::vector<std::unique_ptr<Worker>> workers;
+      for (auto i = 0; i < num_workers; ++i)
       {
-        all_tasks.emplace_back(
-          std::make_shared<OrderedTasks>(job_board, std::to_string(i)), 0);
-      }
-
-      auto add_action = [&](size_t idx, size_t sleep_time_ms) {
-        auto& [tasks, n] = all_tasks[idx];
-        tasks->add_action(make_basic_action([=, &n, &results]() {
-          std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time_ms));
-          const auto x = ++n;
-          LOG_TRACE_FMT("{} {}", tasks->get_name(), x);
-          REQUIRE(++results[idx] == x);
-        }));
-      };
-
-      // Add some initial tasks on each session
-      const auto spacing = 3;
-      const auto period = spacing * num_sessions + 1;
-      for (auto i = 0; i < num_sessions; ++i)
-      {
-        add_action(i, spacing * i);
-        add_action(i, period);
-        add_action(i, period);
+        workers.emplace_back(std::make_unique<Worker>(job_board, i));
       }
 
       // Start processing those tasks on worker threads
