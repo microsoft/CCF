@@ -385,6 +385,7 @@ TEST_CASE("Run")
       total_tasks_processed += worker->state.work_completed;
     }
 
+    // TODO
     // Validate results?
     // Validate clean shutdown?
     // Print some metrics?
