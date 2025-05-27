@@ -197,6 +197,9 @@ TEST_CASE("PauseAndResume")
 
       x_tasks->add_action(increment(x));
       x_tasks->add_action(make_basic_action([&]() {
+        // NB: This doesn't need to _know_ the current task, just that it is
+        // executed _as part of a task_. This means it could occur deep within a
+        // call-stack.
         resumable = ccf::tasks::pause_current_task();
         // NB: The current _action_ will still complete execution!
         happened = true;
@@ -222,14 +225,37 @@ TEST_CASE("PauseAndResume")
       REQUIRE(x == 102);
       REQUIRE(y == 202);
 
-      // After resume(), all queued actions will (be able to) execute, in-order
-      resumable->resume();
+      // After resume, all queued actions will (be able to) execute, in-order
+      ccf::tasks::resume_task(std::move(resumable));
 
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
       REQUIRE(x == 203);
       REQUIRE(y == 202);
+
+      // A task might be paused multiple times during its life
+      resumable = nullptr;
+      x_tasks->add_action(increment(x));
+      x_tasks->add_action(make_basic_action(
+        [&]() { resumable = ccf::tasks::pause_current_task(); }));
+      x_tasks->add_action(increment(x));
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      REQUIRE(x == 204);
+      REQUIRE(resumable != nullptr);
+
+      // A paused task can be cancelled
+      x_tasks->cancel_task();
+
+      // Cancellation supercedes resumption - nothing more happens on this task
+      ccf::tasks::resume_task(std::move(resumable));
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      REQUIRE(x == 204);
     }
   }
+
+  // Trying to pause outside of a task will throw an error
+  REQUIRE_THROWS(ccf::tasks::pause_current_task());
 }
 
 void describe_session_manager(SessionManager& sm)

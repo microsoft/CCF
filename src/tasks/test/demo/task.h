@@ -12,10 +12,19 @@ namespace ccf::tasks
 {
   static thread_local ITask* current_task = nullptr;
 
+  struct IResumable;
+  void resume_task(std::unique_ptr<IResumable>&& resumable);
+
   struct IResumable
   {
-    virtual ~IResumable() = default;
+  private:
     virtual void resume() = 0;
+
+  public:
+    virtual ~IResumable() = default;
+
+    friend void ccf::tasks::resume_task(
+      std::unique_ptr<IResumable>&& resumable);
   };
 
   using Resumable = std::unique_ptr<IResumable>;
@@ -83,6 +92,11 @@ namespace ccf::tasks
     }
 
     return handle;
+  }
+
+  void resume_task(Resumable&& resumable)
+  {
+    resumable->resume();
   }
 }
 
