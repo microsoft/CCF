@@ -135,6 +135,103 @@ TEST_CASE("OrderedTasks")
   }
 }
 
+TEST_CASE("PauseAndResume")
+{
+  JobBoard job_board;
+  {
+    size_t x = 0;
+    size_t y = 0;
+
+    auto increment = [](size_t& n) {
+      return make_basic_action([&n]() { ++n; });
+    };
+
+    std::shared_ptr<OrderedTasks> x_tasks =
+      std::make_shared<OrderedTasks>(job_board, "x");
+    std::shared_ptr<OrderedTasks> y_tasks =
+      std::make_shared<OrderedTasks>(job_board, "y");
+
+    x_tasks->add_action(increment(x));
+    y_tasks->add_action(increment(y));
+    y_tasks->add_action(increment(y));
+
+    {
+      Worker worker(job_board, 0);
+
+      // Worker exists but hasn't started yet - no increments have occurred
+      REQUIRE(x == 0);
+      REQUIRE(y == 0);
+
+      // Even if we wait
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      REQUIRE(x == 0);
+      REQUIRE(y == 0);
+
+      // If we start the worker (and wait), it will execute the pending tasks
+      worker.start();
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      REQUIRE(x == 1);
+      REQUIRE(y == 2);
+
+      // We can concurrently queue many more tasks, which will be executed
+      // immediately
+      for (auto i = 0; i < 100; ++i)
+      {
+        x_tasks->add_action(increment(x));
+        y_tasks->add_action(increment(y));
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      REQUIRE(x == 101);
+      REQUIRE(y == 102);
+    }
+
+    {
+      // Terminating previous worker, creating a new one (not yet running)
+      Worker worker(job_board, 1);
+
+      // If we need to block, we can ask for a task to be paused. Note that the
+      // current action will still complete
+      bool happened = false;
+      ccf::tasks::Resumable resumable;
+
+      x_tasks->add_action(increment(x));
+      x_tasks->add_action(make_basic_action([&]() {
+        resumable = ccf::tasks::pause_current_task();
+        // NB: The current _action_ will still complete execution!
+        happened = true;
+      }));
+      x_tasks->add_action(increment(x));
+
+      worker.start();
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      REQUIRE(x == 102); // One increment action happened
+      REQUIRE(happened == true); // Then the pause action ran to completion
+      REQUIRE(
+        resumable != nullptr); // We got a handle to later resume this task
+
+      // Other actions can be scheduled, including on the paused task.
+      // Unpaused tasks will complete as normal.
+      for (auto i = 0; i < 100; ++i)
+      {
+        x_tasks->add_action(increment(x));
+        y_tasks->add_action(increment(y));
+      }
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      REQUIRE(x == 102);
+      REQUIRE(y == 202);
+
+      // After resume(), all queued actions will (be able to) execute, in-order
+      resumable->resume();
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      REQUIRE(x == 203);
+      REQUIRE(y == 202);
+    }
+  }
+}
+
 void describe_session_manager(SessionManager& sm)
 {
   std::lock_guard<std::mutex> lock(sm.sessions_mutex);
@@ -175,7 +272,7 @@ void describe_dispatcher(Dispatcher& d)
       session->name,
       tasks->get_name(),
       tasks->actions.active,
-      tasks->actions.queue.size());
+      tasks->actions.pending.size());
   }
 }
 

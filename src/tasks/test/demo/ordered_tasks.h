@@ -18,7 +18,7 @@ namespace
   protected:
   public: // TODO: Bit weird
     std::mutex mutex;
-    std::deque<T> queue;
+    std::deque<T> pending;
     std::atomic<bool> active;
     std::atomic<bool> paused;
 
@@ -26,31 +26,40 @@ namespace
     bool push(T&& t)
     {
       std::lock_guard<std::mutex> lock(mutex);
-      const bool ret = queue.empty() && !active.load();
-      queue.emplace_back(std::forward<T>(t));
+      const bool ret = pending.empty() && !active.load();
+      pending.emplace_back(std::forward<T>(t));
       return ret;
     }
 
     using Visitor = std::function<void(T&&)>;
     bool pop_and_visit(Visitor&& visitor)
     {
-      decltype(queue) local;
+      decltype(pending) local;
       {
         std::lock_guard<std::mutex> lock(mutex);
         active.store(true);
 
-        std::swap(local, queue);
+        std::swap(local, pending);
       }
 
-      for (auto&& entry : local)
+      auto it = local.begin();
+      while (!paused.load() && it != local.end())
       {
-        visitor(std::forward<T>(entry));
+        visitor(std::forward<T>(*it));
+        ++it;
       }
 
       {
         std::lock_guard<std::mutex> lock(mutex);
+        if (it != local.end())
+        {
+          // Paused mid-execution - some actions remain that need to be spliced
+          // back onto the front of the pending pending
+          pending.insert(pending.begin(), it, local.end());
+        }
+
         active.store(false);
-        return !queue.empty() && !paused.load();
+        return !pending.empty() && !paused.load();
       }
     }
 
@@ -64,7 +73,7 @@ namespace
     {
       std::lock_guard<std::mutex> lock(mutex);
       paused.store(false);
-      return !queue.empty() && !active.load();
+      return !pending.empty() && !active.load();
     }
   };
 
